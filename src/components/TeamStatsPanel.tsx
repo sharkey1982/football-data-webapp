@@ -52,7 +52,6 @@ export function TeamStatsPanel({
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(10);
   const [venue, setVenue] = useState<Venue>('combined');
   const [distributionView, setDistributionView] = useState<'count' | 'pct'>('count');
-  const [showGrid, setShowGrid] = useState(false);
 
   // The top stat panels (Overall / Home form / Away form) intentionally show
   // "the last N games overall, split by venue within that window" -- e.g.
@@ -145,21 +144,11 @@ export function TeamStatsPanel({
                 {dixonColes.expectedHomeGoals.toFixed(2)} &ndash; {dixonColes.expectedAwayGoals.toFixed(2)}
               </span>
             </div>
-            <button
-              onClick={() => setShowGrid((v) => !v)}
-              className="text-sm text-pitch-700 underline hover:text-pitch-800"
-            >
-              {showGrid ? 'Hide' : 'Show'} full scoreline probabilities
-            </button>
-            {showGrid && (
-              <div className="mt-4">
-                <ScoreProbabilityGrid
-                  result={dixonColes}
-                  homeTeamName={fixtureHomeTeamName ?? 'Home'}
-                  awayTeamName={fixtureAwayTeamName ?? 'Away'}
-                />
-              </div>
-            )}
+            <ScoreProbabilityGrid
+              result={dixonColes}
+              homeTeamName={fixtureHomeTeamName ?? 'Home'}
+              awayTeamName={fixtureAwayTeamName ?? 'Away'}
+            />
           </div>
         )}
       </div>
@@ -178,7 +167,9 @@ export function TeamStatsPanel({
               <th className="text-left font-mono text-xs px-3 py-2">Away</th>
               <th className="text-center font-mono text-xs px-3 py-2">HT</th>
               <th className="text-center font-mono text-xs px-3 py-2">Shots</th>
+              <th className="text-center font-mono text-xs px-3 py-2">SOT</th>
               <th className="text-center font-mono text-xs px-3 py-2">Corners</th>
+              <th className="text-center font-mono text-xs px-3 py-2">Fouls</th>
               <th className="text-center font-mono text-xs px-3 py-2">Cards</th>
             </tr>
           </thead>
@@ -203,7 +194,13 @@ export function TeamStatsPanel({
                   {m.home_shots ?? '–'}&ndash;{m.away_shots ?? '–'}
                 </td>
                 <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {m.home_shots_on_target ?? '–'}&ndash;{m.away_shots_on_target ?? '–'}
+                </td>
+                <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
                   {m.home_corners ?? '–'}&ndash;{m.away_corners ?? '–'}
+                </td>
+                <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {m.home_fouls ?? '–'}&ndash;{m.away_fouls ?? '–'}
                 </td>
                 <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
                   {m.home_yellow_cards}/{m.home_red_cards}&ndash;{m.away_yellow_cards}/{m.away_red_cards}

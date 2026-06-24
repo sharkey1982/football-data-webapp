@@ -206,7 +206,9 @@ export default function RawData() {
                 <th className="text-left font-display uppercase text-xs tracking-wide px-3 py-2">Away</th>
                 <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">HT</th>
                 <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">Shots</th>
+                <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">SOT</th>
                 <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">Corners</th>
+                <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">Fouls</th>
                 <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">Cards</th>
               </tr>
             </thead>
@@ -230,7 +232,13 @@ export default function RawData() {
                     {m.home_shots ?? '–'}&ndash;{m.away_shots ?? '–'}
                   </td>
                   <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                    {m.home_shots_on_target ?? '–'}&ndash;{m.away_shots_on_target ?? '–'}
+                  </td>
+                  <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
                     {m.home_corners ?? '–'}&ndash;{m.away_corners ?? '–'}
+                  </td>
+                  <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                    {m.home_fouls ?? '–'}&ndash;{m.away_fouls ?? '–'}
                   </td>
                   <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
                     {m.home_yellow_cards}/{m.home_red_cards}&ndash;{m.away_yellow_cards}/{m.away_red_cards}

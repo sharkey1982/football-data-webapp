@@ -61,7 +61,6 @@ export default function MatchPreview() {
     dixonColes: DixonColesResult | null;
   } | null>(null);
 
-  const [showGrid, setShowGrid] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -135,7 +134,6 @@ export default function MatchPreview() {
 
     setLoadingPreview(true);
     setError(null);
-    setShowGrid(false);
     setModelUnavailable(null);
     setActiveTab('overview');
     try {
@@ -408,21 +406,11 @@ export default function MatchPreview() {
                       {previewData.dixonColes.expectedAwayGoals.toFixed(2)}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setShowGrid((v) => !v)}
-                    className="text-sm text-pitch-700 underline hover:text-pitch-800"
-                  >
-                    {showGrid ? 'Hide' : 'Show'} full scoreline probabilities
-                  </button>
-                  {showGrid && (
-                    <div className="mt-4">
-                      <ScoreProbabilityGrid
-                        result={previewData.dixonColes}
-                        homeTeamName={homeTeamName}
-                        awayTeamName={awayTeamName}
-                      />
-                    </div>
-                  )}
+                  <ScoreProbabilityGrid
+                    result={previewData.dixonColes}
+                    homeTeamName={homeTeamName}
+                    awayTeamName={awayTeamName}
+                  />
                 </>
               ) : (
                 <p className="text-sm text-ink-500">Dixon-Coles prediction unavailable for this fixture.</p>
