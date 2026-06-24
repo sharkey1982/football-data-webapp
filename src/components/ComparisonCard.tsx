@@ -2,6 +2,11 @@ import { FormBadge } from './ScoreChip';
 import type { TeamStreaks } from '../lib/api';
 import type { FormResult } from '../lib/api';
 
+export interface FormEntry {
+  result: FormResult;
+  detail: string;
+}
+
 export function ComparisonCard({
   homeTeamName,
   awayTeamName,
@@ -13,8 +18,8 @@ export function ComparisonCard({
 }: {
   homeTeamName: string;
   awayTeamName: string;
-  homeForm: FormResult[];
-  awayForm: FormResult[];
+  homeForm: FormEntry[];
+  awayForm: FormEntry[];
   homeWinPct?: number;
   drawPct?: number;
   awayWinPct?: number;
@@ -46,13 +51,13 @@ export function ComparisonCard({
   );
 }
 
-function TeamColumn({ name, form, align }: { name: string; form: FormResult[]; align: 'left' | 'right' }) {
+function TeamColumn({ name, form, align }: { name: string; form: FormEntry[]; align: 'left' | 'right' }) {
   return (
     <div className={`p-4 ${align === 'right' ? 'text-right' : ''}`}>
       <div className="font-display uppercase text-lg tracking-wide truncate">{name}</div>
       <div className={`flex gap-1 mt-2 ${align === 'right' ? 'justify-end' : ''}`}>
-        {(align === 'right' ? [...form].reverse() : form).slice(0, 5).map((r, i) => (
-          <FormBadge key={i} result={r} />
+        {(align === 'right' ? [...form].reverse() : form).slice(0, 5).map((entry, i) => (
+          <FormBadge key={i} result={entry.result} detail={entry.detail} />
         ))}
       </div>
     </div>

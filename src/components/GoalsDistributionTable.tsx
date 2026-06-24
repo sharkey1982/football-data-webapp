@@ -7,22 +7,44 @@ import type { GoalsDistributionStats } from '../lib/api';
  * for an upcoming fixture) to show alongside the historical numbers, so a
  * user can compare "what the model expects next" against "what actually
  * happened recently" in one glance.
+ *
+ * `viewMode` toggles the bucket rows between raw match counts and percentage
+ * of the total matches in this window -- median/mode/mean always stay as
+ * actual goal values regardless, since percentaging a median doesn't mean
+ * anything.
  */
 export function GoalsDistributionTable({
   stats,
   windowLabel,
   modelled,
+  viewMode = 'count',
 }: {
   stats: { goalsFor: GoalsDistributionStats; goalsAgainst: GoalsDistributionStats; net: GoalsDistributionStats };
   windowLabel: string;
   modelled?: { goalsFor: number; goalsAgainst: number };
+  viewMode?: 'count' | 'pct';
 }) {
   const buckets: Array<'0' | '1' | '2' | '3+'> = ['0', '1', '2', '3+'];
+
+  const totalMatches =
+    stats.goalsFor.bucketCounts['0'] +
+    stats.goalsFor.bucketCounts['1'] +
+    stats.goalsFor.bucketCounts['2'] +
+    stats.goalsFor.bucketCounts['3+'];
+
+  function displayValue(count: number): string {
+    if (viewMode === 'pct') {
+      return totalMatches > 0 ? `${((count / totalMatches) * 100).toFixed(0)}%` : '0%';
+    }
+    return String(count);
+  }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse">
-        <caption className="text-xs text-ink-500 text-left mb-2">{windowLabel}</caption>
+        <caption className="text-xs text-ink-500 text-left mb-2">
+          {windowLabel} ({totalMatches} match{totalMatches === 1 ? '' : 'es'})
+        </caption>
         <thead>
           <tr className="border-b border-chalk-300">
             <th className="text-left py-1.5 pr-3 text-ink-500 font-medium text-xs uppercase tracking-wide">
@@ -37,9 +59,9 @@ export function GoalsDistributionTable({
           {buckets.map((b) => (
             <tr key={b} className="border-b border-chalk-200">
               <td className="py-1 pr-3 font-mono text-ink-700">{b}</td>
-              <td className="py-1 px-2 text-right font-mono">{stats.goalsFor.bucketCounts[b]}</td>
-              <td className="py-1 px-2 text-right font-mono">{stats.goalsAgainst.bucketCounts[b]}</td>
-              <td className="py-1 pl-2 text-right font-mono">{stats.net.bucketCounts[b]}</td>
+              <td className="py-1 px-2 text-right font-mono">{displayValue(stats.goalsFor.bucketCounts[b])}</td>
+              <td className="py-1 px-2 text-right font-mono">{displayValue(stats.goalsAgainst.bucketCounts[b])}</td>
+              <td className="py-1 pl-2 text-right font-mono">{displayValue(stats.net.bucketCounts[b])}</td>
             </tr>
           ))}
           <tr className="border-t-2 border-chalk-300">

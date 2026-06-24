@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getLeagues, getSeasons, getAvailableMatchweeks, getFixturesForMatchweek, type FixtureWithNames } from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
 
@@ -8,14 +8,19 @@ type SeasonOption = { season_id: number; label: string; start_year: number; end_
 
 export default function GameweekBrowser() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
+  const urlSeasonId = searchParams.get('season') ? Number(searchParams.get('season')) : null;
+  const urlMatchweek = searchParams.get('mw') ? Number(searchParams.get('mw')) : null;
 
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
-  const [leagueId, setLeagueId] = useState<number | null>(null);
-  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const [leagueId, setLeagueId] = useState<number | null>(urlLeagueId);
+  const [seasonId, setSeasonId] = useState<number | null>(urlSeasonId);
 
   const [matchweeks, setMatchweeks] = useState<number[]>([]);
-  const [selectedMatchweek, setSelectedMatchweek] = useState<number | null>(null);
+  const [selectedMatchweek, setSelectedMatchweek] = useState<number | null>(urlMatchweek);
 
   const [fixtures, setFixtures] = useState<FixtureWithNames[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +31,20 @@ export default function GameweekBrowser() {
     getSeasons().then((data) => setSeasons(data ?? []));
   }, []);
 
+  // Keep the URL in sync with the current selections, so navigating away
+  // and back (or refreshing, or sharing the link) restores exactly this
+  // league/season/matchweek rather than starting from blank.
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (leagueId) params.league = String(leagueId);
+    if (seasonId) params.season = String(seasonId);
+    if (selectedMatchweek !== null) params.mw = String(selectedMatchweek);
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leagueId, seasonId, selectedMatchweek]);
+
   useEffect(() => {
     setMatchweeks([]);
-    setSelectedMatchweek(null);
     setFixtures(null);
     setError(null);
 
@@ -37,9 +53,14 @@ export default function GameweekBrowser() {
     getAvailableMatchweeks(leagueId, seasonId)
       .then((weeks) => {
         setMatchweeks(weeks);
-        if (weeks.length > 0) setSelectedMatchweek(weeks[0]);
+        // Only default to the first matchweek if we don't already have a
+        // valid selection (e.g. restored from the URL) -- don't clobber it.
+        if (weeks.length > 0 && (selectedMatchweek === null || !weeks.includes(selectedMatchweek))) {
+          setSelectedMatchweek(weeks[0]);
+        }
       })
       .catch((err) => setError(err.message ?? 'Failed to load matchweeks'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId, seasonId]);
 
   useEffect(() => {

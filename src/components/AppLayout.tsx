@@ -4,7 +4,6 @@ const navItems = [
   { to: '/', label: 'Fixtures', end: true },
   { to: '/preview', label: 'Match Preview' },
   { to: '/teams', label: 'Team Explorer' },
-  { to: '/matches', label: 'Match Explorer' },
 ];
 
 export default function AppLayout() {

@@ -34,13 +34,13 @@ export function ScoreProbabilityGrid({
         </caption>
         <thead>
           <tr>
-            <th className="p-1 w-9"></th>
+            <th className="p-1" colSpan={2}></th>
             <th colSpan={displayMax + 1} className="text-xs font-medium text-ink-500 pb-1">
               {awayTeamName} goals &rarr;
             </th>
           </tr>
           <tr>
-            <th className="p-1 w-9"></th>
+            <th className="p-1" colSpan={2}></th>
             {Array.from({ length: displayMax + 1 }, (_, a) => (
               <th key={a} className="w-9 h-7 text-xs font-mono font-medium text-ink-500">
                 {a}

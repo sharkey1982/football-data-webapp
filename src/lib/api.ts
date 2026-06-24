@@ -314,6 +314,29 @@ export function resultForTeam(match: Match, teamId: number): FormResult {
   return 'L';
 }
 
+export interface FormEntry {
+  result: FormResult;
+  detail: string;
+}
+
+/**
+ * Builds the result + a human-readable detail string ("vs Tottenham, 2-1 (H)")
+ * for each match in a list, most-recent-first as given -- used to give
+ * FormBadge tooltips real context instead of just a bare Win/Draw/Loss label.
+ */
+export function buildFormEntries(matches: MatchWithNames[], teamId: number): FormEntry[] {
+  return matches.map((m) => {
+    const isHome = m.home_team_id === teamId;
+    const opponent = isHome ? m.away_team_name : m.home_team_name;
+    const ownGoals = isHome ? m.full_time_home_goals : m.full_time_away_goals;
+    const oppGoals = isHome ? m.full_time_away_goals : m.full_time_home_goals;
+    return {
+      result: resultForTeam(m, teamId),
+      detail: `vs ${opponent}, ${ownGoals}-${oppGoals} (${isHome ? 'H' : 'A'})`,
+    };
+  });
+}
+
 export function summarizeForm(matches: Match[], teamId: number) {
   let wins = 0;
   let draws = 0;

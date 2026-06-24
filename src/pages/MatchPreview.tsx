@@ -9,7 +9,8 @@ import {
   getTeamById,
   getTeamsInLeagueFixtures,
   getMostRecentFixtureSeason,
-  summarizeForm,
+  splitHomeAway,
+  buildFormEntries,
   computeStreaks,
   type TeamWithRating,
   type MatchWithNames,
@@ -54,9 +55,7 @@ export default function MatchPreview() {
 
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<{
-    homeMatches: MatchWithNames[]; // short list (10) for the quick overview cards
-    awayMatches: MatchWithNames[];
-    homeMatchesFull: MatchWithNames[]; // fuller list (60) for the per-team tabs
+    homeMatchesFull: MatchWithNames[]; // last 60 -- used for venue-specific form/streaks and the per-team tabs
     awayMatchesFull: MatchWithNames[];
     h2hMatches: MatchWithNames[];
     dixonColes: DixonColesResult | null;
@@ -140,9 +139,7 @@ export default function MatchPreview() {
     setModelUnavailable(null);
     setActiveTab('overview');
     try {
-      const [homeMatches, awayMatches, homeMatchesFull, awayMatchesFull, h2hMatches] = await Promise.all([
-        getMatchesForTeam(homeTeamId, 10),
-        getMatchesForTeam(awayTeamId, 10),
+      const [homeMatchesFull, awayMatchesFull, h2hMatches] = await Promise.all([
         getMatchesForTeam(homeTeamId, 60),
         getMatchesForTeam(awayTeamId, 60),
         getHeadToHead(homeTeamId, awayTeamId, 10),
@@ -171,7 +168,7 @@ export default function MatchPreview() {
         setModelUnavailable(missing);
       }
 
-      setPreviewData({ homeMatches, awayMatches, homeMatchesFull, awayMatchesFull, h2hMatches, dixonColes });
+      setPreviewData({ homeMatchesFull, awayMatchesFull, h2hMatches, dixonColes });
     } catch (err: any) {
       setError(err.message ?? 'Failed to build match preview');
     } finally {
@@ -312,22 +309,32 @@ export default function MatchPreview() {
               <ComparisonCard
                 homeTeamName={homeTeamName}
                 awayTeamName={awayTeamName}
-                homeForm={summarizeForm(previewData.homeMatches, homeTeamId!).form}
-                awayForm={summarizeForm(previewData.awayMatches, awayTeamId!).form}
+                homeForm={buildFormEntries(
+                  splitHomeAway(previewData.homeMatchesFull, homeTeamId!).home.slice(0, 5),
+                  homeTeamId!
+                )}
+                awayForm={buildFormEntries(
+                  splitHomeAway(previewData.awayMatchesFull, awayTeamId!).away.slice(0, 5),
+                  awayTeamId!
+                )}
                 homeWinPct={previewData.dixonColes?.homeWinPct}
                 drawPct={previewData.dixonColes?.drawPct}
                 awayWinPct={previewData.dixonColes?.awayWinPct}
               />
+              <p className="text-xs text-ink-500 -mt-2">
+                Form shown is each team&rsquo;s record in the role they&rsquo;re playing here &mdash;{' '}
+                {homeTeamName}&rsquo;s last 5 home games, {awayTeamName}&rsquo;s last 5 away games.
+              </p>
               <div className="border border-chalk-300 rounded-lg bg-white p-4">
                 <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">Notable streaks</h2>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <StreakBadges
                     teamName={homeTeamName}
-                    streaks={computeStreaks(previewData.homeMatches, homeTeamId!)}
+                    streaks={computeStreaks(splitHomeAway(previewData.homeMatchesFull, homeTeamId!).home, homeTeamId!)}
                   />
                   <StreakBadges
                     teamName={awayTeamName}
-                    streaks={computeStreaks(previewData.awayMatches, awayTeamId!)}
+                    streaks={computeStreaks(splitHomeAway(previewData.awayMatchesFull, awayTeamId!).away, awayTeamId!)}
                   />
                 </div>
               </div>

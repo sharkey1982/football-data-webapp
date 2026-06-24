@@ -29,7 +29,14 @@ export function ScoreChip({
 }
 
 /** Single-letter Win/Draw/Loss indicator chip, used in form strings. */
-export function FormBadge({ result }: { result: 'W' | 'D' | 'L' }) {
+export function FormBadge({
+  result,
+  detail,
+}: {
+  result: 'W' | 'D' | 'L';
+  /** Optional richer tooltip text, e.g. "vs Tottenham, 2-1 (H)" -- falls back to a plain Win/Draw/Loss label if omitted. */
+  detail?: string;
+}) {
   const styles = {
     W: 'bg-pitch-700 text-chalk-100',
     D: 'bg-chalk-300 text-ink-700',
@@ -39,7 +46,7 @@ export function FormBadge({ result }: { result: 'W' | 'D' | 'L' }) {
   return (
     <span
       className={`inline-flex items-center justify-center w-6 h-6 rounded-sm text-xs font-bold font-mono ${styles}`}
-      title={result === 'W' ? 'Win' : result === 'D' ? 'Draw' : 'Loss'}
+      title={detail ?? (result === 'W' ? 'Win' : result === 'D' ? 'Draw' : 'Loss')}
     >
       {result}
     </span>
