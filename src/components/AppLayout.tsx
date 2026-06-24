@@ -1,12 +1,32 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useRef } from 'react';
+import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
-const navItems = [
-  { to: '/', label: 'Fixtures', end: true },
+const staticNavItems: { to: To; label: string; end?: boolean }[] = [
   { to: '/preview', label: 'Match Preview' },
   { to: '/teams', label: 'Team Explorer' },
 ];
 
 export default function AppLayout() {
+  const location = useLocation();
+
+  // AppLayout wraps every page and never unmounts on route changes (only
+  // the <Outlet /> content swaps), so it's the right place to remember the
+  // fixtures search string across navigation. Mutating a ref directly
+  // during render is safe here -- it's a derived cache of the current
+  // location, not new state, and doesn't need its own re-render.
+  const lastFixturesSearch = useRef('');
+  const onFixturesRoute = location.pathname === '/' || location.pathname === '/fixtures';
+  if (onFixturesRoute) {
+    lastFixturesSearch.current = location.search;
+  }
+
+  const fixturesTo: To = { pathname: '/', search: lastFixturesSearch.current };
+
+  const navItems: { to: To; label: string; end?: boolean }[] = [
+    { to: fixturesTo, label: 'Fixtures', end: true },
+    ...staticNavItems,
+  ];
+
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
@@ -22,7 +42,7 @@ export default function AppLayout() {
           <nav aria-label="Main navigation">
             <ul className="flex flex-wrap gap-1 sm:gap-2 text-sm font-medium">
               {navItems.map((item) => (
-                <li key={item.to}>
+                <li key={item.label}>
                   <NavLink
                     to={item.to}
                     end={item.end}
