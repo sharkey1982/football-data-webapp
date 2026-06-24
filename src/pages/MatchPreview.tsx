@@ -371,6 +371,9 @@ export default function MatchPreview() {
                     }
                   : undefined
               }
+              dixonColes={previewData.dixonColes}
+              fixtureHomeTeamName={homeTeamName}
+              fixtureAwayTeamName={awayTeamName}
             />
           )}
 
@@ -386,6 +389,9 @@ export default function MatchPreview() {
                     }
                   : undefined
               }
+              dixonColes={previewData.dixonColes}
+              fixtureHomeTeamName={homeTeamName}
+              fixtureAwayTeamName={awayTeamName}
             />
           )}
 

@@ -2,16 +2,15 @@ import { useState } from 'react';
 import {
   summarizeForm,
   splitHomeAway,
-  buildMatchTrend,
   buildFormEntries,
   calculateGoalsDistribution,
   type MatchWithNames,
 } from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
 import { ScoreChip, FormBadge } from './ScoreChip';
-import { GoalTrendChart } from './GoalTrendChart';
-import { FormSequenceChart } from './FormSequenceChart';
 import { GoalsDistributionTable } from './GoalsDistributionTable';
+import { ScoreProbabilityGrid } from './ScoreProbabilityGrid';
+import type { DixonColesResult } from '../lib/dixonColes';
 
 type TeamOption = { team_id: number; canonical_name: string };
 type RollingWindow = 10 | 20 | 30 | 'season';
@@ -30,15 +29,30 @@ export function TeamStatsPanel({
   team,
   matches,
   modelled,
+  dixonColes,
+  fixtureHomeTeamName,
+  fixtureAwayTeamName,
 }: {
   team: TeamOption;
   matches: MatchWithNames[];
   /** Dixon-Coles expected goals for THIS team in a specific upcoming fixture, shown as a comparison row. */
   modelled?: { goalsFor: number; goalsAgainst: number };
+  /**
+   * The full fixture-level Dixon-Coles result (same for both the Home and
+   * Away tabs, since it's the model's output for the one upcoming fixture
+   * being previewed, not specific to either team's perspective). Only
+   * passed from Match Preview -- Team Explorer has no fixture context, so
+   * this is undefined there and the box simply doesn't render.
+   */
+  dixonColes?: DixonColesResult | null;
+  /** The fixture's actual home/away team names, for the score grid's axis labels. */
+  fixtureHomeTeamName?: string;
+  fixtureAwayTeamName?: string;
 }) {
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(10);
   const [venue, setVenue] = useState<Venue>('combined');
   const [distributionView, setDistributionView] = useState<'count' | 'pct'>('count');
+  const [showGrid, setShowGrid] = useState(false);
 
   // The top stat panels (Overall / Home form / Away form) intentionally show
   // "the last N games overall, split by venue within that window" -- e.g.
@@ -73,86 +87,131 @@ export function TeamStatsPanel({
         <StatPanel title="Away form" summary={awayForm} matches={away} team={team} />
       </div>
 
-      <div className="border border-chalk-300 rounded-lg bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h2 className="font-display uppercase text-sm tracking-wide text-ink-500">
-            Goals distribution &mdash; {team.canonical_name}
-          </h2>
-          <div className="flex gap-2 text-xs">
-            <SegmentedControl
-              options={[
-                { value: 10, label: '10' },
-                { value: 20, label: '20' },
-                { value: 30, label: '30' },
-                { value: 'season', label: 'Season' },
-              ]}
-              value={rollingWindow}
-              onChange={(v) => setRollingWindow(v as RollingWindow)}
-            />
-            <SegmentedControl
-              options={[
-                { value: 'combined', label: 'Combined' },
-                { value: 'home', label: 'Home' },
-                { value: 'away', label: 'Away' },
-              ]}
-              value={venue}
-              onChange={(v) => setVenue(v as Venue)}
-            />
-            <SegmentedControl
-              options={[
-                { value: 'count', label: '#' },
-                { value: 'pct', label: '%' },
-              ]}
-              value={distributionView}
-              onChange={(v) => setDistributionView(v as 'count' | 'pct')}
-            />
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="border border-chalk-300 rounded-lg bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 className="font-display uppercase text-sm tracking-wide text-ink-500">
+              Goals distribution &mdash; {team.canonical_name}
+            </h2>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <SegmentedControl
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 20, label: '20' },
+                  { value: 30, label: '30' },
+                  { value: 'season', label: 'Season' },
+                ]}
+                value={rollingWindow}
+                onChange={(v) => setRollingWindow(v as RollingWindow)}
+              />
+              <SegmentedControl
+                options={[
+                  { value: 'combined', label: 'Combined' },
+                  { value: 'home', label: 'Home' },
+                  { value: 'away', label: 'Away' },
+                ]}
+                value={venue}
+                onChange={(v) => setVenue(v as Venue)}
+              />
+              <SegmentedControl
+                options={[
+                  { value: 'count', label: '#' },
+                  { value: 'pct', label: '%' },
+                ]}
+                value={distributionView}
+                onChange={(v) => setDistributionView(v as 'count' | 'pct')}
+              />
+            </div>
           </div>
+          {distribution ? (
+            <GoalsDistributionTable
+              stats={distribution}
+              windowLabel={`Rolling last ${rollingWindow === 'season' ? 'season' : rollingWindow}, ${venue}`}
+              modelled={modelled}
+              viewMode={distributionView}
+            />
+          ) : (
+            <p className="text-sm text-ink-500">Not enough match data for this selection yet.</p>
+          )}
         </div>
-        {distribution ? (
-          <GoalsDistributionTable
-            stats={distribution}
-            windowLabel={`Rolling last ${rollingWindow === 'season' ? 'season' : rollingWindow}, ${venue}`}
-            modelled={modelled}
-            viewMode={distributionView}
-          />
-        ) : (
-          <p className="text-sm text-ink-500">Not enough match data for this selection yet.</p>
+
+        {dixonColes && (
+          <div className="border border-chalk-300 rounded-lg bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display uppercase text-sm tracking-wide text-ink-500">
+                Dixon-Coles expected goals
+              </h2>
+              <span className="font-mono text-lg font-bold text-pitch-800">
+                {dixonColes.expectedHomeGoals.toFixed(2)} &ndash; {dixonColes.expectedAwayGoals.toFixed(2)}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowGrid((v) => !v)}
+              className="text-sm text-pitch-700 underline hover:text-pitch-800"
+            >
+              {showGrid ? 'Hide' : 'Show'} full scoreline probabilities
+            </button>
+            {showGrid && (
+              <div className="mt-4">
+                <ScoreProbabilityGrid
+                  result={dixonColes}
+                  homeTeamName={fixtureHomeTeamName ?? 'Home'}
+                  awayTeamName={fixtureAwayTeamName ?? 'Away'}
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      <div className="border border-chalk-300 rounded-lg bg-white p-4">
-        <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
-          Goals trend &mdash; last {Math.min(matches.length, 15)} matches
-        </h2>
-        <GoalTrendChart data={buildMatchTrend(matches.slice(0, 15), team.team_id)} />
-      </div>
-
-      <div className="border border-chalk-300 rounded-lg bg-white p-4">
-        <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
-          Form &mdash; last {Math.min(matches.length, 15)} matches
-        </h2>
-        <FormSequenceChart data={buildMatchTrend(matches.slice(0, 15), team.team_id)} />
-      </div>
-
-      <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
+      <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white overflow-x-auto">
         <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide">
           Recent matches &mdash; {team.canonical_name}
         </div>
-        <ul className="divide-y divide-chalk-300">
-          {matches.slice(0, 15).map((m) => (
-            <li key={m.match_id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3">
-              <span className="font-mono text-xs text-ink-500 w-24 shrink-0">{formatMatchDate(m.match_date)}</span>
-              <span className="font-mono text-xs uppercase text-pitch-700 font-semibold w-12 shrink-0">
-                {m.league_code}
-              </span>
-              <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
-                <span className="truncate font-medium">{m.home_team_name}</span>
-                <ScoreChip homeGoals={m.full_time_home_goals} awayGoals={m.full_time_away_goals} size="sm" />
-                <span className="truncate font-medium text-right">{m.away_team_name}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-chalk-300 text-ink-500">
+              <th className="text-left font-mono text-xs px-3 py-2 whitespace-nowrap">Date</th>
+              <th className="text-left font-mono text-xs px-3 py-2">Div</th>
+              <th className="text-right font-mono text-xs px-3 py-2">Home</th>
+              <th className="text-center font-mono text-xs px-3 py-2">Score</th>
+              <th className="text-left font-mono text-xs px-3 py-2">Away</th>
+              <th className="text-center font-mono text-xs px-3 py-2">HT</th>
+              <th className="text-center font-mono text-xs px-3 py-2">Shots</th>
+              <th className="text-center font-mono text-xs px-3 py-2">Corners</th>
+              <th className="text-center font-mono text-xs px-3 py-2">Cards</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-chalk-200">
+            {matches.slice(0, 15).map((m) => (
+              <tr key={m.match_id} className="hover:bg-chalk-100 transition-colors">
+                <td className="px-3 py-2 font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {formatMatchDate(m.match_date)}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs uppercase text-pitch-700 font-semibold">
+                  {m.league_code}
+                </td>
+                <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{m.home_team_name}</td>
+                <td className="px-3 py-2 text-center">
+                  <ScoreChip homeGoals={m.full_time_home_goals} awayGoals={m.full_time_away_goals} size="sm" />
+                </td>
+                <td className="px-3 py-2 font-medium whitespace-nowrap">{m.away_team_name}</td>
+                <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {m.half_time_home_goals ?? '–'}&ndash;{m.half_time_away_goals ?? '–'}
+                </td>
+                <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {m.home_shots ?? '–'}&ndash;{m.away_shots ?? '–'}
+                </td>
+                <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {m.home_corners ?? '–'}&ndash;{m.away_corners ?? '–'}
+                </td>
+                <td className="px-3 py-2 text-center font-mono text-xs text-ink-500 whitespace-nowrap">
+                  {m.home_yellow_cards}/{m.home_red_cards}&ndash;{m.away_yellow_cards}/{m.away_red_cards}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
