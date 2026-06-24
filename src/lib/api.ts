@@ -602,8 +602,131 @@ export async function getTeamRatingsForFitRun(fitRunId: number): Promise<TeamWit
 }
 
 // ----------------------------------------------------------------------------
-// Fixtures (scheduled, not-yet-played matches)
+// Raw data browser -- generic, filterable view over the matches table
 // ----------------------------------------------------------------------------
+
+export type MatchVenueFilter = 'home' | 'away' | 'either';
+
+export interface RawMatchesFilters {
+  leagueId?: number;
+  seasonId?: number;
+  teamId?: number;
+  venue?: MatchVenueFilter; // only meaningful when teamId is set; defaults to 'either'
+}
+
+// PostgREST's own hard cap is 1000 rows per request regardless of what we
+// ask for, so this is a UI-level cap one below that -- if we ever hit it,
+// we want to know it was OUR limit (and tell the person to narrow further),
+// not silently get the same number back from a server-side cutoff and not
+// realise results are incomplete.
+const RAW_MATCHES_ROW_CAP = 1000;
+
+/**
+ * Generic filterable matches query for the Raw Data tab. Unlike
+ * getMatchesForTeam/searchMatches (which are tuned for their specific
+ * callers, with small limits and team-name-substring matching), this is
+ * meant to return "give me everything matching these filters" -- exact
+ * team_id matching, an explicit home/away/either venue constraint, and a
+ * row count high enough to cover a full team-season (and most
+ * league+season combinations) without truncation.
+ *
+ * Returns both the rows and whether the result was capped, so the UI can
+ * tell the person to narrow their filters rather than silently showing a
+ * partial table.
+ */
+export async function getRawMatches(
+  filters: RawMatchesFilters
+): Promise<{ matches: MatchWithNames[]; truncated: boolean }> {
+  let query = supabase
+    .from('matches')
+    .select(
+      `
+      *,
+      home_team:teams!matches_home_team_id_fkey(canonical_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      league:leagues(code, name),
+      season:seasons(label)
+    `
+    )
+    .order('match_date', { ascending: false })
+    .limit(RAW_MATCHES_ROW_CAP + 1); // +1 so we can detect truncation, not just hit the cap blind
+
+  if (filters.leagueId) query = query.eq('league_id', filters.leagueId);
+  if (filters.seasonId) query = query.eq('season_id', filters.seasonId);
+
+  if (filters.teamId) {
+    const venue = filters.venue ?? 'either';
+    if (venue === 'home') {
+      query = query.eq('home_team_id', filters.teamId);
+    } else if (venue === 'away') {
+      query = query.eq('away_team_id', filters.teamId);
+    } else {
+      query = query.or(`home_team_id.eq.${filters.teamId},away_team_id.eq.${filters.teamId}`);
+    }
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const truncated = rows.length > RAW_MATCHES_ROW_CAP;
+  const matches = (truncated ? rows.slice(0, RAW_MATCHES_ROW_CAP) : rows).map((row: any) => ({
+    ...row,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    league_code: row.league?.code ?? '',
+    league_name: row.league?.name ?? '',
+    season_label: row.season?.label ?? '',
+  })) as MatchWithNames[];
+
+  return { matches, truncated };
+}
+
+/** Converts raw match rows to a CSV string for the Raw Data tab's export. */
+export function matchesToCsv(matches: MatchWithNames[]): string {
+  const columns: { header: string; get: (m: MatchWithNames) => string | number }[] = [
+    { header: 'Date', get: (m) => m.match_date },
+    { header: 'League', get: (m) => m.league_code },
+    { header: 'Season', get: (m) => m.season_label },
+    { header: 'Home Team', get: (m) => m.home_team_name },
+    { header: 'Away Team', get: (m) => m.away_team_name },
+    { header: 'FT Home Goals', get: (m) => m.full_time_home_goals },
+    { header: 'FT Away Goals', get: (m) => m.full_time_away_goals },
+    { header: 'FT Result', get: (m) => m.full_time_result },
+    { header: 'HT Home Goals', get: (m) => m.half_time_home_goals ?? '' },
+    { header: 'HT Away Goals', get: (m) => m.half_time_away_goals ?? '' },
+    { header: 'HT Result', get: (m) => m.half_time_result ?? '' },
+    { header: 'Home Shots', get: (m) => m.home_shots ?? '' },
+    { header: 'Away Shots', get: (m) => m.away_shots ?? '' },
+    { header: 'Home Shots on Target', get: (m) => m.home_shots_on_target ?? '' },
+    { header: 'Away Shots on Target', get: (m) => m.away_shots_on_target ?? '' },
+    { header: 'Home Corners', get: (m) => m.home_corners ?? '' },
+    { header: 'Away Corners', get: (m) => m.away_corners ?? '' },
+    { header: 'Home Fouls', get: (m) => m.home_fouls ?? '' },
+    { header: 'Away Fouls', get: (m) => m.away_fouls ?? '' },
+    { header: 'Home Yellow Cards', get: (m) => m.home_yellow_cards },
+    { header: 'Away Yellow Cards', get: (m) => m.away_yellow_cards },
+    { header: 'Home Red Cards', get: (m) => m.home_red_cards },
+    { header: 'Away Red Cards', get: (m) => m.away_red_cards },
+    { header: 'Referee', get: (m) => m.referee ?? '' },
+  ];
+
+  // CSV-escape: wrap in quotes and double up any embedded quotes if the
+  // value contains a comma, quote, or newline -- team names and referee
+  // names are the only realistic source of commas (e.g. "Nott'm Forest"
+  // has an apostrophe, not a comma, but better safe than a malformed file).
+  function escapeCsvValue(value: string | number): string {
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  const headerRow = columns.map((c) => escapeCsvValue(c.header)).join(',');
+  const dataRows = matches.map((m) => columns.map((c) => escapeCsvValue(c.get(m))).join(','));
+  return [headerRow, ...dataRows].join('\n');
+}
 
 export type FixtureWithNames = {
   fixture_id: number;

@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 const staticNavItems: { to: To; label: string; end?: boolean }[] = [
   { to: '/preview', label: 'Match Preview' },
   { to: '/teams', label: 'Team Explorer' },
+  { to: '/raw-data', label: 'Raw Data' },
 ];
 
 export default function AppLayout() {
