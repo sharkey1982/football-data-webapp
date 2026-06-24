@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   Design tokens -- "Teleprinter" theme.
+
+   Visual reference: classic football results services (Ceefax/teletext score
+   pages, matchday programme mastheads, stadium scoreboards). Pitch green and
+   teleprinter amber as the anchor pairing, chalky off-white for paper/pitch-
+   marking surfaces, near-black ink for body text, muted terracotta reserved
+   strictly for losses/red-card states so it carries real meaning.
+============================================================================ */
+@theme {
+  --color-pitch-950: #0d2018;
+  --color-pitch-900: #14291f;
+  --color-pitch-800: #1b4332;
+  --color-pitch-700: #265c43;
+  --color-pitch-600: #357556;
+
+  --color-chalk-100: #f2f0e6;
+  --color-chalk-200: #e8e4d4;
+  --color-chalk-300: #d8d2bd;
+
+  --color-amber-400: #e3b455;
+  --color-amber-500: #d4a03c;
+  --color-amber-600: #b5862c;
+
+  --color-ink-900: #14171a;
+  --color-ink-700: #3a3f42;
+  --color-ink-500: #6b7075;
+
+  --color-loss-600: #a63d40;
+  --color-loss-700: #8a3033;
+
+  --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-chalk-100);
+  }
+
+  body {
+    margin: 0;
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background-color: var(--color-amber-400);
+    color: var(--color-ink-900);
+  }
+
+  /* Visible keyboard focus throughout -- not just for mouse users */
+  :focus-visible {
+    outline: 2px solid var(--color-amber-500);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* The "scoreline" signature motif: tabular, amber-on-ink readout used for
+     every final score across the app (match cards, dashboard, results lists). */
+  .scoreline {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    background-color: var(--color-pitch-950);
+    color: var(--color-amber-400);
+    border-radius: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
