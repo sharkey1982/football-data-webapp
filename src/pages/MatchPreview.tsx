@@ -23,11 +23,10 @@ import { ScoreProbabilityGrid } from '../components/ScoreProbabilityGrid';
 import { TeamStatsPanel } from '../components/TeamStatsPanel';
 
 type LeagueOption = { league_id: number; code: string; name: string };
-type Tab = 'overview' | 'h2h' | 'home' | 'away' | 'prediction';
+type Tab = 'overview' | 'home' | 'away' | 'prediction';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
-  { id: 'h2h', label: 'Head-to-Head' },
   { id: 'home', label: 'Home Team' },
   { id: 'away', label: 'Away Team' },
   { id: 'prediction', label: 'Prediction' },
@@ -304,6 +303,22 @@ export default function MatchPreview() {
 
           {activeTab === 'overview' && (
             <div className="space-y-4">
+              <div className="border border-chalk-300 rounded-lg bg-white p-4">
+                <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
+                  Head-to-head (last {previewData.h2hMatches.length})
+                </h2>
+                {previewData.h2hMatches.length > 0 ? (
+                  <HeadToHeadSummary
+                    matches={previewData.h2hMatches}
+                    teamAId={homeTeamId!}
+                    teamAName={homeTeamName}
+                    teamBName={awayTeamName}
+                  />
+                ) : (
+                  <p className="text-sm text-ink-500">These two haven&rsquo;t met in the archive.</p>
+                )}
+              </div>
+
               <ComparisonCard
                 homeTeamName={homeTeamName}
                 awayTeamName={awayTeamName}
@@ -336,24 +351,6 @@ export default function MatchPreview() {
                   />
                 </div>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'h2h' && (
-            <div className="border border-chalk-300 rounded-lg bg-white p-4">
-              <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
-                Head-to-head (last {previewData.h2hMatches.length})
-              </h2>
-              {previewData.h2hMatches.length > 0 ? (
-                <HeadToHeadSummary
-                  matches={previewData.h2hMatches}
-                  teamAId={homeTeamId!}
-                  teamAName={homeTeamName}
-                  teamBName={awayTeamName}
-                />
-              ) : (
-                <p className="text-sm text-ink-500">These two haven&rsquo;t met in the archive.</p>
-              )}
             </div>
           )}
 
