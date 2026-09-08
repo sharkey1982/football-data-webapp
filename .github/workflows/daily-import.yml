@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+      - run: npm install
       - run: npm run import:daily
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
