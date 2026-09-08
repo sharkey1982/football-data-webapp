@@ -1,0 +1,45 @@
+name: Import Football Data
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC (allows matches to be completed the night before)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run importer
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run import:football-data
+
+      - name: Report status
+        if: always()
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ Import completed successfully"
+          else
+            echo "❌ Import failed"
+            exit 1
+          fi
