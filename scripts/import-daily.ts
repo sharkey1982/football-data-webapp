@@ -19,7 +19,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database, MatchInsert, MatchResult } from '../src/types/database';
 
-const CSV_URL = process.env.IMPORT_CSV_URL ?? 'https://www.football-data.co.uk/mmz4281/2627/E0.csv';
+const CSV_URL = process.env.IMPORT_CSV_URL ?? 'https://football-data.co.uk/mmz4281/2627/E0.csv';
 const LEAGUE_CODE = process.env.IMPORT_LEAGUE_CODE ?? 'E0';
 const SEASON_LABEL = process.env.IMPORT_SEASON_LABEL ?? '2627';
 const SOURCE_NAME = 'football-data.co.uk';
@@ -94,7 +94,11 @@ async function main() {
   const supabase = createClient<Database>(url, key, { auth: { persistSession: false } });
 
   console.log(`Fetching ${CSV_URL} ...`);
-  const res = await fetch(CSV_URL);
+  const res = await fetch(CSV_URL, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; football-data-webapp-importer/1.0)',
+    },
+  });
   if (!res.ok) {
     console.error(`Failed to download CSV: ${res.status} ${res.statusText}`);
     process.exit(1);
