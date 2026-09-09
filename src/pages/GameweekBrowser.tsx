@@ -27,8 +27,21 @@ export default function GameweekBrowser() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    getLeagues().then((data) => setLeagues(data ?? []));
-    getSeasons().then((data) => setSeasons(data ?? []));
+    getLeagues().then((data) => {
+      const loadedLeagues = data ?? [];
+      setLeagues(loadedLeagues);
+      setLeagueId(
+        (current) =>
+          current ??
+          loadedLeagues.find((league) => league.code === 'E0')?.league_id ??
+          null
+      );
+    });
+    getSeasons().then((data) => {
+      const loadedSeasons = data ?? [];
+      setSeasons(loadedSeasons);
+      setSeasonId((current) => current ?? loadedSeasons[0]?.season_id ?? null);
+    });
   }, []);
 
   // Keep the URL in sync with the current selections, so navigating away
