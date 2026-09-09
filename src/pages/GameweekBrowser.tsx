@@ -11,6 +11,7 @@ import {
 } from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
 import FixtureCalendarHeatmap from '../components/FixtureCalendarHeatmap';
+import { ScoreChip } from '../components/ScoreChip';
 
 type LeagueOption = { league_id: number; code: string; name: string };
 type SeasonOption = { season_id: number; label: string; start_year: number; end_year: number };
@@ -250,7 +251,18 @@ export default function GameweekBrowser() {
                     </span>
                     <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
                       <span className="truncate font-medium">{f.home_team_name}</span>
-                      <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                      {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
+                        <div className="flex flex-col items-center shrink-0">
+                          <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
+                          {f.half_time_home_goals != null && f.half_time_away_goals != null && (
+                            <span className="text-[10px] text-ink-500 font-mono mt-0.5">
+                              HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                      )}
                       <span className="truncate font-medium text-right">{f.away_team_name}</span>
                     </div>
                     <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
@@ -284,7 +296,18 @@ export default function GameweekBrowser() {
                     </span>
                     <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
                       <span className="truncate font-medium">{f.home_team_name}</span>
-                      <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                      {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
+                        <div className="flex flex-col items-center shrink-0">
+                          <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
+                          {f.half_time_home_goals != null && f.half_time_away_goals != null && (
+                            <span className="text-[10px] text-ink-500 font-mono mt-0.5">
+                              HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                      )}
                       <span className="truncate font-medium text-right">{f.away_team_name}</span>
                     </div>
                     <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">

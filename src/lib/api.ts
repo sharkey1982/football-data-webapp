@@ -740,7 +740,57 @@ export type FixtureWithNames = {
   kickoff_time: string | null;
   matchweek: number | null;
   status: string;
+  // Populated from the `matches` table when a result exists for this
+  // fixture (matched on league/season/teams/date -- fixtures and matches
+  // aren't linked by a foreign key, so this is a manual join). Null/undefined
+  // when the fixture hasn't been played yet.
+  full_time_home_goals?: number | null;
+  full_time_away_goals?: number | null;
+  half_time_home_goals?: number | null;
+  half_time_away_goals?: number | null;
 };
+
+/**
+ * Looks up final (and half-time) scores for a set of fixtures from the
+ * `matches` table and merges them in. There's no FK between fixtures and
+ * matches, so the join is done here by (league, season, home team, away
+ * team, date) -- the same natural key the daily importer upserts matches
+ * on. Fixtures with no matching result (not yet played) are returned
+ * unchanged.
+ */
+async function attachResults(
+  fixtures: FixtureWithNames[],
+  leagueId: number,
+  seasonId: number
+): Promise<FixtureWithNames[]> {
+  if (fixtures.length === 0) return fixtures;
+
+  const dates = [...new Set(fixtures.map((f) => f.kickoff_date))];
+  const { data, error } = await supabase
+    .from('matches')
+    .select('home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .in('match_date', dates);
+  if (error) throw error;
+
+  const resultsByKey = new Map<string, (typeof data)[number]>();
+  for (const row of data ?? []) {
+    resultsByKey.set(`${row.home_team_id}-${row.away_team_id}-${row.match_date}`, row);
+  }
+
+  return fixtures.map((f) => {
+    const result = resultsByKey.get(`${f.home_team_id}-${f.away_team_id}-${f.kickoff_date}`);
+    if (!result) return f;
+    return {
+      ...f,
+      full_time_home_goals: result.full_time_home_goals,
+      full_time_away_goals: result.full_time_away_goals,
+      half_time_home_goals: result.half_time_home_goals,
+      half_time_away_goals: result.half_time_away_goals,
+    };
+  });
+}
 
 /** Returns the distinct, ordered list of matchweek numbers available for a league+season. */
 export async function getAvailableMatchweeks(leagueId: number, seasonId: number): Promise<number[]> {
@@ -806,7 +856,7 @@ export async function getFixturesForDate(
     .order('kickoff_time', { ascending: true });
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => ({
+  const fixtures = (data ?? []).map((row: any) => ({
     fixture_id: row.fixture_id,
     league_id: row.league_id,
     season_id: row.season_id,
@@ -819,6 +869,7 @@ export async function getFixturesForDate(
     matchweek: row.matchweek,
     status: row.status,
   }));
+  return attachResults(fixtures, leagueId, seasonId);
 }
 
 /** Fetches all fixtures for a specific matchweek, with team names joined in. */
@@ -843,7 +894,7 @@ export async function getFixturesForMatchweek(
     .order('kickoff_date', { ascending: true });
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => ({
+  const fixtures = (data ?? []).map((row: any) => ({
     fixture_id: row.fixture_id,
     league_id: row.league_id,
     season_id: row.season_id,
@@ -856,6 +907,7 @@ export async function getFixturesForMatchweek(
     matchweek: row.matchweek,
     status: row.status,
   }));
+  return attachResults(fixtures, leagueId, seasonId);
 }
 
 
