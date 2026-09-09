@@ -760,6 +760,67 @@ export async function getAvailableMatchweeks(leagueId: number, seasonId: number)
   return [...seen].sort((a, b) => a - b);
 }
 
+/**
+ * Returns a map of ISO date ('YYYY-MM-DD') to fixture count for a
+ * league+season -- powers the calendar heat-map on the Fixtures page.
+ * Only fetches the date column (no team joins) since counts are all the
+ * calendar needs.
+ */
+export async function getFixtureDateCounts(
+  leagueId: number,
+  seasonId: number
+): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select('kickoff_date')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId);
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    counts[row.kickoff_date] = (counts[row.kickoff_date] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** Fetches all fixtures for a specific calendar date, with team names joined in. */
+export async function getFixturesForDate(
+  leagueId: number,
+  seasonId: number,
+  date: string
+): Promise<FixtureWithNames[]> {
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select(
+      `
+      fixture_id, league_id, season_id, home_team_id, away_team_id,
+      kickoff_date, kickoff_time, matchweek, status,
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
+    `
+    )
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .eq('kickoff_date', date)
+    .order('kickoff_time', { ascending: true });
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    fixture_id: row.fixture_id,
+    league_id: row.league_id,
+    season_id: row.season_id,
+    home_team_id: row.home_team_id,
+    away_team_id: row.away_team_id,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    kickoff_date: row.kickoff_date,
+    kickoff_time: row.kickoff_time,
+    matchweek: row.matchweek,
+    status: row.status,
+  }));
+}
+
 /** Fetches all fixtures for a specific matchweek, with team names joined in. */
 export async function getFixturesForMatchweek(
   leagueId: number,

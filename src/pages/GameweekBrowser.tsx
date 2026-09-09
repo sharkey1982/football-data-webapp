@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getLeagues, getSeasons, getAvailableMatchweeks, getFixturesForMatchweek, type FixtureWithNames } from '../lib/api';
+import {
+  getLeagues,
+  getSeasons,
+  getAvailableMatchweeks,
+  getFixturesForMatchweek,
+  getFixtureDateCounts,
+  getFixturesForDate,
+  type FixtureWithNames,
+} from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
+import FixtureCalendarHeatmap from '../components/FixtureCalendarHeatmap';
 
 type LeagueOption = { league_id: number; code: string; name: string };
 type SeasonOption = { season_id: number; label: string; start_year: number; end_year: number };
@@ -25,6 +34,12 @@ export default function GameweekBrowser() {
   const [fixtures, setFixtures] = useState<FixtureWithNames[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [dateCounts, setDateCounts] = useState<Record<string, number>>({});
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  const [dateFixtures, setDateFixtures] = useState<FixtureWithNames[] | null>(null);
+  const [dateFixturesLoading, setDateFixturesLoading] = useState(false);
 
   useEffect(() => {
     getLeagues().then((data) => {
@@ -89,6 +104,36 @@ export default function GameweekBrowser() {
       .finally(() => setLoading(false));
   }, [leagueId, seasonId, selectedMatchweek]);
 
+  // Calendar heat-map data -- per-day fixture counts for the selected
+  // division/season. The day filter is reset here too, since a date
+  // selected under one division/season is meaningless once that changes.
+  useEffect(() => {
+    setDateCounts({});
+    setSelectedCalendarDate(null);
+
+    if (!leagueId || !seasonId) return;
+
+    setCalendarLoading(true);
+    getFixtureDateCounts(leagueId, seasonId)
+      .then(setDateCounts)
+      .catch((err) => setError(err.message ?? 'Failed to load calendar'))
+      .finally(() => setCalendarLoading(false));
+  }, [leagueId, seasonId]);
+
+  // When a calendar day is selected, fetch that day's fixtures to show
+  // in place of the matchweek-based list below.
+  useEffect(() => {
+    if (!leagueId || !seasonId || !selectedCalendarDate) {
+      setDateFixtures(null);
+      return;
+    }
+    setDateFixturesLoading(true);
+    getFixturesForDate(leagueId, seasonId, selectedCalendarDate)
+      .then(setDateFixtures)
+      .catch((err) => setError(err.message ?? 'Failed to load fixtures for that date'))
+      .finally(() => setDateFixturesLoading(false));
+  }, [leagueId, seasonId, selectedCalendarDate]);
+
   function exploreFixture(f: FixtureWithNames) {
     navigate(`/preview?league=${f.league_id}&home=${f.home_team_id}&away=${f.away_team_id}`);
   }
@@ -135,6 +180,16 @@ export default function GameweekBrowser() {
         </div>
       </div>
 
+      {leagueId && seasonId && (
+        <FixtureCalendarHeatmap
+          key={`${leagueId}-${seasonId}`}
+          dateCounts={dateCounts}
+          loading={calendarLoading}
+          selectedDate={selectedCalendarDate}
+          onSelectDate={setSelectedCalendarDate}
+        />
+      )}
+
       {error && (
         <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded">{error}</div>
       )}
@@ -150,10 +205,13 @@ export default function GameweekBrowser() {
             {matchweeks.map((mw) => (
               <button
                 key={mw}
-                onClick={() => setSelectedMatchweek(mw)}
+                onClick={() => {
+                  setSelectedMatchweek(mw);
+                  setSelectedCalendarDate(null);
+                }}
                 className={[
                   'w-9 h-9 rounded text-sm font-mono font-medium transition-colors',
-                  selectedMatchweek === mw
+                  selectedMatchweek === mw && !selectedCalendarDate
                     ? 'bg-pitch-800 text-chalk-100'
                     : 'bg-white border border-chalk-300 text-ink-700 hover:bg-chalk-100',
                 ].join(' ')}
@@ -165,36 +223,79 @@ export default function GameweekBrowser() {
         </div>
       )}
 
-      {loading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
+      {selectedCalendarDate ? (
+        <>
+          {dateFixturesLoading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
 
-      {fixtures && fixtures.length > 0 && (
-        <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
-          <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide">
-            Matchweek {selectedMatchweek}
-          </div>
-          <ul className="divide-y divide-chalk-300">
-            {fixtures.map((f) => (
-              <li
-                key={f.fixture_id}
-                className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
-                onClick={() => exploreFixture(f)}
-              >
-                <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
-                  {formatMatchDate(f.kickoff_date)}
-                  {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
-                </span>
-                <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
-                  <span className="truncate font-medium">{f.home_team_name}</span>
-                  <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
-                  <span className="truncate font-medium text-right">{f.away_team_name}</span>
-                </div>
-                <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
-                  Explore &rarr;
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+          {dateFixtures && dateFixtures.length > 0 && (
+            <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
+              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide flex items-center justify-between">
+                <span>{formatMatchDate(selectedCalendarDate)}</span>
+                <button
+                  onClick={() => setSelectedCalendarDate(null)}
+                  className="text-chalk-100/80 hover:text-chalk-100 text-xs normal-case tracking-normal underline"
+                >
+                  Clear date filter
+                </button>
+              </div>
+              <ul className="divide-y divide-chalk-300">
+                {dateFixtures.map((f) => (
+                  <li
+                    key={f.fixture_id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
+                    onClick={() => exploreFixture(f)}
+                  >
+                    <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
+                      {f.kickoff_time ? f.kickoff_time.slice(0, 5) : ''}
+                    </span>
+                    <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
+                      <span className="truncate font-medium">{f.home_team_name}</span>
+                      <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                      <span className="truncate font-medium text-right">{f.away_team_name}</span>
+                    </div>
+                    <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
+                      Explore &rarr;
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {loading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
+
+          {fixtures && fixtures.length > 0 && (
+            <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
+              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide">
+                Matchweek {selectedMatchweek}
+              </div>
+              <ul className="divide-y divide-chalk-300">
+                {fixtures.map((f) => (
+                  <li
+                    key={f.fixture_id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
+                    onClick={() => exploreFixture(f)}
+                  >
+                    <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
+                      {formatMatchDate(f.kickoff_date)}
+                      {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
+                    </span>
+                    <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
+                      <span className="truncate font-medium">{f.home_team_name}</span>
+                      <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                      <span className="truncate font-medium text-right">{f.away_team_name}</span>
+                    </div>
+                    <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
+                      Explore &rarr;
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
