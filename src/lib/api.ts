@@ -837,6 +837,34 @@ export async function getFixtureDateCounts(
   return counts;
 }
 
+/**
+ * Fetches kickoff date + matchweek for every fixture in a league/season in
+ * a single lightweight query. Powers both the calendar heat-map (date ->
+ * count) and the "which matchweeks fall in this calendar month" filtering
+ * on the Fixtures page, computed client-side from the same rows so only
+ * one round trip is needed.
+ *
+ * Caveat: `kickoff_date` is only ever a real per-match date for matchweek
+ * 1 -- every later matchweek currently stores one placeholder "week
+ * commencing" date across all its fixtures (see the note on
+ * `attachResults`). That's still good enough to bucket a matchweek into
+ * the right calendar month (gameweeks don't span a month boundary in
+ * practice), just not precise enough for a real per-day breakdown once
+ * TV scheduling/postponements spread a week's games across several days.
+ */
+export async function getFixtureCalendarIndex(
+  leagueId: number,
+  seasonId: number
+): Promise<{ kickoff_date: string; matchweek: number | null }[]> {
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select('kickoff_date, matchweek')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId);
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Fetches all fixtures for a specific calendar date, with team names joined in. */
 export async function getFixturesForDate(
   leagueId: number,
