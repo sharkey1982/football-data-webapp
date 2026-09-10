@@ -309,10 +309,10 @@ export default function GameweekBrowser() {
                     <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
                       {f.kickoff_time ? f.kickoff_time.slice(0, 5) : ''}
                     </span>
-                    <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
-                      <span className="truncate font-medium">{f.home_team_name}</span>
+                    <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
+                      <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
                       {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
-                        <div className="flex flex-col items-center shrink-0">
+                        <div className="flex flex-col items-center">
                           <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
                           {f.half_time_home_goals != null && f.half_time_away_goals != null && (
                             <span className="text-[10px] text-ink-500 font-mono mt-0.5">
@@ -321,9 +321,9 @@ export default function GameweekBrowser() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                        <span className="text-ink-500 text-xs font-mono text-center">vs</span>
                       )}
-                      <span className="truncate font-medium text-right">{f.away_team_name}</span>
+                      <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
                     </div>
                     <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
                       Explore &rarr;
@@ -354,10 +354,10 @@ export default function GameweekBrowser() {
                       {formatMatchDate(f.kickoff_date)}
                       {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
                     </span>
-                    <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
-                      <span className="truncate font-medium">{f.home_team_name}</span>
+                    <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
+                      <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
                       {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
-                        <div className="flex flex-col items-center shrink-0">
+                        <div className="flex flex-col items-center">
                           <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
                           {f.half_time_home_goals != null && f.half_time_away_goals != null && (
                             <span className="text-[10px] text-ink-500 font-mono mt-0.5">
@@ -366,9 +366,9 @@ export default function GameweekBrowser() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-ink-500 text-xs font-mono shrink-0">vs</span>
+                        <span className="text-ink-500 text-xs font-mono text-center">vs</span>
                       )}
-                      <span className="truncate font-medium text-right">{f.away_team_name}</span>
+                      <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
                     </div>
                     <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
                       Explore &rarr;
