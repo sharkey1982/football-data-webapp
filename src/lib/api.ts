@@ -754,9 +754,14 @@ export type FixtureWithNames = {
  * Looks up final (and half-time) scores for a set of fixtures from the
  * `matches` table and merges them in. There's no FK between fixtures and
  * matches, so the join is done here by (league, season, home team, away
- * team, date) -- the same natural key the daily importer upserts matches
- * on. Fixtures with no matching result (not yet played) are returned
- * unchanged.
+ * team) -- NOT by date. `fixtures.kickoff_date` only holds the real
+ * per-match date for matchweek 1; every later matchweek stores a single
+ * placeholder "week commencing" date across all 10 fixtures, while
+ * `matches.match_date` holds the real played date (which can differ by a
+ * few days either side once TV scheduling/postponements are applied). A
+ * home/away team pairing is unique within a league+season (single
+ * round-robin, verified against both tables), so it's a safe join key.
+ * Fixtures with no matching result (not yet played) are returned unchanged.
  */
 async function attachResults(
   fixtures: FixtureWithNames[],
@@ -765,22 +770,20 @@ async function attachResults(
 ): Promise<FixtureWithNames[]> {
   if (fixtures.length === 0) return fixtures;
 
-  const dates = [...new Set(fixtures.map((f) => f.kickoff_date))];
   const { data, error } = await supabase
     .from('matches')
-    .select('home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals')
+    .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals')
     .eq('league_id', leagueId)
-    .eq('season_id', seasonId)
-    .in('match_date', dates);
+    .eq('season_id', seasonId);
   if (error) throw error;
 
   const resultsByKey = new Map<string, (typeof data)[number]>();
   for (const row of data ?? []) {
-    resultsByKey.set(`${row.home_team_id}-${row.away_team_id}-${row.match_date}`, row);
+    resultsByKey.set(`${row.home_team_id}-${row.away_team_id}`, row);
   }
 
   return fixtures.map((f) => {
-    const result = resultsByKey.get(`${f.home_team_id}-${f.away_team_id}-${f.kickoff_date}`);
+    const result = resultsByKey.get(`${f.home_team_id}-${f.away_team_id}`);
     if (!result) return f;
     return {
       ...f,
