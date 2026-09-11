@@ -140,6 +140,22 @@ export default function GameweekBrowser() {
     return counts;
   }, [teamFixtures]);
 
+  // Unlike the Division view, a team's fixtures can span both league and
+  // cup competitions, so this is a genuine per-date lookup -- 'mixed' when
+  // a date has both (rare, but the calendar should still show it clearly).
+  const teamDateTypes = useMemo(() => {
+    const seen: Record<string, Set<'league' | 'cup'>> = {};
+    for (const f of teamFixtures ?? []) {
+      const type: 'league' | 'cup' = f.competition_type === 'cup' ? 'cup' : 'league';
+      (seen[f.kickoff_date] ??= new Set()).add(type);
+    }
+    const result: Record<string, 'league' | 'cup' | 'mixed'> = {};
+    for (const [date, types] of Object.entries(seen)) {
+      result[date] = types.size > 1 ? 'mixed' : [...types][0];
+    }
+    return result;
+  }, [teamFixtures]);
+
   const teamFilteredLeagues = useMemo(() => {
     return leagues.filter((l) => !teamFilterCountryId || l.country_id === teamFilterCountryId);
   }, [leagues, teamFilterCountryId]);
@@ -155,6 +171,20 @@ export default function GameweekBrowser() {
     for (const row of calendarIndex) counts[row.kickoff_date] = (counts[row.kickoff_date] ?? 0) + 1;
     return counts;
   }, [calendarIndex]);
+
+  // Division view only ever shows one league at a time, so every date in
+  // its calendar shares that league's competition type -- no per-date
+  // lookup needed, just a uniform map matching dateCounts' keys.
+  const selectedLeagueCompetitionType = useMemo(
+    () => leagues.find((l) => l.league_id === leagueId)?.competition_type,
+    [leagues, leagueId]
+  );
+  const calendarDateTypes = useMemo(() => {
+    const type = selectedLeagueCompetitionType === 'cup' ? 'cup' : 'league';
+    const map: Record<string, 'league' | 'cup'> = {};
+    for (const date of Object.keys(dateCounts)) map[date] = type;
+    return map;
+  }, [dateCounts, selectedLeagueCompetitionType]);
 
   // Every matchweek in the season, for validating a URL-restored selection
   // and as a fallback when the viewed calendar month has none of its own.
@@ -351,16 +381,22 @@ export default function GameweekBrowser() {
     setTeamDropdownOpen(false);
   }
 
-  // Cup fixtures get an amber treatment, league fixtures the app's usual
-  // pitch-green -- only matters where the two mix in one list (the Team
-  // view spans every competition a team plays in a season).
+  // Cup fixtures get the steel-blue treatment end-to-end -- background
+  // wash, border accent, badge, and the team names themselves -- so a cup
+  // fixture reads as different at a glance, not just via a small label.
+  // League fixtures stay in the app's default pitch-green/white styling.
+  function competitionRowClass(type?: string | null) {
+    return type === 'cup'
+      ? 'bg-cup-700/[0.07] hover:bg-cup-700/[0.14] border-l-4 border-cup-700'
+      : 'hover:bg-chalk-100 border-l-4 border-pitch-700/30';
+  }
+  function competitionTextClass(type?: string | null) {
+    return type === 'cup' ? 'text-cup-800' : 'text-ink-900';
+  }
   function competitionBadgeClass(type?: string | null) {
     return type === 'cup'
-      ? 'text-amber-600 bg-amber-500/15'
+      ? 'text-cup-800 bg-cup-700/15'
       : 'text-pitch-700 bg-pitch-700/10';
-  }
-  function competitionAccentClass(type?: string | null) {
-    return type === 'cup' ? 'border-l-4 border-amber-500' : 'border-l-4 border-pitch-700/40';
   }
 
   const competitionTypeOptions = useMemo(() => {
@@ -549,6 +585,7 @@ export default function GameweekBrowser() {
         <div className="flex flex-col sm:flex-row gap-4 items-start">
           <FixtureCalendarHeatmap
             dateCounts={dateCounts}
+            dateTypes={calendarDateTypes}
             loading={calendarLoading}
             selectedDate={selectedCalendarDate}
             onSelectDate={setSelectedCalendarDate}
@@ -603,6 +640,7 @@ export default function GameweekBrowser() {
         <div className="flex flex-col sm:flex-row gap-4 items-start">
           <FixtureCalendarHeatmap
             dateCounts={teamDateCounts}
+            dateTypes={teamDateTypes}
             loading={teamFixturesLoading}
             selectedDate={selectedTeamDate}
             onSelectDate={setSelectedTeamDate}
@@ -658,12 +696,12 @@ export default function GameweekBrowser() {
                   <li
                     key={f.fixture_id}
                     className={[
-                      'flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer',
-                      competitionAccentClass(f.competition_type),
+                      'flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 transition-colors cursor-pointer',
+                      competitionRowClass(f.competition_type),
                     ].join(' ')}
                     onClick={() => exploreFixture(f)}
                   >
-                    <span className="font-mono text-xs text-ink-500 w-32 shrink-0">
+                    <span className={['font-mono text-xs w-32 shrink-0', f.competition_type === 'cup' ? 'text-cup-700' : 'text-ink-500'].join(' ')}>
                       {formatMatchDateWithYear(f.kickoff_date)}
                     </span>
                     {f.league_code && (
@@ -677,7 +715,9 @@ export default function GameweekBrowser() {
                       </span>
                     )}
                     <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
-                      <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
+                      <span className={['truncate font-medium min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
+                        {f.home_team_name}
+                      </span>
                       {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
                         <div className="flex flex-col items-center">
                           <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
@@ -690,9 +730,16 @@ export default function GameweekBrowser() {
                       ) : (
                         <span className="text-ink-500 text-xs font-mono text-center">vs</span>
                       )}
-                      <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
+                      <span className={['truncate font-medium text-right min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
+                        {f.away_team_name}
+                      </span>
                     </div>
-                    <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
+                    <span
+                      className={[
+                        'text-xs font-medium shrink-0 hidden sm:inline',
+                        f.competition_type === 'cup' ? 'text-cup-700' : 'text-pitch-700',
+                      ].join(' ')}
+                    >
                       Explore &rarr;
                     </span>
                   </li>

@@ -1,6 +1,10 @@
 type Props = {
   /** ISO date ('YYYY-MM-DD') -> fixture count, for the currently selected league/season. */
   dateCounts: Record<string, number>;
+  /** ISO date -> competition type, so cup dates can be coloured differently
+   *  from league dates. 'mixed' when a date has both (renders a split
+   *  colour). Omitted dates default to the league colour scale. */
+  dateTypes?: Record<string, 'league' | 'cup' | 'mixed'>;
   loading: boolean;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
@@ -39,6 +43,7 @@ function daysInMonth(year: number, month: number): number {
 
 export default function FixtureCalendarHeatmap({
   dateCounts,
+  dateTypes,
   loading,
   selectedDate,
   onSelectDate,
@@ -55,18 +60,25 @@ export default function FixtureCalendarHeatmap({
   const leadingBlanks = mondayFirstDow(viewYear, viewMonth, 1);
   const maxCount = Math.max(1, ...Object.values(dateCounts));
 
-  const cells: { day: number | null; key: string | null; count: number }[] = [];
-  for (let i = 0; i < leadingBlanks; i++) cells.push({ day: null, key: null, count: 0 });
+  const cells: { day: number | null; key: string | null; count: number; type: 'league' | 'cup' | 'mixed' }[] = [];
+  for (let i = 0; i < leadingBlanks; i++) cells.push({ day: null, key: null, count: 0, type: 'league' });
   for (let d = 1; d <= totalDays; d++) {
     const key = dateKey(viewYear, viewMonth, d);
-    cells.push({ day: d, key, count: dateCounts[key] ?? 0 });
+    cells.push({ day: d, key, count: dateCounts[key] ?? 0, type: dateTypes?.[key] ?? 'league' });
   }
-  while (cells.length % 7 !== 0) cells.push({ day: null, key: null, count: 0 });
+  while (cells.length % 7 !== 0) cells.push({ day: null, key: null, count: 0, type: 'league' });
 
-  function heatClasses(count: number, isSelected: boolean): string {
+  function heatClasses(count: number, isSelected: boolean, type: 'league' | 'cup' | 'mixed'): string {
     if (isSelected) return 'bg-amber-500 text-ink-900 font-semibold';
     if (count === 0) return 'bg-white text-ink-500';
+    if (type === 'mixed') return 'text-chalk-100 font-medium';
     const intensity = count / maxCount;
+    if (type === 'cup') {
+      if (intensity > 0.75) return 'bg-cup-800 text-chalk-100';
+      if (intensity > 0.5) return 'bg-cup-700 text-chalk-100';
+      if (intensity > 0.25) return 'bg-cup-600/70 text-ink-900';
+      return 'bg-cup-600/30 text-ink-900';
+    }
     if (intensity > 0.75) return 'bg-pitch-800 text-chalk-100';
     if (intensity > 0.5) return 'bg-pitch-700 text-chalk-100';
     if (intensity > 0.25) return 'bg-pitch-700/60 text-ink-900';
@@ -113,15 +125,21 @@ export default function FixtureCalendarHeatmap({
               {cells.map((cell, i) => {
                 if (cell.day === null) return <div key={i} className="aspect-square" />;
                 const isSelected = cell.key === selectedDate;
+                const isMixed = cell.type === 'mixed' && cell.count > 0 && !isSelected;
                 return (
                   <button
                     type="button"
                     key={cell.key}
                     disabled={cell.count === 0}
                     onClick={() => onSelectDate(isSelected ? null : cell.key)}
+                    style={
+                      isMixed
+                        ? { background: 'linear-gradient(135deg, var(--color-pitch-700) 50%, var(--color-cup-700) 50%)' }
+                        : undefined
+                    }
                     className={[
                       'aspect-square rounded-sm flex flex-col items-center justify-center text-[9px] leading-none transition-colors border border-chalk-300',
-                      heatClasses(cell.count, isSelected),
+                      heatClasses(cell.count, isSelected, cell.type),
                       cell.count === 0 ? 'cursor-default' : 'cursor-pointer hover:ring-1 hover:ring-amber-400',
                     ].join(' ')}
                   >
@@ -131,6 +149,16 @@ export default function FixtureCalendarHeatmap({
                 );
               })}
             </div>
+            {dateTypes && Object.values(dateTypes).some((t) => t !== 'league') && (
+              <div className="flex items-center gap-3 mt-1.5 px-0.5 text-[9px] text-ink-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-sm bg-pitch-700 inline-block" /> League
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-sm bg-cup-700 inline-block" /> Cup
+                </span>
+              </div>
+            )}
           </>
         )}
       </div>

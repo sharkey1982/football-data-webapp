@@ -24,6 +24,16 @@
   --color-amber-500: #d4a03c;
   --color-amber-600: #b5862c;
 
+  /* Cup competitions get their own hue (steel blue) so they read as
+     distinct from league fixtures wherever the two are mixed together
+     (the Team view's fixture list and calendar) -- deliberately kept out
+     of the amber family since amber already carries a separate meaning
+     (selection/highlight/focus) throughout the app. */
+  --color-cup-900: #16283f;
+  --color-cup-800: #1f3a58;
+  --color-cup-700: #2b4f74;
+  --color-cup-600: #3d6690;
+
   --color-ink-900: #14171a;
   --color-ink-700: #3a3f42;
   --color-ink-500: #6b7075;
