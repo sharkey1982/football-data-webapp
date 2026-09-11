@@ -55,7 +55,7 @@ export default function FantasyFixtures() {
 
   const fdrByTeam = useMemo(() => (data ? computeFdrQuintiles(data.ratings) : new Map()), [data]);
 
-  const matchweeks = useMemo(() => {
+  const allMatchweeks = useMemo(() => {
     if (!data) return [];
     const seen = new Set<number>();
     for (const team of data.teams) {
@@ -69,12 +69,20 @@ export default function FantasyFixtures() {
   const rankWindowSize = useMemo(() => {
     const n = parseInt(rankWindowInput, 10);
     if (!Number.isFinite(n) || n < 1) return 1;
-    return Math.min(n, matchweeks.length || 1);
-  }, [rankWindowInput, matchweeks.length]);
+    return Math.min(n, allMatchweeks.length || 1);
+  }, [rankWindowInput, allMatchweeks.length]);
+
+  // The number box controls both the ranking average AND which columns are
+  // shown -- there's no separate "full season" view, so the two can never
+  // drift apart and confuse what's actually driving the colours on screen.
+  const displayedMatchweeks = useMemo(
+    () => allMatchweeks.slice(0, rankWindowSize),
+    [allMatchweeks, rankWindowSize]
+  );
 
   const rows: FantasyHeatmapRow[] = useMemo(() => {
     if (!data) return [];
-    const windowMatchweeks = new Set(matchweeks.slice(0, rankWindowSize));
+    const windowSet = new Set(displayedMatchweeks);
 
     return data.teams
       .map((team) => {
@@ -83,34 +91,28 @@ export default function FantasyFixtures() {
         let windowCount = 0;
 
         for (const f of team.fixtures) {
-          if (f.matchweek === null) continue;
+          if (f.matchweek === null || !windowSet.has(f.matchweek)) continue;
           const fdr = fdrByTeam.get(f.opponent_team_id) ?? { attack_fdr: 3, defence_fdr: 3 };
 
-          let value: number;
-          let difficulty: number;
-          if (colourBasis === 'fdr') {
-            value = focus === 'attack' ? fdr.defence_fdr : fdr.attack_fdr;
-            difficulty = value;
-          } else if (focus === 'attack') {
-            value = f.expected_goals_for;
-            difficulty = value; // bucketed below once the dataset's range is known
-          } else {
-            value = f.expected_goals_against;
-            difficulty = value;
-          }
+          const value =
+            colourBasis === 'fdr'
+              ? focus === 'attack'
+                ? fdr.defence_fdr
+                : fdr.attack_fdr
+              : focus === 'attack'
+                ? f.expected_goals_for
+                : f.expected_goals_against;
 
           cellsByMatchweek.set(f.matchweek, {
             matchweek: f.matchweek,
             opponent_name: f.opponent_name,
             is_home: f.is_home,
             value,
-            difficulty, // placeholder, rescaled below for model mode
+            difficulty: value, // placeholder, rescaled below for model mode
           });
 
-          if (windowMatchweeks.has(f.matchweek)) {
-            windowSum += value;
-            windowCount += 1;
-          }
+          windowSum += value;
+          windowCount += 1;
         }
 
         return {
@@ -121,7 +123,7 @@ export default function FantasyFixtures() {
         };
       })
       .filter((row) => row.cellsByMatchweek.size > 0);
-  }, [data, matchweeks, rankWindowSize, colourBasis, focus, fdrByTeam]);
+  }, [data, displayedMatchweeks, colourBasis, focus, fdrByTeam]);
 
   // Model mode uses raw expected-goals values, which need rescaling to the
   // 1-5 difficulty range based on the actual spread seen across every
@@ -211,7 +213,7 @@ export default function FantasyFixtures() {
               id="rank-window"
               type="number"
               min={1}
-              max={matchweeks.length || 1}
+              max={allMatchweeks.length || 1}
               value={rankWindowInput}
               onChange={(e) => setRankWindowInput(e.target.value)}
               className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
@@ -232,26 +234,22 @@ export default function FantasyFixtures() {
 
       {!loading && !error && sortedRows.length > 0 && (
         <>
-          <FantasyFixtureHeatmap
-            rows={sortedRows}
-            matchweeks={matchweeks}
-            rankWindowSize={rankWindowSize}
-            colourBasis={colourBasis}
-            focus={focus}
-          />
+          <FantasyFixtureHeatmap rows={sortedRows} matchweeks={displayedMatchweeks} colourBasis={colourBasis} focus={focus} />
           <div className="flex flex-wrap items-center gap-3 text-xs text-ink-500">
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: 'rgb(53, 117, 86)' }} /> Easiest
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: 'rgb(53, 117, 86)' }} />
+              {focus === 'attack' ? 'Most goals expected' : 'Fewest goals conceded'}
             </span>
             <span className="flex items-center gap-1">
               <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: 'rgb(232, 228, 212)' }} /> Average
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: 'rgb(166, 61, 64)' }} /> Hardest
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: 'rgb(166, 61, 64)' }} />
+              {focus === 'attack' ? 'Fewest goals expected' : 'Most goals conceded'}
             </span>
             <span>
-              Shaded columns are the fixtures used for ranking. Rows are sorted easiest-to-hardest across that window;
-              scroll right to see the rest of the season.
+              Showing your next {displayedMatchweeks.length} gameweek{displayedMatchweeks.length === 1 ? '' : 's'}. Rows
+              are sorted from the best matchups to the worst for the selected focus.
             </span>
           </div>
         </>

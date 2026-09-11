@@ -49,18 +49,16 @@ function difficultyTextClass(difficulty: number): string {
 export default function FantasyFixtureHeatmap({
   rows,
   matchweeks,
-  rankWindowSize,
   colourBasis,
   focus,
 }: {
   rows: FantasyHeatmapRow[];
   matchweeks: number[];
-  rankWindowSize: number;
   colourBasis: FantasyColourBasis;
   focus: FantasyFocus;
 }) {
-  const windowMatchweeks = new Set(matchweeks.slice(0, rankWindowSize));
   const valueLabel = colourBasis === 'fdr' ? 'FDR' : focus === 'attack' ? 'xGF' : 'xGA';
+  const decimals = colourBasis === 'fdr' ? 0 : 1;
 
   return (
     <div className="overflow-x-auto border border-chalk-300 rounded-lg bg-white">
@@ -71,13 +69,7 @@ export default function FantasyFixtureHeatmap({
               Team
             </th>
             {matchweeks.map((mw) => (
-              <th
-                key={mw}
-                className={[
-                  'text-xs font-mono font-medium text-ink-500 px-1 py-1.5 min-w-[3.25rem]',
-                  windowMatchweeks.has(mw) ? 'bg-chalk-200' : '',
-                ].join(' ')}
-              >
+              <th key={mw} className="text-xs font-mono font-medium text-ink-500 px-1 py-1.5 min-w-[4rem]">
                 GW{mw}
               </th>
             ))}
@@ -111,8 +103,10 @@ export default function FantasyFixtureHeatmap({
                     style={{ backgroundColor: difficultyColor(cell.difficulty) }}
                     title={`GW${mw}: ${row.team_name} ${cell.is_home ? 'vs' : '@'} ${cell.opponent_name} -- ${valueLabel} ${cell.value.toFixed(colourBasis === 'fdr' ? 0 : 2)}`}
                   >
-                    <div className="leading-tight">{cell.opponent_name.slice(0, 3).toUpperCase()}</div>
-                    <div className="leading-tight opacity-80">{cell.is_home ? 'H' : 'A'}</div>
+                    <div className="leading-tight font-semibold">
+                      {cell.opponent_name.slice(0, 3).toUpperCase()} - {cell.is_home ? 'H' : 'A'}
+                    </div>
+                    <div className="leading-tight opacity-80">{cell.value.toFixed(decimals)}</div>
                   </td>
                 );
               })}
