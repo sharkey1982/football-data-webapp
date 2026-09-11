@@ -49,6 +49,43 @@ const selectClass =
   'w-full border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
 const labelClass = 'block text-xs sm:text-sm font-medium text-ink-700 mb-1';
 
+/**
+ * The score/status slot in a fixture row: the actual result once played,
+ * otherwise the stored pre-match Dixon-Coles expected-goals prediction
+ * when one exists, otherwise a plain "vs". Shown as decimals with an
+ * "xG est." label and an explanatory tooltip -- deliberately NOT styled
+ * to look like a real scoreline (no ScoreChip), so an expectation can
+ * never be mistaken for a result.
+ */
+function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
+  if (f.full_time_home_goals != null && f.full_time_away_goals != null) {
+    return (
+      <div className="flex flex-col items-center">
+        <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
+        {f.half_time_home_goals != null && f.half_time_away_goals != null && (
+          <span className="text-[10px] text-ink-500 font-mono mt-0.5">
+            HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
+          </span>
+        )}
+      </div>
+    );
+  }
+  if (f.predicted_home_goals != null && f.predicted_away_goals != null) {
+    return (
+      <div
+        className="flex flex-col items-center"
+        title="Dixon-Coles pre-match expected goals -- a model estimate, not a result"
+      >
+        <span className="text-ink-500 text-xs font-mono text-center italic">
+          {f.predicted_home_goals.toFixed(1)}&ndash;{f.predicted_away_goals.toFixed(1)}
+        </span>
+        <span className="text-[8px] text-ink-400 uppercase tracking-wide mt-0.5">xG est.</span>
+      </div>
+    );
+  }
+  return <span className="text-ink-500 text-xs font-mono text-center">vs</span>;
+}
+
 export default function GameweekBrowser() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -795,18 +832,7 @@ export default function GameweekBrowser() {
                       <span className={['truncate font-medium min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
                         {f.home_team_name}
                       </span>
-                      {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
-                        <div className="flex flex-col items-center">
-                          <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
-                          {f.half_time_home_goals != null && f.half_time_away_goals != null && (
-                            <span className="text-[10px] text-ink-500 font-mono mt-0.5">
-                              HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-ink-500 text-xs font-mono text-center">vs</span>
-                      )}
+                      <FixtureScoreCell f={f} />
                       <span className={['truncate font-medium text-right min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
                         {f.away_team_name}
                       </span>
@@ -870,18 +896,7 @@ export default function GameweekBrowser() {
                             </span>
                             <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
                               <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
-                              {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
-                                <div className="flex flex-col items-center">
-                                  <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
-                                  {f.half_time_home_goals != null && f.half_time_away_goals != null && (
-                                    <span className="text-[10px] text-ink-500 font-mono mt-0.5">
-                                      HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-ink-500 text-xs font-mono text-center">vs</span>
-                              )}
+                              <FixtureScoreCell f={f} />
                               <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
                             </div>
                             <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">

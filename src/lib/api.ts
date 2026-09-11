@@ -1142,6 +1142,12 @@ export type FixtureWithNames = {
   full_time_away_goals?: number | null;
   half_time_home_goals?: number | null;
   half_time_away_goals?: number | null;
+  // Dixon-Coles expected goals, frozen pre-match -- see Fixture type and
+  // backfill_fixture_predictions(). Only meaningful (and only ever
+  // populated) while the fixture is still scheduled/postponed; a played
+  // fixture's full_time_* goals take precedence in the UI.
+  predicted_home_goals?: number | null;
+  predicted_away_goals?: number | null;
 };
 
 /**
@@ -1246,6 +1252,7 @@ export async function getFixturesForTeam(
       `
       fixture_id, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
+      predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name),
       league:leagues(code, name, competition_type)
@@ -1271,6 +1278,8 @@ export async function getFixturesForTeam(
     league_code: row.league?.code,
     league_name: row.league?.name,
     competition_type: row.league?.competition_type,
+    predicted_home_goals: row.predicted_home_goals,
+    predicted_away_goals: row.predicted_away_goals,
   }));
   return attachResultsForTeam(fixtures, seasonId, teamId);
 }
@@ -1391,6 +1400,7 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
       `
       fixture_id, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
+      predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name)
     `
@@ -1412,6 +1422,8 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
     kickoff_time: row.kickoff_time,
     matchweek: row.matchweek,
     status: row.status,
+    predicted_home_goals: row.predicted_home_goals,
+    predicted_away_goals: row.predicted_away_goals,
   }));
   return attachResults(fixtures, leagueId, seasonId);
 }

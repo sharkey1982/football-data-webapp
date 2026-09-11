@@ -197,6 +197,15 @@ export type Fixture = {
   source_file: string | null;
   created_at: string;
   updated_at: string;
+  // Dixon-Coles expected goals, frozen at prediction time from the
+  // league's then-latest model_fit_run -- see backfill_fixture_predictions()
+  // in Supabase. Only ever set while status is scheduled/postponed; never
+  // touched once a fixture is played, so it stays a genuine pre-match
+  // forecast rather than a later, hindsight-tainted recalculation.
+  predicted_home_goals: number | null;
+  predicted_away_goals: number | null;
+  prediction_fit_run_id: number | null;
+  predicted_at: string | null;
 };
 
 export type FixtureInsert = {
