@@ -5,6 +5,7 @@ const staticNavItems: { to: To; label: string; end?: boolean }[] = [
   { to: '/table', label: 'League Table' },
   { to: '/preview', label: 'Match Preview' },
   { to: '/teams', label: 'Team Explorer' },
+  { to: '/fantasy', label: 'Fantasy' },
   { to: '/results-data', label: 'Results Data' },
   { to: '/source-data', label: 'Source Data' },
 ];
