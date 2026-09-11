@@ -24,8 +24,18 @@ export type MatchWithNames = Match & {
 export async function getLeagues() {
   const { data, error } = await supabase
     .from('leagues')
-    .select('league_id, code, name, tier, country_id')
-    .order('tier', { ascending: true, nullsFirst: false });
+    .select('league_id, code, name, tier, country_id, competition_type, scope')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+/** Countries a league/team can belong to -- powers the Country filter. */
+export async function getCountries() {
+  const { data, error } = await supabase
+    .from('countries')
+    .select('country_id, name, code')
+    .order('name', { ascending: true });
   if (error) throw error;
   return data;
 }
@@ -740,6 +750,12 @@ export type FixtureWithNames = {
   kickoff_time: string | null;
   matchweek: number | null;
   status: string;
+  // Populated only by getFixturesForTeam, since a team-scoped fixture list
+  // spans multiple competitions (league + cups) and needs a badge to show
+  // which one each row belongs to. Division-scoped queries omit these --
+  // the page already knows which single league it's showing.
+  league_code?: string;
+  league_name?: string;
   // Populated from the `matches` table when a result exists for this
   // fixture (matched on league/season/teams/date -- fixtures and matches
   // aren't linked by a foreign key, so this is a manual join). Null/undefined
@@ -793,6 +809,91 @@ async function attachResults(
       half_time_away_goals: result.half_time_away_goals,
     };
   });
+}
+
+/**
+ * Same idea as `attachResults`, but for a team-scoped fixture list that can
+ * span several competitions in the same season (league + cups). The join
+ * key includes `league_id` because the same two teams could in principle
+ * meet in more than one competition in a season, which a team+opponent-only
+ * key would collide on.
+ */
+async function attachResultsForTeam(
+  fixtures: FixtureWithNames[],
+  seasonId: number,
+  teamId: number
+): Promise<FixtureWithNames[]> {
+  if (fixtures.length === 0) return fixtures;
+
+  const { data, error } = await supabase
+    .from('matches')
+    .select('league_id, home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals')
+    .eq('season_id', seasonId)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+  if (error) throw error;
+
+  const resultsByKey = new Map<string, (typeof data)[number]>();
+  for (const row of data ?? []) {
+    resultsByKey.set(`${row.league_id}-${row.home_team_id}-${row.away_team_id}`, row);
+  }
+
+  return fixtures.map((f) => {
+    const result = resultsByKey.get(`${f.league_id}-${f.home_team_id}-${f.away_team_id}`);
+    if (!result) return f;
+    return {
+      ...f,
+      full_time_home_goals: result.full_time_home_goals,
+      full_time_away_goals: result.full_time_away_goals,
+      half_time_home_goals: result.half_time_home_goals,
+      half_time_away_goals: result.half_time_away_goals,
+    };
+  });
+}
+
+/**
+ * Fetches every fixture for one team in a season, across ALL competitions
+ * (league + any cups) rather than one division at a time -- this is what
+ * powers the Fixtures page's "By Team" view, since a club's season isn't
+ * scoped to a single league the way the calendar/matchweek view is. Each
+ * row carries the league code/name so the UI can badge which competition
+ * it belongs to.
+ */
+export async function getFixturesForTeam(
+  teamId: number,
+  seasonId: number
+): Promise<FixtureWithNames[]> {
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select(
+      `
+      fixture_id, league_id, season_id, home_team_id, away_team_id,
+      kickoff_date, kickoff_time, matchweek, status,
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name),
+      league:leagues(code, name)
+    `
+    )
+    .eq('season_id', seasonId)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .order('kickoff_date', { ascending: true });
+  if (error) throw error;
+
+  const fixtures = (data ?? []).map((row: any) => ({
+    fixture_id: row.fixture_id,
+    league_id: row.league_id,
+    season_id: row.season_id,
+    home_team_id: row.home_team_id,
+    away_team_id: row.away_team_id,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    kickoff_date: row.kickoff_date,
+    kickoff_time: row.kickoff_time,
+    matchweek: row.matchweek,
+    status: row.status,
+    league_code: row.league?.code,
+    league_name: row.league?.name,
+  }));
+  return attachResultsForTeam(fixtures, seasonId, teamId);
 }
 
 /** Returns the distinct, ordered list of matchweek numbers available for a league+season. */

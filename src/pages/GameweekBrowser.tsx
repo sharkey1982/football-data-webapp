@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getLeagues,
+  getCountries,
   getSeasons,
+  getTeams,
+  getTeamById,
   getFixturesForMatchweek,
   getFixtureCalendarIndex,
   getFixturesForDate,
+  getFixturesForTeam,
   type FixtureWithNames,
 } from '../lib/api';
-import { formatMatchDate } from '../lib/formatDate';
+import { formatMatchDate, formatMatchDateWithYear } from '../lib/formatDate';
 import FixtureCalendarHeatmap from '../components/FixtureCalendarHeatmap';
 import { ScoreChip } from '../components/ScoreChip';
 
@@ -25,21 +29,68 @@ function monthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month]} ${year}`;
 }
 
-type LeagueOption = { league_id: number; code: string; name: string };
+type LeagueOption = {
+  league_id: number;
+  code: string;
+  name: string;
+  country_id: number | null;
+  competition_type: string | null;
+  scope: string | null;
+};
+type CountryOption = { country_id: number; name: string; code: string | null };
 type SeasonOption = { season_id: number; label: string; start_year: number; end_year: number };
+type TeamOption = { team_id: number; canonical_name: string };
+
+type ViewMode = 'division' | 'team';
+
+const selectClass =
+  'w-full border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
+const labelClass = 'block text-xs sm:text-sm font-medium text-ink-700 mb-1';
 
 export default function GameweekBrowser() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const urlView = searchParams.get('view') === 'team' ? 'team' : 'division';
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
   const urlSeasonId = searchParams.get('season') ? Number(searchParams.get('season')) : null;
   const urlMatchweek = searchParams.get('mw') ? Number(searchParams.get('mw')) : null;
+  const urlCountryId = searchParams.get('country') ? Number(searchParams.get('country')) : null;
+  const urlCompetitionType = searchParams.get('type');
+  const urlTeamId = searchParams.get('team') ? Number(searchParams.get('team')) : null;
+
+  const [viewMode, setViewMode] = useState<ViewMode>(urlView);
 
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+
+  // Division-view filters. Country/competition type narrow the Division
+  // dropdown itself rather than being sent to the API separately -- the
+  // league list is small enough to filter entirely client-side.
+  const [countryId, setCountryId] = useState<number | null>(urlCountryId);
+  const [competitionType, setCompetitionType] = useState<string>(urlCompetitionType ?? '');
   const [leagueId, setLeagueId] = useState<number | null>(urlLeagueId);
   const [seasonId, setSeasonId] = useState<number | null>(urlSeasonId);
+
+  const filteredLeagues = useMemo(() => {
+    return leagues.filter(
+      (l) =>
+        (!countryId || l.country_id === countryId) &&
+        (!competitionType || l.competition_type === competitionType)
+    );
+  }, [leagues, countryId, competitionType]);
+
+  // If the current division falls outside the Country/Competition filters
+  // (or was never set), fall back to the first division those filters
+  // still allow -- keeps the Division dropdown always showing a valid,
+  // in-filter selection rather than a stale or empty one.
+  useEffect(() => {
+    if (filteredLeagues.length === 0) return;
+    if (leagueId && filteredLeagues.some((l) => l.league_id === leagueId)) return;
+    setLeagueId(filteredLeagues[0].league_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredLeagues]);
 
   const [selectedMatchweek, setSelectedMatchweek] = useState<number | null>(urlMatchweek);
 
@@ -58,6 +109,16 @@ export default function GameweekBrowser() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [dateFixtures, setDateFixtures] = useState<FixtureWithNames[] | null>(null);
   const [dateFixturesLoading, setDateFixturesLoading] = useState(false);
+
+  // Team-view state.
+  const [teamId, setTeamId] = useState<number | null>(urlTeamId);
+  const [teamName, setTeamName] = useState<string>('');
+  const [teamQuery, setTeamQuery] = useState('');
+  const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const [teamFixtures, setTeamFixtures] = useState<FixtureWithNames[] | null>(null);
+  const [teamFixturesLoading, setTeamFixturesLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
 
   const dateCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -92,7 +153,7 @@ export default function GameweekBrowser() {
 
   useEffect(() => {
     getLeagues().then((data) => {
-      const loadedLeagues = data ?? [];
+      const loadedLeagues = (data ?? []) as LeagueOption[];
       setLeagues(loadedLeagues);
       setLeagueId(
         (current) =>
@@ -101,6 +162,7 @@ export default function GameweekBrowser() {
           null
       );
     });
+    getCountries().then((data) => setCountries(data ?? []));
     getSeasons().then((data) => {
       const loadedSeasons = data ?? [];
       setSeasons(loadedSeasons);
@@ -108,17 +170,36 @@ export default function GameweekBrowser() {
     });
   }, []);
 
+  // Restore a team-view selection from the URL on first load (the search
+  // dropdown itself only holds transient query text, so the team's display
+  // name has to be fetched separately once we know its id).
+  useEffect(() => {
+    if (!urlTeamId) return;
+    getTeamById(urlTeamId)
+      .then((t) => setTeamName(t?.canonical_name ?? ''))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Keep the URL in sync with the current selections, so navigating away
   // and back (or refreshing, or sharing the link) restores exactly this
-  // league/season/matchweek rather than starting from blank.
+  // view/filters rather than starting from blank.
   useEffect(() => {
     const params: Record<string, string> = {};
-    if (leagueId) params.league = String(leagueId);
-    if (seasonId) params.season = String(seasonId);
-    if (selectedMatchweek !== null) params.mw = String(selectedMatchweek);
+    if (viewMode === 'team') {
+      params.view = 'team';
+      if (teamId) params.team = String(teamId);
+      if (seasonId) params.season = String(seasonId);
+    } else {
+      if (countryId) params.country = String(countryId);
+      if (competitionType) params.type = competitionType;
+      if (leagueId) params.league = String(leagueId);
+      if (seasonId) params.season = String(seasonId);
+      if (selectedMatchweek !== null) params.mw = String(selectedMatchweek);
+    }
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leagueId, seasonId, selectedMatchweek]);
+  }, [viewMode, countryId, competitionType, leagueId, seasonId, selectedMatchweek, teamId]);
 
   // Calendar index -- one fetch per division/season powers both the
   // heat-map and the matchweek filter. Resets the day filter and snaps the
@@ -132,7 +213,7 @@ export default function GameweekBrowser() {
     setCalendarYear(today.getFullYear());
     setCalendarMonth(today.getMonth());
 
-    if (!leagueId || !seasonId) return;
+    if (viewMode !== 'division' || !leagueId || !seasonId) return;
 
     setCalendarLoading(true);
     getFixtureCalendarIndex(leagueId, seasonId)
@@ -140,7 +221,7 @@ export default function GameweekBrowser() {
       .catch((err) => setError(err.message ?? 'Failed to load fixtures'))
       .finally(() => setCalendarLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leagueId, seasonId]);
+  }, [viewMode, leagueId, seasonId]);
 
   // Default the selected matchweek once the calendar index loads, but only
   // if there's no already-valid selection (e.g. restored from the URL) --
@@ -154,7 +235,7 @@ export default function GameweekBrowser() {
   }, [allMatchweeks, visibleMatchweeks]);
 
   useEffect(() => {
-    if (!leagueId || !seasonId || selectedMatchweek === null) {
+    if (viewMode !== 'division' || !leagueId || !seasonId || selectedMatchweek === null) {
       setFixtures(null);
       return;
     }
@@ -164,12 +245,12 @@ export default function GameweekBrowser() {
       .then(setFixtures)
       .catch((err) => setError(err.message ?? 'Failed to load fixtures'))
       .finally(() => setLoading(false));
-  }, [leagueId, seasonId, selectedMatchweek]);
+  }, [viewMode, leagueId, seasonId, selectedMatchweek]);
 
   // When a calendar day is selected, fetch that day's fixtures to show
   // in place of the matchweek-based list below.
   useEffect(() => {
-    if (!leagueId || !seasonId || !selectedCalendarDate) {
+    if (viewMode !== 'division' || !leagueId || !seasonId || !selectedCalendarDate) {
       setDateFixtures(null);
       return;
     }
@@ -178,55 +259,200 @@ export default function GameweekBrowser() {
       .then(setDateFixtures)
       .catch((err) => setError(err.message ?? 'Failed to load fixtures for that date'))
       .finally(() => setDateFixturesLoading(false));
-  }, [leagueId, seasonId, selectedCalendarDate]);
+  }, [viewMode, leagueId, seasonId, selectedCalendarDate]);
+
+  // Team search -- fetches matching teams as the person types. The list
+  // stays small (a few hundred teams total) so a plain ilike query per
+  // keystroke is cheap; no need for debouncing infrastructure here.
+  useEffect(() => {
+    if (viewMode !== 'team' || !teamDropdownOpen) return;
+    let cancelled = false;
+    getTeams(teamQuery)
+      .then((data) => {
+        if (!cancelled) setTeamOptions((data ?? []).slice(0, 8));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, teamQuery, teamDropdownOpen]);
+
+  // Fetch the selected team's fixtures across every competition once a
+  // team + season are both chosen.
+  useEffect(() => {
+    if (viewMode !== 'team' || !teamId || !seasonId) {
+      setTeamFixtures(null);
+      return;
+    }
+    setTeamFixturesLoading(true);
+    setTeamError(null);
+    getFixturesForTeam(teamId, seasonId)
+      .then(setTeamFixtures)
+      .catch((err) => setTeamError(err.message ?? 'Failed to load fixtures'))
+      .finally(() => setTeamFixturesLoading(false));
+  }, [viewMode, teamId, seasonId]);
 
   function exploreFixture(f: FixtureWithNames) {
     navigate(`/preview?league=${f.league_id}&home=${f.home_team_id}&away=${f.away_team_id}`);
   }
 
+  function selectTeam(t: TeamOption) {
+    setTeamId(t.team_id);
+    setTeamName(t.canonical_name);
+    setTeamQuery('');
+    setTeamDropdownOpen(false);
+  }
+
+  const competitionTypeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const l of leagues) if (l.competition_type) seen.add(l.competition_type);
+    return [...seen].sort();
+  }, [leagues]);
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Gameweek Browser</h1>
+        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Fixtures</h1>
         <p className="text-ink-500 mt-1">
-          Browse upcoming fixtures by matchweek, then jump straight into a full stats comparison.
+          Browse fixtures by division or by team, then jump straight into a full stats comparison.
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
-        <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Division</label>
-          <select
-            value={leagueId ?? ''}
-            onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
-          >
-            <option value="">Select a division&hellip;</option>
-            {leagues.map((l) => (
-              <option key={l.league_id} value={l.league_id}>
-                {l.code} &mdash; {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Season</label>
-          <select
-            value={seasonId ?? ''}
-            onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
-          >
-            <option value="">Select a season&hellip;</option>
-            {seasons.map((s) => (
-              <option key={s.season_id} value={s.season_id}>
-                {s.start_year}/{String(s.end_year).slice(2)}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="inline-flex rounded-lg border border-chalk-300 overflow-hidden text-sm font-medium">
+        <button
+          onClick={() => setViewMode('division')}
+          className={[
+            'px-4 py-2 transition-colors',
+            viewMode === 'division' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100',
+          ].join(' ')}
+        >
+          By Division
+        </button>
+        <button
+          onClick={() => setViewMode('team')}
+          className={[
+            'px-4 py-2 transition-colors border-l border-chalk-300',
+            viewMode === 'team' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100',
+          ].join(' ')}
+        >
+          By Team
+        </button>
       </div>
 
-      {leagueId && seasonId && (
+      {viewMode === 'division' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl">
+          <div>
+            <label className={labelClass}>Country</label>
+            <select
+              value={countryId ?? ''}
+              onChange={(e) => setCountryId(e.target.value ? Number(e.target.value) : null)}
+              className={selectClass}
+            >
+              <option value="">All countries</option>
+              {countries.map((c) => (
+                <option key={c.country_id} value={c.country_id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Competition</label>
+            <select
+              value={competitionType}
+              onChange={(e) => setCompetitionType(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">All types</option>
+              {competitionTypeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t === 'league' ? 'League' : t === 'cup' ? 'Cup' : t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Division</label>
+            <select
+              value={leagueId ?? ''}
+              onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : null)}
+              className={selectClass}
+            >
+              <option value="">Select&hellip;</option>
+              {filteredLeagues.map((l) => (
+                <option key={l.league_id} value={l.league_id}>
+                  {l.code} &mdash; {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Season</label>
+            <select
+              value={seasonId ?? ''}
+              onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
+              className={selectClass}
+            >
+              <option value="">Select&hellip;</option>
+              {seasons.map((s) => (
+                <option key={s.season_id} value={s.season_id}>
+                  {s.start_year}/{String(s.end_year).slice(2)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 max-w-3xl relative">
+          <div className="relative">
+            <label className={labelClass}>Team</label>
+            <input
+              type="text"
+              value={teamDropdownOpen ? teamQuery : teamName}
+              placeholder="Search for a team&hellip;"
+              onFocus={() => {
+                setTeamDropdownOpen(true);
+                setTeamQuery('');
+              }}
+              onChange={(e) => setTeamQuery(e.target.value)}
+              onBlur={() => setTimeout(() => setTeamDropdownOpen(false), 150)}
+              className={selectClass}
+            />
+            {teamDropdownOpen && teamOptions.length > 0 && (
+              <ul className="absolute z-10 mt-1 w-full max-w-xs bg-white border border-chalk-300 rounded shadow-lg max-h-56 overflow-y-auto">
+                {teamOptions.map((t) => (
+                  <li key={t.team_id}>
+                    <button
+                      type="button"
+                      onMouseDown={() => selectTeam(t)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-chalk-100"
+                    >
+                      {t.canonical_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>Season</label>
+            <select
+              value={seasonId ?? ''}
+              onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
+              className={selectClass}
+            >
+              <option value="">Select&hellip;</option>
+              {seasons.map((s) => (
+                <option key={s.season_id} value={s.season_id}>
+                  {s.start_year}/{String(s.end_year).slice(2)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'division' && leagueId && seasonId && (
         <div className="flex flex-col sm:flex-row gap-4 items-start">
           <FixtureCalendarHeatmap
             dateCounts={dateCounts}
@@ -283,8 +509,68 @@ export default function GameweekBrowser() {
       {error && (
         <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded">{error}</div>
       )}
+      {teamError && (
+        <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded">{teamError}</div>
+      )}
 
-      {selectedCalendarDate ? (
+      {viewMode === 'team' ? (
+        <>
+          {!teamId && (
+            <p className="text-ink-500">Search for a team above to see its fixtures across every competition.</p>
+          )}
+          {teamId && !seasonId && <p className="text-ink-500">Select a season.</p>}
+          {teamFixturesLoading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
+
+          {teamFixtures && teamFixtures.length === 0 && !teamFixturesLoading && (
+            <p className="text-ink-500">No fixtures found for {teamName} that season.</p>
+          )}
+
+          {teamFixtures && teamFixtures.length > 0 && (
+            <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
+              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide">
+                {teamName} &mdash; All Competitions
+              </div>
+              <ul className="divide-y divide-chalk-300">
+                {teamFixtures.map((f) => (
+                  <li
+                    key={f.fixture_id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
+                    onClick={() => exploreFixture(f)}
+                  >
+                    <span className="font-mono text-xs text-ink-500 w-32 shrink-0">
+                      {formatMatchDateWithYear(f.kickoff_date)}
+                    </span>
+                    {f.league_code && (
+                      <span className="text-[10px] uppercase tracking-wide font-medium text-pitch-700 bg-pitch-700/10 rounded px-1.5 py-0.5 w-fit shrink-0">
+                        {f.league_code}
+                      </span>
+                    )}
+                    <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
+                      <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
+                      {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
+                        <div className="flex flex-col items-center">
+                          <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
+                          {f.half_time_home_goals != null && f.half_time_away_goals != null && (
+                            <span className="text-[10px] text-ink-500 font-mono mt-0.5">
+                              HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-ink-500 text-xs font-mono text-center">vs</span>
+                      )}
+                      <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
+                    </div>
+                    <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
+                      Explore &rarr;
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      ) : selectedCalendarDate ? (
         <>
           {dateFixturesLoading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
 

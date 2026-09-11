@@ -33,6 +33,9 @@ export type League = {
   code: string;
   name: string;
   tier: number | null;
+  competition_type: 'league' | 'cup' | null;
+  scope: 'domestic' | 'continental' | 'international' | null;
+  confederation: string | null;
   created_at: string;
 };
 
@@ -41,6 +44,9 @@ export type LeagueInsert = {
   code: string;
   name: string;
   tier?: number | null;
+  competition_type?: 'league' | 'cup' | null;
+  scope?: 'domestic' | 'continental' | 'international' | null;
+  confederation?: string | null;
 };
 
 export type Season = {
