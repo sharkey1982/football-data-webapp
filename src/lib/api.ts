@@ -1115,7 +1115,7 @@ export async function getFixturesForTeam(
 /**
  * Matches-sourced counterpart to getFixturesForTeam, for a team+season
  * combination that has no rows in `fixtures` at all (a fully historic,
- * completed season -- see getMatchesCalendarIndex for why). Unlike
+ * completed season -- see getMatchesForSeasonAsFixtures for why). Unlike
  * getFixturesForTeam, no separate results-attach step is needed: `matches`
  * rows already carry their own full-time/half-time scores directly.
  */
@@ -1220,70 +1220,62 @@ export async function getFixtureDateCounts(
  * practice), just not precise enough for a real per-day breakdown once
  * TV scheduling/postponements spread a week's games across several days.
  */
-export async function getFixtureCalendarIndex(
-  leagueId: number,
-  seasonId: number
-): Promise<{ kickoff_date: string; matchweek: number | null }[]> {
+/** Fetches every fixture in a division+season at once (all matchweeks) -- powers the Fixtures page's collapsible-by-matchweek list, so the calendar and the list are always derived from the same data instead of two separate fetches that could drift out of sync. */
+export async function getFixturesForSeason(leagueId: number, seasonId: number): Promise<FixtureWithNames[]> {
   const { data, error } = await supabase
     .from('fixtures')
-    .select('kickoff_date, matchweek')
+    .select(
+      `
+      fixture_id, league_id, season_id, home_team_id, away_team_id,
+      kickoff_date, kickoff_time, matchweek, status,
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
+    `
+    )
     .eq('league_id', leagueId)
-    .eq('season_id', seasonId);
+    .eq('season_id', seasonId)
+    .order('kickoff_date', { ascending: true });
   if (error) throw error;
-  return data ?? [];
+
+  const fixtures = (data ?? []).map((row: any) => ({
+    fixture_id: row.fixture_id,
+    league_id: row.league_id,
+    season_id: row.season_id,
+    home_team_id: row.home_team_id,
+    away_team_id: row.away_team_id,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    kickoff_date: row.kickoff_date,
+    kickoff_time: row.kickoff_time,
+    matchweek: row.matchweek,
+    status: row.status,
+  }));
+  return attachResults(fixtures, leagueId, seasonId);
 }
 
 /**
- * Same shape as getFixtureCalendarIndex, but sourced from `matches`
- * instead of `fixtures` -- for a fully historic season, `fixtures` has no
- * rows at all (it's only ever populated from the current official
- * schedule import, never backfilled), while `matches` holds the complete
- * results archive back to 2014/15. `matchweek` is always null here since
- * `matches` doesn't carry that column; the Fixtures page falls back to
- * this when getFixtureCalendarIndex comes back empty, and treats a null
- * matchweek list as "no matchweek filter available" rather than "no
- * fixtures exist."
+ * Matches-sourced counterpart to getFixturesForSeason, for a division+
+ * season with no rows in `fixtures` at all (a fully historic, completed
+ * season -- see getMatchesForTeamAsFixtures for the same reasoning).
+ * `matchweek` is always null here since `matches` doesn't carry that
+ * column; the Fixtures page groups by month instead when this is what's
+ * powering the list.
  */
-export async function getMatchesCalendarIndex(
-  leagueId: number,
-  seasonId: number
-): Promise<{ kickoff_date: string; matchweek: number | null }[]> {
-  const { data, error } = await supabase
-    .from('matches')
-    .select('match_date')
-    .eq('league_id', leagueId)
-    .eq('season_id', seasonId);
-  if (error) throw error;
-  return (data ?? []).map((row) => ({ kickoff_date: row.match_date, matchweek: null }));
-}
-
-/**
- * Matches-sourced counterpart to getFixturesForDate, returned in the same
- * FixtureWithNames shape (status always 'played', full-time/half-time
- * goals always populated) so the Fixtures page's existing fixture-list
- * rendering works unchanged for historic, fixtures-less seasons.
- */
-export async function getMatchesForDateAsFixtures(
-  leagueId: number,
-  seasonId: number,
-  date: string
-): Promise<FixtureWithNames[]> {
+export async function getMatchesForSeasonAsFixtures(leagueId: number, seasonId: number): Promise<FixtureWithNames[]> {
   const { data, error } = await supabase
     .from('matches')
     .select(
       `
       match_id, league_id, season_id, home_team_id, away_team_id,
       match_date, kickoff_time,
-      full_time_home_goals, full_time_away_goals,
-      half_time_home_goals, half_time_away_goals,
+      full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals,
       home_team:teams!matches_home_team_id_fkey(canonical_name),
       away_team:teams!matches_away_team_id_fkey(canonical_name)
     `
     )
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
-    .eq('match_date', date)
-    .order('kickoff_time', { ascending: true });
+    .order('match_date', { ascending: true });
   if (error) throw error;
 
   return (data ?? []).map((row: any) => ({
@@ -1305,81 +1297,6 @@ export async function getMatchesForDateAsFixtures(
   }));
 }
 
-/** Fetches all fixtures for a specific calendar date, with team names joined in. */
-export async function getFixturesForDate(
-  leagueId: number,
-  seasonId: number,
-  date: string
-): Promise<FixtureWithNames[]> {
-  const { data, error } = await supabase
-    .from('fixtures')
-    .select(
-      `
-      fixture_id, league_id, season_id, home_team_id, away_team_id,
-      kickoff_date, kickoff_time, matchweek, status,
-      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
-      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
-    `
-    )
-    .eq('league_id', leagueId)
-    .eq('season_id', seasonId)
-    .eq('kickoff_date', date)
-    .order('kickoff_time', { ascending: true });
-  if (error) throw error;
-
-  const fixtures = (data ?? []).map((row: any) => ({
-    fixture_id: row.fixture_id,
-    league_id: row.league_id,
-    season_id: row.season_id,
-    home_team_id: row.home_team_id,
-    away_team_id: row.away_team_id,
-    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
-    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
-    kickoff_date: row.kickoff_date,
-    kickoff_time: row.kickoff_time,
-    matchweek: row.matchweek,
-    status: row.status,
-  }));
-  return attachResults(fixtures, leagueId, seasonId);
-}
-
-/** Fetches all fixtures for a specific matchweek, with team names joined in. */
-export async function getFixturesForMatchweek(
-  leagueId: number,
-  seasonId: number,
-  matchweek: number
-): Promise<FixtureWithNames[]> {
-  const { data, error } = await supabase
-    .from('fixtures')
-    .select(
-      `
-      fixture_id, league_id, season_id, home_team_id, away_team_id,
-      kickoff_date, kickoff_time, matchweek, status,
-      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
-      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
-    `
-    )
-    .eq('league_id', leagueId)
-    .eq('season_id', seasonId)
-    .eq('matchweek', matchweek)
-    .order('kickoff_date', { ascending: true });
-  if (error) throw error;
-
-  const fixtures = (data ?? []).map((row: any) => ({
-    fixture_id: row.fixture_id,
-    league_id: row.league_id,
-    season_id: row.season_id,
-    home_team_id: row.home_team_id,
-    away_team_id: row.away_team_id,
-    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
-    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
-    kickoff_date: row.kickoff_date,
-    kickoff_time: row.kickoff_time,
-    matchweek: row.matchweek,
-    status: row.status,
-  }));
-  return attachResults(fixtures, leagueId, seasonId);
-}
 
 
 

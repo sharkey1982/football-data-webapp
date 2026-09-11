@@ -13,9 +13,8 @@ vi.mock('../lib/api', async () => {
     getSeasons: vi.fn(),
     getTeams: vi.fn(),
     getTeamById: vi.fn(),
-    getFixturesForMatchweek: vi.fn(),
-    getFixtureCalendarIndex: vi.fn(),
-    getFixturesForDate: vi.fn(),
+    getFixturesForSeason: vi.fn(),
+    getMatchesForSeasonAsFixtures: vi.fn(),
     getFixturesForTeam: vi.fn(),
   };
 });
