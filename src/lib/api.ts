@@ -30,7 +30,7 @@ export async function getLeagues() {
   const { data, error } = await supabase
     .from('leagues')
     .select('league_id, code, name, tier, country_id, competition_type, scope')
-    .order('name', { ascending: true });
+    .order('code', { ascending: true });
   if (error) throw error;
   return data;
 }
