@@ -24,7 +24,7 @@ const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const TODAY = new Date().toISOString().slice(0, 10);
 
 describe('GameweekBrowser predicted expected-goals display', () => {
-  it('shows the stored xG prediction for a scheduled fixture, the real score for a played one, and plain "vs" for neither', async () => {
+  it('shows the stored xG prediction for a scheduled fixture, the real score alongside a frozen pre-match xG for a played one, and plain "vs" for neither', async () => {
     mockedApi.getLeagues.mockResolvedValue([
       { league_id: 1, code: 'E0', name: 'Premier League', tier: null, country_id: 1, competition_type: 'league', scope: 'domestic' },
     ]);
@@ -42,8 +42,8 @@ describe('GameweekBrowser predicted expected-goals display', () => {
         home_team_name: 'Liverpool', away_team_name: 'Everton',
         kickoff_date: TODAY, kickoff_time: '15:00', matchweek: 1, status: 'played',
         full_time_home_goals: 3, full_time_away_goals: 1,
-        // A played fixture might still carry a leftover prediction value --
-        // the real score must win regardless.
+        // A frozen pre-match prediction (backfill_historic_fixture_predictions) --
+        // the real score must still take visual priority, but this shows too.
         predicted_home_goals: 2.1, predicted_away_goals: 0.9,
       },
       {
@@ -66,10 +66,10 @@ describe('GameweekBrowser predicted expected-goals display', () => {
     expect(screen.getByText('1.8\u20131.2')).toBeInTheDocument();
     expect(screen.getByText('xG est.')).toBeInTheDocument();
 
-    // Played fixture shows the real score, never the leftover prediction.
-    expect(screen.queryByText('2.1\u20130.9')).not.toBeInTheDocument();
+    // Played fixture shows the real score AND its frozen pre-match xG.
     const scoreChip = document.querySelector('.scoreline');
     expect(scoreChip?.textContent).toBe('3\u20131');
+    expect(screen.getByText('xG 2.1\u20130.9')).toBeInTheDocument();
 
     // Scheduled fixture with no prediction stored falls back to plain "vs".
     expect(screen.getByText('vs')).toBeInTheDocument();

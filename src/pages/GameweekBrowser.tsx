@@ -67,6 +67,14 @@ function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
             HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
           </span>
         )}
+        {f.predicted_home_goals != null && f.predicted_away_goals != null && (
+          <span
+            className="text-[9px] text-ink-400 font-mono italic mt-0.5"
+            title="Dixon-Coles pre-match expected goals, frozen before kickoff -- how the model rated this game beforehand, for comparison with what actually happened"
+          >
+            xG {f.predicted_home_goals.toFixed(1)}&ndash;{f.predicted_away_goals.toFixed(1)}
+          </span>
+        )}
       </div>
     );
   }
