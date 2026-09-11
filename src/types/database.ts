@@ -229,6 +229,17 @@ export type TeamCategoryMembership = {
   created_at: string;
 };
 
+export type PointDeduction = {
+  deduction_id: number;
+  league_id: number;
+  season_id: number;
+  team_id: number;
+  points: number; // negative = deduction, positive = correction/addition
+  reason: string | null;
+  effective_date: string | null; // ISO date
+  created_at: string;
+};
+
 // ----------------------------------------------------------------------------
 // Supabase Database type -- the shape expected by createClient<Database>()
 //
@@ -307,6 +318,12 @@ export type Database = {
         Row: TeamCategoryMembership;
         Insert: Omit<TeamCategoryMembership, 'membership_id' | 'created_at'>;
         Update: Partial<Omit<TeamCategoryMembership, 'membership_id'>>;
+        Relationships: [];
+      };
+      point_deductions: {
+        Row: PointDeduction;
+        Insert: Omit<PointDeduction, 'deduction_id' | 'created_at'>;
+        Update: Partial<Omit<PointDeduction, 'deduction_id'>>;
         Relationships: [];
       };
     };

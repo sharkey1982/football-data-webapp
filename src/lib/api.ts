@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import type { Match, MatchResult } from '../types/database';
+import type { Match, MatchResult, PointDeduction } from '../types/database';
 
 export type MatchWithNames = Match & {
   home_team_name: string;
@@ -374,6 +374,142 @@ export async function searchMatches(params: {
   }
 
   return results;
+}
+
+// ----------------------------------------------------------------------------
+// League table -- computed client-side from `matches` (every played game
+// for a league+season, regardless of how far the season has progressed),
+// plus any manual point adjustments from `point_deductions`.
+// ----------------------------------------------------------------------------
+
+export type LeagueTableRow = {
+  team_id: number;
+  team_name: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  pointsBeforeAdjustment: number;
+  pointsAdjustment: number;
+  points: number;
+  deductions: PointDeduction[];
+};
+
+/** Manual point adjustments (deductions or corrections) for a league+season. */
+export async function getPointDeductions(leagueId: number, seasonId: number): Promise<PointDeduction[]> {
+  const { data, error } = await supabase
+    .from('point_deductions')
+    .select('*')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Builds a standard league table (P/W/D/L/GF/GA/GD/Pts) from every match
+ * played so far in a league+season, with any point_deductions applied on
+ * top. Works for a fully historic season (every match played), the
+ * current in-progress season (whatever's been played so far), or an
+ * empty one (returns []) -- there's no dependency on `fixtures` at all,
+ * since a table only needs results, not the schedule.
+ *
+ * Sort order: points desc, goal difference desc, goals for desc, then
+ * team name -- the standard tie-break set when head-to-head records
+ * aren't being modelled separately.
+ */
+export async function getLeagueTable(leagueId: number, seasonId: number): Promise<LeagueTableRow[]> {
+  const [{ data, error }, deductions] = await Promise.all([
+    supabase
+      .from('matches')
+      .select(
+        `
+        home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, full_time_result,
+        home_team:teams!matches_home_team_id_fkey(canonical_name),
+        away_team:teams!matches_away_team_id_fkey(canonical_name)
+      `
+      )
+      .eq('league_id', leagueId)
+      .eq('season_id', seasonId),
+    getPointDeductions(leagueId, seasonId),
+  ]);
+  if (error) throw error;
+
+  const deductionsByTeam = new Map<number, PointDeduction[]>();
+  for (const d of deductions) {
+    (deductionsByTeam.get(d.team_id) ?? deductionsByTeam.set(d.team_id, []).get(d.team_id)!).push(d);
+  }
+
+  type Accumulator = Omit<LeagueTableRow, 'goalDifference' | 'points' | 'pointsAdjustment' | 'deductions'>;
+  const rows = new Map<number, Accumulator>();
+
+  function rowFor(teamId: number, teamName: string): Accumulator {
+    let row = rows.get(teamId);
+    if (!row) {
+      row = {
+        team_id: teamId,
+        team_name: teamName,
+        played: 0,
+        won: 0,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        pointsBeforeAdjustment: 0,
+      };
+      rows.set(teamId, row);
+    }
+    return row;
+  }
+
+  for (const m of (data ?? []) as any[]) {
+    const home = rowFor(m.home_team_id, m.home_team?.canonical_name ?? 'Unknown');
+    const away = rowFor(m.away_team_id, m.away_team?.canonical_name ?? 'Unknown');
+
+    home.played++;
+    away.played++;
+    home.goalsFor += m.full_time_home_goals;
+    home.goalsAgainst += m.full_time_away_goals;
+    away.goalsFor += m.full_time_away_goals;
+    away.goalsAgainst += m.full_time_home_goals;
+
+    if (m.full_time_result === 'D') {
+      home.drawn++;
+      away.drawn++;
+      home.pointsBeforeAdjustment += 1;
+      away.pointsBeforeAdjustment += 1;
+    } else if (m.full_time_result === 'H') {
+      home.won++;
+      away.lost++;
+      home.pointsBeforeAdjustment += 3;
+    } else {
+      away.won++;
+      home.lost++;
+      away.pointsBeforeAdjustment += 3;
+    }
+  }
+
+  return [...rows.values()]
+    .map((row) => {
+      const teamDeductions = deductionsByTeam.get(row.team_id) ?? [];
+      const pointsAdjustment = teamDeductions.reduce((sum, d) => sum + d.points, 0);
+      return {
+        ...row,
+        goalDifference: row.goalsFor - row.goalsAgainst,
+        pointsAdjustment,
+        points: row.pointsBeforeAdjustment + pointsAdjustment,
+        deductions: teamDeductions,
+      };
+    })
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+      return a.team_name.localeCompare(b.team_name);
+    });
 }
 
 // ----------------------------------------------------------------------------
