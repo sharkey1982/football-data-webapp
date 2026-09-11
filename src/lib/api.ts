@@ -7,7 +7,8 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import type { Match, MatchResult, PointDeduction, RawMatchFile, SourceMatchRow } from '../types/database';
+import type { Match, MatchResult, ModelFitRun, PointDeduction, RawMatchFile, SourceMatchRow } from '../types/database';
+import { calculateDixonColes } from './dixonColes';
 
 export type MatchWithNames = Match & {
   home_team_name: string;
@@ -812,6 +813,168 @@ export async function getTeamRatingsForFitRun(fitRunId: number): Promise<TeamWit
       estimation_note: row.estimation_note ?? null,
     }))
     .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name));
+}
+
+// ----------------------------------------------------------------------------
+// Fantasy fixture difficulty -- Dixon-Coles expected goals for every
+// upcoming fixture, per team, for the Fantasy heat map.
+// ----------------------------------------------------------------------------
+
+export interface FantasyFixtureCell {
+  fixture_id: number;
+  kickoff_date: string;
+  matchweek: number | null;
+  opponent_team_id: number;
+  opponent_name: string;
+  is_home: boolean;
+  expected_goals_for: number;
+  expected_goals_against: number;
+  opponent_attack_strength: number;
+  opponent_defence_strength: number;
+}
+
+export interface FantasyTeamFixtures {
+  team_id: number;
+  team_name: string;
+  /** Chronological (matchweek, then kickoff_date) order -- earliest fixture first. */
+  fixtures: FantasyFixtureCell[];
+}
+
+export interface FantasyFixtureData {
+  fitRun: ModelFitRun | null;
+  ratings: TeamWithRating[];
+  teams: FantasyTeamFixtures[];
+}
+
+/**
+ * Builds the per-team list of upcoming fixtures with Dixon-Coles expected
+ * goals for/against, for the Fantasy fixture-difficulty heat map. "Upcoming"
+ * means any fixture not yet played (scheduled or postponed) -- postponed
+ * fixtures are kept even without a firm date since they'll still count
+ * against a team's near-term run once rescheduled.
+ *
+ * A fixture where either side has no rating in the latest fit run (freshly
+ * promoted, not enough matches yet) is skipped entirely rather than shown
+ * with a fabricated number -- there's no real attack/defence strength to
+ * base an expected-goals figure on.
+ */
+export async function getFantasyFixtureDifficulty(
+  leagueId: number,
+  seasonId: number
+): Promise<FantasyFixtureData> {
+  const fitRun = await getLatestFitRun(leagueId);
+  if (!fitRun) return { fitRun: null, ratings: [], teams: [] };
+
+  const ratings = await getTeamRatingsForFitRun(fitRun.fit_run_id);
+  const ratingByTeam = new Map(ratings.map((r) => [r.team_id, r]));
+
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select(
+      `
+      fixture_id, kickoff_date, matchweek, status,
+      home_team_id, away_team_id,
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
+    `
+    )
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .neq('status', 'played')
+    .order('matchweek', { ascending: true, nullsFirst: false })
+    .order('kickoff_date', { ascending: true });
+  if (error) throw error;
+
+  const byTeam = new Map<number, FantasyTeamFixtures>();
+  const ensureTeam = (teamId: number, name: string) => {
+    let entry = byTeam.get(teamId);
+    if (!entry) {
+      entry = { team_id: teamId, team_name: name, fixtures: [] };
+      byTeam.set(teamId, entry);
+    }
+    return entry;
+  };
+
+  for (const row of (data ?? []) as any[]) {
+    const homeRating = ratingByTeam.get(row.home_team_id);
+    const awayRating = ratingByTeam.get(row.away_team_id);
+    if (!homeRating || !awayRating) continue;
+
+    const dc = calculateDixonColes({
+      homeAttack: homeRating.attack_strength,
+      homeDefence: homeRating.defence_strength,
+      awayAttack: awayRating.attack_strength,
+      awayDefence: awayRating.defence_strength,
+      rho: fitRun.rho,
+      homeAdvantage: fitRun.home_advantage,
+    });
+
+    const homeName = row.home_team?.canonical_name ?? 'Unknown';
+    const awayName = row.away_team?.canonical_name ?? 'Unknown';
+
+    ensureTeam(row.home_team_id, homeName).fixtures.push({
+      fixture_id: row.fixture_id,
+      kickoff_date: row.kickoff_date,
+      matchweek: row.matchweek,
+      opponent_team_id: row.away_team_id,
+      opponent_name: awayName,
+      is_home: true,
+      expected_goals_for: dc.expectedHomeGoals,
+      expected_goals_against: dc.expectedAwayGoals,
+      opponent_attack_strength: awayRating.attack_strength,
+      opponent_defence_strength: awayRating.defence_strength,
+    });
+
+    ensureTeam(row.away_team_id, awayName).fixtures.push({
+      fixture_id: row.fixture_id,
+      kickoff_date: row.kickoff_date,
+      matchweek: row.matchweek,
+      opponent_team_id: row.home_team_id,
+      opponent_name: homeName,
+      is_home: false,
+      expected_goals_for: dc.expectedAwayGoals,
+      expected_goals_against: dc.expectedHomeGoals,
+      opponent_attack_strength: homeRating.attack_strength,
+      opponent_defence_strength: homeRating.defence_strength,
+    });
+  }
+
+  const teams = [...byTeam.values()].sort((a, b) => a.team_name.localeCompare(b.team_name));
+  return { fitRun, ratings, teams };
+}
+
+/**
+ * Buckets every rated team's attack/defence strength into FDR-style
+ * quintiles (1 = weakest, 5 = strongest), for the "simple rating" colour
+ * toggle -- an alternative to the raw Dixon-Coles expected-goals scale that
+ * mirrors the familiar 1-5 fixture-difficulty convention fantasy players
+ * already know, independent of the model's actual goal-scale numbers.
+ */
+export function computeFdrQuintiles(
+  ratings: TeamWithRating[]
+): Map<number, { attack_fdr: number; defence_fdr: number }> {
+  function quintileRanks(values: { team_id: number; value: number }[]): Map<number, number> {
+    const sorted = [...values].sort((a, b) => a.value - b.value);
+    const n = sorted.length;
+    const ranks = new Map<number, number>();
+    sorted.forEach((v, i) => {
+      const bucket = Math.min(5, Math.floor((i / n) * 5) + 1);
+      ranks.set(v.team_id, bucket);
+    });
+    return ranks;
+  }
+
+  const attackRanks = quintileRanks(ratings.map((r) => ({ team_id: r.team_id, value: r.attack_strength })));
+  const defenceRanks = quintileRanks(ratings.map((r) => ({ team_id: r.team_id, value: r.defence_strength })));
+
+  const result = new Map<number, { attack_fdr: number; defence_fdr: number }>();
+  for (const r of ratings) {
+    result.set(r.team_id, {
+      attack_fdr: attackRanks.get(r.team_id) ?? 3,
+      defence_fdr: defenceRanks.get(r.team_id) ?? 3,
+    });
+  }
+  return result;
 }
 
 // ----------------------------------------------------------------------------
