@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import type { Match, MatchResult, PointDeduction } from '../types/database';
+import type { Match, MatchResult, PointDeduction, RawMatchFile, SourceMatchRow } from '../types/database';
 
 export type MatchWithNames = Match & {
   home_team_name: string;
@@ -1382,3 +1382,50 @@ export async function getFixturesForMatchweek(
 }
 
 
+
+// ----------------------------------------------------------------------------
+// Raw source data (admin/exploration only) -- unprocessed rows exactly as
+// retrieved from each provider, powering the Source Data page. Deliberately
+// kept separate from every function above: no analytics page reads from
+// here, and nothing here should assume a fixed set of competitions,
+// seasons, or columns -- the raw layer is expected to keep expanding
+// backwards through history and eventually cover other providers.
+// ----------------------------------------------------------------------------
+
+export type { RawMatchFile, SourceMatchRow };
+
+/**
+ * Every raw source file ingested so far. One row per file (e.g. one
+ * season+competition's CSV from football-data.co.uk), with row_count and
+ * column_names already computed at ingestion time -- column_names is
+ * authoritative for what that specific file contains, so the UI never
+ * needs to infer columns by sampling rows.
+ */
+export async function getRawMatchFiles(): Promise<RawMatchFile[]> {
+  const { data, error } = await supabase
+    .from('raw_match_files')
+    .select('*')
+    .order('season_label', { ascending: false })
+    .order('competition_code', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Every row belonging to one source file, verbatim. raw_data is the
+ * complete original row keyed by that file's own column names -- do not
+ * assume any particular key exists; read column_names from the file
+ * itself (getRawMatchFiles) to know what's actually there.
+ */
+export async function getSourceMatchRows(rawFileId: number): Promise<SourceMatchRow[]> {
+  const { data, error } = await supabase
+    .from('source_match_rows')
+    .select(
+      'source_match_row_id, source_competition_id, raw_file_id, source_row_key, source_home_team, source_away_team, source_match_date, source_kickoff_time, source_row_number, raw_data, raw_hash, first_seen_at, last_seen_at'
+    )
+    .eq('raw_file_id', rawFileId)
+    .order('source_match_date', { ascending: true, nullsFirst: false })
+    .order('source_row_number', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data ?? [];
+}

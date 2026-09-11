@@ -1,8 +1,9 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
-import RawData from '../pages/RawData';
+import ResultsData from '../pages/ResultsData';
 import * as api from '../lib/api';
 
 vi.mock('../lib/api', async () => {
@@ -19,7 +20,7 @@ vi.mock('../lib/api', async () => {
 
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
-describe('RawData country/competition filters', () => {
+describe('ResultsData country/competition filters', () => {
   it('narrows the Division dropdown by Competition type and shows a Type badge in results', async () => {
     mockedApi.getLeagues.mockResolvedValue([
       { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
@@ -44,7 +45,11 @@ describe('RawData country/competition filters', () => {
     });
 
     const user = userEvent.setup();
-    render(<RawData />);
+    render(
+      <MemoryRouter>
+        <ResultsData />
+      </MemoryRouter>
+    );
 
     // Filter the Division dropdown to only Cup competitions.
     await screen.findByText('All countries');

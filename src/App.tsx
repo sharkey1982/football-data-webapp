@@ -4,7 +4,8 @@ import TeamExplorer from './pages/TeamExplorer';
 import MatchPreview from './pages/MatchPreview';
 import GameweekBrowser from './pages/GameweekBrowser';
 import LeagueTable from './pages/LeagueTable';
-import RawData from './pages/RawData';
+import ResultsData from './pages/ResultsData';
+import SourceData from './pages/SourceData';
 
 export default function App() {
   return (
@@ -16,7 +17,8 @@ export default function App() {
           <Route path="fixtures" element={<GameweekBrowser />} />
           <Route path="table" element={<LeagueTable />} />
           <Route path="preview" element={<MatchPreview />} />
-          <Route path="raw-data" element={<RawData />} />
+          <Route path="results-data" element={<ResultsData />} />
+          <Route path="source-data" element={<SourceData />} />
         </Route>
       </Routes>
     </BrowserRouter>

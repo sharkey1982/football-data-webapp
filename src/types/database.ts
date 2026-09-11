@@ -241,6 +241,65 @@ export type PointDeduction = {
 };
 
 // ----------------------------------------------------------------------------
+// Raw source data layer -- unprocessed rows as retrieved from each provider,
+// kept separate from the curated matches/fixtures tables. Populated by a
+// sibling importer project, not this webapp; the webapp only ever reads
+// these three tables. See src/pages/SourceData.tsx.
+// ----------------------------------------------------------------------------
+
+export type RawMatchFile = {
+  raw_file_id: number;
+  source_name: string;
+  source_url: string;
+  source_code: string | null;
+  competition_code: string | null;
+  season_label: string | null;
+  retrieved_at: string;
+  content_hash: string;
+  row_count: number | null;
+  // The literal column headers present in this specific file, in their
+  // original order -- authoritative for rendering, since different
+  // files/seasons/providers can (and do) have different columns.
+  column_names: string[] | null;
+  file_metadata: Record<string, unknown>;
+};
+
+export type SourceMatchRow = {
+  source_match_row_id: number;
+  source_competition_id: number | null;
+  raw_file_id: number | null;
+  source_row_key: string;
+  source_home_team: string | null;
+  source_away_team: string | null;
+  source_match_date: string | null; // ISO date
+  source_kickoff_time: string | null;
+  // The complete original row, verbatim, keyed by that file's own column
+  // names -- values are whatever the source provider sent (typically
+  // strings, even for numeric-looking fields).
+  raw_data: Record<string, unknown>;
+  raw_hash: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  source_row_number: number | null;
+};
+
+export type DataSourceCompetition = {
+  source_competition_id: number;
+  source_name: string;
+  country_name: string;
+  source_code: string;
+  competition_code: string;
+  competition_type: 'league' | 'cup';
+  season_label: string;
+  source_url: string;
+  enabled: boolean;
+  priority: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+// ----------------------------------------------------------------------------
 // Supabase Database type -- the shape expected by createClient<Database>()
 //
 // NOTE on `Relationships: []`: supabase-js's internal GenericTable type
@@ -324,6 +383,24 @@ export type Database = {
         Row: PointDeduction;
         Insert: Omit<PointDeduction, 'deduction_id' | 'created_at'>;
         Update: Partial<Omit<PointDeduction, 'deduction_id'>>;
+        Relationships: [];
+      };
+      raw_match_files: {
+        Row: RawMatchFile;
+        Insert: Omit<RawMatchFile, 'raw_file_id'>;
+        Update: Partial<Omit<RawMatchFile, 'raw_file_id'>>;
+        Relationships: [];
+      };
+      source_match_rows: {
+        Row: SourceMatchRow;
+        Insert: Omit<SourceMatchRow, 'source_match_row_id' | 'first_seen_at' | 'last_seen_at'>;
+        Update: Partial<Omit<SourceMatchRow, 'source_match_row_id'>>;
+        Relationships: [];
+      };
+      data_source_competitions: {
+        Row: DataSourceCompetition;
+        Insert: Omit<DataSourceCompetition, 'source_competition_id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DataSourceCompetition, 'source_competition_id'>>;
         Relationships: [];
       };
     };

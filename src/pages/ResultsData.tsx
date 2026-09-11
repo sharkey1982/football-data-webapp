@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getLeagues,
   getCountries,
@@ -26,7 +27,7 @@ function competitionBadgeClass(type?: string | null) {
   return type === 'cup' ? 'text-cup-800 bg-cup-700/15' : 'text-pitch-700 bg-pitch-700/10';
 }
 
-export default function RawData() {
+export default function ResultsData() {
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
@@ -126,9 +127,15 @@ export default function RawData() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Raw Data</h1>
+        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Results Data</h1>
         <p className="text-ink-500 mt-1">
-          Filter the match archive by division, season, and team, then browse or export the results.
+          Filter the curated match archive by division, season, and team, then browse or export the
+          results. This is the cleaned dataset every analytics page on this site reads from &mdash; for
+          the original unprocessed source files, see{' '}
+          <Link to="/source-data" className="underline hover:text-pitch-700">
+            Source Data
+          </Link>
+          .
         </p>
       </div>
 
