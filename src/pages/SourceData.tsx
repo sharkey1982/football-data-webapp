@@ -6,6 +6,11 @@ type LeagueOption = { league_id: number; code: string; name: string };
 
 type SortState = { column: string; direction: 'asc' | 'desc' } | null;
 
+// Some rows (notably web-scraped cup fixtures with no clean CSV source)
+// fall back to dumping an entire raw page into one field -- cap what's
+// rendered so a single oversized value can't blow up the table.
+const MAX_CELL_CHARS = 300;
+
 /** Numeric-aware compare so odds/goals columns sort sensibly, falling back to string compare for anything non-numeric (team names, dates-as-text, etc). */
 function compareRawValues(a: unknown, b: unknown): number {
   const aStr = a == null ? '' : String(a);
@@ -88,12 +93,45 @@ export default function SourceData() {
       .finally(() => setLoadingRows(false));
   }
 
+  // The file's declared column_names is a good starting point (it gives
+  // the natural CSV column order), but it isn't always a complete or
+  // accurate guide to what a given row actually contains -- some rows
+  // (e.g. web-scraped fixtures with no clean CSV source) fall back to a
+  // different shape than the file's own metadata claims. So the real
+  // column set is column_names PLUS any keys actually observed in the
+  // fetched rows that aren't already in that list, in the order
+  // encountered -- never just trusting the file's metadata blindly.
+  const allColumns = useMemo(() => {
+    const declared = selectedFile?.column_names ?? [];
+    const seen = new Set(declared);
+    const observed: string[] = [];
+    for (const r of rows ?? []) {
+      for (const key of Object.keys(r.raw_data)) {
+        if (!seen.has(key)) {
+          seen.add(key);
+          observed.push(key);
+        }
+      }
+    }
+    return [...declared, ...observed];
+  }, [selectedFile, rows]);
+
   const visibleColumns = useMemo(() => {
-    const all = selectedFile?.column_names ?? [];
-    if (!columnFilter.trim()) return all;
+    if (!columnFilter.trim()) return allColumns;
     const q = columnFilter.trim().toLowerCase();
-    return all.filter((c) => c.toLowerCase().includes(q));
-  }, [selectedFile, columnFilter]);
+    return allColumns.filter((c) => c.toLowerCase().includes(q));
+  }, [allColumns, columnFilter]);
+
+  /** Renders a raw_data value for display, truncating anything that could
+   *  blow up the table (a scraped page dump, say) rather than dumping it
+   *  verbatim -- the full value is still available via the title tooltip,
+   *  itself capped so a pathological value can't make hovering unusable. */
+  function renderCellValue(value: unknown): { text: string; title: string | undefined } {
+    if (value == null || value === '') return { text: '\u2013', title: undefined };
+    const full = String(value);
+    if (full.length <= MAX_CELL_CHARS) return { text: full, title: undefined };
+    return { text: full.slice(0, MAX_CELL_CHARS) + '\u2026', title: full.slice(0, 4000) };
+  }
 
   const visibleRows = useMemo(() => {
     if (!rows) return rows;
@@ -258,8 +296,14 @@ export default function SourceData() {
               </p>
               <p className="text-xs text-ink-500 font-mono">
                 {selectedFile.row_count ?? rows?.length ?? '?'} rows &middot;{' '}
-                {selectedFile.column_names?.length ?? 0} columns &middot; retrieved{' '}
-                {new Date(selectedFile.retrieved_at).toLocaleString()}
+                {allColumns.length} columns
+                {allColumns.length !== (selectedFile.column_names?.length ?? 0) && (
+                  <span className="text-cup-700">
+                    {' '}
+                    ({selectedFile.column_names?.length ?? 0} declared, actual rows differ)
+                  </span>
+                )}{' '}
+                &middot; retrieved {new Date(selectedFile.retrieved_at).toLocaleString()}
               </p>
             </div>
           </div>
@@ -307,7 +351,7 @@ export default function SourceData() {
             <>
               <p className="text-xs text-ink-500">
                 Showing {visibleRows.length} of {rows?.length ?? 0} rows, {visibleColumns.length} of{' '}
-                {selectedFile.column_names?.length ?? 0} columns. Click a column heading to sort.
+                {allColumns.length} columns. Click a column heading to sort.
               </p>
               <div className="border border-chalk-300 rounded-lg overflow-auto bg-white max-h-[70vh]">
                 <table className="text-sm font-mono">
@@ -329,15 +373,18 @@ export default function SourceData() {
                   <tbody className="divide-y divide-chalk-200">
                     {visibleRows.map((r) => (
                       <tr key={r.source_match_row_id} className="hover:bg-chalk-100 transition-colors">
-                        {visibleColumns.map((col) => (
-                          <td key={col} className="px-3 py-1.5 text-xs whitespace-nowrap text-ink-700">
-                            {r.raw_data[col] == null || r.raw_data[col] === '' ? (
-                              <span className="text-chalk-300">&ndash;</span>
-                            ) : (
-                              String(r.raw_data[col])
-                            )}
-                          </td>
-                        ))}
+                        {visibleColumns.map((col) => {
+                          const { text, title } = renderCellValue(r.raw_data[col]);
+                          return (
+                            <td
+                              key={col}
+                              title={title}
+                              className="px-3 py-1.5 text-xs whitespace-nowrap text-ink-700 max-w-xs truncate"
+                            >
+                              {text === '\u2013' ? <span className="text-chalk-300">{text}</span> : text}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>

@@ -90,4 +90,50 @@ describe('SourceData page', () => {
     expect(screen.queryByText('B365H')).not.toBeInTheDocument();
     expect(screen.getByText('FTHG')).toBeInTheDocument();
   });
+
+  it('shows columns actually present in row data even when they are missing from the file\'s declared column_names', async () => {
+    // Real-world case found in the live data: a web-scraped cup fixture
+    // file whose rows contain keys (e.g. an unexpected fallback field)
+    // that aren't in the file's own column_names metadata. The page must
+    // not silently hide that data.
+    const fileWithDrift = {
+      raw_file_id: 9,
+      source_name: 'footballwebpages.co.uk',
+      source_url: 'https://example.com/cup.html',
+      source_code: 'LC',
+      competition_code: 'LC',
+      season_label: '252026',
+      retrieved_at: '2026-09-11T03:03:53.339327+00:00',
+      content_hash: 'xyz',
+      row_count: 1,
+      column_names: ['date', 'round', 'raw_text'],
+      file_metadata: {},
+    };
+    mockedApi.getLeagues.mockResolvedValue([]);
+    mockedApi.getRawMatchFiles.mockResolvedValue([fileWithDrift]);
+    mockedApi.getSourceMatchRows.mockResolvedValue([
+      {
+        source_match_row_id: 99, source_competition_id: null, raw_file_id: 9, source_row_key: 'k',
+        source_home_team: null, source_away_team: null, source_match_date: null,
+        source_kickoff_time: null, source_row_number: null, raw_hash: 'h',
+        first_seen_at: '', last_seen_at: '',
+        // Note: 'source_html' is NOT in column_names above.
+        raw_data: { round: 'First Round', source_html: '<html>a very long page dump...</html>' },
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <SourceData />
+      </MemoryRouter>
+    );
+
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByText('View \u2192'))[0]);
+    await screen.findByText('source_html');
+    expect(screen.getByText('round')).toBeInTheDocument();
+    // A declared column that no row actually has is fine to still list,
+    // but the mismatch itself should be visible to the person.
+    expect(screen.getByText(/declared, actual rows differ/)).toBeInTheDocument();
+  });
 });
