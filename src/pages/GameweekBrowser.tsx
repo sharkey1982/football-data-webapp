@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getLeagues,
@@ -6,11 +6,8 @@ import {
   getSeasons,
   getTeams,
   getTeamById,
-  getFixturesForMatchweek,
-  getFixtureCalendarIndex,
-  getMatchesCalendarIndex,
-  getFixturesForDate,
-  getMatchesForDateAsFixtures,
+  getFixturesForSeason,
+  getMatchesForSeasonAsFixtures,
   getFixturesForTeam,
   getMatchesForTeamAsFixtures,
   type FixtureWithNames,
@@ -24,12 +21,14 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function monthKey(year: number, month: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}`;
-}
-
 function monthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month]} ${year}`;
+}
+
+/** Normalises a possibly out-of-range (year, month) pair -- e.g. month 12 -> next year, January. */
+function normaliseMonth(year: number, month: number): { year: number; month: number } {
+  const total = year * 12 + month;
+  return { year: Math.floor(total / 12), month: ((total % 12) + 12) % 12 };
 }
 
 type LeagueOption = {
@@ -57,7 +56,6 @@ export default function GameweekBrowser() {
   const urlView = searchParams.get('view') === 'team' ? 'team' : 'division';
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
   const urlSeasonId = searchParams.get('season') ? Number(searchParams.get('season')) : null;
-  const urlMatchweek = searchParams.get('mw') ? Number(searchParams.get('mw')) : null;
   const urlCountryId = searchParams.get('country') ? Number(searchParams.get('country')) : null;
   const urlCompetitionType = searchParams.get('type');
   const urlTeamId = searchParams.get('team') ? Number(searchParams.get('team')) : null;
@@ -95,26 +93,21 @@ export default function GameweekBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredLeagues]);
 
-  const [selectedMatchweek, setSelectedMatchweek] = useState<number | null>(urlMatchweek);
-
-  const [fixtures, setFixtures] = useState<FixtureWithNames[] | null>(null);
+  const [seasonFixtures, setSeasonFixtures] = useState<FixtureWithNames[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Raw {kickoff_date, matchweek} rows for the selected division/season --
-  // derives the calendar heat-map counts AND the "which matchweeks fall in
-  // the viewed month" filter below, from a single fetch.
-  const [calendarIndex, setCalendarIndex] = useState<{ kickoff_date: string; matchweek: number | null }[]>([]);
-  const [calendarLoading, setCalendarLoading] = useState(false);
   const today = new Date();
   const [calendarYear, setCalendarYear] = useState(today.getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
-  const [dateFixtures, setDateFixtures] = useState<FixtureWithNames[] | null>(null);
-  const [dateFixturesLoading, setDateFixturesLoading] = useState(false);
+  // Which matchweek/month sections are expanded, keyed by group key (see
+  // groupFixtures below). A Set rather than a single value, since more
+  // than one section can be open at once.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   // True when the selected division+season has no rows in `fixtures` at
-  // all (a fully historic, completed season) and the calendar/date-list
-  // below are sourced from `matches` instead -- see getMatchesCalendarIndex.
+  // all (a fully historic, completed season) and the list below is
+  // sourced from `matches` instead -- see getMatchesForSeasonAsFixtures.
   const [historicMode, setHistoricMode] = useState(false);
 
   // Team-view state. Country/Division here are their own filters, kept
@@ -178,9 +171,9 @@ export default function GameweekBrowser() {
 
   const dateCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const row of calendarIndex) counts[row.kickoff_date] = (counts[row.kickoff_date] ?? 0) + 1;
+    for (const f of seasonFixtures ?? []) counts[f.kickoff_date] = (counts[f.kickoff_date] ?? 0) + 1;
     return counts;
-  }, [calendarIndex]);
+  }, [seasonFixtures]);
 
   // Division view only ever shows one league at a time, so every date in
   // its calendar shares that league's competition type -- no per-date
@@ -196,30 +189,56 @@ export default function GameweekBrowser() {
     return map;
   }, [dateCounts, selectedLeagueCompetitionType]);
 
-  // Every matchweek in the season, for validating a URL-restored selection
-  // and as a fallback when the viewed calendar month has none of its own.
-  const allMatchweeks = useMemo(() => {
-    const seen = new Set<number>();
-    for (const row of calendarIndex) if (row.matchweek !== null) seen.add(row.matchweek);
-    return [...seen].sort((a, b) => a - b);
-  }, [calendarIndex]);
-
-  // Matchweeks whose fixtures fall within the currently viewed calendar
-  // month -- these are the buttons actually shown, keeping the matchweek
-  // filter in sync with whatever month the calendar is paged to.
-  const matchweeksByMonth = useMemo(() => {
-    const map: Record<string, Set<number>> = {};
-    for (const row of calendarIndex) {
-      if (row.matchweek === null) continue;
-      const [y, m] = row.kickoff_date.split('-').map(Number);
-      const key = monthKey(y, m - 1);
-      (map[key] ??= new Set()).add(row.matchweek);
+  // Groups the season's fixtures into sections for the collapsible list:
+  // by matchweek when that data exists (the normal case), or by month
+  // when it doesn't (a historic season sourced from `matches`, which
+  // carries no matchweek column at all). Always sorted chronologically.
+  type FixtureGroup = { key: string; label: string; sortKey: string; fixtures: FixtureWithNames[] };
+  const groups = useMemo((): FixtureGroup[] => {
+    if (!seasonFixtures) return [];
+    const map = new Map<string, FixtureGroup>();
+    for (const f of seasonFixtures) {
+      let key: string;
+      let label: string;
+      let sortKey: string;
+      if (!historicMode && f.matchweek != null) {
+        key = `mw-${f.matchweek}`;
+        label = `Matchweek ${f.matchweek}`;
+        sortKey = String(f.matchweek).padStart(4, '0');
+      } else if (!historicMode) {
+        key = 'mw-none';
+        label = 'Other fixtures';
+        sortKey = '9999';
+      } else {
+        const [y, m] = f.kickoff_date.split('-');
+        key = `month-${y}-${m}`;
+        label = monthLabel(Number(y), Number(m) - 1);
+        sortKey = `${y}-${m}`;
+      }
+      let group = map.get(key);
+      if (!group) {
+        group = { key, label, sortKey, fixtures: [] };
+        map.set(key, group);
+      }
+      group.fixtures.push(f);
     }
-    const result: Record<string, number[]> = {};
-    for (const [key, set] of Object.entries(map)) result[key] = [...set].sort((a, b) => a - b);
-    return result;
-  }, [calendarIndex]);
-  const visibleMatchweeks = matchweeksByMonth[monthKey(calendarYear, calendarMonth)] ?? [];
+    return [...map.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  }, [seasonFixtures, historicMode]);
+
+  // Which groups have any fixture in a given (year, month) -- used both to
+  // decide which sections the calendar's two visible months should expand
+  // (the actual "calendar filters the list" behaviour) and, on first load,
+  // to seed the initial month the calendar opens on.
+  function groupKeysForMonth(year: number, month: number): string[] {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    return groups.filter((g) => g.fixtures.some((f) => f.kickoff_date.startsWith(prefix))).map((g) => g.key);
+  }
+
+  const groupKeyForDate = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const g of groups) for (const f of g.fixtures) map[f.kickoff_date] = g.key;
+    return map;
+  }, [groups]);
 
   useEffect(() => {
     getLeagues().then((data) => {
@@ -265,94 +284,107 @@ export default function GameweekBrowser() {
       if (competitionType) params.type = competitionType;
       if (leagueId) params.league = String(leagueId);
       if (seasonId) params.season = String(seasonId);
-      if (selectedMatchweek !== null) params.mw = String(selectedMatchweek);
     }
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, countryId, competitionType, leagueId, seasonId, selectedMatchweek, teamId]);
+  }, [viewMode, countryId, competitionType, leagueId, seasonId, teamId]);
 
-  // Calendar index -- one fetch per division/season powers both the
-  // heat-map and the matchweek filter. Resets the day filter and snaps the
-  // calendar back to the current month, since a date/month selected under
-  // one division/season is meaningless once that changes.
+  // Fetches the WHOLE season's fixtures in one go -- powers the calendar,
+  // the matchweek grouping, and the list, all from a single source of
+  // truth. (Previously the calendar and the list were two separate
+  // fetches that could end up showing inconsistent things; this can't.)
   useEffect(() => {
-    setCalendarIndex([]);
-    setFixtures(null);
+    setSeasonFixtures(null);
     setError(null);
     setSelectedCalendarDate(null);
     setCalendarYear(today.getFullYear());
     setCalendarMonth(today.getMonth());
     setHistoricMode(false);
+    setExpandedGroups(new Set());
 
     if (viewMode !== 'division' || !leagueId || !seasonId) return;
 
-    setCalendarLoading(true);
-    getFixtureCalendarIndex(leagueId, seasonId)
+    setLoading(true);
+    getFixturesForSeason(leagueId, seasonId)
       .then(async (rows) => {
-        if (rows.length > 0) {
-          setCalendarIndex(rows);
-          return;
-        }
+        if (rows.length > 0) return rows;
         // No scheduled fixtures for this division/season -- fall back to
         // the results archive, which covers every season back to 2014/15
         // (fixtures.csv imports only ever cover the current official
         // schedule, never historic ones).
-        const historicRows = await getMatchesCalendarIndex(leagueId, seasonId);
-        setHistoricMode(historicRows.length > 0);
-        setCalendarIndex(historicRows);
+        const historicRows = await getMatchesForSeasonAsFixtures(leagueId, seasonId);
         if (historicRows.length > 0) {
+          setHistoricMode(true);
           // "Today" is never useful for a fully historic season -- land
           // on the month of its last match instead of an empty calendar
           // the person would have to page back through years to reach.
-          const latestDate = historicRows.reduce((max, r) => (r.kickoff_date > max ? r.kickoff_date : max), historicRows[0].kickoff_date);
+          const latestDate = historicRows.reduce(
+            (max, r) => (r.kickoff_date > max ? r.kickoff_date : max),
+            historicRows[0].kickoff_date
+          );
           const [y, m] = latestDate.split('-').map(Number);
           setCalendarYear(y);
           setCalendarMonth(m - 1);
         }
+        return historicRows;
       })
+      .then(setSeasonFixtures)
       .catch((err) => setError(err.message ?? 'Failed to load fixtures'))
-      .finally(() => setCalendarLoading(false));
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, leagueId, seasonId]);
 
-  // Default the selected matchweek once the calendar index loads, but only
-  // if there's no already-valid selection (e.g. restored from the URL) --
-  // don't clobber it. Prefers a matchweek from the currently viewed
-  // calendar month, falling back to the season's first if none fall there.
+  // THE core "calendar filters the list" behaviour: whenever the two
+  // months currently shown on the calendar change -- via Prev/Next, or
+  // via the initial month the season-fetch effect lands on -- the list
+  // narrows to exactly the section(s) with a fixture in either of those
+  // months. This fires with no date selected at all, which is the part
+  // that was missing before (previously only clicking a specific day did
+  // anything to the list).
   useEffect(() => {
-    if (allMatchweeks.length === 0) return;
-    if (selectedMatchweek !== null && allMatchweeks.includes(selectedMatchweek)) return;
-    setSelectedMatchweek(visibleMatchweeks[0] ?? allMatchweeks[0]);
+    if (groups.length === 0) return;
+    const next = normaliseMonth(calendarYear, calendarMonth + 1);
+    const matching = new Set([
+      ...groupKeysForMonth(calendarYear, calendarMonth),
+      ...groupKeysForMonth(next.year, next.month),
+    ]);
+    setExpandedGroups(matching);
+    const firstKey = groups.find((g) => matching.has(g.key))?.key;
+    if (firstKey) {
+      requestAnimationFrame(() => {
+        groupRefs.current[firstKey]?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allMatchweeks, visibleMatchweeks]);
+  }, [calendarYear, calendarMonth, groups]);
 
-  useEffect(() => {
-    if (viewMode !== 'division' || !leagueId || !seasonId || selectedMatchweek === null) {
-      setFixtures(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    getFixturesForMatchweek(leagueId, seasonId, selectedMatchweek)
-      .then(setFixtures)
-      .catch((err) => setError(err.message ?? 'Failed to load fixtures'))
-      .finally(() => setLoading(false));
-  }, [viewMode, leagueId, seasonId, selectedMatchweek]);
+  // Refs to each group's section, so the calendar can scroll a section
+  // into view once expanded.
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // When a calendar day is selected, fetch that day's fixtures to show
-  // in place of the matchweek-based list below.
-  useEffect(() => {
-    if (viewMode !== 'division' || !leagueId || !seasonId || !selectedCalendarDate) {
-      setDateFixtures(null);
-      return;
-    }
-    setDateFixturesLoading(true);
-    const fetcher = historicMode ? getMatchesForDateAsFixtures : getFixturesForDate;
-    fetcher(leagueId, seasonId, selectedCalendarDate)
-      .then(setDateFixtures)
-      .catch((err) => setError(err.message ?? 'Failed to load fixtures for that date'))
-      .finally(() => setDateFixturesLoading(false));
-  }, [viewMode, leagueId, seasonId, selectedCalendarDate, historicMode]);
+  // Selecting a specific day is now just for highlighting a single date
+  // within whatever the calendar's two months already filtered the list
+  // to -- the month-driven effect above handles showing/expanding the
+  // right section(s); this only needs to toggle the highlight and, if
+  // more than one section is visible, scroll to the exact one.
+  function selectCalendarDate(date: string | null) {
+    setSelectedCalendarDate((prev) => (prev === date ? null : date));
+    if (!date) return;
+    const groupKey = groupKeyForDate[date];
+    if (!groupKey) return;
+    requestAnimationFrame(() => {
+      groupRefs.current[groupKey]?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   // Team search -- fetches matching teams as the person types, narrowed by
   // the Country/Division filters when set (Division narrowing also needs
@@ -637,9 +669,9 @@ export default function GameweekBrowser() {
           <FixtureCalendarHeatmap
             dateCounts={dateCounts}
             dateTypes={calendarDateTypes}
-            loading={calendarLoading}
+            loading={loading}
             selectedDate={selectedCalendarDate}
-            onSelectDate={setSelectedCalendarDate}
+            onSelectDate={selectCalendarDate}
             viewYear={calendarYear}
             viewMonth={calendarMonth}
             onChangeMonth={(y, m) => {
@@ -648,48 +680,31 @@ export default function GameweekBrowser() {
             }}
           />
 
-          <div className="flex-1 min-w-0">
-            {Object.keys(dateCounts).length === 0 && !error && !calendarLoading && (
-              <p className="text-ink-500">No fixtures or results found for this division/season yet.</p>
+          <div className="flex-1 min-w-0 text-ink-500 text-sm pt-1">
+            {Object.keys(dateCounts).length === 0 && !error && !loading && (
+              <p>No fixtures or results found for this division/season yet.</p>
             )}
 
-            {historicMode && !error && !calendarLoading && (
-              <p className="text-ink-500 text-sm">
+            {historicMode && !error && !loading && (
+              <p>
                 This season is complete &mdash; sourced from the results archive rather than the fixture
-                schedule, so there&rsquo;s no matchweek breakdown. Select a date on the calendar to see that
-                day&rsquo;s results.
+                schedule, grouped by month below.
               </p>
             )}
 
-            {!historicMode && allMatchweeks.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-ink-700 mb-2">
-                  Matchweek &mdash; {monthLabel(calendarYear, calendarMonth)}
-                </label>
-                {visibleMatchweeks.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                    {visibleMatchweeks.map((mw) => (
-                      <button
-                        key={mw}
-                        onClick={() => {
-                          setSelectedMatchweek(mw);
-                          setSelectedCalendarDate(null);
-                        }}
-                        className={[
-                          'w-9 h-9 rounded text-sm font-mono font-medium transition-colors',
-                          selectedMatchweek === mw && !selectedCalendarDate
-                            ? 'bg-pitch-800 text-chalk-100'
-                            : 'bg-white border border-chalk-300 text-ink-700 hover:bg-chalk-100',
-                        ].join(' ')}
-                      >
-                        {mw}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-ink-500 text-sm">No matchweeks fall in {monthLabel(calendarYear, calendarMonth)}.</p>
+            {Object.keys(dateCounts).length > 0 && !error && !loading && (
+              <p>
+                The list below shows the {historicMode ? 'months' : 'matchweeks'} visible on the
+                calendar &mdash; page it to filter, or click a day to highlight that date.
+                {selectedCalendarDate && (
+                  <button
+                    onClick={() => selectCalendarDate(null)}
+                    className="ml-2 text-pitch-700 font-medium hover:underline"
+                  >
+                    Clear
+                  </button>
                 )}
-              </div>
+              </p>
             )}
           </div>
         </div>
@@ -810,98 +825,75 @@ export default function GameweekBrowser() {
             </div>
           )}
         </>
-      ) : selectedCalendarDate ? (
-        <>
-          {dateFixturesLoading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
-
-          {dateFixtures && dateFixtures.length > 0 && (
-            <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
-              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide flex items-center justify-between">
-                <span>{formatMatchDate(selectedCalendarDate)}</span>
-                <button
-                  onClick={() => setSelectedCalendarDate(null)}
-                  className="text-chalk-100/80 hover:text-chalk-100 text-xs normal-case tracking-normal underline"
-                >
-                  Clear date filter
-                </button>
-              </div>
-              <ul className="divide-y divide-chalk-300">
-                {dateFixtures.map((f) => (
-                  <li
-                    key={f.fixture_id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
-                    onClick={() => exploreFixture(f)}
-                  >
-                    <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
-                      {f.kickoff_time ? f.kickoff_time.slice(0, 5) : ''}
-                    </span>
-                    <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
-                      <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
-                      {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
-                        <div className="flex flex-col items-center">
-                          <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
-                          {f.half_time_home_goals != null && f.half_time_away_goals != null && (
-                            <span className="text-[10px] text-ink-500 font-mono mt-0.5">
-                              HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-ink-500 text-xs font-mono text-center">vs</span>
-                      )}
-                      <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
-                    </div>
-                    <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
-                      Explore &rarr;
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
       ) : (
         <>
           {loading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
 
-          {fixtures && fixtures.length > 0 && (
-            <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
-              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide">
-                Matchweek {selectedMatchweek}
-              </div>
-              <ul className="divide-y divide-chalk-300">
-                {fixtures.map((f) => (
-                  <li
-                    key={f.fixture_id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
-                    onClick={() => exploreFixture(f)}
+          {groups.length > 0 && (
+            <div className="space-y-3">
+              {groups.map((g) => {
+                const expanded = expandedGroups.has(g.key);
+                return (
+                  <div
+                    key={g.key}
+                    ref={(el) => {
+                      groupRefs.current[g.key] = el;
+                    }}
+                    className="border border-chalk-300 rounded-lg overflow-hidden bg-white scroll-mt-4"
                   >
-                    <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
-                      {formatMatchDate(f.kickoff_date)}
-                      {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
-                    </span>
-                    <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
-                      <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
-                      {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
-                        <div className="flex flex-col items-center">
-                          <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
-                          {f.half_time_home_goals != null && f.half_time_away_goals != null && (
-                            <span className="text-[10px] text-ink-500 font-mono mt-0.5">
-                              HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
+                    <button
+                      onClick={() => toggleGroup(g.key)}
+                      className="w-full flex items-center justify-between px-4 py-2 bg-pitch-900 text-chalk-100 hover:bg-pitch-800 transition-colors"
+                    >
+                      <span className="font-display uppercase text-sm tracking-wide">{g.label}</span>
+                      <span className="text-xs text-chalk-100/70 font-mono flex items-center gap-2">
+                        {g.fixtures.length} fixture{g.fixtures.length === 1 ? '' : 's'}
+                        <span className="normal-case">{expanded ? '\u25b2' : '\u25bc'}</span>
+                      </span>
+                    </button>
+                    {expanded && (
+                      <ul className="divide-y divide-chalk-300">
+                        {g.fixtures.map((f) => (
+                          <li
+                            key={f.fixture_id}
+                            className={[
+                              'flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 transition-colors cursor-pointer',
+                              f.kickoff_date === selectedCalendarDate
+                                ? 'bg-amber-500/15 hover:bg-amber-500/20'
+                                : 'hover:bg-chalk-100',
+                            ].join(' ')}
+                            onClick={() => exploreFixture(f)}
+                          >
+                            <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
+                              {formatMatchDate(f.kickoff_date)}
+                              {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
                             </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-ink-500 text-xs font-mono text-center">vs</span>
-                      )}
-                      <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
-                    </div>
-                    <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
-                      Explore &rarr;
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                            <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
+                              <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
+                              {f.full_time_home_goals != null && f.full_time_away_goals != null ? (
+                                <div className="flex flex-col items-center">
+                                  <ScoreChip homeGoals={f.full_time_home_goals} awayGoals={f.full_time_away_goals} size="sm" />
+                                  {f.half_time_home_goals != null && f.half_time_away_goals != null && (
+                                    <span className="text-[10px] text-ink-500 font-mono mt-0.5">
+                                      HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-ink-500 text-xs font-mono text-center">vs</span>
+                              )}
+                              <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
+                            </div>
+                            <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
+                              Explore &rarr;
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
