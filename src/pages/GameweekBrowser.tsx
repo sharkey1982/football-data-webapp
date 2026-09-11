@@ -110,15 +110,45 @@ export default function GameweekBrowser() {
   const [dateFixtures, setDateFixtures] = useState<FixtureWithNames[] | null>(null);
   const [dateFixturesLoading, setDateFixturesLoading] = useState(false);
 
-  // Team-view state.
+  // Team-view state. Country/Division here are their own filters, kept
+  // separate from the Division-view ones above -- they only narrow the
+  // team search (which gets huge without them), not the fixture fetch
+  // itself, and switching views shouldn't have them silently affect
+  // each other.
   const [teamId, setTeamId] = useState<number | null>(urlTeamId);
   const [teamName, setTeamName] = useState<string>('');
   const [teamQuery, setTeamQuery] = useState('');
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const [teamFilterCountryId, setTeamFilterCountryId] = useState<number | null>(null);
+  const [teamFilterLeagueId, setTeamFilterLeagueId] = useState<number | null>(null);
   const [teamFixtures, setTeamFixtures] = useState<FixtureWithNames[] | null>(null);
   const [teamFixturesLoading, setTeamFixturesLoading] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
+
+  // Calendar state for the team view, computed client-side from the
+  // already-fetched teamFixtures rather than a separate query -- a
+  // season's worth of one team's fixtures (even across cups) is small
+  // enough to hold in memory and re-derive locally.
+  const [teamCalendarYear, setTeamCalendarYear] = useState(today.getFullYear());
+  const [teamCalendarMonth, setTeamCalendarMonth] = useState(today.getMonth());
+  const [selectedTeamDate, setSelectedTeamDate] = useState<string | null>(null);
+
+  const teamDateCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const f of teamFixtures ?? []) counts[f.kickoff_date] = (counts[f.kickoff_date] ?? 0) + 1;
+    return counts;
+  }, [teamFixtures]);
+
+  const teamFilteredLeagues = useMemo(() => {
+    return leagues.filter((l) => !teamFilterCountryId || l.country_id === teamFilterCountryId);
+  }, [leagues, teamFilterCountryId]);
+
+  const visibleTeamFixtures = useMemo(() => {
+    if (!teamFixtures) return teamFixtures;
+    if (!selectedTeamDate) return teamFixtures;
+    return teamFixtures.filter((f) => f.kickoff_date === selectedTeamDate);
+  }, [teamFixtures, selectedTeamDate]);
 
   const dateCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -261,13 +291,15 @@ export default function GameweekBrowser() {
       .finally(() => setDateFixturesLoading(false));
   }, [viewMode, leagueId, seasonId, selectedCalendarDate]);
 
-  // Team search -- fetches matching teams as the person types. The list
-  // stays small (a few hundred teams total) so a plain ilike query per
-  // keystroke is cheap; no need for debouncing infrastructure here.
+  // Team search -- fetches matching teams as the person types, narrowed by
+  // the Country/Division filters when set (Division narrowing also needs
+  // a season, since league membership is only known per-season). The list
+  // stays small (a few hundred teams total, or fewer once narrowed) so a
+  // plain query per keystroke is cheap; no need for debouncing here.
   useEffect(() => {
     if (viewMode !== 'team' || !teamDropdownOpen) return;
     let cancelled = false;
-    getTeams(teamQuery)
+    getTeams(teamQuery, { countryId: teamFilterCountryId, leagueId: teamFilterLeagueId, seasonId })
       .then((data) => {
         if (!cancelled) setTeamOptions((data ?? []).slice(0, 8));
       })
@@ -275,11 +307,26 @@ export default function GameweekBrowser() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, teamQuery, teamDropdownOpen]);
+  }, [viewMode, teamQuery, teamDropdownOpen, teamFilterCountryId, teamFilterLeagueId, seasonId]);
+
+  // If the Division narrowing filter falls outside the Country filter (or
+  // the Country filter changes), drop it rather than silently keep
+  // filtering by a division from a different country.
+  useEffect(() => {
+    if (!teamFilterLeagueId) return;
+    if (teamFilteredLeagues.some((l) => l.league_id === teamFilterLeagueId)) return;
+    setTeamFilterLeagueId(null);
+  }, [teamFilteredLeagues, teamFilterLeagueId]);
 
   // Fetch the selected team's fixtures across every competition once a
-  // team + season are both chosen.
+  // team + season are both chosen. Also resets the team-view calendar's
+  // day filter and snaps it back to the current month, since a date
+  // selected for one team/season is meaningless once that changes.
   useEffect(() => {
+    setSelectedTeamDate(null);
+    setTeamCalendarYear(today.getFullYear());
+    setTeamCalendarMonth(today.getMonth());
+
     if (viewMode !== 'team' || !teamId || !seasonId) {
       setTeamFixtures(null);
       return;
@@ -290,6 +337,7 @@ export default function GameweekBrowser() {
       .then(setTeamFixtures)
       .catch((err) => setTeamError(err.message ?? 'Failed to load fixtures'))
       .finally(() => setTeamFixturesLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, teamId, seasonId]);
 
   function exploreFixture(f: FixtureWithNames) {
@@ -301,6 +349,18 @@ export default function GameweekBrowser() {
     setTeamName(t.canonical_name);
     setTeamQuery('');
     setTeamDropdownOpen(false);
+  }
+
+  // Cup fixtures get an amber treatment, league fixtures the app's usual
+  // pitch-green -- only matters where the two mix in one list (the Team
+  // view spans every competition a team plays in a season).
+  function competitionBadgeClass(type?: string | null) {
+    return type === 'cup'
+      ? 'text-amber-600 bg-amber-500/15'
+      : 'text-pitch-700 bg-pitch-700/10';
+  }
+  function competitionAccentClass(type?: string | null) {
+    return type === 'cup' ? 'border-l-4 border-amber-500' : 'border-l-4 border-pitch-700/40';
   }
 
   const competitionTypeOptions = useMemo(() => {
@@ -403,7 +463,40 @@ export default function GameweekBrowser() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 max-w-3xl relative">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl relative">
+          <div>
+            <label className={labelClass}>Country</label>
+            <select
+              value={teamFilterCountryId ?? ''}
+              onChange={(e) => setTeamFilterCountryId(e.target.value ? Number(e.target.value) : null)}
+              className={selectClass}
+            >
+              <option value="">All countries</option>
+              {countries.map((c) => (
+                <option key={c.country_id} value={c.country_id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Division</label>
+            <select
+              value={teamFilterLeagueId ?? ''}
+              onChange={(e) => setTeamFilterLeagueId(e.target.value ? Number(e.target.value) : null)}
+              className={selectClass}
+            >
+              <option value="">All divisions</option>
+              {teamFilteredLeagues.map((l) => (
+                <option key={l.league_id} value={l.league_id}>
+                  {l.code} &mdash; {l.name}
+                </option>
+              ))}
+            </select>
+            {teamFilterLeagueId && !seasonId && (
+              <p className="text-[11px] text-ink-500 mt-1">Pick a season to apply this.</p>
+            )}
+          </div>
           <div className="relative">
             <label className={labelClass}>Team</label>
             <input
@@ -506,6 +599,26 @@ export default function GameweekBrowser() {
         </div>
       )}
 
+      {viewMode === 'team' && teamId && seasonId && teamFixtures && teamFixtures.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          <FixtureCalendarHeatmap
+            dateCounts={teamDateCounts}
+            loading={teamFixturesLoading}
+            selectedDate={selectedTeamDate}
+            onSelectDate={setSelectedTeamDate}
+            viewYear={teamCalendarYear}
+            viewMonth={teamCalendarMonth}
+            onChangeMonth={(y, m) => {
+              setTeamCalendarYear(y);
+              setTeamCalendarMonth(m);
+            }}
+          />
+          <div className="flex-1 min-w-0 text-ink-500 text-sm pt-1">
+            Click a day to filter {teamName}&rsquo;s fixture list below to that date.
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded">{error}</div>
       )}
@@ -525,23 +638,41 @@ export default function GameweekBrowser() {
             <p className="text-ink-500">No fixtures found for {teamName} that season.</p>
           )}
 
-          {teamFixtures && teamFixtures.length > 0 && (
+          {visibleTeamFixtures && visibleTeamFixtures.length > 0 && (
             <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
-              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide">
-                {teamName} &mdash; All Competitions
+              <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide flex items-center justify-between">
+                <span>
+                  {teamName} &mdash; {selectedTeamDate ? formatMatchDate(selectedTeamDate) : 'All Competitions'}
+                </span>
+                {selectedTeamDate && (
+                  <button
+                    onClick={() => setSelectedTeamDate(null)}
+                    className="text-chalk-100/80 hover:text-chalk-100 text-xs normal-case tracking-normal underline"
+                  >
+                    Clear date filter
+                  </button>
+                )}
               </div>
               <ul className="divide-y divide-chalk-300">
-                {teamFixtures.map((f) => (
+                {visibleTeamFixtures.map((f) => (
                   <li
                     key={f.fixture_id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer"
+                    className={[
+                      'flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 hover:bg-chalk-100 transition-colors cursor-pointer',
+                      competitionAccentClass(f.competition_type),
+                    ].join(' ')}
                     onClick={() => exploreFixture(f)}
                   >
                     <span className="font-mono text-xs text-ink-500 w-32 shrink-0">
                       {formatMatchDateWithYear(f.kickoff_date)}
                     </span>
                     {f.league_code && (
-                      <span className="text-[10px] uppercase tracking-wide font-medium text-pitch-700 bg-pitch-700/10 rounded px-1.5 py-0.5 w-fit shrink-0">
+                      <span
+                        className={[
+                          'text-[10px] uppercase tracking-wide font-medium rounded px-1.5 py-0.5 w-fit shrink-0',
+                          competitionBadgeClass(f.competition_type),
+                        ].join(' ')}
+                      >
                         {f.league_code}
                       </span>
                     )}

@@ -49,8 +49,26 @@ export async function getSeasons() {
   return data;
 }
 
-export async function getTeams(searchQuery?: string) {
+/**
+ * Team picker used by the Fixtures page's "By Team" search. Narrowing is
+ * layered: if a division + season are both given, the result is scoped to
+ * teams that actually appear in that division's fixtures that season (the
+ * most accurate scope, and the only one that works for cups); otherwise a
+ * country alone narrows by the team's home country; with neither, it's
+ * every team, filtered by the search text.
+ */
+export async function getTeams(
+  searchQuery?: string,
+  options?: { countryId?: number | null; leagueId?: number | null; seasonId?: number | null }
+) {
+  if (options?.leagueId && options?.seasonId) {
+    const teams = await getTeamsInLeagueFixtures(options.leagueId, options.seasonId);
+    const q = searchQuery?.trim().toLowerCase();
+    return q ? teams.filter((t) => t.canonical_name.toLowerCase().includes(q)) : teams;
+  }
+
   let query = supabase.from('teams').select('team_id, canonical_name, country_id');
+  if (options?.countryId) query = query.eq('country_id', options.countryId);
   if (searchQuery && searchQuery.trim() !== '') {
     query = query.ilike('canonical_name', `%${searchQuery.trim()}%`);
   }
@@ -756,6 +774,7 @@ export type FixtureWithNames = {
   // the page already knows which single league it's showing.
   league_code?: string;
   league_name?: string;
+  competition_type?: string | null;
   // Populated from the `matches` table when a result exists for this
   // fixture (matched on league/season/teams/date -- fixtures and matches
   // aren't linked by a foreign key, so this is a manual join). Null/undefined
@@ -870,7 +889,7 @@ export async function getFixturesForTeam(
       kickoff_date, kickoff_time, matchweek, status,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name),
-      league:leagues(code, name)
+      league:leagues(code, name, competition_type)
     `
     )
     .eq('season_id', seasonId)
@@ -892,6 +911,7 @@ export async function getFixturesForTeam(
     status: row.status,
     league_code: row.league?.code,
     league_name: row.league?.name,
+    competition_type: row.league?.competition_type,
   }));
   return attachResultsForTeam(fixtures, seasonId, teamId);
 }
