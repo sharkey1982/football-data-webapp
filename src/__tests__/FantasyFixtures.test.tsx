@@ -82,6 +82,12 @@ describe('FantasyFixtures page', () => {
     expect(teamCells[0]).toHaveTextContent('Arsenal');
     expect(teamCells[1]).toHaveTextContent('Newcastle');
 
+    // The subscript next to the team name is the running total across the
+    // ranking window -- with one fixture each, it's just that fixture's xGF.
+    const totals = screen.getAllByTestId('team-window-total');
+    expect(totals[0]).toHaveTextContent('2.4');
+    expect(totals[1]).toHaveTextContent('0.9');
+
     // Switching to defensive focus re-ranks by expected goals conceded --
     // Newcastle's fixture is the easier one to keep a clean sheet in.
     const user = userEvent.setup();
@@ -91,5 +97,6 @@ describe('FantasyFixtures page', () => {
       const reordered = screen.getAllByTestId('team-row-name');
       expect(reordered[0]).toHaveTextContent('Newcastle');
     });
+    expect(screen.getAllByTestId('team-window-total')[0]).toHaveTextContent('0.4');
   });
 });

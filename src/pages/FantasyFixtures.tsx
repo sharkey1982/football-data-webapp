@@ -119,6 +119,7 @@ export default function FantasyFixtures() {
           team_id: team.team_id,
           team_name: team.team_name,
           rankValue: windowCount > 0 ? windowSum / windowCount : Number.POSITIVE_INFINITY,
+          windowTotal: windowSum,
           cellsByMatchweek,
         };
       })

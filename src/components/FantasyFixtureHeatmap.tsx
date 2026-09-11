@@ -16,6 +16,8 @@ export interface FantasyHeatmapRow {
   team_name: string;
   /** Average difficulty across the ranking window -- what rows are sorted by. */
   rankValue: number;
+  /** Sum of the raw metric (expected goals, or FDR) across the ranking window -- shown next to the team name. */
+  windowTotal: number;
   cellsByMatchweek: Map<number, FantasyHeatmapCell>;
 }
 
@@ -83,6 +85,13 @@ export default function FantasyFixtureHeatmap({
                 className="sticky left-0 bg-inherit text-left text-xs font-medium text-ink-900 px-2 py-1 whitespace-nowrap z-10"
               >
                 {row.team_name}
+                <sub
+                  data-testid="team-window-total"
+                  className="ml-1 text-[10px] font-mono font-normal text-ink-500"
+                  title={`Total ${valueLabel} across the ${matchweeks.length}-fixture ranking window`}
+                >
+                  {row.windowTotal.toFixed(decimals)}
+                </sub>
               </th>
               {matchweeks.map((mw) => {
                 const cell = row.cellsByMatchweek.get(mw);
