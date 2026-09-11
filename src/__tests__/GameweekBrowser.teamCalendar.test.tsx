@@ -63,10 +63,13 @@ describe('GameweekBrowser team-view calendar', () => {
     await screen.findByText('Chelsea');
     expect(screen.getByText('Fulham')).toBeInTheDocument();
 
-    // Click day 12 (the cup fixture's date) on the team calendar.
-    const dayButton = await screen.findByRole('button', { name: /^12/ });
-    expect(dayButton).not.toBeDisabled();
-    await user.click(dayButton);
+    // Click day 12 (the cup fixture's date) on the team calendar. Two
+    // months are shown side by side now, so day "12" can appear twice --
+    // pick the enabled one (the other month has no fixture that day).
+    const dayButtons = await screen.findAllByRole('button', { name: '12' });
+    const dayButton = dayButtons.find((b) => !(b as HTMLButtonElement).disabled);
+    expect(dayButton).toBeDefined();
+    await user.click(dayButton!);
 
     // Filtering is client-side (no extra fetch) -- Chelsea's fixture
     // (DAY_A) should now be hidden, Fulham's (DAY_B) should remain.

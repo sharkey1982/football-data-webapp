@@ -25,6 +25,12 @@ function monthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month]} ${year}`;
 }
 
+/** Normalises a possibly out-of-range (year, month) pair -- e.g. month 12 -> next year, January. */
+function normaliseMonth(year: number, month: number): { year: number; month: number } {
+  const total = year * 12 + month;
+  return { year: Math.floor(total / 12), month: ((total % 12) + 12) % 12 };
+}
+
 type LeagueOption = {
   league_id: number;
   code: string;
@@ -219,17 +225,14 @@ export default function GameweekBrowser() {
     return [...map.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [seasonFixtures, historicMode]);
 
-  // The group to expand by default: the one containing today (or closest
-  // to it) for a live/current season, or the last one (end of season) for
-  // a fully historic one -- "today" is never meaningful there.
-  const defaultGroupKey = useMemo(() => {
-    if (groups.length === 0) return null;
-    if (historicMode) return groups[groups.length - 1].key;
-    const todayStr = today.toISOString().slice(0, 10);
-    const withFutureOrToday = groups.find((g) => g.fixtures.some((f) => f.kickoff_date >= todayStr));
-    return (withFutureOrToday ?? groups[groups.length - 1]).key;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups, historicMode]);
+  // Which groups have any fixture in a given (year, month) -- used both to
+  // decide which sections the calendar's two visible months should expand
+  // (the actual "calendar filters the list" behaviour) and, on first load,
+  // to seed the initial month the calendar opens on.
+  function groupKeysForMonth(year: number, month: number): string[] {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    return groups.filter((g) => g.fixtures.some((f) => f.kickoff_date.startsWith(prefix))).map((g) => g.key);
+  }
 
   const groupKeyForDate = useMemo(() => {
     const map: Record<string, string> = {};
@@ -331,36 +334,44 @@ export default function GameweekBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, leagueId, seasonId]);
 
-  // Once the season's fixtures (and therefore the groups) load, expand
-  // the default matchweek/month -- but only the very first time for this
-  // fetch, not on every render, so it doesn't fight with the person
-  // manually expanding/collapsing other sections afterwards.
-  const didSetDefaultGroup = useRef(false);
+  // THE core "calendar filters the list" behaviour: whenever the two
+  // months currently shown on the calendar change -- via Prev/Next, or
+  // via the initial month the season-fetch effect lands on -- the list
+  // narrows to exactly the section(s) with a fixture in either of those
+  // months. This fires with no date selected at all, which is the part
+  // that was missing before (previously only clicking a specific day did
+  // anything to the list).
   useEffect(() => {
-    didSetDefaultGroup.current = false;
-  }, [seasonFixtures]);
-  useEffect(() => {
-    if (didSetDefaultGroup.current) return;
-    if (!defaultGroupKey) return;
-    didSetDefaultGroup.current = true;
-    setExpandedGroups((prev) => new Set(prev).add(defaultGroupKey));
-  }, [defaultGroupKey]);
+    if (groups.length === 0) return;
+    const next = normaliseMonth(calendarYear, calendarMonth + 1);
+    const matching = new Set([
+      ...groupKeysForMonth(calendarYear, calendarMonth),
+      ...groupKeysForMonth(next.year, next.month),
+    ]);
+    setExpandedGroups(matching);
+    const firstKey = groups.find((g) => matching.has(g.key))?.key;
+    if (firstKey) {
+      requestAnimationFrame(() => {
+        groupRefs.current[firstKey]?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarYear, calendarMonth, groups]);
 
-  // Refs to each group's section, so clicking a calendar day can scroll
-  // its matchweek/month into view once expanded.
+  // Refs to each group's section, so the calendar can scroll a section
+  // into view once expanded.
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Clicking a calendar day expands (without collapsing anything else)
-  // and scrolls to the section containing that date -- this is the
-  // "calendar filters the list" behaviour, done by revealing where that
-  // date already lives in the grouped list rather than replacing the
-  // list with a separate fetch.
+  // Selecting a specific day is now just for highlighting a single date
+  // within whatever the calendar's two months already filtered the list
+  // to -- the month-driven effect above handles showing/expanding the
+  // right section(s); this only needs to toggle the highlight and, if
+  // more than one section is visible, scroll to the exact one.
   function selectCalendarDate(date: string | null) {
     setSelectedCalendarDate((prev) => (prev === date ? null : date));
     if (!date) return;
     const groupKey = groupKeyForDate[date];
     if (!groupKey) return;
-    setExpandedGroups((prev) => new Set(prev).add(groupKey));
     requestAnimationFrame(() => {
       groupRefs.current[groupKey]?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     });
@@ -683,7 +694,8 @@ export default function GameweekBrowser() {
 
             {Object.keys(dateCounts).length > 0 && !error && !loading && (
               <p>
-                Click a day to jump to its {historicMode ? 'month' : 'matchweek'} in the list below.
+                The list below shows the {historicMode ? 'months' : 'matchweeks'} visible on the
+                calendar &mdash; page it to filter, or click a day to highlight that date.
                 {selectedCalendarDate && (
                   <button
                     onClick={() => selectCalendarDate(null)}
