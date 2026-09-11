@@ -8,7 +8,9 @@ import {
   getTeamById,
   getFixturesForMatchweek,
   getFixtureCalendarIndex,
+  getMatchesCalendarIndex,
   getFixturesForDate,
+  getMatchesForDateAsFixtures,
   getFixturesForTeam,
   type FixtureWithNames,
 } from '../lib/api';
@@ -109,6 +111,10 @@ export default function GameweekBrowser() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [dateFixtures, setDateFixtures] = useState<FixtureWithNames[] | null>(null);
   const [dateFixturesLoading, setDateFixturesLoading] = useState(false);
+  // True when the selected division+season has no rows in `fixtures` at
+  // all (a fully historic, completed season) and the calendar/date-list
+  // below are sourced from `matches` instead -- see getMatchesCalendarIndex.
+  const [historicMode, setHistoricMode] = useState(false);
 
   // Team-view state. Country/Division here are their own filters, kept
   // separate from the Division-view ones above -- they only narrow the
@@ -272,12 +278,34 @@ export default function GameweekBrowser() {
     setSelectedCalendarDate(null);
     setCalendarYear(today.getFullYear());
     setCalendarMonth(today.getMonth());
+    setHistoricMode(false);
 
     if (viewMode !== 'division' || !leagueId || !seasonId) return;
 
     setCalendarLoading(true);
     getFixtureCalendarIndex(leagueId, seasonId)
-      .then(setCalendarIndex)
+      .then(async (rows) => {
+        if (rows.length > 0) {
+          setCalendarIndex(rows);
+          return;
+        }
+        // No scheduled fixtures for this division/season -- fall back to
+        // the results archive, which covers every season back to 2014/15
+        // (fixtures.csv imports only ever cover the current official
+        // schedule, never historic ones).
+        const historicRows = await getMatchesCalendarIndex(leagueId, seasonId);
+        setHistoricMode(historicRows.length > 0);
+        setCalendarIndex(historicRows);
+        if (historicRows.length > 0) {
+          // "Today" is never useful for a fully historic season -- land
+          // on the month of its last match instead of an empty calendar
+          // the person would have to page back through years to reach.
+          const latestDate = historicRows.reduce((max, r) => (r.kickoff_date > max ? r.kickoff_date : max), historicRows[0].kickoff_date);
+          const [y, m] = latestDate.split('-').map(Number);
+          setCalendarYear(y);
+          setCalendarMonth(m - 1);
+        }
+      })
       .catch((err) => setError(err.message ?? 'Failed to load fixtures'))
       .finally(() => setCalendarLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,11 +343,12 @@ export default function GameweekBrowser() {
       return;
     }
     setDateFixturesLoading(true);
-    getFixturesForDate(leagueId, seasonId, selectedCalendarDate)
+    const fetcher = historicMode ? getMatchesForDateAsFixtures : getFixturesForDate;
+    fetcher(leagueId, seasonId, selectedCalendarDate)
       .then(setDateFixtures)
       .catch((err) => setError(err.message ?? 'Failed to load fixtures for that date'))
       .finally(() => setDateFixturesLoading(false));
-  }, [viewMode, leagueId, seasonId, selectedCalendarDate]);
+  }, [viewMode, leagueId, seasonId, selectedCalendarDate, historicMode]);
 
   // Team search -- fetches matching teams as the person types, narrowed by
   // the Country/Division filters when set (Division narrowing also needs
@@ -598,11 +627,19 @@ export default function GameweekBrowser() {
           />
 
           <div className="flex-1 min-w-0">
-            {allMatchweeks.length === 0 && !error && !calendarLoading && (
-              <p className="text-ink-500">No fixtures have been imported for this division/season yet.</p>
+            {Object.keys(dateCounts).length === 0 && !error && !calendarLoading && (
+              <p className="text-ink-500">No fixtures or results found for this division/season yet.</p>
             )}
 
-            {allMatchweeks.length > 0 && (
+            {historicMode && !error && !calendarLoading && (
+              <p className="text-ink-500 text-sm">
+                This season is complete &mdash; sourced from the results archive rather than the fixture
+                schedule, so there&rsquo;s no matchweek breakdown. Select a date on the calendar to see that
+                day&rsquo;s results.
+              </p>
+            )}
+
+            {!historicMode && allMatchweeks.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-ink-700 mb-2">
                   Matchweek &mdash; {monthLabel(calendarYear, calendarMonth)}

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   getLeagues,
+  getCountries,
   getSeasons,
   getTeams,
   getRawMatches,
@@ -10,15 +11,29 @@ import {
 } from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
 
-type LeagueOption = { league_id: number; code: string; name: string };
+type LeagueOption = {
+  league_id: number;
+  code: string;
+  name: string;
+  country_id: number | null;
+  competition_type: string | null;
+};
+type CountryOption = { country_id: number; name: string; code: string | null };
 type SeasonOption = { season_id: number; label: string; start_year: number; end_year: number };
 type TeamOption = { team_id: number; canonical_name: string };
 
+function competitionBadgeClass(type?: string | null) {
+  return type === 'cup' ? 'text-cup-800 bg-cup-700/15' : 'text-pitch-700 bg-pitch-700/10';
+}
+
 export default function RawData() {
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
 
+  const [countryId, setCountryId] = useState<number | null>(null);
+  const [competitionType, setCompetitionType] = useState<string>('');
   const [leagueId, setLeagueId] = useState<number | null>(null);
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [teamId, setTeamId] = useState<number | null>(null);
@@ -31,10 +46,33 @@ export default function RawData() {
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
-    getLeagues().then((data) => setLeagues(data ?? []));
+    getLeagues().then((data) => setLeagues((data ?? []) as LeagueOption[]));
+    getCountries().then((data) => setCountries(data ?? []));
     getSeasons().then((data) => setSeasons(data ?? []));
     getTeams().then((data) => setTeams(data ?? []));
   }, []);
+
+  const filteredLeagues = useMemo(() => {
+    return leagues.filter(
+      (l) =>
+        (!countryId || l.country_id === countryId) &&
+        (!competitionType || l.competition_type === competitionType)
+    );
+  }, [leagues, countryId, competitionType]);
+
+  const competitionTypeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const l of leagues) if (l.competition_type) seen.add(l.competition_type);
+    return [...seen].sort();
+  }, [leagues]);
+
+  // If the current Division falls outside the Country/Competition filters,
+  // drop it rather than silently keep a selection those filters now hide.
+  useEffect(() => {
+    if (!leagueId) return;
+    if (filteredLeagues.some((l) => l.league_id === leagueId)) return;
+    setLeagueId(null);
+  }, [filteredLeagues, leagueId]);
 
   async function runQuery() {
     setLoading(true);
@@ -72,6 +110,8 @@ export default function RawData() {
   }
 
   function resetFilters() {
+    setCountryId(null);
+    setCompetitionType('');
     setLeagueId(null);
     setSeasonId(null);
     setTeamId(null);
@@ -90,16 +130,51 @@ export default function RawData() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Division</label>
+          <label htmlFor="rawdata-country" className="block text-sm font-medium text-ink-700 mb-1">Country</label>
           <select
+            id="rawdata-country"
+            value={countryId ?? ''}
+            onChange={(e) => setCountryId(e.target.value ? Number(e.target.value) : null)}
+            className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
+          >
+            <option value="">All countries</option>
+            {countries.map((c) => (
+              <option key={c.country_id} value={c.country_id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="rawdata-competition" className="block text-sm font-medium text-ink-700 mb-1">Competition</label>
+          <select
+            id="rawdata-competition"
+            value={competitionType}
+            onChange={(e) => setCompetitionType(e.target.value)}
+            className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
+          >
+            <option value="">All types</option>
+            {competitionTypeOptions.map((t) => (
+              <option key={t} value={t}>
+                {t === 'league' ? 'League' : t === 'cup' ? 'Cup' : t}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="rawdata-division" className="block text-sm font-medium text-ink-700 mb-1">Division</label>
+          <select
+            id="rawdata-division"
             value={leagueId ?? ''}
             onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
           >
             <option value="">All divisions</option>
-            {leagues.map((l) => (
+            {filteredLeagues.map((l) => (
               <option key={l.league_id} value={l.league_id}>
                 {l.code} &mdash; {l.name}
               </option>
@@ -200,6 +275,7 @@ export default function RawData() {
               <tr>
                 <th className="text-left font-display uppercase text-xs tracking-wide px-3 py-2">Date</th>
                 <th className="text-left font-display uppercase text-xs tracking-wide px-3 py-2">Division</th>
+                <th className="text-left font-display uppercase text-xs tracking-wide px-3 py-2">Type</th>
                 <th className="text-left font-display uppercase text-xs tracking-wide px-3 py-2">Season</th>
                 <th className="text-right font-display uppercase text-xs tracking-wide px-3 py-2">Home</th>
                 <th className="text-center font-display uppercase text-xs tracking-wide px-3 py-2">Score</th>
@@ -214,11 +290,29 @@ export default function RawData() {
             </thead>
             <tbody className="divide-y divide-chalk-200">
               {matches.map((m) => (
-                <tr key={m.match_id} className="hover:bg-chalk-100 transition-colors">
+                <tr
+                  key={m.match_id}
+                  className={[
+                    'transition-colors',
+                    m.competition_type === 'cup' ? 'bg-cup-700/5 hover:bg-cup-700/10' : 'hover:bg-chalk-100',
+                  ].join(' ')}
+                >
                   <td className="px-3 py-2 font-mono text-xs text-ink-500 whitespace-nowrap">
                     {formatMatchDate(m.match_date)}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{m.league_code}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {m.competition_type && (
+                      <span
+                        className={[
+                          'text-[10px] uppercase tracking-wide font-medium rounded px-1.5 py-0.5',
+                          competitionBadgeClass(m.competition_type),
+                        ].join(' ')}
+                      >
+                        {m.competition_type === 'cup' ? 'Cup' : 'League'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{m.season_label}</td>
                   <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{m.home_team_name}</td>
                   <td className="px-3 py-2 text-center font-mono font-semibold whitespace-nowrap">

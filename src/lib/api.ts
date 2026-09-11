@@ -15,6 +15,11 @@ export type MatchWithNames = Match & {
   league_code: string;
   league_name: string;
   season_label: string;
+  // Populated only by getRawMatches -- other callers (head-to-head, team
+  // history) don't need the competition/country breakdown, just team
+  // names, so it stays optional rather than adding two joins everywhere.
+  competition_type?: string | null;
+  country_name?: string | null;
 };
 
 // ----------------------------------------------------------------------------
@@ -716,7 +721,7 @@ export async function getRawMatches(
       *,
       home_team:teams!matches_home_team_id_fkey(canonical_name),
       away_team:teams!matches_away_team_id_fkey(canonical_name),
-      league:leagues(code, name),
+      league:leagues(code, name, competition_type, country:countries(name)),
       season:seasons(label)
     `
     )
@@ -749,6 +754,8 @@ export async function getRawMatches(
     league_code: row.league?.code ?? '',
     league_name: row.league?.name ?? '',
     season_label: row.season?.label ?? '',
+    competition_type: row.league?.competition_type ?? null,
+    country_name: row.league?.country?.name ?? null,
   })) as MatchWithNames[];
 
   return { matches, truncated };
@@ -759,6 +766,8 @@ export function matchesToCsv(matches: MatchWithNames[]): string {
   const columns: { header: string; get: (m: MatchWithNames) => string | number }[] = [
     { header: 'Date', get: (m) => m.match_date },
     { header: 'League', get: (m) => m.league_code },
+    { header: 'Competition Type', get: (m) => m.competition_type ?? '' },
+    { header: 'Country', get: (m) => m.country_name ?? '' },
     { header: 'Season', get: (m) => m.season_label },
     { header: 'Home Team', get: (m) => m.home_team_name },
     { header: 'Away Team', get: (m) => m.away_team_name },
@@ -1028,6 +1037,78 @@ export async function getFixtureCalendarIndex(
     .eq('season_id', seasonId);
   if (error) throw error;
   return data ?? [];
+}
+
+/**
+ * Same shape as getFixtureCalendarIndex, but sourced from `matches`
+ * instead of `fixtures` -- for a fully historic season, `fixtures` has no
+ * rows at all (it's only ever populated from the current official
+ * schedule import, never backfilled), while `matches` holds the complete
+ * results archive back to 2014/15. `matchweek` is always null here since
+ * `matches` doesn't carry that column; the Fixtures page falls back to
+ * this when getFixtureCalendarIndex comes back empty, and treats a null
+ * matchweek list as "no matchweek filter available" rather than "no
+ * fixtures exist."
+ */
+export async function getMatchesCalendarIndex(
+  leagueId: number,
+  seasonId: number
+): Promise<{ kickoff_date: string; matchweek: number | null }[]> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select('match_date')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ kickoff_date: row.match_date, matchweek: null }));
+}
+
+/**
+ * Matches-sourced counterpart to getFixturesForDate, returned in the same
+ * FixtureWithNames shape (status always 'played', full-time/half-time
+ * goals always populated) so the Fixtures page's existing fixture-list
+ * rendering works unchanged for historic, fixtures-less seasons.
+ */
+export async function getMatchesForDateAsFixtures(
+  leagueId: number,
+  seasonId: number,
+  date: string
+): Promise<FixtureWithNames[]> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select(
+      `
+      match_id, league_id, season_id, home_team_id, away_team_id,
+      match_date, kickoff_time,
+      full_time_home_goals, full_time_away_goals,
+      half_time_home_goals, half_time_away_goals,
+      home_team:teams!matches_home_team_id_fkey(canonical_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name)
+    `
+    )
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .eq('match_date', date)
+    .order('kickoff_time', { ascending: true });
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    fixture_id: row.match_id,
+    league_id: row.league_id,
+    season_id: row.season_id,
+    home_team_id: row.home_team_id,
+    away_team_id: row.away_team_id,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    kickoff_date: row.match_date,
+    kickoff_time: row.kickoff_time,
+    matchweek: null,
+    status: 'played',
+    full_time_home_goals: row.full_time_home_goals,
+    full_time_away_goals: row.full_time_away_goals,
+    half_time_home_goals: row.half_time_home_goals,
+    half_time_away_goals: row.half_time_away_goals,
+  }));
 }
 
 /** Fetches all fixtures for a specific calendar date, with team names joined in. */
