@@ -6,6 +6,7 @@ import {
   getTeamRatingsForFitRun,
   getMatchesForTeam,
   getHeadToHead,
+  getMatchResult,
   getTeamById,
   getTeamsInLeagueFixtures,
   getMostRecentFixtureSeason,
@@ -19,6 +20,9 @@ import { calculateDixonColes, type DixonColesResult } from '../lib/dixonColes';
 import type { ModelFitRun } from '../types/database';
 import { ComparisonCard, StreakBadges } from '../components/ComparisonCard';
 import { HeadToHeadSummary } from '../components/HeadToHeadSummary';
+import { MatchStatsGrid } from '../components/MatchStatsGrid';
+import { ScoreChip } from '../components/ScoreChip';
+import { formatMatchDateWithYear } from '../lib/formatDate';
 import { ScoreProbabilityGrid } from '../components/ScoreProbabilityGrid';
 import { TeamStatsPanel } from '../components/TeamStatsPanel';
 
@@ -37,6 +41,7 @@ export default function MatchPreview() {
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
   const urlHomeId = searchParams.get('home') ? Number(searchParams.get('home')) : null;
   const urlAwayId = searchParams.get('away') ? Number(searchParams.get('away')) : null;
+  const urlSeasonId = searchParams.get('season') ? Number(searchParams.get('season')) : null;
 
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [leagueId, setLeagueId] = useState<number | null>(urlLeagueId);
@@ -61,6 +66,13 @@ export default function MatchPreview() {
   } | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+
+  // Set only when this preview was reached via a fixture link whose exact
+  // league+season+home+away pairing has already been played -- distinct
+  // from head-to-head (which finds the two teams' most recent meeting in
+  // ANY competition, possibly a different, later match). Null both before
+  // the lookup runs and when the specific fixture hasn't been played yet.
+  const [matchResult, setMatchResult] = useState<MatchWithNames | null>(null);
 
   useEffect(() => {
     getLeagues().then((data) => setLeagues(data ?? []));
@@ -134,13 +146,16 @@ export default function MatchPreview() {
     setLoadingPreview(true);
     setError(null);
     setModelUnavailable(null);
+    setMatchResult(null);
     setActiveTab('overview');
     try {
-      const [homeMatchesFull, awayMatchesFull, h2hMatches] = await Promise.all([
+      const [homeMatchesFull, awayMatchesFull, h2hMatches, matchedResult] = await Promise.all([
         getMatchesForTeam(homeTeamId, 60),
         getMatchesForTeam(awayTeamId, 60),
         getHeadToHead(homeTeamId, awayTeamId, 10),
+        urlSeasonId && leagueId ? getMatchResult(leagueId, urlSeasonId, homeTeamId, awayTeamId) : Promise.resolve(null),
       ]);
+      setMatchResult(matchedResult);
 
       let dixonColes: DixonColesResult | null = null;
       if (home && away && fitRun) {
@@ -276,6 +291,37 @@ export default function MatchPreview() {
 
       {previewData && (
         <div className="space-y-4">
+          {matchResult && (
+            <div className="border-2 border-pitch-700 rounded-lg bg-pitch-950 text-chalk-100 p-4">
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <span className="font-display uppercase text-xs tracking-wide text-amber-400">
+                  Full-Time Result &middot; {formatMatchDateWithYear(matchResult.match_date)}
+                  {matchResult.league_code ? ` \u00b7 ${matchResult.league_code}` : ''}
+                </span>
+                {matchResult.referee && (
+                  <span className="text-xs text-chalk-300">Referee: {matchResult.referee}</span>
+                )}
+              </div>
+              <div className="flex items-center justify-center gap-4 mb-1">
+                <span className="font-medium">{homeTeamName}</span>
+                <ScoreChip
+                  homeGoals={matchResult.full_time_home_goals}
+                  awayGoals={matchResult.full_time_away_goals}
+                  size="lg"
+                />
+                <span className="font-medium">{awayTeamName}</span>
+              </div>
+              {matchResult.half_time_home_goals != null && matchResult.half_time_away_goals != null && (
+                <p className="text-center text-xs text-chalk-300 mb-3">
+                  HT {matchResult.half_time_home_goals}&ndash;{matchResult.half_time_away_goals}
+                </p>
+              )}
+              <div className="mt-3 pt-3 border-t border-chalk-100/10">
+                <MatchStatsGrid match={matchResult} />
+              </div>
+            </div>
+          )}
+
           {modelUnavailable && (
             <div className="border border-amber-500 bg-amber-400/15 rounded-lg px-4 py-3 text-sm text-ink-700">
               No Dixon-Coles rating yet for{' '}
@@ -313,6 +359,7 @@ export default function MatchPreview() {
                     teamAId={homeTeamId!}
                     teamAName={homeTeamName}
                     teamBName={awayTeamName}
+                    resultMatchId={matchResult?.match_id}
                   />
                 ) : (
                   <p className="text-sm text-ink-500">These two haven&rsquo;t met in the archive.</p>

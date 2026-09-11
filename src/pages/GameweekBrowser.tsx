@@ -371,7 +371,7 @@ export default function GameweekBrowser() {
   }, [viewMode, teamId, seasonId]);
 
   function exploreFixture(f: FixtureWithNames) {
-    navigate(`/preview?league=${f.league_id}&home=${f.home_team_id}&away=${f.away_team_id}`);
+    navigate(`/preview?league=${f.league_id}&home=${f.home_team_id}&away=${f.away_team_id}&season=${f.season_id}`);
   }
 
   function selectTeam(t: TeamOption) {

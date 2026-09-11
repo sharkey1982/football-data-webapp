@@ -246,6 +246,50 @@ export async function getMatchesForTeam(teamId: number, limit = 20) {
   })) as MatchWithNames[];
 }
 
+/**
+ * Looks up the exact result for one specific fixture -- league+season+home
+ * +away, not just "these two teams' most recent meeting" (which is what
+ * getHeadToHead returns and can be a different, more recent encounter in
+ * another competition). Used to turn a fixture-list "Explore" link into an
+ * actual result summary once that specific match has been played. Returns
+ * null if it hasn't been played yet (or the pairing/season doesn't exist).
+ */
+export async function getMatchResult(
+  leagueId: number,
+  seasonId: number,
+  homeTeamId: number,
+  awayTeamId: number
+): Promise<MatchWithNames | null> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select(
+      `
+      *,
+      home_team:teams!matches_home_team_id_fkey(canonical_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      league:leagues(code, name),
+      season:seasons(label)
+    `
+    )
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .eq('home_team_id', homeTeamId)
+    .eq('away_team_id', awayTeamId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const row = data as any;
+  return {
+    ...row,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    league_code: row.league?.code ?? '',
+    league_name: row.league?.name ?? '',
+    season_label: row.season?.label ?? '',
+  } as MatchWithNames;
+}
+
 export async function getHeadToHead(teamAId: number, teamBId: number, limit = 20) {
   const { data, error } = await supabase
     .from('matches')

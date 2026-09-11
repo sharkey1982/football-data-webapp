@@ -1,5 +1,7 @@
 import type { MatchWithNames } from '../lib/api';
-import { formatMatchDate } from '../lib/formatDate';
+import { formatMatchDate, formatMatchDateWithYear } from '../lib/formatDate';
+import { MatchStatsGrid } from './MatchStatsGrid';
+import { ScoreChip } from './ScoreChip';
 
 const RESULT_COLORS = {
   teamA: '#1B4332', // --color-pitch-800
@@ -77,13 +79,21 @@ export function HeadToHeadSummary({
   teamAId,
   teamAName,
   teamBName,
+  resultMatchId,
 }: {
   matches: MatchWithNames[];
   teamAId: number;
   teamAName: string;
   teamBName: string;
+  /** Match already shown in a result banner elsewhere on the page (e.g.
+   *  Match Preview's "Full-Time Result" card) -- when the latest meeting
+   *  IS that match, skip repeating its detailed stats here to avoid
+   *  showing the same box score twice. */
+  resultMatchId?: number;
 }) {
   const chronological = [...matches].reverse();
+  const latest = matches[0];
+  const showLatestDetail = latest && latest.match_id !== resultMatchId;
   const teamAHomeMatches = matches.filter((m) => m.home_team_id === teamAId);
   const teamAAwayMatches = matches.filter((m) => m.away_team_id === teamAId);
 
@@ -92,6 +102,23 @@ export function HeadToHeadSummary({
 
   return (
     <div className="space-y-5">
+      {showLatestDetail && (
+        <div className="border border-chalk-300 rounded-lg bg-chalk-100 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs uppercase tracking-wide text-ink-500">
+              Latest meeting &mdash; {formatMatchDateWithYear(latest.match_date)}
+              {latest.league_code ? ` \u00b7 ${latest.league_code}` : ''}
+            </span>
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <span className="text-sm font-medium">{latest.home_team_name}</span>
+            <ScoreChip homeGoals={latest.full_time_home_goals} awayGoals={latest.full_time_away_goals} size="md" />
+            <span className="text-sm font-medium">{latest.away_team_name}</span>
+          </div>
+          <MatchStatsGrid match={latest} />
+        </div>
+      )}
+
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <div className="text-xs uppercase tracking-wide text-ink-500 mb-2">
