@@ -84,6 +84,8 @@ export default function RawData() {
         seasonId: seasonId ?? undefined,
         teamId: teamId ?? undefined,
         venue,
+        competitionType: competitionType || undefined,
+        countryId: countryId ?? undefined,
       });
       setMatches(result.matches);
       setTruncated(result.truncated);
@@ -183,8 +185,9 @@ export default function RawData() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Season</label>
+          <label htmlFor="rawdata-season" className="block text-sm font-medium text-ink-700 mb-1">Season</label>
           <select
+            id="rawdata-season"
             value={seasonId ?? ''}
             onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
@@ -199,8 +202,9 @@ export default function RawData() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Team</label>
+          <label htmlFor="rawdata-team" className="block text-sm font-medium text-ink-700 mb-1">Team</label>
           <select
+            id="rawdata-team"
             value={teamId ?? ''}
             onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
@@ -215,8 +219,9 @@ export default function RawData() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Venue</label>
+          <label htmlFor="rawdata-venue" className="block text-sm font-medium text-ink-700 mb-1">Venue</label>
           <select
+            id="rawdata-venue"
             value={venue}
             onChange={(e) => setVenue(e.target.value as MatchVenueFilter)}
             disabled={!teamId}

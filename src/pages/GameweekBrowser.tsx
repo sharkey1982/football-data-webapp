@@ -12,6 +12,7 @@ import {
   getFixturesForDate,
   getMatchesForDateAsFixtures,
   getFixturesForTeam,
+  getMatchesForTeamAsFixtures,
   type FixtureWithNames,
 } from '../lib/api';
 import { formatMatchDate, formatMatchDateWithYear } from '../lib/formatDate';
@@ -139,6 +140,9 @@ export default function GameweekBrowser() {
   const [teamCalendarYear, setTeamCalendarYear] = useState(today.getFullYear());
   const [teamCalendarMonth, setTeamCalendarMonth] = useState(today.getMonth());
   const [selectedTeamDate, setSelectedTeamDate] = useState<string | null>(null);
+  // True when teamFixtures came from getMatchesForTeamAsFixtures (a
+  // fixtures-less historic season) rather than getFixturesForTeam.
+  const [teamHistoricMode, setTeamHistoricMode] = useState(false);
 
   const teamDateCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -385,6 +389,7 @@ export default function GameweekBrowser() {
     setSelectedTeamDate(null);
     setTeamCalendarYear(today.getFullYear());
     setTeamCalendarMonth(today.getMonth());
+    setTeamHistoricMode(false);
 
     if (viewMode !== 'team' || !teamId || !seasonId) {
       setTeamFixtures(null);
@@ -393,6 +398,23 @@ export default function GameweekBrowser() {
     setTeamFixturesLoading(true);
     setTeamError(null);
     getFixturesForTeam(teamId, seasonId)
+      .then(async (rows) => {
+        if (rows.length > 0) return rows;
+        // No scheduled fixtures for this team+season -- fall back to the
+        // results archive (same reasoning as the Division view's fallback).
+        const historicRows = await getMatchesForTeamAsFixtures(teamId, seasonId);
+        if (historicRows.length > 0) {
+          setTeamHistoricMode(true);
+          const latestDate = historicRows.reduce(
+            (max, r) => (r.kickoff_date > max ? r.kickoff_date : max),
+            historicRows[0].kickoff_date
+          );
+          const [y, m] = latestDate.split('-').map(Number);
+          setTeamCalendarYear(y);
+          setTeamCalendarMonth(m - 1);
+        }
+        return historicRows;
+      })
       .then(setTeamFixtures)
       .catch((err) => setTeamError(err.message ?? 'Failed to load fixtures'))
       .finally(() => setTeamFixturesLoading(false));
@@ -689,6 +711,9 @@ export default function GameweekBrowser() {
             }}
           />
           <div className="flex-1 min-w-0 text-ink-500 text-sm pt-1">
+            {teamHistoricMode && (
+              <p className="mb-1">This season is complete &mdash; sourced from the results archive.</p>
+            )}
             Click a day to filter {teamName}&rsquo;s fixture list below to that date.
           </div>
         </div>

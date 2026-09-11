@@ -689,6 +689,8 @@ export interface RawMatchesFilters {
   seasonId?: number;
   teamId?: number;
   venue?: MatchVenueFilter; // only meaningful when teamId is set; defaults to 'either'
+  competitionType?: string; // filters directly, independent of leagueId -- e.g. "all cups" with no single division picked
+  countryId?: number;
 }
 
 // PostgREST's own hard cap is 1000 rows per request regardless of what we
@@ -721,7 +723,7 @@ export async function getRawMatches(
       *,
       home_team:teams!matches_home_team_id_fkey(canonical_name),
       away_team:teams!matches_away_team_id_fkey(canonical_name),
-      league:leagues(code, name, competition_type, country:countries(name)),
+      league:leagues!inner(code, name, competition_type, country:countries(name)),
       season:seasons(label)
     `
     )
@@ -730,6 +732,11 @@ export async function getRawMatches(
 
   if (filters.leagueId) query = query.eq('league_id', filters.leagueId);
   if (filters.seasonId) query = query.eq('season_id', filters.seasonId);
+  // Filtered via the embedded `league` resource -- !inner above is required
+  // for a PostgREST embedded-column filter to actually constrain rows
+  // rather than just shaping the select.
+  if (filters.competitionType) query = query.eq('league.competition_type', filters.competitionType);
+  if (filters.countryId) query = query.eq('league.country_id', filters.countryId);
 
   if (filters.teamId) {
     const venue = filters.venue ?? 'either';
@@ -967,6 +974,57 @@ export async function getFixturesForTeam(
     competition_type: row.league?.competition_type,
   }));
   return attachResultsForTeam(fixtures, seasonId, teamId);
+}
+
+/**
+ * Matches-sourced counterpart to getFixturesForTeam, for a team+season
+ * combination that has no rows in `fixtures` at all (a fully historic,
+ * completed season -- see getMatchesCalendarIndex for why). Unlike
+ * getFixturesForTeam, no separate results-attach step is needed: `matches`
+ * rows already carry their own full-time/half-time scores directly.
+ */
+export async function getMatchesForTeamAsFixtures(
+  teamId: number,
+  seasonId: number
+): Promise<FixtureWithNames[]> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select(
+      `
+      match_id, league_id, season_id, home_team_id, away_team_id,
+      match_date, kickoff_time,
+      full_time_home_goals, full_time_away_goals,
+      half_time_home_goals, half_time_away_goals,
+      home_team:teams!matches_home_team_id_fkey(canonical_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      league:leagues(code, name, competition_type)
+    `
+    )
+    .eq('season_id', seasonId)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .order('match_date', { ascending: true });
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    fixture_id: row.match_id,
+    league_id: row.league_id,
+    season_id: row.season_id,
+    home_team_id: row.home_team_id,
+    away_team_id: row.away_team_id,
+    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
+    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
+    kickoff_date: row.match_date,
+    kickoff_time: row.kickoff_time,
+    matchweek: null,
+    status: 'played',
+    league_code: row.league?.code,
+    league_name: row.league?.name,
+    competition_type: row.league?.competition_type,
+    full_time_home_goals: row.full_time_home_goals,
+    full_time_away_goals: row.full_time_away_goals,
+    half_time_home_goals: row.half_time_home_goals,
+    half_time_away_goals: row.half_time_away_goals,
+  }));
 }
 
 /** Returns the distinct, ordered list of matchweek numbers available for a league+season. */
