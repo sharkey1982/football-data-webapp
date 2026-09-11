@@ -387,7 +387,7 @@ export default function GameweekBrowser() {
   // League fixtures stay in the app's default pitch-green/white styling.
   function competitionRowClass(type?: string | null) {
     return type === 'cup'
-      ? 'bg-cup-700/[0.07] hover:bg-cup-700/[0.14] border-l-4 border-cup-700'
+      ? 'bg-cup-700/10 hover:bg-cup-700/20 border-l-4 border-cup-700'
       : 'hover:bg-chalk-100 border-l-4 border-pitch-700/30';
   }
   function competitionTextClass(type?: string | null) {
