@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getLeagues, getCountries, getSeasons, getLeagueTable, type LeagueTableRow } from '../lib/api';
 
 type LeagueOption = {
@@ -17,6 +17,7 @@ const selectClass =
 const labelClass = 'block text-xs sm:text-sm font-medium text-ink-700 mb-1';
 
 export default function LeagueTable() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
   const urlSeasonId = searchParams.get('season') ? Number(searchParams.get('season')) : null;
@@ -94,6 +95,10 @@ export default function LeagueTable() {
   }, [leagueId, seasonId]);
 
   const anyDeductions = rows?.some((r) => r.pointsAdjustment !== 0) ?? false;
+
+  function viewTeamFixtures(teamId: number) {
+    navigate(`/fixtures?view=team&team=${teamId}&season=${seasonId}`);
+  }
 
   return (
     <div className="space-y-6">
@@ -183,7 +188,14 @@ export default function LeagueTable() {
               {rows.map((r, i) => (
                 <tr key={r.team_id} className="hover:bg-chalk-100 transition-colors">
                   <td className="px-3 py-2 text-right font-mono text-xs text-ink-500">{i + 1}</td>
-                  <td className="px-3 py-2 font-medium whitespace-nowrap">{r.team_name}</td>
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">
+                    <button
+                      onClick={() => viewTeamFixtures(r.team_id)}
+                      className="hover:text-pitch-700 hover:underline transition-colors text-left"
+                    >
+                      {r.team_name}
+                    </button>
+                  </td>
                   <td className="px-2 py-2 text-center font-mono text-xs">{r.played}</td>
                   <td className="px-2 py-2 text-center font-mono text-xs">{r.won}</td>
                   <td className="px-2 py-2 text-center font-mono text-xs">{r.drawn}</td>

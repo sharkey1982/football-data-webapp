@@ -1,7 +1,8 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route, useSearchParams } from 'react-router-dom';
 import LeagueTable from '../pages/LeagueTable';
 import * as api from '../lib/api';
 
@@ -15,6 +16,12 @@ vi.mock('../lib/api', async () => {
 });
 
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+
+/** Renders the Fixtures route's query string so a navigation can be asserted on. */
+function FixturesProbe() {
+  const [params] = useSearchParams();
+  return <div data-testid="fixtures-probe">{params.toString()}</div>;
+}
 
 describe('LeagueTable page', () => {
   it('excludes cup competitions from the Division dropdown and shows deduction annotations', async () => {
@@ -58,5 +65,38 @@ describe('LeagueTable page', () => {
     // Deducted team shows its adjusted points and the annotation/footnote.
     expect(screen.getByText('(-6)')).toBeInTheDocument();
     expect(screen.getByText(/Breach of profitability rules/)).toBeInTheDocument();
+  });
+
+  it('clicking a team name navigates to its Fixtures Team view for the selected season', async () => {
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
+    ]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
+    mockedApi.getLeagueTable.mockResolvedValue([
+      {
+        team_id: 42, team_name: 'Fulham', played: 3, won: 1, drawn: 1, lost: 1,
+        goalsFor: 3, goalsAgainst: 3, goalDifference: 0,
+        pointsBeforeAdjustment: 4, pointsAdjustment: 0, points: 4, deductions: [],
+      },
+    ]);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/table']}>
+        <Routes>
+          <Route path="/table" element={<LeagueTable />} />
+          <Route path="/fixtures" element={<FixturesProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByText('Fulham'));
+
+    const probe = await screen.findByTestId('fixtures-probe');
+    const params = new URLSearchParams(probe.textContent ?? '');
+    expect(params.get('view')).toBe('team');
+    expect(params.get('team')).toBe('42');
+    expect(params.get('season')).toBe('13');
   });
 });
