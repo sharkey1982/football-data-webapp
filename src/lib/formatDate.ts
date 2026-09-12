@@ -41,3 +41,14 @@ export function formatMatchDateWithYear(isoDate: string): string {
   if (!year) return isoDate;
   return `${formatMatchDate(isoDate)} ${year}`;
 }
+
+/**
+ * Formats a full ISO timestamp (e.g. a timestamptz value like
+ * '2026-09-12 04:15:00.215121+00') as '12 Sep 2026' -- for "last updated"
+ * style captions where the weekday isn't meaningful, just the calendar date.
+ */
+export function formatRefreshDate(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return isoTimestamp;
+  return `${date.getUTCDate()} ${MONTH_ABBREV[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}

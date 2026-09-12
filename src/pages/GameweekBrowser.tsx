@@ -10,9 +10,10 @@ import {
   getMatchesForSeasonAsFixtures,
   getFixturesForTeam,
   getMatchesForTeamAsFixtures,
+  getLastFixtureRefresh,
   type FixtureWithNames,
 } from '../lib/api';
-import { formatMatchDate, formatMatchDateWithYear } from '../lib/formatDate';
+import { formatMatchDate, formatMatchDateWithYear, formatRefreshDate } from '../lib/formatDate';
 import FixtureCalendarHeatmap from '../components/FixtureCalendarHeatmap';
 import { ScoreChip } from '../components/ScoreChip';
 
@@ -118,6 +119,7 @@ export default function GameweekBrowser() {
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
 
   // Division-view filters. Country/competition type narrow the Division
   // dropdown itself rather than being sent to the API separately -- the
@@ -336,6 +338,9 @@ export default function GameweekBrowser() {
       setSeasons(loadedSeasons);
       setSeasonId((current) => current ?? loadedSeasons[0]?.season_id ?? null);
     });
+    // Best-effort -- if this fails, just don't show the refresh caption
+    // rather than blocking the rest of the page.
+    getLastFixtureRefresh().then(setLastRefresh).catch(() => setLastRefresh(null));
   }, []);
 
   // Restore a team-view selection from the URL on first load (the search
@@ -583,7 +588,12 @@ export default function GameweekBrowser() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Fixtures</h1>
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Fixtures</h1>
+          {lastRefresh && (
+            <span className="text-xs text-ink-500 font-mono">Updated {formatRefreshDate(lastRefresh)}</span>
+          )}
+        </div>
         <p className="text-ink-500 mt-1">
           Browse fixtures by division or by team, then jump straight into a full stats comparison.
         </p>

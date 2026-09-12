@@ -1393,6 +1393,25 @@ export async function getFixtureDateCounts(
  * practice), just not precise enough for a real per-day breakdown once
  * TV scheduling/postponements spread a week's games across several days.
  */
+/**
+ * Returns the timestamp of the most recent successful daily fixture-import
+ * run, or null if none has completed yet -- used to show "data last
+ * refreshed" on the Fixtures page rather than trusting an arbitrary row's
+ * created_at (fixtures are upserted, not appended, so a row's own timestamp
+ * doesn't reliably reflect the last time the importer ran).
+ */
+export async function getLastFixtureRefresh(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('fixture_refresh_runs')
+    .select('finished_at')
+    .eq('status', 'success')
+    .order('finished_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.finished_at ?? null;
+}
+
 /** Fetches every fixture in a division+season at once (all matchweeks) -- powers the Fixtures page's collapsible-by-matchweek list, so the calendar and the list are always derived from the same data instead of two separate fetches that could drift out of sync. */
 export async function getFixturesForSeason(leagueId: number, seasonId: number): Promise<FixtureWithNames[]> {
   const { data, error } = await supabase
