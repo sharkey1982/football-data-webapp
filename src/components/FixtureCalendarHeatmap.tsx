@@ -98,12 +98,12 @@ export default function FixtureCalendarHeatmap({
 
     return (
       <div className="flex-1 min-w-0">
-        <p className="text-center font-display uppercase text-[10px] tracking-wide text-ink-700 mb-1">
+        <p className="text-center font-display uppercase text-[10px] lg:text-xs tracking-wide text-ink-700 mb-1 lg:mb-1.5">
           {MONTH_NAMES[month]} {year}
         </p>
         <div className="grid grid-cols-7 gap-px mb-px">
           {WEEKDAY_HEADERS.map((w, i) => (
-            <div key={i} className="text-center text-[8px] font-medium text-ink-500">
+            <div key={i} className="text-center text-[8px] lg:text-[10px] font-medium text-ink-500">
               {w}
             </div>
           ))}
@@ -125,7 +125,7 @@ export default function FixtureCalendarHeatmap({
                     : undefined
                 }
                 className={[
-                  'aspect-square rounded-sm flex flex-col items-center justify-center text-[7px] leading-none transition-colors border border-chalk-300',
+                  'aspect-square rounded-sm flex flex-col items-center justify-center text-[7px] lg:text-[11px] leading-none transition-colors border border-chalk-300',
                   heatClasses(cell.count, isSelected, cell.type),
                   cell.count === 0 ? 'cursor-default' : 'cursor-pointer hover:ring-1 hover:ring-amber-400',
                 ].join(' ')}
@@ -142,40 +142,40 @@ export default function FixtureCalendarHeatmap({
   const next = normaliseMonth(viewYear, viewMonth + 1);
 
   return (
-    <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden w-full sm:max-w-[280px]">
-      <div className="flex items-center justify-between px-2 py-1 bg-pitch-900 text-chalk-100">
+    <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden w-full sm:max-w-[280px] lg:max-w-[440px]">
+      <div className="flex items-center justify-between px-2 py-1 lg:px-3 lg:py-1.5 bg-pitch-900 text-chalk-100">
         <button
           type="button"
           onClick={() => changeMonth(-1)}
           aria-label="Previous month"
-          className="px-1.5 py-0.5 rounded hover:bg-pitch-800 transition-colors text-xs"
+          className="px-1.5 py-0.5 rounded hover:bg-pitch-800 transition-colors text-xs lg:text-sm"
         >
           &larr;
         </button>
-        <span className="font-display uppercase text-[10px] tracking-wide">
+        <span className="font-display uppercase text-[10px] lg:text-xs tracking-wide">
           {MONTH_NAMES[viewMonth]} &ndash; {MONTH_NAMES[next.month]} {next.year}
         </span>
         <button
           type="button"
           onClick={() => changeMonth(1)}
           aria-label="Next month"
-          className="px-1.5 py-0.5 rounded hover:bg-pitch-800 transition-colors text-xs"
+          className="px-1.5 py-0.5 rounded hover:bg-pitch-800 transition-colors text-xs lg:text-sm"
         >
           &rarr;
         </button>
       </div>
 
-      <div className="p-1.5">
+      <div className="p-1.5 lg:p-3">
         {loading ? (
           <p className="text-ink-500 font-mono text-xs px-1 py-2">Loading&hellip;</p>
         ) : (
           <>
-            <div className="flex gap-2">
+            <div className="flex gap-2 lg:gap-4">
               {renderMonth(viewYear, viewMonth)}
               {renderMonth(next.year, next.month)}
             </div>
             {dateTypes && Object.values(dateTypes).some((t) => t !== 'league') && (
-              <div className="flex items-center gap-3 mt-1.5 px-0.5 text-[9px] text-ink-500">
+              <div className="flex items-center gap-3 mt-1.5 lg:mt-2.5 px-0.5 text-[9px] lg:text-[11px] text-ink-500">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-sm bg-pitch-700 inline-block" /> League
                 </span>
