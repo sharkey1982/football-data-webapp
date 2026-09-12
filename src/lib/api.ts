@@ -1260,7 +1260,8 @@ export async function getFixturesForTeam(
     )
     .eq('season_id', seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-    .order('kickoff_date', { ascending: true });
+    .order('kickoff_date', { ascending: true })
+    .order('kickoff_time', { ascending: true, nullsFirst: true });
   if (error) throw error;
 
   const fixtures = (data ?? []).map((row: any) => ({
@@ -1407,7 +1408,8 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
     )
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
-    .order('kickoff_date', { ascending: true });
+    .order('kickoff_date', { ascending: true })
+    .order('kickoff_time', { ascending: true, nullsFirst: true });
   if (error) throw error;
 
   const fixtures = (data ?? []).map((row: any) => ({

@@ -25,6 +25,14 @@ function monthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month]} ${year}`;
 }
 
+/** Today as a local 'YYYY-MM-DD' key, matching the format `kickoff_date`
+ *  and the calendar's own date keys use. Used to default the fixtures
+ *  list to "today" on load, rather than an empty or unfiltered list. */
+function todayIsoDate(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 /** Normalises a possibly out-of-range (year, month) pair -- e.g. month 12 -> next year, January. */
 function normaliseMonth(year: number, month: number): { year: number; month: number } {
   const total = year * 12 + month;
@@ -145,7 +153,12 @@ export default function GameweekBrowser() {
   const today = new Date();
   const [calendarYear, setCalendarYear] = useState(today.getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  // Defaults to today; can hold more than one date (multi-select) --
+  // this is what the fixture list below is filtered to, independent of
+  // which months the calendar is currently paged to.
+  const [selectedCalendarDates, setSelectedCalendarDates] = useState<Set<string>>(
+    () => new Set([todayIsoDate()])
+  );
   // Which matchweek/month sections are expanded, keyed by group key (see
   // groupFixtures below). A Set rather than a single value, since more
   // than one section can be open at once.
@@ -177,7 +190,13 @@ export default function GameweekBrowser() {
   // enough to hold in memory and re-derive locally.
   const [teamCalendarYear, setTeamCalendarYear] = useState(today.getFullYear());
   const [teamCalendarMonth, setTeamCalendarMonth] = useState(today.getMonth());
-  const [selectedTeamDate, setSelectedTeamDate] = useState<string | null>(null);
+  // Single-select for the team view (a team rarely plays "today", so
+  // unlike the division view this isn't defaulted) -- represented as a
+  // Set to match the calendar component's multi-select-capable API.
+  const [selectedTeamDates, setSelectedTeamDates] = useState<Set<string>>(new Set());
+  function toggleTeamDate(date: string) {
+    setSelectedTeamDates((prev) => (prev.has(date) ? new Set() : new Set([date])));
+  }
   // True when teamFixtures came from getMatchesForTeamAsFixtures (a
   // fixtures-less historic season) rather than getFixturesForTeam.
   const [teamHistoricMode, setTeamHistoricMode] = useState(false);
@@ -210,9 +229,9 @@ export default function GameweekBrowser() {
 
   const visibleTeamFixtures = useMemo(() => {
     if (!teamFixtures) return teamFixtures;
-    if (!selectedTeamDate) return teamFixtures;
-    return teamFixtures.filter((f) => f.kickoff_date === selectedTeamDate);
-  }, [teamFixtures, selectedTeamDate]);
+    if (selectedTeamDates.size === 0) return teamFixtures;
+    return teamFixtures.filter((f) => selectedTeamDates.has(f.kickoff_date));
+  }, [teamFixtures, selectedTeamDates]);
 
   const dateCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -243,6 +262,11 @@ export default function GameweekBrowser() {
     if (!seasonFixtures) return [];
     const map = new Map<string, FixtureGroup>();
     for (const f of seasonFixtures) {
+      // The calendar's date selection is the source of truth for which
+      // fixtures show below -- when nothing is selected, fall back to
+      // showing everything (the months-on-screen effect further down
+      // still narrows which sections start expanded).
+      if (selectedCalendarDates.size > 0 && !selectedCalendarDates.has(f.kickoff_date)) continue;
       let key: string;
       let label: string;
       let sortKey: string;
@@ -267,8 +291,18 @@ export default function GameweekBrowser() {
       }
       group.fixtures.push(f);
     }
+    // Chronological within a group too: kickoff_date first, then
+    // kickoff_time -- the query orders by date only, so two fixtures on
+    // the same day can otherwise come back in an arbitrary order (e.g. a
+    // 20:00 kickoff listed before a 17:30 one).
+    for (const group of map.values()) {
+      group.fixtures.sort((a, b) => {
+        if (a.kickoff_date !== b.kickoff_date) return a.kickoff_date < b.kickoff_date ? -1 : 1;
+        return (a.kickoff_time ?? '').localeCompare(b.kickoff_time ?? '');
+      });
+    }
     return [...map.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [seasonFixtures, historicMode]);
+  }, [seasonFixtures, historicMode, selectedCalendarDates]);
 
   // Which groups have any fixture in a given (year, month) -- used both to
   // decide which sections the calendar's two visible months should expand
@@ -341,7 +375,7 @@ export default function GameweekBrowser() {
   useEffect(() => {
     setSeasonFixtures(null);
     setError(null);
-    setSelectedCalendarDate(null);
+    setSelectedCalendarDates(new Set([todayIsoDate()]));
     setCalendarYear(today.getFullYear());
     setCalendarMonth(today.getMonth());
     setHistoricMode(false);
@@ -360,9 +394,12 @@ export default function GameweekBrowser() {
         const historicRows = await getMatchesForSeasonAsFixtures(leagueId, seasonId);
         if (historicRows.length > 0) {
           setHistoricMode(true);
-          // "Today" is never useful for a fully historic season -- land
-          // on the month of its last match instead of an empty calendar
-          // the person would have to page back through years to reach.
+          // "Today" is never useful for a fully historic season -- clear
+          // the default date selection (it would otherwise filter the
+          // list down to nothing) and land on the month of its last
+          // match instead of an empty calendar the person would have to
+          // page back through years to reach.
+          setSelectedCalendarDates(new Set());
           const latestDate = historicRows.reduce(
             (max, r) => (r.kickoff_date > max ? r.kickoff_date : max),
             historicRows[0].kickoff_date
@@ -379,15 +416,19 @@ export default function GameweekBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, leagueId, seasonId]);
 
-  // THE core "calendar filters the list" behaviour: whenever the two
-  // months currently shown on the calendar change -- via Prev/Next, or
-  // via the initial month the season-fetch effect lands on -- the list
-  // narrows to exactly the section(s) with a fixture in either of those
-  // months. This fires with no date selected at all, which is the part
-  // that was missing before (previously only clicking a specific day did
-  // anything to the list).
+  // Whenever the visible groups change -- because a date got
+  // selected/deselected, or (with no date selected) because the calendar
+  // was paged to a different pair of months -- expand exactly the
+  // section(s) that should be showing. With an active date selection,
+  // `groups` is already narrowed to just the selected date(s), so every
+  // remaining group is shown open regardless of which months the
+  // calendar itself is currently paged to.
   useEffect(() => {
     if (groups.length === 0) return;
+    if (selectedCalendarDates.size > 0) {
+      setExpandedGroups(new Set(groups.map((g) => g.key)));
+      return;
+    }
     const next = normaliseMonth(calendarYear, calendarMonth + 1);
     const matching = new Set([
       ...groupKeysForMonth(calendarYear, calendarMonth),
@@ -407,14 +448,20 @@ export default function GameweekBrowser() {
   // into view once expanded.
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Selecting a specific day is now just for highlighting a single date
-  // within whatever the calendar's two months already filtered the list
-  // to -- the month-driven effect above handles showing/expanding the
-  // right section(s); this only needs to toggle the highlight and, if
-  // more than one section is visible, scroll to the exact one.
-  function selectCalendarDate(date: string | null) {
-    setSelectedCalendarDate((prev) => (prev === date ? null : date));
-    if (!date) return;
+  // Toggles one date in/out of the multi-select set -- this is what
+  // actually filters the fixture list below (see `groups`). Scrolls to
+  // that date's section on select; nothing to scroll to on deselect.
+  function toggleCalendarDate(date: string) {
+    setSelectedCalendarDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) {
+        next.delete(date);
+      } else {
+        next.add(date);
+      }
+      return next;
+    });
+    if (selectedCalendarDates.has(date)) return;
     const groupKey = groupKeyForDate[date];
     if (!groupKey) return;
     requestAnimationFrame(() => {
@@ -463,7 +510,7 @@ export default function GameweekBrowser() {
   // day filter and snaps it back to the current month, since a date
   // selected for one team/season is meaningless once that changes.
   useEffect(() => {
-    setSelectedTeamDate(null);
+    setSelectedTeamDates(new Set());
     setTeamCalendarYear(today.getFullYear());
     setTeamCalendarMonth(today.getMonth());
     setTeamHistoricMode(false);
@@ -715,8 +762,8 @@ export default function GameweekBrowser() {
             dateCounts={dateCounts}
             dateTypes={calendarDateTypes}
             loading={loading}
-            selectedDate={selectedCalendarDate}
-            onSelectDate={selectCalendarDate}
+            selectedDates={selectedCalendarDates}
+            onToggleDate={toggleCalendarDate}
             viewYear={calendarYear}
             viewMonth={calendarMonth}
             onChangeMonth={(y, m) => {
@@ -739,11 +786,14 @@ export default function GameweekBrowser() {
 
             {Object.keys(dateCounts).length > 0 && !error && !loading && (
               <p>
-                The list below shows the {historicMode ? 'months' : 'matchweeks'} visible on the
-                calendar &mdash; page it to filter, or click a day to highlight that date.
-                {selectedCalendarDate && (
+                {selectedCalendarDates.size > 0
+                  ? `The list below shows fixtures on the ${selectedCalendarDates.size === 1 ? 'selected day' : `${selectedCalendarDates.size} selected days`} only.`
+                  : `The list below shows the ${historicMode ? 'months' : 'matchweeks'} visible on the calendar \u2014 page it to filter.`}{' '}
+                Tap a day to select it, or tap again to deselect &mdash; tap more than one day to
+                compare several at once.
+                {selectedCalendarDates.size > 0 && (
                   <button
-                    onClick={() => selectCalendarDate(null)}
+                    onClick={() => setSelectedCalendarDates(new Set())}
                     className="ml-2 text-pitch-700 font-medium hover:underline"
                   >
                     Clear
@@ -761,8 +811,8 @@ export default function GameweekBrowser() {
             dateCounts={teamDateCounts}
             dateTypes={teamDateTypes}
             loading={teamFixturesLoading}
-            selectedDate={selectedTeamDate}
-            onSelectDate={setSelectedTeamDate}
+            selectedDates={selectedTeamDates}
+            onToggleDate={toggleTeamDate}
             viewYear={teamCalendarYear}
             viewMonth={teamCalendarMonth}
             onChangeMonth={(y, m) => {
@@ -802,11 +852,14 @@ export default function GameweekBrowser() {
             <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white">
               <div className="px-4 py-2 bg-pitch-900 text-chalk-100 font-display uppercase text-sm tracking-wide flex items-center justify-between">
                 <span>
-                  {teamName} &mdash; {selectedTeamDate ? formatMatchDate(selectedTeamDate) : 'All Competitions'}
+                  {teamName} &mdash;{' '}
+                  {selectedTeamDates.size === 1
+                    ? formatMatchDate([...selectedTeamDates][0])
+                    : 'All Competitions'}
                 </span>
-                {selectedTeamDate && (
+                {selectedTeamDates.size > 0 && (
                   <button
-                    onClick={() => setSelectedTeamDate(null)}
+                    onClick={() => setSelectedTeamDates(new Set())}
                     className="text-chalk-100/80 hover:text-chalk-100 text-xs normal-case tracking-normal underline"
                   >
                     Clear date filter
@@ -892,7 +945,7 @@ export default function GameweekBrowser() {
                             key={f.fixture_id}
                             className={[
                               'flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 transition-colors cursor-pointer',
-                              f.kickoff_date === selectedCalendarDate
+                              selectedCalendarDates.has(f.kickoff_date)
                                 ? 'bg-amber-500/15 hover:bg-amber-500/20'
                                 : 'hover:bg-chalk-100',
                             ].join(' ')}

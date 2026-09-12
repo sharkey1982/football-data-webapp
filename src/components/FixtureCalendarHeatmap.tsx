@@ -6,8 +6,11 @@ type Props = {
    *  colour). Omitted dates default to the league colour scale. */
   dateTypes?: Record<string, 'league' | 'cup' | 'mixed'>;
   loading: boolean;
-  selectedDate: string | null;
-  onSelectDate: (date: string | null) => void;
+  /** ISO dates currently selected/highlighted. More than one can be
+   *  selected at once -- the parent owns what "selecting" a date means
+   *  (toggle into a multi-select set, or replace a single selection). */
+  selectedDates: Set<string>;
+  onToggleDate: (date: string) => void;
   /** The LEFT-hand month shown. The right-hand month is always the one
    *  immediately after it. Owned by the parent so the fixture list can
    *  stay in sync with whichever months are currently on screen. */
@@ -52,8 +55,8 @@ export default function FixtureCalendarHeatmap({
   dateCounts,
   dateTypes,
   loading,
-  selectedDate,
-  onSelectDate,
+  selectedDates,
+  onToggleDate,
   viewYear,
   viewMonth,
   onChangeMonth,
@@ -108,14 +111,14 @@ export default function FixtureCalendarHeatmap({
         <div className="grid grid-cols-7 gap-px">
           {cells.map((cell, i) => {
             if (cell.day === null) return <div key={i} className="aspect-square" />;
-            const isSelected = cell.key === selectedDate;
+            const isSelected = cell.key !== null && selectedDates.has(cell.key);
             const isMixed = cell.type === 'mixed' && cell.count > 0 && !isSelected;
             return (
               <button
                 type="button"
                 key={cell.key}
                 disabled={cell.count === 0}
-                onClick={() => onSelectDate(isSelected ? null : cell.key)}
+                onClick={() => cell.key && onToggleDate(cell.key)}
                 style={
                   isMixed
                     ? { background: 'linear-gradient(135deg, var(--color-pitch-700) 50%, var(--color-cup-700) 50%)' }
@@ -139,7 +142,7 @@ export default function FixtureCalendarHeatmap({
   const next = normaliseMonth(viewYear, viewMonth + 1);
 
   return (
-    <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden w-full max-w-[280px]">
+    <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden w-full sm:max-w-[280px]">
       <div className="flex items-center justify-between px-2 py-1 bg-pitch-900 text-chalk-100">
         <button
           type="button"
