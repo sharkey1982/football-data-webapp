@@ -33,6 +33,17 @@ function todayIsoDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+/** Chronological order (date, then kickoff time), with same-date-and-time
+ *  fixtures broken alphabetically by home team -- the query itself only
+ *  orders by date, so this is needed wherever fixtures are actually
+ *  displayed to get a stable, sensible order. */
+function compareFixtures(a: FixtureWithNames, b: FixtureWithNames): number {
+  if (a.kickoff_date !== b.kickoff_date) return a.kickoff_date < b.kickoff_date ? -1 : 1;
+  const timeCompare = (a.kickoff_time ?? '').localeCompare(b.kickoff_time ?? '');
+  if (timeCompare !== 0) return timeCompare;
+  return a.home_team_name.localeCompare(b.home_team_name);
+}
+
 /** Normalises a possibly out-of-range (year, month) pair -- e.g. month 12 -> next year, January. */
 function normaliseMonth(year: number, month: number): { year: number; month: number } {
   const total = year * 12 + month;
@@ -229,8 +240,11 @@ export default function GameweekBrowser() {
 
   const visibleTeamFixtures = useMemo(() => {
     if (!teamFixtures) return teamFixtures;
-    if (selectedTeamDates.size === 0) return teamFixtures;
-    return teamFixtures.filter((f) => selectedTeamDates.has(f.kickoff_date));
+    const filtered =
+      selectedTeamDates.size === 0
+        ? teamFixtures
+        : teamFixtures.filter((f) => selectedTeamDates.has(f.kickoff_date));
+    return [...filtered].sort(compareFixtures);
   }, [teamFixtures, selectedTeamDates]);
 
   const dateCounts = useMemo(() => {
@@ -292,14 +306,12 @@ export default function GameweekBrowser() {
       group.fixtures.push(f);
     }
     // Chronological within a group too: kickoff_date first, then
-    // kickoff_time -- the query orders by date only, so two fixtures on
-    // the same day can otherwise come back in an arbitrary order (e.g. a
-    // 20:00 kickoff listed before a 17:30 one).
+    // kickoff_time, then home team name a-z -- the query orders by date
+    // only, so fixtures on the same day (or same day and time) can
+    // otherwise come back in an arbitrary order (e.g. a 20:00 kickoff
+    // listed before a 17:30 one).
     for (const group of map.values()) {
-      group.fixtures.sort((a, b) => {
-        if (a.kickoff_date !== b.kickoff_date) return a.kickoff_date < b.kickoff_date ? -1 : 1;
-        return (a.kickoff_time ?? '').localeCompare(b.kickoff_time ?? '');
-      });
+      group.fixtures.sort(compareFixtures);
     }
     return [...map.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [seasonFixtures, historicMode, selectedCalendarDates]);
