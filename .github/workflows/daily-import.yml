@@ -19,35 +19,51 @@ jobs:
       - run: npm install
       - run: pip install -r scripts/requirements.txt
 
-      # Step 1: import today's completed results.
+      # Step 1: import today's completed E0 results. (Only E0 has a daily
+      # results source configured today -- E1-EC fit on whatever historical
+      # match data already exists in the DB from the original bulk import.)
       - name: Import daily results
         run: npm run import:daily
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Step 2: refit the Dixon-Coles model on the updated match history.
-      # No `|| true` / continue-on-error anywhere in this job -- a failure
-      # here must fail the whole workflow rather than let steps 3-4 run
-      # against a stale fit and quietly report success.
-      - name: Fit Dixon-Coles model (E0)
-        run: python scripts/fit_dixon_coles.py --league-code E0
+      # Steps 2-3: refit every competition and estimate its promoted teams
+      # from the division below, via one generic loop rather than
+      # duplicated per-league steps -- see scripts/fit_dixon_coles.py and
+      # scripts/estimate_promoted_team_ratings.py, both already
+      # competition-agnostic (--league-code / --target-league /
+      # --source-league). `set -e` means any single league's failure
+      # (fit rejected, script error) aborts the loop immediately and fails
+      # this step -- and therefore the whole workflow -- rather than
+      # continuing on to refresh predictions from a stale or rejected fit.
+      # EC (National League) has no division below in this dataset, so it
+      # has no estimation step; any EC team too sparse for a direct fit
+      # simply has no rating until it accumulates enough matches.
+      - name: Fit Dixon-Coles models and estimate promoted teams (all competitions)
+        run: |
+          set -e
+          declare -A SOURCE_LEAGUE=( [E0]=E1 [E1]=E2 [E2]=E3 [E3]=EC )
+          for LEAGUE in E0 E1 E2 E3 EC; do
+            echo "::group::Fitting $LEAGUE"
+            python scripts/fit_dixon_coles.py --league-code "$LEAGUE"
+            echo "::endgroup::"
+            SRC="${SOURCE_LEAGUE[$LEAGUE]:-}"
+            if [ -n "$SRC" ]; then
+              echo "::group::Estimating promoted teams for $LEAGUE from $SRC"
+              python scripts/estimate_promoted_team_ratings.py --target-league "$LEAGUE" --source-league "$SRC"
+              echo "::endgroup::"
+            fi
+          done
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Step 3: any current-season E0 team with no genuine rating yet
-      # (freshly promoted, no matches in the fitting window) gets a rough
-      # estimate derived from its Championship rating. A no-op once every
-      # team has real E0 matches to fit on.
-      - name: Estimate ratings for newly promoted teams
-        run: python scripts/estimate_promoted_team_ratings.py --target-league E0 --source-league E1
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      # Step 4: push the new fit_run_id's predictions onto every upcoming
-      # fixture. Only runs if steps 2-3 succeeded.
+      # Step 4: push each competition's accepted fit's predictions onto its
+      # upcoming fixtures. backfill_fixture_predictions() already covers
+      # every league in one call (DISTINCT ON league_id, latest status =
+      # 'accepted' fit) and never touches already-played fixtures -- no
+      # per-league looping needed here.
       - name: Refresh fixture predictions
         run: npm run predictions:refresh
         env:

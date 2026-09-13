@@ -33,10 +33,14 @@ from supabase import create_client
 
 
 def latest_fit_run(supabase, league_id):
+    """The current PRODUCTION fit for a league -- status='accepted' only.
+    Never selects by fitted_at/fit_run_id alone; a rejected fit (even a
+    more recent one) must never be used as a source or target basis."""
     res = (
         supabase.table("model_fit_runs")
         .select("fit_run_id, fitted_at")
         .eq("league_id", league_id)
+        .eq("status", "accepted")
         .order("fitted_at", desc=True)
         .limit(1)
         .execute()

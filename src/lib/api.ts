@@ -762,13 +762,12 @@ export type TeamWithRating = {
   estimation_note: string | null;
 };
 
-/** Fetches every available fit run for a league, most recent first. */
+/** Fetches every available fit run for a league (any status), most recent first -- for a fit-history/data-health view, not production selection. */
 export async function getFitRunsForLeague(leagueId: number) {
   const { data, error } = await supabase
     .from('model_fit_runs')
     .select('*')
     .eq('league_id', leagueId)
-    .eq('converged', true)
     .order('fitted_at', { ascending: false });
   if (error) throw error;
   return data;
@@ -776,11 +775,17 @@ export async function getFitRunsForLeague(leagueId: number) {
 
 /** Fetches the single most recent fit run for a league, or null if none exists yet. */
 export async function getLatestFitRun(leagueId: number) {
+  // NEVER select by fitted_at/fit_run_id or converged alone -- a fit can
+  // converge and still be statistically pathological (see fit_run_id=7's
+  // Coventry complete-separation failure). status = 'accepted' is the
+  // only thing that means "passed every quality gate and is the current
+  // production fit for this league" -- see scripts/fit_dixon_coles.py's
+  // validate_fit() for what that entails.
   const { data, error } = await supabase
     .from('model_fit_runs')
     .select('*')
     .eq('league_id', leagueId)
-    .eq('converged', true)
+    .eq('status', 'accepted')
     .order('fitted_at', { ascending: false })
     .limit(1)
     .maybeSingle();

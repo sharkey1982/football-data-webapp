@@ -154,6 +154,8 @@ export type MatchInsert = {
   source_file: string;
 };
 
+export type ModelFitRunStatus = 'pending' | 'accepted' | 'rejected';
+
 export type ModelFitRun = {
   fit_run_id: number;
   league_id: number;
@@ -166,6 +168,10 @@ export type ModelFitRun = {
   converged: boolean;
   matches_used: number;
   fitted_at: string;
+  status: ModelFitRunStatus;
+  rejection_reason: string | null;
+  validation_warnings: string[];
+  validation_checks: Record<string, unknown>;
 };
 
 export type TeamRating = {
