@@ -829,6 +829,8 @@ export interface FantasyFixtureCell {
   is_home: boolean;
   expected_goals_for: number;
   expected_goals_against: number;
+  /** P(this team keeps a clean sheet), 0-1 -- P(opponent scores 0), read off the Dixon-Coles score grid. */
+  clean_sheet_probability: number;
   opponent_attack_strength: number;
   opponent_defence_strength: number;
 }
@@ -909,6 +911,14 @@ export async function getFantasyFixtureDifficulty(
       homeAdvantage: fitRun.home_advantage,
     });
 
+    // Clean sheet = opponent scores 0. Read straight off the score grid
+    // rather than approximating with a plain Poisson P(0) -- the grid
+    // already has the Dixon-Coles low-score tau correction baked in.
+    let homeCleanSheetProb = 0;
+    for (let h = 0; h <= dc.maxGoals; h++) homeCleanSheetProb += dc.scoreGrid[h][0];
+    let awayCleanSheetProb = 0;
+    for (let a = 0; a <= dc.maxGoals; a++) awayCleanSheetProb += dc.scoreGrid[0][a];
+
     const homeName = row.home_team?.canonical_name ?? 'Unknown';
     const awayName = row.away_team?.canonical_name ?? 'Unknown';
 
@@ -921,6 +931,7 @@ export async function getFantasyFixtureDifficulty(
       is_home: true,
       expected_goals_for: dc.expectedHomeGoals,
       expected_goals_against: dc.expectedAwayGoals,
+      clean_sheet_probability: homeCleanSheetProb,
       opponent_attack_strength: awayRating.attack_strength,
       opponent_defence_strength: awayRating.defence_strength,
     });
@@ -934,6 +945,7 @@ export async function getFantasyFixtureDifficulty(
       is_home: false,
       expected_goals_for: dc.expectedAwayGoals,
       expected_goals_against: dc.expectedHomeGoals,
+      clean_sheet_probability: awayCleanSheetProb,
       opponent_attack_strength: homeRating.attack_strength,
       opponent_defence_strength: homeRating.defence_strength,
     });

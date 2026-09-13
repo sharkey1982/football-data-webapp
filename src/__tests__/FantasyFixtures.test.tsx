@@ -47,6 +47,7 @@ describe('FantasyFixtures page', () => {
               is_home: true,
               expected_goals_for: 2.4,
               expected_goals_against: 1.8,
+              clean_sheet_probability: 0.16,
               opponent_attack_strength: 0,
               opponent_defence_strength: 0,
             },
@@ -65,6 +66,7 @@ describe('FantasyFixtures page', () => {
               is_home: true,
               expected_goals_for: 0.9,
               expected_goals_against: 0.4,
+              clean_sheet_probability: 0.65,
               opponent_attack_strength: 0,
               opponent_defence_strength: 0,
             },
@@ -98,5 +100,22 @@ describe('FantasyFixtures page', () => {
       expect(reordered[0]).toHaveTextContent('Newcastle');
     });
     expect(screen.getAllByTestId('team-window-total')[0]).toHaveTextContent('0.4');
+
+    // Switching to Clean sheet % shows probabilities (as %) and ranks by
+    // highest clean sheet chance first; the subscript total becomes the
+    // sum of probabilities across the window (expected clean sheets).
+    await user.click(screen.getByRole('button', { name: 'Clean sheet %' }));
+
+    await waitFor(() => {
+      const reordered = screen.getAllByTestId('team-row-name');
+      expect(reordered[0]).toHaveTextContent('Newcastle');
+    });
+    const cleanSheetTotals = screen.getAllByTestId('team-window-total');
+    expect(cleanSheetTotals[0]).toHaveTextContent('0.7'); // 0.65 rounded to 1dp
+    expect(cleanSheetTotals[1]).toHaveTextContent('0.2'); // 0.16 rounded to 1dp
+
+    // The FDR colour toggle is disabled while Clean sheet % is selected --
+    // there's no FDR equivalent for a model-derived probability.
+    expect(screen.getByRole('button', { name: 'Simple FDR (1-5)' })).toBeDisabled();
   });
 });

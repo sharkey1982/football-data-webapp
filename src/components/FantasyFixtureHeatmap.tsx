@@ -1,13 +1,39 @@
 export type FantasyFocus = 'attack' | 'defence';
 export type FantasyColourBasis = 'model' | 'fdr';
+export type FantasyMetric = 'xgf' | 'xga' | 'cleansheet' | 'fdr';
+
+const METRIC_LABEL: Record<FantasyMetric, string> = {
+  xgf: 'xGF',
+  xga: 'xGA',
+  cleansheet: 'Clean sheet chance',
+  fdr: 'FDR',
+};
+
+function formatMetricValue(metric: FantasyMetric, value: number): string {
+  if (metric === 'cleansheet') return `${Math.round(value * 100)}%`;
+  if (metric === 'fdr') return value.toFixed(0);
+  return value.toFixed(1);
+}
+
+function formatWindowTotal(metric: FantasyMetric, total: number): string {
+  if (metric === 'fdr') return total.toFixed(0);
+  return total.toFixed(1); // goals sum, or expected clean sheets (sum of per-match probabilities)
+}
+
+function windowTotalTitle(metric: FantasyMetric, fixtureCount: number): string {
+  if (metric === 'cleansheet') {
+    return `Expected clean sheets across the ${fixtureCount}-fixture window (sum of each match's clean sheet probability)`;
+  }
+  return `Total ${METRIC_LABEL[metric]} across the ${fixtureCount}-fixture ranking window`;
+}
 
 export interface FantasyHeatmapCell {
   matchweek: number;
   opponent_name: string;
   is_home: boolean;
-  /** Raw number shown in the tooltip -- expected goals (model) or the 1-5 FDR rating. */
+  /** Raw number shown in the cell/tooltip -- expected goals, clean sheet probability (0-1), or FDR rating. */
   value: number;
-  /** 1 (easiest) to 5 (hardest), already oriented for the current focus. */
+  /** 1 (easiest) to 5 (hardest), already oriented for the current focus/metric. */
   difficulty: number;
 }
 
@@ -16,7 +42,7 @@ export interface FantasyHeatmapRow {
   team_name: string;
   /** Average difficulty across the ranking window -- what rows are sorted by. */
   rankValue: number;
-  /** Sum of the raw metric (expected goals, or FDR) across the ranking window -- shown next to the team name. */
+  /** Sum of the raw metric across the ranking window -- shown next to the team name. */
   windowTotal: number;
   cellsByMatchweek: Map<number, FantasyHeatmapCell>;
 }
@@ -51,17 +77,12 @@ function difficultyTextClass(difficulty: number): string {
 export default function FantasyFixtureHeatmap({
   rows,
   matchweeks,
-  colourBasis,
-  focus,
+  metric,
 }: {
   rows: FantasyHeatmapRow[];
   matchweeks: number[];
-  colourBasis: FantasyColourBasis;
-  focus: FantasyFocus;
+  metric: FantasyMetric;
 }) {
-  const valueLabel = colourBasis === 'fdr' ? 'FDR' : focus === 'attack' ? 'xGF' : 'xGA';
-  const decimals = colourBasis === 'fdr' ? 0 : 1;
-
   return (
     <div className="overflow-x-auto border border-chalk-300 rounded-lg bg-white">
       <table className="border-collapse text-sm w-full">
@@ -88,9 +109,9 @@ export default function FantasyFixtureHeatmap({
                 <sub
                   data-testid="team-window-total"
                   className="ml-1 text-[10px] font-mono font-normal text-ink-500"
-                  title={`Total ${valueLabel} across the ${matchweeks.length}-fixture ranking window`}
+                  title={windowTotalTitle(metric, matchweeks.length)}
                 >
-                  {row.windowTotal.toFixed(decimals)}
+                  {formatWindowTotal(metric, row.windowTotal)}
                 </sub>
               </th>
               {matchweeks.map((mw) => {
@@ -110,12 +131,12 @@ export default function FantasyFixtureHeatmap({
                       difficultyTextClass(cell.difficulty),
                     ].join(' ')}
                     style={{ backgroundColor: difficultyColor(cell.difficulty) }}
-                    title={`GW${mw}: ${row.team_name} ${cell.is_home ? 'vs' : '@'} ${cell.opponent_name} -- ${valueLabel} ${cell.value.toFixed(colourBasis === 'fdr' ? 0 : 2)}`}
+                    title={`GW${mw}: ${row.team_name} ${cell.is_home ? 'vs' : '@'} ${cell.opponent_name} -- ${METRIC_LABEL[metric]} ${formatMetricValue(metric, cell.value)}`}
                   >
                     <div className="leading-tight font-semibold">
                       {cell.opponent_name.slice(0, 3).toUpperCase()} - {cell.is_home ? 'H' : 'A'}
                     </div>
-                    <div className="leading-tight opacity-80">{cell.value.toFixed(decimals)}</div>
+                    <div className="leading-tight opacity-80">{formatMetricValue(metric, cell.value)}</div>
                   </td>
                 );
               })}
