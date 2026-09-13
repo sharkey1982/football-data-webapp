@@ -197,6 +197,15 @@ export type Fixture = {
   source_file: string | null;
   created_at: string;
   updated_at: string;
+  // Dixon-Coles expected goals, frozen at prediction time from the
+  // league's then-latest model_fit_run -- see backfill_fixture_predictions()
+  // in Supabase. Only ever set while status is scheduled/postponed; never
+  // touched once a fixture is played, so it stays a genuine pre-match
+  // forecast rather than a later, hindsight-tainted recalculation.
+  predicted_home_goals: number | null;
+  predicted_away_goals: number | null;
+  prediction_fit_run_id: number | null;
+  predicted_at: string | null;
 };
 
 export type FixtureInsert = {
@@ -238,6 +247,18 @@ export type PointDeduction = {
   reason: string | null;
   effective_date: string | null; // ISO date
   created_at: string;
+};
+
+/** One row per daily fixture-import run. Used to surface "data last refreshed" to the frontend. */
+export type FixtureRefreshRun = {
+  refresh_run_id: number;
+  started_at: string;
+  finished_at: string | null;
+  competitions: string[] | null;
+  rows_seen: number;
+  rows_updated: number;
+  status: string;
+  error_message: string | null;
 };
 
 // ----------------------------------------------------------------------------
@@ -401,6 +422,12 @@ export type Database = {
         Row: DataSourceCompetition;
         Insert: Omit<DataSourceCompetition, 'source_competition_id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<DataSourceCompetition, 'source_competition_id'>>;
+        Relationships: [];
+      };
+      fixture_refresh_runs: {
+        Row: FixtureRefreshRun;
+        Insert: Omit<FixtureRefreshRun, 'refresh_run_id'>;
+        Update: Partial<Omit<FixtureRefreshRun, 'refresh_run_id'>>;
         Relationships: [];
       };
     };

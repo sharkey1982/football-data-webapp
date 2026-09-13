@@ -1154,6 +1154,12 @@ export type FixtureWithNames = {
   full_time_away_goals?: number | null;
   half_time_home_goals?: number | null;
   half_time_away_goals?: number | null;
+  // Dixon-Coles expected goals, frozen pre-match -- see Fixture type and
+  // backfill_fixture_predictions(). Only meaningful (and only ever
+  // populated) while the fixture is still scheduled/postponed; a played
+  // fixture's full_time_* goals take precedence in the UI.
+  predicted_home_goals?: number | null;
+  predicted_away_goals?: number | null;
 };
 
 /**
@@ -1258,6 +1264,7 @@ export async function getFixturesForTeam(
       `
       fixture_id, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
+      predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name),
       league:leagues(code, name, competition_type)
@@ -1265,7 +1272,8 @@ export async function getFixturesForTeam(
     )
     .eq('season_id', seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-    .order('kickoff_date', { ascending: true });
+    .order('kickoff_date', { ascending: true })
+    .order('kickoff_time', { ascending: true, nullsFirst: true });
   if (error) throw error;
 
   const fixtures = (data ?? []).map((row: any) => ({
@@ -1283,6 +1291,8 @@ export async function getFixturesForTeam(
     league_code: row.league?.code,
     league_name: row.league?.name,
     competition_type: row.league?.competition_type,
+    predicted_home_goals: row.predicted_home_goals,
+    predicted_away_goals: row.predicted_away_goals,
   }));
   return attachResultsForTeam(fixtures, seasonId, teamId);
 }
@@ -1395,6 +1405,25 @@ export async function getFixtureDateCounts(
  * practice), just not precise enough for a real per-day breakdown once
  * TV scheduling/postponements spread a week's games across several days.
  */
+/**
+ * Returns the timestamp of the most recent successful daily fixture-import
+ * run, or null if none has completed yet -- used to show "data last
+ * refreshed" on the Fixtures page rather than trusting an arbitrary row's
+ * created_at (fixtures are upserted, not appended, so a row's own timestamp
+ * doesn't reliably reflect the last time the importer ran).
+ */
+export async function getLastFixtureRefresh(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('fixture_refresh_runs')
+    .select('finished_at')
+    .eq('status', 'success')
+    .order('finished_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.finished_at ?? null;
+}
+
 /** Fetches every fixture in a division+season at once (all matchweeks) -- powers the Fixtures page's collapsible-by-matchweek list, so the calendar and the list are always derived from the same data instead of two separate fetches that could drift out of sync. */
 export async function getFixturesForSeason(leagueId: number, seasonId: number): Promise<FixtureWithNames[]> {
   const { data, error } = await supabase
@@ -1403,13 +1432,15 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
       `
       fixture_id, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
+      predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name)
     `
     )
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
-    .order('kickoff_date', { ascending: true });
+    .order('kickoff_date', { ascending: true })
+    .order('kickoff_time', { ascending: true, nullsFirst: true });
   if (error) throw error;
 
   const fixtures = (data ?? []).map((row: any) => ({
@@ -1424,6 +1455,8 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
     kickoff_time: row.kickoff_time,
     matchweek: row.matchweek,
     status: row.status,
+    predicted_home_goals: row.predicted_home_goals,
+    predicted_away_goals: row.predicted_away_goals,
   }));
   return attachResults(fixtures, leagueId, seasonId);
 }

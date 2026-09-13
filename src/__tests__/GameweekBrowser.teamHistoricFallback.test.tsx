@@ -15,6 +15,7 @@ vi.mock('../lib/api', async () => {
     getFixturesForSeason: vi.fn(),
     getMatchesForSeasonAsFixtures: vi.fn(),
     getFixturesForTeam: vi.fn(),
+    getLastFixtureRefresh: vi.fn().mockResolvedValue(null),
     getMatchesForTeamAsFixtures: vi.fn(),
   };
 });
