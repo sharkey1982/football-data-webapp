@@ -66,6 +66,23 @@ RHO_BOUNDS = (-0.4, 0.4)
 HOME_ADV_BOUNDS = (-2.0, 2.0)
 STRENGTH_BOUNDS = (-5.0, 5.0)
 
+# A team with very few matches in-window is not just "noisy" -- if those
+# few matches happen to be extreme (e.g. scoreless in all of them), the
+# Poisson MLE for that team's attack strength has no finite optimum: the
+# likelihood keeps improving as attack_strength -> -infinity, so the
+# optimiser just races to whatever numeric bound it's given and stops
+# there. That single degenerate value then contaminates every OTHER
+# team's rating too, because the post-fit identifiability shift (see
+# below) is a shared constant computed from the mean across ALL fitted
+# teams. A team below this threshold is therefore excluded from the
+# direct fit entirely -- its matches are dropped from the fitting
+# dataset -- and left for estimate_promoted_team_ratings.py to handle via
+# the division-below estimate, exactly as a team with zero matches
+# already is. 10 matches (~a quarter of a season) is enough for a stable
+# fit in practice without being so high it defers real signal for
+# newly-promoted teams for months.
+MIN_MATCHES_FOR_DIRECT_FIT = 10
+
 
 def dixon_coles_tau(x, y, lambda_home, lambda_away, rho):
     """Exact port of dixonColesTau() in src/lib/dixonColes.ts."""
@@ -152,7 +169,38 @@ def fit_league(supabase, league_code: str, dry_run: bool):
         )
         sys.exit(1)
 
-    team_ids = sorted({m["home_team_id"] for m in matches} | {m["away_team_id"] for m in matches})
+    # Drop teams (and their matches) with too few appearances in-window --
+    # see MIN_MATCHES_FOR_DIRECT_FIT for why. Counting appearances first
+    # over the FULL match list, then filtering matches, so a team that's
+    # eligible only counts real matches against other eligible teams.
+    appearances: dict[int, int] = {}
+    for m in matches:
+        appearances[m["home_team_id"]] = appearances.get(m["home_team_id"], 0) + 1
+        appearances[m["away_team_id"]] = appearances.get(m["away_team_id"], 0) + 1
+    eligible_team_ids = {tid for tid, n in appearances.items() if n >= MIN_MATCHES_FOR_DIRECT_FIT}
+    excluded_team_ids = {tid for tid, n in appearances.items() if n < MIN_MATCHES_FOR_DIRECT_FIT}
+
+    if excluded_team_ids:
+        names_res = supabase.table("teams").select("team_id, canonical_name").in_("team_id", list(excluded_team_ids)).execute()
+        name_by_id = {t["team_id"]: t["canonical_name"] for t in (names_res.data or [])}
+        for tid in excluded_team_ids:
+            print(
+                f"Excluding {name_by_id.get(tid, tid)} from the direct fit -- only "
+                f"{appearances[tid]} match(es) in-window (< {MIN_MATCHES_FOR_DIRECT_FIT}); "
+                "left for estimate_promoted_team_ratings.py.",
+                file=sys.stderr,
+            )
+
+    matches = [m for m in matches if m["home_team_id"] in eligible_team_ids and m["away_team_id"] in eligible_team_ids]
+
+    if len(matches) < 20:
+        print(
+            f"ERROR: only {len(matches)} match(es) remain after excluding sparse teams -- too few to fit reliably. Aborting.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    team_ids = sorted(eligible_team_ids)
     team_index = {tid: i for i, tid in enumerate(team_ids)}
     n_teams = len(team_ids)
 
@@ -214,6 +262,7 @@ def fit_league(supabase, league_code: str, dry_run: bool):
         "converged": bool(result.success),
         "matches_used": len(matches),
         "n_teams_fitted": n_teams,
+        "n_teams_excluded_sparse": len(excluded_team_ids),
     }
 
     if not result.success:
