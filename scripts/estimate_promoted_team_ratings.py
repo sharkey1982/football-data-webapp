@@ -133,12 +133,18 @@ def main():
 
     season_id, current_team_ids = current_season_team_ids(supabase, target_league_id)
     if season_id is None:
+        # This is a known, pre-existing data gap (only E0 has a current
+        # season's fixtures imported today), not a modelling problem -- it
+        # says nothing about whether the fit itself is good. Exit 0 so a
+        # generic multi-league loop can treat it as a graceful skip rather
+        # than aborting the whole pipeline; it's still printed loudly so
+        # it's never silently missed.
         print(
-            f"No fixtures found for {args.target_league} -- cannot determine which teams are "
-            "actually in this league's current season. Import fixtures first. Aborting.",
-            file=sys.stderr,
+            f"SKIPPING promoted-team estimation for {args.target_league}: no fixtures found, so which teams are "
+            "actually in its current season can't be determined. This is a data-import gap, not a fit failure -- "
+            "import fixtures for this league to enable estimation."
         )
-        sys.exit(1)
+        return
 
     needing_estimate = [t for t in current_team_ids if t not in target_ratings]
     print(f"Teams needing an estimate (in {args.target_league}'s current season but unrated): {len(needing_estimate)}")
