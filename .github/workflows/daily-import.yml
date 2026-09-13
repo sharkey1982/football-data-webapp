@@ -13,8 +13,43 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm install
-      - run: npm run import:daily
+      - run: pip install -r scripts/requirements.txt
+
+      # Step 1: import today's completed results.
+      - name: Import daily results
+        run: npm run import:daily
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Step 2: refit the Dixon-Coles model on the updated match history.
+      # No `|| true` / continue-on-error anywhere in this job -- a failure
+      # here must fail the whole workflow rather than let steps 3-4 run
+      # against a stale fit and quietly report success.
+      - name: Fit Dixon-Coles model (E0)
+        run: python scripts/fit_dixon_coles.py --league-code E0
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Step 3: any current-season E0 team with no genuine rating yet
+      # (freshly promoted, no matches in the fitting window) gets a rough
+      # estimate derived from its Championship rating. A no-op once every
+      # team has real E0 matches to fit on.
+      - name: Estimate ratings for newly promoted teams
+        run: python scripts/estimate_promoted_team_ratings.py --target-league E0 --source-league E1
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Step 4: push the new fit_run_id's predictions onto every upcoming
+      # fixture. Only runs if steps 2-3 succeeded.
+      - name: Refresh fixture predictions
+        run: npm run predictions:refresh
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

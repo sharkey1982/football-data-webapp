@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "import:daily": "tsx scripts/import-daily.ts",
+    "predictions:refresh": "tsx scripts/refresh-predictions.ts",
     "test": "vitest run"
   },
   "dependencies": {
