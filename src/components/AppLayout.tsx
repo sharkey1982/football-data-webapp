@@ -9,6 +9,7 @@ const staticNavItems: { to: To; label: string; end?: boolean }[] = [
   { to: '/fpl', label: 'FPL Projections' },
   { to: '/results-data', label: 'Results Data' },
   { to: '/source-data', label: 'Source Data' },
+  { to: '/data-health', label: 'Data Health' },
 ];
 
 export default function AppLayout() {

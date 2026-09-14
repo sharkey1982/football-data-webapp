@@ -7,6 +7,7 @@ import LeagueTable from './pages/LeagueTable';
 import ResultsData from './pages/ResultsData';
 import SourceData from './pages/SourceData';
 import FantasyFixtures from './pages/FantasyFixtures';
+import DataHealth from './pages/DataHealth';
 import FplFixturesList from './pages/fpl/FplFixturesList';
 import GameweekPage from './pages/fpl/GameweekPage';
 import FixtureProjectionPage from './pages/fpl/FixtureProjectionPage';
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="fpl/fixture/:fixtureId" element={<FixtureProjectionPage />} />
           <Route path="results-data" element={<ResultsData />} />
           <Route path="source-data" element={<SourceData />} />
+          <Route path="data-health" element={<DataHealth />} />
         </Route>
       </Routes>
     </BrowserRouter>

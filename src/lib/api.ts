@@ -7,7 +7,17 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import type { Match, MatchResult, ModelFitRun, PointDeduction, RawMatchFile, SourceMatchRow } from '../types/database';
+import type {
+  LeagueFitStatus,
+  Match,
+  MatchResult,
+  ModelFitRun,
+  PointDeduction,
+  RawMatchFile,
+  SourceMatchRow,
+} from '../types/database';
+
+export type { LeagueFitStatus } from '../types/database';
 import { calculateDixonColes } from './dixonColes';
 
 export type MatchWithNames = Match & {
@@ -761,6 +771,13 @@ export type TeamWithRating = {
   is_estimated: boolean;
   estimation_note: string | null;
 };
+
+/** One row per league from the league_fit_status view: latest attempted fit alongside the current accepted production fit -- the data-health summary. */
+export async function getLeagueFitStatus(): Promise<LeagueFitStatus[]> {
+  const { data, error } = await supabase.from('league_fit_status').select('*').order('league_code');
+  if (error) throw error;
+  return (data ?? []) as LeagueFitStatus[];
+}
 
 /** Fetches every available fit run for a league (any status), most recent first -- for a fit-history/data-health view, not production selection. */
 export async function getFitRunsForLeague(leagueId: number) {

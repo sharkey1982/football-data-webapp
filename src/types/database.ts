@@ -445,6 +445,24 @@ export type FplPlayerProjection = {
  * View: consensus predicted formation per team per fixture, aggregated
  * across active lineup-prediction sources (see fixture_lineup_predictions).
  */
+export type LeagueFitStatus = {
+  league_id: number;
+  league_code: string;
+  league_name: string;
+  latest_attempted_fit_run_id: number | null;
+  latest_attempted_status: ModelFitRunStatus | null;
+  latest_attempted_fitted_at: string | null;
+  latest_attempted_matches_used: number | null;
+  latest_attempted_converged: boolean | null;
+  latest_attempted_rejection_reason: string | null;
+  latest_attempted_validation_warnings: string[] | null;
+  accepted_fit_run_id: number | null;
+  accepted_fitted_at: string | null;
+  accepted_matches_used: number | null;
+  accepted_rho: number | null;
+  accepted_home_advantage: number | null;
+};
+
 export type FixtureTeamTacticalConsensus = {
   fixture_id: number;
   team_id: number;
@@ -701,6 +719,10 @@ export type Database = {
       };
     };
     Views: {
+      league_fit_status: {
+        Row: LeagueFitStatus;
+        Relationships: [];
+      };
       fixture_team_tactical_consensus: {
         Row: FixtureTeamTacticalConsensus;
         Relationships: [];
