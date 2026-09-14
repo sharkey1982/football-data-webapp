@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getFplFixtureProjection, type FplFixtureProjection } from '../../lib/fplApi';
 import ProjectionSummary from '../../components/fpl/ProjectionSummary';
 import TeamProjectionPanel from '../../components/fpl/TeamProjectionPanel';
+import { getErrorMessage } from '../../lib/errorMessage';
 
 export default function FixtureProjectionPage() {
   const { fixtureId } = useParams<{ fixtureId: string }>();
@@ -38,7 +39,7 @@ export default function FixtureProjectionPage() {
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load projection');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load projection'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
+import { getErrorMessage } from '../../lib/errorMessage';
 
 // ============================================================================
 // src/pages/fpl/FplFixturesList.tsx
@@ -23,7 +24,7 @@ export default function FplFixturesList() {
         if (!cancelled) setMatchweek(mw);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load gameweek');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load gameweek'));
       });
     return () => {
       cancelled = true;

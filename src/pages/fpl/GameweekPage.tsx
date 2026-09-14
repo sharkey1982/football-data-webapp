@@ -11,6 +11,7 @@ import {
 import GameweekNav from '../../components/fpl/season/GameweekNav';
 import GameweekFixtureList from '../../components/fpl/season/GameweekFixtureList';
 import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
+import { getErrorMessage } from '../../lib/errorMessage';
 
 export default function GameweekPage() {
   const { matchweek: matchweekParam } = useParams<{ matchweek: string }>();
@@ -33,7 +34,7 @@ export default function GameweekPage() {
         if (!cancelled) setSummary(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load season summary');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load season summary'));
       });
     return () => {
       cancelled = true;
@@ -51,7 +52,7 @@ export default function GameweekPage() {
         if (!cancelled) setFixtures(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load gameweek fixtures');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load gameweek fixtures'));
       })
       .finally(() => {
         if (!cancelled) setLoadingFixtures(false);
@@ -78,7 +79,7 @@ export default function GameweekPage() {
         if (!cancelled) setPlayers(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load player projections');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load player projections'));
       })
       .finally(() => {
         if (!cancelled) setLoadingPlayers(false);
