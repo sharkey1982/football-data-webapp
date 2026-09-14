@@ -1,72 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { getFplProjectedFixtures, type FplProjectedFixtureSummary } from '../../lib/fplApi';
-import { formatMatchDateWithYear } from '../../lib/formatDate';
+import { Navigate } from 'react-router-dom';
+import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
+
+// ============================================================================
+// src/pages/fpl/FplFixturesList.tsx
+//
+// /fpl index -- redirects to the current/next relevant gameweek's browser
+// at /fpl/gameweek/:matchweek. Kept as a thin redirect (rather than
+// inlining the gameweek browser here) so /fpl/gameweek/:matchweek stays
+// the one shareable, linkable URL for "a gameweek" instead of having two
+// different routes that can show the same content.
+// ============================================================================
 
 export default function FplFixturesList() {
-  const [fixtures, setFixtures] = useState<FplProjectedFixtureSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [matchweek, setMatchweek] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    getFplProjectedFixtures()
-      .then((data) => {
-        if (!cancelled) setFixtures(data);
+    getDefaultMatchweek()
+      .then((mw) => {
+        if (!cancelled) setMatchweek(mw);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load fixtures');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load gameweek');
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">FPL Projections</h1>
-        <p className="text-sm text-ink-500 mt-1">
-          Player-level fantasy point projections built from the Dixon-Coles fixture model, predicted formations and
-          real tactical roles. Pick a fixture to see the full breakdown.
-        </p>
-      </div>
-
-      {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
-      {error && <p className="text-loss-700 text-sm">{error}</p>}
-
-      {!loading && !error && fixtures.length === 0 && (
-        <p className="text-ink-500 text-sm">No fixtures currently have FPL projections.</p>
-      )}
-
-      {!loading && !error && fixtures.length > 0 && (
-        <ul className="divide-y divide-chalk-300 border border-chalk-300 rounded-lg bg-white overflow-hidden">
-          {fixtures.map((f) => (
-            <li key={f.fixture_id}>
-              <Link
-                to={`/fpl/fixture/${f.fixture_id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-chalk-100 transition-colors"
-              >
-                <div>
-                  <div className="font-medium text-ink-900">
-                    {f.home_team_name} <span className="text-ink-500">vs</span> {f.away_team_name}
-                  </div>
-                  <div className="text-xs text-ink-500 mt-0.5">
-                    {formatMatchDateWithYear(f.kickoff_date)}
-                    {f.kickoff_time ? ` \u2022 ${f.kickoff_time.slice(0, 5)}` : ''}
-                  </div>
-                </div>
-                <div className="scoreline px-2.5 py-1 text-xs font-mono">
-                  {f.predicted_home_goals?.toFixed(2) ?? '\u2014'} - {f.predicted_away_goals?.toFixed(2) ?? '\u2014'}
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+  if (error) return <p className="text-loss-700 text-sm">{error}</p>;
+  if (matchweek === null) return <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>;
+  return <Navigate to={`/fpl/gameweek/${matchweek}`} replace />;
 }

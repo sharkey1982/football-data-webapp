@@ -466,6 +466,59 @@ export type FixturePlayerTacticalConsensus = {
   sources: number;
 };
 
+/**
+ * View: fpl_season_fixture_feed -- all 380 fixtures for the season with
+ * Dixon-Coles predicted goals. The season-level fixture contract; distinct
+ * from the fixtures table itself (which the single-fixture projection
+ * screen already reads directly).
+ */
+export type FplSeasonFixtureFeed = {
+  fixture_id: number;
+  season_id: number;
+  matchweek: number;
+  round: string | null;
+  round_number: number | null;
+  kickoff_date: string;
+  kickoff_time: string | null;
+  status: string;
+  home_team_id: number;
+  home_team: string;
+  away_team_id: number;
+  away_team: string;
+  predicted_home_goals: number | null;
+  predicted_away_goals: number | null;
+  predicted_at: string | null;
+  has_projection: boolean;
+};
+
+/**
+ * View: fpl_season_player_projection_feed -- season-wide player projection
+ * feed (empirical-Bayes/shrunk ability model + tactical/set-piece
+ * allocation). Deliberately does NOT include expected FPL points -- that
+ * still comes from the production fpl_player_projections feed only where
+ * it exists, never computed client-side from these components.
+ */
+export type FplSeasonPlayerProjectionFeed = {
+  fixture_id: number;
+  matchweek: number;
+  kickoff_date: string;
+  team_id: number;
+  web_name: string;
+  fpl_player_id: number;
+  fpl_position: FplElementType | null;
+  tactical_role: string | null;
+  expected_minutes: string | null;
+  start_probability: string | null;
+  sub_appearance_probability: string | null;
+  shrunk_xg90: string | null;
+  shrunk_xa90: string | null;
+  expected_goals: string | null;
+  expected_assists: string | null;
+  clean_sheet_probability: string | null;
+  defensive_contribution_probability: string | null;
+  experimental_expected_bonus: string | null;
+};
+
 // ----------------------------------------------------------------------------
 // Supabase Database type -- the shape expected by createClient<Database>()
 //
@@ -602,6 +655,14 @@ export type Database = {
       };
       fixture_player_tactical_consensus: {
         Row: FixturePlayerTacticalConsensus;
+        Relationships: [];
+      };
+      fpl_season_fixture_feed: {
+        Row: FplSeasonFixtureFeed;
+        Relationships: [];
+      };
+      fpl_season_player_projection_feed: {
+        Row: FplSeasonPlayerProjectionFeed;
         Relationships: [];
       };
     };

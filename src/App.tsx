@@ -8,6 +8,7 @@ import ResultsData from './pages/ResultsData';
 import SourceData from './pages/SourceData';
 import FantasyFixtures from './pages/FantasyFixtures';
 import FplFixturesList from './pages/fpl/FplFixturesList';
+import GameweekPage from './pages/fpl/GameweekPage';
 import FixtureProjectionPage from './pages/fpl/FixtureProjectionPage';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="preview" element={<MatchPreview />} />
           <Route path="fantasy" element={<FantasyFixtures />} />
           <Route path="fpl" element={<FplFixturesList />} />
+          <Route path="fpl/gameweek/:matchweek" element={<GameweekPage />} />
           <Route path="fpl/fixture/:fixtureId" element={<FixtureProjectionPage />} />
           <Route path="results-data" element={<ResultsData />} />
           <Route path="source-data" element={<SourceData />} />

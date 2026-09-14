@@ -38,7 +38,7 @@ export const FPL_POSITION_LABEL: Record<FplElementType, string> = {
  * some come back as very long exact-decimal strings. Number() handles that
  * fine for display purposes; callers round further as needed.
  */
-function num(v: string | number | null | undefined): number | null {
+export function num(v: string | number | null | undefined): number | null {
   if (v === null || v === undefined) return null;
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
