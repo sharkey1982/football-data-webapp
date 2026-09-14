@@ -13,18 +13,29 @@ import GameweekFixtureList from '../../components/fpl/season/GameweekFixtureList
 import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
 import { getErrorMessage } from '../../lib/errorMessage';
 
+/** A known, currently-unresolved backend performance issue -- give a calm, specific explanation instead of a raw Postgres error wall. */
+function isTimeoutError(message: string): boolean {
+  return /statement timeout/i.test(message);
+}
+
 export default function GameweekPage() {
   const { matchweek: matchweekParam } = useParams<{ matchweek: string }>();
   const matchweek = Number(matchweekParam);
   const navigate = useNavigate();
 
   const [summary, setSummary] = useState<SeasonGameweekSummary[]>([]);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   const [fixtures, setFixtures] = useState<SeasonFixture[]>([]);
+  const [loadingFixtures, setLoadingFixtures] = useState(true);
+  const [fixturesError, setFixturesError] = useState<string | null>(null);
+
   const [players, setPlayers] = useState<SeasonPlayerProjection[]>([]);
   const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(null);
-  const [loadingFixtures, setLoadingFixtures] = useState(true);
-  const [loadingPlayers, setLoadingPlayers] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [playersRequested, setPlayersRequested] = useState(false);
+  const [playersAttempt, setPlayersAttempt] = useState(0);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [playersError, setPlayersError] = useState<string | null>(null);
 
   // Season summary (cheap, 38 rows) -- fetched once, powers the GW picker regardless of which week is selected.
   useEffect(() => {
@@ -34,7 +45,7 @@ export default function GameweekPage() {
         if (!cancelled) setSummary(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load season summary'));
+        if (!cancelled) setSummaryError(getErrorMessage(e, 'Failed to load season summary'));
       });
     return () => {
       cancelled = true;
@@ -46,13 +57,21 @@ export default function GameweekPage() {
     if (!Number.isFinite(matchweek)) return;
     let cancelled = false;
     setLoadingFixtures(true);
+    setFixturesError(null);
     setSelectedFixtureId(null);
+    // Player projections are gated behind an explicit request (see below) --
+    // the underlying feed is currently slow enough to time out on every
+    // call, so a fresh gameweek starts collapsed rather than firing it
+    // automatically.
+    setPlayersRequested(false);
+    setPlayers([]);
+    setPlayersError(null);
     getGameweekFixtures(matchweek)
       .then((data) => {
         if (!cancelled) setFixtures(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load gameweek fixtures'));
+        if (!cancelled) setFixturesError(getErrorMessage(e, 'Failed to load gameweek fixtures'));
       })
       .finally(() => {
         if (!cancelled) setLoadingFixtures(false);
@@ -62,13 +81,14 @@ export default function GameweekPage() {
     };
   }, [matchweek]);
 
-  // Player projections for the gameweek (or the selected fixture within it) --
-  // fetched only once we know the gameweek's own fixtures (for the team-name map),
-  // and re-fetched when the fixture filter changes.
+  // Player projections -- only once the user has actually asked for them
+  // (via the "Load player projections" button or a fixture's "Show
+  // players" toggle), not automatically on every gameweek visit.
   useEffect(() => {
-    if (!Number.isFinite(matchweek) || fixtures.length === 0) return;
+    if (!playersRequested || !Number.isFinite(matchweek) || fixtures.length === 0) return;
     let cancelled = false;
     setLoadingPlayers(true);
+    setPlayersError(null);
     const teamNames = new Map<number, string>();
     for (const f of fixtures) {
       teamNames.set(f.home_team_id, f.home_team);
@@ -79,7 +99,7 @@ export default function GameweekPage() {
         if (!cancelled) setPlayers(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load player projections'));
+        if (!cancelled) setPlayersError(getErrorMessage(e, 'Failed to load player projections'));
       })
       .finally(() => {
         if (!cancelled) setLoadingPlayers(false);
@@ -87,11 +107,16 @@ export default function GameweekPage() {
     return () => {
       cancelled = true;
     };
-  }, [matchweek, fixtures, selectedFixtureId]);
+  }, [matchweek, fixtures, selectedFixtureId, playersRequested, playersAttempt]);
 
   const handleSelectMatchweek = (target: number) => {
     const clamped = summary.length > 0 ? Math.min(Math.max(target, summary[0].matchweek), summary[summary.length - 1].matchweek) : target;
     navigate(`/fpl/gameweek/${clamped}`);
+  };
+
+  const handleSelectFixture = (fixtureId: number | null) => {
+    setSelectedFixtureId(fixtureId);
+    setPlayersRequested(true);
   };
 
   if (!Number.isFinite(matchweek)) {
@@ -108,24 +133,61 @@ export default function GameweekPage() {
         </p>
       </div>
 
-      {error && <p className="text-loss-700 text-sm">{error}</p>}
+      {summaryError && <p className="text-loss-700 text-sm">{summaryError}</p>}
 
       {summary.length > 0 && <GameweekNav matchweek={matchweek} summary={summary} onSelect={handleSelectMatchweek} />}
 
       {loadingFixtures && <p className="text-ink-500 font-mono text-sm">{'Loading fixtures\u2026'}</p>}
-      {!loadingFixtures && fixtures.length === 0 && !error && (
+      {fixturesError && <p className="text-loss-700 text-sm">{fixturesError}</p>}
+      {!loadingFixtures && !fixturesError && fixtures.length === 0 && (
         <p className="text-ink-500 text-sm">No fixtures found for gameweek {matchweek}.</p>
       )}
       {!loadingFixtures && fixtures.length > 0 && (
-        <GameweekFixtureList fixtures={fixtures} selectedFixtureId={selectedFixtureId} onSelectFixture={setSelectedFixtureId} />
+        <GameweekFixtureList fixtures={fixtures} selectedFixtureId={selectedFixtureId} onSelectFixture={handleSelectFixture} />
       )}
 
       <div>
         <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">
           {'Player projections \u2014 '}{selectedFixtureId ? 'selected fixture' : `all of gameweek ${matchweek}`}
         </h2>
+
+        {!playersRequested && !loadingFixtures && fixtures.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPlayersRequested(true)}
+            className="px-3 py-2 text-sm font-medium rounded-lg border border-chalk-300 bg-white text-ink-700 hover:bg-chalk-100 transition-colors"
+          >
+            Load player projections for gameweek {matchweek}
+          </button>
+        )}
+
         {loadingPlayers && <p className="text-ink-500 font-mono text-sm">{'Loading players\u2026'}</p>}
-        {!loadingPlayers && <SeasonPlayerTable players={players} />}
+
+        {playersError && (
+          <div className="text-sm bg-chalk-100 border border-chalk-300 rounded-lg px-3 py-2 space-y-1">
+            {isTimeoutError(playersError) ? (
+              <>
+                <p className="text-ink-700">
+                  Player projections for this gameweek are taking too long to load right now &mdash; this is a known backend
+                  performance issue, not a problem with your connection. Individual fixture pages still work fine in the
+                  meantime.
+                </p>
+                <p className="text-ink-500 text-xs font-mono">{playersError}</p>
+              </>
+            ) : (
+              <p className="text-loss-700">{playersError}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setPlayersAttempt((a) => a + 1)}
+              className="text-xs font-medium text-ink-700 underline hover:text-ink-900"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {playersRequested && !loadingPlayers && !playersError && <SeasonPlayerTable players={players} />}
       </div>
     </div>
   );
