@@ -1,4 +1,5 @@
 import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
+import type { FplElementType } from '../../types/database';
 
 // ============================================================================
 // src/components/fpl/FormationPitch.tsx
@@ -106,9 +107,25 @@ const ROLE_X: Record<string, number> = {
   LF: 25, CF: 50, RF: 75, ST: 50,
 };
 
+/** Generic advancement/group fallback by FPL scoring position, used only when the tactical model has no real role for this player (e.g. formation/tactical data hasn't been generated for this fixture yet -- still gives a sane GK/DEF/MID/FWD split instead of collapsing everyone onto one line). */
+function positionFallbackAdvancement(position: FplElementType | null): number {
+  if (position === 1) return 0;
+  if (position === 2) return 12;
+  if (position === 3) return 30;
+  if (position === 4) return 50;
+  return 25;
+}
+function positionFallbackGroup(position: FplElementType | null): number {
+  if (position === 1) return 0;
+  if (position === 2) return 2;
+  if (position === 3) return 4;
+  if (position === 4) return 6;
+  return 4;
+}
+
 /** How advanced a role is, from own goal (0) to centre-forward (highest) -- used for picking the likely starting 10 and, as a fallback, for line grouping. */
-function roleAdvancement(role: string | null): number {
-  if (!role) return 25;
+function roleAdvancement(role: string | null, fplPosition: FplElementType | null = null): number {
+  if (!role) return positionFallbackAdvancement(fplPosition);
   const r = role.toUpperCase();
   if (r === 'GK') return 0;
   if (['CB', 'LCB', 'RCB'].includes(r)) return 10;
@@ -120,12 +137,12 @@ function roleAdvancement(role: string | null): number {
   if (r === 'LW' || r === 'RW') return 44;
   if (r === 'LF' || r === 'RF') return 48;
   if (r === 'CF' || r === 'ST') return 50;
-  return 25;
+  return positionFallbackAdvancement(fplPosition);
 }
 
 /** Coarse tactical group, for fuzzy-matching a player to a template slot when their exact role isn't the slot's exact role. */
-function roleGroup(role: string | null): number {
-  if (!role) return 4;
+function roleGroup(role: string | null, fplPosition: FplElementType | null = null): number {
+  if (!role) return positionFallbackGroup(fplPosition);
   const r = role.toUpperCase();
   if (r === 'GK') return 0;
   if (['CB', 'LCB', 'RCB'].includes(r)) return 1;
@@ -135,7 +152,7 @@ function roleGroup(role: string | null): number {
   if (r === 'AM') return 5;
   if (r === 'LW' || r === 'RW' || r === 'LF' || r === 'RF') return 6;
   if (r === 'CF' || r === 'ST') return 7;
-  return 4;
+  return positionFallbackGroup(fplPosition);
 }
 
 function roleSide(role: string | null): 'L' | 'R' | 'C' {
@@ -147,9 +164,9 @@ function roleSide(role: string | null): 'L' | 'R' | 'C' {
 }
 
 /** How well a player's actual role fits a template slot's expected role. Exact match dominates; otherwise nearer tactical group + matching side scores higher. */
-function matchScore(playerRole: string | null, slotRole: string): number {
+function matchScore(playerRole: string | null, playerPosition: FplElementType | null, slotRole: string): number {
   if (playerRole && playerRole.toUpperCase() === slotRole.toUpperCase()) return 1000;
-  const groupDiff = Math.abs(roleGroup(playerRole) - roleGroup(slotRole));
+  const groupDiff = Math.abs(roleGroup(playerRole, playerPosition) - roleGroup(slotRole));
   const sideBonus = roleSide(playerRole) === roleSide(slotRole) ? 60 : roleSide(playerRole) === 'C' || roleSide(slotRole) === 'C' ? 20 : 0;
   return 500 - groupDiff * 40 + sideBonus;
 }
@@ -177,7 +194,7 @@ function assignToTemplate(starters: FplFixtureProjectionPlayer[], template: Slot
     let bestIndex = 0;
     let bestScore = -Infinity;
     remaining.forEach((p, i) => {
-      const score = matchScore(p.tactical_role, slot.role);
+      const score = matchScore(p.tactical_role, p.fpl_position, slot.role);
       if (score > bestScore) {
         bestScore = score;
         bestIndex = i;
@@ -226,7 +243,7 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   // defence-to-attack.
   const starters = [...outfieldPool]
     .slice(0, outfieldCount)
-    .sort((a, b) => roleAdvancement(a.tactical_role) - roleAdvancement(b.tactical_role));
+    .sort((a, b) => roleAdvancement(a.tactical_role, a.fpl_position) - roleAdvancement(b.tactical_role, b.fpl_position));
 
   const templateKey = formation?.trim() ?? '';
   const template = FORMATION_TEMPLATES[templateKey];
@@ -241,8 +258,8 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
     if (formationLines && formationLines.reduce((a, b) => a + b, 0) === starters.length) {
       lineSizes = formationLines;
     } else {
-      const distinctScores = [...new Set(starters.map((p) => roleAdvancement(p.tactical_role)))].sort((a, b) => a - b);
-      lineSizes = distinctScores.map((score) => starters.filter((p) => roleAdvancement(p.tactical_role) === score).length);
+      const distinctScores = [...new Set(starters.map((p) => roleAdvancement(p.tactical_role, p.fpl_position)))].sort((a, b) => a - b);
+      lineSizes = distinctScores.map((score) => starters.filter((p) => roleAdvancement(p.tactical_role, p.fpl_position) === score).length);
     }
     slots.push(...layoutByLines(starters, lineSizes));
   }
