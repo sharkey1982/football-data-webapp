@@ -87,20 +87,45 @@ function isOptimizerError(v: unknown): v is FplOptimizerError {
   return typeof v === 'object' && v !== null && 'error' in v && typeof (v as any).error === 'string';
 }
 
+/** Coerces anything to a readable string without ever producing the classic
+ * "[object Object]" (what `new Error(nonStringValue)` silently does by
+ * calling the object's default toString). Never returns an empty string. */
+function toMessage(v: unknown): string | null {
+  if (typeof v === 'string') return v.length > 0 ? v : null;
+  if (v instanceof Error) return v.message || null;
+  if (v && typeof v === 'object') {
+    try {
+      const json = JSON.stringify(v);
+      return json && json !== '{}' ? json : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /**
  * Calls fpl-optimize-squad for a gameweek range and budget. Throws with the
  * backend's own error message on failure (invalid range, no legal squad
- * found, missing projections for some week in range, etc).
+ * found, missing projections for some week in range, etc). Distinguishes a
+ * genuine network-level failure (request never reached the function at
+ * all -- e.g. connectivity) from a response the function itself returned,
+ * since those need different messages to be useful.
  */
 export async function optimizeFplSquad(fromMatchweek: number, toMatchweek: number, budget: number): Promise<FplOptimizerResult> {
   const { data, error } = await supabase.functions.invoke('fpl-optimize-squad', {
     body: { from_matchweek: fromMatchweek, to_matchweek: toMatchweek, budget },
   });
   if (error) {
-    // supabase-js's FunctionsHttpError only carries a generic message
+    // supabase-js's FunctionsHttpError carries a generic message
     // ("Edge Function returned a non-2xx status code") on `error.message`
     // -- the function's own {error: "..."} body (returned even on a 4xx/5xx
     // status) lives on error.context, which is the raw fetch Response.
+    // FunctionsFetchError (the request never reached the function at all --
+    // no response to read a body from) has no usable context, and
+    // error.message itself isn't always a plain string across SDK
+    // versions, so everything here goes through toMessage() rather than
+    // being interpolated directly.
     const context = (error as any)?.context;
     let backendMessage: string | null = null;
     if (context && typeof context.text === 'function') {
@@ -109,10 +134,17 @@ export async function optimizeFplSquad(fromMatchweek: number, toMatchweek: numbe
         const body = bodyText ? JSON.parse(bodyText) : null;
         if (isOptimizerError(body)) backendMessage = body.error;
       } catch {
-        // response body wasn't readable/valid JSON -- fall through to the generic message below
+        // response body wasn't readable/valid JSON -- fall through
       }
     }
-    throw new Error(backendMessage ?? error.message ?? 'Failed to reach the squad optimiser');
+    if (backendMessage) throw new Error(backendMessage);
+    const clientMessage = toMessage((error as any)?.message) ?? toMessage(error);
+    const isNetworkLevel = !context || typeof context.text !== 'function';
+    throw new Error(
+      isNetworkLevel
+        ? `Could not reach the squad optimiser \u2014 check your connection and try again.${clientMessage ? ` (${clientMessage})` : ''}`
+        : (clientMessage ?? 'Failed to reach the squad optimiser')
+    );
   }
   if (isOptimizerError(data)) throw new Error(data.error);
   return data as FplOptimizerResult;

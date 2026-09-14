@@ -1,44 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
-type NavItem = { to: string; label: string; end?: boolean };
+type NavItem = { to: To; label: string; matchPrefix: string; exact?: boolean; excludePrefix?: string };
 type NavGroup = { label: string; items: NavItem[] };
 
-const primaryNavItems: NavItem[] = [
-  { to: '/fpl/optimal-squad', label: 'Optimal Squad' },
-  { to: '/table', label: 'League Table' },
-  { to: '/teams', label: 'Team Explorer' },
-];
-
-const navGroups: NavGroup[] = [
-  {
-    label: 'Predictions',
-    items: [
-      { to: '/preview', label: 'Match Preview' },
-      { to: '/fantasy', label: 'Fantasy Fixtures' },
-      { to: '/fpl', label: 'FPL Projections' },
-    ],
-  },
-  {
-    label: 'Data',
-    items: [
-      { to: '/results-data', label: 'Results Data' },
-      { to: '/source-data', label: 'Source Data' },
-    ],
-  },
-];
-
-const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
+const navLinkClasses = (isActive: boolean) =>
   [
     'block px-3 py-1.5 rounded transition-colors whitespace-nowrap',
     isActive ? 'bg-amber-500 text-ink-900' : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100',
   ].join(' ');
 
+/**
+ * A single matcher used for both an item's own highlight and its group's
+ * highlight, so the two can never disagree. Handles two cases NavLink's
+ * built-in `end` prop can't express on its own:
+ *   - "/" as a prefix would match every route, so it's exact-match only
+ *     (root or the equivalent /fixtures).
+ *   - "/fpl" (FPL Projections) is a prefix of "/fpl/optimal-squad"
+ *     (a sibling feature, not a sub-page of it) -- excludePrefix stops
+ *     Optimal Squad's own route from also lighting up FPL Projections.
+ */
+function isItemActive(pathname: string, item: NavItem): boolean {
+  if (item.exact) return pathname === item.matchPrefix || (item.matchPrefix === '/' && pathname === '/fixtures');
+  if (item.excludePrefix && pathname.startsWith(item.excludePrefix)) return false;
+  return pathname.startsWith(item.matchPrefix);
+}
+
 function NavDropdown({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLLIElement>(null);
   const location = useLocation();
-  const isGroupActive = group.items.some((item) => location.pathname.startsWith(item.to));
+  const isGroupActive = group.items.some((item) => isItemActive(location.pathname, item));
 
   // Close on navigation and on any click outside the dropdown -- a menu
   // that stays open after picking an item, or after tapping elsewhere on
@@ -75,7 +67,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
         <ul className="absolute left-0 top-full mt-1 min-w-[10rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium">
           {group.items.map((item) => (
             <li key={item.label}>
-              <NavLink to={item.to} className={navLinkClasses}>
+              <NavLink to={item.to} className={() => navLinkClasses(isItemActive(location.pathname, item))}>
                 {item.label}
               </NavLink>
             </li>
@@ -102,6 +94,34 @@ export default function AppLayout() {
 
   const fixturesTo: To = { pathname: '/', search: lastFixturesSearch.current };
 
+  // Three top-level headings only -- Football, Fantasy, Data -- each a
+  // dropdown, no separate flat top-level items alongside them.
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Football',
+      items: [
+        { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/' },
+        { to: '/table', label: 'League Table', matchPrefix: '/table' },
+        { to: '/teams', label: 'Team Explorer', matchPrefix: '/teams' },
+        { to: '/preview', label: 'Match Preview', matchPrefix: '/preview' },
+      ],
+    },
+    {
+      label: 'Fantasy',
+      items: [
+        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad' },
+        { to: '/fantasy', label: 'Fantasy Fixtures', matchPrefix: '/fantasy' },
+        { to: '/fpl', label: 'FPL Projections', matchPrefix: '/fpl', excludePrefix: '/fpl/optimal-squad' },
+      ],
+    },
+    {
+      label: 'Data',
+      items: [
+        { to: '/results-data', label: 'Results Data', matchPrefix: '/results-data' },
+        { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
+      ],
+    },
+  ];
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
@@ -116,18 +136,6 @@ export default function AppLayout() {
           </div>
           <nav aria-label="Main navigation">
             <ul className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm font-medium">
-              <li>
-                <NavLink to={fixturesTo} end className={navLinkClasses}>
-                  Fixtures
-                </NavLink>
-              </li>
-              {primaryNavItems.map((item) => (
-                <li key={item.label}>
-                  <NavLink to={item.to} className={navLinkClasses}>
-                    {item.label}
-                  </NavLink>
-                </li>
-              ))}
               {navGroups.map((group) => (
                 <NavDropdown key={group.label} group={group} />
               ))}
