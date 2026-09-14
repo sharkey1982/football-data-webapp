@@ -17,11 +17,11 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import { num, FPL_POSITION_LABEL } from './fplApi';
+import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION } from './fplApi';
 import type { FplElementType } from '../types/database';
 
-/** The model_version the production xPts feed currently uses league-wide. */
-export const SEASON_XPTS_MODEL_VERSION = 'leaguewide_v4';
+/** The model_version the production xPts feed currently uses league-wide -- re-exported from fplApi.ts's single source of truth so the two screens never disagree. */
+export const SEASON_XPTS_MODEL_VERSION = CURRENT_MODEL_VERSION;
 
 export type SeasonGameweekSummary = {
   matchweek: number;

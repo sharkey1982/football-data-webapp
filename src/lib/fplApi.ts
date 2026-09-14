@@ -22,7 +22,18 @@ import { supabase } from './supabase';
 import type { FplElementType, FplPlayer, FplPlayerProjection } from '../types/database';
 
 /** The model_version currently surfaced by the frontend. */
-export const CURRENT_MODEL_VERSION = 'prototype_v3';
+/**
+ * The model_version currently surfaced by the frontend as "the" production
+ * projection -- single source of truth, reused by fplSeasonApi.ts too, so
+ * the single-fixture screen and the season browser can never disagree
+ * about which model's numbers are "current". Prior values ('prototype_v2',
+ * 'prototype_v3', 'trial_v1') only ever covered fixture 36 and are
+ * superseded by leaguewide_v4, which as of writing covers fixture 36 plus
+ * all of gameweek 5 -- most fixtures still have no projection under any
+ * model version yet, which the UI (both screens) treats as a normal
+ * "not modelled yet" state, not an error.
+ */
+export const CURRENT_MODEL_VERSION = 'leaguewide_v4';
 
 export const FPL_POSITION_LABEL: Record<FplElementType, string> = {
   1: 'GKP',
