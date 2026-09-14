@@ -267,6 +267,18 @@ export type FixtureRefreshRun = {
   error_message: string | null;
 };
 
+/** One row per scripts/import-daily.ts run -- distinct from FixtureRefreshRun, which tracks a different job (fixtures sync, not match-result import). */
+export type MatchImportRun = {
+  import_run_id: number;
+  started_at: string;
+  finished_at: string | null;
+  league_code: string;
+  rows_seen: number | null;
+  rows_upserted: number | null;
+  status: 'success' | 'failed';
+  error_message: string | null;
+};
+
 // ----------------------------------------------------------------------------
 // Raw source data layer -- unprocessed rows as retrieved from each provider,
 // kept separate from the curated matches/fixtures tables. Populated by a
@@ -685,6 +697,12 @@ export type Database = {
         Row: FixtureRefreshRun;
         Insert: Omit<FixtureRefreshRun, 'refresh_run_id'>;
         Update: Partial<Omit<FixtureRefreshRun, 'refresh_run_id'>>;
+        Relationships: [];
+      };
+      match_import_runs: {
+        Row: MatchImportRun;
+        Insert: Omit<MatchImportRun, 'import_run_id'>;
+        Update: Partial<Omit<MatchImportRun, 'import_run_id'>>;
         Relationships: [];
       };
       fpl_teams: {

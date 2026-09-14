@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DataHealth from '../pages/DataHealth';
 import * as api from '../lib/api';
@@ -10,6 +10,8 @@ vi.mock('../lib/api', async () => {
   return {
     ...actual,
     getLeagueFitStatus: vi.fn(),
+    getRecentMatchImportRuns: vi.fn(),
+    getRecentFixtureRefreshRuns: vi.fn(),
   };
 });
 
@@ -17,6 +19,19 @@ const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('DataHealth page', () => {
   it('shows each competition with its production and latest-attempted fit, and sorts on header click', async () => {
+    mockedApi.getRecentMatchImportRuns.mockResolvedValue([
+      {
+        import_run_id: 1,
+        started_at: '2026-09-14T06:00:00Z',
+        finished_at: '2026-09-14T06:00:05Z',
+        league_code: 'E0',
+        rows_seen: 342,
+        rows_upserted: 3,
+        status: 'success',
+        error_message: null,
+      },
+    ]);
+    mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
     mockedApi.getLeagueFitStatus.mockResolvedValue([
       {
         league_id: 1,
@@ -56,15 +71,16 @@ describe('DataHealth page', () => {
 
     render(<DataHealth />);
 
-    await waitFor(() => expect(screen.getByText('E0')).toBeInTheDocument());
-    expect(screen.getByText('E1')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('E0').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('E1').length).toBeGreaterThan(0);
     // E1's latest attempt was rejected and differs from its accepted fit --
     // both the badge and the rejection reason should show.
     expect(screen.getByText('rejected')).toBeInTheDocument();
     expect(screen.getByText(/pinned at the optimiser bound/)).toBeInTheDocument();
 
     // Default sort is by competition code ascending -- E0 before E1.
-    let nameCells = screen.getAllByText(/^(E0|E1)$/);
+    const fitTable = screen.getByTestId('fit-status-table');
+    let nameCells = within(fitTable).getAllByText(/^(E0|E1)$/);
     expect(nameCells[0]).toHaveTextContent('E0');
 
     // Clicking the header should flip the default ascending sort to descending.
@@ -72,8 +88,13 @@ describe('DataHealth page', () => {
     await user.click(screen.getByText('Competition'));
 
     await waitFor(() => {
-      nameCells = screen.getAllByText(/^(E0|E1)$/);
+      nameCells = within(fitTable).getAllByText(/^(E0|E1)$/);
       expect(nameCells[0]).toHaveTextContent('E1');
     });
+
+    // The results-import run shows up in its own table, separate from the
+    // fit-status table above.
+    expect(screen.getByText('Results imports')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument(); // rows_upserted
   });
 });

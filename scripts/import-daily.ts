@@ -9,6 +9,11 @@
 // already in the DB get their stats refreshed if the source file corrected
 // them (e.g. late-added referee, corrected card counts).
 //
+// Every run -- success or failure -- writes one row to match_import_runs
+// (started_at/finished_at, rows_seen from the CSV, rows_upserted into
+// matches, status, error_message) so the Data Health page can show how
+// many results were actually added, not just that the job ran.
+//
 // Uses the service_role key (bypasses RLS) since this only ever runs
 // server-side, via GitHub Actions. Never expose SUPABASE_SERVICE_KEY to the
 // frontend or commit it to the repo -- it's read from env / Actions secrets.
@@ -16,13 +21,15 @@
 // Usage: npx tsx scripts/import-daily.ts
 // ============================================================================
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database, MatchInsert, MatchResult } from '../src/types/database';
 
 const CSV_URL = process.env.IMPORT_CSV_URL ?? 'https://football-data.co.uk/mmz4281/2627/E0.csv';
 const LEAGUE_CODE = process.env.IMPORT_LEAGUE_CODE ?? 'E0';
 const SEASON_LABEL = process.env.IMPORT_SEASON_LABEL ?? '2627';
 const SOURCE_NAME = 'football-data.co.uk';
+
+const STARTED_AT = new Date().toISOString();
 
 function splitCsvLine(line: string): string[] {
   const cells: string[] = [];
@@ -83,27 +90,57 @@ function toResult(raw: string | undefined): MatchResult | null {
   return null;
 }
 
+async function logRun(
+  supabase: SupabaseClient<Database> | null,
+  fields: { rowsSeen: number | null; rowsUpserted: number | null; status: 'success' | 'failed'; errorMessage: string | null }
+) {
+  console.log(
+    `[match_import_runs] ${fields.status}${fields.errorMessage ? ` -- ${fields.errorMessage}` : ''} ` +
+      `(seen=${fields.rowsSeen ?? '-'}, upserted=${fields.rowsUpserted ?? '-'})`
+  );
+  if (!supabase) return; // no DB connection to log to (e.g. missing env vars) -- console output is all we have
+  const { error } = await supabase.from('match_import_runs').insert({
+    started_at: STARTED_AT,
+    finished_at: new Date().toISOString(),
+    league_code: LEAGUE_CODE,
+    rows_seen: fields.rowsSeen,
+    rows_upserted: fields.rowsUpserted,
+    status: fields.status,
+    error_message: fields.errorMessage,
+  });
+  if (error) console.error('Failed to write match_import_runs row:', error);
+}
+
+async function fail(supabase: SupabaseClient<Database> | null, message: string, rowsSeen: number | null = null): Promise<never> {
+  console.error(message);
+  await logRun(supabase, { rowsSeen, rowsUpserted: null, status: 'failed', errorMessage: message });
+  process.exit(1);
+}
+
 async function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in environment.');
-    process.exit(1);
+    await fail(null, 'Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in environment.');
   }
 
-  const supabase = createClient<Database>(url, key, { auth: { persistSession: false } });
+  const supabase = createClient<Database>(url!, key!, { auth: { persistSession: false } });
 
   console.log(`Fetching ${CSV_URL} ...`);
-  const res = await fetch(CSV_URL, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; football-data-webapp-importer/1.0)',
-    },
-  });
-  if (!res.ok) {
-    console.error(`Failed to download CSV: ${res.status} ${res.statusText}`);
-    process.exit(1);
+  let text: string;
+  try {
+    const res = await fetch(CSV_URL, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; football-data-webapp-importer/1.0)' },
+    });
+    if (!res.ok) {
+      await fail(supabase, `Failed to download CSV: ${res.status} ${res.statusText}`);
+    }
+    text = await res.text();
+  } catch (err) {
+    await fail(supabase, `Failed to download CSV: ${err instanceof Error ? err.message : String(err)}`);
+    return;
   }
-  const text = await res.text();
+
   const rows = parseCsv(text);
   console.log(`Parsed ${rows.length} row(s) from source file.`);
 
@@ -113,8 +150,7 @@ async function main() {
     .eq('code', LEAGUE_CODE)
     .single();
   if (leagueErr || !league) {
-    console.error(`Could not find league with code "${LEAGUE_CODE}":`, leagueErr);
-    process.exit(1);
+    await fail(supabase, `Could not find league with code "${LEAGUE_CODE}": ${leagueErr?.message ?? 'not found'}`, rows.length);
   }
 
   const { data: season, error: seasonErr } = await supabase
@@ -123,8 +159,7 @@ async function main() {
     .eq('label', SEASON_LABEL)
     .single();
   if (seasonErr || !season) {
-    console.error(`Could not find season with label "${SEASON_LABEL}":`, seasonErr);
-    process.exit(1);
+    await fail(supabase, `Could not find season with label "${SEASON_LABEL}": ${seasonErr?.message ?? 'not found'}`, rows.length);
   }
 
   const { data: aliases, error: aliasErr } = await supabase
@@ -132,8 +167,7 @@ async function main() {
     .select('team_id, raw_name')
     .eq('source_name', SOURCE_NAME);
   if (aliasErr) {
-    console.error('Could not load team_aliases:', aliasErr);
-    process.exit(1);
+    await fail(supabase, `Could not load team_aliases: ${aliasErr.message}`, rows.length);
   }
   const teamIdByRawName = new Map<string, number>();
   for (const a of aliases ?? []) teamIdByRawName.set(a.raw_name, a.team_id);
@@ -162,8 +196,8 @@ async function main() {
     }
 
     inserts.push({
-      league_id: league.league_id,
-      season_id: season.season_id,
+      league_id: league!.league_id,
+      season_id: season!.season_id,
       home_team_id: homeTeamId,
       away_team_id: awayTeamId,
       match_date: matchDate,
@@ -199,6 +233,7 @@ async function main() {
 
   if (inserts.length === 0) {
     console.log('No complete match rows to upsert. Done.');
+    await logRun(supabase, { rowsSeen: rows.length, rowsUpserted: 0, status: 'success', errorMessage: null });
     return;
   }
 
@@ -211,14 +246,21 @@ async function main() {
     });
 
   if (upsertErr) {
-    console.error('Upsert failed:', upsertErr);
-    process.exit(1);
+    await fail(supabase, `Upsert failed: ${upsertErr.message}`, rows.length);
   }
 
-  console.log(`\u2705 Upserted ${count ?? inserts.length} row(s).`);
+  const rowsUpserted = count ?? inserts.length;
+  console.log(`\u2705 Upserted ${rowsUpserted} row(s).`);
+  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: 'success', errorMessage: null });
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('Unexpected error:', err);
+  await logRun(null, {
+    rowsSeen: null,
+    rowsUpserted: null,
+    status: 'failed',
+    errorMessage: err instanceof Error ? err.message : String(err),
+  });
   process.exit(1);
 });

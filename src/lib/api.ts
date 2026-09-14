@@ -8,8 +8,10 @@
 
 import { supabase } from './supabase';
 import type {
+  FixtureRefreshRun,
   LeagueFitStatus,
   Match,
+  MatchImportRun,
   MatchResult,
   ModelFitRun,
   PointDeduction,
@@ -17,7 +19,7 @@ import type {
   SourceMatchRow,
 } from '../types/database';
 
-export type { LeagueFitStatus } from '../types/database';
+export type { FixtureRefreshRun, LeagueFitStatus, MatchImportRun } from '../types/database';
 import { calculateDixonColes } from './dixonColes';
 
 export type MatchWithNames = Match & {
@@ -1444,6 +1446,28 @@ export async function getLastFixtureRefresh(): Promise<string | null> {
     .maybeSingle();
   if (error) throw error;
   return data?.finished_at ?? null;
+}
+
+/** Most recent fixture-refresh runs (any status), newest first -- for the Data Health page's "fixtures changed" section. */
+export async function getRecentFixtureRefreshRuns(limit = 10): Promise<FixtureRefreshRun[]> {
+  const { data, error } = await supabase
+    .from('fixture_refresh_runs')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Most recent daily match-result import runs (any status), newest first -- for the Data Health page's "results added" section. */
+export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportRun[]> {
+  const { data, error } = await supabase
+    .from('match_import_runs')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
 }
 
 /** Fetches every fixture in a division+season at once (all matchweeks) -- powers the Fixtures page's collapsible-by-matchweek list, so the calendar and the list are always derived from the same data instead of two separate fetches that could drift out of sync. */

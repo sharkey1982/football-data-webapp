@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getLeagueFitStatus, type LeagueFitStatus } from '../lib/api';
+import {
+  getLeagueFitStatus,
+  getRecentFixtureRefreshRuns,
+  getRecentMatchImportRuns,
+  type FixtureRefreshRun,
+  type LeagueFitStatus,
+  type MatchImportRun,
+} from '../lib/api';
 
 type SortKey = 'league_code' | 'accepted_fitted_at' | 'accepted_matches_used' | 'latest_attempted_status';
 type SortDirection = 'asc' | 'desc';
@@ -18,7 +25,9 @@ function formatDate(iso: string | null): string {
 function StatusBadge({ status }: { status: string | null }) {
   const styles: Record<string, string> = {
     accepted: 'bg-pitch-800 text-chalk-100',
+    success: 'bg-pitch-800 text-chalk-100',
     rejected: 'bg-loss-700 text-chalk-100',
+    failed: 'bg-loss-700 text-chalk-100',
     pending: 'bg-amber-500 text-ink-900',
   };
   const label = status ?? 'none';
@@ -29,8 +38,65 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
+function DataLoadTable({
+  title,
+  description,
+  rows,
+}: {
+  title: string;
+  description: string;
+  rows: { key: string | number; when: string | null; label: string; seen: number | null; changed: number | null; status: string; error: string | null }[];
+}) {
+  return (
+    <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
+      <div className="px-3 py-2 border-b border-chalk-300">
+        <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">{title}</h2>
+        <p className="text-xs text-ink-500">{description}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-chalk-200 text-ink-500">
+            <tr>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Run</th>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Scope</th>
+              <th className="text-right font-medium text-xs px-3 py-1.5">Seen</th>
+              <th className="text-right font-medium text-xs px-3 py-1.5">Changed</th>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-3 text-center text-ink-500 text-xs">
+                  No runs recorded yet.
+                </td>
+              </tr>
+            )}
+            {rows.map((r, i) => (
+              <tr key={r.key} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                <td className="px-3 py-1.5 whitespace-nowrap font-mono text-xs">{formatDate(r.when)}</td>
+                <td className="px-3 py-1.5 text-xs">{r.label}</td>
+                <td className="px-3 py-1.5 text-right font-mono text-xs">{r.seen ?? '\u2014'}</td>
+                <td className="px-3 py-1.5 text-right font-mono text-xs">{r.changed ?? '\u2014'}</td>
+                <td className="px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={r.status} />
+                    {r.status === 'failed' && r.error && <span className="text-xs text-loss-700">{r.error}</span>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function DataHealth() {
   const [rows, setRows] = useState<LeagueFitStatus[]>([]);
+  const [matchImportRuns, setMatchImportRuns] = useState<MatchImportRun[]>([]);
+  const [fixtureRefreshRuns, setFixtureRefreshRuns] = useState<FixtureRefreshRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('league_code');
@@ -42,10 +108,17 @@ export default function DataHealth() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getLeagueFitStatus();
-        if (!cancelled) setRows(data);
+        const [fitStatus, imports, refreshes] = await Promise.all([
+          getLeagueFitStatus(),
+          getRecentMatchImportRuns(),
+          getRecentFixtureRefreshRuns(),
+        ]);
+        if (cancelled) return;
+        setRows(fitStatus);
+        setMatchImportRuns(imports);
+        setFixtureRefreshRuns(refreshes);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load fit status');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load data health info');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -100,7 +173,7 @@ export default function DataHealth() {
       {error && <p className="text-loss-700 text-sm">{error}</p>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto border border-chalk-300 rounded-lg bg-white">
+        <div data-testid="fit-status-table" className="overflow-x-auto border border-chalk-300 rounded-lg bg-white">
           <table className="w-full text-sm">
             <thead className="bg-pitch-900 text-chalk-100">
               <tr>
@@ -170,6 +243,37 @@ export default function DataHealth() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DataLoadTable
+            title="Results imports"
+            description="scripts/import-daily.ts -- completed match results pulled from football-data.co.uk"
+            rows={matchImportRuns.map((r) => ({
+              key: r.import_run_id,
+              when: r.started_at,
+              label: r.league_code,
+              seen: r.rows_seen,
+              changed: r.rows_upserted,
+              status: r.status,
+              error: r.error_message,
+            }))}
+          />
+          <DataLoadTable
+            title="Fixtures sync"
+            description="Scheduled fixtures refresh -- separate job from the results import above"
+            rows={fixtureRefreshRuns.map((r) => ({
+              key: r.refresh_run_id,
+              when: r.started_at,
+              label: r.competitions?.join(', ') ?? '\u2014',
+              seen: r.rows_seen,
+              changed: r.rows_updated,
+              status: r.status,
+              error: r.error_message,
+            }))}
+          />
         </div>
       )}
     </div>
