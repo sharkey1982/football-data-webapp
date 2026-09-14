@@ -69,6 +69,10 @@ export type FplFixtureProjectionPlayer = {
   expected_goals: number | null;
   expected_assists: number | null;
   expected_fpl_points: number | null;
+  /** Current FPL price in £m (fpl_players.now_cost is tenths of a million, e.g. 50 -> 5.0). */
+  price: number | null;
+  /** Projected value: expected_fpl_points per £m of price. Null if price is missing/zero. */
+  value: number | null;
   start_probability: number | null;
   sub_appearance_probability: number | null;
   availability_probability: number | null;
@@ -213,6 +217,9 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     const player = playerById.get(proj.fpl_player_id);
     if (!player) return null;
     const role = tacticalRoleByPlayer.get(proj.fpl_player_id);
+    const price = player.now_cost !== null ? player.now_cost / 10 : null;
+    const expectedFplPoints = num(proj.expected_fpl_points);
+    const value = price !== null && price > 0 && expectedFplPoints !== null ? expectedFplPoints / price : null;
 
     return {
       fpl_player_id: proj.fpl_player_id,
@@ -224,7 +231,9 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
       expected_minutes: num(proj.expected_minutes),
       expected_goals: num(proj.expected_goals),
       expected_assists: num(proj.expected_assists),
-      expected_fpl_points: num(proj.expected_fpl_points),
+      expected_fpl_points: expectedFplPoints,
+      price,
+      value,
       start_probability: num(proj.start_probability),
       sub_appearance_probability: num(proj.sub_appearance_probability),
       availability_probability: num(proj.availability_probability),

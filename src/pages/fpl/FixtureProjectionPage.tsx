@@ -57,7 +57,7 @@ export default function FixtureProjectionPage() {
       {!displayLoading && projection && (
         <>
           <ProjectionSummary projection={projection} />
-          <div className="grid lg:grid-cols-2 gap-4">
+          <div className="space-y-4">
             <TeamProjectionPanel team={projection.home} />
             <TeamProjectionPanel team={projection.away} />
           </div>

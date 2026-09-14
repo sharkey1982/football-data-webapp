@@ -58,7 +58,7 @@ export default function TeamProjectionPanel({ team }: { team: FplFixtureProjecti
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-[minmax(0,220px)_1fr] gap-3 items-start">
+      <div className="grid sm:grid-cols-[220px_minmax(0,1fr)] gap-3 items-start">
         <div className={view === 'pitch' ? 'block' : 'hidden sm:block'}>
           <FormationPitch
             players={team.players}
@@ -67,7 +67,7 @@ export default function TeamProjectionPanel({ team }: { team: FplFixtureProjecti
             onSelectPlayer={toggleSelect}
           />
         </div>
-        <div className={view === 'table' ? 'block' : 'hidden sm:block'}>
+        <div className={['min-w-0', view === 'table' ? 'block' : 'hidden sm:block'].join(' ')}>
           <PlayerProjectionTable players={team.players} selectedPlayerId={selectedPlayerId} onSelectPlayer={toggleSelect} />
         </div>
       </div>

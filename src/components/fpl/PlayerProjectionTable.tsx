@@ -9,6 +9,8 @@ type SortKey =
   | 'expected_minutes'
   | 'expected_goals'
   | 'expected_assists'
+  | 'price'
+  | 'value'
   | 'expected_fpl_points';
 type SortDir = 'asc' | 'desc';
 
@@ -20,8 +22,12 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDi
   { key: 'expected_minutes', label: 'Min', align: 'right', defaultDir: 'desc' },
   { key: 'expected_goals', label: 'xG', align: 'right', defaultDir: 'desc' },
   { key: 'expected_assists', label: 'xA', align: 'right', defaultDir: 'desc' },
+  { key: 'price', label: 'Price', align: 'right', defaultDir: 'desc' },
+  { key: 'value', label: 'Value', align: 'right', defaultDir: 'desc' },
   { key: 'expected_fpl_points', label: 'xPts', align: 'right', defaultDir: 'desc' },
 ];
+
+const COLUMN_COUNT = COLUMNS.length;
 
 function pct(v: number | null): string {
   return v === null ? '\u2014' : `${Math.round(v * 100)}%`;
@@ -29,6 +35,10 @@ function pct(v: number | null): string {
 
 function dec(v: number | null, digits = 2): string {
   return v === null ? '\u2014' : v.toFixed(digits);
+}
+
+function price(v: number | null): string {
+  return v === null ? '\u2014' : `\u00A3${v.toFixed(1)}m`;
 }
 
 function statusLabel(status: string | null): string | null {
@@ -60,9 +70,8 @@ export default function PlayerProjectionTable({
   onSelectPlayer: (fplPlayerId: number) => void;
 }) {
   // Sortable by default -- clicking any column header sorts by it immediately,
-  // no separate "enable sorting" step. Starts on the same order the model
-  // returns (highest expected minutes first).
-  const [sortKey, setSortKey] = useState<SortKey>('expected_minutes');
+  // no separate "enable sorting" step. Default order is by projected points.
+  const [sortKey, setSortKey] = useState<SortKey>('expected_fpl_points');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -79,6 +88,20 @@ export default function PlayerProjectionTable({
     const factor = sortDir === 'asc' ? 1 : -1;
     return [...players].sort((a, b) => factor * compareValues(a, b, sortKey));
   }, [players, sortKey, sortDir]);
+
+  // Best value = highest projected points per \u00a3m among players with both a
+  // price and a projection -- highlighted regardless of current sort/table order.
+  const bestValueId = useMemo(() => {
+    let bestId: number | null = null;
+    let bestValue = -Infinity;
+    for (const p of players) {
+      if (p.value !== null && p.value > bestValue) {
+        bestValue = p.value;
+        bestId = p.fpl_player_id;
+      }
+    }
+    return bestId;
+  }, [players]);
 
   return (
     <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
@@ -117,6 +140,7 @@ export default function PlayerProjectionTable({
             {sorted.map((p) => {
               const isSelected = p.fpl_player_id === selectedPlayerId;
               const isExpanded = p.fpl_player_id === expandedId;
+              const isBestValue = p.fpl_player_id === bestValueId;
               const unavailable = statusLabel(p.status);
               const uncertain = p.start_probability !== null && p.start_probability < 0.85;
 
@@ -147,13 +171,26 @@ export default function PlayerProjectionTable({
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{dec(p.expected_goals)}</td>
                     <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{dec(p.expected_assists)}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{price(p.price)}</td>
+                    <td className="px-2 py-1.5 text-right">
+                      <span
+                        className={[
+                          'font-mono text-xs',
+                          isBestValue ? 'bg-amber-400/40 text-ink-900 font-semibold px-1.5 py-0.5 rounded' : 'text-ink-700',
+                        ].join(' ')}
+                        title={isBestValue ? 'Best value in this squad -- highest projected points per \u00a3m' : undefined}
+                      >
+                        {dec(p.value)}
+                        {isBestValue && ' \u2605'}
+                      </span>
+                    </td>
                     <td className="px-3 py-1.5 text-right font-mono text-sm font-semibold text-pitch-800">
                       {dec(p.expected_fpl_points, 1)}
                     </td>
                   </tr>
                   {isExpanded && (
                     <tr className="bg-chalk-100 border-b border-chalk-200">
-                      <td colSpan={8} className="px-3 py-2">
+                      <td colSpan={COLUMN_COUNT} className="px-3 py-2">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-ink-700 font-mono">
                           <div>Sub-on chance: {pct(p.sub_appearance_probability)}</div>
                           <div>Availability: {pct(p.availability_probability)}</div>

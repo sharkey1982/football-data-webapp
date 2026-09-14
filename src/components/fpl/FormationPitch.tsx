@@ -128,7 +128,7 @@ export default function FormationPitch({
     <div className="relative w-full min-h-[360px] sm:min-h-[400px] aspect-[3/4] bg-pitch-800 rounded-lg overflow-hidden border-2 border-pitch-600">
       {/* Pitch markings */}
       <div className="absolute inset-3 border border-chalk-100/25 rounded" />
-      <div className="absolute left-1/2 top-3 bottom-3 border-l border-chalk-100/25" />
+      <div className="absolute top-1/2 left-3 right-3 border-t border-chalk-100/25" />
       <div
         className="absolute left-1/2 top-1/2 w-16 h-16 sm:w-20 sm:h-20 border border-chalk-100/25 rounded-full"
         style={{ transform: 'translate(-50%, -50%)' }}
