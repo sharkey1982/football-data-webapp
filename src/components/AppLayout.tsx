@@ -1,16 +1,89 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
-const staticNavItems: { to: To; label: string; end?: boolean }[] = [
+type NavItem = { to: string; label: string; end?: boolean };
+type NavGroup = { label: string; items: NavItem[] };
+
+const primaryNavItems: NavItem[] = [
   { to: '/table', label: 'League Table' },
-  { to: '/preview', label: 'Match Preview' },
   { to: '/teams', label: 'Team Explorer' },
-  { to: '/fantasy', label: 'Fantasy' },
-  { to: '/fpl', label: 'FPL Projections' },
-  { to: '/results-data', label: 'Results Data' },
-  { to: '/source-data', label: 'Source Data' },
-  { to: '/data-health', label: 'Data Health' },
 ];
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Predictions',
+    items: [
+      { to: '/preview', label: 'Match Preview' },
+      { to: '/fantasy', label: 'Fantasy Fixtures' },
+      { to: '/fpl', label: 'FPL Projections' },
+    ],
+  },
+  {
+    label: 'Data',
+    items: [
+      { to: '/results-data', label: 'Results Data' },
+      { to: '/source-data', label: 'Source Data' },
+    ],
+  },
+];
+
+const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
+  [
+    'block px-3 py-1.5 rounded transition-colors whitespace-nowrap',
+    isActive ? 'bg-amber-500 text-ink-900' : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100',
+  ].join(' ');
+
+function NavDropdown({ group }: { group: NavGroup }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLLIElement>(null);
+  const location = useLocation();
+  const isGroupActive = group.items.some((item) => location.pathname.startsWith(item.to));
+
+  // Close on navigation and on any click outside the dropdown -- a menu
+  // that stays open after picking an item, or after tapping elsewhere on
+  // a touch screen, reads as broken rather than tidy.
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  return (
+    <li ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className={[
+          'flex items-center gap-1 px-3 py-1.5 rounded transition-colors text-sm font-medium',
+          isGroupActive ? 'bg-amber-500 text-ink-900' : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100',
+        ].join(' ')}
+      >
+        {group.label}
+        <span className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>&#9662;</span>
+      </button>
+      {open && (
+        <ul className="absolute left-0 top-full mt-1 min-w-[10rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium">
+          {group.items.map((item) => (
+            <li key={item.label}>
+              <NavLink to={item.to} className={navLinkClasses}>
+                {item.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
 
 export default function AppLayout() {
   const location = useLocation();
@@ -28,11 +101,6 @@ export default function AppLayout() {
 
   const fixturesTo: To = { pathname: '/', search: lastFixturesSearch.current };
 
-  const navItems: { to: To; label: string; end?: boolean }[] = [
-    { to: fixturesTo, label: 'Fixtures', end: true },
-    ...staticNavItems,
-  ];
-
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
@@ -46,24 +114,21 @@ export default function AppLayout() {
             </span>
           </div>
           <nav aria-label="Main navigation">
-            <ul className="flex flex-wrap gap-1 sm:gap-2 text-sm font-medium">
-              {navItems.map((item) => (
+            <ul className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm font-medium">
+              <li>
+                <NavLink to={fixturesTo} end className={navLinkClasses}>
+                  Fixtures
+                </NavLink>
+              </li>
+              {primaryNavItems.map((item) => (
                 <li key={item.label}>
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      [
-                        'inline-block px-3 py-1.5 rounded transition-colors',
-                        isActive
-                          ? 'bg-amber-500 text-ink-900'
-                          : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100',
-                      ].join(' ')
-                    }
-                  >
+                  <NavLink to={item.to} className={navLinkClasses}>
                     {item.label}
                   </NavLink>
                 </li>
+              ))}
+              {navGroups.map((group) => (
+                <NavDropdown key={group.label} group={group} />
               ))}
             </ul>
           </nav>
@@ -75,8 +140,11 @@ export default function AppLayout() {
       </main>
 
       <footer className="border-t border-chalk-300 py-6">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono">
-          Data sourced from football-data.co.uk &middot; England, 2014/15&ndash;2025/26
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">
+          <span>Data sourced from football-data.co.uk &middot; England, 2014/15&ndash;2025/26</span>
+          <NavLink to="/data-health" className="text-ink-500 hover:text-ink-900 underline">
+            Data Health
+          </NavLink>
         </div>
       </footer>
     </div>
