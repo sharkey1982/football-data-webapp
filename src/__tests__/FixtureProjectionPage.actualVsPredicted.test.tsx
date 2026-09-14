@@ -145,4 +145,57 @@ describe('FixtureProjectionPage -- actual vs predicted', () => {
     await waitFor(() => expect(screen.getByText(/No fixture found/)).toBeInTheDocument());
     expect(screen.queryByText('Actual result')).not.toBeInTheDocument();
   });
+
+  it('does not render blank predicted-pitch panels for a played fixture with zero projections (real bug case)', async () => {
+    // This is the exact real-world shape for a played fixture: the fixture
+    // row exists (so getFplFixtureProjection returns an object, not null),
+    // but there are zero rows in fpl_projection_frontend_feed_v6 for it,
+    // so both teams' players arrays are empty.
+    mockedFplApi.getFplFixtureProjection.mockResolvedValue({
+      fixture_id: 31,
+      kickoff_date: '2026-09-09',
+      kickoff_time: '20:00:00',
+      status: 'played',
+      model_version: 'leaguewide_v6',
+      home: { team_id: 30, team_name: 'Bournemouth', is_home: true, formation: null, formation_source_count: null, team_expected_goals: null, clean_sheet_probability: null, players: [] },
+      away: { team_id: 23, team_name: 'Brentford', is_home: false, formation: null, formation_source_count: null, team_expected_goals: null, clean_sheet_probability: null, players: [] },
+    });
+    mockedFplApi.getFplActualVsPredicted.mockResolvedValue({
+      fixture_id: 31,
+      matchweek: 4,
+      kickoff_date: '2026-09-09',
+      kickoff_time: '20:00:00',
+      home_team_id: 30,
+      away_team_id: 23,
+      home: {
+        team_id: 30,
+        team_name: 'Bournemouth',
+        players: [
+          { fpl_player_id: 1, player_name: 'Some Player', web_name: 'Player', actual_started: true, actual_minutes: 90, predicted_start_probability: null, predicted_minutes: null, generated_pre_kickoff: null },
+        ],
+      },
+      away: {
+        team_id: 23,
+        team_name: 'Brentford',
+        players: [
+          { fpl_player_id: 2, player_name: 'Other Player', web_name: 'Other', actual_started: true, actual_minutes: 90, predicted_start_probability: null, predicted_minutes: null, generated_pre_kickoff: null },
+        ],
+      },
+    });
+
+    renderPage('31');
+
+    await waitFor(() => expect(screen.getByText('Actual result')).toBeInTheDocument());
+    // The real actual data renders correctly...
+    expect(screen.getByText('Some Player')).toBeInTheDocument();
+    // ...but the predicted-pitch panels (which would be entirely blank --
+    // zero players -- for this fixture) must not render at all. "Home"/
+    // "Away" badges only ever come from TeamProjectionPanel.
+    expect(screen.queryByText('Home')).not.toBeInTheDocument();
+    expect(screen.queryByText('Away')).not.toBeInTheDocument();
+    // The explanatory message should say the fixture's been played, not
+    // the generic "not modelled yet" wording (which would wrongly imply
+    // projections are merely pending for this match).
+    expect(screen.getByText(/has been played/)).toBeInTheDocument();
+  });
 });

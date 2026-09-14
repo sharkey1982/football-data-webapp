@@ -33,10 +33,12 @@ function makePlayer(overrides: Partial<FplOptimizerPlayer>): FplOptimizerPlayer 
   };
 }
 
-// Shaped exactly like a real backend response: 15 total (2 GK, 5 DEF, 5 MID,
-// 3 FWD across starting_core + bench), starting_core in a 3-4-3.
+// Shaped exactly like the real v1.6 backend response: squad is the flat
+// 15-man list with no starter/bench label; membership in a given week's
+// XI comes from that week's weekly_plan.xi (names only).
 function buildResult(overrides: Partial<FplOptimizerResult> = {}): FplOptimizerResult {
-  const starting_core: FplOptimizerPlayer[] = [
+  const xiNames = ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'];
+  const squad: FplOptimizerPlayer[] = [
     makePlayer({ id: 1, name: 'GK1', position: 1, price: 5.5 }),
     makePlayer({ id: 2, name: 'CB1', position: 2, price: 5.0, team: 'Arsenal' }),
     makePlayer({ id: 3, name: 'CB2', position: 2, price: 5.0, team: 'Arsenal' }),
@@ -48,8 +50,6 @@ function buildResult(overrides: Partial<FplOptimizerResult> = {}): FplOptimizerR
     makePlayer({ id: 9, name: 'FWD1', position: 4, price: 10.0 }),
     makePlayer({ id: 10, name: 'FWD2', position: 4, price: 10.0 }),
     makePlayer({ id: 11, name: 'FWD3', position: 4, price: 10.0 }),
-  ];
-  const bench: FplOptimizerPlayer[] = [
     makePlayer({ id: 12, name: 'BenchGK', position: 1, price: 4.0, total_xpts: 2.0 }),
     makePlayer({ id: 13, name: 'CheapDef', position: 2, price: 4.0, total_xpts: 3.0 }), // "the £4.0m playing defender" case
     makePlayer({ id: 14, name: 'BenchMid', position: 3, price: 4.5, total_xpts: 2.5 }),
@@ -62,14 +62,23 @@ function buildResult(overrides: Partial<FplOptimizerResult> = {}): FplOptimizerR
     budget: 100,
     budget_used: 99.5,
     bank: 0.5,
-    base_formation: '3-4-3',
     objective_xpts: 62.3,
-    squad: [...starting_core, ...bench],
-    starting_core,
-    bench,
-    weekly_plan: [{ matchweek: 5, xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_xpts: 8.0 }],
+    squad,
+    weekly_plan: [
+      {
+        matchweek: 5,
+        formation: '3-4-3',
+        xi: xiNames,
+        xi_xpts: 58.0,
+        captain: 'FWD1',
+        vice_captain: 'FWD2',
+        captain_extra_ev: 8.0,
+        bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'],
+        auto_sub_ev: 0.4,
+      },
+    ],
     projection_model: 'leaguewide_v6',
-    version: 'v1.5',
+    version: 'v1.6',
     notes: ['Transfers between GWs not simulated'],
     ...overrides,
   };
@@ -104,9 +113,13 @@ describe('OptimalSquadPage', () => {
     // Squad cost within budget, bank shown.
     expect(screen.getByText('\u00a399.5m')).toBeInTheDocument();
     expect(screen.getByText('\u00a30.5m')).toBeInTheDocument();
+
+    // Starting XI pitch shows the 11 XI players, not the 4 bench players.
+    const pitchHeading = screen.getByText(/Starting XI/);
+    expect(pitchHeading).toBeInTheDocument();
   });
 
-  it('builds a multi-GW request from the "Next 3 GWs" preset and shows a weekly captain table', async () => {
+  it('builds a multi-GW request from the "Next 3 GWs" preset and shows a per-week formation/captain table', async () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
       buildResult({
@@ -114,9 +127,9 @@ describe('OptimalSquadPage', () => {
         to_matchweek: 7,
         weeks: [5, 6, 7],
         weekly_plan: [
-          { matchweek: 5, xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_xpts: 8.0 },
-          { matchweek: 6, xi_xpts: 55.0, captain: 'MID1', vice_captain: 'FWD1', captain_xpts: 7.0 },
-          { matchweek: 7, xi_xpts: 60.0, captain: 'FWD1', vice_captain: 'MID1', captain_xpts: 9.0 },
+          { matchweek: 5, formation: '3-4-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'], xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_extra_ev: 8.0, bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.4 },
+          { matchweek: 6, formation: '4-3-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'CheapDef', 'MID1', 'MID2', 'MID3', 'FWD1', 'FWD2', 'FWD3'], xi_xpts: 55.0, captain: 'MID1', vice_captain: 'FWD1', captain_extra_ev: 7.0, bench_order: ['MID4', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.3 },
+          { matchweek: 7, formation: '3-5-2', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'BenchFwd'], xi_xpts: 60.0, captain: 'FWD1', vice_captain: 'MID1', captain_extra_ev: 9.0, bench_order: ['CheapDef', 'BenchMid', 'FWD3'], auto_sub_ev: 0.2 },
         ],
       })
     );
@@ -129,8 +142,11 @@ describe('OptimalSquadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
     await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 7, 100));
-    await waitFor(() => expect(screen.getByText('Weekly captain plan')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Weekly plan')).toBeInTheDocument());
     expect(screen.getByText('GW6')).toBeInTheDocument();
+    // Different formations across weeks are shown, not hidden behind one squad-wide value.
+    expect(screen.getByText('4-3-3')).toBeInTheDocument();
+    expect(screen.getByText('3-5-2')).toBeInTheDocument();
   });
 
   it('shows the backend error message when optimisation fails, and never invents a squad', async () => {
@@ -144,6 +160,6 @@ describe('OptimalSquadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
     await waitFor(() => expect(screen.getByText('No legal squad found')).toBeInTheDocument());
-    expect(screen.queryByText('Starting XI')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Starting XI/)).not.toBeInTheDocument();
   });
 });

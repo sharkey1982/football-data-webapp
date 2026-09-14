@@ -1,13 +1,20 @@
 // ============================================================================
 // src/pages/fpl/OptimalSquadPage.tsx
 //
-// Frontend for the fpl-optimize-squad Edge Function. Consumes the backend
-// result as-is -- no replacement optimisation logic here. See
-// src/lib/fplOptimizerApi.ts for the exact request/response shape, read
-// directly from the deployed function source.
+// Frontend for the fpl-optimize-squad Edge Function (v1.6). Consumes the
+// backend result as-is -- no replacement optimisation logic here.
+//
+// v1.6 has no single squad-wide starting XI/formation/bench -- the best
+// legal XI and formation are chosen INDEPENDENTLY for each gameweek in the
+// range (weekly_plan), since the model finds the genuinely best XI per
+// week rather than assuming one fixed shape holds throughout. The pitch
+// below shows the EARLIEST requested gameweek's XI (the most immediately
+// actionable one); the weekly table shows every week's own formation,
+// captain, and vice-captain so a multi-GW result doesn't silently hide
+// that the XI can change week to week.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import { optimizeFplSquad, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
 import SquadPitch from '../../components/fpl/SquadPitch';
@@ -17,15 +24,25 @@ type Preset = 'this' | 'next3' | 'next5' | 'custom';
 
 const MAX_RANGE_SPAN = 9; // to - from, matching the backend's own 10-GW cap
 
-function BenchStrip({ bench }: { bench: FplOptimizerPlayer[] }) {
+function BenchStrip({ bench, benchOrder }: { bench: FplOptimizerPlayer[]; benchOrder: string[] }) {
+  // bench_order (non-GK auto-sub priority) drives display order where a
+  // player appears in it; the bench GK (never in bench_order) goes last.
+  const ordered = [...bench].sort((a, b) => {
+    const ai = benchOrder.indexOf(a.name);
+    const bi = benchOrder.indexOf(b.name);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
   return (
     <div className="border border-chalk-300 rounded-lg bg-chalk-100 p-3">
       <h3 className="font-display uppercase tracking-wide text-xs text-ink-500 mb-2">Bench</h3>
       <div className="flex flex-wrap gap-3">
-        {bench.map((p, i) => (
+        {ordered.map((p, i) => (
           <div key={p.id} className="flex items-center gap-2 bg-white border border-chalk-300 rounded-lg px-2.5 py-1.5">
             <span className="w-6 h-6 rounded-full bg-chalk-300 text-ink-700 flex items-center justify-center text-[10px] font-mono font-semibold">
-              {i + 1}
+              {p.position === 1 ? 'GK' : i}
             </span>
             <div className="text-xs">
               <div className="font-medium text-ink-900">{p.name}</div>
@@ -40,7 +57,8 @@ function BenchStrip({ bench }: { bench: FplOptimizerPlayer[] }) {
       <p className="text-[11px] text-ink-500 mt-2">
         Bench picks are deliberately biased toward cheap, reliably-playing options over higher-projected players &mdash;
         the budget saved there goes into a stronger starting XI. A &pound;4.0m defender who nails on is often the right
-        bench pick even with modest points on its own.
+        bench pick even with modest points on its own. Numbers show auto-substitution priority (GK excluded, since it
+        only comes on for the starting keeper).
       </p>
     </div>
   );
@@ -168,6 +186,25 @@ export default function OptimalSquadPage() {
 
   const isMultiGw = result !== null && result.weeks.length > 1;
 
+  // The earliest requested gameweek's plan drives the main pitch -- the
+  // most immediately actionable week. squad has no starter/bench label of
+  // its own; membership in a given week's XI is by name match against
+  // that week's weekly_plan.xi, which is all the backend provides.
+  const primaryWeek = result?.weekly_plan[0] ?? null;
+  const { xiPlayers, benchPlayers } = useMemo(() => {
+    if (!result || !primaryWeek) return { xiPlayers: [] as FplOptimizerPlayer[], benchPlayers: [] as FplOptimizerPlayer[] };
+    const xiNames = new Set(primaryWeek.xi);
+    return {
+      xiPlayers: result.squad.filter((p) => xiNames.has(p.name)),
+      benchPlayers: result.squad.filter((p) => !xiNames.has(p.name)),
+    };
+  }, [result, primaryWeek]);
+
+  const captainId = primaryWeek ? xiPlayers.find((p) => p.name === primaryWeek.captain)?.id : undefined;
+  const viceCaptainId = primaryWeek ? xiPlayers.find((p) => p.name === primaryWeek.vice_captain)?.id : undefined;
+
+  const distinctFormations = result ? new Set(result.weekly_plan.map((w) => w.formation)) : new Set();
+
   return (
     <div className="space-y-4">
       <div>
@@ -275,9 +312,10 @@ export default function OptimalSquadPage() {
         )}
 
         <p className="text-xs text-ink-500 bg-chalk-100 border border-chalk-300 rounded px-2.5 py-1.5">
-          This picks the single best squad to hold across the whole selected range &mdash; it does not simulate making
-          transfers between gameweeks. Wildcard, Free Hit, and transfer-from-an-existing-squad modes aren&rsquo;t
-          available yet.
+          This picks the single best 15-player squad to hold across the whole selected range &mdash; it does not
+          simulate making transfers between gameweeks. The best starting XI and formation are chosen independently
+          each gameweek within that fixed squad, so the XI shown can vary week to week even though the 15 players
+          don&rsquo;t. Wildcard, Free Hit, and transfer-from-an-existing-squad modes aren&rsquo;t available yet.
         </p>
       </div>
 
@@ -285,16 +323,16 @@ export default function OptimalSquadPage() {
       {!loading && error && (
         <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded-lg text-sm">{error}</div>
       )}
-      {!loading && !error && hasRun && !result && (
-        <p className="text-ink-500 text-sm">No result returned.</p>
-      )}
+      {!loading && !error && hasRun && !result && <p className="text-ink-500 text-sm">No result returned.</p>}
 
-      {!loading && !error && result && (
+      {!loading && !error && result && primaryWeek && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white border border-chalk-300 rounded-lg p-3">
-              <div className="text-xs text-ink-500">Formation</div>
-              <div className="text-lg font-display text-ink-900">{result.base_formation}</div>
+              <div className="text-xs text-ink-500" title={distinctFormations.size > 1 ? 'This squad uses a different formation in at least one other gameweek -- see the weekly plan below' : undefined}>
+                Formation (GW{primaryWeek.matchweek}){distinctFormations.size > 1 ? ' *' : ''}
+              </div>
+              <div className="text-lg font-display text-ink-900">{primaryWeek.formation}</div>
             </div>
             <div className="bg-white border border-chalk-300 rounded-lg p-3">
               <div className="text-xs text-ink-500">Squad cost</div>
@@ -305,7 +343,10 @@ export default function OptimalSquadPage() {
               <div className="text-lg font-display text-ink-900">&pound;{result.bank.toFixed(1)}m</div>
             </div>
             <div className="bg-white border border-chalk-300 rounded-lg p-3">
-              <div className="text-xs text-ink-500" title="Starting XI expected points across the range, plus captain bonus and a small bench-value allowance -- not simply the sum of all 15 players' points">
+              <div
+                className="text-xs text-ink-500"
+                title="Sum of each gameweek's best-XI points, captaincy bonus, and auto-substitution EV -- not simply the sum of all 15 players' points"
+              >
                 Total projected points{isMultiGw ? ` (GW${result.from_matchweek}\u2013${result.to_matchweek})` : ''}
               </div>
               <div className="text-lg font-display text-pitch-800">{result.objective_xpts.toFixed(1)}</div>
@@ -313,39 +354,39 @@ export default function OptimalSquadPage() {
           </div>
 
           <div>
-            <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Starting XI</h2>
-            <SquadPitch
-              starters={result.starting_core}
-              formation={result.base_formation}
-              captainId={result.weekly_plan[0] ? result.starting_core.find((p) => p.name === result.weekly_plan[0].captain)?.id : undefined}
-              viceCaptainId={result.weekly_plan[0] ? result.starting_core.find((p) => p.name === result.weekly_plan[0].vice_captain)?.id : undefined}
-            />
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">
+              Starting XI {isMultiGw ? `(GW${primaryWeek.matchweek})` : ''}
+            </h2>
+            <SquadPitch starters={xiPlayers} formation={primaryWeek.formation} captainId={captainId} viceCaptainId={viceCaptainId} />
           </div>
 
-          <BenchStrip bench={result.bench} />
+          <BenchStrip bench={benchPlayers} benchOrder={primaryWeek.bench_order} />
 
           {isMultiGw && (
             <div>
-              <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Weekly captain plan</h2>
+              <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Weekly plan</h2>
+              <p className="text-xs text-ink-500 mb-1">Formation, captain, and vice-captain are chosen independently each gameweek.</p>
               <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-chalk-100 text-ink-500">
                     <tr>
                       <th className="text-left font-medium text-xs px-3 py-1.5">GW</th>
+                      <th className="text-left font-medium text-xs px-2 py-1.5">Formation</th>
                       <th className="text-left font-medium text-xs px-2 py-1.5">Captain</th>
                       <th className="text-left font-medium text-xs px-2 py-1.5">Vice-captain</th>
                       <th className="text-right font-medium text-xs px-2 py-1.5">XI xPts</th>
-                      <th className="text-right font-medium text-xs px-3 py-1.5">Captain xPts</th>
+                      <th className="text-right font-medium text-xs px-3 py-1.5">Captaincy EV</th>
                     </tr>
                   </thead>
                   <tbody>
                     {result.weekly_plan.map((w, i) => (
                       <tr key={w.matchweek} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
                         <td className="px-3 py-1.5 font-mono text-xs text-ink-700">GW{w.matchweek}</td>
+                        <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{w.formation}</td>
                         <td className="px-2 py-1.5 font-medium text-ink-900">{w.captain}</td>
                         <td className="px-2 py-1.5 text-ink-700">{w.vice_captain}</td>
                         <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{w.xi_xpts.toFixed(1)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">{w.captain_xpts.toFixed(1)}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">{w.captain_extra_ev.toFixed(1)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -356,7 +397,7 @@ export default function OptimalSquadPage() {
 
           <div>
             <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Full 15-man squad</h2>
-            <SquadTable players={[...result.starting_core, ...result.bench]} />
+            <SquadTable players={result.squad} />
           </div>
         </div>
       )}
