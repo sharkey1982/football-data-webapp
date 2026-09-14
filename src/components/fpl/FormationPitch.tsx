@@ -1,5 +1,5 @@
-import type { FplFixtureProjectionPlayer, SetPieceRole } from '../../lib/fplApi';
-import { SET_PIECE_LABEL } from '../../lib/fplApi';
+import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
+import { formatSetPieceRoles } from '../../lib/fplApi';
 import type { FplElementType } from '../../types/database';
 
 // ============================================================================
@@ -268,18 +268,6 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   return slots;
 }
 
-function ordinal(n: number): string {
-  if (n === 1) return '1st';
-  if (n === 2) return '2nd';
-  if (n === 3) return '3rd';
-  return `${n}th`;
-}
-
-function describeSetPieceRoles(roles: SetPieceRole[]): string | null {
-  if (roles.length === 0) return null;
-  return roles.map((r) => `${SET_PIECE_LABEL[r.type]} (${ordinal(r.rank)})`).join(', ');
-}
-
 function describeSquadStatus(status: FplFixtureProjectionPlayer['squad_status']): string | null {
   if (status === 'rotation') return 'Rotation pick';
   if (status === 'backup') return 'Backup option';
@@ -303,7 +291,7 @@ export default function FormationPitch({
 
   return (
     <div className="space-y-1.5">
-      <div className="relative w-full min-h-[360px] sm:min-h-[400px] aspect-[3/4] bg-pitch-800 rounded-lg overflow-hidden border-2 border-pitch-600">
+      <div className="relative w-full min-h-[420px] sm:min-h-[460px] aspect-[3/4] bg-pitch-800 rounded-lg overflow-hidden border-2 border-pitch-600">
         {/* Pitch markings */}
         <div className="absolute inset-3 border border-chalk-100/25 rounded" />
         <div className="absolute top-1/2 left-3 right-3 border-t border-chalk-100/25" />
@@ -318,19 +306,17 @@ export default function FormationPitch({
           const isSelected = player.fpl_player_id === selectedPlayerId;
           const startPct = player.start_probability;
           const uncertain = startPct !== null && startPct < 0.85;
-          const primarySetPiece = player.set_piece_roles.some((r) => r.rank === 1);
-          const secondarySetPiece = !primarySetPiece && player.set_piece_roles.some((r) => r.rank === 2);
+          const setPieces = formatSetPieceRoles(player.set_piece_roles);
           const isRotationOrBackup = player.squad_status === 'rotation' || player.squad_status === 'backup';
 
           const signalBorder =
-            player.position_signal === 'advanced' ? 'border-emerald-400' : player.position_signal === 'deeper' ? 'border-loss-500' : 'border-chalk-100/70';
+            player.position_signal === 'advanced' ? 'border-emerald-400' : player.position_signal === 'deeper' ? 'border-loss-600' : 'border-chalk-100/70';
           const signalBorderFaint =
-            player.position_signal === 'advanced' ? 'border-emerald-400/50' : player.position_signal === 'deeper' ? 'border-loss-500/50' : 'border-chalk-100/40';
+            player.position_signal === 'advanced' ? 'border-emerald-400/50' : player.position_signal === 'deeper' ? 'border-loss-600/50' : 'border-chalk-100/40';
 
           const titleParts = [`${player.web_name} \u2014 ${player.tactical_role ?? 'role unknown'}`];
           if (startPct !== null) titleParts.push(`${Math.round(startPct * 100)}% start`);
-          const spDescription = describeSetPieceRoles(player.set_piece_roles);
-          if (spDescription) titleParts.push(spDescription);
+          if (setPieces) titleParts.push(setPieces.full);
           const statusDescription = describeSquadStatus(player.squad_status);
           if (statusDescription) titleParts.push(statusDescription);
           if (player.position_signal === 'advanced') titleParts.push('Playing more advanced than FPL position');
@@ -347,7 +333,7 @@ export default function FormationPitch({
             >
               <span
                 className={[
-                  'relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-semibold border-2 transition-colors',
+                  'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-semibold border-2 transition-colors',
                   isSelected
                     ? 'bg-amber-500 border-amber-400 text-ink-900'
                     : uncertain
@@ -356,22 +342,23 @@ export default function FormationPitch({
                 ].join(' ')}
               >
                 {player.fpl_position_label.slice(0, 1)}
-                {primarySetPiece && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border border-pitch-900" aria-hidden="true" />
-                )}
-                {secondarySetPiece && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-transparent border border-amber-400" aria-hidden="true" />
-                )}
-                {isRotationOrBackup && (
-                  <span className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-loss-500 border border-pitch-900" aria-hidden="true" />
-                )}
               </span>
               <span className="max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-[9px] sm:text-[10px] leading-tight text-chalk-100 font-medium text-center">
                 {player.web_name}
               </span>
               <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono uppercase">
                 {player.tactical_role ?? '\u2014'}
+                {player.position_signal === 'advanced' && <span className="text-emerald-400 ml-0.5">&#9650;</span>}
+                {player.position_signal === 'deeper' && <span className="text-loss-600 ml-0.5">&#9660;</span>}
               </span>
+              {setPieces && (
+                <span className="text-[8px] sm:text-[9px] leading-none text-amber-300 font-mono font-semibold">{setPieces.compact}</span>
+              )}
+              {isRotationOrBackup && (
+                <span className="text-[8px] sm:text-[9px] leading-none text-sky-300 font-mono uppercase">
+                  {player.squad_status === 'rotation' ? 'Rotation' : 'Backup'}
+                </span>
+              )}
             </button>
           );
         })}
@@ -379,16 +366,16 @@ export default function FormationPitch({
 
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] sm:text-[10px] text-ink-500">
         <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full border-2 border-emerald-400" /> Advanced role
+          <span className="w-2 h-2 rounded-full border-2 border-emerald-400" /> Advanced role (&#9650;)
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full border-2 border-loss-500" /> Deeper role
+          <span className="w-2 h-2 rounded-full border-2 border-loss-600" /> Deeper role (&#9660;)
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-amber-400" /> Set-piece taker
+          <span className="text-amber-600 font-mono font-semibold text-[10px]">P1</span> Set-piece rank (P/FK/IFK/C)
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-loss-500" /> Rotation/backup pick
+          <span className="text-sky-600 font-mono font-semibold text-[10px] uppercase">Rot</span> Rotation/backup pick
         </span>
       </div>
     </div>

@@ -81,35 +81,89 @@ export const SET_PIECE_LABEL: Record<SetPieceRole['type'], string> = {
   corner: 'Corners',
 };
 
+/** Short code per set-piece type, e.g. 'P' + rank -> 'P1' -- kept distinct per type deliberately (never merged into one generic "set piece" badge) so a penalty taker and a corner taker read differently at a glance. */
+export const SET_PIECE_ABBREV: Record<SetPieceRole['type'], string> = {
+  penalty: 'P',
+  direct_free_kick: 'FK',
+  indirect_free_kick: 'IFK',
+  corner: 'C',
+};
+
+function ordinalRank(n: number): string {
+  if (n === 1) return '1st';
+  if (n === 2) return '2nd';
+  if (n === 3) return '3rd';
+  return `${n}th`;
+}
+
+/** Compact codes for display (e.g. "P1 C1 FK2"), and the full description for a tooltip. */
+export function formatSetPieceRoles(roles: SetPieceRole[]): { compact: string; full: string } | null {
+  if (roles.length === 0) return null;
+  return {
+    compact: roles.map((r) => `${SET_PIECE_ABBREV[r.type]}${r.rank}`).join(' '),
+    full: roles.map((r) => `${SET_PIECE_LABEL[r.type]} (${ordinalRank(r.rank)})`).join(', '),
+  };
+}
+
 export type SquadStatus = 'first_choice' | 'rotation' | 'backup' | 'unknown';
 
-/** Coarse group a REAL tactical role belongs to, on the same 1=GK..4=FWD scale as FPL scoring position -- used only to compare "how advanced is this role" against the player's nominal FPL position, never to relabel the role itself. */
-function tacticalRoleGroup(role: string | null): 1 | 2 | 3 | 4 | null {
-  if (!role) return null;
+/**
+ * How advanced a REAL tactical role is, on the same 0-50 scale
+ * FormationPitch uses for pitch layout (GK=0 ... CF=50) -- kept here too
+ * (duplicated deliberately, see note below) so the position-signal
+ * comparison reads the pitch the same way the pitch itself is drawn.
+ */
+function roleAdvancementScale(role: string): number | null {
   const r = role.toUpperCase();
-  if (r === 'GK') return 1;
-  if (['CB', 'LCB', 'RCB', 'LB', 'RB', 'LWB', 'RWB'].includes(r)) return 2;
-  if (['DM', 'CDM', 'CM', 'LM', 'RM', 'AM'].includes(r)) return 3;
-  if (['LW', 'RW', 'LF', 'RF', 'CF', 'ST'].includes(r)) return 4;
+  if (r === 'GK') return 0;
+  if (['CB', 'LCB', 'RCB'].includes(r)) return 10;
+  if (r === 'LB' || r === 'RB') return 12;
+  if (r === 'LWB' || r === 'RWB') return 16;
+  if (r === 'DM' || r === 'CDM') return 20;
+  if (['CM', 'LM', 'RM'].includes(r)) return 30;
+  if (r === 'AM') return 40;
+  if (r === 'LW' || r === 'RW') return 44;
+  if (r === 'LF' || r === 'RF') return 48;
+  if (r === 'CF' || r === 'ST') return 50;
   return null;
 }
 
 /**
+ * The "normal" advancement range for each FPL scoring position, on the
+ * same 0-50 scale. Deliberately wide, especially for MID: FPL's MID
+ * bucket genuinely spans everything from a defensive midfielder (20) to
+ * an out-and-out winger (44) -- those are NOT "playing advanced for a
+ * MID", they're just... a MID. The bands only flag a real, fairly clear
+ * mismatch between real role and FPL position, not every role that isn't
+ * dead centre of the position's typical spot. Wingers are included in
+ * MID's band (not FWD's) because FPL itself classifies most wingers as
+ * MID -- a MID playing wide should not be flagged "advanced" just for
+ * being a winger, which was the previous version's main false positive.
+ */
+const POSITION_BAND: Record<2 | 3 | 4, { min: number; max: number }> = {
+  2: { min: 0, max: 18 }, // DEF: CB/FB/WB
+  3: { min: 18, max: 46 }, // MID: DM through AM and wingers
+  4: { min: 38, max: 52 }, // FWD: overlaps AM downward -- a forward playing AM/a withdrawn role is still a normal forward role, not "deeper"
+};
+
+/**
  * Compares a player's real tactical role to their FPL scoring position.
- * 'advanced' = playing further forward than their FPL position suggests
- * (generally a positive signal for attacking returns -- e.g. a defender
- * pushed into midfield or beyond). 'deeper' = playing further back than
- * their FPL position (generally a negative signal -- e.g. a forward asked
- * to play a deeper, less-involved midfield role). null when they match, or
- * when there isn't enough information to compare (no real tactical role
- * yet, or goalkeeper).
+ * 'advanced' = playing clearly further forward than their FPL position's
+ * normal band (generally a positive signal for attacking returns -- e.g.
+ * a defender pushed into central midfield or beyond). 'deeper' = playing
+ * clearly further back than normal for their position (generally
+ * negative -- e.g. a midfielder shifted into a centre-back role). null
+ * when the role falls within the normal band for their position, or when
+ * there isn't enough information to compare (no real tactical role yet,
+ * an unrecognised role string, or goalkeeper).
  */
 function computePositionSignal(fplPosition: FplElementType | null, tacticalRole: string | null): 'advanced' | 'deeper' | null {
-  if (!fplPosition || fplPosition === 1) return null;
-  const roleGroup = tacticalRoleGroup(tacticalRole);
-  if (roleGroup === null || roleGroup === 1) return null;
-  if (roleGroup > fplPosition) return 'advanced';
-  if (roleGroup < fplPosition) return 'deeper';
+  if (!fplPosition || fplPosition === 1 || !tacticalRole) return null;
+  const advancement = roleAdvancementScale(tacticalRole);
+  if (advancement === null) return null;
+  const band = POSITION_BAND[fplPosition];
+  if (advancement > band.max) return 'advanced';
+  if (advancement < band.min) return 'deeper';
   return null;
 }
 
@@ -267,6 +321,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
 
   const setPieceRolesByPlayer = new Map<number, SetPieceRole[]>();
   for (const row of (setPieceRows ?? []) as SetPieceHierarchyRow[]) {
+    if (!row) continue;
     const playerId = Number(row.source_player_id);
     if (!Number.isFinite(playerId)) continue;
     const type: SetPieceRole['type'] = row.set_piece_type === 'corner_left' || row.set_piece_type === 'corner_right' ? 'corner' : row.set_piece_type;

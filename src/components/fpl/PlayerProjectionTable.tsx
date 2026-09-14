@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { FplFixtureProjectionPlayer, SetPieceRole } from '../../lib/fplApi';
+import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
+import { formatSetPieceRoles } from '../../lib/fplApi';
 
 type SortKey =
   | 'web_name'
@@ -31,20 +32,6 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDi
 
 const COLUMN_COUNT = COLUMNS.length;
 
-const SET_PIECE_ABBREV: Record<SetPieceRole['type'], string> = {
-  penalty: 'P',
-  direct_free_kick: 'FK',
-  indirect_free_kick: 'IFK',
-  corner: 'C',
-};
-
-const SET_PIECE_FULL: Record<SetPieceRole['type'], string> = {
-  penalty: 'Penalties',
-  direct_free_kick: 'Direct free-kicks',
-  indirect_free_kick: 'Indirect free-kicks',
-  corner: 'Corners',
-};
-
 function pct(v: number | null): string {
   return v === null ? '\u2014' : `${Math.round(v * 100)}%`;
 }
@@ -69,11 +56,9 @@ function squadStatusLabel(status: FplFixtureProjectionPlayer['squad_status']): {
   return null; // first_choice / unknown / null -- nothing notable to flag
 }
 
-function setPieceSummary(roles: SetPieceRole[]): { compact: string; title: string } | null {
-  if (roles.length === 0) return null;
-  const compact = roles.map((r) => `${SET_PIECE_ABBREV[r.type]}${r.rank}`).join(' ');
-  const title = roles.map((r) => `${SET_PIECE_FULL[r.type]} (${r.rank === 1 ? '1st' : r.rank === 2 ? '2nd' : r.rank === 3 ? '3rd' : `${r.rank}th`} choice)`).join(', ');
-  return { compact, title };
+function setPieceSummary(p: FplFixtureProjectionPlayer): { compact: string; title: string } | null {
+  const formatted = formatSetPieceRoles(p.set_piece_roles);
+  return formatted ? { compact: formatted.compact, title: formatted.full } : null;
 }
 
 function compareValues(a: FplFixtureProjectionPlayer, b: FplFixtureProjectionPlayer, key: SortKey): number {
@@ -177,7 +162,7 @@ export default function PlayerProjectionTable({
               const unavailable = statusLabel(p.status);
               const squadTag = squadStatusLabel(p.squad_status);
               const uncertain = p.start_probability !== null && p.start_probability < 0.85;
-              const setPieces = setPieceSummary(p.set_piece_roles);
+              const setPieces = setPieceSummary(p);
 
               return (
                 <>
