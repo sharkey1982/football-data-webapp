@@ -25,6 +25,7 @@ import { ScoreChip } from '../components/ScoreChip';
 import { formatMatchDateWithYear } from '../lib/formatDate';
 import { ScoreProbabilityGrid } from '../components/ScoreProbabilityGrid';
 import { TeamStatsPanel } from '../components/TeamStatsPanel';
+import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
 
 type LeagueOption = { league_id: number; code: string; name: string };
 type Tab = 'overview' | 'home' | 'away' | 'prediction';
@@ -231,6 +232,8 @@ export default function MatchPreview() {
       {error && (
         <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded">{error}</div>
       )}
+
+      {!loadingTeams && <FitFreshnessBanner leagueId={leagueId} fitRun={fitRun} />}
 
       {loadingTeams && <p className="text-ink-500 font-mono text-sm">Loading teams&hellip;</p>}
 

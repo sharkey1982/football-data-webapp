@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
+  getFitRunValidationChecks,
   getLeagueFitStatus,
   getRecentFixtureRefreshRuns,
   getRecentMatchImportRuns,
@@ -20,6 +21,51 @@ function formatDate(iso: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function humanizeKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Renders one fit's validation_checks jsonb -- shape varies per check (some are just {pass}, others carry bounds/ranges/notes), so this stays generic rather than assuming a fixed schema. */
+function ValidationChecksDetail({ checks }: { checks: Record<string, unknown> }) {
+  const entries = Object.entries(checks).filter(([k]) => k !== 'note' && k !== 'retroactive_review');
+  if (entries.length === 0) {
+    return <p className="text-xs text-ink-500">{(checks.note as string) ?? 'No structured check detail recorded for this fit.'}</p>;
+  }
+  return (
+    <div className="space-y-1.5">
+      {checks.note !== undefined && <p className="text-xs text-ink-500 italic">{checks.note as string}</p>}
+      {entries.map(([key, value]) => {
+        if (typeof value !== 'object' || value === null) {
+          return (
+            <div key={key} className="flex items-start gap-2 text-xs">
+              <span className="font-medium text-ink-700 min-w-[14rem]">{humanizeKey(key)}</span>
+              <span className="text-ink-500 font-mono">{String(value)}</span>
+            </div>
+          );
+        }
+        const v = value as Record<string, unknown>;
+        const pass = v.pass;
+        const rest = Object.entries(v).filter(([k]) => k !== 'pass');
+        return (
+          <div key={key} className="flex items-start gap-2 text-xs">
+            <span className="font-medium text-ink-700 min-w-[14rem]">{humanizeKey(key)}</span>
+            {typeof pass === 'boolean' && (
+              <span className={pass ? 'text-pitch-800 font-medium' : 'text-loss-700 font-medium'}>
+                {pass ? '\u2713 pass' : '\u2717 fail'}
+              </span>
+            )}
+            {rest.length > 0 && (
+              <span className="text-ink-500 font-mono">
+                {rest.map(([k, v2]) => `${k}=${Array.isArray(v2) ? `[${v2.join(', ')}]` : String(v2)}`).join('  ')}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -101,6 +147,8 @@ export default function DataHealth() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('league_code');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [expandedFitRunId, setExpandedFitRunId] = useState<number | null>(null);
+  const [checksByFitRun, setChecksByFitRun] = useState<Record<number, Record<string, unknown> | 'loading' | 'error'>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +183,25 @@ export default function DataHealth() {
     } else {
       setSortKey(key);
       setSortDirection('asc');
+    }
+  }
+
+  function toggleExpand(fitRunId: number | null) {
+    if (fitRunId === null) return;
+    if (expandedFitRunId === fitRunId) {
+      setExpandedFitRunId(null);
+      return;
+    }
+    setExpandedFitRunId(fitRunId);
+    if (!(fitRunId in checksByFitRun)) {
+      setChecksByFitRun((prev) => ({ ...prev, [fitRunId]: 'loading' }));
+      getFitRunValidationChecks(fitRunId)
+        .then((checks) => {
+          setChecksByFitRun((prev) => ({ ...prev, [fitRunId]: checks ?? {} }));
+        })
+        .catch(() => {
+          setChecksByFitRun((prev) => ({ ...prev, [fitRunId]: 'error' }));
+        });
     }
   }
 
@@ -191,54 +258,82 @@ export default function DataHealth() {
                   </th>
                 ))}
                 <th className="font-display uppercase text-xs tracking-wide px-3 py-2 text-left">Notes</th>
+                <th className="font-display uppercase text-xs tracking-wide px-3 py-2 text-left">Details</th>
               </tr>
             </thead>
             <tbody>
               {sortedRows.map((row, i) => {
                 const attemptIsAccepted = row.latest_attempted_fit_run_id === row.accepted_fit_run_id;
+                const fitRunId = row.latest_attempted_fit_run_id;
+                const isExpanded = fitRunId !== null && expandedFitRunId === fitRunId;
+                const checksState = fitRunId !== null ? checksByFitRun[fitRunId] : undefined;
                 return (
-                  <tr key={row.league_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="font-medium">{row.league_code}</span>{' '}
-                      <span className="text-ink-500 text-xs">{row.league_name}</span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {row.accepted_fit_run_id ? (
-                        <>
-                          <span className="font-mono text-xs">#{row.accepted_fit_run_id}</span>{' '}
-                          {formatDate(row.accepted_fitted_at)}
-                        </>
-                      ) : (
-                        <span className="text-loss-700">No accepted fit</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">{row.accepted_matches_used ?? '\u2014'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={row.latest_attempted_status} />
-                        {!attemptIsAccepted && (
-                          <span className="text-xs text-ink-500 font-mono">
-                            #{row.latest_attempted_fit_run_id} &middot; {formatDate(row.latest_attempted_fitted_at)}
-                          </span>
+                  <Fragment key={row.league_id}>
+                    <tr className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className="font-medium">{row.league_code}</span>{' '}
+                        <span className="text-ink-500 text-xs">{row.league_name}</span>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {row.accepted_fit_run_id ? (
+                          <>
+                            <span className="font-mono text-xs">#{row.accepted_fit_run_id}</span>{' '}
+                            {formatDate(row.accepted_fitted_at)}
+                          </>
+                        ) : (
+                          <span className="text-loss-700">No accepted fit</span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-ink-700 max-w-md">
-                      {row.latest_attempted_status === 'rejected' && row.latest_attempted_rejection_reason && (
-                        <p className="text-loss-700">{row.latest_attempted_rejection_reason}</p>
-                      )}
-                      {row.latest_attempted_validation_warnings && row.latest_attempted_validation_warnings.length > 0 && (
-                        <ul className="list-disc list-inside text-amber-700">
-                          {row.latest_attempted_validation_warnings.map((w: string, wi: number) => (
-                            <li key={wi}>{w}</li>
-                          ))}
-                        </ul>
-                      )}
-                      {row.latest_attempted_converged === false && (
-                        <p className="text-loss-700">Optimiser did not converge.</p>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">{row.accepted_matches_used ?? '\u2014'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={row.latest_attempted_status} />
+                          {!attemptIsAccepted && (
+                            <span className="text-xs text-ink-500 font-mono">
+                              #{row.latest_attempted_fit_run_id} &middot; {formatDate(row.latest_attempted_fitted_at)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-ink-700 max-w-md">
+                        {row.latest_attempted_status === 'rejected' && row.latest_attempted_rejection_reason && (
+                          <p className="text-loss-700">{row.latest_attempted_rejection_reason}</p>
+                        )}
+                        {row.latest_attempted_validation_warnings && row.latest_attempted_validation_warnings.length > 0 && (
+                          <ul className="list-disc list-inside text-amber-700">
+                            {row.latest_attempted_validation_warnings.map((w: string, wi: number) => (
+                              <li key={wi}>{w}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {row.latest_attempted_converged === false && (
+                          <p className="text-loss-700">Optimiser did not converge.</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {fitRunId !== null && (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(fitRunId)}
+                            className="text-xs font-medium text-pitch-800 hover:underline whitespace-nowrap"
+                          >
+                            {isExpanded ? 'Hide checks \u25b2' : 'Show checks \u25bc'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="bg-chalk-100">
+                        <td colSpan={6} className="px-3 py-3">
+                          {checksState === 'loading' && <p className="text-xs text-ink-500">Loading checks&hellip;</p>}
+                          {checksState === 'error' && <p className="text-xs text-loss-700">Failed to load validation checks.</p>}
+                          {checksState && checksState !== 'loading' && checksState !== 'error' && (
+                            <ValidationChecksDetail checks={checksState} />
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

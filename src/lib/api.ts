@@ -20,6 +20,20 @@ import type {
 } from '../types/database';
 
 export type { FixtureRefreshRun, LeagueFitStatus, MatchImportRun } from '../types/database';
+
+/** The league_fit_status row for a single league -- used by FitFreshnessBanner rather than fetching every league's row just to check one. */
+export async function getLeagueFitStatusFor(leagueId: number): Promise<LeagueFitStatus | null> {
+  const { data, error } = await supabase.from('league_fit_status').select('*').eq('league_id', leagueId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** Full validation_checks jsonb for one fit run -- lazy-loaded on the Data Health page when a row is expanded, rather than bloating league_fit_status with it for every row on every load. */
+export async function getFitRunValidationChecks(fitRunId: number): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase.from('model_fit_runs').select('validation_checks').eq('fit_run_id', fitRunId).maybeSingle();
+  if (error) throw error;
+  return (data?.validation_checks as Record<string, unknown> | undefined) ?? null;
+}
 import { calculateDixonColes } from './dixonColes';
 
 export type MatchWithNames = Match & {

@@ -12,6 +12,7 @@ vi.mock('../lib/api', async () => {
     getLeagueFitStatus: vi.fn(),
     getRecentMatchImportRuns: vi.fn(),
     getRecentFixtureRefreshRuns: vi.fn(),
+    getFitRunValidationChecks: vi.fn(),
   };
 });
 
@@ -96,5 +97,49 @@ describe('DataHealth page', () => {
     // fit-status table above.
     expect(screen.getByText('Results imports')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument(); // rows_upserted
+  });
+
+  it('lazy-loads and shows the full validation checks for a row when expanded', async () => {
+    mockedApi.getRecentMatchImportRuns.mockResolvedValue([]);
+    mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
+    mockedApi.getFitRunValidationChecks.mockResolvedValue({
+      converged: { pass: true, optimizer_message: 'CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL' },
+      sufficient_observations: { pass: true, matches_used: 761, minimum: 50 },
+    });
+    mockedApi.getLeagueFitStatus.mockResolvedValue([
+      {
+        league_id: 1,
+        league_code: 'E0',
+        league_name: 'Premier League',
+        latest_attempted_fit_run_id: 13,
+        latest_attempted_status: 'accepted',
+        latest_attempted_fitted_at: '2026-09-14T05:38:32Z',
+        latest_attempted_matches_used: 761,
+        latest_attempted_converged: true,
+        latest_attempted_rejection_reason: null,
+        latest_attempted_validation_warnings: [],
+        accepted_fit_run_id: 13,
+        accepted_fitted_at: '2026-09-14T05:38:32Z',
+        accepted_matches_used: 761,
+        accepted_rho: -0.158,
+        accepted_home_advantage: 0.164,
+      },
+    ]);
+
+    render(<DataHealth />);
+    await waitFor(() => expect(screen.getAllByText('E0').length).toBeGreaterThan(0));
+
+    expect(mockedApi.getFitRunValidationChecks).not.toHaveBeenCalled();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Show checks/ }));
+
+    await waitFor(() => expect(screen.getByText('Sufficient observations')).toBeInTheDocument());
+    expect(mockedApi.getFitRunValidationChecks).toHaveBeenCalledWith(13);
+    expect(screen.getByText(/matches_used=761/)).toBeInTheDocument();
+
+    // Collapsing and re-expanding should not refetch -- it's cached.
+    await user.click(screen.getByRole('button', { name: /Hide checks/ }));
+    await user.click(screen.getByRole('button', { name: /Show checks/ }));
+    expect(mockedApi.getFitRunValidationChecks).toHaveBeenCalledTimes(1);
   });
 });

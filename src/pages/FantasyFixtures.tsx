@@ -13,6 +13,7 @@ import FantasyFixtureHeatmap, {
   type FantasyHeatmapRow,
   type FantasyMetric,
 } from '../components/FantasyFixtureHeatmap';
+import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
 
 type FantasyDefenceMetric = 'goals' | 'cleansheet';
 
@@ -20,6 +21,7 @@ const DEFAULT_RANK_WINDOW = 10;
 
 export default function FantasyFixtures() {
   const [seasonLabel, setSeasonLabel] = useState<string | null>(null);
+  const [leagueId, setLeagueId] = useState<number | null>(null);
   const [data, setData] = useState<FantasyFixtureData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export default function FantasyFixtures() {
         const leagues = await getLeagues();
         const e0 = leagues?.find((l) => l.code === 'E0');
         if (!e0) throw new Error('E0 (Premier League) not found');
+        setLeagueId(e0.league_id);
         const season = await getMostRecentFixtureSeason(e0.league_id);
         if (!season) throw new Error('No fixtures found for the current Premier League season');
         if (cancelled) return;
@@ -223,6 +226,8 @@ export default function FantasyFixtures() {
           fixtures you select below.
         </p>
       </div>
+
+      {!loading && <FitFreshnessBanner leagueId={leagueId} fitRun={data?.fitRun ?? null} />}
 
       <div className="flex flex-wrap items-end gap-4 bg-white border border-chalk-300 rounded-lg p-3">
         <div>
