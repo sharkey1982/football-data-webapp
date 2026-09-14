@@ -98,6 +98,28 @@ const FORMATION_TEMPLATES: Record<string, Slot[]> = {
   ],
 };
 
+/**
+ * The only tactical_role values the backend's role vocabulary actually
+ * uses. Anything else -- null, or a coarse leftover like "MID"/"DEF"/"FWD"
+ * that the backend sometimes stores when it hasn't resolved a specific
+ * role yet -- is treated as "role not confirmed", never as if it were a
+ * real tactical position. This is what stops the pitch from silently
+ * falling back to FPL position and displaying that with the same
+ * confidence as a real backend-supplied role.
+ */
+const KNOWN_ROLES = new Set([
+  'GK',
+  'RB', 'RCB', 'CB', 'LCB', 'LB',
+  'RWB', 'LWB',
+  'DM', 'CDM', 'CM', 'LM', 'RM', 'AM',
+  'RW', 'LW', 'LF', 'RF',
+  'CF', 'ST',
+]);
+
+function isKnownRole(role: string | null): boolean {
+  return role !== null && KNOWN_ROLES.has(role.toUpperCase());
+}
+
 /** Canonical x-position (0-100) per specific role, for the fallback layout when the formation has no template. */
 const ROLE_X: Record<string, number> = {
   GK: 50,
@@ -186,24 +208,62 @@ type PitchSlot = {
   left: number;
 };
 
-/** Greedily assigns starters to template slots by best role match, in slot order. */
+/**
+ * Assigns starters to template slots. Two passes, deliberately NOT one
+ * greedy slot-by-slot pass:
+ *
+ * Pass 1 -- every player with an EXACT tactical_role match for some slot
+ * in this template gets that slot, full stop, regardless of where in the
+ * template array that slot sits. This is what "tactical_role is
+ * authoritative" requires: a confirmed CF must never be displaceable by a
+ * fuzzy match for a different slot just because that slot happens to be
+ * processed earlier in template order. (This was the actual bug: CF is
+ * the last slot in the 4-2-3-1 template, so a real CF with no other exact
+ * match yet claimed could get grabbed by the RW slot -- processed earlier
+ * -- before the loop ever reached CF, leaving CF filled by whoever was
+ * left over instead.)
+ *
+ * Pass 2 -- only for slots no exact match claimed, and only among players
+ * with no exact-role home anywhere in this formation (missing/unrecognised
+ * tactical_role, or a specific role this formation's template doesn't
+ * have a slot for): nearest-fit fuzzy matching, same as before.
+ */
 function assignToTemplate(starters: FplFixtureProjectionPlayer[], template: Slot[]): PitchSlot[] {
-  const remaining = [...starters];
-  const slots: PitchSlot[] = [];
-  for (const slot of template) {
-    if (remaining.length === 0) break;
-    let bestIndex = 0;
+  const slotPlayer: (FplFixtureProjectionPlayer | null)[] = new Array(template.length).fill(null);
+  const used = new Set<number>();
+
+  template.forEach((slot, slotIndex) => {
+    const exact = starters.find(
+      (p) => !used.has(p.fpl_player_id) && isKnownRole(p.tactical_role) && p.tactical_role!.toUpperCase() === slot.role.toUpperCase()
+    );
+    if (exact) {
+      slotPlayer[slotIndex] = exact;
+      used.add(exact.fpl_player_id);
+    }
+  });
+
+  template.forEach((slot, slotIndex) => {
+    if (slotPlayer[slotIndex]) return;
+    const remaining = starters.filter((p) => !used.has(p.fpl_player_id));
+    if (remaining.length === 0) return;
+    let best = remaining[0];
     let bestScore = -Infinity;
-    remaining.forEach((p, i) => {
+    for (const p of remaining) {
       const score = matchScore(p.tactical_role, p.fpl_position, slot.role);
       if (score > bestScore) {
         bestScore = score;
-        bestIndex = i;
+        best = p;
       }
-    });
-    const [player] = remaining.splice(bestIndex, 1);
-    slots.push({ player, top: slot.top, left: slot.left });
-  }
+    }
+    slotPlayer[slotIndex] = best;
+    used.add(best.fpl_player_id);
+  });
+
+  const slots: PitchSlot[] = [];
+  template.forEach((slot, i) => {
+    const player = slotPlayer[i];
+    if (player) slots.push({ player, top: slot.top, left: slot.left });
+  });
   return slots;
 }
 
@@ -308,13 +368,14 @@ export default function FormationPitch({
           const uncertain = startPct !== null && startPct < 0.85;
           const setPieces = formatSetPieceRoles(player.set_piece_roles);
           const isRotationOrBackup = player.squad_status === 'rotation' || player.squad_status === 'backup';
+          const roleConfirmed = isKnownRole(player.tactical_role);
 
           const signalBorder =
             player.position_signal === 'advanced' ? 'border-emerald-400' : player.position_signal === 'deeper' ? 'border-loss-600' : 'border-chalk-100/70';
           const signalBorderFaint =
             player.position_signal === 'advanced' ? 'border-emerald-400/50' : player.position_signal === 'deeper' ? 'border-loss-600/50' : 'border-chalk-100/40';
 
-          const titleParts = [`${player.web_name} \u2014 ${player.tactical_role ?? 'role unknown'}`];
+          const titleParts = [`${player.web_name} \u2014 ${roleConfirmed ? player.tactical_role : 'tactical role not yet confirmed (approximate position only)'}`];
           if (startPct !== null) titleParts.push(`${Math.round(startPct * 100)}% start`);
           if (player.season_points_per_game !== null) titleParts.push(`${player.season_points_per_game.toFixed(1)} pts/game this season`);
           if (player.season_avg_minutes_per_start !== null) titleParts.push(`${Math.round(player.season_avg_minutes_per_start)} min/start this season`);
@@ -338,9 +399,11 @@ export default function FormationPitch({
                   'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-semibold border-2 transition-colors',
                   isSelected
                     ? 'bg-amber-500 border-amber-400 text-ink-900'
-                    : uncertain
-                      ? `bg-pitch-700 ${signalBorderFaint} text-chalk-100 border-dashed`
-                      : `bg-pitch-700 ${signalBorder} text-chalk-100 group-hover:border-amber-400`,
+                    : !roleConfirmed
+                      ? 'bg-pitch-700 border-chalk-100/30 text-chalk-100/60 border-dotted'
+                      : uncertain
+                        ? `bg-pitch-700 ${signalBorderFaint} text-chalk-100 border-dashed`
+                        : `bg-pitch-700 ${signalBorder} text-chalk-100 group-hover:border-amber-400`,
                 ].join(' ')}
               >
                 {player.fpl_position_label.slice(0, 1)}
@@ -353,8 +416,8 @@ export default function FormationPitch({
                   {player.season_points_per_game.toFixed(1)} ppg
                 </span>
               )}
-              <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono uppercase">
-                {player.tactical_role ?? '\u2014'}
+              <span className={['text-[8px] sm:text-[9px] leading-none font-mono uppercase', roleConfirmed ? 'text-amber-400/90' : 'text-chalk-100/40 italic'].join(' ')}>
+                {roleConfirmed ? player.tactical_role : 'role tbc'}
                 {player.position_signal === 'advanced' && <span className="text-emerald-400 ml-0.5">&#9650;</span>}
                 {player.position_signal === 'deeper' && <span className="text-loss-600 ml-0.5">&#9660;</span>}
               </span>
@@ -383,6 +446,9 @@ export default function FormationPitch({
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-sky-600 font-mono font-semibold text-[10px] uppercase">Rot</span> Rotation/backup pick
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full border-2 border-dotted border-ink-500" /> Tactical role not yet confirmed -- approximate position only
         </span>
       </div>
     </div>

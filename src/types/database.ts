@@ -569,6 +569,39 @@ export type FplSeasonPlayerProjectionFeed = {
  * tactical roles are NOT part of this view yet (backend work in progress)
  * -- never infer or display a formation/position from this data.
  */
+/**
+ * View: fpl_projection_frontend_feed_v6 -- the current, authoritative
+ * source for per-player projection numbers AND tactical_role together.
+ * Supersedes reading fpl_player_projections (filtered by model_version)
+ * and fixture_player_tactical_consensus separately -- this view already
+ * carries both, always reflecting the current production model
+ * (model_version on each row confirms which one, currently leaguewide_v6).
+ * Team-level formation, set-piece roles, and squad status are NOT part of
+ * this view and still come from their own tables/views.
+ */
+export type FplProjectionFrontendFeedV6 = {
+  fixture_id: number;
+  kickoff_date: string;
+  fpl_player_id: number;
+  web_name: string;
+  team_id: number;
+  fpl_position: FplElementType | null;
+  tactical_role: string | null;
+  minutes_source: string | null;
+  model_version: string;
+  expected_minutes: number | null;
+  start_probability: number | null;
+  sub_appearance_probability: number | null;
+  expected_goals: number | null;
+  expected_assists: number | null;
+  clean_sheet_probability: number | null;
+  defensive_contribution_probability: number | null;
+  expected_bonus: number | null;
+  expected_fpl_points: number | null;
+  lineup_confidence: number | null;
+  generated_at: string | null;
+};
+
 export type FplPredictionActualStartComparison = {
   fixture_id: number;
   matchweek: number;
@@ -797,6 +830,10 @@ export type Database = {
       };
       fpl_prediction_actual_start_comparison: {
         Row: FplPredictionActualStartComparison;
+        Relationships: [];
+      };
+      fpl_projection_frontend_feed_v6: {
+        Row: FplProjectionFrontendFeedV6;
         Relationships: [];
       };
     };

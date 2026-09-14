@@ -22,25 +22,28 @@ import { supabase } from './supabase';
 import type {
   FplElementType,
   FplPlayer,
-  FplPlayerProjection,
   FplPredictionActualStartComparison,
+  FplProjectionFrontendFeedV6,
   SetPieceHierarchyRow,
   PlayerSquadHierarchyRow,
 } from '../types/database';
 
-/** The model_version currently surfaced by the frontend. */
 /**
  * The model_version currently surfaced by the frontend as "the" production
  * projection -- single source of truth, reused by fplSeasonApi.ts too, so
  * the single-fixture screen and the season browser can never disagree
- * about which model's numbers are "current". Prior values ('prototype_v2',
- * 'prototype_v3', 'trial_v1') only ever covered fixture 36 and are
- * superseded by leaguewide_v4, which as of writing covers fixture 36 plus
- * all of gameweek 5 -- most fixtures still have no projection under any
- * model version yet, which the UI (both screens) treats as a normal
- * "not modelled yet" state, not an error.
+ * about which model's numbers are "current". leaguewide_v6 is the current
+ * production model (confirmed live: Barry/Haaland GW5 values match the
+ * reference figures exactly). Prior values ('leaguewide_v4',
+ * 'prototype_v2', 'prototype_v3', 'trial_v1') must not be used -- v4 in
+ * particular looks superficially valid (it has real rows) but is stale.
+ * Core projection numbers and tactical_role now come from
+ * fpl_projection_frontend_feed_v6 directly (see getFplFixtureProjection);
+ * this constant is still used to filter fpl_player_projections for the
+ * detailed xPts breakdown fields (penalty share, per-component xPts),
+ * which aren't part of the v6 feed.
  */
-export const CURRENT_MODEL_VERSION = 'leaguewide_v4';
+export const CURRENT_MODEL_VERSION = 'leaguewide_v6';
 
 export const FPL_POSITION_LABEL: Record<FplElementType, string> = {
   1: 'GKP',
@@ -339,15 +342,30 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
   const homeTeamId = (fixture as any).home_team_id;
   const awayTeamId = (fixture as any).away_team_id;
 
-  const [{ data: teamTactics, error: teamTacticsError }, { data: projections, error: projectionsError }, { data: setPieceRows, error: setPieceError }, { data: squadRows, error: squadError }] =
-    await Promise.all([
-      supabase.from('fixture_team_tactical_consensus').select('*').eq('fixture_id', fixtureId),
-      supabase.from('fpl_player_projections').select('*').eq('fixture_id', fixtureId).eq('model_version', CURRENT_MODEL_VERSION),
-      supabase.from('set_piece_hierarchies').select('*').in('team_id', [homeTeamId, awayTeamId]),
-      supabase.from('player_squad_hierarchy').select('*').in('team_id', [homeTeamId, awayTeamId]),
-    ]);
+  const [
+    { data: teamTactics, error: teamTacticsError },
+    { data: v6Rows, error: v6Error },
+    { data: xptsBreakdownRows, error: xptsBreakdownError },
+    { data: setPieceRows, error: setPieceError },
+    { data: squadRows, error: squadError },
+  ] = await Promise.all([
+    supabase.from('fixture_team_tactical_consensus').select('*').eq('fixture_id', fixtureId),
+    // Primary source: tactical_role lives here now, alongside the core
+    // projection numbers -- see CURRENT_MODEL_VERSION's comment for why
+    // this replaces fpl_player_projections + fixture_player_tactical_consensus
+    // as the source of truth for both.
+    supabase.from('fpl_projection_frontend_feed_v6').select('*').eq('fixture_id', fixtureId),
+    // Supplementary: the detailed xPts-per-component breakdown and
+    // penalty_points_share aren't part of the v6 feed, so those specific
+    // fields still come from fpl_player_projections -- filtered to the
+    // SAME current model_version, not the old default.
+    supabase.from('fpl_player_projections').select('*').eq('fixture_id', fixtureId).eq('model_version', CURRENT_MODEL_VERSION),
+    supabase.from('set_piece_hierarchies').select('*').in('team_id', [homeTeamId, awayTeamId]),
+    supabase.from('player_squad_hierarchy').select('*').in('team_id', [homeTeamId, awayTeamId]),
+  ]);
   if (teamTacticsError) throw teamTacticsError;
-  if (projectionsError) throw projectionsError;
+  if (v6Error) throw v6Error;
+  if (xptsBreakdownError) throw xptsBreakdownError;
   if (setPieceError) throw setPieceError;
   if (squadError) throw squadError;
 
@@ -372,13 +390,9 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     squadStatusByPlayer.set(row.fpl_player_id, row.squad_status);
   }
 
-  const playerIds = [...new Set((projections ?? []).map((p) => p.fpl_player_id))];
-
-  const { data: playerTactics, error: playerTacticsError } = await supabase
-    .from('fixture_player_tactical_consensus')
-    .select('*')
-    .eq('fixture_id', fixtureId);
-  if (playerTacticsError) throw playerTacticsError;
+  const projections = (v6Rows ?? []) as FplProjectionFrontendFeedV6[];
+  const playerIds = [...new Set(projections.map((p) => p.fpl_player_id))];
+  const xptsBreakdownByPlayer = new Map((xptsBreakdownRows ?? []).map((r) => [r.fpl_player_id, r]));
 
   let players: FplPlayer[] = [];
   if (playerIds.length > 0) {
@@ -388,29 +402,28 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
   }
 
   const playerById = new Map((players ?? []).map((p) => [p.fpl_player_id, p]));
-  const tacticalRoleByPlayer = new Map((playerTactics ?? []).map((t) => [t.fpl_player_id, t]));
   const formationByTeam = new Map((teamTactics ?? []).map((t) => [t.team_id, t]));
 
-  const buildPlayer = (proj: FplPlayerProjection): FplFixtureProjectionPlayer | null => {
+  const buildPlayer = (proj: FplProjectionFrontendFeedV6): FplFixtureProjectionPlayer | null => {
     const player = playerById.get(proj.fpl_player_id);
     if (!player) return null;
-    const role = tacticalRoleByPlayer.get(proj.fpl_player_id);
+    const breakdown = xptsBreakdownByPlayer.get(proj.fpl_player_id);
     const price = player.now_cost !== null ? player.now_cost / 10 : null;
     const expectedFplPoints = num(proj.expected_fpl_points);
     const value = price !== null && price > 0 && expectedFplPoints !== null ? expectedFplPoints / price : null;
-    const penaltyPoints = num(proj.xpts_penalties);
+    const penaltyPoints = breakdown ? num(breakdown.xpts_penalties) : null;
     const penaltyPointsShare =
       expectedFplPoints !== null && expectedFplPoints > 0 && penaltyPoints !== null ? penaltyPoints / expectedFplPoints : null;
     const seasonStats = seasonContextStats(player);
 
     return {
       fpl_player_id: proj.fpl_player_id,
-      web_name: player.web_name ?? `Player ${proj.fpl_player_id}`,
-      fpl_position: player.element_type,
+      web_name: player.web_name ?? proj.web_name ?? `Player ${proj.fpl_player_id}`,
+      fpl_position: player.element_type ?? proj.fpl_position,
       fpl_position_label: player.element_type ? FPL_POSITION_LABEL[player.element_type] : '—',
-      tactical_role: role?.tactical_role ?? null,
-      tactical_role_sources: role?.sources ?? null,
-      position_signal: computePositionSignal(player.element_type, role?.tactical_role ?? null),
+      tactical_role: proj.tactical_role,
+      tactical_role_sources: null, // not part of the v6 feed -- the feed itself is already the consensus output
+      position_signal: computePositionSignal(player.element_type, proj.tactical_role),
       set_piece_roles: (setPieceRolesByPlayer.get(proj.fpl_player_id) ?? []).sort((a, b) => a.rank - b.rank),
       squad_status: squadStatusByPlayer.get(proj.fpl_player_id) ?? null,
       penalty_points_share: penaltyPointsShare,
@@ -422,23 +435,23 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
       value,
       start_probability: num(proj.start_probability),
       sub_appearance_probability: num(proj.sub_appearance_probability),
-      availability_probability: num(proj.availability_probability),
+      availability_probability: breakdown ? num(breakdown.availability_probability) : null,
       lineup_confidence: num(proj.lineup_confidence),
       clean_sheet_probability: num(proj.clean_sheet_probability),
-      expected_saves: num(proj.expected_saves),
+      expected_saves: breakdown ? num(breakdown.expected_saves) : null,
       expected_bonus: num(proj.expected_bonus),
       defensive_contribution_probability: num(proj.defensive_contribution_probability),
       xpts: {
-        appearance: num(proj.xpts_appearance),
-        goals: num(proj.xpts_goals),
-        assists: num(proj.xpts_assists),
-        clean_sheet: num(proj.xpts_clean_sheet),
-        saves: num(proj.xpts_saves),
-        defensive_contribution: num(proj.xpts_defensive_contribution),
-        goals_conceded: num(proj.xpts_goals_conceded),
-        cards_own_goals: num(proj.xpts_cards_own_goals),
-        penalties: num(proj.xpts_penalties),
-        bonus: num(proj.xpts_bonus),
+        appearance: breakdown ? num(breakdown.xpts_appearance) : null,
+        goals: breakdown ? num(breakdown.xpts_goals) : null,
+        assists: breakdown ? num(breakdown.xpts_assists) : null,
+        clean_sheet: breakdown ? num(breakdown.xpts_clean_sheet) : null,
+        saves: breakdown ? num(breakdown.xpts_saves) : null,
+        defensive_contribution: breakdown ? num(breakdown.xpts_defensive_contribution) : null,
+        goals_conceded: breakdown ? num(breakdown.xpts_goals_conceded) : null,
+        cards_own_goals: breakdown ? num(breakdown.xpts_cards_own_goals) : null,
+        penalties: penaltyPoints,
+        bonus: breakdown ? num(breakdown.xpts_bonus) : null,
       },
       status: player.status,
       news: player.news,

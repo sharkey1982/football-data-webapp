@@ -5,6 +5,7 @@ type NavItem = { to: string; label: string; end?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
 const primaryNavItems: NavItem[] = [
+  { to: '/fpl/optimal-squad', label: 'Optimal Squad' },
   { to: '/table', label: 'League Table' },
   { to: '/teams', label: 'Team Explorer' },
 ];
