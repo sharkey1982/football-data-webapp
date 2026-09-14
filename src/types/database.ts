@@ -519,6 +519,46 @@ export type FplSeasonPlayerProjectionFeed = {
   experimental_expected_bonus: string | null;
 };
 
+/**
+ * Table: set_piece_hierarchies -- who takes penalties/free-kicks/corners
+ * for a team, and their rank (1 = primary taker, higher = further down the
+ * pecking order). source_player_id is stored as text; match against
+ * fpl_player_id by casting it to text.
+ */
+export type SetPieceHierarchyRow = {
+  set_piece_hierarchy_id: number;
+  season_id: number;
+  team_id: number;
+  source_player_id: string;
+  player_name: string | null;
+  set_piece_type: 'penalty' | 'direct_free_kick' | 'indirect_free_kick' | 'corner_left' | 'corner_right';
+  rank: number;
+  confidence: string | null;
+  evidence_count: number | null;
+  source_name: string | null;
+  source_payload: Record<string, unknown> | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  updated_at: string;
+};
+
+/**
+ * Table: player_squad_hierarchy -- squad pecking order per player
+ * ('first_choice' | 'rotation' | 'backup' | 'unknown'). Only covers a
+ * subset of players -- absence of a row is not itself meaningful, just
+ * means this hasn't been classified yet.
+ */
+export type PlayerSquadHierarchyRow = {
+  player_squad_hierarchy_id: number;
+  season_id: number;
+  team_id: number;
+  fpl_player_id: number;
+  squad_status: 'first_choice' | 'rotation' | 'backup' | 'unknown';
+  hierarchy_score: string | null;
+  evidence: Record<string, unknown> | null;
+  updated_at: string;
+};
+
 // ----------------------------------------------------------------------------
 // Supabase Database type -- the shape expected by createClient<Database>()
 //
@@ -645,6 +685,18 @@ export type Database = {
         Row: FplPlayerProjection;
         Insert: Omit<FplPlayerProjection, 'projection_id' | 'generated_at'>;
         Update: Partial<Omit<FplPlayerProjection, 'projection_id'>>;
+        Relationships: [];
+      };
+      set_piece_hierarchies: {
+        Row: SetPieceHierarchyRow;
+        Insert: Omit<SetPieceHierarchyRow, 'set_piece_hierarchy_id' | 'updated_at'>;
+        Update: Partial<Omit<SetPieceHierarchyRow, 'set_piece_hierarchy_id'>>;
+        Relationships: [];
+      };
+      player_squad_hierarchy: {
+        Row: PlayerSquadHierarchyRow;
+        Insert: Omit<PlayerSquadHierarchyRow, 'player_squad_hierarchy_id' | 'updated_at'>;
+        Update: Partial<Omit<PlayerSquadHierarchyRow, 'player_squad_hierarchy_id'>>;
         Relationships: [];
       };
     };

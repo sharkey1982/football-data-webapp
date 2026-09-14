@@ -19,7 +19,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import type { FplElementType, FplPlayer, FplPlayerProjection } from '../types/database';
+import type { FplElementType, FplPlayer, FplPlayerProjection, SetPieceHierarchyRow, PlayerSquadHierarchyRow } from '../types/database';
 
 /** The model_version currently surfaced by the frontend. */
 /**
@@ -68,6 +68,51 @@ export type FplXptsBreakdown = {
   bonus: number | null;
 };
 
+/** A set-piece responsibility. rank 1 = primary taker; higher numbers are further down the pecking order. corner_left/corner_right are merged into 'corner' (best rank of the two), since which side is rarely worth distinguishing at a glance. */
+export type SetPieceRole = {
+  type: 'penalty' | 'direct_free_kick' | 'indirect_free_kick' | 'corner';
+  rank: number;
+};
+
+export const SET_PIECE_LABEL: Record<SetPieceRole['type'], string> = {
+  penalty: 'Penalties',
+  direct_free_kick: 'Direct free-kicks',
+  indirect_free_kick: 'Indirect free-kicks',
+  corner: 'Corners',
+};
+
+export type SquadStatus = 'first_choice' | 'rotation' | 'backup' | 'unknown';
+
+/** Coarse group a REAL tactical role belongs to, on the same 1=GK..4=FWD scale as FPL scoring position -- used only to compare "how advanced is this role" against the player's nominal FPL position, never to relabel the role itself. */
+function tacticalRoleGroup(role: string | null): 1 | 2 | 3 | 4 | null {
+  if (!role) return null;
+  const r = role.toUpperCase();
+  if (r === 'GK') return 1;
+  if (['CB', 'LCB', 'RCB', 'LB', 'RB', 'LWB', 'RWB'].includes(r)) return 2;
+  if (['DM', 'CDM', 'CM', 'LM', 'RM', 'AM'].includes(r)) return 3;
+  if (['LW', 'RW', 'LF', 'RF', 'CF', 'ST'].includes(r)) return 4;
+  return null;
+}
+
+/**
+ * Compares a player's real tactical role to their FPL scoring position.
+ * 'advanced' = playing further forward than their FPL position suggests
+ * (generally a positive signal for attacking returns -- e.g. a defender
+ * pushed into midfield or beyond). 'deeper' = playing further back than
+ * their FPL position (generally a negative signal -- e.g. a forward asked
+ * to play a deeper, less-involved midfield role). null when they match, or
+ * when there isn't enough information to compare (no real tactical role
+ * yet, or goalkeeper).
+ */
+function computePositionSignal(fplPosition: FplElementType | null, tacticalRole: string | null): 'advanced' | 'deeper' | null {
+  if (!fplPosition || fplPosition === 1) return null;
+  const roleGroup = tacticalRoleGroup(tacticalRole);
+  if (roleGroup === null || roleGroup === 1) return null;
+  if (roleGroup > fplPosition) return 'advanced';
+  if (roleGroup < fplPosition) return 'deeper';
+  return null;
+}
+
 export type FplFixtureProjectionPlayer = {
   fpl_player_id: number;
   web_name: string;
@@ -76,6 +121,14 @@ export type FplFixtureProjectionPlayer = {
   /** Real tactical role from the tactical model (e.g. RWB, CF, AM) -- distinct from fpl_position. */
   tactical_role: string | null;
   tactical_role_sources: number | null;
+  /** How the real tactical role compares to the player's nominal FPL position -- see computePositionSignal. */
+  position_signal: 'advanced' | 'deeper' | null;
+  /** Set-piece responsibilities for this player's team, regardless of whether this specific player takes any. Empty array = not among the ranked takers for anything. */
+  set_piece_roles: SetPieceRole[];
+  /** Squad pecking order classification. Null when this player hasn't been classified (not itself meaningful -- just not yet covered). */
+  squad_status: SquadStatus | null;
+  /** Share of expected_fpl_points coming specifically from penalty conversion (xpts.penalties / expected_fpl_points). This is the one component of the points total the model isolates cleanly -- corner/free-kick-derived goals and assists are blended into xpts.goals/xpts.assists and can't be split out without the model inventing a number, so this is deliberately just the penalty share, not a general "set-piece points" share. Null when expected_fpl_points isn't positive. */
+  penalty_points_share: number | null;
   expected_minutes: number | null;
   expected_goals: number | null;
   expected_assists: number | null;
@@ -197,13 +250,40 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
   if (fixtureError) throw fixtureError;
   if (!fixture) return null;
 
-  const [{ data: teamTactics, error: teamTacticsError }, { data: projections, error: projectionsError }] =
+  const homeTeamId = (fixture as any).home_team_id;
+  const awayTeamId = (fixture as any).away_team_id;
+
+  const [{ data: teamTactics, error: teamTacticsError }, { data: projections, error: projectionsError }, { data: setPieceRows, error: setPieceError }, { data: squadRows, error: squadError }] =
     await Promise.all([
       supabase.from('fixture_team_tactical_consensus').select('*').eq('fixture_id', fixtureId),
       supabase.from('fpl_player_projections').select('*').eq('fixture_id', fixtureId).eq('model_version', CURRENT_MODEL_VERSION),
+      supabase.from('set_piece_hierarchies').select('*').in('team_id', [homeTeamId, awayTeamId]),
+      supabase.from('player_squad_hierarchy').select('*').in('team_id', [homeTeamId, awayTeamId]),
     ]);
   if (teamTacticsError) throw teamTacticsError;
   if (projectionsError) throw projectionsError;
+  if (setPieceError) throw setPieceError;
+  if (squadError) throw squadError;
+
+  const setPieceRolesByPlayer = new Map<number, SetPieceRole[]>();
+  for (const row of (setPieceRows ?? []) as SetPieceHierarchyRow[]) {
+    const playerId = Number(row.source_player_id);
+    if (!Number.isFinite(playerId)) continue;
+    const type: SetPieceRole['type'] = row.set_piece_type === 'corner_left' || row.set_piece_type === 'corner_right' ? 'corner' : row.set_piece_type;
+    const existing = setPieceRolesByPlayer.get(playerId) ?? [];
+    const already = existing.find((r) => r.type === type);
+    if (already) {
+      already.rank = Math.min(already.rank, row.rank); // corner_left/corner_right merge into one entry at the better rank
+    } else {
+      existing.push({ type, rank: row.rank });
+    }
+    setPieceRolesByPlayer.set(playerId, existing);
+  }
+
+  const squadStatusByPlayer = new Map<number, SquadStatus>();
+  for (const row of (squadRows ?? []) as PlayerSquadHierarchyRow[]) {
+    squadStatusByPlayer.set(row.fpl_player_id, row.squad_status);
+  }
 
   const playerIds = [...new Set((projections ?? []).map((p) => p.fpl_player_id))];
 
@@ -231,6 +311,9 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     const price = player.now_cost !== null ? player.now_cost / 10 : null;
     const expectedFplPoints = num(proj.expected_fpl_points);
     const value = price !== null && price > 0 && expectedFplPoints !== null ? expectedFplPoints / price : null;
+    const penaltyPoints = num(proj.xpts_penalties);
+    const penaltyPointsShare =
+      expectedFplPoints !== null && expectedFplPoints > 0 && penaltyPoints !== null ? penaltyPoints / expectedFplPoints : null;
 
     return {
       fpl_player_id: proj.fpl_player_id,
@@ -239,6 +322,10 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
       fpl_position_label: player.element_type ? FPL_POSITION_LABEL[player.element_type] : '—',
       tactical_role: role?.tactical_role ?? null,
       tactical_role_sources: role?.sources ?? null,
+      position_signal: computePositionSignal(player.element_type, role?.tactical_role ?? null),
+      set_piece_roles: (setPieceRolesByPlayer.get(proj.fpl_player_id) ?? []).sort((a, b) => a.rank - b.rank),
+      squad_status: squadStatusByPlayer.get(proj.fpl_player_id) ?? null,
+      penalty_points_share: penaltyPointsShare,
       expected_minutes: num(proj.expected_minutes),
       expected_goals: num(proj.expected_goals),
       expected_assists: num(proj.expected_assists),

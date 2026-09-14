@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
+import type { FplFixtureProjectionPlayer, SetPieceRole } from '../../lib/fplApi';
 
 type SortKey =
   | 'web_name'
@@ -11,23 +11,39 @@ type SortKey =
   | 'expected_assists'
   | 'price'
   | 'value'
+  | 'penalty_points_share'
   | 'expected_fpl_points';
 type SortDir = 'asc' | 'desc';
 
-const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDir: SortDir }[] = [
+const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDir: SortDir; title?: string }[] = [
   { key: 'web_name', label: 'Player', align: 'left', defaultDir: 'asc' },
   { key: 'fpl_position_label', label: 'Pos', align: 'left', defaultDir: 'asc' },
-  { key: 'tactical_role', label: 'Role', align: 'left', defaultDir: 'asc' },
+  { key: 'tactical_role', label: 'Role', align: 'left', defaultDir: 'asc', title: 'Real tactical role -- an up/down arrow shows when this is more/less advanced than the FPL position' },
   { key: 'start_probability', label: 'Start%', align: 'right', defaultDir: 'desc' },
   { key: 'expected_minutes', label: 'Min', align: 'right', defaultDir: 'desc' },
   { key: 'expected_goals', label: 'xG', align: 'right', defaultDir: 'desc' },
   { key: 'expected_assists', label: 'xA', align: 'right', defaultDir: 'desc' },
   { key: 'price', label: 'Price', align: 'right', defaultDir: 'desc' },
   { key: 'value', label: 'Value', align: 'right', defaultDir: 'desc' },
+  { key: 'penalty_points_share', label: 'Pen%', align: 'right', defaultDir: 'desc', title: 'Share of projected points coming from penalty conversion specifically -- the only points component the model isolates cleanly (corner/free-kick-derived goals and assists are blended into xG/xA and can\u2019t be split out)' },
   { key: 'expected_fpl_points', label: 'xPts', align: 'right', defaultDir: 'desc' },
 ];
 
 const COLUMN_COUNT = COLUMNS.length;
+
+const SET_PIECE_ABBREV: Record<SetPieceRole['type'], string> = {
+  penalty: 'P',
+  direct_free_kick: 'FK',
+  indirect_free_kick: 'IFK',
+  corner: 'C',
+};
+
+const SET_PIECE_FULL: Record<SetPieceRole['type'], string> = {
+  penalty: 'Penalties',
+  direct_free_kick: 'Direct free-kicks',
+  indirect_free_kick: 'Indirect free-kicks',
+  corner: 'Corners',
+};
 
 function pct(v: number | null): string {
   return v === null ? '\u2014' : `${Math.round(v * 100)}%`;
@@ -45,6 +61,19 @@ function statusLabel(status: string | null): string | null {
   if (!status || status === 'a') return null;
   const map: Record<string, string> = { i: 'Injured', d: 'Doubtful', s: 'Suspended', u: 'Unavailable', n: 'Not available' };
   return map[status] ?? status;
+}
+
+function squadStatusLabel(status: FplFixtureProjectionPlayer['squad_status']): { text: string; className: string } | null {
+  if (status === 'rotation') return { text: 'Rotation pick', className: 'text-amber-600' };
+  if (status === 'backup') return { text: 'Backup option', className: 'text-loss-700' };
+  return null; // first_choice / unknown / null -- nothing notable to flag
+}
+
+function setPieceSummary(roles: SetPieceRole[]): { compact: string; title: string } | null {
+  if (roles.length === 0) return null;
+  const compact = roles.map((r) => `${SET_PIECE_ABBREV[r.type]}${r.rank}`).join(' ');
+  const title = roles.map((r) => `${SET_PIECE_FULL[r.type]} (${r.rank === 1 ? '1st' : r.rank === 2 ? '2nd' : r.rank === 3 ? '3rd' : `${r.rank}th`} choice)`).join(', ');
+  return { compact, title };
 }
 
 function compareValues(a: FplFixtureProjectionPlayer, b: FplFixtureProjectionPlayer, key: SortKey): number {
@@ -116,12 +145,13 @@ export default function PlayerProjectionTable({
                     key={col.key}
                     scope="col"
                     aria-sort={isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    title={col.title}
                   >
                     <button
                       type="button"
                       onClick={() => handleHeaderClick(col)}
                       className={[
-                        'w-full px-2 py-2 first:pl-3 last:pr-3 flex items-center gap-1 font-medium transition-colors hover:text-ink-900',
+                        'w-full px-2 py-2 first:pl-3 last:pr-3 flex items-center gap-1 font-medium transition-colors hover:text-ink-900 whitespace-nowrap',
                         col.align === 'right' ? 'justify-end' : 'justify-start',
                         isActive ? 'text-ink-900' : 'text-ink-500',
                       ].join(' ')}
@@ -134,6 +164,9 @@ export default function PlayerProjectionTable({
                   </th>
                 );
               })}
+              <th scope="col" title="Set-piece responsibilities: P = penalties, FK = direct free-kicks, IFK = indirect free-kicks, C = corners; the number is their rank in the pecking order (1 = primary taker)">
+                <span className="w-full px-2 py-2 flex items-center font-medium text-ink-500 whitespace-nowrap">Set pieces</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -142,7 +175,9 @@ export default function PlayerProjectionTable({
               const isExpanded = p.fpl_player_id === expandedId;
               const isBestValue = p.fpl_player_id === bestValueId;
               const unavailable = statusLabel(p.status);
+              const squadTag = squadStatusLabel(p.squad_status);
               const uncertain = p.start_probability !== null && p.start_probability < 0.85;
+              const setPieces = setPieceSummary(p.set_piece_roles);
 
               return (
                 <>
@@ -160,9 +195,24 @@ export default function PlayerProjectionTable({
                     <td className="px-3 py-1.5">
                       <div className="font-medium text-ink-900">{p.web_name}</div>
                       {unavailable && <div className="text-[11px] text-loss-700">{unavailable}</div>}
+                      {!unavailable && squadTag && <div className={['text-[11px]', squadTag.className].join(' ')}>{squadTag.text}</div>}
                     </td>
                     <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{p.fpl_position_label}</td>
-                    <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{p.tactical_role ?? '\u2014'}</td>
+                    <td className="px-2 py-1.5 font-mono text-xs text-ink-700">
+                      <span
+                        title={
+                          p.position_signal === 'advanced'
+                            ? 'Playing a more advanced tactical role than their FPL position -- a positive signal for attacking returns'
+                            : p.position_signal === 'deeper'
+                              ? 'Playing a deeper tactical role than their FPL position -- a negative signal for attacking returns'
+                              : undefined
+                        }
+                      >
+                        {p.tactical_role ?? '\u2014'}
+                        {p.position_signal === 'advanced' && <span className="text-emerald-600 ml-0.5">&#9650;</span>}
+                        {p.position_signal === 'deeper' && <span className="text-loss-600 ml-0.5">&#9660;</span>}
+                      </span>
+                    </td>
                     <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-600' : 'text-ink-700'].join(' ')}>
                       {pct(p.start_probability)}
                     </td>
@@ -184,13 +234,17 @@ export default function PlayerProjectionTable({
                         {isBestValue && ' \u2605'}
                       </span>
                     </td>
+                    <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{pct(p.penalty_points_share)}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-sm font-semibold text-pitch-800">
                       {dec(p.expected_fpl_points, 1)}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-amber-700 whitespace-nowrap" title={setPieces?.title}>
+                      {setPieces?.compact ?? '\u2014'}
                     </td>
                   </tr>
                   {isExpanded && (
                     <tr className="bg-chalk-100 border-b border-chalk-200">
-                      <td colSpan={COLUMN_COUNT} className="px-3 py-2">
+                      <td colSpan={COLUMN_COUNT + 1} className="px-3 py-2">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-ink-700 font-mono">
                           <div>Sub-on chance: {pct(p.sub_appearance_probability)}</div>
                           <div>Availability: {pct(p.availability_probability)}</div>
@@ -213,6 +267,7 @@ export default function PlayerProjectionTable({
                           <div>xPts penalties: {dec(p.xpts.penalties)}</div>
                           <div>xPts bonus: {dec(p.xpts.bonus)}</div>
                         </div>
+                        {setPieces && <div className="mt-2 pt-2 border-t border-chalk-300 text-xs text-amber-700">Set pieces: {setPieces.title}</div>}
                         {p.news && <div className="mt-2 text-xs text-loss-700 italic">{p.news}</div>}
                       </td>
                     </tr>

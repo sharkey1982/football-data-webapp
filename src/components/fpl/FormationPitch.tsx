@@ -1,4 +1,5 @@
-import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
+import type { FplFixtureProjectionPlayer, SetPieceRole } from '../../lib/fplApi';
+import { SET_PIECE_LABEL } from '../../lib/fplApi';
 import type { FplElementType } from '../../types/database';
 
 // ============================================================================
@@ -267,6 +268,25 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   return slots;
 }
 
+function ordinal(n: number): string {
+  if (n === 1) return '1st';
+  if (n === 2) return '2nd';
+  if (n === 3) return '3rd';
+  return `${n}th`;
+}
+
+function describeSetPieceRoles(roles: SetPieceRole[]): string | null {
+  if (roles.length === 0) return null;
+  return roles.map((r) => `${SET_PIECE_LABEL[r.type]} (${ordinal(r.rank)})`).join(', ');
+}
+
+function describeSquadStatus(status: FplFixtureProjectionPlayer['squad_status']): string | null {
+  if (status === 'rotation') return 'Rotation pick';
+  if (status === 'backup') return 'Backup option';
+  if (status === 'first_choice') return 'First-choice';
+  return null;
+}
+
 export default function FormationPitch({
   players,
   formation,
@@ -282,54 +302,95 @@ export default function FormationPitch({
   const slots = layoutPlayers(players, formation);
 
   return (
-    <div className="relative w-full min-h-[360px] sm:min-h-[400px] aspect-[3/4] bg-pitch-800 rounded-lg overflow-hidden border-2 border-pitch-600">
-      {/* Pitch markings */}
-      <div className="absolute inset-3 border border-chalk-100/25 rounded" />
-      <div className="absolute top-1/2 left-3 right-3 border-t border-chalk-100/25" />
-      <div
-        className="absolute left-1/2 top-1/2 w-16 h-16 sm:w-20 sm:h-20 border border-chalk-100/25 rounded-full"
-        style={{ transform: 'translate(-50%, -50%)' }}
-      />
-      <div className="absolute left-1/2 top-3 w-24 sm:w-28 h-8 border border-t-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
-      <div className="absolute left-1/2 bottom-3 w-24 sm:w-28 h-8 border border-b-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
+    <div className="space-y-1.5">
+      <div className="relative w-full min-h-[360px] sm:min-h-[400px] aspect-[3/4] bg-pitch-800 rounded-lg overflow-hidden border-2 border-pitch-600">
+        {/* Pitch markings */}
+        <div className="absolute inset-3 border border-chalk-100/25 rounded" />
+        <div className="absolute top-1/2 left-3 right-3 border-t border-chalk-100/25" />
+        <div
+          className="absolute left-1/2 top-1/2 w-16 h-16 sm:w-20 sm:h-20 border border-chalk-100/25 rounded-full"
+          style={{ transform: 'translate(-50%, -50%)' }}
+        />
+        <div className="absolute left-1/2 top-3 w-24 sm:w-28 h-8 border border-t-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
+        <div className="absolute left-1/2 bottom-3 w-24 sm:w-28 h-8 border border-b-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
 
-      {slots.map(({ player, top, left }) => {
-        const isSelected = player.fpl_player_id === selectedPlayerId;
-        const startPct = player.start_probability;
-        const uncertain = startPct !== null && startPct < 0.85;
+        {slots.map(({ player, top, left }) => {
+          const isSelected = player.fpl_player_id === selectedPlayerId;
+          const startPct = player.start_probability;
+          const uncertain = startPct !== null && startPct < 0.85;
+          const primarySetPiece = player.set_piece_roles.some((r) => r.rank === 1);
+          const secondarySetPiece = !primarySetPiece && player.set_piece_roles.some((r) => r.rank === 2);
+          const isRotationOrBackup = player.squad_status === 'rotation' || player.squad_status === 'backup';
 
-        return (
-          <button
-            key={player.fpl_player_id}
-            type="button"
-            onClick={() => onSelectPlayer(player.fpl_player_id)}
-            className="absolute flex flex-col items-center gap-0.5 -translate-x-1/2 -translate-y-1/2 group"
-            style={{ top: `${top}%`, left: `${left}%` }}
-            title={`${player.web_name} \u2014 ${player.tactical_role ?? 'role unknown'}${
-              startPct !== null ? ` \u2022 ${Math.round(startPct * 100)}% start` : ''
-            }`}
-          >
-            <span
-              className={[
-                'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-semibold border-2 transition-colors',
-                isSelected
-                  ? 'bg-amber-500 border-amber-400 text-ink-900'
-                  : uncertain
-                    ? 'bg-pitch-700 border-chalk-100/40 text-chalk-100 border-dashed'
-                    : 'bg-pitch-700 border-chalk-100/70 text-chalk-100 group-hover:border-amber-400',
-              ].join(' ')}
+          const signalBorder =
+            player.position_signal === 'advanced' ? 'border-emerald-400' : player.position_signal === 'deeper' ? 'border-loss-500' : 'border-chalk-100/70';
+          const signalBorderFaint =
+            player.position_signal === 'advanced' ? 'border-emerald-400/50' : player.position_signal === 'deeper' ? 'border-loss-500/50' : 'border-chalk-100/40';
+
+          const titleParts = [`${player.web_name} \u2014 ${player.tactical_role ?? 'role unknown'}`];
+          if (startPct !== null) titleParts.push(`${Math.round(startPct * 100)}% start`);
+          const spDescription = describeSetPieceRoles(player.set_piece_roles);
+          if (spDescription) titleParts.push(spDescription);
+          const statusDescription = describeSquadStatus(player.squad_status);
+          if (statusDescription) titleParts.push(statusDescription);
+          if (player.position_signal === 'advanced') titleParts.push('Playing more advanced than FPL position');
+          if (player.position_signal === 'deeper') titleParts.push('Playing deeper than FPL position');
+
+          return (
+            <button
+              key={player.fpl_player_id}
+              type="button"
+              onClick={() => onSelectPlayer(player.fpl_player_id)}
+              className="absolute flex flex-col items-center gap-0.5 -translate-x-1/2 -translate-y-1/2 group"
+              style={{ top: `${top}%`, left: `${left}%` }}
+              title={titleParts.join(' \u2022 ')}
             >
-              {player.fpl_position_label.slice(0, 1)}
-            </span>
-            <span className="max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-[9px] sm:text-[10px] leading-tight text-chalk-100 font-medium text-center">
-              {player.web_name}
-            </span>
-            <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono uppercase">
-              {player.tactical_role ?? '\u2014'}
-            </span>
-          </button>
-        );
-      })}
+              <span
+                className={[
+                  'relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-mono font-semibold border-2 transition-colors',
+                  isSelected
+                    ? 'bg-amber-500 border-amber-400 text-ink-900'
+                    : uncertain
+                      ? `bg-pitch-700 ${signalBorderFaint} text-chalk-100 border-dashed`
+                      : `bg-pitch-700 ${signalBorder} text-chalk-100 group-hover:border-amber-400`,
+                ].join(' ')}
+              >
+                {player.fpl_position_label.slice(0, 1)}
+                {primarySetPiece && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border border-pitch-900" aria-hidden="true" />
+                )}
+                {secondarySetPiece && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-transparent border border-amber-400" aria-hidden="true" />
+                )}
+                {isRotationOrBackup && (
+                  <span className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-loss-500 border border-pitch-900" aria-hidden="true" />
+                )}
+              </span>
+              <span className="max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-[9px] sm:text-[10px] leading-tight text-chalk-100 font-medium text-center">
+                {player.web_name}
+              </span>
+              <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono uppercase">
+                {player.tactical_role ?? '\u2014'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] sm:text-[10px] text-ink-500">
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full border-2 border-emerald-400" /> Advanced role
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full border-2 border-loss-500" /> Deeper role
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-amber-400" /> Set-piece taker
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-loss-500" /> Rotation/backup pick
+        </span>
+      </div>
     </div>
   );
 }
