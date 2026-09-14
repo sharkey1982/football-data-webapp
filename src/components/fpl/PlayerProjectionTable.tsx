@@ -1,14 +1,26 @@
 import { useMemo, useState } from 'react';
 import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
 
-type SortKey = 'expected_minutes' | 'expected_fpl_points' | 'expected_goals' | 'expected_assists' | 'start_probability';
+type SortKey =
+  | 'web_name'
+  | 'fpl_position_label'
+  | 'tactical_role'
+  | 'start_probability'
+  | 'expected_minutes'
+  | 'expected_goals'
+  | 'expected_assists'
+  | 'expected_fpl_points';
+type SortDir = 'asc' | 'desc';
 
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'expected_minutes', label: 'Min' },
-  { key: 'expected_fpl_points', label: 'xPts' },
-  { key: 'expected_goals', label: 'xG' },
-  { key: 'expected_assists', label: 'xA' },
-  { key: 'start_probability', label: 'Start %' },
+const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDir: SortDir }[] = [
+  { key: 'web_name', label: 'Player', align: 'left', defaultDir: 'asc' },
+  { key: 'fpl_position_label', label: 'Pos', align: 'left', defaultDir: 'asc' },
+  { key: 'tactical_role', label: 'Role', align: 'left', defaultDir: 'asc' },
+  { key: 'start_probability', label: 'Start%', align: 'right', defaultDir: 'desc' },
+  { key: 'expected_minutes', label: 'Min', align: 'right', defaultDir: 'desc' },
+  { key: 'expected_goals', label: 'xG', align: 'right', defaultDir: 'desc' },
+  { key: 'expected_assists', label: 'xA', align: 'right', defaultDir: 'desc' },
+  { key: 'expected_fpl_points', label: 'xPts', align: 'right', defaultDir: 'desc' },
 ];
 
 function pct(v: number | null): string {
@@ -25,6 +37,19 @@ function statusLabel(status: string | null): string | null {
   return map[status] ?? status;
 }
 
+function compareValues(a: FplFixtureProjectionPlayer, b: FplFixtureProjectionPlayer, key: SortKey): number {
+  const av = a[key];
+  const bv = b[key];
+  if (typeof av === 'string' || typeof bv === 'string') {
+    return (av ?? '').toString().localeCompare((bv ?? '').toString());
+  }
+  // Numeric (possibly null) columns -- nulls sort to the end regardless of direction.
+  if (av === null && bv === null) return 0;
+  if (av === null) return 1;
+  if (bv === null) return -1;
+  return (av as number) - (bv as number);
+}
+
 export default function PlayerProjectionTable({
   players,
   selectedPlayerId,
@@ -34,45 +59,58 @@ export default function PlayerProjectionTable({
   selectedPlayerId: number | null;
   onSelectPlayer: (fplPlayerId: number) => void;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  // Sortable by default -- clicking any column header sorts by it immediately,
+  // no separate "enable sorting" step. Starts on the same order the model
+  // returns (highest expected minutes first).
+  const [sortKey, setSortKey] = useState<SortKey>('expected_minutes');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  const handleHeaderClick = (col: (typeof COLUMNS)[number]) => {
+    if (col.key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(col.key);
+      setSortDir(col.defaultDir);
+    }
+  };
+
   const sorted = useMemo(() => {
-    if (!sortKey) return players;
-    return [...players].sort((a, b) => (b[sortKey] ?? -1) - (a[sortKey] ?? -1));
-  }, [players, sortKey]);
+    const factor = sortDir === 'asc' ? 1 : -1;
+    return [...players].sort((a, b) => factor * compareValues(a, b, sortKey));
+  }, [players, sortKey, sortDir]);
 
   return (
     <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
-      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-chalk-300 bg-chalk-100">
-        <span className="text-xs font-medium text-ink-500 mr-1">Sort by</span>
-        {SORT_OPTIONS.map((opt) => (
-          <button
-            key={opt.key}
-            type="button"
-            onClick={() => setSortKey(sortKey === opt.key ? null : opt.key)}
-            className={[
-              'px-2 py-0.5 text-xs font-medium rounded transition-colors',
-              sortKey === opt.key ? 'bg-pitch-800 text-chalk-100' : 'bg-white border border-chalk-300 text-ink-700 hover:bg-chalk-200',
-            ].join(' ')}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs font-medium text-ink-500 border-b border-chalk-300">
-              <th className="px-3 py-2 font-medium">Player</th>
-              <th className="px-2 py-2 font-medium">Pos</th>
-              <th className="px-2 py-2 font-medium">Role</th>
-              <th className="px-2 py-2 font-medium text-right">Start%</th>
-              <th className="px-2 py-2 font-medium text-right">Min</th>
-              <th className="px-2 py-2 font-medium text-right">xG</th>
-              <th className="px-2 py-2 font-medium text-right">xA</th>
-              <th className="px-3 py-2 font-medium text-right">xPts</th>
+            <tr className="text-left text-xs font-medium text-ink-500 border-b border-chalk-300 bg-chalk-100">
+              {COLUMNS.map((col) => {
+                const isActive = col.key === sortKey;
+                return (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    aria-sort={isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleHeaderClick(col)}
+                      className={[
+                        'w-full px-2 py-2 first:pl-3 last:pr-3 flex items-center gap-1 font-medium transition-colors hover:text-ink-900',
+                        col.align === 'right' ? 'justify-end' : 'justify-start',
+                        isActive ? 'text-ink-900' : 'text-ink-500',
+                      ].join(' ')}
+                    >
+                      {col.label}
+                      <span className={['text-[9px] w-2.5', isActive ? 'opacity-100' : 'opacity-0'].join(' ')} aria-hidden="true">
+                        {sortDir === 'asc' ? '\u25B2' : '\u25BC'}
+                      </span>
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
