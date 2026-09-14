@@ -29,7 +29,10 @@ export default function TeamProjectionPanel({ team }: { team: FplFixtureProjecti
             <span>
               Formation: <strong className="text-ink-900">{team.formation ?? 'Unknown'}</strong>
               {team.formation_source_count !== null && (
-                <span className="text-ink-500"> ({team.formation_source_count} source{team.formation_source_count === 1 ? '' : 's'})</span>
+                <span className="text-ink-500">
+                  {' '}
+                  ({team.formation_source_count === 0 ? 'default estimate' : `${team.formation_source_count} source${team.formation_source_count === 1 ? '' : 's'}`})
+                </span>
               )}
             </span>
             <span>
