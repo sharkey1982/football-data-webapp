@@ -3,25 +3,45 @@
 # scripts/estimate_promoted_team_ratings.py
 #
 # For a team playing in --target-league this season but with no genuine
-# fitted rating there yet (freshly promoted, zero matches in the fitting
-# window), derives a rough estimated rating from that team's rating in
-# --source-league (the division below), adjusted by the median attack/
+# fitted rating there yet, derives a rough estimated rating from that
+# team's rating in an ADJACENT division, adjusted by the median attack/
 # defence gap between the two divisions -- computed from whichever teams
 # happen to have a genuine rating in BOTH divisions' latest fit runs.
 #
-# This never invents a rating for a team with no source-league rating
-# either -- it aborts and names the team, since silently fabricating a
-# number there would be worse than not having one.
+# Handles BOTH directions, because they are NOT mirror images of each
+# other -- real analysis of this database's own historical match results
+# (teams that changed division, 2014/15-2025/26, n=33 team-seasons each
+# way) shows:
+#   - Promoted teams (--below-league, division below) average ~17.6
+#     points BELOW their new division's average in their first season up
+#     -- typically bottom-of-the-table form.
+#   - Relegated teams (--above-league, division above) average ~12.4
+#     points ABOVE their new division's average in their first season
+#     back down (parachute payments + a squad that was PL-standard
+#     recently) -- typically top-third, promotion-contender form.
+# So a relegated team is emphatically NOT "last year's promoted team in
+# reverse" -- each direction computes its OWN median gap from real teams
+# that made that SAME transition, never one direction's gap applied to
+# the other.
+#
+# At least one of --below-league / --above-league must be given; both can
+# be, since a single target league can have teams needing an estimate
+# from either direction in the same run (e.g. E1 needs promoted-from-E2
+# AND relegated-from-E0 teams handled together).
+#
+# This never invents a rating for a team with no rating in EITHER given
+# adjacent division -- those are printed by name and the script exits
+# non-zero, since fabricating a number there would be worse than not
+# having one. Every OTHER team that COULD be resolved is still written,
+# though -- one unresolvable team does not block the rest.
 #
 # Only teams that are actually in --target-league's CURRENT season
 # fixtures and are missing a rating in that league's latest fit run are
-# considered -- not every team that happens to lack a target-league
-# rating (most Championship teams, say, simply aren't Premier League
-# teams and have no business getting a PL estimate).
+# considered.
 #
 # Usage:
-#   python scripts/estimate_promoted_team_ratings.py --target-league E0 --source-league E1
-#   python scripts/estimate_promoted_team_ratings.py --target-league E0 --source-league E1 --dry-run
+#   python scripts/estimate_promoted_team_ratings.py --target-league E1 --below-league E2 --above-league E0
+#   python scripts/estimate_promoted_team_ratings.py --target-league E0 --below-league E1 --dry-run
 # ============================================================================
 
 import argparse
@@ -59,8 +79,6 @@ def ratings_for_fit_run(supabase, fit_run_id):
 
 
 def current_season_team_ids(supabase, league_id):
-    # The "current season" for a league is whichever season_id its fixtures
-    # table has rows for -- fixtures only exist for the season being played.
     res = supabase.table("fixtures").select("season_id").eq("league_id", league_id).limit(1).execute()
     if not res.data:
         return None, set()
@@ -71,12 +89,42 @@ def current_season_team_ids(supabase, league_id):
     return season_id, ids
 
 
+def compute_gap(target_ratings, other_ratings, target_code, other_code, direction_label):
+    """Median (target - other) attack/defence gap from teams rated in both
+    divisions' current fits right now. Returns None if fewer than 3 such
+    teams exist -- too few for a reliable median."""
+    both = set(target_ratings) & set(other_ratings)
+    print(f"  {target_code} vs {other_code} ({direction_label}): {len(both)} team(s) rated in both")
+    if len(both) < 3:
+        print(f"    too few to compute a reliable median gap -- {direction_label} estimation unavailable this run.")
+        return None
+    attack_gaps = [target_ratings[t]["attack_strength"] - other_ratings[t]["attack_strength"] for t in both]
+    defence_gaps = [target_ratings[t]["defence_strength"] - other_ratings[t]["defence_strength"] for t in both]
+    gap = {
+        "attack": statistics.median(attack_gaps),
+        "defence": statistics.median(defence_gaps),
+        "attack_stdev": statistics.pstdev(attack_gaps),
+        "defence_stdev": statistics.pstdev(defence_gaps),
+        "n": len(both),
+    }
+    print(
+        f"    median attack gap {gap['attack']:+.4f} (stdev {gap['attack_stdev']:.4f}), "
+        f"median defence gap {gap['defence']:+.4f} (stdev {gap['defence_stdev']:.4f})"
+    )
+    return gap
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Estimate ratings for promoted teams from the division below.")
+    parser = argparse.ArgumentParser(description="Estimate ratings for promoted/relegated teams from an adjacent division.")
     parser.add_argument("--target-league", required=True)
-    parser.add_argument("--source-league", required=True)
+    parser.add_argument("--below-league", default=None, help="Division below -- for teams promoted UP into --target-league.")
+    parser.add_argument("--above-league", default=None, help="Division above -- for teams relegated DOWN into --target-league.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if not args.below_league and not args.above_league:
+        print("ERROR: at least one of --below-league / --above-league is required.", file=sys.stderr)
+        sys.exit(1)
 
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_KEY")
@@ -93,56 +141,37 @@ def main():
         return res.data["league_id"]
 
     target_league_id = league_id_for(args.target_league)
-    source_league_id = league_id_for(args.source_league)
-
     target_fit = latest_fit_run(supabase, target_league_id)
-    source_fit = latest_fit_run(supabase, source_league_id)
     if not target_fit:
-        print(f"ERROR: {args.target_league} has no fit run at all -- fit it first.", file=sys.stderr)
+        print(f"ERROR: {args.target_league} has no accepted fit run at all -- fit it first.", file=sys.stderr)
         sys.exit(1)
-    if not source_fit:
-        print(f"ERROR: {args.source_league} has no fit run at all -- fit it first.", file=sys.stderr)
-        sys.exit(1)
-
     target_ratings = ratings_for_fit_run(supabase, target_fit["fit_run_id"])
-    source_ratings = ratings_for_fit_run(supabase, source_fit["fit_run_id"])
-
     print(f"Target league {args.target_league}: {len(target_ratings)} fitted teams")
-    print(f"Source league {args.source_league}: {len(source_ratings)} fitted teams")
 
-    both = set(target_ratings) & set(source_ratings)
-    print(f"Teams with ratings in BOTH leagues: {len(both)}")
-    if len(both) < 3:
-        print(
-            f"ERROR: only {len(both)} team(s) rated in both {args.target_league} and {args.source_league} -- "
-            "too few to compute a reliable median gap. Aborting.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    attack_gaps = [target_ratings[t]["attack_strength"] - source_ratings[t]["attack_strength"] for t in both]
-    defence_gaps = [target_ratings[t]["defence_strength"] - source_ratings[t]["defence_strength"] for t in both]
-    median_attack_gap = statistics.median(attack_gaps)
-    median_defence_gap = statistics.median(defence_gaps)
-    print(f"Median attack gap ({args.target_league} - {args.source_league}): {median_attack_gap:.4f}")
-    print(f"Median defence gap ({args.target_league} - {args.source_league}): {median_defence_gap:.4f}")
-    print(
-        f"(derived from {len(both)} team(s): "
-        f"attack stdev={statistics.pstdev(attack_gaps):.4f}, defence stdev={statistics.pstdev(defence_gaps):.4f})"
-    )
+    # Each direction is independent: a league might have an accepted fit
+    # below but not above (or vice versa), and that alone should not stop
+    # the direction that DOES have one.
+    directions = []  # list of (code, league_id, fit, ratings, gap)
+    for code, label in [(args.below_league, "promoted, from below"), (args.above_league, "relegated, from above")]:
+        if not code:
+            continue
+        league_id = league_id_for(code)
+        fit = latest_fit_run(supabase, league_id)
+        if not fit:
+            print(f"  {code} has no accepted fit run yet -- {label} estimation unavailable this run.")
+            continue
+        ratings = ratings_for_fit_run(supabase, fit["fit_run_id"])
+        print(f"  {code}: {len(ratings)} fitted teams")
+        gap = compute_gap(target_ratings, ratings, args.target_league, code, label)
+        if gap is not None:
+            directions.append({"code": code, "fit": fit, "ratings": ratings, "gap": gap, "label": label})
 
     season_id, current_team_ids = current_season_team_ids(supabase, target_league_id)
     if season_id is None:
-        # This is a known, pre-existing data gap (only E0 has a current
-        # season's fixtures imported today), not a modelling problem -- it
-        # says nothing about whether the fit itself is good. Exit 0 so a
-        # generic multi-league loop can treat it as a graceful skip rather
-        # than aborting the whole pipeline; it's still printed loudly so
-        # it's never silently missed.
         print(
-            f"SKIPPING promoted-team estimation for {args.target_league}: no fixtures found, so which teams are "
-            "actually in its current season can't be determined. This is a data-import gap, not a fit failure -- "
-            "import fixtures for this league to enable estimation."
+            f"SKIPPING promoted/relegated-team estimation for {args.target_league}: no fixtures found, so which "
+            "teams are actually in its current season can't be determined. This is a data-import gap, not a fit "
+            "failure -- import fixtures for this league to enable estimation."
         )
         return
 
@@ -160,53 +189,61 @@ def main():
     unresolvable = []
     for team_id in needing_estimate:
         name = name_by_id.get(team_id, f"team_id={team_id}")
-        source = source_ratings.get(team_id)
-        if not source:
+        resolved = False
+        for d in directions:
+            source = d["ratings"].get(team_id)
+            if not source:
+                continue
+            gap = d["gap"]
+            est_attack = source["attack_strength"] + gap["attack"]
+            est_defence = source["defence_strength"] + gap["defence"]
+            note = (
+                f"Estimated for {args.target_league} from {d['code']} rating ({d['label']}) "
+                f"(attack={source['attack_strength']:.3f}, defence={source['defence_strength']:.3f}), "
+                f"adjusted by median gap (attack{gap['attack']:+.3f}, defence{gap['defence']:+.3f}) "
+                f"computed from {gap['n']} team(s) currently rated in both divisions. "
+                "This is a rough estimate, not a genuine fit -- treat with caution."
+            )
+            print(f"  {name}: estimated attack={est_attack:.3f}, defence={est_defence:.3f} (from {d['code']}, {d['label']})")
+            rows_to_write.append(
+                {
+                    "fit_run_id": target_fit["fit_run_id"],
+                    "team_id": team_id,
+                    "attack_strength": est_attack,
+                    "defence_strength": est_defence,
+                    "is_estimated": True,
+                    "estimated_from_team_id": team_id,
+                    "estimated_from_fit_run_id": d["fit"]["fit_run_id"],
+                    "estimation_note": note,
+                }
+            )
+            resolved = True
+            break  # prefer the first direction that has data for this team (below, then above)
+        if not resolved:
             unresolvable.append(name)
-            continue
-        est_attack = source["attack_strength"] + median_attack_gap
-        est_defence = source["defence_strength"] + median_defence_gap
-        note = (
-            f"Estimated for {args.target_league} from {args.source_league} rating "
-            f"(attack={source['attack_strength']:.3f}, defence={source['defence_strength']:.3f}), "
-            f"adjusted by median gap (attack{median_attack_gap:+.3f}, defence{median_defence_gap:+.3f}) "
-            f"computed from {len(both)} team(s) with ratings in both divisions. "
-            "This is a rough estimate, not a genuine fit -- treat with caution."
-        )
-        print(f"  {name}: estimated attack={est_attack:.3f}, defence={est_defence:.3f}")
-        rows_to_write.append(
-            {
-                "fit_run_id": target_fit["fit_run_id"],
-                "team_id": team_id,
-                "attack_strength": est_attack,
-                "defence_strength": est_defence,
-                "is_estimated": True,
-                "estimated_from_team_id": team_id,
-                "estimated_from_fit_run_id": source_fit["fit_run_id"],
-                "estimation_note": note,
-            }
-        )
+
+    if rows_to_write:
+        if args.dry_run:
+            print(f"\nDry run -- would write {len(rows_to_write)} estimated rating row(s). Not writing to Supabase.")
+        else:
+            ins = supabase.table("team_ratings").insert(rows_to_write).execute()
+            written = len(ins.data or [])
+            if written != len(rows_to_write):
+                print(f"ERROR: wrote only {written}/{len(rows_to_write)} estimated rating rows.", file=sys.stderr)
+                sys.exit(1)
+            print(f"\nWrote {written} estimated team_ratings row(s) for fit_run_id={target_fit['fit_run_id']}.")
+    else:
+        print("\nNo teams could be resolved via any given direction.")
 
     if unresolvable:
         print(
             f"\nSTOPPING -- {len(unresolvable)} team(s) in {args.target_league}'s current season have no rating in "
-            f"{args.target_league} AND none in {args.source_league} either, so no estimation basis exists for them: "
-            + ", ".join(unresolvable)
-            + ". This needs a human decision (which division to source from, or a fresh fit), not a fabricated number.",
+            f"{args.target_league} and none in any of the given adjacent division(s) either, so no estimation basis "
+            "exists for them: " + ", ".join(unresolvable) +
+            ". This needs a human decision (another source division, or a fresh fit), not a fabricated number.",
             file=sys.stderr,
         )
         sys.exit(1)
-
-    if args.dry_run:
-        print("\nDry run -- not writing to Supabase.")
-        return
-
-    ins = supabase.table("team_ratings").insert(rows_to_write).execute()
-    written = len(ins.data or [])
-    if written != len(rows_to_write):
-        print(f"ERROR: wrote only {written}/{len(rows_to_write)} estimated rating rows.", file=sys.stderr)
-        sys.exit(1)
-    print(f"\nWrote {written} estimated team_ratings row(s) for fit_run_id={target_fit['fit_run_id']}.")
 
 
 if __name__ == "__main__":

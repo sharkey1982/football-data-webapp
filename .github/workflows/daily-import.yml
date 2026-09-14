@@ -28,25 +28,28 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Steps 2-3: refit every competition and estimate its promoted teams
-      # from the division below, via one generic loop rather than
-      # duplicated per-league steps -- see scripts/fit_dixon_coles.py and
-      # scripts/estimate_promoted_team_ratings.py, both already
-      # competition-agnostic. Each league's fit+estimate pair is
-      # independent of every other league's: a problem specific to one
-      # competition (its own fit rejected, or its promoted-team
-      # estimation hitting a case it can't resolve) must not prevent a
-      # completely unrelated competition from being fitted at all. The
-      # job still fails overall (FAILED=1 -> exit 1) if ANY competition's
-      # fit or estimation step failed, so nothing is silently swallowed --
-      # it just doesn't take the rest of the pyramid down with it.
-      # EC (National League) has no division below in this dataset, so it
-      # has no estimation step.
-      - name: Fit Dixon-Coles models and estimate promoted teams (all competitions)
+      # Steps 2-3: refit every competition and estimate its promoted AND
+      # relegated teams from the adjacent divisions, via one generic loop
+      # rather than duplicated per-league steps -- see
+      # scripts/fit_dixon_coles.py and scripts/estimate_promoted_team_ratings.py,
+      # both competition-agnostic. Promoted (--below-league) and relegated
+      # (--above-league) teams are NOT mirror images of each other -- see
+      # the estimator's own docstring for the real analysis behind that --
+      # so each league's estimation step is given whichever adjacent
+      # division(s) actually exist for it.
+      #
+      # Each league's fit+estimate pair is independent of every other
+      # league's: a problem specific to one competition must not prevent a
+      # completely unrelated competition from being fitted. The job still
+      # fails overall (FAILED=1 -> exit 1) if ANY competition's fit or
+      # estimation step failed, so nothing is silently swallowed -- it
+      # just doesn't take the rest of the pyramid down with it.
+      - name: Fit Dixon-Coles models and estimate promoted/relegated teams (all competitions)
         run: |
           set +e
           FAILED=0
-          declare -A SOURCE_LEAGUE=( [E0]=E1 [E1]=E2 [E2]=E3 [E3]=EC )
+          declare -A BELOW_LEAGUE=( [E0]=E1 [E1]=E2 [E2]=E3 [E3]=EC )
+          declare -A ABOVE_LEAGUE=( [E1]=E0 [E2]=E1 [E3]=E2 [EC]=E3 )
           for LEAGUE in E0 E1 E2 E3 EC; do
             echo "::group::Fitting $LEAGUE"
             python scripts/fit_dixon_coles.py --league-code "$LEAGUE"
@@ -56,12 +59,16 @@ jobs:
             fi
             echo "::endgroup::"
 
-            SRC="${SOURCE_LEAGUE[$LEAGUE]:-}"
-            if [ -n "$SRC" ]; then
-              echo "::group::Estimating promoted teams for $LEAGUE from $SRC"
-              python scripts/estimate_promoted_team_ratings.py --target-league "$LEAGUE" --source-league "$SRC"
+            BELOW="${BELOW_LEAGUE[$LEAGUE]:-}"
+            ABOVE="${ABOVE_LEAGUE[$LEAGUE]:-}"
+            if [ -n "$BELOW" ] || [ -n "$ABOVE" ]; then
+              ARGS="--target-league $LEAGUE"
+              [ -n "$BELOW" ] && ARGS="$ARGS --below-league $BELOW"
+              [ -n "$ABOVE" ] && ARGS="$ARGS --above-league $ABOVE"
+              echo "::group::Estimating promoted/relegated teams for $LEAGUE ($ARGS)"
+              python scripts/estimate_promoted_team_ratings.py $ARGS
               if [ $? -ne 0 ]; then
-                echo "::error::Promoted-team estimation failed for $LEAGUE (from $SRC)"
+                echo "::error::Promoted/relegated-team estimation failed for $LEAGUE"
                 FAILED=1
               fi
               echo "::endgroup::"

@@ -118,4 +118,67 @@ describe('FantasyFixtures page', () => {
     // there's no FDR equivalent for a model-derived probability.
     expect(screen.getByRole('button', { name: 'Simple FDR (1-5)' })).toBeDisabled();
   });
+
+  it('lets "Start from GW" skip a partially-played gameweek', async () => {
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
+    ]);
+    mockedApi.getMostRecentFixtureSeason.mockResolvedValue({ season_id: 13, label: '2026/27' });
+    mockedApi.getFantasyFixtureDifficulty.mockResolvedValue({
+      fitRun: { fit_run_id: 1, league_id: 1, rho: -0.1, home_advantage: 0.3 } as any,
+      ratings: [
+        { team_id: 1, canonical_name: 'Arsenal', attack_strength: 0.5, defence_strength: 0.6, is_estimated: false, estimation_note: null },
+      ],
+      teams: [
+        {
+          team_id: 1,
+          team_name: 'Arsenal',
+          fixtures: [
+            // GW4 only has this one fixture left unplayed (the rest of the
+            // gameweek is already done), which is exactly the skewed-window
+            // case "Start from GW" exists to let the user skip past.
+            {
+              fixture_id: 201,
+              kickoff_date: '2026-09-13',
+              matchweek: 4,
+              opponent_team_id: 5,
+              opponent_name: 'Everton',
+              is_home: false,
+              expected_goals_for: 1.1,
+              expected_goals_against: 1.1,
+              clean_sheet_probability: 0.3,
+              opponent_attack_strength: 0,
+              opponent_defence_strength: 0,
+            },
+            {
+              fixture_id: 202,
+              kickoff_date: '2026-09-20',
+              matchweek: 5,
+              opponent_team_id: 3,
+              opponent_name: 'Fulham',
+              is_home: true,
+              expected_goals_for: 2.4,
+              expected_goals_against: 1.8,
+              clean_sheet_probability: 0.16,
+              opponent_attack_strength: 0,
+              opponent_defence_strength: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<FantasyFixtures />);
+
+    await waitFor(() => expect(screen.getByText('GW4')).toBeInTheDocument());
+    expect(screen.getByText('GW5')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    const startGwInput = screen.getByLabelText('Start from GW');
+    await user.clear(startGwInput);
+    await user.type(startGwInput, '5');
+
+    await waitFor(() => expect(screen.queryByText('GW4')).not.toBeInTheDocument());
+    expect(screen.getByText('GW5')).toBeInTheDocument();
+  });
 });

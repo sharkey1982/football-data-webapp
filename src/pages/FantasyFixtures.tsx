@@ -28,6 +28,7 @@ export default function FantasyFixtures() {
   const [colourBasis, setColourBasis] = useState<FantasyColourBasis>('model');
   const [defenceMetric, setDefenceMetric] = useState<FantasyDefenceMetric>('goals');
   const [rankWindowInput, setRankWindowInput] = useState(String(DEFAULT_RANK_WINDOW));
+  const [startGwInput, setStartGwInput] = useState('');
 
   // Clean sheet probability only exists as a Dixon-Coles model output --
   // there's no FDR-quintile equivalent -- so switching to it forces the
@@ -80,18 +81,37 @@ export default function FantasyFixtures() {
     return [...seen].sort((a, b) => a - b);
   }, [data]);
 
+  const earliestMatchweek = allMatchweeks[0] ?? null;
+
+  // Fixtures come back as soon as any part of a gameweek is unplayed, so a
+  // gameweek that's only partway through (some teams already played their
+  // fixture, others haven't) shows up as a real column but isn't a fair
+  // like-for-like comparison across teams. Left blank, this defaults to the
+  // earliest upcoming gameweek as before; typing a later one skips past an
+  // in-progress gameweek explicitly.
+  const startMatchweek = useMemo(() => {
+    const n = parseInt(startGwInput, 10);
+    if (!Number.isFinite(n)) return earliestMatchweek ?? 1;
+    return n;
+  }, [startGwInput, earliestMatchweek]);
+
+  const matchweeksFromStart = useMemo(
+    () => allMatchweeks.filter((mw) => mw >= startMatchweek),
+    [allMatchweeks, startMatchweek]
+  );
+
   const rankWindowSize = useMemo(() => {
     const n = parseInt(rankWindowInput, 10);
     if (!Number.isFinite(n) || n < 1) return 1;
-    return Math.min(n, allMatchweeks.length || 1);
-  }, [rankWindowInput, allMatchweeks.length]);
+    return Math.min(n, matchweeksFromStart.length || 1);
+  }, [rankWindowInput, matchweeksFromStart.length]);
 
   // The number box controls both the ranking average AND which columns are
   // shown -- there's no separate "full season" view, so the two can never
   // drift apart and confuse what's actually driving the colours on screen.
   const displayedMatchweeks = useMemo(
-    () => allMatchweeks.slice(0, rankWindowSize),
-    [allMatchweeks, rankWindowSize]
+    () => matchweeksFromStart.slice(0, rankWindowSize),
+    [matchweeksFromStart, rankWindowSize]
   );
 
   const rows: FantasyHeatmapRow[] = useMemo(() => {
@@ -274,6 +294,21 @@ export default function FantasyFixtures() {
         </div>
 
         <div>
+          <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="start-gw">
+            Start from GW
+          </label>
+          <input
+            id="start-gw"
+            type="number"
+            min={earliestMatchweek ?? 1}
+            placeholder={earliestMatchweek !== null ? String(earliestMatchweek) : undefined}
+            value={startGwInput}
+            onChange={(e) => setStartGwInput(e.target.value)}
+            className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
+          />
+        </div>
+
+        <div>
           <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="rank-window">
             Rank by next
           </label>
@@ -282,7 +317,7 @@ export default function FantasyFixtures() {
               id="rank-window"
               type="number"
               min={1}
-              max={allMatchweeks.length || 1}
+              max={matchweeksFromStart.length || 1}
               value={rankWindowInput}
               onChange={(e) => setRankWindowInput(e.target.value)}
               className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
@@ -297,7 +332,7 @@ export default function FantasyFixtures() {
 
       {!loading && !error && data && sortedRows.length === 0 && (
         <p className="text-ink-500 text-sm">
-          No upcoming fixtures with rated teams were found for the current season yet.
+          No fixtures found from GW{startMatchweek} onwards -- try lowering "Start from GW".
         </p>
       )}
 
