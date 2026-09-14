@@ -6,15 +6,22 @@ import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
 // Visual formation display driven by REAL tactical role (tactical_role,
 // e.g. "RWB", "CF", "AM") -- never FPL position.
 //
-// Lines are laid out from the team's actual predicted formation string
-// (e.g. "3-4-3", "4-2-3-1"), not a fixed role->line dictionary: the 10
-// outfield starters are ranked by how advanced their role is (GK=0 ...
-// CF=highest) and then sliced into groups whose SIZES come from the
-// formation string. This keeps the pitch visually consistent with the
-// "Formation: X-X-X" text shown above it -- a static per-role bucket list
-// previously put wing-backs on the same row as centre-backs regardless of
-// formation shape, which for a back-3 system (wing-backs push into the
-// midfield line) looked like an inaccurate/wrong formation.
+// There's no single official machine-readable "formation template" file to
+// pull from -- pitch diagrams are a visual convention, not licensed data --
+// so FORMATION_TEMPLATES below are hand-built to match the layout
+// convention used across football broadcast graphics and analysis sites
+// (e.g. WhoScored/FBref-style average position maps): named slots with
+// fixed pitch coordinates for each commonly-seen formation shape.
+//
+// Real starters are matched to template slots by role compatibility (exact
+// tactical_role first, then nearest role-group + side), not by a fragile
+// re-sort -- this fixes the earlier approach, where players sharing a
+// coarse "line" and L/R-prefix tier could land in a coincidentally wrong
+// left-right order (e.g. a left-back landing inside a centre-back).
+//
+// Formations without a template (anything unusual/unlisted) fall back to
+// evenly-spaced lines sized from the formation string, ordered by a
+// per-specific-role canonical x-position rather than a generic L/R split.
 //
 // Not drag/drop in this milestone -- clicking a player selects/highlights
 // them (wired to the projection table via onSelectPlayer), which is the
@@ -22,9 +29,86 @@ import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
 // later.
 // ============================================================================
 
-/** How advanced a role is, from own goal (0) to centre-forward (highest). */
+type Slot = { role: string; top: number; left: number };
+
+// top: 88 = deepest (own goal end), 10 = most advanced (opponent goal end).
+// GK is never included here -- always placed separately at (92, 50), with
+// the defensive line capped at 70 or shallower so there's always a safe
+// gap between the keeper and the back line regardless of button size.
+const FORMATION_TEMPLATES: Record<string, Slot[]> = {
+  '4-4-2': [
+    { role: 'LB', top: 70, left: 12 }, { role: 'LCB', top: 74, left: 36 }, { role: 'RCB', top: 74, left: 64 }, { role: 'RB', top: 70, left: 88 },
+    { role: 'LM', top: 48, left: 12 }, { role: 'CM', top: 50, left: 36 }, { role: 'CM', top: 50, left: 64 }, { role: 'RM', top: 48, left: 88 },
+    { role: 'CF', top: 14, left: 38 }, { role: 'CF', top: 14, left: 62 },
+  ],
+  '4-3-3': [
+    { role: 'LB', top: 70, left: 12 }, { role: 'LCB', top: 74, left: 36 }, { role: 'RCB', top: 74, left: 64 }, { role: 'RB', top: 70, left: 88 },
+    { role: 'CM', top: 50, left: 25 }, { role: 'CM', top: 52, left: 50 }, { role: 'CM', top: 50, left: 75 },
+    { role: 'LW', top: 20, left: 15 }, { role: 'CF', top: 10, left: 50 }, { role: 'RW', top: 20, left: 85 },
+  ],
+  '4-2-3-1': [
+    { role: 'LB', top: 70, left: 12 }, { role: 'LCB', top: 74, left: 36 }, { role: 'RCB', top: 74, left: 64 }, { role: 'RB', top: 70, left: 88 },
+    { role: 'DM', top: 54, left: 35 }, { role: 'DM', top: 54, left: 65 },
+    { role: 'LW', top: 30, left: 15 }, { role: 'AM', top: 26, left: 50 }, { role: 'RW', top: 30, left: 85 },
+    { role: 'CF', top: 10, left: 50 },
+  ],
+  '3-4-3': [
+    { role: 'LCB', top: 68, left: 28 }, { role: 'CB', top: 72, left: 50 }, { role: 'RCB', top: 68, left: 72 },
+    { role: 'LWB', top: 48, left: 10 }, { role: 'CM', top: 50, left: 37 }, { role: 'CM', top: 50, left: 63 }, { role: 'RWB', top: 48, left: 90 },
+    { role: 'LF', top: 18, left: 20 }, { role: 'CF', top: 10, left: 50 }, { role: 'RF', top: 18, left: 80 },
+  ],
+  '3-5-2': [
+    { role: 'LCB', top: 68, left: 28 }, { role: 'CB', top: 72, left: 50 }, { role: 'RCB', top: 68, left: 72 },
+    { role: 'LWB', top: 48, left: 8 }, { role: 'CM', top: 50, left: 29 }, { role: 'CM', top: 54, left: 50 }, { role: 'CM', top: 50, left: 71 }, { role: 'RWB', top: 48, left: 92 },
+    { role: 'CF', top: 14, left: 38 }, { role: 'CF', top: 14, left: 62 },
+  ],
+  '5-3-2': [
+    { role: 'LWB', top: 62, left: 8 }, { role: 'LCB', top: 70, left: 30 }, { role: 'CB', top: 72, left: 50 }, { role: 'RCB', top: 70, left: 70 }, { role: 'RWB', top: 62, left: 92 },
+    { role: 'CM', top: 46, left: 30 }, { role: 'CM', top: 48, left: 50 }, { role: 'CM', top: 46, left: 70 },
+    { role: 'CF', top: 14, left: 38 }, { role: 'CF', top: 14, left: 62 },
+  ],
+  '5-4-1': [
+    { role: 'LWB', top: 62, left: 8 }, { role: 'LCB', top: 70, left: 30 }, { role: 'CB', top: 72, left: 50 }, { role: 'RCB', top: 70, left: 70 }, { role: 'RWB', top: 62, left: 92 },
+    { role: 'LM', top: 46, left: 12 }, { role: 'CM', top: 48, left: 38 }, { role: 'CM', top: 48, left: 62 }, { role: 'RM', top: 46, left: 88 },
+    { role: 'CF', top: 12, left: 50 },
+  ],
+  '4-5-1': [
+    { role: 'LB', top: 70, left: 12 }, { role: 'LCB', top: 74, left: 36 }, { role: 'RCB', top: 74, left: 64 }, { role: 'RB', top: 70, left: 88 },
+    { role: 'LM', top: 40, left: 10 }, { role: 'CM', top: 44, left: 30 }, { role: 'CM', top: 46, left: 50 }, { role: 'CM', top: 44, left: 70 }, { role: 'RM', top: 40, left: 90 },
+    { role: 'CF', top: 12, left: 50 },
+  ],
+  '4-1-4-1': [
+    { role: 'LB', top: 70, left: 12 }, { role: 'LCB', top: 74, left: 36 }, { role: 'RCB', top: 74, left: 64 }, { role: 'RB', top: 70, left: 88 },
+    { role: 'DM', top: 56, left: 50 },
+    { role: 'LM', top: 34, left: 12 }, { role: 'CM', top: 36, left: 34 }, { role: 'CM', top: 36, left: 66 }, { role: 'RM', top: 34, left: 88 },
+    { role: 'CF', top: 12, left: 50 },
+  ],
+  '4-4-1-1': [
+    { role: 'LB', top: 70, left: 12 }, { role: 'LCB', top: 74, left: 36 }, { role: 'RCB', top: 74, left: 64 }, { role: 'RB', top: 70, left: 88 },
+    { role: 'LM', top: 48, left: 12 }, { role: 'CM', top: 50, left: 36 }, { role: 'CM', top: 50, left: 64 }, { role: 'RM', top: 48, left: 88 },
+    { role: 'CF', top: 24, left: 50 }, { role: 'CF', top: 10, left: 50 },
+  ],
+  '3-4-2-1': [
+    { role: 'LCB', top: 68, left: 28 }, { role: 'CB', top: 72, left: 50 }, { role: 'RCB', top: 68, left: 72 },
+    { role: 'LWB', top: 48, left: 10 }, { role: 'CM', top: 50, left: 37 }, { role: 'CM', top: 50, left: 63 }, { role: 'RWB', top: 48, left: 90 },
+    { role: 'AM', top: 24, left: 35 }, { role: 'AM', top: 24, left: 65 },
+    { role: 'CF', top: 10, left: 50 },
+  ],
+};
+
+/** Canonical x-position (0-100) per specific role, for the fallback layout when the formation has no template. */
+const ROLE_X: Record<string, number> = {
+  GK: 50,
+  LB: 10, LWB: 8, LCB: 30, CB: 50, RCB: 70, RB: 90, RWB: 92,
+  LDM: 25, DM: 50, CDM: 50, RDM: 75,
+  LM: 10, LCM: 30, CM: 50, RCM: 70, RM: 90,
+  LW: 10, LAM: 30, AM: 50, RAM: 70, RW: 90,
+  LF: 25, CF: 50, RF: 75, ST: 50,
+};
+
+/** How advanced a role is, from own goal (0) to centre-forward (highest) -- used for picking the likely starting 10 and, as a fallback, for line grouping. */
 function roleAdvancement(role: string | null): number {
-  if (!role) return 25; // unknown -- park in the middle rather than dropping the player
+  if (!role) return 25;
   const r = role.toUpperCase();
   if (r === 'GK') return 0;
   if (['CB', 'LCB', 'RCB'].includes(r)) return 10;
@@ -39,13 +123,35 @@ function roleAdvancement(role: string | null): number {
   return 25;
 }
 
-/** Rough left-right ordering within a line, purely from the role's L/R/C prefix. */
-function roleSortKey(role: string | null): number {
-  if (!role) return 50;
+/** Coarse tactical group, for fuzzy-matching a player to a template slot when their exact role isn't the slot's exact role. */
+function roleGroup(role: string | null): number {
+  if (!role) return 4;
   const r = role.toUpperCase();
-  if (r.startsWith('L')) return 10;
-  if (r.startsWith('R')) return 90;
-  return 50;
+  if (r === 'GK') return 0;
+  if (['CB', 'LCB', 'RCB'].includes(r)) return 1;
+  if (['LB', 'RB', 'LWB', 'RWB'].includes(r)) return 2;
+  if (r === 'DM' || r === 'CDM') return 3;
+  if (['CM', 'LM', 'RM'].includes(r)) return 4;
+  if (r === 'AM') return 5;
+  if (r === 'LW' || r === 'RW' || r === 'LF' || r === 'RF') return 6;
+  if (r === 'CF' || r === 'ST') return 7;
+  return 4;
+}
+
+function roleSide(role: string | null): 'L' | 'R' | 'C' {
+  if (!role) return 'C';
+  const r = role.toUpperCase();
+  if (r.startsWith('L')) return 'L';
+  if (r.startsWith('R')) return 'R';
+  return 'C';
+}
+
+/** How well a player's actual role fits a template slot's expected role. Exact match dominates; otherwise nearer tactical group + matching side scores higher. */
+function matchScore(playerRole: string | null, slotRole: string): number {
+  if (playerRole && playerRole.toUpperCase() === slotRole.toUpperCase()) return 1000;
+  const groupDiff = Math.abs(roleGroup(playerRole) - roleGroup(slotRole));
+  const sideBonus = roleSide(playerRole) === roleSide(slotRole) ? 60 : roleSide(playerRole) === 'C' || roleSide(slotRole) === 'C' ? 20 : 0;
+  return 500 - groupDiff * 40 + sideBonus;
 }
 
 /** "4-2-3-1" -> [4, 2, 3, 1]; null/unparseable -> null. */
@@ -62,6 +168,50 @@ type PitchSlot = {
   left: number;
 };
 
+/** Greedily assigns starters to template slots by best role match, in slot order. */
+function assignToTemplate(starters: FplFixtureProjectionPlayer[], template: Slot[]): PitchSlot[] {
+  const remaining = [...starters];
+  const slots: PitchSlot[] = [];
+  for (const slot of template) {
+    if (remaining.length === 0) break;
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    remaining.forEach((p, i) => {
+      const score = matchScore(p.tactical_role, slot.role);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    });
+    const [player] = remaining.splice(bestIndex, 1);
+    slots.push({ player, top: slot.top, left: slot.left });
+  }
+  return slots;
+}
+
+/** Fallback for formations without a template: even lines sized from the formation string, ordered by canonical per-role x rather than a generic L/R split. */
+function layoutByLines(starters: FplFixtureProjectionPlayer[], lineSizes: number[]): PitchSlot[] {
+  const totalLines = lineSizes.length + 1; // + GK line
+  const lineTop = (lineIndex: number) => 90 - (lineIndex * 80) / Math.max(totalLines - 1, 1);
+
+  const slots: PitchSlot[] = [];
+  let cursor = 0;
+  lineSizes.forEach((size, i) => {
+    const lineStarters = starters.slice(cursor, cursor + size);
+    cursor += size;
+    const sorted = [...lineStarters].sort((a, b) => {
+      const ax = a.tactical_role ? (ROLE_X[a.tactical_role.toUpperCase()] ?? 50) : 50;
+      const bx = b.tactical_role ? (ROLE_X[b.tactical_role.toUpperCase()] ?? 50) : 50;
+      return ax - bx;
+    });
+    sorted.forEach((player, j, arr) => {
+      const left = arr.length === 1 ? 50 : 12 + (j * (88 - 12)) / (arr.length - 1);
+      slots.push({ player, top: lineTop(i + 1), left });
+    });
+  });
+  return slots;
+}
+
 function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string | null): PitchSlot[] {
   const isGk = (p: FplFixtureProjectionPlayer) => p.tactical_role?.toUpperCase() === 'GK' || p.fpl_position === 1;
   const gk = players.find(isGk) ?? null;
@@ -71,41 +221,31 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   const outfieldCount = formationLines ? formationLines.reduce((a, b) => a + b, 0) : 10;
 
   // Players are already ranked by expected minutes (the API's default
-  // order) -- take the most likely starting outfielders, then re-sort that
-  // starting set by role advancement so the pitch reads defence-to-attack.
+  // order) -- take the most likely starting outfielders, then re-rank that
+  // starting set by role advancement so template/line matching reads
+  // defence-to-attack.
   const starters = [...outfieldPool]
     .slice(0, outfieldCount)
     .sort((a, b) => roleAdvancement(a.tactical_role) - roleAdvancement(b.tactical_role));
 
-  // Group sizes from the formation string when it parses cleanly and
-  // actually accounts for every starter; otherwise fall back to one
-  // group per distinct advancement value so nobody is mis-grouped.
-  let lineSizes: number[];
-  if (formationLines && formationLines.reduce((a, b) => a + b, 0) === starters.length) {
-    lineSizes = formationLines;
-  } else {
-    const distinctScores = [...new Set(starters.map((p) => roleAdvancement(p.tactical_role)))].sort((a, b) => a - b);
-    lineSizes = distinctScores.map((score) => starters.filter((p) => roleAdvancement(p.tactical_role) === score).length);
-  }
-
-  const totalLines = lineSizes.length + 1; // + GK line
-  const lineTop = (lineIndex: number) => 90 - (lineIndex * 80) / Math.max(totalLines - 1, 1);
+  const templateKey = formation?.trim() ?? '';
+  const template = FORMATION_TEMPLATES[templateKey];
 
   const slots: PitchSlot[] = [];
-  if (gk) slots.push({ player: gk, top: lineTop(0), left: 50 });
+  if (gk) slots.push({ player: gk, top: 92, left: 50 });
 
-  let cursor = 0;
-  lineSizes.forEach((size, i) => {
-    const lineStarters = starters.slice(cursor, cursor + size);
-    cursor += size;
-    const sorted = [...lineStarters].sort((a, b) => roleSortKey(a.tactical_role) - roleSortKey(b.tactical_role));
-    const n = sorted.length;
-    sorted.forEach((player, j) => {
-      // Spread evenly across 12%-88% -- a single player on a line sits centred.
-      const left = n === 1 ? 50 : 12 + (j * (88 - 12)) / (n - 1);
-      slots.push({ player, top: lineTop(i + 1), left });
-    });
-  });
+  if (template && template.length === starters.length) {
+    slots.push(...assignToTemplate(starters, template));
+  } else {
+    let lineSizes: number[];
+    if (formationLines && formationLines.reduce((a, b) => a + b, 0) === starters.length) {
+      lineSizes = formationLines;
+    } else {
+      const distinctScores = [...new Set(starters.map((p) => roleAdvancement(p.tactical_role)))].sort((a, b) => a - b);
+      lineSizes = distinctScores.map((score) => starters.filter((p) => roleAdvancement(p.tactical_role) === score).length);
+    }
+    slots.push(...layoutByLines(starters, lineSizes));
+  }
 
   return slots;
 }
@@ -117,7 +257,7 @@ export default function FormationPitch({
   onSelectPlayer,
 }: {
   players: FplFixtureProjectionPlayer[];
-  /** The team's predicted formation (e.g. "3-4-3") -- drives line sizing so the pitch matches the formation shown above it. */
+  /** The team's predicted formation (e.g. "3-4-3") -- drives slot layout so the pitch matches the formation shown above it. */
   formation: string | null;
   selectedPlayerId: number | null;
   onSelectPlayer: (fplPlayerId: number) => void;
