@@ -240,6 +240,14 @@ export default function PlayerProjectionTable({
                           <div>Exp. bonus: {dec(p.expected_bonus)}</div>
                           <div>Role sources: {p.tactical_role_sources ?? '\u2014'}</div>
                         </div>
+                        <div className="mt-2 pt-2 border-t border-chalk-300 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-ink-700 font-mono">
+                          <div title="FPL's own season-to-date stat -- total points / games played, not recomputed here">
+                            Season PPG: {dec(p.season_points_per_game, 1)}
+                          </div>
+                          <div title="This season's minutes / starts -- how long they typically last once in the XI">
+                            Avg min/start: {p.season_avg_minutes_per_start === null ? '\u2014' : Math.round(p.season_avg_minutes_per_start)}
+                          </div>
+                        </div>
                         <div className="mt-2 pt-2 border-t border-chalk-300 grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-1 text-xs text-ink-500 font-mono">
                           <div>xPts appearance: {dec(p.xpts.appearance)}</div>
                           <div>xPts goals: {dec(p.xpts.goals)}</div>

@@ -62,6 +62,27 @@ export function num(v: string | number | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Season-to-date points-per-game and average minutes per start for a
+ * player, both computed straight from their FPL bootstrap data --
+ * points_per_game is FPL's own published stat (not recomputed here), and
+ * avg minutes per start is this season's minutes / starts, a sensible
+ * "how long do they typically last once actually in the XI" figure.
+ * source_payload is the raw bootstrap-static element JSON; both fields
+ * come back as strings there (PostgREST jsonb ->> operator), same as the
+ * numeric-string columns num() already handles.
+ */
+function seasonContextStats(player: { minutes: number | null; source_payload: Record<string, unknown> | null }): {
+  points_per_game: number | null;
+  avg_minutes_per_start: number | null;
+} {
+  const payload = player.source_payload;
+  const pointsPerGame = payload ? num(payload['points_per_game'] as string | number | null) : null;
+  const starts = payload ? num(payload['starts'] as string | number | null) : null;
+  const avgMinutesPerStart = starts !== null && starts > 0 && player.minutes !== null ? player.minutes / starts : null;
+  return { points_per_game: pointsPerGame, avg_minutes_per_start: avgMinutesPerStart };
+}
+
 export type FplXptsBreakdown = {
   appearance: number | null;
   goals: number | null;
@@ -210,6 +231,10 @@ export type FplFixtureProjectionPlayer = {
   /** Official FPL availability status code (e.g. 'a' = available, 'i' = injured, 'd' = doubtful). */
   status: string | null;
   news: string | null;
+  /** Season-to-date points per game played (FPL's own stat, from source_payload -- not recomputed). Context for the projection below, not part of it. */
+  season_points_per_game: number | null;
+  /** Season-to-date minutes / starts -- how long they typically last once actually in the XI. Null if they haven't started at all yet. */
+  season_avg_minutes_per_start: number | null;
 };
 
 export type FplFixtureProjectionTeam = {
@@ -376,6 +401,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     const penaltyPoints = num(proj.xpts_penalties);
     const penaltyPointsShare =
       expectedFplPoints !== null && expectedFplPoints > 0 && penaltyPoints !== null ? penaltyPoints / expectedFplPoints : null;
+    const seasonStats = seasonContextStats(player);
 
     return {
       fpl_player_id: proj.fpl_player_id,
@@ -416,6 +442,8 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
       },
       status: player.status,
       news: player.news,
+      season_points_per_game: seasonStats.points_per_game,
+      season_avg_minutes_per_start: seasonStats.avg_minutes_per_start,
     };
   };
 

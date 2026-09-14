@@ -316,6 +316,8 @@ export default function FormationPitch({
 
           const titleParts = [`${player.web_name} \u2014 ${player.tactical_role ?? 'role unknown'}`];
           if (startPct !== null) titleParts.push(`${Math.round(startPct * 100)}% start`);
+          if (player.season_points_per_game !== null) titleParts.push(`${player.season_points_per_game.toFixed(1)} pts/game this season`);
+          if (player.season_avg_minutes_per_start !== null) titleParts.push(`${Math.round(player.season_avg_minutes_per_start)} min/start this season`);
           if (setPieces) titleParts.push(setPieces.full);
           const statusDescription = describeSquadStatus(player.squad_status);
           if (statusDescription) titleParts.push(statusDescription);
@@ -346,6 +348,11 @@ export default function FormationPitch({
               <span className="max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-[9px] sm:text-[10px] leading-tight text-chalk-100 font-medium text-center">
                 {player.web_name}
               </span>
+              {player.season_points_per_game !== null && (
+                <span className="text-[8px] sm:text-[9px] leading-none text-chalk-100/70 font-mono">
+                  {player.season_points_per_game.toFixed(1)} ppg
+                </span>
+              )}
               <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono uppercase">
                 {player.tactical_role ?? '\u2014'}
                 {player.position_signal === 'advanced' && <span className="text-emerald-400 ml-0.5">&#9650;</span>}

@@ -6,6 +6,8 @@ type SortKey =
   | 'web_name'
   | 'team_name'
   | 'fpl_position_label'
+  | 'actual_started'
+  | 'actual_minutes'
   | 'start_probability'
   | 'expected_minutes'
   | 'expected_goals'
@@ -20,6 +22,8 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDi
   { key: 'web_name', label: 'Player', align: 'left', defaultDir: 'asc' },
   { key: 'team_name', label: 'Team', align: 'left', defaultDir: 'asc' },
   { key: 'fpl_position_label', label: 'Pos', align: 'left', defaultDir: 'asc' },
+  { key: 'actual_started', label: 'Started', align: 'right', defaultDir: 'desc', title: 'Real result from the match, where played -- independent of any projection' },
+  { key: 'actual_minutes', label: 'Act. Min', align: 'right', defaultDir: 'desc' },
   { key: 'start_probability', label: 'Start%', align: 'right', defaultDir: 'desc' },
   { key: 'expected_minutes', label: 'Min', align: 'right', defaultDir: 'desc' },
   { key: 'expected_goals', label: 'xG', align: 'right', defaultDir: 'desc' },
@@ -170,6 +174,18 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
                   </td>
                   <td className="px-2 py-1.5 text-xs text-ink-700 whitespace-nowrap">{p.team_name}</td>
                   <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{p.fpl_position_label}</td>
+                  <td className="px-2 py-1.5 text-right font-mono text-xs">
+                    {p.actual_started === null ? (
+                      <span className="text-ink-500">{'\u2014'}</span>
+                    ) : p.actual_started ? (
+                      <span className="text-pitch-800 font-medium">{'\u2713'}</span>
+                    ) : (
+                      <span className="text-ink-500">sub</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
+                    {p.actual_minutes === null ? '\u2014' : p.actual_minutes}
+                  </td>
                   <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-600' : 'text-ink-700'].join(' ')}>
                     {pct(p.start_probability)}
                   </td>

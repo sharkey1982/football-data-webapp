@@ -157,6 +157,9 @@ export type SeasonPlayerProjection = {
    * pre-match forecast. The UI must not present it as the latter.
    */
   is_retrospective: boolean;
+  /** Real result, from fpl_prediction_actual_start_comparison -- null until the match has been played and backfilled. Independent of every projection field above; can be present with no projection at all (true for all of GW1-4 right now). */
+  actual_started: boolean | null;
+  actual_minutes: number | null;
 };
 
 /**
@@ -175,15 +178,38 @@ export async function getGameweekPlayerProjections(
   const { data: projections, error } = await query;
   if (error) throw error;
 
-  const fixtureIds = [...new Set((projections ?? []).map((p) => p.fixture_id))];
+  // Actual results are fetched independently of projections -- a fixture
+  // can have real backfilled results with no projection at all (true for
+  // every GW1-4 fixture right now), and this must not be gated behind a
+  // projection existing.
+  let actualQuery = supabase.from('fpl_prediction_actual_start_comparison').select('*').eq('matchweek', matchweek);
+  if (fixtureId !== undefined) actualQuery = actualQuery.eq('fixture_id', fixtureId);
+  const { data: actualRows, error: actualError } = await actualQuery;
+  if (actualError) throw actualError;
+
+  const actualByKey = new Map<string, { started: boolean; minutes: number; team_id: number; web_name: string }>();
+  for (const r of actualRows ?? []) {
+    actualByKey.set(`${r.fixture_id}:${r.fpl_player_id}`, {
+      started: r.actual_started,
+      minutes: r.actual_minutes,
+      team_id: r.team_id,
+      web_name: r.web_name,
+    });
+  }
+
+  const fixtureIds = [...new Set([...(projections ?? []).map((p) => p.fixture_id), ...(actualRows ?? []).map((r) => r.fixture_id)])];
   const statusByFixture = new Map<number, string>();
+  const kickoffByFixture = new Map<number, string>();
   if (fixtureIds.length > 0) {
     const { data: fixtureRows, error: fixtureError } = await supabase
       .from('fpl_season_fixture_feed')
-      .select('fixture_id, status')
+      .select('fixture_id, status, kickoff_date')
       .in('fixture_id', fixtureIds);
     if (fixtureError) throw fixtureError;
-    for (const f of fixtureRows ?? []) statusByFixture.set(f.fixture_id, f.status);
+    for (const f of fixtureRows ?? []) {
+      statusByFixture.set(f.fixture_id, f.status);
+      kickoffByFixture.set(f.fixture_id, f.kickoff_date);
+    }
   }
 
   const playerIds = [...new Set((projections ?? []).map((p) => p.fpl_player_id))];
@@ -202,28 +228,71 @@ export async function getGameweekPlayerProjections(
     }
   }
 
-  return (projections ?? []).map((p) => ({
-    fixture_id: p.fixture_id,
-    matchweek: p.matchweek,
-    kickoff_date: p.kickoff_date,
-    team_id: p.team_id,
-    team_name: teamNames.get(p.team_id) ?? 'Unknown',
-    web_name: p.web_name,
-    fpl_player_id: p.fpl_player_id,
-    fpl_position: p.fpl_position,
-    fpl_position_label: p.fpl_position ? FPL_POSITION_LABEL[p.fpl_position] : '\u2014',
-    tactical_role: p.tactical_role,
-    expected_minutes: num(p.expected_minutes),
-    start_probability: num(p.start_probability),
-    sub_appearance_probability: num(p.sub_appearance_probability),
-    shrunk_xg90: num(p.shrunk_xg90),
-    shrunk_xa90: num(p.shrunk_xa90),
-    expected_goals: num(p.expected_goals),
-    expected_assists: num(p.expected_assists),
-    clean_sheet_probability: num(p.clean_sheet_probability),
-    defensive_contribution_probability: num(p.defensive_contribution_probability),
-    experimental_expected_bonus: num(p.experimental_expected_bonus),
-    expected_fpl_points: xptsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`) ?? null,
-    is_retrospective: statusByFixture.get(p.fixture_id) === 'played',
-  }));
+  const rows: SeasonPlayerProjection[] = (projections ?? []).map((p) => {
+    const actual = actualByKey.get(`${p.fixture_id}:${p.fpl_player_id}`);
+    return {
+      fixture_id: p.fixture_id,
+      matchweek: p.matchweek,
+      kickoff_date: p.kickoff_date,
+      team_id: p.team_id,
+      team_name: teamNames.get(p.team_id) ?? 'Unknown',
+      web_name: p.web_name,
+      fpl_player_id: p.fpl_player_id,
+      fpl_position: p.fpl_position,
+      fpl_position_label: p.fpl_position ? FPL_POSITION_LABEL[p.fpl_position] : '\u2014',
+      tactical_role: p.tactical_role,
+      expected_minutes: num(p.expected_minutes),
+      start_probability: num(p.start_probability),
+      sub_appearance_probability: num(p.sub_appearance_probability),
+      shrunk_xg90: num(p.shrunk_xg90),
+      shrunk_xa90: num(p.shrunk_xa90),
+      expected_goals: num(p.expected_goals),
+      expected_assists: num(p.expected_assists),
+      clean_sheet_probability: num(p.clean_sheet_probability),
+      defensive_contribution_probability: num(p.defensive_contribution_probability),
+      experimental_expected_bonus: num(p.experimental_expected_bonus),
+      expected_fpl_points: xptsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`) ?? null,
+      is_retrospective: statusByFixture.get(p.fixture_id) === 'played',
+      actual_started: actual?.started ?? null,
+      actual_minutes: actual?.minutes ?? null,
+    };
+  });
+
+  // Any player with actual data but no projection at all -- every GW1-4
+  // player right now -- gets its own row rather than being dropped. Real
+  // tactical role/position aren't available for these (no projection
+  // pipeline ran for them), so those fields are null -- never guessed.
+  const projectedKeys = new Set((projections ?? []).map((p) => `${p.fixture_id}:${p.fpl_player_id}`));
+  for (const r of actualRows ?? []) {
+    const key = `${r.fixture_id}:${r.fpl_player_id}`;
+    if (projectedKeys.has(key)) continue;
+    rows.push({
+      fixture_id: r.fixture_id,
+      matchweek: r.matchweek,
+      kickoff_date: kickoffByFixture.get(r.fixture_id) ?? r.kickoff_date,
+      team_id: r.team_id,
+      team_name: teamNames.get(r.team_id) ?? 'Unknown',
+      web_name: r.web_name,
+      fpl_player_id: r.fpl_player_id,
+      fpl_position: null,
+      fpl_position_label: '\u2014',
+      tactical_role: null,
+      expected_minutes: null,
+      start_probability: null,
+      sub_appearance_probability: null,
+      shrunk_xg90: null,
+      shrunk_xa90: null,
+      expected_goals: null,
+      expected_assists: null,
+      clean_sheet_probability: null,
+      defensive_contribution_probability: null,
+      experimental_expected_bonus: null,
+      expected_fpl_points: null,
+      is_retrospective: statusByFixture.get(r.fixture_id) === 'played',
+      actual_started: r.actual_started,
+      actual_minutes: r.actual_minutes,
+    });
+  }
+
+  return rows;
 }
