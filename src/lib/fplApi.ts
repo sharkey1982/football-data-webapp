@@ -19,7 +19,14 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import type { FplElementType, FplPlayer, FplPlayerProjection, SetPieceHierarchyRow, PlayerSquadHierarchyRow } from '../types/database';
+import type {
+  FplElementType,
+  FplPlayer,
+  FplPlayerProjection,
+  FplPredictionActualStartComparison,
+  SetPieceHierarchyRow,
+  PlayerSquadHierarchyRow,
+} from '../types/database';
 
 /** The model_version currently surfaced by the frontend. */
 /**
@@ -465,5 +472,120 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     model_version: modelVersion,
     home: buildTeam(f.home_team_id, f.home_team?.canonical_name ?? 'Unknown', true, num(f.predicted_home_goals)),
     away: buildTeam(f.away_team_id, f.away_team?.canonical_name ?? 'Unknown', false, num(f.predicted_away_goals)),
+  };
+}
+
+// ============================================================================
+// Actual vs predicted starts -- completed-fixture comparison
+//
+// Separate from the projection types above on purpose: this reads
+// fpl_prediction_actual_start_comparison, which is a simpler, dedicated
+// feed for "what actually happened" (real starts/minutes from the match)
+// next to whatever prediction exists for the same player -- not the full
+// xpts/tactical-role projection breakdown. Real formations/tactical roles
+// are not populated on the actual side yet, so this deliberately has no
+// formation field and nothing here should be rendered as pitch positions.
+// ============================================================================
+
+export type FplActualVsPredictedPlayer = {
+  fpl_player_id: number;
+  player_name: string;
+  web_name: string;
+  actual_started: boolean;
+  actual_minutes: number;
+  predicted_start_probability: number | null;
+  predicted_minutes: number | null;
+  /**
+   * True only for a prediction genuinely generated before this match
+   * kicked off -- the only case that may ever be called a real forecast.
+   * False/null means the prediction (if any) was generated after the fact
+   * and must be labelled as a retrospective projection, never a forecast.
+   */
+  generated_pre_kickoff: boolean | null;
+};
+
+export type FplActualVsPredictedTeam = {
+  team_id: number;
+  team_name: string;
+  players: FplActualVsPredictedPlayer[];
+};
+
+export type FplActualVsPredictedFixture = {
+  fixture_id: number;
+  matchweek: number;
+  kickoff_date: string;
+  kickoff_time: string | null;
+  home_team_id: number;
+  away_team_id: number;
+  home: FplActualVsPredictedTeam;
+  away: FplActualVsPredictedTeam;
+};
+
+/**
+ * Actual (and, where genuinely available, predicted) starts/minutes for
+ * one fixture, split by team. Returns null if the fixture has no actual
+ * data at all yet (e.g. it hasn't been played, or hasn't been backfilled)
+ * -- that's a normal state for most fixtures, not an error.
+ */
+export async function getFplActualVsPredicted(fixtureId: number): Promise<FplActualVsPredictedFixture | null> {
+  const { data, error } = await supabase
+    .from('fpl_prediction_actual_start_comparison')
+    .select('*')
+    .eq('fixture_id', fixtureId);
+  if (error) throw error;
+  const rows = (data ?? []) as FplPredictionActualStartComparison[];
+  if (rows.length === 0) return null;
+
+  const first = rows[0];
+  const teamIds = [...new Set(rows.map((r) => r.team_id))];
+  // The view has no home/away flag or team name -- both come from fixtures/teams.
+  const { data: fixture, error: fixtureError } = await supabase
+    .from('fixtures')
+    .select(
+      `
+      fixture_id, matchweek, kickoff_date, kickoff_time, home_team_id, away_team_id,
+      home_team:teams!fixtures_home_team_id_fkey(team_id, canonical_name),
+      away_team:teams!fixtures_away_team_id_fkey(team_id, canonical_name)
+    `
+    )
+    .eq('fixture_id', fixtureId)
+    .maybeSingle();
+  if (fixtureError) throw fixtureError;
+
+  const f = fixture as any;
+  const homeTeamId: number = f?.home_team_id ?? teamIds[0];
+  const awayTeamId: number = f?.away_team_id ?? teamIds.find((id) => id !== homeTeamId) ?? teamIds[1];
+  const teamNameById = new Map<number, string>();
+  if (f?.home_team) teamNameById.set(homeTeamId, f.home_team.canonical_name);
+  if (f?.away_team) teamNameById.set(awayTeamId, f.away_team.canonical_name);
+
+  const buildTeam = (teamId: number): FplActualVsPredictedTeam => ({
+    team_id: teamId,
+    team_name: teamNameById.get(teamId) ?? 'Unknown',
+    players: rows
+      .filter((r) => r.team_id === teamId)
+      .map((r) => ({
+        fpl_player_id: r.fpl_player_id,
+        player_name: r.player_name_source,
+        web_name: r.web_name,
+        actual_started: r.actual_started,
+        actual_minutes: r.actual_minutes,
+        predicted_start_probability: r.predicted_start_probability,
+        predicted_minutes: r.predicted_minutes,
+        generated_pre_kickoff: r.generated_pre_kickoff,
+      }))
+      // Starters first (actual, not predicted -- this is the real result), then by minutes.
+      .sort((a, b) => Number(b.actual_started) - Number(a.actual_started) || b.actual_minutes - a.actual_minutes),
+  });
+
+  return {
+    fixture_id: fixtureId,
+    matchweek: f?.matchweek ?? first.matchweek,
+    kickoff_date: f?.kickoff_date ?? first.kickoff_date,
+    kickoff_time: f?.kickoff_time ?? first.kickoff_time,
+    home_team_id: homeTeamId,
+    away_team_id: awayTeamId,
+    home: buildTeam(homeTeamId),
+    away: buildTeam(awayTeamId),
   };
 }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getFplFixtureProjection, type FplFixtureProjection } from '../../lib/fplApi';
+import { getFplFixtureProjection, getFplActualVsPredicted, type FplFixtureProjection, type FplActualVsPredictedFixture } from '../../lib/fplApi';
 import ProjectionSummary from '../../components/fpl/ProjectionSummary';
 import TeamProjectionPanel from '../../components/fpl/TeamProjectionPanel';
+import ActualVsPredictedTable from '../../components/fpl/ActualVsPredictedTable';
 import { getErrorMessage } from '../../lib/errorMessage';
 
 export default function FixtureProjectionPage() {
@@ -13,6 +14,10 @@ export default function FixtureProjectionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noProjectionsYet, setNoProjectionsYet] = useState(false);
+
+  const [actual, setActual] = useState<FplActualVsPredictedFixture | null>(null);
+  const [loadingActual, setLoadingActual] = useState(true);
+  const [actualError, setActualError] = useState<string | null>(null);
 
   const invalidId = !Number.isFinite(parsedId);
 
@@ -43,6 +48,29 @@ export default function FixtureProjectionPage() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [parsedId, invalidId]);
+
+  // Independent of the projection fetch above -- a fixture can have actual
+  // (post-match) data with no projection at all, or vice versa, so neither
+  // one gates the other.
+  useEffect(() => {
+    if (invalidId) return;
+    let cancelled = false;
+    setLoadingActual(true);
+    setActualError(null);
+    getFplActualVsPredicted(parsedId)
+      .then((data) => {
+        if (!cancelled) setActual(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setActualError(getErrorMessage(e, 'Failed to load actual lineup data'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingActual(false);
       });
     return () => {
       cancelled = true;
@@ -80,6 +108,14 @@ export default function FixtureProjectionPage() {
             <TeamProjectionPanel team={projection.away} />
           </div>
         </>
+      )}
+
+      {!loadingActual && actualError && <p className="text-loss-700 text-sm">{actualError}</p>}
+      {!loadingActual && !actualError && actual && (
+        <div>
+          <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Actual result</h2>
+          <ActualVsPredictedTable home={actual.home} away={actual.away} />
+        </div>
       )}
     </div>
   );

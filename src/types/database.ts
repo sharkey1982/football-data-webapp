@@ -550,6 +550,44 @@ export type FplSeasonPlayerProjectionFeed = {
 };
 
 /**
+ * View: fpl_prediction_actual_start_comparison -- actual (historical, from
+ * real match data) starts/minutes alongside whatever prediction exists for
+ * the same player/fixture, if any.
+ *
+ * generated_pre_kickoff is the field that matters most here: only rows
+ * where it's true were genuinely generated before that match kicked off --
+ * i.e. only those are real historical forecasts. A row with
+ * predicted_start_probability populated but generated_pre_kickoff = false
+ * (or null) is a projection generated AFTER the fact (e.g. backfilled once
+ * the model existed) and must never be presented as "what the model
+ * predicted before the match" -- these are also the reason
+ * predicted_start_probability can't be trusted as an indicator of
+ * genuine prediction quality on its own; always gate display on this flag.
+ *
+ * actual_started/actual_minutes are independent of all of the above and
+ * always reflect the real match result when present. Real formations and
+ * tactical roles are NOT part of this view yet (backend work in progress)
+ * -- never infer or display a formation/position from this data.
+ */
+export type FplPredictionActualStartComparison = {
+  fixture_id: number;
+  matchweek: number;
+  kickoff_date: string;
+  kickoff_time: string | null;
+  team_id: number;
+  fpl_player_id: number;
+  player_name_source: string;
+  web_name: string;
+  actual_started: boolean;
+  actual_minutes: number;
+  model_version: string | null;
+  predicted_start_probability: number | null;
+  predicted_minutes: number | null;
+  generated_at: string | null;
+  generated_pre_kickoff: boolean | null;
+};
+
+/**
  * Table: set_piece_hierarchies -- who takes penalties/free-kicks/corners
  * for a team, and their rank (1 = primary taker, higher = further down the
  * pecking order). source_player_id is stored as text; match against
@@ -755,6 +793,10 @@ export type Database = {
       };
       fpl_season_player_projection_feed: {
         Row: FplSeasonPlayerProjectionFeed;
+        Relationships: [];
+      };
+      fpl_prediction_actual_start_comparison: {
+        Row: FplPredictionActualStartComparison;
         Relationships: [];
       };
     };
