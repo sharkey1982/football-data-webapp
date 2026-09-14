@@ -327,6 +327,146 @@ export type DataSourceCompetition = {
 };
 
 // ----------------------------------------------------------------------------
+// FPL projections layer -- see src/lib/fplApi.ts for the queries that use
+// these. Populated by a separate modelling pipeline (Dixon-Coles team xG ->
+// formation -> tactical role -> player allocation -> FPL scoring), not this
+// webapp. The webapp only ever reads these tables/views.
+//
+// NOTE on numeric fields typed `string`: unlike the float8 columns above
+// (which PostgREST returns as JSON numbers), these columns are declared as
+// unscaled `numeric` in Postgres and are returned by PostgREST as JSON
+// strings to avoid silent precision loss -- parse with Number(...) before
+// use. Some of these values come back as very long exact-decimal strings
+// (300+ digits); this looks like a schema gap (missing numeric(p,s) scale
+// on the modelling side) rather than a numeric error, but the frontend
+// treats them defensively either way -- see src/lib/fplApi.ts's `num()`.
+// ----------------------------------------------------------------------------
+
+export type FplTeam = {
+  fpl_team_id: number;
+  canonical_team_id: number | null;
+  code: number | null;
+  name: string;
+  short_name: string | null;
+  strength: number | null;
+  strength_overall_home: number | null;
+  strength_overall_away: number | null;
+  strength_attack_home: number | null;
+  strength_attack_away: number | null;
+  strength_defence_home: number | null;
+  strength_defence_away: number | null;
+  source_payload: Record<string, unknown> | null;
+  updated_at: string;
+  season_id: number | null;
+};
+
+/** FPL element_type: 1 = Goalkeeper, 2 = Defender, 3 = Midfielder, 4 = Forward. */
+export type FplElementType = 1 | 2 | 3 | 4;
+
+export type FplPlayer = {
+  fpl_player_id: number;
+  canonical_team_id: number | null;
+  fpl_team_id: number | null;
+  first_name: string | null;
+  second_name: string | null;
+  web_name: string | null;
+  element_type: FplElementType | null;
+  status: string | null;
+  now_cost: number | null;
+  selected_by_percent: string | null;
+  total_points: number | null;
+  event_points: number | null;
+  minutes: number | null;
+  goals_scored: number | null;
+  assists: number | null;
+  clean_sheets: number | null;
+  goals_conceded: number | null;
+  own_goals: number | null;
+  penalties_saved: number | null;
+  penalties_missed: number | null;
+  yellow_cards: number | null;
+  red_cards: number | null;
+  saves: number | null;
+  bonus: number | null;
+  bps: number | null;
+  influence: string | null;
+  creativity: string | null;
+  threat: string | null;
+  ict_index: string | null;
+  expected_goals: string | null;
+  expected_assists: string | null;
+  expected_goal_involvements: string | null;
+  expected_goals_conceded: string | null;
+  chance_of_playing_next_round: number | null;
+  chance_of_playing_this_round: number | null;
+  news: string | null;
+  news_added: string | null;
+  source_payload: Record<string, unknown> | null;
+  updated_at: string;
+  season_id: number | null;
+};
+
+/**
+ * One row per (fixture, fpl_player_id, model_version) -- the principal
+ * persisted projection output. Current model_version is 'prototype_v3'.
+ */
+export type FplPlayerProjection = {
+  projection_id: number;
+  season_id: number;
+  fixture_id: number;
+  fpl_player_id: number;
+  generated_at: string;
+  model_version: string;
+  expected_minutes: string | null;
+  expected_goals: string | null;
+  expected_assists: string | null;
+  clean_sheet_probability: string | null;
+  expected_saves: string | null;
+  defensive_contribution_probability: string | null;
+  expected_bonus: string | null;
+  xpts_appearance: string | null;
+  xpts_goals: string | null;
+  xpts_assists: string | null;
+  xpts_clean_sheet: string | null;
+  xpts_saves: string | null;
+  xpts_defensive_contribution: string | null;
+  xpts_cards_own_goals: string | null;
+  xpts_bonus: string | null;
+  expected_fpl_points: string | null;
+  start_probability: string | null;
+  sub_appearance_probability: string | null;
+  xpts_goals_conceded: string | null;
+  xpts_penalties: string | null;
+  availability_probability: string | null;
+  lineup_confidence: string | null;
+};
+
+/**
+ * View: consensus predicted formation per team per fixture, aggregated
+ * across active lineup-prediction sources (see fixture_lineup_predictions).
+ */
+export type FixtureTeamTacticalConsensus = {
+  fixture_id: number;
+  team_id: number;
+  formation: string | null;
+  consensus_weight: string | null;
+  sources: number;
+};
+
+/**
+ * View: consensus REAL tactical role per player per fixture (e.g. RWB, CF,
+ * AM) -- distinct from FPL scoring position (fpl_players.element_type).
+ */
+export type FixturePlayerTacticalConsensus = {
+  fixture_id: number;
+  team_id: number;
+  fpl_player_id: number;
+  tactical_role: string | null;
+  role_weight: string | null;
+  sources: number;
+};
+
+// ----------------------------------------------------------------------------
 // Supabase Database type -- the shape expected by createClient<Database>()
 //
 // NOTE on `Relationships: []`: supabase-js's internal GenericTable type
@@ -436,8 +576,35 @@ export type Database = {
         Update: Partial<Omit<FixtureRefreshRun, 'refresh_run_id'>>;
         Relationships: [];
       };
+      fpl_teams: {
+        Row: FplTeam;
+        Insert: Omit<FplTeam, 'updated_at'>;
+        Update: Partial<FplTeam>;
+        Relationships: [];
+      };
+      fpl_players: {
+        Row: FplPlayer;
+        Insert: Omit<FplPlayer, 'updated_at'>;
+        Update: Partial<FplPlayer>;
+        Relationships: [];
+      };
+      fpl_player_projections: {
+        Row: FplPlayerProjection;
+        Insert: Omit<FplPlayerProjection, 'projection_id' | 'generated_at'>;
+        Update: Partial<Omit<FplPlayerProjection, 'projection_id'>>;
+        Relationships: [];
+      };
     };
-    Views: Record<string, never>;
+    Views: {
+      fixture_team_tactical_consensus: {
+        Row: FixtureTeamTacticalConsensus;
+        Relationships: [];
+      };
+      fixture_player_tactical_consensus: {
+        Row: FixturePlayerTacticalConsensus;
+        Relationships: [];
+      };
+    };
     Functions: Record<string, never>;
   };
 };
