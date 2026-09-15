@@ -102,6 +102,7 @@ export default function AppLayout() {
       items: [
         { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/' },
         { to: '/table', label: 'League Table', matchPrefix: '/table' },
+        { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
         { to: '/teams', label: 'Team Explorer', matchPrefix: '/teams' },
         { to: '/preview', label: 'Match Preview', matchPrefix: '/preview' },
       ],

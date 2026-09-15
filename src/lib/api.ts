@@ -854,9 +854,142 @@ export async function getTeamRatingsForFitRun(fitRunId: number): Promise<TeamWit
 }
 
 // ----------------------------------------------------------------------------
-// Fantasy fixture difficulty -- Dixon-Coles expected goals for every
-// upcoming fixture, per team, for the Fantasy heat map.
+// Team strength summary -- Dixon-Coles attack/defence/home-advantage next to
+// season-total projected vs last-season actual goals for/against, for the
+// Team Strength page.
 // ----------------------------------------------------------------------------
+
+export interface TeamStrengthRow {
+  team_id: number;
+  canonical_name: string;
+  /** Log-scale Dixon-Coles parameter, relative to league average (0). Higher = more attacking. */
+  attack_strength: number;
+  /** Log-scale Dixon-Coles parameter, relative to league average (0). Higher = tighter defence (concedes fewer). */
+  defence_strength: number;
+  is_estimated: boolean;
+  /** Sum of predicted_home_goals/predicted_away_goals across every fixture in the current season (played and upcoming). Null if no fixtures have a prediction yet. */
+  projected_gf: number | null;
+  projected_ga: number | null;
+  projected_fixtures_counted: number;
+  /** Actual full-time goals from last season's real results. Null if the team didn't play in that league/season (e.g. newly promoted). */
+  last_season_gf: number | null;
+  last_season_ga: number | null;
+  last_season_played: number;
+}
+
+export interface TeamStrengthSummary {
+  fitRun: ModelFitRun | null;
+  currentSeasonLabel: string | null;
+  lastSeasonLabel: string | null;
+  rows: TeamStrengthRow[];
+}
+
+export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStrengthSummary> {
+  const fitRun = await getLatestFitRun(leagueId);
+  const ratings = fitRun ? await getTeamRatingsForFitRun(fitRun.fit_run_id) : [];
+
+  const currentSeason = await getMostRecentFixtureSeason(leagueId);
+  const currentSeasonId = currentSeason?.season_id ?? null;
+
+  // Projected GF/GA: sum of Dixon-Coles predicted goals across every fixture
+  // in the CURRENT season, played and upcoming alike -- fixtures.predicted_*
+  // is backfilled for historic fixtures too (backfill_historic_fixture_predictions()),
+  // so this is "what the model expected across the whole season", the same
+  // unit and scope as a full season's actual GF/GA, making the two directly
+  // comparable.
+  const projectedByTeam = new Map<number, { gf: number; ga: number; count: number }>();
+  if (currentSeasonId !== null) {
+    const { data, error } = await supabase
+      .from('fixtures')
+      .select('home_team_id, away_team_id, predicted_home_goals, predicted_away_goals')
+      .eq('league_id', leagueId)
+      .eq('season_id', currentSeasonId)
+      .not('predicted_home_goals', 'is', null)
+      .not('predicted_away_goals', 'is', null);
+    if (error) throw error;
+    for (const f of (data ?? []) as any[]) {
+      const hg = f.predicted_home_goals as number;
+      const ag = f.predicted_away_goals as number;
+      const h = projectedByTeam.get(f.home_team_id) ?? { gf: 0, ga: 0, count: 0 };
+      h.gf += hg;
+      h.ga += ag;
+      h.count += 1;
+      projectedByTeam.set(f.home_team_id, h);
+      const a = projectedByTeam.get(f.away_team_id) ?? { gf: 0, ga: 0, count: 0 };
+      a.gf += ag;
+      a.ga += hg;
+      a.count += 1;
+      projectedByTeam.set(f.away_team_id, a);
+    }
+  }
+
+  // Last season's actual GF/GA, from real results -- whichever season_id is
+  // immediately before the current one for this league.
+  let lastSeasonLabel: string | null = null;
+  const actualByTeam = new Map<number, { gf: number; ga: number; played: number }>();
+  if (currentSeasonId !== null) {
+    const { data: seasonRows, error: seasonError } = await supabase
+      .from('seasons')
+      .select('season_id, label')
+      .lt('season_id', currentSeasonId)
+      .order('season_id', { ascending: false })
+      .limit(1);
+    if (seasonError) throw seasonError;
+    const lastSeason = seasonRows?.[0] as { season_id: number; label: string } | undefined;
+    if (lastSeason) {
+      lastSeasonLabel = lastSeason.label;
+      const { data, error } = await supabase
+        .from('matches')
+        .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals')
+        .eq('league_id', leagueId)
+        .eq('season_id', lastSeason.season_id)
+        .not('full_time_home_goals', 'is', null)
+        .not('full_time_away_goals', 'is', null);
+      if (error) throw error;
+      for (const m of (data ?? []) as any[]) {
+        const hg = m.full_time_home_goals as number;
+        const ag = m.full_time_away_goals as number;
+        const h = actualByTeam.get(m.home_team_id) ?? { gf: 0, ga: 0, played: 0 };
+        h.gf += hg;
+        h.ga += ag;
+        h.played += 1;
+        actualByTeam.set(m.home_team_id, h);
+        const a = actualByTeam.get(m.away_team_id) ?? { gf: 0, ga: 0, played: 0 };
+        a.gf += ag;
+        a.ga += hg;
+        a.played += 1;
+        actualByTeam.set(m.away_team_id, a);
+      }
+    }
+  }
+
+  const rows: TeamStrengthRow[] = ratings.map((r) => {
+    const proj = projectedByTeam.get(r.team_id);
+    const actual = actualByTeam.get(r.team_id);
+    return {
+      team_id: r.team_id,
+      canonical_name: r.canonical_name,
+      attack_strength: r.attack_strength,
+      defence_strength: r.defence_strength,
+      is_estimated: r.is_estimated,
+      projected_gf: proj ? proj.gf : null,
+      projected_ga: proj ? proj.ga : null,
+      projected_fixtures_counted: proj?.count ?? 0,
+      last_season_gf: actual ? actual.gf : null,
+      last_season_ga: actual ? actual.ga : null,
+      last_season_played: actual?.played ?? 0,
+    };
+  });
+
+  return {
+    fitRun,
+    currentSeasonLabel: currentSeason?.label ?? null,
+    lastSeasonLabel,
+    rows,
+  };
+}
+
+
 
 export interface FantasyFixtureCell {
   fixture_id: number;

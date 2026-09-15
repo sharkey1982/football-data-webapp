@@ -87,6 +87,22 @@ function isOptimizerError(v: unknown): v is FplOptimizerError {
   return typeof v === 'object' && v !== null && 'error' in v && typeof (v as any).error === 'string';
 }
 
+/**
+ * The earliest matchweek the optimiser can actually serve right now --
+ * straight from the same data it reads (fpl_player_projections at the
+ * current model version), not from fixtures.status. The two can disagree:
+ * a fixture whose result never got imported after being played still
+ * shows status='scheduled', which would otherwise make the "default GW"
+ * picker treat an already-finished gameweek as upcoming (confirmed live --
+ * GW4's Man Utd v Man City, kicked off two days ago, still 'scheduled'),
+ * and the optimiser would then fail with "Missing projections" for it.
+ */
+export async function getOptimizerEarliestMatchweek(): Promise<number | null> {
+  const { data, error } = await supabase.rpc('get_fpl_optimizer_earliest_matchweek');
+  if (error) throw error;
+  return typeof data === 'number' ? data : null;
+}
+
 /** Coerces anything to a readable string without ever producing the classic
  * "[object Object]" (what `new Error(nonStringValue)` silently does by
  * calling the object's default toString). Never returns an empty string. */

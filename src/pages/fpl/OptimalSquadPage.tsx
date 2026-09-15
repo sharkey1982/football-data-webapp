@@ -15,8 +15,7 @@
 // ============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
-import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
-import { optimizeFplSquad, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
+import { optimizeFplSquad, getOptimizerEarliestMatchweek, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
 import SquadPitch from '../../components/fpl/SquadPitch';
 import { getErrorMessage } from '../../lib/errorMessage';
 
@@ -122,12 +121,17 @@ export default function OptimalSquadPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getDefaultMatchweek()
+    // Deliberately NOT getDefaultMatchweek() (fixtures.status-based) here --
+    // that can point at a gameweek the optimiser has no projections for at
+    // all when a played fixture's result never got imported (confirmed
+    // live). This asks the optimiser's own data directly instead.
+    getOptimizerEarliestMatchweek()
       .then((gw) => {
         if (cancelled) return;
-        setDefaultGw(gw);
-        setFromGw(gw);
-        setToGw(gw);
+        const fallback = gw ?? 1;
+        setDefaultGw(fallback);
+        setFromGw(fallback);
+        setToGw(fallback);
       })
       .catch(() => {
         if (!cancelled) {

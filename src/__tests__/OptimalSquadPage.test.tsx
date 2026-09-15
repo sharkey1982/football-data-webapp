@@ -4,20 +4,15 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OptimalSquadPage from '../pages/fpl/OptimalSquadPage';
 import * as optimizerApi from '../lib/fplOptimizerApi';
-import * as fplSeasonApi from '../lib/fplSeasonApi';
+
 import type { FplOptimizerPlayer, FplOptimizerResult } from '../lib/fplOptimizerApi';
 
 vi.mock('../lib/fplOptimizerApi', async () => {
   const actual = await vi.importActual<typeof optimizerApi>('../lib/fplOptimizerApi');
-  return { ...actual, optimizeFplSquad: vi.fn() };
-});
-vi.mock('../lib/fplSeasonApi', async () => {
-  const actual = await vi.importActual<typeof fplSeasonApi>('../lib/fplSeasonApi');
-  return { ...actual, getDefaultMatchweek: vi.fn() };
+  return { ...actual, optimizeFplSquad: vi.fn(), getOptimizerEarliestMatchweek: vi.fn() };
 });
 
 const mockedOptimizerApi = optimizerApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
-const mockedSeasonApi = fplSeasonApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 function makePlayer(overrides: Partial<FplOptimizerPlayer>): FplOptimizerPlayer {
   return {
@@ -86,7 +81,7 @@ function buildResult(overrides: Partial<FplOptimizerResult> = {}): FplOptimizerR
 
 describe('OptimalSquadPage', () => {
   it('shows exactly 15 squad players with the correct 2/5/5/3 position split, and a visually distinct bench', async () => {
-    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
 
     render(<OptimalSquadPage />);
@@ -120,7 +115,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('builds a multi-GW request from the "Next 3 GWs" preset and shows a per-week formation/captain table', async () => {
-    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
       buildResult({
         from_matchweek: 5,
@@ -150,7 +145,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('shows the backend error message when optimisation fails, and never invents a squad', async () => {
-    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockRejectedValue(new Error('No legal squad found'));
 
     render(<OptimalSquadPage />);
