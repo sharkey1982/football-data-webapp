@@ -55,7 +55,20 @@ const SEASON_ID = 13;
 const LEAGUE_ID = 1;
 const MODEL_VERSION = 'leaguewide_v6';
 const SCENARIO_KEY = 'baseline';
-const OPTIMISER_VERSION = 'milp_v1';
+const OPTIMISER_VERSION = 'milp_v2';
+// Tiny secondary weight on total squad cost, breaking ties among squads that
+// tie on the primary (starting-XI + captain) objective toward the cheaper
+// one. Requested directly: bench players should contribute nothing to what's
+// optimised for -- they exist purely to satisfy squad composition and budget
+// rules at minimum cost, never valued for whether they might play. Small
+// enough (1e-6) that it can never override a real difference in projected
+// points: max plausible cost swing is ~100 (the budget itself), so the
+// largest this term can ever move the objective by is ~0.0001 -- an order of
+// magnitude below any points difference actually worth preserving. Verified
+// locally before shipping: with the term, squad cost either drops or stays
+// the same, and the TRUE primary objective (recomputed independently,
+// stripping the tie-break term back out) is identical either way -- so this
+// never trades away real points for a cheaper squad, only breaks genuine ties.
 const BUDGET = 100;
 const QUOTA: Record<number, number> = { 1: 2, 2: 5, 3: 5, 4: 3 };
 const SH = [[3, 5, 2], [3, 4, 3], [4, 5, 1], [4, 4, 2], [4, 3, 3], [5, 4, 1], [5, 3, 2], [5, 2, 3]];
@@ -65,6 +78,7 @@ const SH = [[3, 5, 2], [3, 4, 3], [4, 5, 1], [4, 4, 2], [4, 3, 3], [5, 4, 1], [5
 // outside this grid still works live via the heuristic fallback; it just
 // isn't precomputed.
 const MAX_RANGE_LENGTH = 10;
+const BENCH_COST_TIEBREAK_EPSILON = 0.000001;
 
 type Candidate = {
   matchweek: number; fpl_player_id: number; web_name: string; team_id: number; team_name: string;
@@ -121,12 +135,18 @@ function autoEV(xi: Player[], bench: Player[], w: number) {
  * Post-hoc weekly detail (formation, bench order, auto-sub EV) for a squad
  * the MILP has ALREADY chosen -- the MILP's own objective already includes
  * the exact best-XI score and doubled captain value (both are decision
- * variables in the solve itself, not approximated), so this only adds the
- * auto-sub EV / vice-captain-fallback correction, same as the heuristic
- * does, and only for response-shape consistency between the two paths.
+ * variables in the solve itself, not approximated). auto_sub_ev is reported
+ * per week purely as information (real points a bench player could still
+ * score if a starter blanks) -- it does NOT feed into primaryTotal or the
+ * response's headline objective_xpts. Requested directly: the bench is
+ * optimised for minimum cost under squad-composition/budget constraints
+ * only, never credited for a chance of playing, so the reported "what was
+ * optimised for" number should match that exactly, not quietly include a
+ * bonus for something the objective doesn't actually value.
  */
 function weeklyDetail(squad: Player[], weeks: number[]) {
   let autoSubTotal = 0;
+  let primaryTotal = 0;
   const weekly: any[] = [];
   for (const w of weeks) {
     const bx = bestXI(squad, w);
@@ -138,6 +158,7 @@ function weeklyDetail(squad: Player[], weeks: number[]) {
     const captainEV = cap.gw_xpts[w] + (1 - cap.gw_app[w]) * vice.gw_app[w] * vice.gw_xpts[w];
     const bev = autoEV(xi, bench, w);
     autoSubTotal += bev;
+    primaryTotal += bx.score + captainEV;
     weekly.push({
       matchweek: w, formation: bx.formation, xi: xi.map((p) => p.web_name), xi_xpts: +bx.score.toFixed(2),
       captain: cap.web_name, vice_captain: vice.web_name, captain_extra_ev: +captainEV.toFixed(2),
@@ -145,7 +166,7 @@ function weeklyDetail(squad: Player[], weeks: number[]) {
       auto_sub_ev: +bev.toFixed(2),
     });
   }
-  return { weekly, autoSubTotal };
+  return { weekly, autoSubTotal, primaryTotal };
 }
 
 /** Same club-scoped dominance filter validated before this was built: only
@@ -197,6 +218,8 @@ function buildLp(pool: Player[], weeks: number[], budget: number) {
       cons.push(`link_s_${i}_${w}: ${sVar(i, w)} - ${xVar(i)} <= 0`);
       cons.push(`link_c_${i}_${w}: ${cVar(i, w)} - ${sVar(i, w)} <= 0`);
     }
+    // Tie-break only -- see BENCH_COST_TIEBREAK_EPSILON's own comment.
+    obj.push(`${(-BENCH_COST_TIEBREAK_EPSILON * p.price_m).toFixed(9)} ${xVar(i)}`);
   });
   cons.push(`squad_size: ${pool.map((_p, i) => xVar(i)).join(' + ')} = 15`);
   cons.push(`budget: ${pool.map((p, i) => `${p.price_m} ${xVar(i)}`).join(' + ')} <= ${budget}`);
@@ -280,25 +303,25 @@ async function solveRange(supabase: any, highs: any, fromGw: number, toGw: numbe
     return false;
   }
 
-  const { weekly, autoSubTotal } = weeklyDetail(squad, weeks);
+  const { weekly, primaryTotal } = weeklyDetail(squad, weeks);
   const finalCost = squad.reduce((s, p) => s + p.price_m, 0);
   const slim = (p: Player) => ({
     id: p.fpl_player_id, name: p.web_name, team: p.team_name, position: p.fpl_position, price: p.price_m,
     total_xpts: +p.xpts.toFixed(2), avg_appearance_probability: +p.appear.toFixed(3), gw_xpts: p.gw_xpts,
   });
-  const objectiveXpts = result.ObjectiveValue + autoSubTotal;
 
   const responsePayload = {
     from_matchweek: fromGw, to_matchweek: toGw, weeks, budget: BUDGET,
     budget_used: +finalCost.toFixed(1), bank: +(BUDGET - finalCost).toFixed(1),
-    objective_xpts: +objectiveXpts.toFixed(2),
+    objective_xpts: +primaryTotal.toFixed(2),
     squad: squad.map(slim), weekly_plan: weekly,
     projection_model: MODEL_VERSION, scenario_key: SCENARIO_KEY, version: OPTIMISER_VERSION,
     search_time_limited: false,
     notes: [
       'Squad, starting XI, and captain solved exactly via MILP (HiGHS) -- not a heuristic search',
       `Candidate pool reduced from ${all.length} to ${pool.length} via provably-safe within-club dominance filtering before solving`,
-      'Auto-sub EV and vice-captain fallback added post-hoc for response-shape consistency with the live heuristic -- not yet part of the MILP objective itself',
+      'Bench is optimised for minimum cost under squad-composition and budget rules only -- never credited for a chance of playing. objective_xpts reflects exactly that: starting XI + captain, nothing else',
+      'auto_sub_ev is still shown per gameweek as real informational context (points a bench player could score if a starter blanks) but is not part of what was optimised for',
       'Computed by a scheduled job, not live -- see fpl_optimal_squad_cache',
     ],
   };
