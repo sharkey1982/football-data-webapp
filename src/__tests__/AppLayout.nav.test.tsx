@@ -30,7 +30,7 @@ function renderAt(path: string) {
 }
 
 describe('AppLayout main nav', () => {
-  it('shows three dropdown headings (Football, Fantasy, Data) plus one flat top-level link (Player Projections)', () => {
+  it('shows exactly three top-level headings: Football, Fantasy, Data -- no standalone items alongside them', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fantasy/ })).toBeInTheDocument();
@@ -38,40 +38,36 @@ describe('AppLayout main nav', () => {
     // Old flat top-level items should not exist as their own top-level buttons any more.
     expect(screen.queryByRole('button', { name: /^League Table$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Optimal Squad$/ })).not.toBeInTheDocument();
-    // Player Projections is a real top-level link (not a dropdown button), always visible.
-    expect(screen.getByRole('link', { name: 'Player Projections' })).toBeInTheDocument();
   });
 
-  it('Fantasy dropdown contains Optimal Squad and Fantasy Fixtures -- Player Projections moved out to its own top-level link', async () => {
+  it('Fantasy dropdown contains Optimal Squad, Fantasy Fixtures, and FPL Projections', async () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
     expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Fantasy Fixtures' })).toBeInTheDocument();
-    // Not inside the Fantasy dropdown any more -- but still findable as the one standalone link.
-    const links = screen.getAllByRole('link', { name: 'Player Projections' });
-    expect(links).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'FPL Projections' })).toBeInTheDocument();
   });
 
-  it('highlights Optimal Squad, not Player Projections, when on /fpl/optimal-squad', async () => {
+  it('highlights Optimal Squad, not FPL Projections, when on /fpl/optimal-squad', async () => {
     renderAt('/fpl/optimal-squad');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
     const optimalSquadLink = screen.getByRole('link', { name: 'Optimal Squad' });
-    const playerProjectionsLink = screen.getByRole('link', { name: 'Player Projections' });
+    const fplProjectionsLink = screen.getByRole('link', { name: 'FPL Projections' });
     expect(optimalSquadLink.className).toContain('bg-amber-500');
-    expect(playerProjectionsLink.className).not.toContain('bg-amber-500');
+    expect(fplProjectionsLink.className).not.toContain('bg-amber-500');
   });
 
-  it('highlights Player Projections, not Optimal Squad, when on /fpl itself', async () => {
+  it('highlights FPL Projections, not Optimal Squad, when on /fpl itself', async () => {
     renderAt('/fpl');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
     const optimalSquadLink = screen.getByRole('link', { name: 'Optimal Squad' });
-    const playerProjectionsLink = screen.getByRole('link', { name: 'Player Projections' });
-    expect(playerProjectionsLink.className).toContain('bg-amber-500');
+    const fplProjectionsLink = screen.getByRole('link', { name: 'FPL Projections' });
+    expect(fplProjectionsLink.className).toContain('bg-amber-500');
     expect(optimalSquadLink.className).not.toContain('bg-amber-500');
   });
 

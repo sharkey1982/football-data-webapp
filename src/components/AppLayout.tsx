@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
 type NavItem = { to: To; label: string; matchPrefix: string; exact?: boolean; excludePrefix?: string };
 type NavGroup = { label: string; items: NavItem[] };
+
 const navLinkClasses = (isActive: boolean) =>
   [
     'block px-3 py-1.5 rounded transition-colors whitespace-nowrap',
@@ -23,18 +24,6 @@ function isItemActive(pathname: string, item: NavItem): boolean {
   if (item.exact) return pathname === item.matchPrefix || (item.matchPrefix === '/' && pathname === '/fixtures');
   if (item.excludePrefix && pathname.startsWith(item.excludePrefix)) return false;
   return pathname.startsWith(item.matchPrefix);
-}
-
-/** A single flat top-level link, for a page important enough to not bury under a dropdown -- same active-state logic as a dropdown item, just rendered directly in the bar. */
-function NavStandaloneLink({ item }: { item: NavItem }) {
-  const location = useLocation();
-  return (
-    <li>
-      <NavLink to={item.to} className={() => ['px-3 py-1.5 rounded transition-colors text-sm font-medium', isItemActive(location.pathname, item) ? 'bg-amber-500 text-ink-900' : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100'].join(' ')}>
-        {item.label}
-      </NavLink>
-    </li>
-  );
 }
 
 function NavDropdown({ group }: { group: NavGroup }) {
@@ -105,9 +94,8 @@ export default function AppLayout() {
 
   const fixturesTo: To = { pathname: '/', search: lastFixturesSearch.current };
 
-  // Three dropdown headings -- Football, Fantasy, Data -- plus one flat
-  // top-level link (Player Projections) for a page that was getting lost
-  // nested inside Fantasy -- requested directly rather than left buried.
+  // Three top-level headings only -- Football, Fantasy, Data -- each a
+  // dropdown, no separate flat top-level items alongside them.
   const navGroups: NavGroup[] = [
     {
       label: 'Football',
@@ -124,6 +112,7 @@ export default function AppLayout() {
       items: [
         { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad' },
         { to: '/fantasy', label: 'Fantasy Fixtures', matchPrefix: '/fantasy' },
+        { to: '/fpl', label: 'FPL Projections', matchPrefix: '/fpl', excludePrefix: '/fpl/optimal-squad' },
       ],
     },
     {
@@ -134,7 +123,6 @@ export default function AppLayout() {
       ],
     },
   ];
-  const playerProjectionsLink: NavItem = { to: '/fpl', label: 'Player Projections', matchPrefix: '/fpl', excludePrefix: '/fpl/optimal-squad' };
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
@@ -149,11 +137,8 @@ export default function AppLayout() {
           </div>
           <nav aria-label="Main navigation">
             <ul className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm font-medium">
-              {navGroups.map((group, i) => (
-                <Fragment key={group.label}>
-                  <NavDropdown group={group} />
-                  {i === 0 && <NavStandaloneLink item={playerProjectionsLink} />}
-                </Fragment>
+              {navGroups.map((group) => (
+                <NavDropdown key={group.label} group={group} />
               ))}
             </ul>
           </nav>
