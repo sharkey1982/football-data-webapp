@@ -264,7 +264,18 @@ export default function GameweekPage() {
           </div>
         )}
 
-        {avpRequested && !loadingAvp && !avpError && actualVsProjected && <SeasonActualVsProjectedTable rows={actualVsProjected} />}
+        {avpRequested && !loadingAvp && !avpError && actualVsProjected && (
+          <>
+            {actualVsProjected.length > 0 && actualVsProjected.every((r) => r.projected_total_points === null) && (
+              <p className="text-xs text-amber-700 bg-amber-400/10 border border-amber-300/40 rounded-lg px-3 py-2 mb-2">
+                No player currently shows a projected total below &mdash; the model doesn&rsquo;t yet have {'\u201c'}leaguewide_v6
+                {'\u201d'} projections for any gameweek that&rsquo;s actually been played, so there&rsquo;s nothing to compare
+                against yet for this season. Actual totals and PPG on the left are still real and current.
+              </p>
+            )}
+            <SeasonActualVsProjectedTable rows={actualVsProjected} />
+          </>
+        )}
       </div>
     </div>
   );
