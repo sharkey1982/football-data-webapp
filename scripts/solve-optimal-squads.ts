@@ -341,18 +341,29 @@ async function main() {
 
   // Determine available gameweeks from the data -- never hard-coded, so
   // this automatically widens as full-season coverage is populated.
-  const { data: fixtureRows, error: fixtureErr } = await supabase
-    .from('fixtures')
-    .select('matchweek')
-    .eq('league_id', LEAGUE_ID)
-    .eq('season_id', SEASON_ID)
-    .not('predicted_home_goals', 'is', null)
-    .order('matchweek', { ascending: true });
-  if (fixtureErr || !fixtureRows) {
-    console.error('Failed to load fixtures:', fixtureErr);
+  //
+  // BUG FOUND AND FIXED (first live run failed on this): fixtures.predicted_home_goals
+  // is populated broadly by the Dixon-Coles TEAM-level model for nearly the
+  // whole season (confirmed live: GW1-38), which is a completely different
+  // thing from having actual FPL PLAYER-level projections -- those only
+  // exist for GW5-11 right now. Checking the wrong table meant every range
+  // this job tried was anchored at GW1, where zero player projections
+  // exist, so every single range failed its coverage check and the job
+  // correctly (given that bad input) reported total failure.
+  //
+  // Uses a dedicated RPC (get_fpl_projection_available_matchweeks) rather
+  // than querying fpl_player_projections directly -- a naive row-per-
+  // projection query for GW5-11 alone is 4600+ rows, the exact PostgREST
+  // row-cap trap already found and fixed twice elsewhere in this project.
+  // The RPC aggregates server-side and returns a handful of integers.
+  const { data: matchweekData, error: matchweekErr } = await supabase.rpc('get_fpl_projection_available_matchweeks', {
+    p_season_id: SEASON_ID, p_league_id: LEAGUE_ID, p_model_version: MODEL_VERSION, p_scenario_key: SCENARIO_KEY,
+  });
+  if (matchweekErr) {
+    console.error('Failed to load projection coverage:', matchweekErr);
     process.exit(1);
   }
-  const availableMatchweeks = [...new Set((fixtureRows ?? []).map((f: any) => f.matchweek))].sort((a, b) => (a as number) - (b as number)) as number[];
+  const availableMatchweeks = ((matchweekData ?? []) as number[]).slice().sort((a, b) => a - b);
   if (availableMatchweeks.length === 0) {
     console.log('No fixtures with predictions found -- nothing to solve.');
     return;
