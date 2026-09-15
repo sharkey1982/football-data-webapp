@@ -62,6 +62,7 @@ describe('TeamStrengthPage', () => {
           last_season_played: 0,
         },
       ],
+      relegatedTeams: [{ team_id: 99, canonical_name: 'Ipswich' }],
     });
 
     render(<TeamStrengthPage />);
@@ -74,6 +75,10 @@ describe('TeamStrengthPage', () => {
     expect(screen.getAllByText('\u2014').length).toBeGreaterThan(0);
     // Estimated rating is labelled as such.
     expect(screen.getByText('est.')).toBeInTheDocument();
+    // Teams flagged as relegated (rated in a wider window but not in this
+    // season's fixtures) are called out, not silently mixed into the table.
+    expect(screen.getByText(/Relegated from 2526/)).toBeInTheDocument();
+    expect(screen.getByText(/Ipswich/)).toBeInTheDocument();
   });
 
   it('shows a clear message when there is no accepted fit for the league', async () => {
@@ -83,6 +88,7 @@ describe('TeamStrengthPage', () => {
       currentSeasonLabel: '2627',
       lastSeasonLabel: '2526',
       rows: [],
+      relegatedTeams: [],
     });
 
     render(<TeamStrengthPage />);

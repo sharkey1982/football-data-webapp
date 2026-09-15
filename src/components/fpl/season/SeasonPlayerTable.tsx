@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { SeasonPlayerProjection } from '../../../lib/fplSeasonApi';
 import { FPL_POSITION_LABEL } from '../../../lib/fplApi';
 
@@ -8,6 +8,7 @@ type SortKey =
   | 'fpl_position_label'
   | 'actual_started'
   | 'actual_minutes'
+  | 'actual_points'
   | 'start_probability'
   | 'expected_minutes'
   | 'expected_goals'
@@ -15,6 +16,8 @@ type SortKey =
   | 'clean_sheet_probability'
   | 'defensive_contribution_probability'
   | 'experimental_expected_bonus'
+  | 'selected_by_percent'
+  | 'lineup_confidence'
   | 'expected_fpl_points';
 type SortDir = 'asc' | 'desc';
 
@@ -22,8 +25,10 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDi
   { key: 'web_name', label: 'Player', align: 'left', defaultDir: 'asc' },
   { key: 'team_name', label: 'Team', align: 'left', defaultDir: 'asc' },
   { key: 'fpl_position_label', label: 'Pos', align: 'left', defaultDir: 'asc' },
+  { key: 'selected_by_percent', label: 'Sel%', align: 'right', defaultDir: 'desc', title: "FPL's own selected-by percentage of managers" },
   { key: 'actual_started', label: 'Started', align: 'right', defaultDir: 'desc', title: 'Real result from the match, where played -- independent of any projection' },
   { key: 'actual_minutes', label: 'Act. Min', align: 'right', defaultDir: 'desc' },
+  { key: 'actual_points', label: 'Act. Pts', align: 'right', defaultDir: 'desc', title: 'Real FPL points scored, where played' },
   { key: 'start_probability', label: 'Start%', align: 'right', defaultDir: 'desc' },
   { key: 'expected_minutes', label: 'Min', align: 'right', defaultDir: 'desc' },
   { key: 'expected_goals', label: 'xG', align: 'right', defaultDir: 'desc' },
@@ -31,7 +36,22 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; defaultDi
   { key: 'clean_sheet_probability', label: 'CS%', align: 'right', defaultDir: 'desc' },
   { key: 'defensive_contribution_probability', label: 'DC%', align: 'right', defaultDir: 'desc' },
   { key: 'experimental_expected_bonus', label: 'Bonus*', align: 'right', defaultDir: 'desc', title: 'Experimental -- from a newer fixture-level probabilistic BPS model, not an official FPL forecast' },
+  { key: 'lineup_confidence', label: 'Conf.', align: 'right', defaultDir: 'desc', title: 'How much the minutes/lineup estimate behind this projection can be trusted -- based on whether it comes from a real squad-state update, nailed recent history, or a fallback' },
   { key: 'expected_fpl_points', label: 'xPts', align: 'right', defaultDir: 'desc' },
+];
+
+/** Component-by-component xPts breakdown shown when a row is expanded -- these are pulled straight from the stored projection, not recomputed, and should sum close to xPts. */
+const BREAKDOWN_FIELDS: { key: keyof SeasonPlayerProjection; label: string }[] = [
+  { key: 'xpts_appearance', label: 'Playing time' },
+  { key: 'xpts_goals', label: 'Goals' },
+  { key: 'xpts_assists', label: 'Assists' },
+  { key: 'xpts_clean_sheet', label: 'Clean sheet' },
+  { key: 'xpts_defensive_contribution', label: 'Defensive contribution' },
+  { key: 'xpts_saves', label: 'Saves' },
+  { key: 'xpts_bonus', label: 'Bonus' },
+  { key: 'xpts_goals_conceded', label: 'Goals conceded' },
+  { key: 'xpts_penalties', label: 'Penalties' },
+  { key: 'xpts_cards_own_goals', label: 'Cards / own goals' },
 ];
 
 function pct(v: number | null): string {
@@ -60,6 +80,7 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
   const [positionFilter, setPositionFilter] = useState<number | 'all'>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const teamOptions = useMemo(() => {
     const names = new Set(players.map((p) => p.team_name));
@@ -166,14 +187,24 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
           <tbody>
             {sorted.map((p) => {
               const uncertain = p.start_probability !== null && p.start_probability < 0.85;
+              const rowKey = `${p.fixture_id}-${p.fpl_player_id}`;
+              const isExpanded = expandedKey === rowKey;
+              const hasBreakdown = BREAKDOWN_FIELDS.some((f) => p[f.key] !== null);
               return (
-                <tr key={`${p.fixture_id}-${p.fpl_player_id}`} className="border-b border-chalk-200 last:border-b-0 hover:bg-chalk-100 transition-colors">
+                <Fragment key={rowKey}>
+                <tr
+                  onClick={() => hasBreakdown && setExpandedKey(isExpanded ? null : rowKey)}
+                  className={['border-b border-chalk-200 last:border-b-0 hover:bg-chalk-100 transition-colors', hasBreakdown ? 'cursor-pointer' : ''].join(' ')}
+                >
                   <td className="px-3 py-1.5">
                     <div className="font-medium text-ink-900">{p.web_name}</div>
                     {p.is_retrospective && <div className="text-[10px] text-amber-700 uppercase tracking-wide">Retrospective</div>}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-ink-700 whitespace-nowrap">{p.team_name}</td>
                   <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{p.fpl_position_label}</td>
+                  <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
+                    {p.selected_by_percent === null ? '\u2014' : `${p.selected_by_percent.toFixed(1)}%`}
+                  </td>
                   <td className="px-2 py-1.5 text-right font-mono text-xs">
                     {p.actual_started === null ? (
                       <span className="text-ink-500">{'\u2014'}</span>
@@ -186,6 +217,9 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
                   <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
                     {p.actual_minutes === null ? '\u2014' : p.actual_minutes}
                   </td>
+                  <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
+                    {p.actual_points === null ? '\u2014' : p.actual_points}
+                  </td>
                   <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-600' : 'text-ink-700'].join(' ')}>
                     {pct(p.start_probability)}
                   </td>
@@ -197,6 +231,9 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
                   <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{pct(p.clean_sheet_probability)}</td>
                   <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{pct(p.defensive_contribution_probability)}</td>
                   <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-500">{dec(p.experimental_expected_bonus)}</td>
+                  <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
+                    {p.lineup_confidence === null ? '\u2014' : `${Math.round(p.lineup_confidence * 100)}%`}
+                  </td>
                   <td className="px-3 py-1.5 text-right font-mono text-sm font-semibold text-pitch-800">
                     {p.expected_fpl_points === null ? (
                       <span className="text-ink-500 font-normal text-xs">Not yet modelled</span>
@@ -205,6 +242,25 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
                     )}
                   </td>
                 </tr>
+                {isExpanded && (
+                  <tr key={`${rowKey}-breakdown`} className="bg-chalk-100/70 border-b border-chalk-200">
+                    <td colSpan={COLUMNS.length} className="px-3 py-2">
+                      <div className="text-[11px] text-ink-500 mb-1">xPts breakdown by source (sums close to the total above):</div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        {BREAKDOWN_FIELDS.map((f) => {
+                          const v = p[f.key] as number | null;
+                          if (v === null) return null;
+                          return (
+                            <span key={f.key} className="text-xs font-mono text-ink-700">
+                              <span className="text-ink-500">{f.label}:</span> {v.toFixed(2)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
             {sorted.length === 0 && (

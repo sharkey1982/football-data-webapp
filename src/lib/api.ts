@@ -882,14 +882,46 @@ export interface TeamStrengthSummary {
   currentSeasonLabel: string | null;
   lastSeasonLabel: string | null;
   rows: TeamStrengthRow[];
+  /** Teams that played in this league last season but aren't rated in it this season -- relegated (or otherwise dropped out). */
+  relegatedTeams: { team_id: number; canonical_name: string }[];
 }
 
 export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStrengthSummary> {
   const fitRun = await getLatestFitRun(leagueId);
-  const ratings = fitRun ? await getTeamRatingsForFitRun(fitRun.fit_run_id) : [];
+  const allRatings = fitRun ? await getTeamRatingsForFitRun(fitRun.fit_run_id) : [];
 
   const currentSeason = await getMostRecentFixtureSeason(leagueId);
   const currentSeasonId = currentSeason?.season_id ?? null;
+
+  // The fit's window is wide enough (currently ~2 seasons) that it rates
+  // some teams who aren't actually in this league THIS season at all --
+  // confirmed live: 25 rated teams for a 20-team league, because a team
+  // relegated up to ~2 seasons ago still has matches inside the fitting
+  // window. Anyone not in this season's own fixture list doesn't belong in
+  // the main table no matter how they're still weighted internally -- the
+  // in-season team list (not the rated-team list) is the source of truth
+  // for "who's actually in this league now".
+  const currentSeasonTeamIds = new Set<number>();
+  if (currentSeasonId !== null) {
+    const { data, error } = await supabase
+      .from('fixtures')
+      .select('home_team_id, away_team_id')
+      .eq('league_id', leagueId)
+      .eq('season_id', currentSeasonId);
+    if (error) throw error;
+    for (const f of (data ?? []) as any[]) {
+      currentSeasonTeamIds.add(f.home_team_id);
+      currentSeasonTeamIds.add(f.away_team_id);
+    }
+  }
+  const ratings = currentSeasonTeamIds.size > 0 ? allRatings.filter((r) => currentSeasonTeamIds.has(r.team_id)) : allRatings;
+  // Anyone rated but NOT in this season's team list -- regardless of
+  // exactly which past season they last played in -- is out of the league
+  // now (relegated, or otherwise dropped out) and gets flagged separately
+  // rather than silently sitting in the main ranking table.
+  const relegatedTeams = (currentSeasonTeamIds.size > 0 ? allRatings.filter((r) => !currentSeasonTeamIds.has(r.team_id)) : [])
+    .map((r) => ({ team_id: r.team_id, canonical_name: r.canonical_name }))
+    .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name));
 
   // Projected GF/GA: sum of Dixon-Coles predicted goals across every fixture
   // in the CURRENT season, played and upcoming alike -- fixtures.predicted_*
@@ -986,6 +1018,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     currentSeasonLabel: currentSeason?.label ?? null,
     lastSeasonLabel,
     rows,
+    relegatedTeams,
   };
 }
 

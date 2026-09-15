@@ -4,14 +4,21 @@ import {
   getSeasonSummary,
   getGameweekFixtures,
   getGameweekPlayerProjections,
+  getSeasonActualVsProjected,
   type SeasonGameweekSummary,
   type SeasonFixture,
   type SeasonPlayerProjection,
+  type SeasonPlayerActualVsProjected,
 } from '../../lib/fplSeasonApi';
 import GameweekNav from '../../components/fpl/season/GameweekNav';
 import GameweekFixtureList from '../../components/fpl/season/GameweekFixtureList';
 import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
+import SeasonActualVsProjectedTable from '../../components/fpl/season/SeasonActualVsProjectedTable';
 import { getErrorMessage } from '../../lib/errorMessage';
+
+/** This whole FPL section only covers the Premier League -- matches the convention already used throughout it (no explicit league picker anywhere else here either). */
+const FPL_LEAGUE_ID = 1;
+const FPL_SEASON_ID = 13;
 
 /** A known, currently-unresolved backend performance issue -- give a calm, specific explanation instead of a raw Postgres error wall. */
 function isTimeoutError(message: string): boolean {
@@ -36,6 +43,12 @@ export default function GameweekPage() {
   const [playersAttempt, setPlayersAttempt] = useState(0);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [playersError, setPlayersError] = useState<string | null>(null);
+
+  const [actualVsProjected, setActualVsProjected] = useState<SeasonPlayerActualVsProjected[] | null>(null);
+  const [avpRequested, setAvpRequested] = useState(false);
+  const [avpAttempt, setAvpAttempt] = useState(0);
+  const [loadingAvp, setLoadingAvp] = useState(false);
+  const [avpError, setAvpError] = useState<string | null>(null);
 
   // Season summary (cheap, 38 rows) -- fetched once, powers the GW picker regardless of which week is selected.
   useEffect(() => {
@@ -108,6 +121,29 @@ export default function GameweekPage() {
       cancelled = true;
     };
   }, [matchweek, fixtures, selectedFixtureId, playersRequested, playersAttempt]);
+
+  // Season-to-date actual vs projected -- gated behind explicit request like
+  // player projections above, and independent of which gameweek is
+  // currently selected (it always covers every played fixture so far).
+  useEffect(() => {
+    if (!avpRequested) return;
+    let cancelled = false;
+    setLoadingAvp(true);
+    setAvpError(null);
+    getSeasonActualVsProjected(FPL_LEAGUE_ID, FPL_SEASON_ID)
+      .then((data) => {
+        if (!cancelled) setActualVsProjected(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setAvpError(getErrorMessage(e, 'Failed to load season actual vs projected totals'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAvp(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [avpRequested, avpAttempt]);
 
   const handleSelectMatchweek = (target: number) => {
     const clamped = summary.length > 0 ? Math.min(Math.max(target, summary[0].matchweek), summary[summary.length - 1].matchweek) : target;
@@ -188,6 +224,47 @@ export default function GameweekPage() {
         )}
 
         {playersRequested && !loadingPlayers && !playersError && <SeasonPlayerTable players={players} />}
+      </div>
+
+      <div>
+        <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Season to date &mdash; actual vs projected</h2>
+        <p className="text-xs text-ink-500 mb-2">
+          Totals and points-per-game for every player who&rsquo;s played so far this season, real results against the model&rsquo;s
+          own projections for those same played fixtures.
+        </p>
+
+        {!avpRequested && (
+          <button
+            type="button"
+            onClick={() => setAvpRequested(true)}
+            className="px-3 py-2 text-sm font-medium rounded-lg border border-chalk-300 bg-white text-ink-700 hover:bg-chalk-100 transition-colors"
+          >
+            Load season totals
+          </button>
+        )}
+
+        {loadingAvp && <p className="text-ink-500 font-mono text-sm">{'Loading season totals\u2026'}</p>}
+
+        {avpError && (
+          <div className="text-sm bg-chalk-100 border border-chalk-300 rounded-lg px-3 py-2 space-y-1">
+            {isTimeoutError(avpError) ? (
+              <>
+                <p className="text-ink-700">
+                  Season totals are taking too long to load right now &mdash; this is a known backend performance issue, not a
+                  problem with your connection.
+                </p>
+                <p className="text-ink-500 text-xs font-mono">{avpError}</p>
+              </>
+            ) : (
+              <p className="text-loss-700">{avpError}</p>
+            )}
+            <button type="button" onClick={() => setAvpAttempt((a) => a + 1)} className="text-xs font-medium text-ink-700 underline hover:text-ink-900">
+              Try again
+            </button>
+          </div>
+        )}
+
+        {avpRequested && !loadingAvp && !avpError && actualVsProjected && <SeasonActualVsProjectedTable rows={actualVsProjected} />}
       </div>
     </div>
   );

@@ -151,6 +151,21 @@ export type SeasonPlayerProjection = {
   experimental_expected_bonus: number | null;
   /** From the production xPts feed only -- null where that model hasn't covered this fixture yet. Never computed client-side. */
   expected_fpl_points: number | null;
+  /** Per-component breakdown of expected_fpl_points, straight from fpl_player_projections -- these are pulled, never recomputed, and should sum close to expected_fpl_points. */
+  xpts_appearance: number | null;
+  xpts_goals: number | null;
+  xpts_assists: number | null;
+  xpts_clean_sheet: number | null;
+  xpts_saves: number | null;
+  xpts_defensive_contribution: number | null;
+  xpts_cards_own_goals: number | null;
+  xpts_bonus: number | null;
+  xpts_goals_conceded: number | null;
+  xpts_penalties: number | null;
+  /** 0-1, how much the minutes/lineup estimate behind this projection can be trusted -- see fixture_player_expected_minutes_resolved_v3.minutes_source for the tiers (squad-state override highest, fallback history lowest). Null where no projection exists at all. */
+  lineup_confidence: number | null;
+  /** FPL's own "selected by X% of managers" ownership figure, from fpl_players -- same for a player across every fixture row this gameweek. */
+  selected_by_percent: number | null;
   /**
    * True when the fixture has already been played -- this projection is
    * the current model recalculating retrospectively, NOT an archived
@@ -160,6 +175,28 @@ export type SeasonPlayerProjection = {
   /** Real result, from fpl_prediction_actual_start_comparison -- null until the match has been played and backfilled. Independent of every projection field above; can be present with no projection at all (true for all of GW1-4 right now). */
   actual_started: boolean | null;
   actual_minutes: number | null;
+  /** Real FPL points scored, from fpl_player_gameweeks -- null until played and backfilled. */
+  actual_points: number | null;
+};
+
+/**
+ * Season-to-date actual vs projected comparison for one player: total
+ * points and points-per-game, computed ONLY over gameweeks that have
+ * actually been played (so the two sides are on a like-for-like basis --
+ * summing a partial season's projections against a full season's actuals
+ * would be meaningless). Both totals come straight from stored data
+ * (fpl_player_gameweeks.total_points for actual, fpl_player_projections
+ * for projected); nothing is recomputed here.
+ */
+export type SeasonPlayerActualVsProjected = {
+  fpl_player_id: number;
+  web_name: string;
+  games_played: number;
+  actual_total_points: number;
+  actual_ppg: number;
+  /** Sum of expected_fpl_points for the SAME played fixtures only -- null if the model has no projection for any of them. */
+  projected_total_points: number | null;
+  projected_ppg: number | null;
 };
 
 /**
@@ -213,23 +250,77 @@ export async function getGameweekPlayerProjections(
   }
 
   const playerIds = [...new Set((projections ?? []).map((p) => p.fpl_player_id))];
-  const xptsByKey = new Map<string, number>();
+  const xptsByKey = new Map<string, {
+    expected_fpl_points: number | null;
+    xpts_appearance: number | null;
+    xpts_goals: number | null;
+    xpts_assists: number | null;
+    xpts_clean_sheet: number | null;
+    xpts_saves: number | null;
+    xpts_defensive_contribution: number | null;
+    xpts_cards_own_goals: number | null;
+    xpts_bonus: number | null;
+    xpts_goals_conceded: number | null;
+    xpts_penalties: number | null;
+    lineup_confidence: number | null;
+  }>();
   if (playerIds.length > 0 && fixtureIds.length > 0) {
     const { data: xptsRows, error: xptsError } = await supabase
       .from('fpl_player_projections')
-      .select('fixture_id, fpl_player_id, expected_fpl_points')
+      .select(
+        'fixture_id, fpl_player_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties, lineup_confidence'
+      )
       .eq('model_version', SEASON_XPTS_MODEL_VERSION)
       .in('fixture_id', fixtureIds)
       .in('fpl_player_id', playerIds);
     if (xptsError) throw xptsError;
     for (const row of xptsRows ?? []) {
-      const v = num(row.expected_fpl_points);
-      if (v !== null) xptsByKey.set(`${row.fixture_id}:${row.fpl_player_id}`, v);
+      xptsByKey.set(`${row.fixture_id}:${row.fpl_player_id}`, {
+        expected_fpl_points: num(row.expected_fpl_points),
+        xpts_appearance: num(row.xpts_appearance),
+        xpts_goals: num(row.xpts_goals),
+        xpts_assists: num(row.xpts_assists),
+        xpts_clean_sheet: num(row.xpts_clean_sheet),
+        xpts_saves: num(row.xpts_saves),
+        xpts_defensive_contribution: num(row.xpts_defensive_contribution),
+        xpts_cards_own_goals: num(row.xpts_cards_own_goals),
+        xpts_bonus: num(row.xpts_bonus),
+        xpts_goals_conceded: num(row.xpts_goals_conceded),
+        xpts_penalties: num(row.xpts_penalties),
+        lineup_confidence: num(row.lineup_confidence),
+      });
+    }
+  }
+
+  const selectedByPercentByPlayer = new Map<number, number>();
+  if (playerIds.length > 0) {
+    const { data: playerRows, error: playerError } = await supabase
+      .from('fpl_players')
+      .select('fpl_player_id, selected_by_percent')
+      .in('fpl_player_id', playerIds);
+    if (playerError) throw playerError;
+    for (const row of playerRows ?? []) {
+      const v = num(row.selected_by_percent);
+      if (v !== null) selectedByPercentByPlayer.set(row.fpl_player_id, v);
+    }
+  }
+
+  const actualPointsByKey = new Map<string, number>();
+  if (fixtureIds.length > 0 && playerIds.length > 0) {
+    const { data: gwRows, error: gwError } = await supabase
+      .from('fpl_player_gameweeks' as any)
+      .select('fpl_fixture_id, fpl_player_id, total_points')
+      .in('fpl_fixture_id', fixtureIds)
+      .in('fpl_player_id', playerIds);
+    if (gwError) throw gwError;
+    for (const row of (gwRows ?? []) as any[]) {
+      if (row.total_points !== null) actualPointsByKey.set(`${row.fpl_fixture_id}:${row.fpl_player_id}`, row.total_points);
     }
   }
 
   const rows: SeasonPlayerProjection[] = (projections ?? []).map((p) => {
     const actual = actualByKey.get(`${p.fixture_id}:${p.fpl_player_id}`);
+    const xpts = xptsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`);
     return {
       fixture_id: p.fixture_id,
       matchweek: p.matchweek,
@@ -251,10 +342,23 @@ export async function getGameweekPlayerProjections(
       clean_sheet_probability: num(p.clean_sheet_probability),
       defensive_contribution_probability: num(p.defensive_contribution_probability),
       experimental_expected_bonus: num(p.experimental_expected_bonus),
-      expected_fpl_points: xptsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`) ?? null,
+      expected_fpl_points: xpts?.expected_fpl_points ?? null,
+      xpts_appearance: xpts?.xpts_appearance ?? null,
+      xpts_goals: xpts?.xpts_goals ?? null,
+      xpts_assists: xpts?.xpts_assists ?? null,
+      xpts_clean_sheet: xpts?.xpts_clean_sheet ?? null,
+      xpts_saves: xpts?.xpts_saves ?? null,
+      xpts_defensive_contribution: xpts?.xpts_defensive_contribution ?? null,
+      xpts_cards_own_goals: xpts?.xpts_cards_own_goals ?? null,
+      xpts_bonus: xpts?.xpts_bonus ?? null,
+      xpts_goals_conceded: xpts?.xpts_goals_conceded ?? null,
+      xpts_penalties: xpts?.xpts_penalties ?? null,
+      lineup_confidence: xpts?.lineup_confidence ?? null,
+      selected_by_percent: selectedByPercentByPlayer.get(p.fpl_player_id) ?? null,
       is_retrospective: statusByFixture.get(p.fixture_id) === 'played',
       actual_started: actual?.started ?? null,
       actual_minutes: actual?.minutes ?? null,
+      actual_points: actualPointsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`) ?? null,
     };
   });
 
@@ -288,11 +392,108 @@ export async function getGameweekPlayerProjections(
       defensive_contribution_probability: null,
       experimental_expected_bonus: null,
       expected_fpl_points: null,
+      xpts_appearance: null,
+      xpts_goals: null,
+      xpts_assists: null,
+      xpts_clean_sheet: null,
+      xpts_saves: null,
+      xpts_defensive_contribution: null,
+      xpts_cards_own_goals: null,
+      xpts_bonus: null,
+      xpts_goals_conceded: null,
+      xpts_penalties: null,
+      lineup_confidence: null,
+      selected_by_percent: selectedByPercentByPlayer.get(r.fpl_player_id) ?? null,
       is_retrospective: statusByFixture.get(r.fixture_id) === 'played',
       actual_started: r.actual_started,
       actual_minutes: r.actual_minutes,
+      actual_points: actualPointsByKey.get(key) ?? null,
     });
   }
 
   return rows;
 }
+
+/**
+ * Season-to-date actual vs projected totals/PPG for every player who has
+ * played at least one game this season, restricted to league fixtures
+ * (fpl_fixture_id -> fixtures.league_id = leagueId) so a player who's also
+ * played cup football doesn't have those games silently folded in.
+ * Projected total/PPG is computed only over the SAME played fixtures a
+ * player has an actual result for -- never padded with unplayed weeks.
+ */
+export async function getSeasonActualVsProjected(leagueId: number, seasonId: number): Promise<SeasonPlayerActualVsProjected[]> {
+  const { data: fixtureRows, error: fixtureError } = await supabase
+    .from('fixtures')
+    .select('fixture_id')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .eq('status', 'played');
+  if (fixtureError) throw fixtureError;
+  const playedFixtureIds = (fixtureRows ?? []).map((f) => f.fixture_id);
+  if (playedFixtureIds.length === 0) return [];
+
+  const { data: gwRows, error: gwError } = await supabase
+    .from('fpl_player_gameweeks' as any)
+    .select('fpl_player_id, fpl_fixture_id, total_points')
+    .in('fpl_fixture_id', playedFixtureIds);
+  if (gwError) throw gwError;
+
+  const byPlayer = new Map<number, { games: number; points: number; fixtureIds: number[] }>();
+  for (const row of (gwRows ?? []) as any[]) {
+    if (row.total_points === null) continue;
+    const entry = byPlayer.get(row.fpl_player_id) ?? { games: 0, points: 0, fixtureIds: [] };
+    entry.games += 1;
+    entry.points += row.total_points;
+    entry.fixtureIds.push(row.fpl_fixture_id);
+    byPlayer.set(row.fpl_player_id, entry);
+  }
+
+  const playerIds = [...byPlayer.keys()];
+  if (playerIds.length === 0) return [];
+
+  const { data: projRows, error: projError } = await supabase
+    .from('fpl_player_projections')
+    .select('fpl_player_id, fixture_id, expected_fpl_points')
+    .eq('model_version', SEASON_XPTS_MODEL_VERSION)
+    .in('fpl_player_id', playerIds)
+    .in('fixture_id', playedFixtureIds);
+  if (projError) throw projError;
+  const projByKey = new Map<string, number>();
+  for (const row of projRows ?? []) {
+    const v = num(row.expected_fpl_points);
+    if (v !== null) projByKey.set(`${row.fpl_player_id}:${row.fixture_id}`, v);
+  }
+
+  const { data: nameRows, error: nameError } = await supabase
+    .from('fpl_players')
+    .select('fpl_player_id, web_name')
+    .in('fpl_player_id', playerIds);
+  if (nameError) throw nameError;
+  const nameByPlayer = new Map<number, string>();
+  for (const row of nameRows ?? []) nameByPlayer.set(row.fpl_player_id, row.web_name ?? 'Unknown');
+
+  const out: SeasonPlayerActualVsProjected[] = [];
+  for (const [playerId, entry] of byPlayer) {
+    let projectedTotal = 0;
+    let projectedCount = 0;
+    for (const fid of entry.fixtureIds) {
+      const v = projByKey.get(`${playerId}:${fid}`);
+      if (v !== undefined) {
+        projectedTotal += v;
+        projectedCount += 1;
+      }
+    }
+    out.push({
+      fpl_player_id: playerId,
+      web_name: nameByPlayer.get(playerId) ?? 'Unknown',
+      games_played: entry.games,
+      actual_total_points: entry.points,
+      actual_ppg: entry.games > 0 ? entry.points / entry.games : 0,
+      projected_total_points: projectedCount > 0 ? projectedTotal : null,
+      projected_ppg: projectedCount > 0 ? projectedTotal / projectedCount : null,
+    });
+  }
+  return out.sort((a, b) => b.actual_total_points - a.actual_total_points);
+}
+

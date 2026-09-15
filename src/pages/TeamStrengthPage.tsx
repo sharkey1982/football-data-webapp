@@ -152,6 +152,14 @@ export default function TeamStrengthPage() {
             </div>
           )}
 
+          {summary.relegatedTeams.length > 0 && (
+            <p className="text-sm text-ink-500 bg-chalk-100 border border-chalk-300 rounded-lg px-3 py-2">
+              <span className="font-medium text-ink-700">Relegated from {summary.lastSeasonLabel ?? 'last season'}:</span>{' '}
+              {summary.relegatedTeams.map((t) => t.canonical_name).join(', ')} &mdash; no longer rated in this league, so they
+              don&rsquo;t appear in the table below.
+            </p>
+          )}
+
           <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
