@@ -39,6 +39,7 @@ function baseRow(overrides: Partial<fplPlayerTableApi.PlayerGameweekPoints>): fp
     xpts_bonus: null,
     xpts_goals_conceded: null,
     xpts_penalties: null,
+    actual_contribution: null,
     ...overrides,
   };
 }
@@ -101,5 +102,29 @@ describe('PlayerProjectionsTablePage', () => {
     fireEvent.change(screen.getByPlaceholderText('Search player\u2026'), { target: { value: 'saka' } });
     expect(screen.queryByText('Haaland')).not.toBeInTheDocument();
     expect(screen.getByText('Saka')).toBeInTheDocument();
+  });
+
+  it('uses the real reconstructed breakdown for a played gameweek, not the projection, in the contribution view', async () => {
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
+    mockedTableApi.getPlayerGameweekPointsRange.mockResolvedValue([
+      // GW5 played: actual_contribution present, should be used.
+      baseRow({
+        matchweek: 5,
+        actual_points: 17,
+        projected_points: null,
+        actual_contribution: { appearance: 2, goals: 5, assists: 6, cleanSheet: 1, defensiveContribution: 0, saves: 0, bonus: 3, goalsConceded: 0, penalties: 0, cardsOwnGoals: 0 },
+      }),
+      // GW6 not played: falls back to the model's own xpts_* breakdown.
+      baseRow({ matchweek: 6, actual_points: null, projected_points: 6, xpts_goals: 4 }),
+    ]);
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Haaland')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('By contribution'));
+
+    // Goals column: 5 (real, GW5) + 4 (projected, GW6) = 9.00
+    await waitFor(() => expect(screen.getByText('9.00')).toBeInTheDocument());
+    // Assists column: 6 (real, GW5 only) + 0 = 6.00
+    expect(screen.getByText('6.00')).toBeInTheDocument();
   });
 });

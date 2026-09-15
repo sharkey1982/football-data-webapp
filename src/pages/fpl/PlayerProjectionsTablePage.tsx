@@ -77,8 +77,26 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
     const shown = r.actual_points ?? r.projected_points;
     if (shown !== null) row.total += shown;
     if (r.actual_points !== null) row.hasAnyActual = true;
-    if (r.projected_points !== null) {
-      row.hasAnyProjected = true;
+    if (r.projected_points !== null) row.hasAnyProjected = true;
+
+    // Contribution breakdown mirrors the same actual-over-projected choice
+    // as the total above: real stats (reconstructed via the official
+    // 2025/26 scoring rules) where the fixture's been played, the model's
+    // own component breakdown otherwise. Never both for the same gameweek.
+    if (r.actual_points !== null && r.actual_contribution) {
+      const c = r.actual_contribution;
+      row.contribution.appearance += c.appearance;
+      row.contribution.goals += c.goals;
+      row.contribution.assists += c.assists;
+      row.contribution.cleanSheet += c.cleanSheet;
+      row.contribution.defensiveContribution += c.defensiveContribution;
+      row.contribution.saves += c.saves;
+      row.contribution.bonus += c.bonus;
+      row.contribution.goalsConceded += c.goalsConceded;
+      row.contribution.penalties += c.penalties;
+      row.contribution.cardsOwnGoals += c.cardsOwnGoals;
+      row.contribution.total += r.actual_points;
+    } else if (r.projected_points !== null) {
       row.contribution.appearance += r.xpts_appearance ?? 0;
       row.contribution.goals += r.xpts_goals ?? 0;
       row.contribution.assists += r.xpts_assists ?? 0;
@@ -207,8 +225,8 @@ export default function PlayerProjectionsTablePage() {
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Player Points Table</h1>
         <p className="text-sm text-ink-500 mt-1">
           Every player, one row each, across the gameweek range below. Actual points where a fixture&rsquo;s been played, the
-          model&rsquo;s projection otherwise. Switch to the contribution view to see projected points broken down by source
-          instead of totals.
+          model&rsquo;s projection otherwise. Switch to the contribution view to see those points broken down by source (goals,
+          assists, bonus, etc.) instead of totals.
         </p>
       </div>
 
@@ -357,8 +375,9 @@ export default function PlayerProjectionsTablePage() {
           </div>
           <div className="px-3 py-2 text-[11px] text-ink-500 border-t border-chalk-200 bg-chalk-100">
             <span className="font-semibold text-ink-900">Bold</span> = actual points (fixture played). <span className="italic">Italic</span> = model projection (not yet
-            played). Contribution columns are always the model&rsquo;s projection -- there&rsquo;s no equivalent breakdown for actual
-            points without reimplementing FPL&rsquo;s full scoring rules from raw stats, which isn&rsquo;t done here.
+            played). Contribution columns use real stats (official 2025/26 FPL scoring rules) for played gameweeks and the
+            model&rsquo;s own breakdown for weeks not yet played, summed across the range -- same actual-over-projected choice as the
+            totals column.
           </div>
         </div>
       )}

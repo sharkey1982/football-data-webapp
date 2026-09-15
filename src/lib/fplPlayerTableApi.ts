@@ -16,6 +16,16 @@
 // at ~9ms once fixtures are filtered first via a CTE, vs timing out through
 // the view. Same underlying data, same model_version, just without the
 // window-function bottleneck in the way.
+//
+// ACTUAL-POINTS BREAKDOWN: computed here from fpl_player_gameweeks' raw
+// stats using the official 2025/26 FPL scoring rules (verified against
+// premierleague.com's own published changes before implementing -- goal
+// values by position, the new defensive-contribution thresholds, etc.).
+// Validated against two real GW4 rows before shipping: Groß (MID, 17 total
+// points) and Raya (GK, 14 total points) both reconstruct exactly component
+// by component. Kept separate from the projected breakdown (never blended)
+// so a discrepancy between the two stays visible rather than silently
+// averaged away.
 // ============================================================================
 
 import { supabase } from './supabase';
@@ -23,6 +33,79 @@ import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION } from './fplApi';
 import type { FplElementType } from '../types/database';
 
 export const PLAYER_TABLE_MODEL_VERSION = CURRENT_MODEL_VERSION;
+
+/** Points per goal, by FPL element_type (1=GK, 2=DEF, 3=MID, 4=FWD). */
+const GOAL_POINTS: Record<number, number> = { 1: 10, 2: 6, 3: 5, 4: 4 };
+/** Points for a qualifying clean sheet (60+ minutes played), by position. */
+const CLEAN_SHEET_POINTS: Record<number, number> = { 1: 4, 2: 4, 3: 1, 4: 0 };
+/** Combined defensive-actions threshold for the 2025/26 defensive-contribution rule. GK not eligible. DEF counts CBIT (clearances+blocks+interceptions+tackles); MID/FWD count CBIRT (those four plus recoveries). */
+const DEF_CONTRIBUTION_THRESHOLD: Record<number, number> = { 2: 10, 3: 12, 4: 12 };
+
+export type ContributionBreakdown = {
+  appearance: number;
+  goals: number;
+  assists: number;
+  cleanSheet: number;
+  defensiveContribution: number;
+  saves: number;
+  bonus: number;
+  goalsConceded: number;
+  penalties: number;
+  cardsOwnGoals: number;
+};
+
+/**
+ * Reconstructs a real gameweek's points, component by component, from raw
+ * FPL stats -- official 2025/26 scoring rules. Returns null if there's no
+ * minutes data at all (the row exists but the player didn't feature, or the
+ * gameweek hasn't been played -- callers should already be gating on that).
+ */
+function computeActualContribution(
+  elementType: number | null,
+  stats: {
+    minutes: number | null;
+    goals_scored: number | null;
+    assists: number | null;
+    clean_sheets: number | null;
+    goals_conceded: number | null;
+    own_goals: number | null;
+    penalties_saved: number | null;
+    penalties_missed: number | null;
+    yellow_cards: number | null;
+    red_cards: number | null;
+    saves: number | null;
+    bonus: number | null;
+    defensive_actions: number | null;
+  }
+): ContributionBreakdown {
+  const pos = elementType ?? 0;
+  const minutes = stats.minutes ?? 0;
+  const appearance = minutes >= 60 ? 2 : minutes > 0 ? 1 : 0;
+  const goals = (stats.goals_scored ?? 0) * (GOAL_POINTS[pos] ?? 0);
+  const assists = (stats.assists ?? 0) * 3;
+  const cleanSheet = (stats.clean_sheets ?? 0) > 0 && minutes >= 60 ? CLEAN_SHEET_POINTS[pos] ?? 0 : 0;
+  const goalsConceded = (pos === 1 || pos === 2) ? -Math.floor((stats.goals_conceded ?? 0) / 2) : 0;
+  const saves = pos === 1 ? Math.floor((stats.saves ?? 0) / 3) : 0;
+  const penaltySave = (stats.penalties_saved ?? 0) * 5;
+  const penaltyMiss = (stats.penalties_missed ?? 0) * -2;
+  const cards = (stats.yellow_cards ?? 0) * -1 + (stats.red_cards ?? 0) * -3;
+  const ownGoals = (stats.own_goals ?? 0) * -2;
+  const threshold = DEF_CONTRIBUTION_THRESHOLD[pos];
+  const defensiveContribution = threshold !== undefined && (stats.defensive_actions ?? 0) >= threshold ? 2 : 0;
+
+  return {
+    appearance,
+    goals,
+    assists,
+    cleanSheet,
+    defensiveContribution,
+    saves,
+    bonus: stats.bonus ?? 0,
+    goalsConceded,
+    penalties: penaltySave + penaltyMiss,
+    cardsOwnGoals: cards + ownGoals,
+  };
+}
 
 /** One player's projected or actual points for one gameweek. Never both null -- a row only exists where at least one side has data. */
 export type PlayerGameweekPoints = {
@@ -37,7 +120,7 @@ export type PlayerGameweekPoints = {
   actual_points: number | null;
   /** Model's expected_fpl_points for this fixture -- null where the model hasn't covered it (see PLAYER_TABLE_MODEL_VERSION). */
   projected_points: number | null;
-  /** Per-component breakdown of projected_points -- null wherever projected_points itself is null. Never populated for actual_points (would require reimplementing FPL's full scoring ruleset from raw stats; the model's own breakdown is the trustworthy source). */
+  /** Per-component breakdown of projected_points -- null wherever projected_points is null. */
   xpts_appearance: number | null;
   xpts_goals: number | null;
   xpts_assists: number | null;
@@ -48,6 +131,8 @@ export type PlayerGameweekPoints = {
   xpts_bonus: number | null;
   xpts_goals_conceded: number | null;
   xpts_penalties: number | null;
+  /** Per-component breakdown of actual_points, reconstructed from real stats -- null wherever actual_points is null. Kept entirely separate from the projected breakdown above; never blended. */
+  actual_contribution: ContributionBreakdown | null;
 };
 
 /**
@@ -70,24 +155,84 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   for (const f of fixtureRows ?? []) if (f.matchweek !== null) matchweekByFixture.set(f.fixture_id, f.matchweek);
   if (fixtureIds.length === 0) return [];
 
-  const { data: projRows, error: projError } = await supabase
-    .from('fpl_player_projections')
-    .select(
-      'fpl_player_id, fixture_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties'
-    )
-    .eq('model_version', PLAYER_TABLE_MODEL_VERSION)
-    .in('fixture_id', fixtureIds);
-  if (projError) throw projError;
+  // PostgREST caps rows per request (confirmed live: a 6-week range hit the
+  // exact same silent-truncation bug already found and fixed once this
+  // session for the optimizer feed -- 3304 matching rows, only the first
+  // 1000 returned, and because insertion order roughly follows matchweek
+  // order, the truncation landed exactly where it was reported: GW5
+  // complete, GW6 partial, everything after empty). Both queries below page
+  // through with .range() until a page comes back short, rather than
+  // trusting a single .in() call to return everything.
+  async function fetchAllRows<T>(build: (from: number, to: number) => any): Promise<T[]> {
+    const pageSize = 1000;
+    const out: T[] = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await build(from, from + pageSize - 1);
+      if (error) throw error;
+      const page = (data ?? []) as T[];
+      out.push(...page);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    return out;
+  }
 
-  const { data: gwRows, error: gwError } = await supabase
-    .from('fpl_player_gameweeks' as any)
-    .select('fpl_player_id, fpl_fixture_id, total_points')
-    .in('fpl_fixture_id', fixtureIds);
-  if (gwError) throw gwError;
+  const projRows = await fetchAllRows<{
+    fpl_player_id: number;
+    fixture_id: number;
+    expected_fpl_points: number | null;
+    xpts_appearance: number | null;
+    xpts_goals: number | null;
+    xpts_assists: number | null;
+    xpts_clean_sheet: number | null;
+    xpts_saves: number | null;
+    xpts_defensive_contribution: number | null;
+    xpts_cards_own_goals: number | null;
+    xpts_bonus: number | null;
+    xpts_goals_conceded: number | null;
+    xpts_penalties: number | null;
+  }>((from, to) =>
+    supabase
+      .from('fpl_player_projections')
+      .select(
+        'fpl_player_id, fixture_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties'
+      )
+      .eq('model_version', PLAYER_TABLE_MODEL_VERSION)
+      .in('fixture_id', fixtureIds)
+      .range(from, to)
+  );
+
+  const gwRows = await fetchAllRows<{
+    fpl_player_id: number;
+    fpl_fixture_id: number;
+    total_points: number | null;
+    minutes: number | null;
+    goals_scored: number | null;
+    assists: number | null;
+    clean_sheets: number | null;
+    goals_conceded: number | null;
+    own_goals: number | null;
+    penalties_saved: number | null;
+    penalties_missed: number | null;
+    yellow_cards: number | null;
+    red_cards: number | null;
+    saves: number | null;
+    bonus: number | null;
+    source_payload: any;
+  }>((from, to) =>
+    supabase
+      .from('fpl_player_gameweeks' as any)
+      .select(
+        'fpl_player_id, fpl_fixture_id, total_points, minutes, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_saved, penalties_missed, yellow_cards, red_cards, saves, bonus, source_payload'
+      )
+      .in('fpl_fixture_id', fixtureIds)
+      .range(from, to)
+  );
 
   const playerIds = new Set<number>();
-  for (const r of projRows ?? []) playerIds.add(r.fpl_player_id);
-  for (const r of (gwRows ?? []) as any[]) playerIds.add(r.fpl_player_id);
+  for (const r of projRows) playerIds.add(r.fpl_player_id);
+  for (const r of gwRows) playerIds.add(r.fpl_player_id);
   if (playerIds.size === 0) return [];
 
   const { data: playerRows, error: playerError } = await supabase
@@ -135,10 +280,11 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
       xpts_bonus: null,
       xpts_goals_conceded: null,
       xpts_penalties: null,
+      actual_contribution: null,
     };
   };
 
-  for (const p of projRows ?? []) {
+  for (const p of projRows) {
     const mw = matchweekByFixture.get(p.fixture_id);
     if (mw === undefined) continue;
     const key = keyOf(p.fpl_player_id, mw);
@@ -157,12 +303,29 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     rowByKey.set(key, row);
   }
 
-  for (const g of (gwRows ?? []) as any[]) {
+  for (const g of gwRows) {
     const mw = matchweekByFixture.get(g.fpl_fixture_id);
     if (mw === undefined || g.total_points === null) continue;
     const key = keyOf(g.fpl_player_id, mw);
     const row = rowByKey.get(key) ?? emptyRow(g.fpl_player_id, mw);
     row.actual_points = g.total_points;
+    const stats = g.source_payload?.stats ?? {};
+    const defensiveActions = Number(stats.clearances_blocks_interceptions ?? 0) + Number(stats.tackles ?? 0) + (row.fpl_position === 3 || row.fpl_position === 4 ? Number(stats.recoveries ?? 0) : 0);
+    row.actual_contribution = computeActualContribution(row.fpl_position, {
+      minutes: g.minutes,
+      goals_scored: g.goals_scored,
+      assists: g.assists,
+      clean_sheets: g.clean_sheets,
+      goals_conceded: g.goals_conceded,
+      own_goals: g.own_goals,
+      penalties_saved: g.penalties_saved,
+      penalties_missed: g.penalties_missed,
+      yellow_cards: g.yellow_cards,
+      red_cards: g.red_cards,
+      saves: g.saves,
+      bonus: g.bonus,
+      defensive_actions: defensiveActions,
+    });
     rowByKey.set(key, row);
   }
 
