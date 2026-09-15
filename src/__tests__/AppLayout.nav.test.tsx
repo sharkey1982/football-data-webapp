@@ -16,6 +16,7 @@ function renderAt(path: string) {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Stub />} />
           <Route path="table" element={<Stub />} />
+          <Route path="team-strength" element={<Stub />} />
           <Route path="teams" element={<Stub />} />
           <Route path="preview" element={<Stub />} />
           <Route path="fantasy" element={<Stub />} />
@@ -74,6 +75,17 @@ describe('AppLayout main nav', () => {
 
   it('highlights the Football heading when on the root Fixtures route', () => {
     renderAt('/');
+    expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
+  });
+
+  it('Football dropdown contains Team Strength, and visiting it highlights Football, not League Table', async () => {
+    renderAt('/team-strength');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Football/ }));
+
+    expect(screen.getByRole('link', { name: 'Team Strength' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Team Strength' }).className).toContain('bg-amber-500');
+    expect(screen.getByRole('link', { name: 'League Table' }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
   });
 
