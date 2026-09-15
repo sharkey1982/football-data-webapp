@@ -28,7 +28,15 @@ jobs:
       # staleness, so this job failing or running late never blocks the
       # live app -- it only means the cache doesn't get refreshed that run.
       - name: Solve optimal squads (MILP)
-        run: npm run optimizer:solve
+        shell: bash
+        run: |
+          set +e
+          npm run optimizer:solve 2>&1 | tee /tmp/solve_output.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "::error::$(tail -c 3000 /tmp/solve_output.log)"
+          fi
+          exit $STATUS
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
