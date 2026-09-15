@@ -34,7 +34,8 @@ jobs:
           npm run optimizer:solve 2>&1 | tee /tmp/solve_output.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
-            echo "::error::$(tail -c 3000 /tmp/solve_output.log)"
+            ENCODED=$(tail -c 3000 /tmp/solve_output.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+            echo "::error::$ENCODED"
           fi
           exit $STATUS
         env:
