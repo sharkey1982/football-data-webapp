@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "import:daily": "tsx scripts/import-daily.ts",
     "predictions:refresh": "tsx scripts/refresh-predictions.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "optimizer:solve": "tsx scripts/solve-optimal-squads.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -20,7 +21,8 @@
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.18.0",
     "recharts": "^3.8.1",
-    "tailwindcss": "^4.3.1"
+    "tailwindcss": "^4.3.1",
+    "highs": "^1.15.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

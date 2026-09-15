@@ -1,0 +1,34 @@
+name: Optimal Squad Solve (MILP)
+
+on:
+  schedule:
+    # After the daily import/refit (06:00 UTC) has had time to land fresh
+    # projections -- no point solving against yesterday's numbers.
+    - cron: '30 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      # Solves the FPL squad-selection problem as an exact Mixed-Integer
+      # Linear Program (HiGHS) for every available gameweek range up to 10
+      # weeks long, anchored at the earliest gameweek with predictions.
+      # Deliberately NOT run inside a Supabase Edge Function -- see
+      # scripts/solve-optimal-squads.ts's header comment for why (2s CPU
+      # cap, 5MB deploy-size cap there; neither applies here). Writes
+      # results to fpl_optimal_squad_cache; the live optimizer reads from
+      # that cache and falls back to its existing heuristic on any miss or
+      # staleness, so this job failing or running late never blocks the
+      # live app -- it only means the cache doesn't get refreshed that run.
+      - name: Solve optimal squads (MILP)
+        run: npm run optimizer:solve
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
