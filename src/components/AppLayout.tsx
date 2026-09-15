@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
-type NavItem = { to: To; label: string; matchPrefix: string; exact?: boolean; excludePrefix?: string };
+type NavItem = { to: To; label: string; matchPrefix: string; exact?: boolean; excludePrefix?: string | string[] };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navLinkClasses = (isActive: boolean) =>
@@ -16,13 +16,15 @@ const navLinkClasses = (isActive: boolean) =>
  * built-in `end` prop can't express on its own:
  *   - "/" as a prefix would match every route, so it's exact-match only
  *     (root or the equivalent /fixtures).
- *   - "/fpl" (FPL Projections) is a prefix of "/fpl/optimal-squad"
- *     (a sibling feature, not a sub-page of it) -- excludePrefix stops
- *     Optimal Squad's own route from also lighting up FPL Projections.
+ *   - "/fpl" (FPL Projections) is a prefix of both "/fpl/optimal-squad" and
+ *     "/fpl/player-points" (sibling features, not sub-pages of it) --
+ *     excludePrefix (one or more) stops those routes from also lighting up
+ *     FPL Projections.
  */
 function isItemActive(pathname: string, item: NavItem): boolean {
   if (item.exact) return pathname === item.matchPrefix || (item.matchPrefix === '/' && pathname === '/fixtures');
-  if (item.excludePrefix && pathname.startsWith(item.excludePrefix)) return false;
+  const excludes = item.excludePrefix === undefined ? [] : Array.isArray(item.excludePrefix) ? item.excludePrefix : [item.excludePrefix];
+  if (excludes.some((p) => pathname.startsWith(p))) return false;
   return pathname.startsWith(item.matchPrefix);
 }
 
@@ -112,7 +114,8 @@ export default function AppLayout() {
       items: [
         { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad' },
         { to: '/fantasy', label: 'Fantasy Fixtures', matchPrefix: '/fantasy' },
-        { to: '/fpl', label: 'FPL Projections', matchPrefix: '/fpl', excludePrefix: '/fpl/optimal-squad' },
+        { to: '/fpl', label: 'FPL Projections', matchPrefix: '/fpl', excludePrefix: ['/fpl/optimal-squad', '/fpl/player-points'] },
+        { to: '/fpl/player-points', label: 'Player Points Table', matchPrefix: '/fpl/player-points' },
       ],
     },
     {

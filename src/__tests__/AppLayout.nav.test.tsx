@@ -21,6 +21,7 @@ function renderAt(path: string) {
           <Route path="fantasy" element={<Stub />} />
           <Route path="fpl" element={<Stub />} />
           <Route path="fpl/optimal-squad" element={<Stub />} />
+          <Route path="fpl/player-points" element={<Stub />} />
           <Route path="results-data" element={<Stub />} />
           <Route path="source-data" element={<Stub />} />
         </Route>
@@ -74,5 +75,24 @@ describe('AppLayout main nav', () => {
   it('highlights the Football heading when on the root Fixtures route', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
+  });
+
+  it('Fantasy dropdown also contains Player Points Table, distinct from FPL Projections and Optimal Squad', async () => {
+    renderAt('/');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+    expect(screen.getByRole('link', { name: 'Player Points Table' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'FPL Projections' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
+  });
+
+  it('highlights only Player Points Table, not FPL Projections or Optimal Squad, when on /fpl/player-points', async () => {
+    renderAt('/fpl/player-points');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+
+    expect(screen.getByRole('link', { name: 'Player Points Table' }).className).toContain('bg-amber-500');
+    expect(screen.getByRole('link', { name: 'FPL Projections' }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('link', { name: 'Optimal Squad' }).className).not.toContain('bg-amber-500');
   });
 });
