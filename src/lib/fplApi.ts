@@ -75,7 +75,7 @@ export function num(v: string | number | null | undefined): number | null {
  * come back as strings there (PostgREST jsonb ->> operator), same as the
  * numeric-string columns num() already handles.
  */
-function seasonContextStats(player: { minutes: number | null; source_payload: Record<string, unknown> | null }): {
+export function seasonContextStats(player: { minutes: number | null; source_payload: Record<string, unknown> | null }): {
   points_per_game: number | null;
   avg_minutes_per_start: number | null;
 } {
@@ -188,7 +188,7 @@ const POSITION_BAND: Record<2 | 3 | 4, { min: number; max: number }> = {
  * there isn't enough information to compare (no real tactical role yet,
  * an unrecognised role string, or goalkeeper).
  */
-function computePositionSignal(fplPosition: FplElementType | null, tacticalRole: string | null): 'advanced' | 'deeper' | null {
+export function computePositionSignal(fplPosition: FplElementType | null, tacticalRole: string | null): 'advanced' | 'deeper' | null {
   if (!fplPosition || fplPosition === 1 || !tacticalRole) return null;
   const advancement = roleAdvancementScale(tacticalRole);
   if (advancement === null) return null;
@@ -629,4 +629,93 @@ export async function getFplActualVsPredicted(fixtureId: number): Promise<FplAct
     home: buildTeam(homeTeamId),
     away: buildTeam(awayTeamId),
   };
+}
+
+/** Per-player enrichment for the Optimal Squad pitch -- brings across the same context the per-fixture Player Projections pitch already shows, purely for display; never used in the optimiser's own decision. */
+export type SquadPitchEnrichment = {
+  fpl_player_id: number;
+  tactical_role: string | null;
+  position_signal: 'advanced' | 'deeper' | null;
+  start_probability: number | null;
+  lineup_confidence: number | null;
+  set_piece_roles: SetPieceRole[];
+  squad_status: SquadStatus | null;
+  season_points_per_game: number | null;
+};
+
+/**
+ * Fetches the same per-player context FormationPitch already shows on the
+ * per-fixture Player Projections pitch (tactical role, set-piece roles,
+ * squad pecking order, season PPG, start-probability reliability) but
+ * scoped to a specific squad's players for one target gameweek, rather
+ * than one fixture's full lineup. Purely additive/presentational -- the
+ * optimiser's own squad/formation/captain choice is untouched; this only
+ * decorates how it's displayed.
+ *
+ * Two-step fixture lookup (rather than an embedded join through
+ * fpl_projection_frontend_feed_v6, which is a view without PostgREST-visible
+ * FK metadata) so this doesn't depend on join syntax that may not resolve
+ * against a view: first the small set of that gameweek's fixture_ids, then
+ * the projection feed filtered to those fixtures AND this squad's player
+ * IDs specifically -- at most ~15 rows back, regardless of how many players
+ * are actually contested for the gameweek.
+ */
+export async function getSquadPitchEnrichment(matchweek: number, playerIds: number[]): Promise<Map<number, SquadPitchEnrichment>> {
+  const out = new Map<number, SquadPitchEnrichment>();
+  if (playerIds.length === 0) return out;
+
+  const { data: fixtureRows, error: fixtureError } = await supabase
+    .from('fixtures')
+    .select('fixture_id, home_team_id, away_team_id')
+    .eq('league_id', 1)
+    .eq('season_id', 13)
+    .eq('matchweek', matchweek);
+  if (fixtureError) throw fixtureError;
+  const fixtureIds = (fixtureRows ?? []).map((f) => f.fixture_id);
+  if (fixtureIds.length === 0) return out;
+  const teamIds = [...new Set((fixtureRows ?? []).flatMap((f) => [f.home_team_id, f.away_team_id]))];
+
+  const [{ data: v6Rows, error: v6Error }, { data: setPieceRows, error: setPieceError }, { data: squadRows, error: squadError }, { data: playerRows, error: playerError }] =
+    await Promise.all([
+      supabase.from('fpl_projection_frontend_feed_v6').select('*').in('fixture_id', fixtureIds).in('fpl_player_id', playerIds),
+      supabase.from('set_piece_hierarchies').select('*').in('team_id', teamIds).in('source_player_id', playerIds.map(String)),
+      supabase.from('player_squad_hierarchy').select('*').in('team_id', teamIds).in('fpl_player_id', playerIds),
+      supabase.from('fpl_players').select('fpl_player_id, minutes, source_payload').in('fpl_player_id', playerIds),
+    ]);
+  if (v6Error) throw v6Error;
+  if (setPieceError) throw setPieceError;
+  if (squadError) throw squadError;
+  if (playerError) throw playerError;
+
+  const setPieceRolesByPlayer = new Map<number, SetPieceRole[]>();
+  for (const row of (setPieceRows ?? []) as SetPieceHierarchyRow[]) {
+    const playerId = Number(row.source_player_id);
+    if (!Number.isFinite(playerId)) continue;
+    const type: SetPieceRole['type'] = row.set_piece_type === 'corner_left' || row.set_piece_type === 'corner_right' ? 'corner' : row.set_piece_type;
+    const existing = setPieceRolesByPlayer.get(playerId) ?? [];
+    const already = existing.find((r) => r.type === type);
+    if (already) already.rank = Math.min(already.rank, row.rank);
+    else existing.push({ type, rank: row.rank });
+    setPieceRolesByPlayer.set(playerId, existing);
+  }
+
+  const squadStatusByPlayer = new Map<number, SquadStatus>();
+  for (const row of (squadRows ?? []) as PlayerSquadHierarchyRow[]) squadStatusByPlayer.set(row.fpl_player_id, row.squad_status);
+
+  const seasonStatsByPlayer = new Map<number, ReturnType<typeof seasonContextStats>>();
+  for (const row of playerRows ?? []) seasonStatsByPlayer.set(row.fpl_player_id, seasonContextStats(row));
+
+  for (const proj of (v6Rows ?? []) as FplProjectionFrontendFeedV6[]) {
+    out.set(proj.fpl_player_id, {
+      fpl_player_id: proj.fpl_player_id,
+      tactical_role: proj.tactical_role,
+      position_signal: computePositionSignal(proj.fpl_position, proj.tactical_role),
+      start_probability: num(proj.start_probability),
+      lineup_confidence: num(proj.lineup_confidence),
+      set_piece_roles: setPieceRolesByPlayer.get(proj.fpl_player_id) ?? [],
+      squad_status: squadStatusByPlayer.get(proj.fpl_player_id) ?? null,
+      season_points_per_game: seasonStatsByPlayer.get(proj.fpl_player_id)?.points_per_game ?? null,
+    });
+  }
+  return out;
 }

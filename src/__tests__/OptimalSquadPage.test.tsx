@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OptimalSquadPage from '../pages/fpl/OptimalSquadPage';
 import * as optimizerApi from '../lib/fplOptimizerApi';
+import * as fplApi from '../lib/fplApi';
 
 import type { FplOptimizerPlayer, FplOptimizerResult } from '../lib/fplOptimizerApi';
 
@@ -11,8 +12,13 @@ vi.mock('../lib/fplOptimizerApi', async () => {
   const actual = await vi.importActual<typeof optimizerApi>('../lib/fplOptimizerApi');
   return { ...actual, optimizeFplSquad: vi.fn(), getOptimizerEarliestMatchweek: vi.fn() };
 });
+vi.mock('../lib/fplApi', async () => {
+  const actual = await vi.importActual<typeof fplApi>('../lib/fplApi');
+  return { ...actual, getSquadPitchEnrichment: vi.fn() };
+});
 
 const mockedOptimizerApi = optimizerApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedFplApi = fplApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 function makePlayer(overrides: Partial<FplOptimizerPlayer>): FplOptimizerPlayer {
   return {
@@ -83,6 +89,7 @@ describe('OptimalSquadPage', () => {
   it('shows exactly 15 squad players with the correct 2/5/5/3 position split, and a visually distinct bench', async () => {
     mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
+    mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
 
     render(<OptimalSquadPage />);
     await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
@@ -116,6 +123,7 @@ describe('OptimalSquadPage', () => {
 
   it('builds a multi-GW request from the "Next 3 GWs" preset and shows a per-week formation/captain table', async () => {
     mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
       buildResult({
         from_matchweek: 5,
@@ -156,5 +164,52 @@ describe('OptimalSquadPage', () => {
 
     await waitFor(() => expect(screen.getByText('No legal squad found')).toBeInTheDocument());
     expect(screen.queryByText(/Starting XI/)).not.toBeInTheDocument();
+  });
+
+  it('enriches the pitch with tactical role, season PPG, and set-piece info once the enrichment fetch resolves', async () => {
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
+    mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(
+      new Map([
+        [
+          9, // FWD1, captain
+          {
+            fpl_player_id: 9,
+            tactical_role: 'CF',
+            position_signal: null,
+            start_probability: 0.98,
+            lineup_confidence: 0.9,
+            set_piece_roles: [{ type: 'penalty' as const, rank: 1 }],
+            squad_status: 'first_choice' as const,
+            season_points_per_game: 6.2,
+          },
+        ],
+      ])
+    );
+
+    render(<OptimalSquadPage />);
+    await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
+
+    await waitFor(() => expect(mockedFplApi.getSquadPitchEnrichment).toHaveBeenCalledWith(5, expect.any(Array)));
+    // Season PPG and tactical role both render once the enrichment resolves.
+    await waitFor(() => expect(screen.getByText('6.2 ppg')).toBeInTheDocument());
+    expect(screen.getByText('CF')).toBeInTheDocument();
+  });
+
+  it('never blocks the squad from rendering if the enrichment fetch fails', async () => {
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
+    mockedFplApi.getSquadPitchEnrichment.mockRejectedValue(new Error('network error'));
+
+    render(<OptimalSquadPage />);
+    await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
+
+    // The actual squad still renders in full despite the enrichment failing.
+    await waitFor(() => expect(screen.getAllByText('FWD1').length).toBeGreaterThan(0));
+    expect(screen.getByText(/Starting XI/)).toBeInTheDocument();
   });
 });

@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { optimizeFplSquad, getOptimizerEarliestMatchweek, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
 import SquadPitch from '../../components/fpl/SquadPitch';
+import { getSquadPitchEnrichment, type SquadPitchEnrichment } from '../../lib/fplApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 
 type Preset = 'this' | 'next3' | 'next5' | 'custom';
@@ -119,6 +120,14 @@ export default function OptimalSquadPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
 
+  // Purely presentational context for the pitch (tactical role, set-piece
+  // roles, squad pecking order, season PPG, start-probability reliability)
+  // -- same info the per-fixture Player Projections pitch already shows.
+  // Fetched separately from the optimiser result itself and never feeds
+  // back into it; failing silently here should never block the actual
+  // squad from displaying.
+  const [pitchEnrichment, setPitchEnrichment] = useState<Map<number, SquadPitchEnrichment>>(new Map());
+
   useEffect(() => {
     let cancelled = false;
     // Deliberately NOT getDefaultMatchweek() (fixtures.status-based) here --
@@ -201,6 +210,29 @@ export default function OptimalSquadPage() {
     return {
       xiPlayers: result.squad.filter((p) => xiNames.has(p.name)),
       benchPlayers: result.squad.filter((p) => !xiNames.has(p.name)),
+    };
+  }, [result, primaryWeek]);
+
+  useEffect(() => {
+    if (!result || !primaryWeek) {
+      setPitchEnrichment(new Map());
+      return;
+    }
+    let cancelled = false;
+    getSquadPitchEnrichment(
+      primaryWeek.matchweek,
+      result.squad.map((p) => p.id)
+    )
+      .then((map) => {
+        if (!cancelled) setPitchEnrichment(map);
+      })
+      .catch(() => {
+        // Presentational only -- a failed enrichment fetch should never
+        // block the pitch itself from showing the actual squad.
+        if (!cancelled) setPitchEnrichment(new Map());
+      });
+    return () => {
+      cancelled = true;
     };
   }, [result, primaryWeek]);
 
@@ -361,7 +393,7 @@ export default function OptimalSquadPage() {
             <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">
               Starting XI {isMultiGw ? `(GW${primaryWeek.matchweek})` : ''}
             </h2>
-            <SquadPitch starters={xiPlayers} formation={primaryWeek.formation} captainId={captainId} viceCaptainId={viceCaptainId} />
+            <SquadPitch starters={xiPlayers} formation={primaryWeek.formation} captainId={captainId} viceCaptainId={viceCaptainId} enrichmentByPlayer={pitchEnrichment} />
           </div>
 
           <BenchStrip bench={benchPlayers} benchOrder={primaryWeek.bench_order} />
