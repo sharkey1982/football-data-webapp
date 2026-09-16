@@ -86,6 +86,18 @@ export function seasonContextStats(player: { minutes: number | null; source_payl
   return { points_per_game: pointsPerGame, avg_minutes_per_start: avgMinutesPerStart };
 }
 
+/** Season-to-date points per game, keyed by fpl_player_id -- a simple,
+ * direct lookup (no fixture context needed) for enriching bench/squad
+ * displays with a reliability signal beyond the raw projection. */
+export async function getPlayerSeasonPpg(playerIds: number[]): Promise<Map<number, number | null>> {
+  const out = new Map<number, number | null>();
+  if (playerIds.length === 0) return out;
+  const { data, error } = await supabase.from('fpl_players').select('fpl_player_id, minutes, source_payload').in('fpl_player_id', playerIds);
+  if (error) throw error;
+  for (const row of data ?? []) out.set(row.fpl_player_id, seasonContextStats({ minutes: row.minutes, source_payload: row.source_payload }).points_per_game);
+  return out;
+}
+
 export type FplXptsBreakdown = {
   appearance: number | null;
   goals: number | null;

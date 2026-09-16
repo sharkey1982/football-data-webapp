@@ -20,6 +20,7 @@ import { OPTIMIZER_POSITION_LABEL } from '../../lib/fplOptimizerApi';
 import SquadPitch from './SquadPitch';
 import BenchStrip from './BenchStrip';
 import type { SquadPitchEnrichment } from '../../lib/fplApi';
+import { getPlayerSeasonPpg } from '../../lib/fplApi';
 
 type ViewMode = 'pitch' | 'table';
 
@@ -44,6 +45,22 @@ export default function WeeklySquadView({
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
 
   const selectedWeek = weeklyPlan[selectedIndex] ?? weeklyPlan[0] ?? null;
+  const [ppgByPlayer, setPpgByPlayer] = useState<Map<number, number | null>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    getPlayerSeasonPpg(squad.map((p) => p.id))
+      .then((m) => {
+        if (!cancelled) setPpgByPlayer(m);
+      })
+      .catch(() => {
+        /* non-critical enrichment -- bench still renders fine without it */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [squad]);
 
   useEffect(() => {
     if (!fetchEnrichment || !selectedWeek || viewMode !== 'pitch') return;
@@ -128,7 +145,7 @@ export default function WeeklySquadView({
               enrichmentByPlayer={enrichmentByWeek.get(selectedWeek.matchweek)}
             />
           </div>
-          <BenchStrip bench={benchPlayers} benchOrder={selectedWeek.bench_order} />
+          <BenchStrip bench={benchPlayers} benchOrder={selectedWeek.bench_order} ppgByPlayer={ppgByPlayer} />
         </>
       )}
 
