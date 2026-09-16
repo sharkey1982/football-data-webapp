@@ -236,30 +236,32 @@ export default function OptimalSquadPage() {
               <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">Weekly plan</h2>
               <p className="text-xs text-ink-500 mb-1">Formation, captain, and vice-captain are chosen independently each gameweek.</p>
               <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-chalk-100 text-ink-500">
-                    <tr>
-                      <th className="text-left font-medium text-xs px-3 py-1.5">GW</th>
-                      <th className="text-left font-medium text-xs px-2 py-1.5">Formation</th>
-                      <th className="text-left font-medium text-xs px-2 py-1.5">Captain</th>
-                      <th className="text-left font-medium text-xs px-2 py-1.5">Vice-captain</th>
-                      <th className="text-right font-medium text-xs px-2 py-1.5">XI xPts</th>
-                      <th className="text-right font-medium text-xs px-3 py-1.5">Captaincy EV</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.weekly_plan.map((w, i) => (
-                      <tr key={w.matchweek} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                        <td className="px-3 py-1.5 font-mono text-xs text-ink-700">GW{w.matchweek}</td>
-                        <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{w.formation}</td>
-                        <td className="px-2 py-1.5 font-medium text-ink-900">{w.captain}</td>
-                        <td className="px-2 py-1.5 text-ink-700">{w.vice_captain}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{w.xi_xpts.toFixed(1)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">{w.captain_extra_ev.toFixed(1)}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-chalk-100 text-ink-500">
+                      <tr>
+                        <th className="text-left font-medium text-xs px-3 py-1.5 whitespace-nowrap">GW</th>
+                        <th className="text-left font-medium text-xs px-2 py-1.5 whitespace-nowrap">Formation</th>
+                        <th className="text-left font-medium text-xs px-2 py-1.5 whitespace-nowrap">Captain</th>
+                        <th className="text-left font-medium text-xs px-2 py-1.5 whitespace-nowrap">Vice-captain</th>
+                        <th className="text-right font-medium text-xs px-2 py-1.5 whitespace-nowrap">XI xPts</th>
+                        <th className="text-right font-medium text-xs px-3 py-1.5 whitespace-nowrap">Captaincy EV</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {result.weekly_plan.map((w, i) => (
+                        <tr key={w.matchweek} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                          <td className="px-3 py-1.5 font-mono text-xs text-ink-700 whitespace-nowrap">GW{w.matchweek}</td>
+                          <td className="px-2 py-1.5 font-mono text-xs text-ink-700 whitespace-nowrap">{w.formation}</td>
+                          <td className="px-2 py-1.5 font-medium text-ink-900 whitespace-nowrap">{w.captain}</td>
+                          <td className="px-2 py-1.5 text-ink-700 whitespace-nowrap">{w.vice_captain}</td>
+                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">{w.xi_xpts.toFixed(1)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold whitespace-nowrap">{w.captain_extra_ev.toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
