@@ -10,7 +10,7 @@
 // ============================================================================
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, refreshFplProjectionsRange, type TeamStrengthSummary } from '../lib/api';
+import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, refreshFplProjectionsRange, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
 import { triggerWorkflow } from '../lib/workflowTrigger';
 import { getErrorMessage } from '../lib/errorMessage';
@@ -201,6 +201,50 @@ export default function TeamStrengthPage() {
     if (!row.override_updated_at) return false;
     if (!row.position_simulated_at) return true;
     return new Date(row.override_updated_at) > new Date(row.position_simulated_at);
+  }
+
+  /** Live preview of what an in-progress attack/defence edit actually
+   * means in real terms -- requested directly, after a +0.3 attack
+   * adjustment (intended as a modest nudge) turned out to move a team
+   * from 22nd to roughly 16th in the league's own attack ranking, a 35%
+   * increase in expected goals scored. attack_strength/defence_strength
+   * are log-scale Dixon-Coles parameters, where the whole league
+   * typically spans only ~1.0 -- a number like "0.3" gives no sense of
+   * scale on its own, so this converts it to %-change-in-expected-goals
+   * and shows where the EFFECTIVE value would rank among every other
+   * team in the currently-loaded table, computed from summary.rows
+   * (already loaded, no extra fetch needed) rather than the raw base
+   * value alone. */
+  function overridePreview(row: TeamStrengthRow, attackAdjInput: string, defenceAdjInput: string): string | null {
+    const attackAdj = Number(attackAdjInput);
+    const defenceAdj = Number(defenceAdjInput);
+    if (!Number.isFinite(attackAdj) || !Number.isFinite(defenceAdj)) return null;
+    if (attackAdj === 0 && defenceAdj === 0) return null;
+
+    const effectiveAttack = row.attack_strength + attackAdj;
+    const effectiveDefence = row.defence_strength + defenceAdj;
+    const rows = summary?.rows ?? [];
+
+    const attackRank = 1 + rows.filter((other) => other.team_id !== row.team_id && other.attack_strength > effectiveAttack).length;
+    const defenceRank = 1 + rows.filter((other) => other.team_id !== row.team_id && other.defence_strength > effectiveDefence).length;
+    const n = rows.length || 1;
+
+    const parts: string[] = [];
+    if (attackAdj !== 0) {
+      const pctChange = (Math.exp(attackAdj) - 1) * 100;
+      parts.push(`Attack: ${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(0)}% expected goals for, ranking ${attackRank} of ${n}`);
+    }
+    if (defenceAdj !== 0) {
+      // defence_strength is SUBTRACTED from the opponent's expected
+      // goals in the prediction formula, so a positive adjustment
+      // REDUCES goals conceded by a factor of exp(-defenceAdj), not
+      // exp(+defenceAdj) -- getting this backwards would show the wrong
+      // magnitude (not just the wrong sign) for exactly the kind of
+      // surprise this preview exists to prevent.
+      const pctChangeConceded = (Math.exp(-defenceAdj) - 1) * 100;
+      parts.push(`Defence: ${pctChangeConceded >= 0 ? '+' : ''}${pctChangeConceded.toFixed(0)}% goals conceded, ranking ${defenceRank} of ${n}`);
+    }
+    return parts.join(' \u00b7 ');
   }
 
   return (
@@ -485,6 +529,9 @@ export default function TeamStrengthPage() {
                               Cancel
                             </button>
                           </div>
+                          {overridePreview(r, editAttack, editDefence) && (
+                            <p className="text-xs text-amber-800 font-medium mt-1.5">{overridePreview(r, editAttack, editDefence)}</p>
+                          )}
                           {saveError && <p className="text-xs text-loss-700 mt-1">{saveError}</p>}
                           <p className="text-xs text-ink-500 mt-1">
                             Additive, same log scale as Attack/Defence above. Saving re-runs predictions for every

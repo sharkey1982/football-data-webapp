@@ -201,6 +201,13 @@ describe('TeamStrengthPage', () => {
     await user.clear(defenceInput);
     await user.type(defenceInput, '-0.1');
     await user.type(screen.getByLabelText('Note'), 'signed a new striker');
+
+    // Live preview shows the real-world impact before saving -- exactly
+    // the check that would have caught the Hull surprise (a +0.3 attack
+    // adjustment reads as small, but is +35% expected goals for).
+    expect(screen.getByText(/Attack: \+35% expected goals for, ranking 1 of 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Defence: \+11% goals conceded, ranking 1 of 1/)).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: 'Save & apply' }));
 
     await waitFor(() => expect(mockedApi.saveTeamStrengthOverride).toHaveBeenCalledWith(1, 0.3, -0.1, 'signed a new striker'));
