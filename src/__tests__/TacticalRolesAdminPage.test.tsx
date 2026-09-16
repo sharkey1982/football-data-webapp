@@ -89,4 +89,25 @@ describe('TacticalRolesAdminPage', () => {
     // instead, and if Merino were wrongly excluded it would read "1-1-1".
     expect(screen.getByText(/Inferred starting shape \(1-2-1\)/)).toBeInTheDocument();
   });
+
+  it('Needs Review can be filtered down to a single team', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Martinelli', team_id: 1, team_name: 'Arsenal' }),
+      baseRow({ fpl_player_id: 2, web_name: 'Wissa', team_id: 2, team_name: 'Brentford' }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([
+      { team_id: 1, team_name: 'Arsenal' },
+      { team_id: 2, team_name: 'Brentford' },
+    ]);
+
+    render(<TacticalRolesAdminPage />);
+    await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
+    expect(screen.getByText('Wissa')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByDisplayValue('All teams'), 'Brentford');
+
+    await waitFor(() => expect(screen.queryByText('Martinelli')).not.toBeInTheDocument());
+    expect(screen.getByText('Wissa')).toBeInTheDocument();
+  });
 });

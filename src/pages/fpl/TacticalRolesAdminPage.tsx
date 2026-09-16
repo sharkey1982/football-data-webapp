@@ -48,6 +48,7 @@ export default function TacticalRolesAdminPage() {
   const [onlyGeneric, setOnlyGeneric] = useState(true);
   const [positionFilter, setPositionFilter] = useState<FplElementType | 'all'>('all');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -96,7 +97,8 @@ export default function TacticalRolesAdminPage() {
     }
   }
 
-  const totalGeneric = rows.filter((r) => r.source_name === 'fpl_position_fallback').length;
+  const teamScopedRows = useMemo(() => (reviewTeamFilter === 'all' ? rows : rows.filter((r) => r.team_id === reviewTeamFilter)), [rows, reviewTeamFilter]);
+  const totalGeneric = teamScopedRows.filter((r) => r.source_name === 'fpl_position_fallback').length;
 
   const byTeam = useMemo(() => {
     const map = new Map<string, TacticalRoleRow[]>();
@@ -107,8 +109,9 @@ export default function TacticalRolesAdminPage() {
   const reviewRows = useMemo(() => {
     let visible = onlyGeneric ? rows.filter((r) => r.source_name === 'fpl_position_fallback') : rows;
     if (positionFilter !== 'all') visible = visible.filter((r) => r.element_type === positionFilter);
+    if (reviewTeamFilter !== 'all') visible = visible.filter((r) => r.team_id === reviewTeamFilter);
     return visible;
-  }, [rows, onlyGeneric, positionFilter]);
+  }, [rows, onlyGeneric, positionFilter, reviewTeamFilter]);
 
   const selectedTeamRows = useMemo(() => {
     if (selectedTeamId === null) return [];
@@ -231,6 +234,21 @@ export default function TacticalRolesAdminPage() {
               </select>
             )}
 
+            {viewMode === 'review' && (
+              <select
+                value={reviewTeamFilter}
+                onChange={(e) => setReviewTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                className="text-sm border border-chalk-300 rounded px-2 py-1.5"
+              >
+                <option value="all">All teams</option>
+                {teams.map((t) => (
+                  <option key={t.team_id} value={t.team_id}>
+                    {t.team_name}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <select
               value={positionFilter}
               onChange={(e) => setPositionFilter(e.target.value === 'all' ? 'all' : (Number(e.target.value) as FplElementType))}
@@ -247,7 +265,7 @@ export default function TacticalRolesAdminPage() {
             {viewMode === 'review' && (
               <label className="flex items-center gap-2 text-sm text-ink-700">
                 <input type="checkbox" checked={onlyGeneric} onChange={(e) => setOnlyGeneric(e.target.checked)} />
-                Only unassigned ({totalGeneric} of {rows.length})
+                Only unassigned ({totalGeneric} of {teamScopedRows.length})
               </label>
             )}
           </div>
