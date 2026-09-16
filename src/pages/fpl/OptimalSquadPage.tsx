@@ -18,10 +18,9 @@ import { useEffect, useState } from 'react';
 import { optimizeFplSquad, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import WeeklySquadView from '../../components/fpl/WeeklySquadView';
+import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getSquadPitchEnrichment } from '../../lib/fplApi';
 import { getErrorMessage } from '../../lib/errorMessage';
-
-type Preset = 'this' | 'next3' | 'next5' | 'next10' | 'custom';
 
 const MAX_RANGE_SPAN = 9; // to - from, matching the backend's own 10-GW cap
 
@@ -71,7 +70,6 @@ function SquadTable({ players }: { players: FplOptimizerPlayer[] }) {
 
 export default function OptimalSquadPage() {
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
-  const [preset, setPreset] = useState<Preset>('this');
   const [fromGw, setFromGw] = useState<number | null>(null);
   const [toGw, setToGw] = useState<number | null>(null);
   const [budgetInput, setBudgetInput] = useState('100.0');
@@ -108,25 +106,6 @@ export default function OptimalSquadPage() {
       cancelled = true;
     };
   }, []);
-
-  function applyPreset(p: Preset) {
-    setPreset(p);
-    if (defaultGw === null) return;
-    if (p === 'this') {
-      setFromGw(defaultGw);
-      setToGw(defaultGw);
-    } else if (p === 'next3') {
-      setFromGw(defaultGw);
-      setToGw(defaultGw + 2);
-    } else if (p === 'next5') {
-      setFromGw(defaultGw);
-      setToGw(defaultGw + 4);
-    } else if (p === 'next10') {
-      setFromGw(defaultGw);
-      setToGw(defaultGw + MAX_RANGE_SPAN); // the backend's own cap -- 10 gameweeks total
-    }
-    // 'custom' leaves whatever the person has already set via the number inputs.
-  }
 
   const budget = Number(budgetInput);
   const rangeValid =
@@ -173,64 +152,9 @@ export default function OptimalSquadPage() {
       </div>
 
       <div className="bg-white border border-chalk-300 rounded-lg p-3 space-y-3">
-        <div>
-          <div className="text-xs font-medium text-ink-500 mb-1">Gameweek range</div>
-          <div className="flex flex-wrap gap-1.5">
-            {([
-              ['this', 'This GW'],
-              ['next3', 'Next 3 GWs'],
-              ['next5', 'Next 5 GWs'],
-              ['next10', 'Next 10 GWs'],
-              ['custom', 'Custom'],
-            ] as [Preset, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => applyPreset(key)}
-                className={[
-                  'px-3 py-1.5 text-sm font-medium rounded-md border transition-colors',
-                  preset === key ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'bg-white text-ink-700 border-chalk-300 hover:bg-chalk-100',
-                ].join(' ')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <GameweekRangeFilter defaultGw={defaultGw} fromGw={fromGw} toGw={toGw} onChange={(f, t) => { setFromGw(f); setToGw(t); }} maxRangeSpan={MAX_RANGE_SPAN} />
 
         <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="from-gw">
-              From GW
-            </label>
-            <input
-              id="from-gw"
-              type="number"
-              min={1}
-              value={fromGw ?? ''}
-              onChange={(e) => {
-                setPreset('custom');
-                setFromGw(e.target.value === '' ? null : Number(e.target.value));
-              }}
-              className="w-20 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="to-gw">
-              To GW
-            </label>
-            <input
-              id="to-gw"
-              type="number"
-              min={1}
-              value={toGw ?? ''}
-              onChange={(e) => {
-                setPreset('custom');
-                setToGw(e.target.value === '' ? null : Number(e.target.value));
-              }}
-              className="w-20 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
-            />
-          </div>
           <div>
             <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="budget">
               Budget
@@ -258,16 +182,6 @@ export default function OptimalSquadPage() {
             {loading ? 'Optimising\u2026' : 'Build Optimal Squad'}
           </button>
         </div>
-
-        {!rangeValid && fromGw !== null && toGw !== null && (
-          <p className="text-xs text-loss-700">
-            {toGw < fromGw
-              ? 'To GW must be on or after From GW.'
-              : toGw - fromGw > MAX_RANGE_SPAN
-                ? `Range too wide \u2014 the optimiser supports up to ${MAX_RANGE_SPAN + 1} gameweeks at once.`
-                : 'Enter a valid gameweek range.'}
-          </p>
-        )}
 
         <p className="text-xs text-ink-500 bg-chalk-100 border border-chalk-300 rounded px-2.5 py-1.5">
           This picks the single best 15-player squad to hold across the whole selected range &mdash; it does not

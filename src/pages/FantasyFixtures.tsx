@@ -33,6 +33,12 @@ export default function FantasyFixtures() {
   const [rankWindowInput, setRankWindowInput] = useState(String(DEFAULT_RANK_WINDOW));
   const [startGwInput, setStartGwInput] = useState('');
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
+  // Matches the preset-button style used on Optimal Squad and Player
+  // Points Table -- here a preset sets BOTH "start from GW" and "rank by
+  // next N fixtures" together (e.g. "Next 5 GWs" = start now, rank by the
+  // next 5), which is a more coherent match for what a preset actually
+  // means on this page than only setting the start week would be.
+  const [gwPreset, setGwPreset] = useState('next10');
 
   // Clean sheet probability only exists as a Dixon-Coles model output --
   // there's no FDR-quintile equivalent -- so switching to it forces the
@@ -319,6 +325,39 @@ export default function FantasyFixtures() {
         </div>
 
         <div>
+          <div className="text-xs font-medium text-ink-500 mb-1">Gameweek range</div>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ['this', 'This GW', 1],
+                ['next3', 'Next 3 GWs', 3],
+                ['next5', 'Next 5 GWs', 5],
+                ['next10', 'Next 10 GWs', 10],
+                ['custom', 'Custom', null],
+              ] as [string, string, number | null][]
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setGwPreset(key);
+                  if (count !== null && defaultGw !== null) {
+                    setStartGwInput(String(defaultGw));
+                    setRankWindowInput(String(count));
+                  }
+                }}
+                className={[
+                  'px-3 py-1.5 text-sm font-medium rounded-md border transition-colors',
+                  gwPreset === key ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'bg-white text-ink-700 border-chalk-300 hover:bg-chalk-100',
+                ].join(' ')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
           <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="start-gw">
             Start from GW
           </label>
@@ -328,7 +367,10 @@ export default function FantasyFixtures() {
             min={earliestMatchweek ?? 1}
             placeholder={(defaultGw ?? earliestMatchweek) !== null ? String(defaultGw ?? earliestMatchweek) : undefined}
             value={startGwInput}
-            onChange={(e) => setStartGwInput(e.target.value)}
+            onChange={(e) => {
+              setGwPreset('custom');
+              setStartGwInput(e.target.value);
+            }}
             className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
           />
         </div>
@@ -344,7 +386,10 @@ export default function FantasyFixtures() {
               min={1}
               max={matchweeksFromStart.length || 1}
               value={rankWindowInput}
-              onChange={(e) => setRankWindowInput(e.target.value)}
+              onChange={(e) => {
+                setGwPreset('custom');
+                setRankWindowInput(e.target.value);
+              }}
               className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
             />
             <span className="text-sm text-ink-500">fixtures</span>

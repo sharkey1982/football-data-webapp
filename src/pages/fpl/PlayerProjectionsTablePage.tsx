@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import { getPlayerGameweekPointsRange, type PlayerGameweekPoints } from '../../lib/fplPlayerTableApi';
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
+import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getErrorMessage } from '../../lib/errorMessage';
 
 type ViewMode = 'by_gameweek' | 'by_contribution';
@@ -116,6 +117,7 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
 }
 
 export default function PlayerProjectionsTablePage() {
+  const [defaultGw, setDefaultGw] = useState<number | null>(null);
   const [fromMatchweek, setFromMatchweek] = useState<number | null>(null);
   const [toMatchweek, setToMatchweek] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('by_gameweek');
@@ -129,15 +131,14 @@ export default function PlayerProjectionsTablePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Default range: current gameweek to +5 -- gives a useful "next few weeks
+  // Default range: current gameweek to +4 (5 weeks total, matching the
+  // "Next 5 GWs" preset every other page uses) -- a useful "next few weeks
   // plus this one" window on first load without pulling the whole season.
   useEffect(() => {
     let cancelled = false;
     getDefaultMatchweek()
       .then((mw) => {
-        if (cancelled) return;
-        setFromMatchweek(mw);
-        setToMatchweek(mw + 5);
+        if (!cancelled) setDefaultGw(mw);
       })
       .catch((e) => {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load the default gameweek'));
@@ -238,27 +239,12 @@ export default function PlayerProjectionsTablePage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 bg-white border border-chalk-300 rounded-lg px-3 py-2">
-        <label className="text-xs text-ink-500 font-medium">
-          From GW
-          <input
-            type="number"
-            value={fromMatchweek ?? ''}
-            onChange={(e) => setFromMatchweek(e.target.value === '' ? null : Number(e.target.value))}
-            className="ml-2 w-16 px-2 py-1 text-xs rounded border border-chalk-300 bg-white text-ink-900"
-          />
-        </label>
-        <label className="text-xs text-ink-500 font-medium">
-          To GW
-          <input
-            type="number"
-            value={toMatchweek ?? ''}
-            onChange={(e) => setToMatchweek(e.target.value === '' ? null : Number(e.target.value))}
-            className="ml-2 w-16 px-2 py-1 text-xs rounded border border-chalk-300 bg-white text-ink-900"
-          />
-        </label>
+      <div className="bg-white border border-chalk-300 rounded-lg p-3">
+        <GameweekRangeFilter defaultGw={defaultGw} fromGw={fromMatchweek} toGw={toMatchweek} onChange={(f, t) => { setFromMatchweek(f); setToMatchweek(t); }} initialPreset="next5" />
+      </div>
 
-        <div className="flex rounded-lg border border-chalk-300 overflow-hidden ml-2">
+      <div className="flex flex-wrap items-center gap-2 bg-white border border-chalk-300 rounded-lg px-3 py-2">
+        <div className="flex rounded-lg border border-chalk-300 overflow-hidden">
           <button
             type="button"
             onClick={() => {
