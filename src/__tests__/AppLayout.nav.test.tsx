@@ -23,6 +23,7 @@ function renderAt(path: string) {
           <Route path="fpl" element={<Stub />} />
           <Route path="fpl/optimal-squad" element={<Stub />} />
           <Route path="fpl/player-points" element={<Stub />} />
+          <Route path="fpl/tactical-roles" element={<Stub />} />
           <Route path="results-data" element={<Stub />} />
           <Route path="source-data" element={<Stub />} />
         </Route>
@@ -32,14 +33,24 @@ function renderAt(path: string) {
 }
 
 describe('AppLayout main nav', () => {
-  it('shows exactly three top-level headings: Football, Fantasy, Data -- no standalone items alongside them', () => {
+  it('shows four top-level headings: Football, Fantasy, Data, FPL Admin -- no standalone items alongside them', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fantasy/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Data/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /FPL Admin/ })).toBeInTheDocument();
     // Old flat top-level items should not exist as their own top-level buttons any more.
     expect(screen.queryByRole('button', { name: /^League Table$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Optimal Squad$/ })).not.toBeInTheDocument();
+  });
+
+  it('FPL Admin dropdown links to Team Strength, Tactical Roles, and Optimal Squad -- duplicating them from their own groups, for the described review-then-optimise workflow', async () => {
+    renderAt('/');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /FPL Admin/ }));
+    expect(screen.getByRole('link', { name: 'Team Strength' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Tactical Roles' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
   });
 
   it('Fantasy dropdown contains Optimal Squad, Fixture Heat Map, and Match Projections', async () => {

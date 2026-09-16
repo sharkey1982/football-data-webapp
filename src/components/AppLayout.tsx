@@ -96,7 +96,7 @@ export default function AppLayout() {
 
   const fixturesTo: To = { pathname: '/', search: lastFixturesSearch.current };
 
-  // Three top-level headings only -- Football, Fantasy, Data -- each a
+  // Four top-level headings -- Football, Fantasy, Data, FPL Admin -- each a
   // dropdown, no separate flat top-level items alongside them.
   const navGroups: NavGroup[] = [
     {
@@ -127,6 +127,20 @@ export default function AppLayout() {
       items: [
         { to: '/results-data', label: 'Results Data', matchPrefix: '/results-data' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
+      ],
+    },
+    // Duplicate links (not moved -- each page still belongs in its own
+    // group above too) to the three pages in Chris's described core
+    // workflow: review/amend team strength, then tactical roles, then
+    // run the optimiser. Requested directly as a quick way to jump
+    // straight through that sequence without hunting across Football
+    // and Fantasy separately.
+    {
+      label: 'FPL Admin',
+      items: [
+        { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
+        { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
+        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
       ],
     },
   ];
