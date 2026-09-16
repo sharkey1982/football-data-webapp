@@ -93,6 +93,8 @@ function PlayerToken({
   if (enrichment?.position_signal === 'deeper') titleParts.push('Playing deeper than FPL position');
   if (isCaptain) titleParts.push(`Captain, GW${matchweek}`);
   if (isVice) titleParts.push(`Vice-captain, GW${matchweek}`);
+  const opponent = player.gw_opponent?.[matchweek];
+  if (opponent) titleParts.push(`vs ${opponent.team} (${opponent.is_home ? 'H' : 'A'})`);
 
   return (
     <div className="flex flex-col items-center gap-0.5" title={titleParts.join(' \u2022 ')}>
@@ -124,6 +126,12 @@ function PlayerToken({
         {player.name}
       </span>
       <span className="text-[8px] sm:text-[9px] leading-none text-sky-300 font-mono uppercase">{abbreviateClub(player.team)}</span>
+      {opponent && (
+        <span className="text-[8px] sm:text-[9px] leading-none text-chalk-100/60 font-mono uppercase">
+          {opponent.is_home ? 'v' : '@'}
+          {abbreviateClub(opponent.team)}
+        </span>
+      )}
       <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono">
         {gwPoints !== undefined ? `${gwPoints.toFixed(1)} pts` : '\u2014'}
       </span>

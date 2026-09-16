@@ -43,6 +43,8 @@ export type FplOptimizerPlayer = {
   avg_appearance_probability: number;
   /** This player's expected points for each requested gameweek, keyed by matchweek number. */
   gw_xpts: Record<number, number>;
+  /** This player's opponent for each requested gameweek, keyed by matchweek number. */
+  gw_opponent?: Record<number, { team: string; is_home: boolean }>;
 };
 
 export type FplOptimizerWeeklyPlan = {

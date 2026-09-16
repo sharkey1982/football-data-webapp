@@ -37,6 +37,7 @@ const BENCH_COST_TIEBREAK_EPSILON = 0.000001;
 type Player = {
   fpl_player_id: number; web_name: string; team_id: number; team_name: string;
   fpl_position: number; price_m: number; xpts: number; gw_xpts: Record<number, number>; gw_app: Record<number, number>;
+  gw_opponent: Record<number, { team: string; is_home: boolean }>;
 };
 
 function bestXI(squad: Player[], w: number) {
@@ -169,10 +170,10 @@ async function main() {
     }
     return out;
   }
-  const gwRows = await fetchAllRows<{ fpl_player_id: number; fpl_fixture_id: number; total_points: number | null; minutes: number | null }>((from, to) =>
+  const gwRows = await fetchAllRows<{ fpl_player_id: number; fpl_fixture_id: number; total_points: number | null; minutes: number | null; opponent_fpl_team_id: number | null; was_home: boolean | null }>((from, to) =>
     supabase
       .from('fpl_player_gameweeks')
-      .select('fpl_player_id, fpl_fixture_id, total_points, minutes')
+      .select('fpl_player_id, fpl_fixture_id, total_points, minutes, opponent_fpl_team_id, was_home')
       .eq('season_id', SEASON_ID)
       .in('fpl_fixture_id', relevantFixtureIds)
       .range(from, to)
@@ -189,13 +190,21 @@ async function main() {
   const teamNameById = new Map<number, string>();
   for (const t of teamRows!) teamNameById.set(t.team_id, t.canonical_name);
 
+  // opponent_fpl_team_id references fpl_teams (fpl_team_id), a DIFFERENT
+  // id space from canonical_team_id/teams used above -- confirmed via the
+  // real FK earlier this session, not assumed. Separate lookup map.
+  const { data: fplTeamRows, error: fplTeamErr } = await supabase.from('fpl_teams').select('fpl_team_id, name').eq('season_id', SEASON_ID);
+  if (fplTeamErr || !fplTeamRows) { console.error('Failed to load fpl_teams:', fplTeamErr); process.exit(1); }
+  const fplTeamNameById = new Map<number, string>();
+  for (const t of fplTeamRows!) fplTeamNameById.set(t.fpl_team_id, t.name ?? 'Unknown');
+
   const map = new Map<number, Player>();
   for (const p of playerRows!) {
     if (p.now_cost === null || p.element_type === null || p.canonical_team_id === null) continue;
     map.set(p.fpl_player_id, {
       fpl_player_id: p.fpl_player_id, web_name: p.web_name ?? 'Unknown', team_id: p.canonical_team_id,
       team_name: teamNameById.get(p.canonical_team_id) ?? 'Unknown', fpl_position: p.element_type,
-      price_m: p.now_cost / 10, xpts: 0, gw_xpts: {}, gw_app: {},
+      price_m: p.now_cost / 10, xpts: 0, gw_xpts: {}, gw_app: {}, gw_opponent: {},
     });
   }
   for (const w of playedWeeks) for (const p of map.values()) { p.gw_xpts[w] = 0; p.gw_app[w] = 0; }
@@ -207,6 +216,7 @@ async function main() {
     const pts = row.total_points ?? 0;
     p.gw_xpts[mw] = pts;
     p.gw_app[mw] = (row.minutes ?? 0) > 0 ? 1 : 0; // hindsight: did they actually play, not "does a row exist"
+    p.gw_opponent[mw] = { team: row.opponent_fpl_team_id !== null ? (fplTeamNameById.get(row.opponent_fpl_team_id) ?? 'Unknown') : 'Unknown', is_home: !!row.was_home };
     p.xpts += pts;
   }
   // Only players with SOME real data across the window -- an unused squad
@@ -235,6 +245,7 @@ async function main() {
   const slim = (p: Player) => ({
     id: p.fpl_player_id, name: p.web_name, team: p.team_name, position: p.fpl_position, price: p.price_m,
     total_xpts: +p.xpts.toFixed(2), avg_appearance_probability: 1, gw_xpts: p.gw_xpts,
+    gw_opponent: p.gw_opponent,
   });
 
   const responsePayload = {

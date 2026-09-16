@@ -84,10 +84,12 @@ type Candidate = {
   matchweek: number; fpl_player_id: number; web_name: string; team_id: number; team_name: string;
   fpl_position: number; price_m: number; expected_fpl_points: number;
   start_probability: number | null; sub_appearance_probability: number | null;
+  is_home: boolean; opponent_team_name: string;
 };
 type Player = {
   fpl_player_id: number; web_name: string; team_id: number; team_name: string; fpl_position: number; price_m: number;
   xpts: number; appear: number; gw_xpts: Record<number, number>; gw_app: Record<number, number>;
+  gw_opponent: Record<number, { team: string; is_home: boolean }>;
 };
 
 const ap = (r: Candidate) => Math.min(1, Math.max(0, (r.start_probability ?? 0) + (r.sub_appearance_probability ?? 0)));
@@ -258,12 +260,13 @@ async function solveRange(supabase: any, highs: any, fromGw: number, toGw: numbe
   for (const r of rows) {
     let p = map.get(r.fpl_player_id);
     if (!p) {
-      p = { fpl_player_id: r.fpl_player_id, web_name: r.web_name, team_id: r.team_id, team_name: r.team_name, fpl_position: r.fpl_position, price_m: +r.price_m, xpts: 0, appear: 0, gw_xpts: {}, gw_app: {} };
+      p = { fpl_player_id: r.fpl_player_id, web_name: r.web_name, team_id: r.team_id, team_name: r.team_name, fpl_position: r.fpl_position, price_m: +r.price_m, xpts: 0, appear: 0, gw_xpts: {}, gw_app: {}, gw_opponent: {} };
       for (const w of weeks) { p.gw_xpts[w] = 0; p.gw_app[w] = 0; }
       map.set(r.fpl_player_id, p);
     }
     p.gw_xpts[r.matchweek] = +r.expected_fpl_points;
     p.gw_app[r.matchweek] = ap(r);
+    p.gw_opponent[r.matchweek] = { team: r.opponent_team_name, is_home: r.is_home };
     p.xpts += +r.expected_fpl_points;
     p.appear += ap(r) / weeks.length;
   }
@@ -298,6 +301,7 @@ async function solveRange(supabase: any, highs: any, fromGw: number, toGw: numbe
   const slim = (p: Player) => ({
     id: p.fpl_player_id, name: p.web_name, team: p.team_name, position: p.fpl_position, price: p.price_m,
     total_xpts: +p.xpts.toFixed(2), avg_appearance_probability: +p.appear.toFixed(3), gw_xpts: p.gw_xpts,
+    gw_opponent: p.gw_opponent,
   });
 
   const responsePayload = {
