@@ -2,20 +2,33 @@
 // src/lib/tacticalRoleAdminApi.ts
 //
 // Read and correct team_player_tactical_defaults -- the per-player default
-// tactical role (and now depth_rank -- 1st/2nd/3rd choice starter within
-// their FPL position) used whenever no fixture-specific lineup prediction
-// is available, i.e. most of the time for anything more than a few days
-// out. About half the player pool currently only has a generic
-// position-based placeholder (source_name = 'fpl_position_fallback')
-// rather than a real role, because the external source
-// (fantasy_football_scout) doesn't cover every player -- this page exists
-// to let that be reviewed and manually corrected where it matters.
+// tactical role and depth_rank (1st/2nd/3rd choice starter within their
+// FPL position) used whenever no fixture-specific lineup prediction is
+// available, i.e. most of the time for anything more than a few days out.
+// About half the player pool currently only has a generic position-based
+// placeholder (source_name = 'fpl_position_fallback') rather than a real
+// role, because the external source (fantasy_football_scout) doesn't cover
+// every player -- this page exists to let that be reviewed and manually
+// corrected where it matters.
+//
+// depth_rank is seeded automatically from fixture_player_tactical_consensus
+// (role_weight >= ~0.8 cleanly separates a team's actual predicted XI from
+// fringe/bench players) and tracks its own source (depth_rank_source) so a
+// future re-seed never overwrites a manual correction -- the "app default
+// vs user override" distinction raised directly, applied here specifically.
 //
 // Set-piece info reuses the exact merge logic already proven in
 // getFplFixtureProjection (corner_left/corner_right collapse into one
 // 'corner' entry at the better rank) -- same source table
 // (set_piece_hierarchies), same season-long scope, just not tied to one
 // fixture here.
+//
+// Players who have left the club (fpl_players.status = 'u', e.g. a
+// permanent transfer out) are excluded entirely -- they're not part of the
+// squad to assign a tactical role or depth rank to any more. Players who
+// are currently injured/doubtful/suspended (status i/d/s) ARE still
+// included, with that status and the news text surfaced, since those are
+// temporary and exactly what the depth chart needs to reflect.
 // ============================================================================
 
 import { supabase } from './supabase';
@@ -35,6 +48,9 @@ export type TacticalRoleRow = {
   set_piece_roles: SetPieceRole[];
   points_per_game: number | null;
   avg_minutes_per_start: number | null;
+  /** Official FPL availability code: a = available, d = doubtful, i = injured, s = suspended. Players with status 'u' (left the club) are excluded entirely, never appear here. */
+  status: string | null;
+  news: string | null;
 };
 
 export type TeamOption = { team_id: number; team_name: string };
@@ -53,10 +69,29 @@ export const TACTICAL_ROLE_OPTIONS = [
 
 export const DEPTH_RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
 
+/** Current-season EPL teams only -- derived from fpl_players (season_id
+ * 13) rather than the raw teams table, which holds 242 teams across every
+ * league and season this app has ever touched, not just the current 20. */
 export async function getTeamOptions(): Promise<TeamOption[]> {
-  const { data, error } = await supabase.from('teams').select('team_id, canonical_name').order('canonical_name');
+  const { data, error } = await (supabase as any)
+    .from('fpl_players')
+    .select('canonical_team_id, teams!fpl_players_canonical_team_id_fkey(canonical_name)')
+    .eq('season_id', 13)
+    .not('canonical_team_id', 'is', null);
   if (error) throw error;
-  return (data ?? []).map((t) => ({ team_id: t.team_id, team_name: t.canonical_name ?? 'Unknown' }));
+  const byId = new Map<number, string>();
+  for (const row of (data ?? []) as any[]) byId.set(row.canonical_team_id, row.teams?.canonical_name ?? 'Unknown');
+  return [...byId.entries()].map(([team_id, team_name]) => ({ team_id, team_name })).sort((a, b) => a.team_name.localeCompare(b.team_name));
+}
+
+/** A team's formation (e.g. "4-2-3-1"), stable across the whole season
+ * (confirmed directly -- one value per team across all 38 gameweeks), so
+ * any single fixture's row is representative. Returns null if the team
+ * has no consensus row at all. */
+export async function getTeamFormation(teamId: number): Promise<string | null> {
+  const { data, error } = await supabase.from('fixture_team_tactical_consensus').select('formation').eq('team_id', teamId).limit(1).maybeSingle();
+  if (error) throw error;
+  return (data as any)?.formation ?? null;
 }
 
 export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
@@ -67,10 +102,11 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // proven elsewhere in this project.
   const { data: playerRows, error: playerErr } = await (supabase as any)
     .from('fpl_players')
-    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, teams!fpl_players_canonical_team_id_fkey(canonical_name)')
+    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, teams!fpl_players_canonical_team_id_fkey(canonical_name)')
     .eq('season_id', 13)
     .not('element_type', 'is', null)
-    .not('canonical_team_id', 'is', null);
+    .not('canonical_team_id', 'is', null)
+    .neq('status', 'u'); // left the club -- not part of the squad to review any more
   if (playerErr) throw playerErr;
 
   const { data: defaultRows, error: defaultErr } = await (supabase as any)
@@ -115,6 +151,8 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
         set_piece_roles: (setPieceRolesByPlayer.get(p.fpl_player_id) ?? []).sort((a, b) => a.rank - b.rank),
         points_per_game: stats.points_per_game,
         avg_minutes_per_start: stats.avg_minutes_per_start,
+        status: p.status ?? null,
+        news: p.news || null,
       };
     })
     .sort((a: TacticalRoleRow, b: TacticalRoleRow) => a.team_name.localeCompare(b.team_name) || a.element_type - b.element_type || a.web_name.localeCompare(b.web_name));
@@ -135,11 +173,12 @@ export async function saveTacticalRoleCorrection(teamId: number, fplPlayerId: nu
   if (error) throw error;
 }
 
-/** Saves a depth-rank correction (1st/2nd/3rd... choice starter within
- * this player's FPL position). Only updates depth_rank -- if the row
- * doesn't exist yet (no role reviewed), falls back to the same generic
- * position label the rest of the pipeline uses, so this never creates a
- * row with a null tactical_role. */
+/** Saves a depth-rank correction. Always sets depth_rank_source='manual'
+ * so a future automated re-seed skips this row rather than overwriting
+ * it. Only updates depth_rank -- if the row doesn't exist yet (no role
+ * reviewed), falls back to the same generic position label the rest of
+ * the pipeline uses, so this never creates a row with a null
+ * tactical_role. */
 export async function saveDepthRankCorrection(teamId: number, fplPlayerId: number, elementType: FplElementType, depthRank: number | null): Promise<void> {
   const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
   const { data: existing, error: readErr } = await (supabase as any)
@@ -161,6 +200,7 @@ export async function saveDepthRankCorrection(teamId: number, fplPlayerId: numbe
         source_name: existing?.source_name ?? 'fpl_position_fallback',
         confidence: existing?.confidence ?? 0.3,
         depth_rank: depthRank,
+        depth_rank_source: 'manual',
       },
       { onConflict: 'season_id,team_id,fpl_player_id' }
     );

@@ -3,32 +3,44 @@
 //
 // Converts TacticalRoleRow[] (season-long default roles, not tied to any
 // one fixture) into the FplFixtureProjectionPlayer shape FormationPitch
-// expects, and infers a formation string from the depth_rank=1 starters'
-// roles. FormationPitch already falls back to evenly-spaced lines for any
-// formation string without a pre-built template, so this inference only
-// needs to be reasonable, not exact.
+// expects. Formation comes from the team's own real formation
+// (fixture_team_tactical_consensus, stable across the season) rather than
+// being inferred from whoever happens to be selected -- parseFormationCounts
+// turns e.g. "4-2-3-1" into how many DEF/MID/FWD-line starters that
+// formation actually needs (4/5/1 -- the middle numbers sum into one
+// midfield count), which is what picks exactly that many players by
+// depth_rank per line, instead of an arbitrary fixed cap.
 // ============================================================================
 
 import type { TacticalRoleRow } from './tacticalRoleAdminApi';
 import { computePositionSignal, type FplFixtureProjectionPlayer } from './fplApi';
 import { FPL_POSITION_LABEL } from './fplApi';
 
-const DEF_ROLES = new Set(['CB', 'LCB', 'RCB', 'LB', 'RB', 'LWB', 'RWB', 'DEF']);
-const FWD_ROLES = new Set(['CF', 'FWD']);
-// Everything else (DM/CM/AM/LW/RW/MID) counts as midfield for the purposes
-// of inferring a D-M-F formation string.
+/** "4-2-3-1" -> {def: 4, mid: 5, fwd: 1} (the middle numbers sum into one
+ * midfield count). Falls back to a plain 4-3-3 shape if the string is
+ * missing or doesn't parse cleanly, so the pitch still renders something
+ * reasonable rather than nothing. */
+export function parseFormationCounts(formation: string | null): { def: number; mid: number; fwd: number } {
+  const parts = (formation ?? '').split('-').map((p) => parseInt(p, 10));
+  if (parts.length < 2 || parts.some((n) => !Number.isFinite(n) || n <= 0)) return { def: 4, mid: 3, fwd: 3 };
+  const def = parts[0];
+  const fwd = parts[parts.length - 1];
+  const mid = parts.slice(1, -1).reduce((sum, n) => sum + n, 0);
+  return { def, mid, fwd };
+}
 
-export function inferFormation(starters: TacticalRoleRow[]): string {
-  let def = 0;
-  let mid = 0;
-  let fwd = 0;
-  for (const p of starters) {
-    if (p.tactical_role === 'GK') continue;
-    if (DEF_ROLES.has(p.tactical_role)) def++;
-    else if (FWD_ROLES.has(p.tactical_role)) fwd++;
-    else mid++;
-  }
-  return def > 0 || mid > 0 || fwd > 0 ? `${def}-${mid}-${fwd}` : '4-3-3';
+/** Selects exactly the starters a formation needs, by depth_rank, from
+ * a team's full player pool -- not an arbitrary cap. Players without a
+ * depth_rank yet are never included (nothing to rank them by). */
+export function selectStartersForFormation(teamRows: TacticalRoleRow[], formation: string | null): TacticalRoleRow[] {
+  const counts = parseFormationCounts(formation);
+  const byRank = (r: TacticalRoleRow) => r.depth_rank ?? 99;
+  const gk = teamRows.filter((r) => r.element_type === 1 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b))[0];
+  const defPlayers = teamRows.filter((r) => r.element_type === 2 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b));
+  const midPlayers = teamRows.filter((r) => r.element_type === 3 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b));
+  const fwdPlayers = teamRows.filter((r) => r.element_type === 4 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b));
+
+  return [...(gk ? [gk] : []), ...defPlayers.slice(0, counts.def), ...midPlayers.slice(0, counts.mid), ...fwdPlayers.slice(0, counts.fwd)];
 }
 
 export function toFormationPitchPlayer(row: TacticalRoleRow): FplFixtureProjectionPlayer {
@@ -69,8 +81,8 @@ export function toFormationPitchPlayer(row: TacticalRoleRow): FplFixtureProjecti
       penalties: null,
       bonus: null,
     },
-    status: null,
-    news: null,
+    status: row.status,
+    news: row.news,
     season_points_per_game: row.points_per_game,
     season_avg_minutes_per_start: row.avg_minutes_per_start,
   };

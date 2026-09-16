@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getTacticalRoleReview,
   getTeamOptions,
+  getTeamFormation,
   saveTacticalRoleCorrection,
   saveDepthRankCorrection,
   TACTICAL_ROLE_OPTIONS,
@@ -28,7 +29,7 @@ import {
   type TacticalRoleRow,
   type TeamOption,
 } from '../../lib/tacticalRoleAdminApi';
-import { toFormationPitchPlayer, inferFormation } from '../../lib/tacticalRoleFormationHelper';
+import { toFormationPitchPlayer, selectStartersForFormation } from '../../lib/tacticalRoleFormationHelper';
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
 import FormationPitch from '../../components/fpl/FormationPitch';
 import { getErrorMessage } from '../../lib/errorMessage';
@@ -50,6 +51,7 @@ export default function TacticalRolesAdminPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
+  const [teamFormation, setTeamFormation] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +72,24 @@ export default function TacticalRolesAdminPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedTeamId === null || viewMode !== 'by_team') {
+      setTeamFormation(null);
+      return;
+    }
+    let cancelled = false;
+    getTeamFormation(selectedTeamId)
+      .then((f) => {
+        if (!cancelled) setTeamFormation(f);
+      })
+      .catch(() => {
+        if (!cancelled) setTeamFormation(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTeamId, viewMode]);
 
   async function handleRoleChange(row: TacticalRoleRow, newRole: string) {
     setSavingId(row.fpl_player_id);
@@ -120,27 +140,15 @@ export default function TacticalRolesAdminPage() {
     return visible.sort((a, b) => a.element_type - b.element_type || (a.depth_rank ?? 99) - (b.depth_rank ?? 99) || a.web_name.localeCompare(b.web_name));
   }, [rows, selectedTeamId, positionFilter]);
 
-  // depth_rank is a strict 1..N ordering WITHIN a position (matching what
-  // was asked for -- "1st/2nd/3rd choice"), but a team needs several
-  // defenders and midfielders on the pitch simultaneously, not just the
-  // single #1-ranked one -- filtering to exactly depth_rank===1 left the
-  // pitch with only 4 players total (1 per position) for every team, which
-  // is why nothing meaningful showed. Using a generous per-position cap
-  // instead treats the pool as "eligible for the pitch", covering the
-  // range real formations actually need; adjusting depth_rank (push
-  // someone below the cap to bench them, or above it to start them) is how
-  // this gets refined per team.
-  const PITCH_CAP: Record<FplElementType, number> = { 1: 1, 2: 5, 3: 5, 4: 3 };
-  const startersForPitch = useMemo(
-    () => rows.filter((r) => r.team_id === selectedTeamId && r.element_type !== 1 && r.depth_rank !== null && r.depth_rank <= PITCH_CAP[r.element_type]),
-    [rows, selectedTeamId]
-  );
-  const gkForPitch = useMemo(() => rows.find((r) => r.team_id === selectedTeamId && r.element_type === 1 && r.depth_rank === 1), [rows, selectedTeamId]);
-  const pitchPlayers = useMemo(() => {
-    const list = gkForPitch ? [gkForPitch, ...startersForPitch] : startersForPitch;
-    return list.map(toFormationPitchPlayer);
-  }, [startersForPitch, gkForPitch]);
-  const inferredFormation = useMemo(() => inferFormation(startersForPitch), [startersForPitch]);
+  // Uses the team's own real, stable formation (fixture_team_tactical_
+  // consensus) to select exactly the starters that formation needs, by
+  // depth_rank, rather than an arbitrary fixed cap -- the cap approach
+  // produced an oversized, unrealistic shape (up to 5 DEF + 5 MID + 3 FWD
+  // simultaneously) since every team's cap slots filled regardless of
+  // their actual formation.
+  const teamRowsForPitch = useMemo(() => rows.filter((r) => r.team_id === selectedTeamId), [rows, selectedTeamId]);
+  const pitchStarters = useMemo(() => selectStartersForFormation(teamRowsForPitch, teamFormation), [teamRowsForPitch, teamFormation]);
+  const pitchPlayers = useMemo(() => pitchStarters.map(toFormationPitchPlayer), [pitchStarters]);
 
   function RoleSelect({ row }: { row: TacticalRoleRow }) {
     return (
@@ -184,6 +192,16 @@ export default function TacticalRolesAdminPage() {
     const formatted = formatSetPieceRoles(row.set_piece_roles);
     if (!formatted) return <span className="text-ink-400">&mdash;</span>;
     return <span className="text-[10px] font-mono font-semibold text-amber-600" title={formatted.full}>{formatted.compact}</span>;
+  }
+
+  function StatusBadge({ row }: { row: TacticalRoleRow }) {
+    if (!row.status || row.status === 'a') return <span className="text-ink-400">&mdash;</span>;
+    const label = row.status === 'i' ? 'INJ' : row.status === 'd' ? 'DBT' : row.status === 's' ? 'SUS' : row.status.toUpperCase();
+    return (
+      <span className="text-[10px] font-mono font-semibold text-loss-700 bg-loss-600/10 border border-loss-600/40 rounded px-1 py-0.5" title={row.news ?? label}>
+        {label}
+      </span>
+    );
   }
 
   return (
@@ -297,6 +315,9 @@ export default function TacticalRolesAdminPage() {
                               <DepthRankSelect row={r} />
                             </td>
                             <td className="px-2 py-1.5">
+                              <StatusBadge row={r} />
+                            </td>
+                            <td className="px-2 py-1.5">
                               <SetPieceBadges row={r} />
                             </td>
                             <td className="px-3 py-1.5 text-right text-[10px] text-ink-500 font-mono uppercase">
@@ -316,13 +337,12 @@ export default function TacticalRolesAdminPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <h2 className="text-sm font-medium text-ink-700 mb-2">
-                  Inferred starting shape ({inferredFormation})
+                  {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
                 </h2>
-                <FormationPitch players={pitchPlayers} formation={inferredFormation} selectedPlayerId={selectedPlayerId} onSelectPlayer={setSelectedPlayerId} />
+                <FormationPitch players={pitchPlayers} formation={teamFormation} selectedPlayerId={selectedPlayerId} onSelectPlayer={setSelectedPlayerId} />
                 <p className="text-[11px] text-ink-500 mt-2">
-                  Shows players within the usual range for each position (top 5 defenders, top 5 midfielders, top 3 forwards,
-                  the #1 keeper) &mdash; adjust depth rank on the right to push someone below that range to bench them, or
-                  above it to start them. Hover a player for role, set-piece, and season PPG context.
+                  Shows the starters this formation actually needs, by depth rank &mdash; adjust depth rank on the right to
+                  change who starts. Hover a player for role, set-piece, injury status, and season PPG context.
                 </p>
               </div>
 
@@ -337,6 +357,7 @@ export default function TacticalRolesAdminPage() {
                       <th className="px-2 py-1.5">Pos</th>
                       <th className="px-2 py-1.5">Role</th>
                       <th className="px-2 py-1.5">Depth</th>
+                      <th className="px-2 py-1.5">Status</th>
                       <th className="px-2 py-1.5">Set pieces</th>
                       <th className="px-2 py-1.5 text-right">PPG</th>
                     </tr>
@@ -351,6 +372,9 @@ export default function TacticalRolesAdminPage() {
                         </td>
                         <td className="px-2 py-1.5">
                           <DepthRankSelect row={r} />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <StatusBadge row={r} />
                         </td>
                         <td className="px-2 py-1.5">
                           <SetPieceBadges row={r} />

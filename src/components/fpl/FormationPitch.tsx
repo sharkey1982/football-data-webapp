@@ -382,6 +382,10 @@ export default function FormationPitch({
           if (setPieces) titleParts.push(setPieces.full);
           const statusDescription = describeSquadStatus(player.squad_status);
           if (statusDescription) titleParts.push(statusDescription);
+          if (player.status && player.status !== 'a') {
+            const availabilityLabel = player.status === 'i' ? 'Injured' : player.status === 'd' ? 'Doubtful' : player.status === 's' ? 'Suspended' : player.status === 'u' ? 'Unavailable' : null;
+            if (availabilityLabel) titleParts.push(player.news ? `${availabilityLabel}: ${player.news}` : availabilityLabel);
+          }
           if (player.position_signal === 'advanced') titleParts.push('Playing more advanced than FPL position');
           if (player.position_signal === 'deeper') titleParts.push('Playing deeper than FPL position');
 
