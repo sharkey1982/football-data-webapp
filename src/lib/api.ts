@@ -889,12 +889,21 @@ export interface TeamStrengthRow {
   attack_adjustment: number;
   defence_adjustment: number;
   override_note: string | null;
+  /** When the override was last saved, ISO string. Null if no override
+   * is set. Compared against the position projection's simulated_at
+   * (below) to flag a stale simulation -- requested directly, since an
+   * override immediately updates predicted_home_goals/away_goals but
+   * does NOT automatically re-run the finishing-position simulation. */
+  override_updated_at: string | null;
   /** Monte Carlo projected final league position (mean and median
    * across 20,000 simulated remaining seasons), requested directly.
    * Null for a cup competition or if the simulation hasn't run yet. */
   projected_position_mean: number | null;
   projected_position_median: number | null;
   projected_points_mean: number | null;
+  /** When the position projection was last simulated, ISO string. Null
+   * if it's never run for this league/season. */
+  position_simulated_at: string | null;
 }
 
 export interface TeamStrengthSummary {
@@ -1051,25 +1060,25 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
   // just displayed here.
   const { data: overrideRows, error: overrideError } = await (supabase as any)
     .from('team_strength_manual_override')
-    .select('team_id, attack_adjustment, defence_adjustment, note');
+    .select('team_id, attack_adjustment, defence_adjustment, note, updated_at');
   if (overrideError) throw overrideError;
-  const overrideByTeam = new Map<number, { attack_adjustment: number; defence_adjustment: number; note: string | null }>(
-    ((overrideRows ?? []) as any[]).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note }])
+  const overrideByTeam = new Map<number, { attack_adjustment: number; defence_adjustment: number; note: string | null; updated_at: string }>(
+    ((overrideRows ?? []) as any[]).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note, updated_at: o.updated_at }])
   );
 
   // Projected final position, requested directly -- from the Monte
   // Carlo simulation script (scripts/simulate_final_table.py), keyed by
   // league+season since it's already scoped per-league.
-  const positionByTeam = new Map<number, { mean: number; median: number; points: number }>();
+  const positionByTeam = new Map<number, { mean: number; median: number; points: number; simulated_at: string }>();
   if (currentSeasonId !== null) {
     const { data: positionRows, error: positionError } = await (supabase as any)
       .from('team_finishing_position_projection')
-      .select('team_id, projected_position_mean, projected_position_median, projected_points_mean')
+      .select('team_id, projected_position_mean, projected_position_median, projected_points_mean, simulated_at')
       .eq('league_id', leagueId)
       .eq('season_id', currentSeasonId);
     if (positionError) throw positionError;
     for (const p of (positionRows ?? []) as any[]) {
-      positionByTeam.set(p.team_id, { mean: Number(p.projected_position_mean), median: Number(p.projected_position_median), points: Number(p.projected_points_mean) });
+      positionByTeam.set(p.team_id, { mean: Number(p.projected_position_mean), median: Number(p.projected_position_median), points: Number(p.projected_points_mean), simulated_at: p.simulated_at });
     }
   }
 
@@ -1095,9 +1104,11 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       attack_adjustment: override?.attack_adjustment ?? 0,
       defence_adjustment: override?.defence_adjustment ?? 0,
       override_note: override?.note ?? null,
+      override_updated_at: override?.updated_at ?? null,
       projected_position_mean: positionByTeam.get(r.team_id)?.mean ?? null,
       projected_position_median: positionByTeam.get(r.team_id)?.median ?? null,
       projected_points_mean: positionByTeam.get(r.team_id)?.points ?? null,
+      position_simulated_at: positionByTeam.get(r.team_id)?.simulated_at ?? null,
       last_season_played: actual?.played ?? 0,
     };
   });

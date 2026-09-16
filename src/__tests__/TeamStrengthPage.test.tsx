@@ -54,9 +54,11 @@ describe('TeamStrengthPage', () => {
           attack_adjustment: 0,
           defence_adjustment: 0,
           override_note: null,
+          override_updated_at: null,
           projected_position_mean: 1.5,
           projected_position_median: 1,
           projected_points_mean: 82.8,
+          position_simulated_at: null,
         },
         {
           team_id: 2,
@@ -76,9 +78,11 @@ describe('TeamStrengthPage', () => {
           attack_adjustment: 0,
           defence_adjustment: 0,
           override_note: null,
+          override_updated_at: null,
           projected_position_mean: null,
           projected_position_median: null,
           projected_points_mean: null,
+          position_simulated_at: null,
         },
       ],
       relegatedTeams: [{ team_id: 99, canonical_name: 'Ipswich' }],
@@ -157,9 +161,11 @@ describe('TeamStrengthPage', () => {
           attack_adjustment: 0,
           defence_adjustment: 0,
           override_note: null,
+          override_updated_at: null,
           projected_position_mean: null,
           projected_position_median: null,
           projected_points_mean: null,
+          position_simulated_at: null,
         },
       ],
       relegatedTeams: [],
@@ -190,5 +196,68 @@ describe('TeamStrengthPage', () => {
     // Once saved, the edit row closes and the new adjustment shows in the table.
     await waitFor(() => expect(screen.getByText(/\+0\.30 \/ -0\.10/)).toBeInTheDocument());
     expect(screen.queryByLabelText('Attack adj.')).not.toBeInTheDocument();
+  });
+
+  it('warns when a saved override postdates the last position simulation, and shows the effective (base + override) attack/defence value', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getTeamStrengthSummary.mockResolvedValue({
+      fitRun: {
+        fit_run_id: 25,
+        league_id: 1,
+        window_start_date: '2024-09-01',
+        window_end_date: '2026-09-14',
+        rho: -0.08,
+        home_advantage: 0.28,
+        decay_half_life_days: 180,
+        log_likelihood: -500,
+        converged: true,
+        matches_used: 320,
+        fitted_at: '2026-09-14T12:00:00Z',
+        status: 'accepted',
+        rejection_reason: null,
+        validation_warnings: null,
+        validation_checks: null,
+      },
+      currentSeasonLabel: '2627',
+      lastSeasonLabel: '2526',
+      rows: [
+        {
+          team_id: 8,
+          canonical_name: 'Hull',
+          attack_strength: -0.301,
+          defence_strength: -0.667,
+          is_estimated: true,
+          projected_gf: 42.5,
+          projected_ga: 57.1,
+          projected_fixtures_counted: 38,
+          last_season_gf: null,
+          last_season_ga: null,
+          last_season_played: 0,
+          this_season_actual_gf: null,
+          this_season_actual_ga: null,
+          this_season_actual_played: 0,
+          attack_adjustment: 0.3,
+          defence_adjustment: 0,
+          override_note: 'promoted, strong start',
+          override_updated_at: '2026-09-16T21:25:27.451Z',
+          projected_position_mean: 19.5,
+          projected_position_median: 20,
+          projected_points_mean: 28.4,
+          position_simulated_at: '2026-09-16T21:17:19.475Z', // before the override -- stale
+        },
+      ],
+      relegatedTeams: [],
+    });
+
+    render(<TeamStrengthPage />);
+    await waitFor(() => expect(screen.getByText('Hull')).toBeInTheDocument());
+
+    // Page-level banner calls out the stale team by name.
+    const banner = screen.getByText(/Proj\. Pos is out of date for:/);
+    expect(banner.closest('p')?.textContent).toContain('Hull');
+
+    // Effective attack strength (base + override) is shown, not just the base value.
+    const matches = screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.className.includes('text-amber-700') && el.textContent === '\u2192 -0.001');
+    expect(matches.length).toBeGreaterThan(0);
   });
 });

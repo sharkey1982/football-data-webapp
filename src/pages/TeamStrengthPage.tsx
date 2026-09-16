@@ -140,6 +140,16 @@ export default function TeamStrengthPage() {
     return total !== null && count > 0 ? total / count : null;
   }
 
+  /** True when a saved override postdates the last position simulation
+   * -- predicted_home_goals/away_goals update immediately on save, but
+   * the finishing-position Monte Carlo simulation is a separate,
+   * manually-triggered step that does NOT automatically re-run. */
+  function isPositionStale(row: { override_updated_at: string | null; position_simulated_at: string | null }): boolean {
+    if (!row.override_updated_at) return false;
+    if (!row.position_simulated_at) return true;
+    return new Date(row.override_updated_at) > new Date(row.position_simulated_at);
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -200,6 +210,19 @@ export default function TeamStrengthPage() {
                 <div className="text-sm font-display text-ink-900">{new Date(summary.fitRun.fitted_at).toLocaleDateString()}</div>
               </div>
             </div>
+          )}
+
+          {summary.rows.some((r) => isPositionStale(r)) && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+              <span className="font-medium">&#9888; Proj. Pos is out of date for:</span>{' '}
+              {summary.rows
+                .filter((r) => isPositionStale(r))
+                .map((r) => r.canonical_name)
+                .join(', ')}{' '}
+              &mdash; a Team Strength override changed their predicted goals after the position simulation last ran. The
+              simulation is a separate, manually-triggered step (the &ldquo;Simulate Final Table&rdquo; workflow) and doesn&rsquo;t
+              re-run automatically when an override is saved.
+            </p>
           )}
 
           {summary.relegatedTeams.length > 0 && (
@@ -266,9 +289,33 @@ export default function TeamStrengthPage() {
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-900 font-semibold" title={r.projected_position_median !== null ? `Median: ${r.projected_position_median}` : undefined}>
                         {fmt(r.projected_position_mean, 1)}
+                        {isPositionStale(r) && (
+                          <span
+                            className="ml-1 text-amber-700"
+                            title="An override was saved after this simulation last ran -- this projected position doesn't reflect it yet. Re-run the Simulate Final Table workflow to update it."
+                          >
+                            &#9888;
+                          </span>
+                        )}
                       </td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.attack_strength, 3)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.defence_strength, 3)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
+                        {r.attack_adjustment !== 0 ? (
+                          <span title={`Base ${r.attack_strength.toFixed(3)} + override ${r.attack_adjustment >= 0 ? '+' : ''}${r.attack_adjustment.toFixed(2)}`}>
+                            {fmt(r.attack_strength, 3)} <span className="text-amber-700 font-semibold">&rarr; {(r.attack_strength + r.attack_adjustment).toFixed(3)}</span>
+                          </span>
+                        ) : (
+                          fmt(r.attack_strength, 3)
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
+                        {r.defence_adjustment !== 0 ? (
+                          <span title={`Base ${r.defence_strength.toFixed(3)} + override ${r.defence_adjustment >= 0 ? '+' : ''}${r.defence_adjustment.toFixed(2)}`}>
+                            {fmt(r.defence_strength, 3)} <span className="text-amber-700 font-semibold">&rarr; {(r.defence_strength + r.defence_adjustment).toFixed(3)}</span>
+                          </span>
+                        ) : (
+                          fmt(r.defence_strength, 3)
+                        )}
+                      </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">{fmt(r.projected_gf, 1)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-loss-700 font-semibold">{fmt(r.projected_ga, 1)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.last_season_gf, 0)}</td>
