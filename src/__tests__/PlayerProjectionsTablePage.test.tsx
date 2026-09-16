@@ -12,7 +12,7 @@ vi.mock('../lib/fplSeasonApi', async () => {
 });
 vi.mock('../lib/fplPlayerTableApi', async () => {
   const actual = await vi.importActual<typeof fplPlayerTableApi>('../lib/fplPlayerTableApi');
-  return { ...actual, getPlayerGameweekPointsRange: vi.fn() };
+  return { ...actual, getPlayerGameweekPointsRange: vi.fn(), getTeamFixtureGoals: vi.fn() };
 });
 
 const mockedSeasonApi = fplSeasonApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -127,5 +127,33 @@ describe('PlayerProjectionsTablePage', () => {
     await waitFor(() => expect(screen.getByText('9.00')).toBeInTheDocument());
     // Assists column: 6 (real, GW5 only) + 0 = 6.00
     expect(screen.getByText('6.00')).toBeInTheDocument();
+  });
+
+  it('shows the selected team\u2019s own fixtures with predicted/actual goals when filtered to a real club, not just its players', async () => {
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
+    mockedTableApi.getPlayerGameweekPointsRange.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Haaland', team_id: 18, team_name: 'Man City', matchweek: 5, projected_points: 8 }),
+      baseRow({ fpl_player_id: 2, web_name: 'Saka', team_id: 1, team_name: 'Arsenal', matchweek: 5, projected_points: 6 }),
+    ]);
+    mockedTableApi.getTeamFixtureGoals.mockResolvedValue([
+      { matchweek: 5, opponent_name: 'Liverpool', is_home: true, status: 'scheduled', predicted_goals_for: 2.15, predicted_goals_against: 0.92, actual_goals_for: null, actual_goals_against: null },
+    ]);
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Haaland')).toBeInTheDocument());
+
+    // No team goals summary before a specific team is selected.
+    expect(screen.queryByText(/own fixtures/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue('All teams'), { target: { value: 'Man City' } });
+
+    await waitFor(() => expect(mockedTableApi.getTeamFixtureGoals).toHaveBeenCalledWith(18, 5, 9));
+    expect(await screen.findByText(/Man City.s own fixtures/)).toBeInTheDocument();
+    expect(screen.getByText('Liverpool')).toBeInTheDocument();
+    expect(screen.getByText('2.15')).toBeInTheDocument();
+    expect(screen.getByText('0.92')).toBeInTheDocument();
+
+    // Player table is also narrowed to just this team, same as before.
+    expect(screen.queryByText('Saka')).not.toBeInTheDocument();
   });
 });

@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
-import { getPlayerGameweekPointsRange, type PlayerGameweekPoints } from '../../lib/fplPlayerTableApi';
+import { getPlayerGameweekPointsRange, getTeamFixtureGoals, type PlayerGameweekPoints, type TeamFixtureGoals } from '../../lib/fplPlayerTableApi';
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getErrorMessage } from '../../lib/errorMessage';
@@ -130,6 +130,9 @@ export default function PlayerProjectionsTablePage() {
   const [rawRows, setRawRows] = useState<PlayerGameweekPoints[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [teamGoals, setTeamGoals] = useState<TeamFixtureGoals[] | null>(null);
+  const [teamGoalsLoading, setTeamGoalsLoading] = useState(false);
+  const [teamGoalsError, setTeamGoalsError] = useState<string | null>(null);
 
   // Default range: current gameweek to +4 (5 weeks total, matching the
   // "Next 5 GWs" preset every other page uses) -- a useful "next few weeks
@@ -168,6 +171,39 @@ export default function PlayerProjectionsTablePage() {
       cancelled = true;
     };
   }, [fromMatchweek, toMatchweek]);
+
+  // Team-level predicted/actual goals for the selected real club -- shows
+  // what Team Strength actually produced for this team's fixtures,
+  // requested directly as context alongside that team's players' own point
+  // contributions below (the same page's existing team filter narrows the
+  // player table to this team already).
+  useEffect(() => {
+    if (teamFilter === 'all' || fromMatchweek === null || toMatchweek === null || !rawRows) {
+      setTeamGoals(null);
+      return;
+    }
+    const teamId = rawRows.find((r) => r.team_name === teamFilter)?.team_id;
+    if (teamId === undefined) {
+      setTeamGoals(null);
+      return;
+    }
+    let cancelled = false;
+    setTeamGoalsLoading(true);
+    setTeamGoalsError(null);
+    getTeamFixtureGoals(teamId, fromMatchweek, toMatchweek)
+      .then((data) => {
+        if (!cancelled) setTeamGoals(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setTeamGoalsError(getErrorMessage(e, 'Failed to load team goals'));
+      })
+      .finally(() => {
+        if (!cancelled) setTeamGoalsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamFilter, fromMatchweek, toMatchweek, rawRows]);
 
   const matchweeks = useMemo(() => {
     if (fromMatchweek === null || toMatchweek === null) return [];
@@ -295,6 +331,58 @@ export default function PlayerProjectionsTablePage() {
 
       {error && <p className="text-loss-700 text-sm">{error}</p>}
       {loading && <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>}
+
+      {teamFilter !== 'all' && !loading && !error && (
+        <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
+          <div className="px-3 py-2 border-b border-chalk-200 bg-chalk-100 text-xs font-medium text-ink-500 uppercase tracking-wide">
+            {teamFilter}&rsquo;s own fixtures &mdash; what Team Strength produced, before Tactical Roles allocates it to players below
+          </div>
+          {teamGoalsLoading && <p className="text-ink-500 font-mono text-xs px-3 py-2">{'Loading\u2026'}</p>}
+          {teamGoalsError && <p className="text-loss-700 text-xs px-3 py-2">{teamGoalsError}</p>}
+          {!teamGoalsLoading && !teamGoalsError && teamGoals && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-medium text-ink-500 border-b border-chalk-200">
+                    <th className="px-3 py-1.5">GW</th>
+                    <th className="px-2 py-1.5">Opponent</th>
+                    <th className="px-2 py-1.5 text-right">Predicted GF</th>
+                    <th className="px-2 py-1.5 text-right">Predicted GA</th>
+                    <th className="px-2 py-1.5 text-right">Actual GF</th>
+                    <th className="px-2 py-1.5 text-right">Actual GA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamGoals.map((g, i) => (
+                    <tr key={`${g.matchweek}-${g.opponent_name}`} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                      <td className="px-3 py-1.5 font-mono text-xs text-ink-700">GW{g.matchweek}</td>
+                      <td className="px-2 py-1.5 text-ink-900">
+                        {g.is_home ? '' : '@'}
+                        {g.opponent_name}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">
+                        {g.predicted_goals_for !== null ? g.predicted_goals_for.toFixed(2) : '\u2014'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-xs text-loss-700 font-semibold">
+                        {g.predicted_goals_against !== null ? g.predicted_goals_against.toFixed(2) : '\u2014'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{g.actual_goals_for ?? '\u2014'}</td>
+                      <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{g.actual_goals_against ?? '\u2014'}</td>
+                    </tr>
+                  ))}
+                  {teamGoals.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-2 text-ink-500 text-xs">
+                        No fixtures found for this team in the selected gameweek range.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {!loading && !error && (
         <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">

@@ -339,3 +339,77 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
 
   return [...rowByKey.values()];
 }
+
+export type TeamFixtureGoals = {
+  matchweek: number;
+  opponent_name: string;
+  is_home: boolean;
+  status: string;
+  predicted_goals_for: number | null;
+  predicted_goals_against: number | null;
+  actual_goals_for: number | null;
+  actual_goals_against: number | null;
+};
+
+/** One team's own fixtures across a matchweek range, with predicted (Dixon-
+ * Coles) and actual goals for/against, resolved to that team's own
+ * perspective regardless of home/away -- requested directly, to show what
+ * Team Strength actually produced for a real club (Arsenal, Everton, etc,
+ * not an FPL squad selection) as context alongside that team's players'
+ * point contributions on the same page. Actual goals come from `matches`
+ * (same table/pattern used for Team Strength's own actual-goals columns),
+ * matched to the fixture by team+season+league, since fixtures itself has
+ * no FK to matches. */
+export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number, toMatchweek: number): Promise<TeamFixtureGoals[]> {
+  const { data: fixtureRows, error: fixtureError } = await supabase
+    .from('fixtures')
+    .select('fixture_id, matchweek, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name)')
+    .eq('league_id', 1)
+    .eq('season_id', 13)
+    .gte('matchweek', fromMatchweek)
+    .lte('matchweek', toMatchweek)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .order('matchweek', { ascending: true });
+  if (fixtureError) throw fixtureError;
+
+  const { data: matchRows, error: matchError } = await (supabase as any)
+    .from('matches')
+    .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals')
+    .eq('league_id', 1)
+    .eq('season_id', 13)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+  if (matchError) throw matchError;
+
+  // Actual results aren't linked to a specific fixture_id (matches has no
+  // FK to fixtures), so match by the OTHER team in the pairing -- good
+  // enough since a team plays each opponent at most twice a season (once
+  // home, once away), and is_home already disambiguates which of those two.
+  const actualByOpponentAndVenue = new Map<string, { for: number; against: number }>();
+  for (const m of (matchRows ?? []) as any[]) {
+    const isHome = m.home_team_id === teamId;
+    const opponentId = isHome ? m.away_team_id : m.home_team_id;
+    const goalsFor = isHome ? m.full_time_home_goals : m.full_time_away_goals;
+    const goalsAgainst = isHome ? m.full_time_away_goals : m.full_time_home_goals;
+    if (goalsFor === null || goalsAgainst === null) continue;
+    actualByOpponentAndVenue.set(`${opponentId}:${isHome}`, { for: goalsFor, against: goalsAgainst });
+  }
+
+  return ((fixtureRows ?? []) as any[]).map((f) => {
+    const isHome = f.home_team_id === teamId;
+    const opponentId = isHome ? f.away_team_id : f.home_team_id;
+    const opponentName = (isHome ? f.away_team?.canonical_name : f.home_team?.canonical_name) ?? 'Unknown';
+    const predictedFor = isHome ? f.predicted_home_goals : f.predicted_away_goals;
+    const predictedAgainst = isHome ? f.predicted_away_goals : f.predicted_home_goals;
+    const actual = actualByOpponentAndVenue.get(`${opponentId}:${isHome}`);
+    return {
+      matchweek: f.matchweek,
+      opponent_name: opponentName,
+      is_home: isHome,
+      status: f.status,
+      predicted_goals_for: predictedFor !== null && predictedFor !== undefined ? Number(predictedFor) : null,
+      predicted_goals_against: predictedAgainst !== null && predictedAgainst !== undefined ? Number(predictedAgainst) : null,
+      actual_goals_for: actual?.for ?? null,
+      actual_goals_against: actual?.against ?? null,
+    };
+  });
+}
