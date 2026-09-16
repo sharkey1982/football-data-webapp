@@ -889,6 +889,12 @@ export interface TeamStrengthRow {
   attack_adjustment: number;
   defence_adjustment: number;
   override_note: string | null;
+  /** Monte Carlo projected final league position (mean and median
+   * across 20,000 simulated remaining seasons), requested directly.
+   * Null for a cup competition or if the simulation hasn't run yet. */
+  projected_position_mean: number | null;
+  projected_position_median: number | null;
+  projected_points_mean: number | null;
 }
 
 export interface TeamStrengthSummary {
@@ -1051,6 +1057,22 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     ((overrideRows ?? []) as any[]).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note }])
   );
 
+  // Projected final position, requested directly -- from the Monte
+  // Carlo simulation script (scripts/simulate_final_table.py), keyed by
+  // league+season since it's already scoped per-league.
+  const positionByTeam = new Map<number, { mean: number; median: number; points: number }>();
+  if (currentSeasonId !== null) {
+    const { data: positionRows, error: positionError } = await (supabase as any)
+      .from('team_finishing_position_projection')
+      .select('team_id, projected_position_mean, projected_position_median, projected_points_mean')
+      .eq('league_id', leagueId)
+      .eq('season_id', currentSeasonId);
+    if (positionError) throw positionError;
+    for (const p of (positionRows ?? []) as any[]) {
+      positionByTeam.set(p.team_id, { mean: Number(p.projected_position_mean), median: Number(p.projected_position_median), points: Number(p.projected_points_mean) });
+    }
+  }
+
   const rows: TeamStrengthRow[] = ratings.map((r) => {
     const proj = projectedByTeam.get(r.team_id);
     const actual = actualByTeam.get(r.team_id);
@@ -1073,6 +1095,9 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       attack_adjustment: override?.attack_adjustment ?? 0,
       defence_adjustment: override?.defence_adjustment ?? 0,
       override_note: override?.note ?? null,
+      projected_position_mean: positionByTeam.get(r.team_id)?.mean ?? null,
+      projected_position_median: positionByTeam.get(r.team_id)?.median ?? null,
+      projected_points_mean: positionByTeam.get(r.team_id)?.points ?? null,
       last_season_played: actual?.played ?? 0,
     };
   });

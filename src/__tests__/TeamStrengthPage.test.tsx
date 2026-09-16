@@ -54,6 +54,9 @@ describe('TeamStrengthPage', () => {
           attack_adjustment: 0,
           defence_adjustment: 0,
           override_note: null,
+          projected_position_mean: 1.5,
+          projected_position_median: 1,
+          projected_points_mean: 82.8,
         },
         {
           team_id: 2,
@@ -73,6 +76,9 @@ describe('TeamStrengthPage', () => {
           attack_adjustment: 0,
           defence_adjustment: 0,
           override_note: null,
+          projected_position_mean: null,
+          projected_position_median: null,
+          projected_points_mean: null,
         },
       ],
       relegatedTeams: [{ team_id: 99, canonical_name: 'Ipswich' }],
@@ -84,6 +90,8 @@ describe('TeamStrengthPage', () => {
     expect(screen.getByText('0.280')).toBeInTheDocument(); // home advantage
     expect(screen.getByText('68.3')).toBeInTheDocument(); // Arsenal projected GF
     expect(screen.getByText('91')).toBeInTheDocument(); // Arsenal last season GF
+    expect(screen.getByText('1.5')).toBeInTheDocument(); // Arsenal projected final position (mean)
+    expect(screen.getByText('1.5').title).toBe('Median: 1');
     // Newly promoted team with no last-season data shows a dash, not a fabricated number.
     expect(screen.getAllByText('\u2014').length).toBeGreaterThan(0);
     // Estimated rating is labelled as such.
@@ -149,6 +157,9 @@ describe('TeamStrengthPage', () => {
           attack_adjustment: 0,
           defence_adjustment: 0,
           override_note: null,
+          projected_position_mean: null,
+          projected_position_median: null,
+          projected_points_mean: null,
         },
       ],
       relegatedTeams: [],

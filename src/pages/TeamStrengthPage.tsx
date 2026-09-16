@@ -14,7 +14,7 @@ import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type Team
 import { getErrorMessage } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null };
-type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga';
+type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga' | 'projected_position_mean';
 
 const selectClass = 'w-full sm:w-56 border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
 
@@ -116,12 +116,17 @@ export default function TeamStrengthPage() {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDir(key === 'canonical_name' ? 'asc' : 'desc');
+      setSortDir(key === 'canonical_name' || key === 'projected_position_mean' ? 'asc' : 'desc');
     }
   }
 
   const columns: { key: SortKey; label: string; title?: string }[] = [
     { key: 'canonical_name', label: 'Team' },
+    {
+      key: 'projected_position_mean',
+      label: 'Proj. Pos',
+      title: 'Mean projected final league position from a 20,000-run Monte Carlo simulation of the remaining season, using the same predicted goals as everywhere else on the site',
+    },
     { key: 'attack_strength', label: 'Attack', title: 'Log-scale Dixon-Coles parameter vs league average (0). Higher = more attacking.' },
     { key: 'defence_strength', label: 'Defence', title: 'Log-scale Dixon-Coles parameter vs league average (0). Higher = tighter defence (concedes fewer).' },
     { key: 'projected_gf', label: 'Proj. GF', title: 'Sum of predicted goals for across every fixture this season, played and upcoming' },
@@ -259,6 +264,9 @@ export default function TeamStrengthPage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-900 font-semibold" title={r.projected_position_median !== null ? `Median: ${r.projected_position_median}` : undefined}>
+                        {fmt(r.projected_position_mean, 1)}
+                      </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.attack_strength, 3)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.defence_strength, 3)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">{fmt(r.projected_gf, 1)}</td>
@@ -354,10 +362,11 @@ export default function TeamStrengthPage() {
           </div>
 
           <p className="text-xs text-ink-500">
-            Projected GF/GA sums this season&rsquo;s Dixon-Coles predicted goals across every fixture (played and upcoming) for
-            the current fit &mdash; not a live-updating in-season tally. Last season&rsquo;s GF/GA is the real final total; a team
-            with no last-season figure was outside this league then (e.g. newly promoted). GF/gm and GA/gm show the
-            model&rsquo;s full-season projected rate against this season&rsquo;s actual rate so far, side by side.
+            Proj. Pos is the mean finishing position from a 20,000-run Monte Carlo simulation of the remaining season
+            (hover for the median). Projected GF/GA sums this season&rsquo;s Dixon-Coles predicted goals across every fixture
+            (played and upcoming) for the current fit &mdash; not a live-updating in-season tally. Last season&rsquo;s GF/GA is the
+            real final total; a team with no last-season figure was outside this league then (e.g. newly promoted). GF/gm
+            and GA/gm show the model&rsquo;s full-season projected rate against this season&rsquo;s actual rate so far, side by side.
           </p>
         </>
       )}
