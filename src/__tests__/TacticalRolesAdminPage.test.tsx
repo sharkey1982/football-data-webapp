@@ -69,51 +69,61 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(mockedApi.saveTacticalRoleCorrection).toHaveBeenCalledWith(1, 1, 'LW'));
   });
 
-  it('"By Team" pitch shows only the selected depth, excludes injured 1st-choice players, and can switch depth', async () => {
+  it('"By Team" pitch shows the selected depth, promotes a role-matched replacement for an injured player (not just the next-ranked one), and can switch depth', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 1, web_name: 'Raya', element_type: 1, tactical_role: 'GK', depth_rank: 1, source_name: 'manual', confidence: 1 }),
-      // 1st-choice defender, but injured -- requested directly: an
-      // injured 1st choice (no return date captured yet) shouldn't show
-      // as if they're playing.
-      baseRow({ fpl_player_id: 2, web_name: 'Saliba', element_type: 2, tactical_role: 'CB', depth_rank: 1, status: 'i', news: 'Knee injury', source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 3, web_name: 'Gabriel', element_type: 2, tactical_role: 'RCB', depth_rank: 2, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 4, web_name: 'Rice', element_type: 3, tactical_role: 'DM', depth_rank: 1, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 5, web_name: 'Ødegaard', element_type: 3, tactical_role: 'AM', depth_rank: 2, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 6, web_name: 'Havertz', element_type: 4, tactical_role: 'CF', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      // Mirrors the real reported case exactly: Gabriel (LCB) is a
+      // DIFFERENT starter at the same depth_rank as Saliba (RCB), not his
+      // backup -- promoting Gabriel when Saliba is injured would be
+      // wrong, since Gabriel already starts regardless. White (RB) is
+      // deliberately listed BEFORE Konsa (RCB) at the same depth_rank=2,
+      // to prove role-matching wins over array order, not just luck --
+      // Konsa is the correct promotion (same RCB role as Saliba), not
+      // whichever depth_rank=2 defender happens to come first.
+      baseRow({ fpl_player_id: 2, web_name: 'JTimber', element_type: 2, tactical_role: 'RB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 3, web_name: 'Gabriel', element_type: 2, tactical_role: 'LCB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 4, web_name: 'Saliba', element_type: 2, tactical_role: 'RCB', depth_rank: 1, status: 'i', news: 'Knee injury', source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 5, web_name: 'White', element_type: 2, tactical_role: 'RB', depth_rank: 2, status: 'd', source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 6, web_name: 'Konsa', element_type: 2, tactical_role: 'RCB', depth_rank: 2, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 7, web_name: 'Rice', element_type: 3, tactical_role: 'DM', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 8, web_name: 'Havertz', element_type: 4, tactical_role: 'CF', depth_rank: 1, source_name: 'manual', confidence: 1 }),
     ]);
     mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
     render(<TacticalRolesAdminPage />);
-    await waitFor(() => expect(screen.getByText(/Only unassigned/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'By Team' }));
+    // All the test data is 'manual' sourced (already reviewed), so switch
+    // scope to "Everyone" -- the default "Needs Review" scope only shows
+    // generic-role players, which none of these are.
+    await user.click(screen.getByRole('button', { name: 'Everyone' }));
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
     await waitFor(() => expect(screen.getAllByText('Raya').length).toBeGreaterThan(0));
 
-    // Default depth is 1st choice: Rice, Havertz on the pitch normally.
-    // Saliba (1st choice, injured) is excluded, and Gabriel (2nd choice)
-    // is promoted into his slot instead -- exactly the injury-promotion
-    // behaviour requested. Ødegaard (2nd choice MID) is NOT promoted,
-    // since Rice (1st choice MID) isn't injured -- promotion only kicks
-    // in where it's actually needed.
-    expect(document.querySelectorAll('button[title^="Rice"]').length).toBeGreaterThan(0);
-    expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0);
-    expect(document.querySelectorAll('button[title^="Saliba"]').length).toBe(0);
+    // Gabriel and J.Timber show as their own genuine 1st-choice starters
+    // (not because they're "backups" for Saliba). Saliba (injured) is
+    // excluded, and Konsa -- the role-matched RCB replacement -- is
+    // promoted, NOT White, even though White is listed first at the same
+    // depth_rank.
     expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBeGreaterThan(0);
-    expect(document.querySelectorAll('button[title^="Ødegaard"]').length).toBe(0);
+    expect(document.querySelectorAll('button[title^="JTimber"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('button[title^="Saliba"]').length).toBe(0);
+    expect(document.querySelectorAll('button[title^="Konsa"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('button[title^="White"]').length).toBe(0);
 
     // Saliba still appears in the full-squad table (just not the pitch),
     // with his injury visible.
     expect(screen.getAllByText('Saliba').length).toBeGreaterThan(0);
     expect(screen.getByText('INJ')).toBeInTheDocument();
 
-    // Switching to 2nd choice shows Ødegaard instead (Gabriel, healthy,
-    // just shows at his own native 2nd-choice rank here too).
+    // Switching to 2nd choice shows White and Konsa instead (their own
+    // native 2nd-choice ranks), not Gabriel/J.Timber/Saliba.
     await user.click(screen.getByRole('button', { name: '2nd' }));
-    await waitFor(() => expect(document.querySelectorAll('button[title^="Ødegaard"]').length).toBeGreaterThan(0));
-    expect(document.querySelectorAll('button[title^="Rice"]').length).toBe(0);
+    await waitFor(() => expect(document.querySelectorAll('button[title^="White"]').length).toBeGreaterThan(0));
+    expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBe(0);
   });
 
   it('Needs Review can be filtered down to a single team', async () => {
@@ -153,11 +163,42 @@ describe('TacticalRolesAdminPage', () => {
 
     render(<TacticalRolesAdminPage />);
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText(/Only unassigned/)).toBeInTheDocument());
-    // Uncheck "only unassigned" so the manually-set Saliba row is visible.
-    await user.click(screen.getByRole('checkbox'));
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    // Switch scope to "Everyone" so the manually-set Saliba row is visible.
+    await user.click(screen.getByRole('button', { name: 'Everyone' }));
 
     await waitFor(() => expect(screen.getByText('Saliba')).toBeInTheDocument());
     expect(screen.getByText('INJ')).toBeInTheDocument();
+  });
+
+  it('Table and Pitch, and Needs Review and Everyone, are independent toggles', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Raya', element_type: 1, tactical_role: 'GK', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      // Generic (still needs review) -- should be the only one visible
+      // on the pitch under the default "Needs Review" scope.
+      baseRow({ fpl_player_id: 2, web_name: 'Havertz', element_type: 4, tactical_role: 'CF', depth_rank: 1, source_name: 'fpl_position_fallback', confidence: 0.3 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+
+    render(<TacticalRolesAdminPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    await waitFor(() => expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0));
+    // Raya (already reviewed, 'manual') is excluded from the pitch under
+    // the default "Needs Review" scope -- but still in the full-squad
+    // table alongside it, since that table isn't scope-filtered.
+    expect(document.querySelectorAll('button[title^="Raya"]').length).toBe(0);
+    expect(screen.getAllByText('Raya').length).toBeGreaterThan(0);
+
+    // Switching scope to "Everyone" brings Raya onto the pitch too,
+    // while staying in Pitch display mode -- proving the two toggles are
+    // independent, not coupled to a single combined mode.
+    await user.click(screen.getByRole('button', { name: 'Everyone' }));
+    await waitFor(() => expect(document.querySelectorAll('button[title^="Raya"]').length).toBeGreaterThan(0));
+    expect(screen.getByRole('button', { name: 'Pitch' })).toHaveClass('bg-pitch-800');
   });
 });

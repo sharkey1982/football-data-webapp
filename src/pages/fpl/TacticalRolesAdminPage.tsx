@@ -39,7 +39,8 @@ import FormationPitch from '../../components/fpl/FormationPitch';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
-type ViewMode = 'review' | 'by_team';
+type DisplayMode = 'table' | 'pitch';
+type ScopeMode = 'needs_review' | 'everyone';
 
 export default function TacticalRolesAdminPage() {
   const [rows, setRows] = useState<TacticalRoleRow[]>([]);
@@ -49,8 +50,8 @@ export default function TacticalRolesAdminPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<ViewMode>('review');
-  const [onlyGeneric, setOnlyGeneric] = useState(true);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('table');
+  const [scopeMode, setScopeMode] = useState<ScopeMode>('needs_review');
   const [positionFilter, setPositionFilter] = useState<FplElementType | 'all'>('all');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
@@ -82,7 +83,7 @@ export default function TacticalRolesAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedTeamId === null || viewMode !== 'by_team') {
+    if (selectedTeamId === null || displayMode !== 'pitch') {
       setTeamFormation(null);
       return;
     }
@@ -97,7 +98,7 @@ export default function TacticalRolesAdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedTeamId, viewMode]);
+  }, [selectedTeamId, displayMode]);
 
   async function handleRoleChange(row: TacticalRoleRow, newRole: string) {
     setSavingId(row.fpl_player_id);
@@ -173,11 +174,11 @@ export default function TacticalRolesAdminPage() {
   }, [rows]);
 
   const reviewRows = useMemo(() => {
-    let visible = onlyGeneric ? rows.filter((r) => r.source_name === 'fpl_position_fallback') : rows;
+    let visible = scopeMode === 'needs_review' ? rows.filter((r) => r.source_name === 'fpl_position_fallback') : rows;
     if (positionFilter !== 'all') visible = visible.filter((r) => r.element_type === positionFilter);
     if (reviewTeamFilter !== 'all') visible = visible.filter((r) => r.team_id === reviewTeamFilter);
     return visible;
-  }, [rows, onlyGeneric, positionFilter, reviewTeamFilter]);
+  }, [rows, scopeMode, positionFilter, reviewTeamFilter]);
 
   const selectedTeamRows = useMemo(() => {
     if (selectedTeamId === null) return [];
@@ -193,7 +194,13 @@ export default function TacticalRolesAdminPage() {
   // simultaneously) since every team's cap slots filled regardless of
   // their actual formation.
   const teamRowsForPitch = useMemo(() => rows.filter((r) => r.team_id === selectedTeamId), [rows, selectedTeamId]);
-  const pitchStarters = useMemo(() => selectStartersAtDepth(teamRowsForPitch, pitchDepth), [teamRowsForPitch, pitchDepth]);
+  const pitchStarters = useMemo(() => {
+    const starters = selectStartersAtDepth(teamRowsForPitch, pitchDepth);
+    // scopeMode is applied AFTER selection, not before -- selectStartersAtDepth's
+    // injury-promotion logic needs the full team pool to find a role-matched
+    // replacement; pre-filtering to generic-only rows would break that.
+    return scopeMode === 'needs_review' ? starters.filter((r) => r.source_name === 'fpl_position_fallback') : starters;
+  }, [teamRowsForPitch, pitchDepth, scopeMode]);
   const pitchPlayers = useMemo(() => pitchStarters.map(toFormationPitchPlayer), [pitchStarters]);
 
   function RoleSelect({ row }: { row: TacticalRoleRow }) {
@@ -287,21 +294,38 @@ export default function TacticalRolesAdminPage() {
             <div className="flex rounded-md border border-chalk-300 overflow-hidden">
               <button
                 type="button"
-                onClick={() => setViewMode('review')}
-                className={['px-3 py-1.5 text-sm font-medium transition-colors', viewMode === 'review' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+                onClick={() => setDisplayMode('table')}
+                className={['px-3 py-1.5 text-sm font-medium transition-colors', displayMode === 'table' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+              >
+                Table
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode('pitch')}
+                className={['px-3 py-1.5 text-sm font-medium transition-colors', displayMode === 'pitch' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+              >
+                Pitch
+              </button>
+            </div>
+
+            <div className="flex rounded-md border border-chalk-300 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setScopeMode('needs_review')}
+                className={['px-3 py-1.5 text-sm font-medium transition-colors', scopeMode === 'needs_review' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
               >
                 Needs Review
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('by_team')}
-                className={['px-3 py-1.5 text-sm font-medium transition-colors', viewMode === 'by_team' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+                onClick={() => setScopeMode('everyone')}
+                className={['px-3 py-1.5 text-sm font-medium transition-colors', scopeMode === 'everyone' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
               >
-                By Team
+                Everyone
               </button>
             </div>
 
-            {viewMode === 'by_team' && (
+            {displayMode === 'pitch' && (
               <select
                 value={selectedTeamId ?? ''}
                 onChange={(e) => setSelectedTeamId(e.target.value === '' ? null : Number(e.target.value))}
@@ -315,7 +339,7 @@ export default function TacticalRolesAdminPage() {
               </select>
             )}
 
-            {viewMode === 'review' && (
+            {displayMode === 'table' && (
               <select
                 value={reviewTeamFilter}
                 onChange={(e) => setReviewTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
@@ -343,15 +367,14 @@ export default function TacticalRolesAdminPage() {
               ))}
             </select>
 
-            {viewMode === 'review' && (
-              <label className="flex items-center gap-2 text-sm text-ink-700">
-                <input type="checkbox" checked={onlyGeneric} onChange={(e) => setOnlyGeneric(e.target.checked)} />
-                Only unassigned ({totalGeneric} of {teamScopedRows.length})
-              </label>
+            {displayMode === 'table' && scopeMode === 'needs_review' && (
+              <span className="text-sm text-ink-500">
+                {totalGeneric} of {teamScopedRows.length} unassigned
+              </span>
             )}
           </div>
 
-          {viewMode === 'review' && (
+          {displayMode === 'table' && (
             <div className="space-y-4">
               {[...byTeam.entries()].map(([team, players]) => {
                 const visible = players.filter((p) => reviewRows.includes(p));
@@ -396,7 +419,7 @@ export default function TacticalRolesAdminPage() {
             </div>
           )}
 
-          {viewMode === 'by_team' && selectedTeamId !== null && (
+          {displayMode === 'pitch' && selectedTeamId !== null && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
@@ -435,8 +458,10 @@ export default function TacticalRolesAdminPage() {
                 <p className="text-[11px] text-ink-500 mt-2">
                   Shows only the players at the selected depth &mdash; a team only has one genuinely-ranked 1st choice per
                   position, not one per formation slot, so this may not fill a full XI; that&rsquo;s expected, not a bug. Switch
-                  depth above to review 2nd/3rd choice separately. Injured players never appear here. Hover a player for role,
-                  set-piece, injury status, and season PPG context.
+                  depth above to review 2nd/3rd choice separately. An injured player is replaced here by the healthy player in
+                  the same specific role at the next depth (e.g. an injured right centre-back is replaced by the next-ranked
+                  right centre-back, not just whoever&rsquo;s next by overall rank). Hover a player for role, set-piece, injury
+                  status, and season PPG context.
                 </p>
               </div>
 
