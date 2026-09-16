@@ -115,6 +115,8 @@ export type PlayerGameweekPoints = {
   team_name: string;
   fpl_position: FplElementType | null;
   fpl_position_label: string;
+  /** Current FPL price in £m (e.g. 6.2) -- same for every row of a given player, fetched once from fpl_players. */
+  price: number | null;
   matchweek: number;
   /** Real FPL points scored -- null until the fixture's played and backfilled. */
   actual_points: number | null;
@@ -237,7 +239,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
 
   const { data: playerRows, error: playerError } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, web_name, element_type, canonical_team_id')
+    .select('fpl_player_id, web_name, element_type, canonical_team_id, now_cost')
     .eq('season_id', 13)
     .in('fpl_player_id', [...playerIds]);
   if (playerError) throw playerError;
@@ -247,9 +249,14 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   const teamNameById = new Map<number, string>();
   for (const t of teamRows ?? []) teamNameById.set(t.team_id, t.canonical_name);
 
-  const playerInfo = new Map<number, { web_name: string; fpl_position: FplElementType | null; team_id: number }>();
+  const playerInfo = new Map<number, { web_name: string; fpl_position: FplElementType | null; team_id: number; price: number | null }>();
   for (const p of playerRows ?? []) {
-    playerInfo.set(p.fpl_player_id, { web_name: p.web_name ?? 'Unknown', fpl_position: p.element_type, team_id: p.canonical_team_id ?? 0 });
+    playerInfo.set(p.fpl_player_id, {
+      web_name: p.web_name ?? 'Unknown',
+      fpl_position: p.element_type,
+      team_id: p.canonical_team_id ?? 0,
+      price: p.now_cost != null ? p.now_cost / 10 : null,
+    });
   }
 
   // Key rows by player+matchweek (not player+fixture -- a player only ever
@@ -267,6 +274,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
       team_name: info ? teamNameById.get(info.team_id) ?? 'Unknown' : 'Unknown',
       fpl_position: info?.fpl_position ?? null,
       fpl_position_label: info?.fpl_position ? FPL_POSITION_LABEL[info.fpl_position] : '\u2014',
+      price: info?.price ?? null,
       matchweek: mw,
       actual_points: null,
       projected_points: null,

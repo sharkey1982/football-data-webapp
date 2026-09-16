@@ -22,6 +22,7 @@ type PlayerRow = {
   team_name: string;
   fpl_position: number | null;
   fpl_position_label: string;
+  price: number | null;
   byMatchweek: Map<number, { actual: number | null; projected: number | null }>;
   total: number;
   hasAnyActual: boolean;
@@ -65,6 +66,7 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
         team_name: r.team_name,
         fpl_position: r.fpl_position,
         fpl_position_label: r.fpl_position_label,
+        price: r.price,
         byMatchweek: new Map(),
         total: 0,
         hasAnyActual: false,
@@ -192,6 +194,12 @@ export default function PlayerProjectionsTablePage() {
     return [...filtered].sort((a, b) => {
       if (sortKey === 'web_name') return factor * a.web_name.localeCompare(b.web_name);
       if (sortKey === 'total') return factor * (a.total - b.total);
+      if (sortKey === 'price') return factor * ((a.price ?? -Infinity) - (b.price ?? -Infinity));
+      if (sortKey === 'value') {
+        const av = a.price && a.price > 0 ? a.total / a.price : -Infinity;
+        const bv = b.price && b.price > 0 ? b.total / b.price : -Infinity;
+        return factor * (av - bv);
+      }
       if (viewMode === 'by_gameweek' && sortKey.startsWith('mw:')) {
         const mw = Number(sortKey.slice(3));
         const av = a.byMatchweek.get(mw);
@@ -313,6 +321,12 @@ export default function PlayerProjectionsTablePage() {
                   </th>
                   <th className="px-2 py-2 whitespace-nowrap">Team</th>
                   <th className="px-2 py-2 whitespace-nowrap">Pos</th>
+                  <th className="px-2 py-2 text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('price')}>
+                    Price {sortIndicator('price')}
+                  </th>
+                  <th className="px-2 py-2 text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('value')} title="Total points / price -- points per \u00a3m">
+                    Value {sortIndicator('value')}
+                  </th>
                   {viewMode === 'by_gameweek' &&
                     matchweeks.map((mw) => (
                       <th key={mw} className="px-2 py-2 text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort(`mw:${mw}`)}>
@@ -336,6 +350,10 @@ export default function PlayerProjectionsTablePage() {
                     <td className="px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
                     <td className="px-2 py-1.5 text-xs text-ink-700 whitespace-nowrap">{r.team_name}</td>
                     <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{r.fpl_position_label}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.price !== null ? `\u00a3${r.price.toFixed(1)}m` : '\u2014'}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
+                      {r.price !== null && r.price > 0 ? (r.total / r.price).toFixed(2) : '\u2014'}
+                    </td>
                     {viewMode === 'by_gameweek' &&
                       matchweeks.map((mw) => {
                         const cell = r.byMatchweek.get(mw);
@@ -365,7 +383,7 @@ export default function PlayerProjectionsTablePage() {
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={3 + matchweeks.length + 1} className="px-3 py-6 text-center text-sm text-ink-500">
+                    <td colSpan={5 + matchweeks.length + 1} className="px-3 py-6 text-center text-sm text-ink-500">
                       No players match the current filters.
                     </td>
                   </tr>

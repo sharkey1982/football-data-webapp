@@ -26,6 +26,7 @@ function baseRow(overrides: Partial<fplPlayerTableApi.PlayerGameweekPoints>): fp
     team_name: 'Man City',
     fpl_position: 4,
     fpl_position_label: 'FWD',
+    price: 15.5,
     matchweek: 5,
     actual_points: null,
     projected_points: null,

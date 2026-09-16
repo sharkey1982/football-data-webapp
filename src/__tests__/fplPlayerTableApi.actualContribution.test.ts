@@ -56,7 +56,7 @@ describe('actual-points contribution reconstruction (via getPlayerGameweekPoints
           source_payload: { stats: { clearances_blocks_interceptions: 2, recoveries: 2, tackles: 2 } },
         },
       ],
-      fpl_players: [{ fpl_player_id: 501, web_name: 'Test MID', element_type: 3, canonical_team_id: 1, season_id: 13 }],
+      fpl_players: [{ fpl_player_id: 501, web_name: 'Test MID', element_type: 3, canonical_team_id: 1, season_id: 13, now_cost: 65 }],
       teams: [{ team_id: 1, canonical_name: 'Arsenal' }],
     };
 
@@ -106,7 +106,7 @@ describe('actual-points contribution reconstruction (via getPlayerGameweekPoints
           source_payload: { stats: {} },
         },
       ],
-      fpl_players: [{ fpl_player_id: 502, web_name: 'Test GK', element_type: 1, canonical_team_id: 1, season_id: 13 }],
+      fpl_players: [{ fpl_player_id: 502, web_name: 'Test GK', element_type: 1, canonical_team_id: 1, season_id: 13, now_cost: 50 }],
       teams: [{ team_id: 1, canonical_name: 'Arsenal' }],
     };
 

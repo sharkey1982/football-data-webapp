@@ -74,6 +74,12 @@ export type FplOptimizerResult = {
   /** All 15 squad players, unlabelled -- use a given week's weekly_plan.xi/bench_order to see who plays that week. */
   squad: FplOptimizerPlayer[];
   weekly_plan: FplOptimizerWeeklyPlan[];
+  /** Player IDs the request forced into the squad, echoed back for confirmation. Empty for a plain unconstrained request. */
+  must_include_ids?: number[];
+  /** Player IDs the request forced out of consideration entirely. */
+  must_exclude_ids?: number[];
+  /** 'milp_cache' = the scheduled job's proven-exact solution; 'heuristic' = the live search. Any must_include/exclude request always uses the heuristic -- the cache only ever stores the fully unconstrained optimum. */
+  source?: 'milp_cache' | 'heuristic';
   projection_model: string;
   version: string;
   notes: string[];
@@ -123,14 +129,31 @@ function toMessage(v: unknown): string | null {
 /**
  * Calls fpl-optimize-squad for a gameweek range and budget. Throws with the
  * backend's own error message on failure (invalid range, no legal squad
- * found, missing projections for some week in range, etc). Distinguishes a
- * genuine network-level failure (request never reached the function at
- * all -- e.g. connectivity) from a response the function itself returned,
- * since those need different messages to be useful.
+ * found, missing projections for some week in range, must-include/exclude
+ * conflicts or infeasibility, etc). Distinguishes a genuine network-level
+ * failure (request never reached the function at all -- e.g. connectivity)
+ * from a response the function itself returned, since those need different
+ * messages to be useful.
+ *
+ * mustIncludeIds/mustExcludeIds are optional -- any non-empty set always
+ * runs the live heuristic search (never the exact-MILP cache, which only
+ * stores the fully unconstrained optimum), so a genuinely different squad
+ * gets built around the constraint rather than a fixed template with one
+ * slot swapped.
  */
-export async function optimizeFplSquad(fromMatchweek: number, toMatchweek: number, budget: number): Promise<FplOptimizerResult> {
+export async function optimizeFplSquad(
+  fromMatchweek: number,
+  toMatchweek: number,
+  budget: number,
+  mustIncludeIds: number[] = [],
+  mustExcludeIds: number[] = []
+): Promise<FplOptimizerResult> {
   const { data, error } = await supabase.functions.invoke('fpl-optimize-squad', {
-    body: { from_matchweek: fromMatchweek, to_matchweek: toMatchweek, budget },
+    body: {
+      from_matchweek: fromMatchweek, to_matchweek: toMatchweek, budget,
+      ...(mustIncludeIds.length > 0 ? { must_include_ids: mustIncludeIds } : {}),
+      ...(mustExcludeIds.length > 0 ? { must_exclude_ids: mustExcludeIds } : {}),
+    },
   });
   if (error) {
     // supabase-js's FunctionsHttpError carries a generic message
