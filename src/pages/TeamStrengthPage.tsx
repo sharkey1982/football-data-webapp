@@ -10,7 +10,8 @@
 // ============================================================================
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary } from '../lib/api';
+import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, refreshFplProjectionsRange, type TeamStrengthSummary } from '../lib/api';
+import { getDefaultMatchweek } from '../lib/fplSeasonApi';
 import { getErrorMessage } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null };
@@ -36,6 +37,8 @@ export default function TeamStrengthPage() {
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<string | null>(null);
 
   useEffect(() => {
     getLeagues().then((data) => {
@@ -95,6 +98,22 @@ export default function TeamStrengthPage() {
       setSaveError(getErrorMessage(e, 'Failed to save override'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRefreshFplProjections() {
+    setRefreshing(true);
+    setRefreshResult(null);
+    try {
+      const defaultGw = await getDefaultMatchweek();
+      const from = defaultGw;
+      const to = defaultGw + 9;
+      const count = await refreshFplProjectionsRange(from, to);
+      setRefreshResult(`Refreshed ${count} fixtures (GW${from}\u2013${to}). Note: this updates FPL player projections only -- it does not re-run the bonus or finishing-position simulations, or re-solve the optimizer. Those still need their GitHub Actions workflows run separately.`);
+    } catch (e) {
+      setRefreshResult(`Failed: ${getErrorMessage(e, 'Could not refresh FPL projections')}`);
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -211,6 +230,19 @@ export default function TeamStrengthPage() {
               </div>
             </div>
           )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleRefreshFplProjections}
+              disabled={refreshing}
+              className="px-3 py-1.5 text-sm rounded border border-pitch-700 text-pitch-800 hover:bg-pitch-50 disabled:opacity-50"
+              title="Re-runs FPL player projections (next 10 gameweeks) so they reflect any Team Strength changes -- does not touch the bonus/finishing-position simulations or the optimizer, which still need their own GitHub Actions runs"
+            >
+              {refreshing ? 'Refreshing\u2026' : 'Refresh FPL projections'}
+            </button>
+            {refreshResult && <p className="text-xs text-ink-500">{refreshResult}</p>}
+          </div>
 
           {summary.rows.some((r) => isPositionStale(r)) && (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">

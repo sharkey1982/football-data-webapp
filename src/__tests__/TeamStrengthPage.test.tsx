@@ -4,13 +4,20 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TeamStrengthPage from '../pages/TeamStrengthPage';
 import * as api from '../lib/api';
+import * as seasonApi from '../lib/fplSeasonApi';
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof api>('../lib/api');
-  return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };
+  return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn(), refreshFplProjectionsRange: vi.fn() };
+});
+
+vi.mock('../lib/fplSeasonApi', async () => {
+  const actual = await vi.importActual<typeof seasonApi>('../lib/fplSeasonApi');
+  return { ...actual, getDefaultMatchweek: vi.fn() };
 });
 
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedSeasonApi = seasonApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('TeamStrengthPage', () => {
   it('shows attack/defence, home advantage, and projected vs last-season goals', async () => {
@@ -259,5 +266,29 @@ describe('TeamStrengthPage', () => {
     // Effective attack strength (base + override) is shown, not just the base value.
     const matches = screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.className.includes('text-amber-700') && el.textContent === '\u2192 -0.001');
     expect(matches.length).toBeGreaterThan(0);
+  });
+
+  it('lets FPL projections be refreshed from the page, using the current default matchweek', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getTeamStrengthSummary.mockResolvedValue({
+      fitRun: null,
+      currentSeasonLabel: '2627',
+      lastSeasonLabel: '2526',
+      rows: [],
+      relegatedTeams: [],
+    });
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
+    mockedApi.refreshFplProjectionsRange.mockResolvedValue(100);
+
+    render(<TeamStrengthPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Refresh FPL projections/ })).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /Refresh FPL projections/ }));
+
+    await waitFor(() => expect(mockedApi.refreshFplProjectionsRange).toHaveBeenCalledWith(6, 15));
+    expect(await screen.findByText(/Refreshed 100 fixtures \(GW6\u201315\)/)).toBeInTheDocument();
+    // Makes clear this doesn't cover everything that might need refreshing.
+    expect(screen.getByText(/does not re-run the bonus or finishing-position simulations/)).toBeInTheDocument();
   });
 });

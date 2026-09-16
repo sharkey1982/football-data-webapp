@@ -1144,6 +1144,21 @@ export async function saveTeamStrengthOverride(teamId: number, attackAdjustment:
   if (rpcErr) throw rpcErr;
 }
 
+/** Re-runs refresh_fpl_projection_fixture_v6 for every fixture in a
+ * matchweek range, in one server-side loop (not one round-trip per
+ * fixture) -- requested directly, to bring FPL player projections back
+ * in sync after a Team Strength change without needing a Python script
+ * or GitHub Actions run. Returns the number of fixtures refreshed. Does
+ * NOT re-run the bonus or finishing-position Monte Carlo simulations,
+ * or re-solve the optimizer -- those still require the GitHub Actions
+ * workflows (numpy simulation isn't practical to run synchronously from
+ * a request). */
+export async function refreshFplProjectionsRange(fromMatchweek: number, toMatchweek: number): Promise<number> {
+  const { data, error } = await (supabase as any).rpc('refresh_fpl_projections_range', { p_from_matchweek: fromMatchweek, p_to_matchweek: toMatchweek });
+  if (error) throw error;
+  return Number(data);
+}
+
 
 
 export interface FantasyFixtureCell {
