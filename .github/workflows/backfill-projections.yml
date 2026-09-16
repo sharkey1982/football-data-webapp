@@ -1,0 +1,56 @@
+name: Backfill Projections
+
+# Manual only -- this is a long-running backfill (~23s/fixture, so roughly
+# 105 minutes for a full GW12-38 population), not something to run on a
+# schedule. The daily refresh handles ongoing updates; this exists to
+# populate coverage that doesn't exist yet, and to re-generate a range
+# after a model change.
+on:
+  workflow_dispatch:
+    inputs:
+      from_matchweek:
+        description: 'First matchweek (blank = all)'
+        required: false
+        type: string
+      to_matchweek:
+        description: 'Last matchweek (blank = all)'
+        required: false
+        type: string
+      force:
+        description: 'Regenerate even where projections already exist'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # Generous ceiling: the script keeps its own 5h budget and stops cleanly
+    # before this, reporting progress rather than being killed mid-fixture.
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Backfill projections
+        shell: bash
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.from_matchweek }}" ]; then ARGS="$ARGS --from ${{ inputs.from_matchweek }}"; fi
+          if [ -n "${{ inputs.to_matchweek }}" ]; then ARGS="$ARGS --to ${{ inputs.to_matchweek }}"; fi
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          echo "Running with:$ARGS"
+          set +e
+          npx tsx scripts/backfill-projections.ts $ARGS 2>&1 | tee /tmp/backfill.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            ENCODED=$(tail -c 3000 /tmp/backfill.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+            echo "::error::$ENCODED"
+          fi
+          exit $STATUS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
