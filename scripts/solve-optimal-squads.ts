@@ -55,7 +55,7 @@ const SEASON_ID = 13;
 const LEAGUE_ID = 1;
 const MODEL_VERSION = 'leaguewide_v6';
 const SCENARIO_KEY = 'baseline';
-const OPTIMISER_VERSION = 'milp_v2';
+const OPTIMISER_VERSION = 'milp_v3'; // v3: removed the unsafe dominance filter -- full pool, no shortcuts (see the removed paretoFilter's replacement comment below). Old milp_v2 cache rows are left in place, unused; the new version means the edge function's cache-check naturally prefers a v3 row once one exists for a given range.
 // Tiny secondary weight on total squad cost, breaking ties among squads that
 // tie on the primary (starting-XI + captain) objective toward the cheaper
 // one. Requested directly: bench players should contribute nothing to what's
@@ -169,36 +169,26 @@ function weeklyDetail(squad: Player[], weeks: number[]) {
   return { weekly, autoSubTotal, primaryTotal };
 }
 
-/** Same club-scoped dominance filter validated before this was built: only
- * ever compares a player against another player at the SAME position AND
- * SAME CLUB. Cross-club dominance was tested and found unsafe -- it can
- * remove a player whose "dominator" is infeasible in combination (already
- * at the 3-per-club cap elsewhere in the optimal squad), which measurably
- * changed the objective (189.16 vs the true 189.47) in testing. Within-club
- * dominance can never interact with the club cap, so it's provably safe:
- * confirmed to reproduce the exact true optimum on real data before this
- * was used here.
+/** REMOVED (2026-09-16): this "safe" club-scoped dominance filter was
+ * proven unsafe by direct testing against real historical data. The proof
+ * that dominance held (swapping a dominated player for their dominator can
+ * only help) implicitly assumed the dominator is always available to swap
+ * in -- which breaks the moment the dominator is ALREADY in the squad
+ * (elsewhere at the same club/position). A club needing two similarly
+ * cheap, similarly-dominated bench-tier players at once is exactly that
+ * case: the heuristic legitimately found a genuinely better squad
+ * (279 vs this filter's 278, GW1+3 2026-27 actuals) by owning both Mendy
+ * AND Ajayi even though Ajayi is individually dominated by Mendy -- a
+ * squad the filter had already ruled out by removing Ajayi from
+ * consideration before the solve even started.
+ *
+ * The fix is simpler than a smarter filter: don't filter at all. Verified
+ * directly across 15 real historical GW windows (1-4 week spans) and at
+ * the live optimiser's actual widest cached range (8 real weeks, 658
+ * players, the closest available test to the 10-week cap) that the full,
+ * unfiltered candidate pool solves in under 2s even in the worst case --
+ * there was never a genuine need to shrink the search space to begin with.
  */
-function paretoFilter(players: Player[]): Player[] {
-  function isDominated(p: Player, candidates: Player[], weeks: number[]): boolean {
-    for (const q of candidates) {
-      if (q.fpl_player_id === p.fpl_player_id) continue;
-      if (q.fpl_position !== p.fpl_position || q.team_id !== p.team_id) continue;
-      if (q.price_m > p.price_m) continue;
-      const allWeeksGE = weeks.every((w) => q.gw_xpts[w] >= p.gw_xpts[w] - 1e-9);
-      const strictlyBetter = q.price_m < p.price_m || weeks.some((w) => q.gw_xpts[w] > p.gw_xpts[w] + 1e-9);
-      if (allWeeksGE && strictlyBetter) return true;
-    }
-    return false;
-  }
-  const weeks = Object.keys(players[0]?.gw_xpts ?? {}).map(Number);
-  const out: Player[] = [];
-  for (const pos of [1, 2, 3, 4]) {
-    const xs = players.filter((p) => p.fpl_position === pos);
-    xs.filter((p) => !isDominated(p, xs, weeks)).forEach((p) => out.push(p));
-  }
-  return out;
-}
 
 function buildLp(pool: Player[], weeks: number[], budget: number) {
   const xVar = (i: number) => `x_${i}`;
@@ -278,8 +268,8 @@ async function solveRange(supabase: any, highs: any, fromGw: number, toGw: numbe
     p.appear += ap(r) / weeks.length;
   }
   const all = [...map.values()];
-  const pool = paretoFilter(all);
-  console.log(`[${label}] ${all.length} players -> ${pool.length} after safe dominance filtering`);
+  const pool = all; // no filtering -- see the removed paretoFilter's replacement comment above
+  console.log(`[${label}] solving with the full ${pool.length}-player candidate pool (no filtering)`);
 
   const lp = buildLp(pool, weeks, BUDGET);
   const t0 = Date.now();
@@ -319,7 +309,7 @@ async function solveRange(supabase: any, highs: any, fromGw: number, toGw: numbe
     search_time_limited: false,
     notes: [
       'Squad, starting XI, and captain solved exactly via MILP (HiGHS) -- not a heuristic search',
-      `Candidate pool reduced from ${all.length} to ${pool.length} via provably-safe within-club dominance filtering before solving`,
+      `Solved against the full ${pool.length}-player candidate pool -- no filtering or pool-shrinking of any kind`,
       'Bench is optimised for minimum cost under squad-composition and budget rules only -- never credited for a chance of playing. objective_xpts reflects exactly that: starting XI + captain, nothing else',
       'auto_sub_ev is still shown per gameweek as real informational context (points a bench player could score if a starter blanks) but is not part of what was optimised for',
       'Computed by a scheduled job, not live -- see fpl_optimal_squad_cache',
