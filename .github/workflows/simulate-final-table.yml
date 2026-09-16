@@ -1,0 +1,32 @@
+name: Simulate Final Table
+
+# Manual trigger -- runs scripts/simulate_final_table.py, populating
+# team_finishing_position_projection for every league-type competition.
+# Run this whenever team ratings or fixture predictions change materially
+# (a new Dixon-Coles fit, a Team Strength manual override, a batch of
+# results processed).
+on:
+  workflow_dispatch:
+    inputs:
+      season_id:
+        description: 'Season ID'
+        required: false
+        default: '13'
+        type: string
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+
+      - name: Simulate final table
+        run: python scripts/simulate_final_table.py --season-id "${{ inputs.season_id }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
