@@ -16,6 +16,8 @@ import OptimalSquadPage from './pages/fpl/OptimalSquadPage';
 import HindsightOptimalSquadPage from './pages/fpl/HindsightOptimalSquadPage';
 import PlayerProjectionsTablePage from './pages/fpl/PlayerProjectionsTablePage';
 import ScoringRulesPage from './pages/fpl/ScoringRulesPage';
+import ActualMatchesPage from './pages/fpl/ActualMatchesPage';
+import ActualMatchDetailPage from './pages/fpl/ActualMatchDetailPage';
 import TacticalRolesAdminPage from './pages/fpl/TacticalRolesAdminPage';
 export default function App() {
   return (
@@ -36,6 +38,9 @@ export default function App() {
           <Route path="fpl/optimal-squad-so-far" element={<HindsightOptimalSquadPage />} />
           <Route path="fpl/player-points" element={<PlayerProjectionsTablePage />} />
           <Route path="fpl/scoring-rules" element={<ScoringRulesPage />} />
+          <Route path="fpl/actual-matches" element={<ActualMatchesPage />} />
+          <Route path="fpl/actual-matches/:matchweek" element={<ActualMatchesPage />} />
+          <Route path="fpl/actual-matches/fixture/:fixtureId" element={<ActualMatchDetailPage />} />
           <Route path="fpl/tactical-roles" element={<TacticalRolesAdminPage />} />
           <Route path="results-data" element={<ResultsData />} />
           <Route path="source-data" element={<SourceData />} />
