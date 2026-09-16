@@ -65,26 +65,21 @@ export async function getSeasonSummary(): Promise<SeasonGameweekSummary[]> {
 
 /**
  * The "current/next relevant" gameweek: the earliest matchweek that still
- * has at least one unplayed fixture. Falls back to the final matchweek if
- * the whole season is complete.
+ * has at least one unplayed fixture, guaranteed to actually have
+ * projection data available. Backed by get_fpl_default_matchweek(), which
+ * falls back to the nearest gameweek WITH data if the genuinely-next
+ * scheduled week hasn't been generated yet -- combines what used to be
+ * two separate, sometimes-inconsistent answers (this function's own prior
+ * fixtures.status-only logic, and the optimiser's separate
+ * projection-data-only logic) into one canonical source every page uses.
  */
 export async function getDefaultMatchweek(): Promise<number> {
-  const { data: upcoming, error: upcomingError } = await supabase
-    .from('fpl_season_fixture_feed')
-    .select('matchweek')
-    .eq('status', 'scheduled')
-    .order('matchweek', { ascending: true })
-    .limit(1);
-  if (upcomingError) throw upcomingError;
-  if (upcoming && upcoming.length > 0) return upcoming[0].matchweek;
-
-  const { data: last, error: lastError } = await supabase
-    .from('fpl_season_fixture_feed')
-    .select('matchweek')
-    .order('matchweek', { ascending: false })
-    .limit(1);
-  if (lastError) throw lastError;
-  return last && last.length > 0 ? last[0].matchweek : 1;
+  // get_fpl_default_matchweek is new enough the generated Database type
+  // doesn't know its params yet -- scoped `as any`, matching the
+  // "deliberately untyped RPC" convention used elsewhere in this project.
+  const { data, error } = await (supabase.rpc as any)('get_fpl_default_matchweek', { p_season_id: 13, p_league_id: 1 });
+  if (error) throw error;
+  return typeof data === 'number' ? data : 1;
 }
 
 export type SeasonFixture = {

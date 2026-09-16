@@ -15,7 +15,8 @@
 // ============================================================================
 
 import { useEffect, useState } from 'react';
-import { optimizeFplSquad, getOptimizerEarliestMatchweek, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
+import { optimizeFplSquad, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
+import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import WeeklySquadView from '../../components/fpl/WeeklySquadView';
 import { getSquadPitchEnrichment } from '../../lib/fplApi';
 import { getErrorMessage } from '../../lib/errorMessage';
@@ -82,11 +83,13 @@ export default function OptimalSquadPage() {
 
   useEffect(() => {
     let cancelled = false;
-    // Deliberately NOT getDefaultMatchweek() (fixtures.status-based) here --
-    // that can point at a gameweek the optimiser has no projections for at
-    // all when a played fixture's result never got imported (confirmed
-    // live). This asks the optimiser's own data directly instead.
-    getOptimizerEarliestMatchweek()
+    // getDefaultMatchweek() now guards against the exact failure this
+    // comment used to warn about (a played fixture whose status never got
+    // updated, pointing this page at a gameweek with no projection data)
+    // -- it's backed by a function that falls back to the nearest
+    // gameweek WITH data if the genuinely-next one hasn't been generated
+    // yet. Every page now shares this one canonical source.
+    getDefaultMatchweek()
       .then((gw) => {
         if (cancelled) return;
         const fallback = gw ?? 1;

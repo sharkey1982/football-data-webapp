@@ -6,6 +6,7 @@ import {
   getMostRecentFixtureSeason,
   type FantasyFixtureData,
 } from '../lib/api';
+import { getDefaultMatchweek } from '../lib/fplSeasonApi';
 import FantasyFixtureHeatmap, {
   type FantasyColourBasis,
   type FantasyFocus,
@@ -31,6 +32,7 @@ export default function FantasyFixtures() {
   const [defenceMetric, setDefenceMetric] = useState<FantasyDefenceMetric>('goals');
   const [rankWindowInput, setRankWindowInput] = useState(String(DEFAULT_RANK_WINDOW));
   const [startGwInput, setStartGwInput] = useState('');
+  const [defaultGw, setDefaultGw] = useState<number | null>(null);
 
   // Clean sheet probability only exists as a Dixon-Coles model output --
   // there's no FDR-quintile equivalent -- so switching to it forces the
@@ -41,6 +43,24 @@ export default function FantasyFixtures() {
       setColourBasis('model');
     }
   }, [focus, defenceMetric, colourBasis]);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Same canonical "current gameweek" source used everywhere else in
+    // the app (Optimal Squad, FPL Projections) -- fetched independently
+    // of the fixture-difficulty data below so a fetch failure here never
+    // blocks the heatmap itself from loading.
+    getDefaultMatchweek()
+      .then((gw) => {
+        if (!cancelled) setDefaultGw(gw);
+      })
+      .catch(() => {
+        /* falls back to allMatchweeks[0] below if this fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,13 +110,13 @@ export default function FantasyFixtures() {
   // gameweek that's only partway through (some teams already played their
   // fixture, others haven't) shows up as a real column but isn't a fair
   // like-for-like comparison across teams. Left blank, this defaults to the
-  // earliest upcoming gameweek as before; typing a later one skips past an
-  // in-progress gameweek explicitly.
+  // canonical current gameweek (matching every other page in the app);
+  // typing a later one skips past an in-progress gameweek explicitly.
   const startMatchweek = useMemo(() => {
     const n = parseInt(startGwInput, 10);
-    if (!Number.isFinite(n)) return earliestMatchweek ?? 1;
+    if (!Number.isFinite(n)) return defaultGw ?? earliestMatchweek ?? 1;
     return n;
-  }, [startGwInput, earliestMatchweek]);
+  }, [startGwInput, defaultGw, earliestMatchweek]);
 
   const matchweeksFromStart = useMemo(
     () => allMatchweeks.filter((mw) => mw >= startMatchweek),
@@ -220,7 +240,7 @@ export default function FantasyFixtures() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Fantasy Fixture Difficulty</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Fixture Heat Map</h1>
         <p className="text-sm text-ink-500 mt-1">
           Premier League{seasonLabel ? ` \u2022 ${seasonLabel}` : ''} &mdash; teams ranked easiest to hardest for the
           fixtures you select below.
@@ -306,7 +326,7 @@ export default function FantasyFixtures() {
             id="start-gw"
             type="number"
             min={earliestMatchweek ?? 1}
-            placeholder={earliestMatchweek !== null ? String(earliestMatchweek) : undefined}
+            placeholder={(defaultGw ?? earliestMatchweek) !== null ? String(defaultGw ?? earliestMatchweek) : undefined}
             value={startGwInput}
             onChange={(e) => setStartGwInput(e.target.value)}
             className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"

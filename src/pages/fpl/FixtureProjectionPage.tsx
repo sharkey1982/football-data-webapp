@@ -100,7 +100,7 @@ export default function FixtureProjectionPage() {
               {!actual && (
                 <>
                   <Link to="/fpl" className="underline hover:text-ink-900">
-                    FPL Projections
+                    Match Projections
                   </Link>{' '}
                   home page.
                 </>

@@ -162,7 +162,7 @@ export default function GameweekPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">FPL Projections</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Match Projections</h1>
         <p className="text-sm text-ink-500 mt-1">
           Player-level fantasy projections built from the Dixon-Coles fixture model, predicted formations and real tactical
           roles. Browse by gameweek, then open a fixture for the full breakdown.

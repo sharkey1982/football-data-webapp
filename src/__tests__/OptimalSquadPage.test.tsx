@@ -5,20 +5,26 @@ import userEvent from '@testing-library/user-event';
 import OptimalSquadPage from '../pages/fpl/OptimalSquadPage';
 import * as optimizerApi from '../lib/fplOptimizerApi';
 import * as fplApi from '../lib/fplApi';
+import * as seasonApi from '../lib/fplSeasonApi';
 
 import type { FplOptimizerPlayer, FplOptimizerResult } from '../lib/fplOptimizerApi';
 
 vi.mock('../lib/fplOptimizerApi', async () => {
   const actual = await vi.importActual<typeof optimizerApi>('../lib/fplOptimizerApi');
-  return { ...actual, optimizeFplSquad: vi.fn(), getOptimizerEarliestMatchweek: vi.fn() };
+  return { ...actual, optimizeFplSquad: vi.fn() };
 });
 vi.mock('../lib/fplApi', async () => {
   const actual = await vi.importActual<typeof fplApi>('../lib/fplApi');
   return { ...actual, getSquadPitchEnrichment: vi.fn() };
 });
+vi.mock('../lib/fplSeasonApi', async () => {
+  const actual = await vi.importActual<typeof seasonApi>('../lib/fplSeasonApi');
+  return { ...actual, getDefaultMatchweek: vi.fn() };
+});
 
 const mockedOptimizerApi = optimizerApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const mockedFplApi = fplApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedSeasonApi = seasonApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 function makePlayer(overrides: Partial<FplOptimizerPlayer>): FplOptimizerPlayer {
   return {
@@ -87,7 +93,7 @@ function buildResult(overrides: Partial<FplOptimizerResult> = {}): FplOptimizerR
 
 describe('OptimalSquadPage', () => {
   it('shows exactly 15 squad players with the correct 2/5/5/3 position split, and a visually distinct bench', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
     mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
 
@@ -122,7 +128,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('builds a multi-GW request from the "Next 3 GWs" preset and shows a per-week formation/captain table', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
       buildResult({
@@ -153,7 +159,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('"Next 10 GWs" preset requests a 10-week range (the backend\'s own cap)', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult({ from_matchweek: 5, to_matchweek: 14, weeks: Array.from({ length: 10 }, (_, i) => 5 + i) }));
 
@@ -168,7 +174,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('shows the backend error message when optimisation fails, and never invents a squad', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockRejectedValue(new Error('No legal squad found'));
 
     render(<OptimalSquadPage />);
@@ -182,7 +188,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('enriches the pitch with tactical role, season PPG, and set-piece info once the enrichment fetch resolves', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
     mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(
       new Map([
@@ -214,7 +220,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('never blocks the squad from rendering if the enrichment fetch fails', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
     mockedFplApi.getSquadPitchEnrichment.mockRejectedValue(new Error('network error'));
 
@@ -229,7 +235,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('shows abbreviated club names and a single-letter C/V badge for the currently-viewed week only', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     // 2-week request: FWD1 captains week 1 only; MID1 captains week 2 only.
     // FWD1's points genuinely differ week to week AND differ from his
     // total_xpts (season/range total) -- the pitch must show the
@@ -297,7 +303,7 @@ describe('OptimalSquadPage', () => {
   });
 
   it('lets the user switch which gameweek the pitch shows, and toggle to a table view', async () => {
-    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
       buildResult({
         from_matchweek: 5,

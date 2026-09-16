@@ -42,34 +42,34 @@ describe('AppLayout main nav', () => {
     expect(screen.queryByRole('button', { name: /^Optimal Squad$/ })).not.toBeInTheDocument();
   });
 
-  it('Fantasy dropdown contains Optimal Squad, Fantasy Fixtures, and FPL Projections', async () => {
+  it('Fantasy dropdown contains Optimal Squad, Fixture Heat Map, and Match Projections', async () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
     expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Fantasy Fixtures' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'FPL Projections' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Fixture Heat Map' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Match Projections' })).toBeInTheDocument();
   });
 
-  it('highlights Optimal Squad, not FPL Projections, when on /fpl/optimal-squad', async () => {
+  it('highlights Optimal Squad, not Match Projections, when on /fpl/optimal-squad', async () => {
     renderAt('/fpl/optimal-squad');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
     const optimalSquadLink = screen.getByRole('link', { name: 'Optimal Squad' });
-    const fplProjectionsLink = screen.getByRole('link', { name: 'FPL Projections' });
+    const matchProjectionsLink = screen.getByRole('link', { name: 'Match Projections' });
     expect(optimalSquadLink.className).toContain('bg-amber-500');
-    expect(fplProjectionsLink.className).not.toContain('bg-amber-500');
+    expect(matchProjectionsLink.className).not.toContain('bg-amber-500');
   });
 
-  it('highlights FPL Projections, not Optimal Squad, when on /fpl itself', async () => {
+  it('highlights Match Projections, not Optimal Squad, when on /fpl itself', async () => {
     renderAt('/fpl');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
     const optimalSquadLink = screen.getByRole('link', { name: 'Optimal Squad' });
-    const fplProjectionsLink = screen.getByRole('link', { name: 'FPL Projections' });
-    expect(fplProjectionsLink.className).toContain('bg-amber-500');
+    const matchProjectionsLink = screen.getByRole('link', { name: 'Match Projections' });
+    expect(matchProjectionsLink.className).toContain('bg-amber-500');
     expect(optimalSquadLink.className).not.toContain('bg-amber-500');
   });
 
@@ -89,22 +89,22 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
   });
 
-  it('Fantasy dropdown also contains Player Points Table, distinct from FPL Projections and Optimal Squad', async () => {
+  it('Fantasy dropdown also contains Player Points Table, distinct from Match Projections and Optimal Squad', async () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
     expect(screen.getByRole('link', { name: 'Player Points Table' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'FPL Projections' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Match Projections' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
   });
 
-  it('highlights only Player Points Table, not FPL Projections or Optimal Squad, when on /fpl/player-points', async () => {
+  it('highlights only Player Points Table, not Match Projections or Optimal Squad, when on /fpl/player-points', async () => {
     renderAt('/fpl/player-points');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
     expect(screen.getByRole('link', { name: 'Player Points Table' }).className).toContain('bg-amber-500');
-    expect(screen.getByRole('link', { name: 'FPL Projections' }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('link', { name: 'Match Projections' }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'Optimal Squad' }).className).not.toContain('bg-amber-500');
   });
 });
