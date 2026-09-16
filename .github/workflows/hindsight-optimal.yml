@@ -1,0 +1,34 @@
+name: Hindsight Optimal Squad
+
+# Runs after the daily projection refresh so a newly-completed gameweek's
+# real results are picked up promptly, plus manual trigger for on-demand
+# recompute (e.g. right after testing/validating the script itself).
+on:
+  schedule:
+    - cron: '45 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Solve hindsight-optimal squad
+        shell: bash
+        run: |
+          set +e
+          npm run hindsight:solve 2>&1 | tee /tmp/hindsight.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            ENCODED=$(tail -c 3000 /tmp/hindsight.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+            echo "::error::$ENCODED"
+          fi
+          exit $STATUS
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
