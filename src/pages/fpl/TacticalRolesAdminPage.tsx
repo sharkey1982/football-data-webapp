@@ -376,6 +376,8 @@ export default function TacticalRolesAdminPage() {
                       <th className="px-2 py-1.5">Depth</th>
                       <th className="px-2 py-1.5">Status</th>
                       <th className="px-2 py-1.5">Set pieces</th>
+                      <th className="px-2 py-1.5 text-right">Mins</th>
+                      <th className="px-2 py-1.5 text-right">Min/Start</th>
                       <th className="px-2 py-1.5 text-right">PPG</th>
                     </tr>
                   </thead>
@@ -396,6 +398,8 @@ export default function TacticalRolesAdminPage() {
                         <td className="px-2 py-1.5">
                           <SetPieceBadges row={r} />
                         </td>
+                        <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.minutes !== null ? r.minutes : '\u2014'}</td>
+                        <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.avg_minutes_per_start !== null ? Math.round(r.avg_minutes_per_start) : '\u2014'}</td>
                         <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.points_per_game !== null ? r.points_per_game.toFixed(1) : '\u2014'}</td>
                       </tr>
                     ))}

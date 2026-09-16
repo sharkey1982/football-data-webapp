@@ -48,6 +48,8 @@ export type TacticalRoleRow = {
   set_piece_roles: SetPieceRole[];
   points_per_game: number | null;
   avg_minutes_per_start: number | null;
+  /** Season-to-date total minutes played -- raw appearance volume, for sense-checking a depth-rank pick alongside PPG and avg minutes/start. */
+  minutes: number | null;
   /** Official FPL availability code: a = available, d = doubtful, i = injured, s = suspended. Players with status 'u' (left the club) are excluded entirely, never appear here. */
   status: string | null;
   news: string | null;
@@ -151,6 +153,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
         set_piece_roles: (setPieceRolesByPlayer.get(p.fpl_player_id) ?? []).sort((a, b) => a.rank - b.rank),
         points_per_game: stats.points_per_game,
         avg_minutes_per_start: stats.avg_minutes_per_start,
+        minutes: p.minutes ?? null,
         status: p.status ?? null,
         news: p.news || null,
       };

@@ -26,6 +26,7 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
     set_piece_roles: [],
     points_per_game: null,
     avg_minutes_per_start: null,
+    minutes: null,
     status: 'a',
     news: null,
     ...overrides,
