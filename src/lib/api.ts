@@ -881,6 +881,14 @@ export interface TeamStrengthRow {
   this_season_actual_gf: number | null;
   this_season_actual_ga: number | null;
   this_season_actual_played: number;
+  /** Manual adjustment on top of the derived attack/defence_strength,
+   * requested directly for known real-world context the model can't
+   * see yet (a signing, an injury, actual in-season form). Additive,
+   * same log-scale units as attack_strength/defence_strength. Zero
+   * (not null) when no override is set. */
+  attack_adjustment: number;
+  defence_adjustment: number;
+  override_note: string | null;
 }
 
 export interface TeamStrengthSummary {
@@ -1031,10 +1039,23 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     }
   }
 
+  // Manual overrides, requested directly -- lets Chris nudge a team's
+  // attack/defence rating for known real-world context the model can't
+  // see yet. Applied inside backfill_fixture_predictions() itself, not
+  // just displayed here.
+  const { data: overrideRows, error: overrideError } = await (supabase as any)
+    .from('team_strength_manual_override')
+    .select('team_id, attack_adjustment, defence_adjustment, note');
+  if (overrideError) throw overrideError;
+  const overrideByTeam = new Map<number, { attack_adjustment: number; defence_adjustment: number; note: string | null }>(
+    ((overrideRows ?? []) as any[]).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note }])
+  );
+
   const rows: TeamStrengthRow[] = ratings.map((r) => {
     const proj = projectedByTeam.get(r.team_id);
     const actual = actualByTeam.get(r.team_id);
     const thisSeasonActual = thisSeasonActualByTeam.get(r.team_id);
+    const override = overrideByTeam.get(r.team_id);
     return {
       team_id: r.team_id,
       canonical_name: r.canonical_name,
@@ -1049,6 +1070,9 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       this_season_actual_gf: thisSeasonActual ? thisSeasonActual.gf : null,
       this_season_actual_ga: thisSeasonActual ? thisSeasonActual.ga : null,
       this_season_actual_played: thisSeasonActual?.played ?? 0,
+      attack_adjustment: override?.attack_adjustment ?? 0,
+      defence_adjustment: override?.defence_adjustment ?? 0,
+      override_note: override?.note ?? null,
       last_season_played: actual?.played ?? 0,
     };
   });
@@ -1060,6 +1084,28 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     rows,
     relegatedTeams,
   };
+}
+
+/** Saves (or clears, if both adjustments are 0 and note is empty) a
+ * manual attack/defence override for a team, then immediately re-runs
+ * backfill_fixture_predictions() so every future fixture involving that
+ * team picks up the new predicted goals right away -- not just a
+ * display-only change. Requested directly, and built to actually
+ * propagate this time (unlike the earlier manual_status gap this
+ * session found and fixed): the override is read inside that SQL
+ * function itself. */
+export async function saveTeamStrengthOverride(teamId: number, attackAdjustment: number, defenceAdjustment: number, note: string | null): Promise<void> {
+  if (attackAdjustment === 0 && defenceAdjustment === 0 && !note) {
+    const { error: deleteErr } = await (supabase as any).from('team_strength_manual_override').delete().eq('team_id', teamId);
+    if (deleteErr) throw deleteErr;
+  } else {
+    const { error: upsertErr } = await (supabase as any)
+      .from('team_strength_manual_override')
+      .upsert({ team_id: teamId, attack_adjustment: attackAdjustment, defence_adjustment: defenceAdjustment, note, updated_at: new Date().toISOString() }, { onConflict: 'team_id' });
+    if (upsertErr) throw upsertErr;
+  }
+  const { error: rpcErr } = await (supabase as any).rpc('backfill_fixture_predictions');
+  if (rpcErr) throw rpcErr;
 }
 
 

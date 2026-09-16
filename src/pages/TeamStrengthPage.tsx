@@ -9,8 +9,9 @@
 // place, without digging through individual fixtures.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
-import { getLeagues, getTeamStrengthSummary, type TeamStrengthSummary } from '../lib/api';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary } from '../lib/api';
+import { getErrorMessage } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null };
 type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga';
@@ -29,6 +30,12 @@ export default function TeamStrengthPage() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('attack_strength');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
+  const [editAttack, setEditAttack] = useState('0');
+  const [editDefence, setEditDefence] = useState('0');
+  const [editNote, setEditNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     getLeagues().then((data) => {
@@ -57,6 +64,39 @@ export default function TeamStrengthPage() {
       cancelled = true;
     };
   }, [leagueId]);
+
+  function startEdit(teamId: number, currentAttack: number, currentDefence: number, currentNote: string | null) {
+    setEditingTeamId(teamId);
+    setEditAttack(String(currentAttack));
+    setEditDefence(String(currentDefence));
+    setEditNote(currentNote ?? '');
+    setSaveError(null);
+  }
+
+  function cancelEdit() {
+    setEditingTeamId(null);
+    setSaveError(null);
+  }
+
+  async function handleSaveOverride(teamId: number) {
+    const attack = Number(editAttack);
+    const defence = Number(editDefence);
+    if (!Number.isFinite(attack) || !Number.isFinite(defence)) {
+      setSaveError('Adjustments must be numbers');
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveTeamStrengthOverride(teamId, attack, defence, editNote.trim() || null);
+      if (leagueId !== null) setSummary(await getTeamStrengthSummary(leagueId));
+      setEditingTeamId(null);
+    } catch (e) {
+      setSaveError(getErrorMessage(e, 'Failed to save override'));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const sortedRows = useMemo(() => {
     if (!summary) return [];
@@ -196,11 +236,18 @@ export default function TeamStrengthPage() {
                     >
                       GA/gm proj&rarr;actual
                     </th>
+                    <th
+                      title="Manual adjustment on top of the derived attack/defence strength, for known real-world context the model can't see yet (a signing, an injury, actual in-season form). Applied to every future fixture prediction, not just displayed."
+                      className="font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
+                    >
+                      Override
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedRows.map((r, i) => (
-                    <tr key={r.team_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                    <Fragment key={r.team_id}>
+                    <tr className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
                       <td className="px-3 py-1.5 font-medium text-ink-900">
                         {r.canonical_name}
                         {r.is_estimated && (
@@ -228,7 +275,78 @@ export default function TeamStrengthPage() {
                         {' \u2192 '}
                         {fmt(perGame(r.this_season_actual_ga, r.this_season_actual_played), 2)}
                       </td>
+                      <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                        {(r.attack_adjustment !== 0 || r.defence_adjustment !== 0) && (
+                          <span className="font-mono text-xs text-amber-700 mr-2" title={r.override_note ?? undefined}>
+                            {r.attack_adjustment >= 0 ? '+' : ''}
+                            {r.attack_adjustment.toFixed(2)} / {r.defence_adjustment >= 0 ? '+' : ''}
+                            {r.defence_adjustment.toFixed(2)}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => startEdit(r.team_id, r.attack_adjustment, r.defence_adjustment, r.override_note)}
+                          className="text-xs text-pitch-700 hover:text-pitch-900 underline"
+                        >
+                          Adjust
+                        </button>
+                      </td>
                     </tr>
+                    {editingTeamId === r.team_id && (
+                      <tr className="bg-chalk-100">
+                        <td colSpan={10} className="px-3 py-2">
+                          <div className="flex flex-wrap items-end gap-3">
+                            <label className="text-xs text-ink-700">
+                              Attack adj.
+                              <input
+                                type="number"
+                                step="0.05"
+                                value={editAttack}
+                                onChange={(e) => setEditAttack(e.target.value)}
+                                className="block w-24 border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
+                              />
+                            </label>
+                            <label className="text-xs text-ink-700">
+                              Defence adj.
+                              <input
+                                type="number"
+                                step="0.05"
+                                value={editDefence}
+                                onChange={(e) => setEditDefence(e.target.value)}
+                                className="block w-24 border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
+                              />
+                            </label>
+                            <label className="text-xs text-ink-700 flex-1 min-w-[12rem]">
+                              Note
+                              <input
+                                type="text"
+                                value={editNote}
+                                onChange={(e) => setEditNote(e.target.value)}
+                                placeholder="e.g. signed a new striker in January"
+                                className="block w-full border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveOverride(r.team_id)}
+                              disabled={saving}
+                              className="px-3 py-1.5 text-sm rounded bg-pitch-800 text-white hover:bg-pitch-900 disabled:opacity-50"
+                            >
+                              {saving ? 'Saving\u2026' : 'Save & apply'}
+                            </button>
+                            <button type="button" onClick={cancelEdit} className="px-3 py-1.5 text-sm rounded border border-chalk-300 hover:bg-chalk-100">
+                              Cancel
+                            </button>
+                          </div>
+                          {saveError && <p className="text-xs text-loss-700 mt-1">{saveError}</p>}
+                          <p className="text-xs text-ink-500 mt-1">
+                            Additive, same log scale as Attack/Defence above. Saving re-runs predictions for every
+                            future fixture involving this team immediately.
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
