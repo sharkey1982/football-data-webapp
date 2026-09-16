@@ -312,7 +312,20 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   const slots: PitchSlot[] = [];
   if (gk) slots.push({ player: gk, top: 92, left: 50 });
 
-  if (template && template.length === starters.length) {
+  // Always use the fixed template when one exists for this formation,
+  // regardless of how many starters were actually provided -- requested
+  // directly: pitch positions should be fixed slots, never reshuffle
+  // based on who happens to be assigned. The previous exact-count check
+  // meant showing anything other than a full XI (e.g. "1st choice only",
+  // which often can't fill every line) always fell through to the
+  // dynamic line-based fallback instead, which groups players by a much
+  // finer-grained role-advancement score than GK/DEF/MID/FWD -- e.g. a
+  // CB-tagged and an RB-tagged defender landed in separate rows entirely
+  // rather than side by side in one defensive line, which is what
+  // actually produced the "positions all over the place" / apparent
+  // left-right confusion. assignToTemplate already safely omits any slot
+  // with no player assigned, so this is safe with a partial XI.
+  if (template) {
     slots.push(...assignToTemplate(starters, template));
   } else {
     let lineSizes: number[];

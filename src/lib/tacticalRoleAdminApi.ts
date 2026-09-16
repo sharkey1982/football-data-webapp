@@ -50,9 +50,11 @@ export type TacticalRoleRow = {
   avg_minutes_per_start: number | null;
   /** Season-to-date total minutes played -- raw appearance volume, for sense-checking a depth-rank pick alongside PPG and avg minutes/start. */
   minutes: number | null;
-  /** Official FPL availability code: a = available, d = doubtful, i = injured, s = suspended. Players with status 'u' (left the club) are excluded entirely, never appear here. */
+  /** Official FPL availability code: a = available, d = doubtful, i = injured, s = suspended. Players with status 'u' (left the club) are excluded entirely, never appear here. This is the EFFECTIVE status -- manual_status if set, otherwise the FPL-sourced one. */
   status: string | null;
   news: string | null;
+  /** Whether `status`/`news` above came from a manual override (true) or the FPL-sourced data (false) -- lets the UI show that a value has been manually set. */
+  status_is_manual: boolean;
 };
 
 export type TeamOption = { team_id: number; team_name: string };
@@ -113,12 +115,19 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
 
   const { data: defaultRows, error: defaultErr } = await (supabase as any)
     .from('team_player_tactical_defaults')
-    .select('fpl_player_id, team_id, tactical_role, source_name, confidence, depth_rank')
+    .select('fpl_player_id, team_id, tactical_role, source_name, confidence, depth_rank, manual_status, manual_status_note')
     .eq('season_id', 13);
   if (defaultErr) throw defaultErr;
-  const defaultsByPlayer = new Map<number, { tactical_role: string; source_name: string; confidence: number; depth_rank: number | null }>();
+  const defaultsByPlayer = new Map<number, { tactical_role: string; source_name: string; confidence: number; depth_rank: number | null; manual_status: string | null; manual_status_note: string | null }>();
   for (const d of defaultRows ?? [])
-    defaultsByPlayer.set(d.fpl_player_id, { tactical_role: d.tactical_role, source_name: d.source_name, confidence: Number(d.confidence), depth_rank: d.depth_rank });
+    defaultsByPlayer.set(d.fpl_player_id, {
+      tactical_role: d.tactical_role,
+      source_name: d.source_name,
+      confidence: Number(d.confidence),
+      depth_rank: d.depth_rank,
+      manual_status: d.manual_status ?? null,
+      manual_status_note: d.manual_status_note ?? null,
+    });
 
   // Same merge logic as getFplFixtureProjection: corner_left/corner_right
   // collapse into one 'corner' entry at the better (lower) rank.
@@ -154,8 +163,9 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
         points_per_game: stats.points_per_game,
         avg_minutes_per_start: stats.avg_minutes_per_start,
         minutes: p.minutes ?? null,
-        status: p.status ?? null,
-        news: p.news || null,
+        status: td?.manual_status ?? p.status ?? null,
+        news: td?.manual_status ? td?.manual_status_note ?? null : p.news || null,
+        status_is_manual: td?.manual_status != null,
       };
     })
     .sort((a: TacticalRoleRow, b: TacticalRoleRow) => a.team_name.localeCompare(b.team_name) || a.element_type - b.element_type || a.web_name.localeCompare(b.web_name));
@@ -207,5 +217,60 @@ export async function saveDepthRankCorrection(teamId: number, fplPlayerId: numbe
       },
       { onConflict: 'season_id,team_id,fpl_player_id' }
     );
+  if (error) throw error;
+}
+
+export const MANUAL_STATUS_OPTIONS = [
+  { value: '', label: 'Use FPL status' },
+  { value: 'a', label: 'Available' },
+  { value: 'd', label: 'Doubtful' },
+  { value: 'i', label: 'Injured' },
+  { value: 's', label: 'Suspended' },
+] as const;
+
+/** Saves (or clears, if status is null) a manual availability override --
+ * takes precedence over the FPL-sourced status/news whenever set.
+ * Preserves the existing tactical_role/depth_rank the same way the other
+ * partial-update functions on this table do. */
+export async function saveManualStatus(teamId: number, fplPlayerId: number, elementType: FplElementType, status: string | null, note: string | null): Promise<void> {
+  const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
+  const { data: existing, error: readErr } = await (supabase as any)
+    .from('team_player_tactical_defaults')
+    .select('tactical_role, source_name, confidence, depth_rank, depth_rank_source')
+    .eq('season_id', 13)
+    .eq('team_id', teamId)
+    .eq('fpl_player_id', fplPlayerId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  const { error: writeErr } = await (supabase as any)
+    .from('team_player_tactical_defaults')
+    .upsert(
+      {
+        season_id: 13,
+        team_id: teamId,
+        fpl_player_id: fplPlayerId,
+        tactical_role: existing?.tactical_role ?? fallbackRole,
+        source_name: existing?.source_name ?? 'fpl_position_fallback',
+        confidence: existing?.confidence ?? 0.3,
+        depth_rank: existing?.depth_rank ?? null,
+        depth_rank_source: existing?.depth_rank_source ?? null,
+        manual_status: status,
+        manual_status_note: note,
+      },
+      { onConflict: 'season_id,team_id,fpl_player_id' }
+    );
+  if (writeErr) throw writeErr;
+}
+
+/** Last-reviewed timestamp per team, keyed by team_id -- null if never reviewed. */
+export async function getTeamReviewDates(): Promise<Map<number, string>> {
+  const { data, error } = await (supabase as any).from('team_tactical_review_log').select('team_id, reviewed_at').eq('season_id', 13);
+  if (error) throw error;
+  return new Map((data ?? []).map((r: any) => [r.team_id, r.reviewed_at]));
+}
+
+/** Marks a team's lineup as reviewed right now -- "Mark reviewed" button. */
+export async function markTeamReviewed(teamId: number): Promise<void> {
+  const { error } = await (supabase as any).from('team_tactical_review_log').upsert({ season_id: 13, team_id: teamId, reviewed_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
   if (error) throw error;
 }

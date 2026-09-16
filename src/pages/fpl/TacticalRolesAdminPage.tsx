@@ -24,8 +24,12 @@ import {
   getTeamFormation,
   saveTacticalRoleCorrection,
   saveDepthRankCorrection,
+  saveManualStatus,
+  getTeamReviewDates,
+  markTeamReviewed,
   TACTICAL_ROLE_OPTIONS,
   DEPTH_RANK_OPTIONS,
+  MANUAL_STATUS_OPTIONS,
   type TacticalRoleRow,
   type TeamOption,
 } from '../../lib/tacticalRoleAdminApi';
@@ -53,14 +57,17 @@ export default function TacticalRolesAdminPage() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
   const [pitchDepth, setPitchDepth] = useState(1);
+  const [reviewDates, setReviewDates] = useState<Map<number, string>>(new Map());
+  const [markingReviewed, setMarkingReviewed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getTacticalRoleReview(), getTeamOptions()])
-      .then(([r, t]) => {
+    Promise.all([getTacticalRoleReview(), getTeamOptions(), getTeamReviewDates()])
+      .then(([r, t, reviewed]) => {
         if (cancelled) return;
         setRows(r);
         setTeams(t);
+        setReviewDates(reviewed);
         if (r.length > 0) setSelectedTeamId((prev) => prev ?? r[0].team_id);
       })
       .catch((e) => {
@@ -115,6 +122,44 @@ export default function TacticalRolesAdminPage() {
       setSaveError(getErrorMessage(e, `Failed to save the depth rank for ${row.web_name}`));
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function handleStatusChange(row: TacticalRoleRow, newStatus: string) {
+    setSavingId(row.fpl_player_id);
+    setSaveError(null);
+    try {
+      if (newStatus === '') {
+        await saveManualStatus(row.team_id, row.fpl_player_id, row.element_type, null, null);
+        // Re-fetch this one player's effective status is awkward without a
+        // dedicated endpoint -- simplest correct thing is a full reload,
+        // since clearing an override means falling back to whatever the
+        // FPL-sourced value actually is, which this component doesn't have
+        // cached separately.
+        const refreshed = await getTacticalRoleReview();
+        setRows(refreshed);
+        return;
+      }
+      const note = window.prompt('Optional note (e.g. expected return date/detail)', row.news ?? '') ?? undefined;
+      await saveManualStatus(row.team_id, row.fpl_player_id, row.element_type, newStatus, note || null);
+      setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, status: newStatus, news: note || null, status_is_manual: true } : r)));
+    } catch (e) {
+      setSaveError(getErrorMessage(e, `Failed to save the status for ${row.web_name}`));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function handleMarkReviewed() {
+    if (selectedTeamId === null) return;
+    setMarkingReviewed(true);
+    try {
+      await markTeamReviewed(selectedTeamId);
+      setReviewDates((prev) => new Map(prev).set(selectedTeamId, new Date().toISOString()));
+    } catch (e) {
+      setSaveError(getErrorMessage(e, 'Failed to mark this team as reviewed'));
+    } finally {
+      setMarkingReviewed(false);
     }
   }
 
@@ -196,12 +241,29 @@ export default function TacticalRolesAdminPage() {
   }
 
   function StatusBadge({ row }: { row: TacticalRoleRow }) {
-    if (!row.status || row.status === 'a') return <span className="text-ink-400">&mdash;</span>;
-    const label = row.status === 'i' ? 'INJ' : row.status === 'd' ? 'DBT' : row.status === 's' ? 'SUS' : row.status.toUpperCase();
+    const label = row.status === 'i' ? 'INJ' : row.status === 'd' ? 'DBT' : row.status === 's' ? 'SUS' : row.status === 'a' ? 'OK' : '\u2014';
     return (
-      <span className="text-[10px] font-mono font-semibold text-loss-700 bg-loss-600/10 border border-loss-600/40 rounded px-1 py-0.5" title={row.news ?? label}>
-        {label}
-      </span>
+      <select
+        value={row.status_is_manual ? row.status ?? '' : ''}
+        disabled={savingId === row.fpl_player_id}
+        onChange={(e) => handleStatusChange(row, e.target.value)}
+        title={row.news ?? undefined}
+        className={[
+          'text-[10px] font-mono font-semibold rounded px-1 py-0.5 border',
+          row.status_is_manual
+            ? 'text-amber-700 bg-amber-600/10 border-amber-600/40'
+            : row.status && row.status !== 'a'
+              ? 'text-loss-700 bg-loss-600/10 border-loss-600/40'
+              : 'text-ink-400 border-transparent',
+        ].join(' ')}
+      >
+        <option value="">{label}</option>
+        {MANUAL_STATUS_OPTIONS.filter((o) => o.value !== '').map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
     );
   }
 
@@ -338,6 +400,21 @@ export default function TacticalRolesAdminPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <span className="text-xs text-ink-500">
+                    {reviewDates.has(selectedTeamId)
+                      ? `Last reviewed ${new Date(reviewDates.get(selectedTeamId)!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                      : 'Not yet reviewed'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleMarkReviewed}
+                    disabled={markingReviewed}
+                    className="px-2.5 py-1 text-xs font-medium rounded-md border border-chalk-300 bg-white text-ink-700 hover:bg-chalk-100 disabled:opacity-50"
+                  >
+                    {markingReviewed ? 'Saving\u2026' : 'Mark reviewed'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <h2 className="text-sm font-medium text-ink-700">
                     {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
                   </h2>
@@ -367,44 +444,46 @@ export default function TacticalRolesAdminPage() {
                 <div className="px-3 py-2 border-b border-chalk-200 bg-chalk-100 text-xs font-medium text-ink-500 uppercase tracking-wide">
                   Full squad
                 </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[10px] font-medium text-ink-500 uppercase border-b border-chalk-200">
-                      <th className="px-3 py-1.5">Player</th>
-                      <th className="px-2 py-1.5">Pos</th>
-                      <th className="px-2 py-1.5">Role</th>
-                      <th className="px-2 py-1.5">Depth</th>
-                      <th className="px-2 py-1.5">Status</th>
-                      <th className="px-2 py-1.5">Set pieces</th>
-                      <th className="px-2 py-1.5 text-right">Mins</th>
-                      <th className="px-2 py-1.5 text-right">Min/Start</th>
-                      <th className="px-2 py-1.5 text-right">PPG</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedTeamRows.map((r) => (
-                      <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
-                        <td className="px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
-                        <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
-                        <td className="px-2 py-1.5">
-                          <RoleSelect row={r} />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <DepthRankSelect row={r} />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <StatusBadge row={r} />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <SetPieceBadges row={r} />
-                        </td>
-                        <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.minutes !== null ? r.minutes : '\u2014'}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.avg_minutes_per_start !== null ? Math.round(r.avg_minutes_per_start) : '\u2014'}</td>
-                        <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.points_per_game !== null ? r.points_per_game.toFixed(1) : '\u2014'}</td>
+                <div className="overflow-x-auto max-w-full">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] font-medium text-ink-500 uppercase border-b border-chalk-200">
+                        <th className="sticky left-0 z-10 bg-white px-3 py-1.5 whitespace-nowrap">Player</th>
+                        <th className="px-2 py-1.5">Pos</th>
+                        <th className="px-2 py-1.5">Role</th>
+                        <th className="px-2 py-1.5">Depth</th>
+                        <th className="px-2 py-1.5">Status</th>
+                        <th className="px-2 py-1.5">Set pieces</th>
+                        <th className="px-2 py-1.5 text-right">Mins</th>
+                        <th className="px-2 py-1.5 text-right">Min/Start</th>
+                        <th className="px-2 py-1.5 text-right">PPG</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {selectedTeamRows.map((r) => (
+                        <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
+                          <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
+                          <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
+                          <td className="px-2 py-1.5">
+                            <RoleSelect row={r} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <DepthRankSelect row={r} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <StatusBadge row={r} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <SetPieceBadges row={r} />
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.minutes !== null ? r.minutes : '\u2014'}</td>
+                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.avg_minutes_per_start !== null ? Math.round(r.avg_minutes_per_start) : '\u2014'}</td>
+                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.points_per_game !== null ? r.points_per_game.toFixed(1) : '\u2014'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

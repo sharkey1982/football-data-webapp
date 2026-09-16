@@ -7,7 +7,17 @@ import * as adminApi from '../lib/tacticalRoleAdminApi';
 
 vi.mock('../lib/tacticalRoleAdminApi', async () => {
   const actual = await vi.importActual<typeof adminApi>('../lib/tacticalRoleAdminApi');
-  return { ...actual, getTacticalRoleReview: vi.fn(), getTeamOptions: vi.fn(), getTeamFormation: vi.fn(), saveTacticalRoleCorrection: vi.fn(), saveDepthRankCorrection: vi.fn() };
+  return {
+    ...actual,
+    getTacticalRoleReview: vi.fn(),
+    getTeamOptions: vi.fn(),
+    getTeamFormation: vi.fn(),
+    getTeamReviewDates: vi.fn(),
+    markTeamReviewed: vi.fn(),
+    saveTacticalRoleCorrection: vi.fn(),
+    saveDepthRankCorrection: vi.fn(),
+    saveManualStatus: vi.fn(),
+  };
 });
 
 const mockedApi = adminApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -28,6 +38,7 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
     avg_minutes_per_start: null,
     minutes: null,
     status: 'a',
+    status_is_manual: false,
     news: null,
     ...overrides,
   };
@@ -40,6 +51,7 @@ describe('TacticalRolesAdminPage', () => {
       baseRow({ fpl_player_id: 2, web_name: 'Ødegaard', tactical_role: 'AM', source_name: 'fantasy_football_scout', confidence: 0.8 }),
     ]);
     mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
     mockedApi.saveTacticalRoleCorrection.mockResolvedValue(undefined);
 
@@ -70,6 +82,7 @@ describe('TacticalRolesAdminPage', () => {
       baseRow({ fpl_player_id: 6, web_name: 'Havertz', element_type: 4, tactical_role: 'CF', depth_rank: 1, source_name: 'manual', confidence: 1 }),
     ]);
     mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
     render(<TacticalRolesAdminPage />);
@@ -79,22 +92,27 @@ describe('TacticalRolesAdminPage', () => {
     await user.click(screen.getByRole('button', { name: 'By Team' }));
     await waitFor(() => expect(screen.getAllByText('Raya').length).toBeGreaterThan(0));
 
-    // Default depth is 1st choice: Rice, Havertz on the pitch, but NOT
-    // Saliba (injured) despite being depth_rank 1, and NOT Gabriel/
-    // Ødegaard (2nd choice, not selected at this depth).
+    // Default depth is 1st choice: Rice, Havertz on the pitch normally.
+    // Saliba (1st choice, injured) is excluded, and Gabriel (2nd choice)
+    // is promoted into his slot instead -- exactly the injury-promotion
+    // behaviour requested. Ødegaard (2nd choice MID) is NOT promoted,
+    // since Rice (1st choice MID) isn't injured -- promotion only kicks
+    // in where it's actually needed.
     expect(document.querySelectorAll('button[title^="Rice"]').length).toBeGreaterThan(0);
     expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0);
     expect(document.querySelectorAll('button[title^="Saliba"]').length).toBe(0);
-    expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBe(0);
+    expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('button[title^="Ødegaard"]').length).toBe(0);
 
     // Saliba still appears in the full-squad table (just not the pitch),
     // with his injury visible.
     expect(screen.getAllByText('Saliba').length).toBeGreaterThan(0);
     expect(screen.getByText('INJ')).toBeInTheDocument();
 
-    // Switching to 2nd choice shows Gabriel and Ødegaard instead.
+    // Switching to 2nd choice shows Ødegaard instead (Gabriel, healthy,
+    // just shows at his own native 2nd-choice rank here too).
     await user.click(screen.getByRole('button', { name: '2nd' }));
-    await waitFor(() => expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBeGreaterThan(0));
+    await waitFor(() => expect(document.querySelectorAll('button[title^="Ødegaard"]').length).toBeGreaterThan(0));
     expect(document.querySelectorAll('button[title^="Rice"]').length).toBe(0);
   });
 
@@ -107,6 +125,7 @@ describe('TacticalRolesAdminPage', () => {
       { team_id: 1, team_name: 'Arsenal' },
       { team_id: 2, team_name: 'Brentford' },
     ]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
     render(<TacticalRolesAdminPage />);
@@ -129,6 +148,7 @@ describe('TacticalRolesAdminPage', () => {
       baseRow({ fpl_player_id: 1, web_name: 'Saliba', element_type: 2, status: 'i', news: 'Knee injury - expected back mid-November', source_name: 'manual', confidence: 1 }),
     ]);
     mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
     render(<TacticalRolesAdminPage />);

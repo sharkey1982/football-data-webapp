@@ -29,21 +29,34 @@ export function parseFormationCounts(formation: string | null): { def: number; m
   return { def, mid, fwd };
 }
 
-/** Selects exactly the players at one specific depth rank (1st choice by
- * default), excluding anyone currently injured -- requested directly: an
- * injured 1st-choice player (with no return date captured yet, so every
- * injury currently qualifies) shouldn't appear as if they're playing.
- * Deliberately does NOT try to fill every formation slot -- a team only
- * has one genuinely-ranked "1st choice" player per FPL position
- * (element_type), not one per specific formation slot (a 4-at-the-back
- * team needs 4 defenders on the pitch, but depth_rank is only unique
- * within DEF as a whole, not per LB/CB/RB slot) -- forcing extra 2nd/3rd
- * choice players in to fill out a full XI is what caused players to show
- * up via mismatched-role fuzzy-fitting instead of their real position.
- * An incomplete-looking pitch is the honest reflection of what the data
- * actually supports; the depth filter is how the rest gets reviewed. */
+/** Selects the players effectively "at" one depth rank (1st choice by
+ * default) -- with injury promotion: if a player assigned that depth is
+ * currently injured, a healthy player from the next depth rank up (same
+ * FPL position) is promoted to fill their slot instead, exactly as
+ * requested -- an injured 1st choice with no return date captured yet
+ * shouldn't leave a gap, the next-best available player should show in
+ * their place. Cascades through further ranks if the replacement is also
+ * injured. How many players get shown per position is however many were
+ * actually assigned that depth (a team can genuinely have several
+ * players all marked 1st choice within one FPL position -- e.g. several
+ * midfielders in a 4-2-3-1 -- since depth_rank isn't unique per specific
+ * formation slot, just per position as a whole), not a fixed formation
+ * count -- an incomplete-looking pitch when a position doesn't have
+ * enough ranked players is the honest, expected result. */
 export function selectStartersAtDepth(teamRows: TacticalRoleRow[], depth: number): TacticalRoleRow[] {
-  return teamRows.filter((r) => r.depth_rank === depth && r.status !== 'i');
+  const byPosition = new Map<number, TacticalRoleRow[]>();
+  for (const r of teamRows) byPosition.set(r.element_type, [...(byPosition.get(r.element_type) ?? []), r]);
+
+  const result: TacticalRoleRow[] = [];
+  for (const players of byPosition.values()) {
+    const targetCount = players.filter((p) => p.depth_rank === depth).length;
+    if (targetCount === 0) continue;
+    const candidates = players
+      .filter((p) => p.depth_rank !== null && p.depth_rank >= depth && p.status !== 'i')
+      .sort((a, b) => (a.depth_rank ?? 99) - (b.depth_rank ?? 99));
+    result.push(...candidates.slice(0, targetCount));
+  }
+  return result;
 }
 
 export function toFormationPitchPlayer(row: TacticalRoleRow): FplFixtureProjectionPlayer {
