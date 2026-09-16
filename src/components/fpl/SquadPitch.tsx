@@ -8,6 +8,17 @@
 // is the same convention the official FPL app itself uses for a squad
 // view, not a simplification of something more precise.
 //
+// Always renders ONE gameweek's worth of context (`matchweek` -- points,
+// captain, vice-captain are all specific to it), even though the squad
+// itself spans a wider range. Requested directly, twice: showing a
+// season-total points figure on a specific week's pitch was misleading
+// (this used to read player.total_xpts unconditionally), and a
+// multi-week "C1,3" captain badge stopped making sense once the caller
+// (WeeklySquadView) already lets someone switch which week's pitch they're
+// looking at -- that already solves "which week was X captain" more
+// directly than an aggregate badge could, so this just shows a plain
+// "C"/"V" for whichever week is currently being viewed.
+//
 // `enrichment` is optional and purely presentational -- the same per-player
 // context (tactical role, set-piece roles, squad pecking order, season PPG,
 // start-probability reliability) FormationPitch already shows on the
@@ -46,16 +57,19 @@ function parseOutfieldShape(formation: string): { def: number; mid: number; fwd:
 
 function PlayerToken({
   player,
-  captainWeeks,
-  viceWeeks,
+  matchweek,
+  isCaptain,
+  isVice,
   enrichment,
 }: {
   player: FplOptimizerPlayer;
-  /** 1-based ordinal positions within the requested GW range (e.g. [1,3] = captained in the 1st and 3rd requested gameweek) where this player was captain. Empty/undefined if never. */
-  captainWeeks?: number[];
-  viceWeeks?: number[];
+  /** Which gameweek's points to show -- this player's total_xpts (season/range total) is never shown here. */
+  matchweek: number;
+  isCaptain: boolean;
+  isVice: boolean;
   enrichment?: SquadPitchEnrichment;
 }) {
+  const gwPoints = player.gw_xpts[matchweek];
   const startPct = enrichment?.start_probability ?? null;
   const uncertain = startPct !== null && startPct < 0.85;
   const roleConfirmed = !!enrichment?.tactical_role;
@@ -77,20 +91,8 @@ function PlayerToken({
   if (enrichment?.squad_status === 'first_choice') titleParts.push('First-choice');
   if (enrichment?.position_signal === 'advanced') titleParts.push('Playing more advanced than FPL position');
   if (enrichment?.position_signal === 'deeper') titleParts.push('Playing deeper than FPL position');
-  if (captainWeeks && captainWeeks.length > 0) titleParts.push(`Captain in requested week(s) ${captainWeeks.join(', ')}`);
-  if (viceWeeks && viceWeeks.length > 0) titleParts.push(`Vice-captain in requested week(s) ${viceWeeks.join(', ')}`);
-
-  // "C1,3" / "V2" / "C1 V2" -- ordinal position within the requested GW
-  // range (1st, 2nd, 3rd week requested), not literal gameweek numbers,
-  // since a squad built for e.g. GW6-8 should read as "captained weeks 1
-  // and 2 of this plan" rather than forcing the reader to subtract the
-  // range's start each time.
-  const badgeText = [
-    captainWeeks && captainWeeks.length > 0 ? `C${captainWeeks.join(',')}` : null,
-    viceWeeks && viceWeeks.length > 0 ? `V${viceWeeks.join(',')}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  if (isCaptain) titleParts.push(`Captain, GW${matchweek}`);
+  if (isVice) titleParts.push(`Vice-captain, GW${matchweek}`);
 
   return (
     <div className="flex flex-col items-center gap-0.5" title={titleParts.join(' \u2022 ')}>
@@ -107,14 +109,14 @@ function PlayerToken({
         ].join(' ')}
       >
         {OPTIMIZER_POSITION_LABEL[player.position].slice(0, 1)}
-        {badgeText && (
+        {(isCaptain || isVice) && (
           <span
             className={[
-              'absolute -top-2 -right-2 min-w-[1rem] h-4 px-0.5 rounded-full flex items-center justify-center text-[7px] font-bold border whitespace-nowrap',
-              captainWeeks && captainWeeks.length > 0 ? 'bg-amber-500 border-amber-400 text-ink-900' : 'bg-chalk-100 border-chalk-300 text-ink-900',
+              'absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border',
+              isCaptain ? 'bg-amber-500 border-amber-400 text-ink-900' : 'bg-chalk-100 border-chalk-300 text-ink-900',
             ].join(' ')}
           >
-            {badgeText}
+            {isCaptain ? 'C' : 'V'}
           </span>
         )}
       </span>
@@ -123,7 +125,7 @@ function PlayerToken({
       </span>
       <span className="text-[8px] sm:text-[9px] leading-none text-sky-300 font-mono uppercase">{abbreviateClub(player.team)}</span>
       <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono">
-        {player.total_xpts.toFixed(1)} pts
+        {gwPoints !== undefined ? `${gwPoints.toFixed(1)} pts` : '\u2014'}
       </span>
       {enrichment && (
         <>
@@ -150,20 +152,29 @@ function PlayerToken({
 function PitchRow({
   players,
   top,
-  captainWeeksByPlayer,
-  viceWeeksByPlayer,
+  matchweek,
+  captainName,
+  viceCaptainName,
   enrichmentByPlayer,
 }: {
   players: FplOptimizerPlayer[];
   top: number;
-  captainWeeksByPlayer?: Map<number, number[]>;
-  viceWeeksByPlayer?: Map<number, number[]>;
+  matchweek: number;
+  captainName: string;
+  viceCaptainName: string;
   enrichmentByPlayer?: Map<number, SquadPitchEnrichment>;
 }) {
   return (
     <div className="absolute left-3 right-3 flex justify-center gap-2 sm:gap-4 flex-wrap" style={{ top: `${top}%`, transform: 'translateY(-50%)' }}>
       {players.map((p) => (
-        <PlayerToken key={p.id} player={p} captainWeeks={captainWeeksByPlayer?.get(p.id)} viceWeeks={viceWeeksByPlayer?.get(p.id)} enrichment={enrichmentByPlayer?.get(p.id)} />
+        <PlayerToken
+          key={p.id}
+          player={p}
+          matchweek={matchweek}
+          isCaptain={p.name === captainName}
+          isVice={p.name === viceCaptainName}
+          enrichment={enrichmentByPlayer?.get(p.id)}
+        />
       ))}
     </div>
   );
@@ -172,15 +183,17 @@ function PitchRow({
 export default function SquadPitch({
   starters,
   formation,
-  captainWeeksByPlayer,
-  viceWeeksByPlayer,
+  matchweek,
+  captainName,
+  viceCaptainName,
   enrichmentByPlayer,
 }: {
   starters: FplOptimizerPlayer[];
   formation: string;
-  /** Player ID -> 1-based ordinal week positions (within the requested GW range) where they were captain -- e.g. captained the 1st and 3rd requested week. Built by scanning the whole weekly_plan, not just the displayed week. */
-  captainWeeksByPlayer?: Map<number, number[]>;
-  viceWeeksByPlayer?: Map<number, number[]>;
+  /** Which gameweek this pitch represents -- drives which of each player's gw_xpts entries is shown. */
+  matchweek: number;
+  captainName: string;
+  viceCaptainName: string;
   /** Optional -- from getSquadPitchEnrichment. Renders the plain (pre-enrichment) token when omitted or a specific player has no entry. */
   enrichmentByPlayer?: Map<number, SquadPitchEnrichment>;
 }) {
@@ -206,17 +219,11 @@ export default function SquadPitch({
           </p>
         )}
 
-        <PitchRow players={fwd} top={14} captainWeeksByPlayer={captainWeeksByPlayer} viceWeeksByPlayer={viceWeeksByPlayer} enrichmentByPlayer={enrichmentByPlayer} />
-        <PitchRow players={mid} top={42} captainWeeksByPlayer={captainWeeksByPlayer} viceWeeksByPlayer={viceWeeksByPlayer} enrichmentByPlayer={enrichmentByPlayer} />
-        <PitchRow players={def} top={68} captainWeeksByPlayer={captainWeeksByPlayer} viceWeeksByPlayer={viceWeeksByPlayer} enrichmentByPlayer={enrichmentByPlayer} />
-        <PitchRow players={gk} top={90} captainWeeksByPlayer={captainWeeksByPlayer} viceWeeksByPlayer={viceWeeksByPlayer} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={fwd} top={14} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={mid} top={42} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={def} top={68} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={gk} top={90} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
       </div>
-
-      {(captainWeeksByPlayer || viceWeeksByPlayer) && (
-        <p className="text-[9px] sm:text-[10px] text-ink-500">
-          <span className="font-semibold text-ink-900">C</span>/<span className="font-semibold text-ink-900">V</span> badge numbers = which requested gameweek, in order (1st, 2nd, 3rd requested...), that player is captain/vice -- e.g. &ldquo;C1,3&rdquo; = captain in the 1st and 3rd requested week.
-        </p>
-      )}
 
       {enrichmentByPlayer && enrichmentByPlayer.size > 0 && (
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] sm:text-[10px] text-ink-500">
@@ -240,4 +247,3 @@ export default function SquadPitch({
     </div>
   );
 }
-

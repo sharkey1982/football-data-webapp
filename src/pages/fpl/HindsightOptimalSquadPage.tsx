@@ -10,7 +10,7 @@
 // the budget, given what actually happened", not "what will happen".
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getHindsightOptimalSquad, type FplHindsightResult } from '../../lib/fplOptimizerApi';
 import WeeklySquadView from '../../components/fpl/WeeklySquadView';
 import { getErrorMessage } from '../../lib/errorMessage';
@@ -36,25 +36,6 @@ export default function HindsightOptimalSquadPage() {
       cancelled = true;
     };
   }, []);
-
-  const captainWeeksByPlayer = useMemo(() => {
-    const map = new Map<number, number[]>();
-    if (!result) return map;
-    result.weekly_plan.forEach((w, i) => {
-      const player = result.squad.find((p) => p.name === w.captain);
-      if (player) map.set(player.id, [...(map.get(player.id) ?? []), i + 1]);
-    });
-    return map;
-  }, [result]);
-  const viceWeeksByPlayer = useMemo(() => {
-    const map = new Map<number, number[]>();
-    if (!result) return map;
-    result.weekly_plan.forEach((w, i) => {
-      const player = result.squad.find((p) => p.name === w.vice_captain);
-      if (player) map.set(player.id, [...(map.get(player.id) ?? []), i + 1]);
-    });
-    return map;
-  }, [result]);
 
   return (
     <div className="space-y-4">
@@ -103,8 +84,6 @@ export default function HindsightOptimalSquadPage() {
           <WeeklySquadView
             squad={result.squad}
             weeklyPlan={result.weekly_plan}
-            captainWeeksByPlayer={captainWeeksByPlayer}
-            viceWeeksByPlayer={viceWeeksByPlayer}
           />
 
           <div className="text-[11px] text-ink-500 space-y-1">

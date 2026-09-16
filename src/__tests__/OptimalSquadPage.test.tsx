@@ -213,24 +213,43 @@ describe('OptimalSquadPage', () => {
     expect(screen.getByText(/Starting XI/)).toBeInTheDocument();
   });
 
-  it('shows abbreviated club names and multi-week C/V badge numbers on the pitch', async () => {
+  it('shows abbreviated club names and a single-letter C/V badge for the currently-viewed week only', async () => {
     mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
-    // 2-week request: FWD1 captains week 1, MID1 captains week 2 -- and
-    // FWD1 is vice in week 2, so FWD1 should show "C1 V2".
+    // 2-week request: FWD1 captains week 1 only; MID1 captains week 2 only.
+    // FWD1's points genuinely differ week to week AND differ from his
+    // total_xpts (season/range total) -- the pitch must show the
+    // CURRENTLY VIEWED week's own score, never the aggregate.
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
       buildResult({
         from_matchweek: 5,
         to_matchweek: 6,
         weeks: [5, 6],
+        squad: [
+          makePlayer({ id: 1, name: 'GK1', position: 1, price: 5.5, gw_xpts: { 5: 4, 6: 4 }, total_xpts: 8 }),
+          makePlayer({ id: 2, name: 'CB1', position: 2, price: 5.0, team: 'Arsenal', gw_xpts: { 5: 6, 6: 6 }, total_xpts: 12 }),
+          makePlayer({ id: 3, name: 'CB2', position: 2, price: 5.0, team: 'Arsenal', gw_xpts: { 5: 6, 6: 6 }, total_xpts: 12 }),
+          makePlayer({ id: 4, name: 'CB3', position: 2, price: 5.0, team: 'Arsenal', gw_xpts: { 5: 6, 6: 6 }, total_xpts: 12 }),
+          makePlayer({ id: 5, name: 'MID1', position: 3, price: 8.0, gw_xpts: { 5: 3, 6: 20 }, total_xpts: 23 }),
+          makePlayer({ id: 6, name: 'MID2', position: 3, price: 8.0, gw_xpts: { 5: 8, 6: 8 }, total_xpts: 16 }),
+          makePlayer({ id: 7, name: 'MID3', position: 3, price: 8.0, gw_xpts: { 5: 8, 6: 8 }, total_xpts: 16 }),
+          makePlayer({ id: 8, name: 'MID4', position: 3, price: 8.0, gw_xpts: { 5: 8, 6: 8 }, total_xpts: 16 }),
+          makePlayer({ id: 9, name: 'FWD1', position: 4, price: 10.0, gw_xpts: { 5: 25, 6: 2 }, total_xpts: 27 }),
+          makePlayer({ id: 10, name: 'FWD2', position: 4, price: 10.0, gw_xpts: { 5: 9, 6: 9 }, total_xpts: 18 }),
+          makePlayer({ id: 11, name: 'FWD3', position: 4, price: 10.0, gw_xpts: { 5: 9, 6: 9 }, total_xpts: 18 }),
+          makePlayer({ id: 12, name: 'BenchGK', position: 1, price: 4.0, total_xpts: 4 }),
+          makePlayer({ id: 13, name: 'CheapDef', position: 2, price: 4.0, total_xpts: 6 }),
+          makePlayer({ id: 14, name: 'BenchMid', position: 3, price: 4.5, total_xpts: 5 }),
+          makePlayer({ id: 15, name: 'BenchFwd', position: 4, price: 4.5, total_xpts: 4 }),
+        ],
         weekly_plan: [
           {
             matchweek: 5, formation: '3-4-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'],
-            xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_extra_ev: 8.0,
+            xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_extra_ev: 25.0,
             bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.4,
           },
           {
             matchweek: 6, formation: '3-4-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'],
-            xi_xpts: 55.0, captain: 'MID1', vice_captain: 'FWD1', captain_extra_ev: 7.0,
+            xi_xpts: 55.0, captain: 'MID1', vice_captain: 'FWD1', captain_extra_ev: 20.0,
             bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.3,
           },
         ],
@@ -244,12 +263,22 @@ describe('OptimalSquadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
     await waitFor(() => expect(screen.getAllByText('CB1').length).toBeGreaterThan(0));
-    // CB1/CB2/CB3 are all on 'Arsenal' in buildResult -- abbreviated to ARS.
+    // CB1/CB2/CB3 are all on 'Arsenal' -- abbreviated to ARS.
     expect(screen.getAllByText('ARS').length).toBeGreaterThan(0);
-    // FWD1: captain in week 1 (ordinal 1), vice in week 2 (ordinal 2) -> "C1 V2".
-    expect(screen.getByText('C1 V2')).toBeInTheDocument();
-    // MID1: captain in week 2 only -> "C2".
-    expect(screen.getByText('C2')).toBeInTheDocument();
+
+    // Week 5 (default view): FWD1 scored 25 that week, NOT his 27-point
+    // total -- and he's captain this week, so a plain "C" badge, not "C1".
+    expect(screen.getByText('25.0 pts')).toBeInTheDocument();
+    expect(screen.queryByText('27.0 pts')).not.toBeInTheDocument();
+    expect(screen.getByTitle(/FWD1.*Captain, GW5/)).toBeInTheDocument();
+
+    // Switch to GW6 -- FWD1's displayed score changes to his GW6 score (2),
+    // and he's now vice (not captain); MID1 is captain this week instead.
+    const gw6Tabs = screen.getAllByRole('button', { name: 'GW6' });
+    await user.click(gw6Tabs[0]);
+    await waitFor(() => expect(screen.getByTitle(/FWD1.*Vice-captain, GW6/)).toBeInTheDocument());
+    expect(screen.getByText('2.0 pts')).toBeInTheDocument();
+    expect(screen.getByTitle(/MID1.*Captain, GW6/)).toBeInTheDocument();
   });
 
   it('lets the user switch which gameweek the pitch shows, and toggle to a table view', async () => {

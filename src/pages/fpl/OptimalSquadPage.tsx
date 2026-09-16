@@ -14,7 +14,7 @@
 // that the XI can change week to week.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { optimizeFplSquad, getOptimizerEarliestMatchweek, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
 import WeeklySquadView from '../../components/fpl/WeeklySquadView';
 import { getSquadPitchEnrichment } from '../../lib/fplApi';
@@ -152,32 +152,9 @@ export default function OptimalSquadPage() {
   const isMultiGw = result !== null && result.weeks.length > 1;
 
   // squad has no starter/bench label of its own; WeeklySquadView derives
-  // membership per-week by name match against that week's weekly_plan.xi.
-  const captainWeeksByPlayer = useMemo(() => {
-    const map = new Map<number, number[]>();
-    if (!result) return map;
-    result.weekly_plan.forEach((w, i) => {
-      const player = result.squad.find((p) => p.name === w.captain);
-      if (!player) return;
-      const existing = map.get(player.id) ?? [];
-      existing.push(i + 1); // 1-based ordinal position within the requested range
-      map.set(player.id, existing);
-    });
-    return map;
-  }, [result]);
-  const viceWeeksByPlayer = useMemo(() => {
-    const map = new Map<number, number[]>();
-    if (!result) return map;
-    result.weekly_plan.forEach((w, i) => {
-      const player = result.squad.find((p) => p.name === w.vice_captain);
-      if (!player) return;
-      const existing = map.get(player.id) ?? [];
-      existing.push(i + 1);
-      map.set(player.id, existing);
-    });
-    return map;
-  }, [result]);
-
+  // membership per-week by name match against that week's weekly_plan.xi,
+  // and captain/vice per-week straight from that week's own captain/
+  // vice_captain fields -- no page-level computation needed.
 
   return (
     <div className="space-y-4">
@@ -330,8 +307,6 @@ export default function OptimalSquadPage() {
           <WeeklySquadView
             squad={result.squad}
             weeklyPlan={result.weekly_plan}
-            captainWeeksByPlayer={captainWeeksByPlayer}
-            viceWeeksByPlayer={viceWeeksByPlayer}
             fetchEnrichment={getSquadPitchEnrichment}
           />
 

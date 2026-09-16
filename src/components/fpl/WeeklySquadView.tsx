@@ -26,8 +26,6 @@ type ViewMode = 'pitch' | 'table';
 export default function WeeklySquadView({
   squad,
   weeklyPlan,
-  captainWeeksByPlayer,
-  viceWeeksByPlayer,
   /** Optional -- live page only. Called once per week the user actually
    * views (not pre-fetched for every week up front), and cached per week
    * for the lifetime of this component so revisiting an already-viewed
@@ -38,8 +36,6 @@ export default function WeeklySquadView({
 }: {
   squad: FplOptimizerPlayer[];
   weeklyPlan: FplOptimizerWeeklyPlan[];
-  captainWeeksByPlayer: Map<number, number[]>;
-  viceWeeksByPlayer: Map<number, number[]>;
   fetchEnrichment?: (matchweek: number, playerIds: number[]) => Promise<Map<number, SquadPitchEnrichment>>;
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>('pitch');
@@ -126,8 +122,9 @@ export default function WeeklySquadView({
             <SquadPitch
               starters={xiPlayers}
               formation={selectedWeek.formation}
-              captainWeeksByPlayer={captainWeeksByPlayer}
-              viceWeeksByPlayer={viceWeeksByPlayer}
+              matchweek={selectedWeek.matchweek}
+              captainName={selectedWeek.captain}
+              viceCaptainName={selectedWeek.vice_captain}
               enrichmentByPlayer={enrichmentByWeek.get(selectedWeek.matchweek)}
             />
           </div>
