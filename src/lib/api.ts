@@ -874,6 +874,13 @@ export interface TeamStrengthRow {
   last_season_gf: number | null;
   last_season_ga: number | null;
   last_season_played: number;
+  /** Actual full-time goals from THIS season's results so far -- for
+   * sense-checking the model's projected per-game rate against what's
+   * actually happening this season, not just last season. Null if the
+   * team hasn't played yet. */
+  this_season_actual_gf: number | null;
+  this_season_actual_ga: number | null;
+  this_season_actual_played: number;
 }
 
 export interface TeamStrengthSummary {
@@ -994,9 +1001,40 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     }
   }
 
+  // This season's actual GF/GA so far -- lets the page compare the
+  // model's projected per-game rate against what's actually happening
+  // THIS season, not just last season's different context. Requested
+  // directly. Same matches-table pattern as the last-season query above.
+  const thisSeasonActualByTeam = new Map<number, { gf: number; ga: number; played: number }>();
+  if (currentSeasonId !== null) {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals')
+      .eq('league_id', leagueId)
+      .eq('season_id', currentSeasonId)
+      .not('full_time_home_goals', 'is', null)
+      .not('full_time_away_goals', 'is', null);
+    if (error) throw error;
+    for (const m of (data ?? []) as any[]) {
+      const hg = m.full_time_home_goals as number;
+      const ag = m.full_time_away_goals as number;
+      const h = thisSeasonActualByTeam.get(m.home_team_id) ?? { gf: 0, ga: 0, played: 0 };
+      h.gf += hg;
+      h.ga += ag;
+      h.played += 1;
+      thisSeasonActualByTeam.set(m.home_team_id, h);
+      const a = thisSeasonActualByTeam.get(m.away_team_id) ?? { gf: 0, ga: 0, played: 0 };
+      a.gf += ag;
+      a.ga += hg;
+      a.played += 1;
+      thisSeasonActualByTeam.set(m.away_team_id, a);
+    }
+  }
+
   const rows: TeamStrengthRow[] = ratings.map((r) => {
     const proj = projectedByTeam.get(r.team_id);
     const actual = actualByTeam.get(r.team_id);
+    const thisSeasonActual = thisSeasonActualByTeam.get(r.team_id);
     return {
       team_id: r.team_id,
       canonical_name: r.canonical_name,
@@ -1008,6 +1046,9 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       projected_fixtures_counted: proj?.count ?? 0,
       last_season_gf: actual ? actual.gf : null,
       last_season_ga: actual ? actual.ga : null,
+      this_season_actual_gf: thisSeasonActual ? thisSeasonActual.gf : null,
+      this_season_actual_ga: thisSeasonActual ? thisSeasonActual.ga : null,
+      this_season_actual_played: thisSeasonActual?.played ?? 0,
       last_season_played: actual?.played ?? 0,
     };
   });

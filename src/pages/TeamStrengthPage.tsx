@@ -90,6 +90,11 @@ export default function TeamStrengthPage() {
     { key: 'last_season_ga', label: 'Last Szn GA' },
   ];
 
+  /** Per-game rate, or null if there's nothing to divide by. */
+  function perGame(total: number | null, count: number): number | null {
+    return total !== null && count > 0 ? total / count : null;
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -179,6 +184,18 @@ export default function TeamStrengthPage() {
                         {sortKey === col.key && <span className="ml-1">{sortDir === 'asc' ? '\u25b2' : '\u25bc'}</span>}
                       </th>
                     ))}
+                    <th
+                      title="Projected goals for per game (this season, full-season rate) vs actual goals for per game (this season's results so far) -- is the model tracking what's actually happening this season, not just last season's different context"
+                      className="font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
+                    >
+                      GF/gm proj&rarr;actual
+                    </th>
+                    <th
+                      title="Projected goals against per game (this season, full-season rate) vs actual goals against per game (this season's results so far)"
+                      className="font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
+                    >
+                      GA/gm proj&rarr;actual
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -201,6 +218,16 @@ export default function TeamStrengthPage() {
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-loss-700 font-semibold">{fmt(r.projected_ga, 1)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.last_season_gf, 0)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.last_season_ga, 0)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
+                        {fmt(perGame(r.projected_gf, r.projected_fixtures_counted), 2)}
+                        {' \u2192 '}
+                        {fmt(perGame(r.this_season_actual_gf, r.this_season_actual_played), 2)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
+                        {fmt(perGame(r.projected_ga, r.projected_fixtures_counted), 2)}
+                        {' \u2192 '}
+                        {fmt(perGame(r.this_season_actual_ga, r.this_season_actual_played), 2)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -211,7 +238,8 @@ export default function TeamStrengthPage() {
           <p className="text-xs text-ink-500">
             Projected GF/GA sums this season&rsquo;s Dixon-Coles predicted goals across every fixture (played and upcoming) for
             the current fit &mdash; not a live-updating in-season tally. Last season&rsquo;s GF/GA is the real final total; a team
-            with no last-season figure was outside this league then (e.g. newly promoted).
+            with no last-season figure was outside this league then (e.g. newly promoted). GF/gm and GA/gm show the
+            model&rsquo;s full-season projected rate against this season&rsquo;s actual rate so far, side by side.
           </p>
         </>
       )}
