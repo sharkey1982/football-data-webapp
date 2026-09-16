@@ -34,7 +34,6 @@ export async function getFitRunValidationChecks(fitRunId: number): Promise<Recor
   if (error) throw error;
   return (data?.validation_checks as Record<string, unknown> | undefined) ?? null;
 }
-import { calculateDixonColes } from './dixonColes';
 
 export type MatchWithNames = Match & {
   home_team_name: string;
@@ -1079,7 +1078,7 @@ export async function getFantasyFixtureDifficulty(
     .select(
       `
       fixture_id, kickoff_date, matchweek, status,
-      home_team_id, away_team_id,
+      home_team_id, away_team_id, predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name)
     `
@@ -1104,24 +1103,26 @@ export async function getFantasyFixtureDifficulty(
   for (const row of (data ?? []) as any[]) {
     const homeRating = ratingByTeam.get(row.home_team_id);
     const awayRating = ratingByTeam.get(row.away_team_id);
-    if (!homeRating || !awayRating) continue;
-
-    const dc = calculateDixonColes({
-      homeAttack: homeRating.attack_strength,
-      homeDefence: homeRating.defence_strength,
-      awayAttack: awayRating.attack_strength,
-      awayDefence: awayRating.defence_strength,
-      rho: fitRun.rho,
-      homeAdvantage: fitRun.home_advantage,
-    });
-
-    // Clean sheet = opponent scores 0. Read straight off the score grid
-    // rather than approximating with a plain Poisson P(0) -- the grid
-    // already has the Dixon-Coles low-score tau correction baked in.
-    let homeCleanSheetProb = 0;
-    for (let h = 0; h <= dc.maxGoals; h++) homeCleanSheetProb += dc.scoreGrid[h][0];
-    let awayCleanSheetProb = 0;
-    for (let a = 0; a <= dc.maxGoals; a++) awayCleanSheetProb += dc.scoreGrid[0][a];
+    // Requested directly: this used to recompute xG client-side via the
+    // plain calculateDixonColes() formula (exp(homeAdvantage + attack -
+    // defence), no shrinkage, no home/away split adjustment) -- genuinely
+    // inconsistent with backfill_fixture_predictions(), the SQL function
+    // that actually sets predicted_home_goals/predicted_away_goals for
+    // every other part of this app (FPL projections included), which uses
+    // a materially more sophisticated model (sparse-data shrinkage toward
+    // the mean for teams with under 12 fit-window appearances, plus a
+    // separate home/away split adjustment) -- confirmed by reading both
+    // formulas directly, not assumed. Now reads the same stored, central
+    // values everyone else uses instead of approximating them again here.
+    // Clean sheet probability matches the exact formula
+    // fpl_projection_leaguewide_points uses elsewhere (plain Poisson
+    // P(0) = exp(-opponent's expected goals), no Dixon-Coles tau
+    // correction) for the same reason -- one consistent number app-wide.
+    if (row.predicted_home_goals === null || row.predicted_away_goals === null || !homeRating || !awayRating) continue;
+    const homeGoals = +row.predicted_home_goals;
+    const awayGoals = +row.predicted_away_goals;
+    const homeCleanSheetProb = Math.exp(-awayGoals);
+    const awayCleanSheetProb = Math.exp(-homeGoals);
 
     const homeName = row.home_team?.canonical_name ?? 'Unknown';
     const awayName = row.away_team?.canonical_name ?? 'Unknown';
@@ -1133,8 +1134,8 @@ export async function getFantasyFixtureDifficulty(
       opponent_team_id: row.away_team_id,
       opponent_name: awayName,
       is_home: true,
-      expected_goals_for: dc.expectedHomeGoals,
-      expected_goals_against: dc.expectedAwayGoals,
+      expected_goals_for: homeGoals,
+      expected_goals_against: awayGoals,
       clean_sheet_probability: homeCleanSheetProb,
       opponent_attack_strength: awayRating.attack_strength,
       opponent_defence_strength: awayRating.defence_strength,
@@ -1147,8 +1148,8 @@ export async function getFantasyFixtureDifficulty(
       opponent_team_id: row.home_team_id,
       opponent_name: homeName,
       is_home: false,
-      expected_goals_for: dc.expectedAwayGoals,
-      expected_goals_against: dc.expectedHomeGoals,
+      expected_goals_for: awayGoals,
+      expected_goals_against: homeGoals,
       clean_sheet_probability: awayCleanSheetProb,
       opponent_attack_strength: homeRating.attack_strength,
       opponent_defence_strength: homeRating.defence_strength,
