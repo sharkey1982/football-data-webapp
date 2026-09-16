@@ -112,7 +112,8 @@ export default function AppLayout() {
     {
       label: 'Fantasy',
       items: [
-        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad' },
+        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
+        { to: '/fpl/optimal-squad-so-far', label: 'Optimal Squad So Far', matchPrefix: '/fpl/optimal-squad-so-far' },
         { to: '/fantasy', label: 'Fantasy Fixtures', matchPrefix: '/fantasy' },
         { to: '/fpl', label: 'FPL Projections', matchPrefix: '/fpl', excludePrefix: ['/fpl/optimal-squad', '/fpl/player-points'] },
         { to: '/fpl/player-points', label: 'Player Points Table', matchPrefix: '/fpl/player-points' },

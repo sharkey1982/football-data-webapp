@@ -13,6 +13,7 @@ import FplFixturesList from './pages/fpl/FplFixturesList';
 import GameweekPage from './pages/fpl/GameweekPage';
 import FixtureProjectionPage from './pages/fpl/FixtureProjectionPage';
 import OptimalSquadPage from './pages/fpl/OptimalSquadPage';
+import HindsightOptimalSquadPage from './pages/fpl/HindsightOptimalSquadPage';
 import PlayerProjectionsTablePage from './pages/fpl/PlayerProjectionsTablePage';
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="fpl/gameweek/:matchweek" element={<GameweekPage />} />
           <Route path="fpl/fixture/:fixtureId" element={<FixtureProjectionPage />} />
           <Route path="fpl/optimal-squad" element={<OptimalSquadPage />} />
+          <Route path="fpl/optimal-squad-so-far" element={<HindsightOptimalSquadPage />} />
           <Route path="fpl/player-points" element={<PlayerProjectionsTablePage />} />
           <Route path="results-data" element={<ResultsData />} />
           <Route path="source-data" element={<SourceData />} />

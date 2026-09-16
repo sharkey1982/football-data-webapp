@@ -13,8 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getHindsightOptimalSquad, type FplHindsightResult, type FplOptimizerPlayer } from '../../lib/fplOptimizerApi';
 import SquadPitch from '../../components/fpl/SquadPitch';
-import BenchStrip from '../../components/fpl/BenchStrip';
-import { getErrorMessage } from '../../lib/errorMessage';
+import BenchStrip from '../../components/fpl/BenchStrip';import { getErrorMessage } from '../../lib/errorMessage';
 
 export default function HindsightOptimalSquadPage() {
   const [result, setResult] = useState<FplHindsightResult | null>(null);

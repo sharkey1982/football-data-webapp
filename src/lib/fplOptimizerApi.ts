@@ -205,7 +205,12 @@ export type FplHindsightResult = FplOptimizerResult & {
  * run yet (e.g. brand new season, nothing played).
  */
 export async function getHindsightOptimalSquad(): Promise<FplHindsightResult | null> {
-  const { data, error } = await supabase
+  // fpl_hindsight_optimal_squad is new enough that the generated Database
+  // type doesn't know about it yet -- scoped `as any` on just this call,
+  // matching the same "deliberately untyped" pattern already used for RPC
+  // calls elsewhere in this project, rather than regenerating the whole
+  // Database type for one table.
+  const { data, error } = await (supabase as any)
     .from('fpl_hindsight_optimal_squad')
     .select('result, solver_status, objective_points, solve_time_ms, computed_at')
     .order('computed_at', { ascending: false })
