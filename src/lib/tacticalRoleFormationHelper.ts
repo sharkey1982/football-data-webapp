@@ -29,18 +29,21 @@ export function parseFormationCounts(formation: string | null): { def: number; m
   return { def, mid, fwd };
 }
 
-/** Selects exactly the starters a formation needs, by depth_rank, from
- * a team's full player pool -- not an arbitrary cap. Players without a
- * depth_rank yet are never included (nothing to rank them by). */
-export function selectStartersForFormation(teamRows: TacticalRoleRow[], formation: string | null): TacticalRoleRow[] {
-  const counts = parseFormationCounts(formation);
-  const byRank = (r: TacticalRoleRow) => r.depth_rank ?? 99;
-  const gk = teamRows.filter((r) => r.element_type === 1 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b))[0];
-  const defPlayers = teamRows.filter((r) => r.element_type === 2 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b));
-  const midPlayers = teamRows.filter((r) => r.element_type === 3 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b));
-  const fwdPlayers = teamRows.filter((r) => r.element_type === 4 && r.depth_rank !== null).sort((a, b) => byRank(a) - byRank(b));
-
-  return [...(gk ? [gk] : []), ...defPlayers.slice(0, counts.def), ...midPlayers.slice(0, counts.mid), ...fwdPlayers.slice(0, counts.fwd)];
+/** Selects exactly the players at one specific depth rank (1st choice by
+ * default), excluding anyone currently injured -- requested directly: an
+ * injured 1st-choice player (with no return date captured yet, so every
+ * injury currently qualifies) shouldn't appear as if they're playing.
+ * Deliberately does NOT try to fill every formation slot -- a team only
+ * has one genuinely-ranked "1st choice" player per FPL position
+ * (element_type), not one per specific formation slot (a 4-at-the-back
+ * team needs 4 defenders on the pitch, but depth_rank is only unique
+ * within DEF as a whole, not per LB/CB/RB slot) -- forcing extra 2nd/3rd
+ * choice players in to fill out a full XI is what caused players to show
+ * up via mismatched-role fuzzy-fitting instead of their real position.
+ * An incomplete-looking pitch is the honest reflection of what the data
+ * actually supports; the depth filter is how the rest gets reviewed. */
+export function selectStartersAtDepth(teamRows: TacticalRoleRow[], depth: number): TacticalRoleRow[] {
+  return teamRows.filter((r) => r.depth_rank === depth && r.status !== 'i');
 }
 
 export function toFormationPitchPlayer(row: TacticalRoleRow): FplFixtureProjectionPlayer {

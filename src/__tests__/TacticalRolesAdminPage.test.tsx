@@ -56,28 +56,20 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(mockedApi.saveTacticalRoleCorrection).toHaveBeenCalledWith(1, 1, 'LW'));
   });
 
-  it('"By Team" mode selects exactly the starters the team\'s real formation needs, by depth rank', async () => {
+  it('"By Team" pitch shows only the selected depth, excludes injured 1st-choice players, and can switch depth', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 1, web_name: 'Raya', element_type: 1, tactical_role: 'GK', depth_rank: 1, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 2, web_name: 'Gabriel', element_type: 2, tactical_role: 'RCB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 3, web_name: 'White', element_type: 2, tactical_role: 'RB', depth_rank: 2, source_name: 'manual', confidence: 1 }),
-      // Beyond a 2-defender formation -- should appear in the squad table
-      // but NOT be placed on the pitch, since the mocked formation below
-      // (4-3-3, but overridden to a 2-def count via depth_rank filtering)
-      // only needs the top defenders up to its own count.
+      // 1st-choice defender, but injured -- requested directly: an
+      // injured 1st choice (no return date captured yet) shouldn't show
+      // as if they're playing.
+      baseRow({ fpl_player_id: 2, web_name: 'Saliba', element_type: 2, tactical_role: 'CB', depth_rank: 1, status: 'i', news: 'Knee injury', source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 3, web_name: 'Gabriel', element_type: 2, tactical_role: 'RCB', depth_rank: 2, source_name: 'manual', confidence: 1 }),
       baseRow({ fpl_player_id: 4, web_name: 'Rice', element_type: 3, tactical_role: 'DM', depth_rank: 1, source_name: 'manual', confidence: 1 }),
       baseRow({ fpl_player_id: 5, web_name: 'Ødegaard', element_type: 3, tactical_role: 'AM', depth_rank: 2, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 6, web_name: 'Merino', element_type: 3, tactical_role: 'CM', depth_rank: 3, source_name: 'manual', confidence: 1 }),
-      // 4th-choice midfielder -- beyond a 3-3-3 formation's midfield count.
-      baseRow({ fpl_player_id: 7, web_name: 'Zubimendi', element_type: 3, tactical_role: 'MID', depth_rank: 4, source_name: 'manual', confidence: 1 }),
-      baseRow({ fpl_player_id: 8, web_name: 'Havertz', element_type: 4, tactical_role: 'CF', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 6, web_name: 'Havertz', element_type: 4, tactical_role: 'CF', depth_rank: 1, source_name: 'manual', confidence: 1 }),
     ]);
     mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
-    // 3-3-3 formation: exactly 3 DEF, 3 MID, 3 FWD needed -- but only 2
-    // defenders and 1 forward exist in the data above, so the pitch
-    // should place everyone with a depth_rank EXCEPT Zubimendi (4th
-    // midfielder, beyond the 3-slot count).
-    mockedApi.getTeamFormation.mockResolvedValue('3-3-3');
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
     render(<TacticalRolesAdminPage />);
     await waitFor(() => expect(screen.getByText(/Only unassigned/)).toBeInTheDocument());
@@ -86,18 +78,23 @@ describe('TacticalRolesAdminPage', () => {
     await user.click(screen.getByRole('button', { name: 'By Team' }));
     await waitFor(() => expect(screen.getAllByText('Raya').length).toBeGreaterThan(0));
 
-    // The full-squad table shows every player, including the 4th-choice midfielder.
-    expect(screen.getAllByText('Zubimendi').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Formation: 3-3-3/)).toBeInTheDocument();
+    // Default depth is 1st choice: Rice, Havertz on the pitch, but NOT
+    // Saliba (injured) despite being depth_rank 1, and NOT Gabriel/
+    // Ødegaard (2nd choice, not selected at this depth).
+    expect(document.querySelectorAll('button[title^="Rice"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('button[title^="Saliba"]').length).toBe(0);
+    expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBe(0);
 
-    // Zubimendi (depth_rank 4, beyond the formation's 3-midfielder count)
-    // must not be on the pitch itself -- only in the table. Distinguish
-    // "in the table" from "on the pitch" via the pitch's own marker
-    // titles, which always start with the player's name.
-    const pitchMarkers = document.querySelectorAll('button[title^="Zubimendi"]');
-    expect(pitchMarkers.length).toBe(0);
-    const merinoMarkers = document.querySelectorAll('button[title^="Merino"]');
-    expect(merinoMarkers.length).toBeGreaterThan(0);
+    // Saliba still appears in the full-squad table (just not the pitch),
+    // with his injury visible.
+    expect(screen.getAllByText('Saliba').length).toBeGreaterThan(0);
+    expect(screen.getByText('INJ')).toBeInTheDocument();
+
+    // Switching to 2nd choice shows Gabriel and Ødegaard instead.
+    await user.click(screen.getByRole('button', { name: '2nd' }));
+    await waitFor(() => expect(document.querySelectorAll('button[title^="Gabriel"]').length).toBeGreaterThan(0));
+    expect(document.querySelectorAll('button[title^="Rice"]').length).toBe(0);
   });
 
   it('Needs Review can be filtered down to a single team', async () => {

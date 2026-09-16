@@ -29,7 +29,7 @@ import {
   type TacticalRoleRow,
   type TeamOption,
 } from '../../lib/tacticalRoleAdminApi';
-import { toFormationPitchPlayer, selectStartersForFormation } from '../../lib/tacticalRoleFormationHelper';
+import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tacticalRoleFormationHelper';
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
 import FormationPitch from '../../components/fpl/FormationPitch';
 import { getErrorMessage } from '../../lib/errorMessage';
@@ -52,6 +52,7 @@ export default function TacticalRolesAdminPage() {
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
+  const [pitchDepth, setPitchDepth] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,7 +148,7 @@ export default function TacticalRolesAdminPage() {
   // simultaneously) since every team's cap slots filled regardless of
   // their actual formation.
   const teamRowsForPitch = useMemo(() => rows.filter((r) => r.team_id === selectedTeamId), [rows, selectedTeamId]);
-  const pitchStarters = useMemo(() => selectStartersForFormation(teamRowsForPitch, teamFormation), [teamRowsForPitch, teamFormation]);
+  const pitchStarters = useMemo(() => selectStartersAtDepth(teamRowsForPitch, pitchDepth), [teamRowsForPitch, pitchDepth]);
   const pitchPlayers = useMemo(() => pitchStarters.map(toFormationPitchPlayer), [pitchStarters]);
 
   function RoleSelect({ row }: { row: TacticalRoleRow }) {
@@ -336,13 +337,29 @@ export default function TacticalRolesAdminPage() {
           {viewMode === 'by_team' && selectedTeamId !== null && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
-                <h2 className="text-sm font-medium text-ink-700 mb-2">
-                  {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
-                </h2>
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <h2 className="text-sm font-medium text-ink-700">
+                    {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
+                  </h2>
+                  <div className="flex rounded-md border border-chalk-300 overflow-hidden">
+                    {DEPTH_RANK_OPTIONS.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setPitchDepth(n)}
+                        className={['px-2.5 py-1 text-xs font-medium transition-colors', pitchDepth === n ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+                      >
+                        {n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <FormationPitch players={pitchPlayers} formation={teamFormation} selectedPlayerId={selectedPlayerId} onSelectPlayer={setSelectedPlayerId} />
                 <p className="text-[11px] text-ink-500 mt-2">
-                  Shows the starters this formation actually needs, by depth rank &mdash; adjust depth rank on the right to
-                  change who starts. Hover a player for role, set-piece, injury status, and season PPG context.
+                  Shows only the players at the selected depth &mdash; a team only has one genuinely-ranked 1st choice per
+                  position, not one per formation slot, so this may not fill a full XI; that&rsquo;s expected, not a bug. Switch
+                  depth above to review 2nd/3rd choice separately. Injured players never appear here. Hover a player for role,
+                  set-piece, injury status, and season PPG context.
                 </p>
               </div>
 
