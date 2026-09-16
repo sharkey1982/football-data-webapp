@@ -117,7 +117,21 @@ export default function TacticalRolesAdminPage() {
     return visible.sort((a, b) => a.element_type - b.element_type || (a.depth_rank ?? 99) - (b.depth_rank ?? 99) || a.web_name.localeCompare(b.web_name));
   }, [rows, selectedTeamId, positionFilter]);
 
-  const startersForPitch = useMemo(() => rows.filter((r) => r.team_id === selectedTeamId && r.depth_rank === 1 && r.element_type !== 1), [rows, selectedTeamId]);
+  // depth_rank is a strict 1..N ordering WITHIN a position (matching what
+  // was asked for -- "1st/2nd/3rd choice"), but a team needs several
+  // defenders and midfielders on the pitch simultaneously, not just the
+  // single #1-ranked one -- filtering to exactly depth_rank===1 left the
+  // pitch with only 4 players total (1 per position) for every team, which
+  // is why nothing meaningful showed. Using a generous per-position cap
+  // instead treats the pool as "eligible for the pitch", covering the
+  // range real formations actually need; adjusting depth_rank (push
+  // someone below the cap to bench them, or above it to start them) is how
+  // this gets refined per team.
+  const PITCH_CAP: Record<FplElementType, number> = { 1: 1, 2: 5, 3: 5, 4: 3 };
+  const startersForPitch = useMemo(
+    () => rows.filter((r) => r.team_id === selectedTeamId && r.element_type !== 1 && r.depth_rank !== null && r.depth_rank <= PITCH_CAP[r.element_type]),
+    [rows, selectedTeamId]
+  );
   const gkForPitch = useMemo(() => rows.find((r) => r.team_id === selectedTeamId && r.element_type === 1 && r.depth_rank === 1), [rows, selectedTeamId]);
   const pitchPlayers = useMemo(() => {
     const list = gkForPitch ? [gkForPitch, ...startersForPitch] : startersForPitch;
@@ -284,12 +298,13 @@ export default function TacticalRolesAdminPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <h2 className="text-sm font-medium text-ink-700 mb-2">
-                  Inferred starting shape ({inferredFormation}) &mdash; from 1st-choice players only
+                  Inferred starting shape ({inferredFormation})
                 </h2>
                 <FormationPitch players={pitchPlayers} formation={inferredFormation} selectedPlayerId={selectedPlayerId} onSelectPlayer={setSelectedPlayerId} />
                 <p className="text-[11px] text-ink-500 mt-2">
-                  Only players marked 1st choice appear here. Set a depth rank for every position on the right to build this
-                  out; hover a player for role, set-piece, and season PPG context.
+                  Shows players within the usual range for each position (top 5 defenders, top 5 midfielders, top 3 forwards,
+                  the #1 keeper) &mdash; adjust depth rank on the right to push someone below that range to bench them, or
+                  above it to start them. Hover a player for role, set-piece, and season PPG context.
                 </p>
               </div>
 
