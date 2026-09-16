@@ -27,6 +27,7 @@ import {
   saveManualStatus,
   getTeamReviewDates,
   markTeamReviewed,
+  getProjectedMinutes,
   TACTICAL_ROLE_OPTIONS,
   DEPTH_RANK_OPTIONS,
   MANUAL_STATUS_OPTIONS,
@@ -35,12 +36,14 @@ import {
 } from '../../lib/tacticalRoleAdminApi';
 import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tacticalRoleFormationHelper';
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
+import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import FormationPitch from '../../components/fpl/FormationPitch';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
 type DisplayMode = 'table' | 'pitch';
 type ScopeMode = 'needs_review' | 'everyone';
+type TableSort = 'position' | 'depth';
 
 export default function TacticalRolesAdminPage() {
   const [rows, setRows] = useState<TacticalRoleRow[]>([]);
@@ -53,11 +56,15 @@ export default function TacticalRolesAdminPage() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>('table');
   const [scopeMode, setScopeMode] = useState<ScopeMode>('needs_review');
   const [positionFilter, setPositionFilter] = useState<FplElementType | 'all'>('all');
+  const [depthFilter, setDepthFilter] = useState<number | 'all'>('all');
+  const [tableSort, setTableSort] = useState<TableSort>('position');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
   const [pitchDepth, setPitchDepth] = useState(1);
+  const [projectedMinutesGw, setProjectedMinutesGw] = useState<number | null>(null);
+  const [projectedMinutes, setProjectedMinutes] = useState<Map<number, number>>(new Map());
   const [reviewDates, setReviewDates] = useState<Map<number, string>>(new Map());
   const [markingReviewed, setMarkingReviewed] = useState(false);
 
@@ -76,6 +83,25 @@ export default function TacticalRolesAdminPage() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDefaultMatchweek()
+      .then((gw) => {
+        if (cancelled) return;
+        setProjectedMinutesGw(gw);
+        return getProjectedMinutes(gw);
+      })
+      .then((m) => {
+        if (!cancelled && m) setProjectedMinutes(m);
+      })
+      .catch(() => {
+        /* non-critical enrichment -- table still works without it */
       });
     return () => {
       cancelled = true;
@@ -184,8 +210,15 @@ export default function TacticalRolesAdminPage() {
     if (selectedTeamId === null) return [];
     let visible = rows.filter((r) => r.team_id === selectedTeamId);
     if (positionFilter !== 'all') visible = visible.filter((r) => r.element_type === positionFilter);
-    return visible.sort((a, b) => a.element_type - b.element_type || (a.depth_rank ?? 99) - (b.depth_rank ?? 99) || a.web_name.localeCompare(b.web_name));
-  }, [rows, selectedTeamId, positionFilter]);
+    if (depthFilter !== 'all') visible = visible.filter((r) => r.depth_rank === depthFilter);
+    const byDepth = (a: TacticalRoleRow, b: TacticalRoleRow) => (a.depth_rank ?? 99) - (b.depth_rank ?? 99);
+    const byPosition = (a: TacticalRoleRow, b: TacticalRoleRow) => a.element_type - b.element_type;
+    return visible.sort((a, b) =>
+      tableSort === 'depth'
+        ? byDepth(a, b) || byPosition(a, b) || a.web_name.localeCompare(b.web_name)
+        : byPosition(a, b) || byDepth(a, b) || a.web_name.localeCompare(b.web_name)
+    );
+  }, [rows, selectedTeamId, positionFilter, depthFilter, tableSort]);
 
   // Uses the team's own real, stable formation (fixture_team_tactical_
   // consensus) to select exactly the starters that formation needs, by
@@ -466,22 +499,46 @@ export default function TacticalRolesAdminPage() {
               </div>
 
               <div className="bg-white border border-chalk-300 rounded-lg overflow-hidden self-start">
-                <div className="px-3 py-2 border-b border-chalk-200 bg-chalk-100 text-xs font-medium text-ink-500 uppercase tracking-wide">
-                  Full squad
+                <div className="px-3 py-2 border-b border-chalk-200 bg-chalk-100 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-ink-500 uppercase tracking-wide">Full squad</span>
+                  <label className="flex items-center gap-1.5 text-xs text-ink-700">
+                    Depth
+                    <select
+                      value={depthFilter}
+                      onChange={(e) => setDepthFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                      className="border border-chalk-300 rounded px-1.5 py-0.5 text-xs"
+                    >
+                      <option value="all">All</option>
+                      {DEPTH_RANK_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <div className="overflow-x-auto max-w-full">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-[10px] font-medium text-ink-500 uppercase border-b border-chalk-200">
                         <th className="sticky left-0 z-10 bg-white px-3 py-1.5 whitespace-nowrap">Player</th>
-                        <th className="px-2 py-1.5">Pos</th>
+                        <th className="px-2 py-1.5">
+                          <button type="button" onClick={() => setTableSort('position')} className={['hover:text-ink-900', tableSort === 'position' ? 'text-ink-900 underline' : ''].join(' ')}>
+                            Pos
+                          </button>
+                        </th>
                         <th className="px-2 py-1.5">Role</th>
-                        <th className="px-2 py-1.5">Depth</th>
+                        <th className="px-2 py-1.5">
+                          <button type="button" onClick={() => setTableSort('depth')} className={['hover:text-ink-900', tableSort === 'depth' ? 'text-ink-900 underline' : ''].join(' ')}>
+                            Depth
+                          </button>
+                        </th>
                         <th className="px-2 py-1.5">Status</th>
                         <th className="px-2 py-1.5">Set pieces</th>
                         <th className="px-2 py-1.5 text-right">Mins</th>
                         <th className="px-2 py-1.5 text-right">Min/Start</th>
                         <th className="px-2 py-1.5 text-right">PPG</th>
+                        <th className="px-2 py-1.5 text-right">{projectedMinutesGw !== null ? `Proj GW${projectedMinutesGw}` : 'Proj Min'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -504,6 +561,7 @@ export default function TacticalRolesAdminPage() {
                           <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.minutes !== null ? r.minutes : '\u2014'}</td>
                           <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.avg_minutes_per_start !== null ? Math.round(r.avg_minutes_per_start) : '\u2014'}</td>
                           <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.points_per_game !== null ? r.points_per_game.toFixed(1) : '\u2014'}</td>
+                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{projectedMinutes.has(r.fpl_player_id) ? Math.round(projectedMinutes.get(r.fpl_player_id)!) : '\u2014'}</td>
                         </tr>
                       ))}
                     </tbody>

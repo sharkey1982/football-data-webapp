@@ -1,9 +1,16 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TacticalRolesAdminPage from '../pages/fpl/TacticalRolesAdminPage';
 import * as adminApi from '../lib/tacticalRoleAdminApi';
+import * as seasonApi from '../lib/fplSeasonApi';
+
+vi.mock('../lib/fplSeasonApi', async () => {
+  const actual = await vi.importActual<typeof seasonApi>('../lib/fplSeasonApi');
+  return { ...actual, getDefaultMatchweek: vi.fn() };
+});
+const mockedSeasonApi = seasonApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 vi.mock('../lib/tacticalRoleAdminApi', async () => {
   const actual = await vi.importActual<typeof adminApi>('../lib/tacticalRoleAdminApi');
@@ -17,6 +24,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveTacticalRoleCorrection: vi.fn(),
     saveDepthRankCorrection: vi.fn(),
     saveManualStatus: vi.fn(),
+    getProjectedMinutes: vi.fn(),
   };
 });
 
@@ -45,6 +53,16 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
 }
 
 describe('TacticalRolesAdminPage', () => {
+  beforeEach(() => {
+    // Sensible defaults for the projected-minutes enrichment effect --
+    // it's non-critical (wrapped in a silent catch in the component), but
+    // an unmocked vi.fn() returns undefined, and undefined.then() throws
+    // synchronously before that catch ever runs. Individual tests can
+    // still override these with a more specific mock where relevant.
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
+    mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+  });
+
   it('defaults to Needs Review, showing only generic-role players, and lets a role be corrected', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 1, web_name: 'Martinelli', tactical_role: 'MID', source_name: 'fpl_position_fallback' }),
@@ -200,5 +218,37 @@ describe('TacticalRolesAdminPage', () => {
     await user.click(screen.getByRole('button', { name: 'Everyone' }));
     await waitFor(() => expect(document.querySelectorAll('button[title^="Raya"]').length).toBeGreaterThan(0));
     expect(screen.getByRole('button', { name: 'Pitch' })).toHaveClass('bg-pitch-800');
+  });
+
+  it('full squad table can be sorted and filtered by depth, and shows projected minutes for the default matchweek', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Raya', element_type: 1, tactical_role: 'GK', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 2, web_name: 'Gabriel', element_type: 2, tactical_role: 'LCB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 3, web_name: 'Kiwior', element_type: 2, tactical_role: 'RCB', depth_rank: 3, source_name: 'manual', confidence: 1 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
+    mockedApi.getProjectedMinutes.mockResolvedValue(new Map([[1, 87.5], [2, 90]]));
+
+    render(<TacticalRolesAdminPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    await waitFor(() => expect(screen.getByText('Kiwior')).toBeInTheDocument());
+
+    // Projected minutes column shows the fetched value for the correct
+    // matchweek, and a dash for a player with no projection yet.
+    await waitFor(() => expect(screen.getByText(/Proj GW6/)).toBeInTheDocument());
+    expect(screen.getByText('88')).toBeInTheDocument(); // Raya, rounded from 87.5
+    expect(screen.getByText('90')).toBeInTheDocument(); // Gabriel
+
+    // Filtering the full-squad table to depth 3 shows only Kiwior.
+    const depthFilterSelect = screen.getByRole('combobox', { name: 'Depth' });
+    await user.selectOptions(depthFilterSelect, '3rd');
+    await waitFor(() => expect(screen.queryByText('Gabriel')).not.toBeInTheDocument());
+    expect(screen.getByText('Kiwior')).toBeInTheDocument();
   });
 });

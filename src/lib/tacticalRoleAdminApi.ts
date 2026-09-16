@@ -274,3 +274,33 @@ export async function markTeamReviewed(teamId: number): Promise<void> {
   const { error } = await (supabase as any).from('team_tactical_review_log').upsert({ season_id: 13, team_id: teamId, reviewed_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
   if (error) throw error;
 }
+
+/** Projected minutes for the given matchweek, keyed by fpl_player_id --
+ * requested directly, to sense-check depth-rank assumptions against what
+ * the model itself currently expects for the next game, not just season
+ * history. Players with no projection yet for this matchweek (e.g. a
+ * departed/injured player) simply won't have an entry. fpl_player_projections
+ * has no foreign key to fixtures (confirmed directly), so this resolves
+ * the matchweek's fixture_ids first rather than attempting an embedded join. */
+export async function getProjectedMinutes(matchweek: number): Promise<Map<number, number>> {
+  const { data: fixtureRows, error: fixtureErr } = await supabase
+    .from('fixtures')
+    .select('fixture_id')
+    .eq('matchweek', matchweek)
+    .eq('season_id', 13)
+    .eq('league_id', 1);
+  if (fixtureErr) throw fixtureErr;
+  const fixtureIds = (fixtureRows ?? []).map((f: any) => f.fixture_id);
+  const out = new Map<number, number>();
+  if (fixtureIds.length === 0) return out;
+
+  const { data, error } = await (supabase as any)
+    .from('fpl_player_projections')
+    .select('fpl_player_id, expected_minutes')
+    .eq('model_version', 'leaguewide_v6')
+    .eq('scenario_key', 'baseline')
+    .in('fixture_id', fixtureIds);
+  if (error) throw error;
+  for (const row of (data ?? []) as any[]) out.set(row.fpl_player_id, Number(row.expected_minutes));
+  return out;
+}
