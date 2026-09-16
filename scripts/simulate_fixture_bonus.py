@@ -46,6 +46,21 @@
 #     GK/DEF only, 0 otherwise
 #   total_bps = residual + goals*goal_bps_value[position] + assists*9 + clean_sheet_contribution
 #
+# expected_bps_score itself (the mean this residual is backed out from) is
+# computed in fpl_fixture_bps_projection_v1 in the database, not here. As
+# of the same session as this correlation fix, that view's defensive-
+# contribution term was also corrected: it previously used dc_prob*2 (a
+# proxy that conflated the separate FPL defensive-contribution POINTS
+# threshold rule with actual BPS earned from clearances/blocks/
+# interceptions and recoveries), and now directly implements the real "1
+# BPS per 3" rule for both categories using genuine shrunk per-90 rates
+# from fpl_player_defensive_contribution_usage's real cbi/recoveries
+# counts. This script doesn't need to know that detail -- it just reads
+# whatever expected_bps_score the view currently produces -- but it's
+# worth knowing the mean itself got more accurate in the same pass as
+# this file's own correlation fix, not just the variance/correlation
+# structure this file is responsible for.
+#
 # Ranks all players by total_bps per simulated draw, awards 3/2/1 to the
 # top 3 (matching real FPL bonus rules), averages across draws. Requires
 # SUPABASE_URL and SUPABASE_SERVICE_KEY in the environment.
