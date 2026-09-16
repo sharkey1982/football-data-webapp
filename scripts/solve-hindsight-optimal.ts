@@ -71,6 +71,7 @@ function weeklyDetail(squad: Player[], weeks: number[]) {
       matchweek: w, formation: bx.formation, xi: xi.map((p) => p.web_name), xi_xpts: +bx.score.toFixed(2),
       captain: cap.web_name, vice_captain: vice.web_name, captain_extra_ev: +captainEV.toFixed(2),
       bench_order: bench.filter((p) => p.fpl_position !== 1).sort((a, b) => b.gw_xpts[w] - a.gw_xpts[w]).map((p) => p.web_name),
+      auto_sub_ev: 0, // deliberately not modelled here -- see the module header and this file's notes in the saved result
     });
   }
   return { weekly, primaryTotal };

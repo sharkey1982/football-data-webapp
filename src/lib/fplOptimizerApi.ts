@@ -188,3 +188,36 @@ export async function optimizeFplSquad(
   if (isOptimizerError(data)) throw new Error(data.error);
   return data as FplOptimizerResult;
 }
+
+export type FplHindsightResult = FplOptimizerResult & {
+  solver_status: string;
+  objective_points: number;
+  solve_time_ms: number | null;
+  computed_at: string;
+};
+
+/**
+ * The genuinely optimal squad for gameweeks already played, computed from
+ * REAL results (not projections) by a scheduled job
+ * (scripts/solve-hindsight-optimal.ts), stored in fpl_hindsight_optimal_squad.
+ * Read-only here -- this page never computes anything itself, it just
+ * displays whatever the job last solved. Returns null if the job hasn't
+ * run yet (e.g. brand new season, nothing played).
+ */
+export async function getHindsightOptimalSquad(): Promise<FplHindsightResult | null> {
+  const { data, error } = await supabase
+    .from('fpl_hindsight_optimal_squad')
+    .select('result, solver_status, objective_points, solve_time_ms, computed_at')
+    .order('computed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    ...(data.result as FplOptimizerResult),
+    solver_status: data.solver_status,
+    objective_points: Number(data.objective_points),
+    solve_time_ms: data.solve_time_ms,
+    computed_at: data.computed_at,
+  };
+}
