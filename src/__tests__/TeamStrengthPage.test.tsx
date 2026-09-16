@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import TeamStrengthPage from '../pages/TeamStrengthPage';
 import * as api from '../lib/api';
 import * as seasonApi from '../lib/fplSeasonApi';
+import { triggerWorkflow } from '../lib/workflowTrigger';
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof api>('../lib/api');
@@ -16,8 +17,11 @@ vi.mock('../lib/fplSeasonApi', async () => {
   return { ...actual, getDefaultMatchweek: vi.fn() };
 });
 
+vi.mock('../lib/workflowTrigger', () => ({ triggerWorkflow: vi.fn() }));
+
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const mockedSeasonApi = seasonApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedTriggerWorkflow = triggerWorkflow as unknown as ReturnType<typeof vi.fn>;
 
 describe('TeamStrengthPage', () => {
   it('shows attack/defence, home advantage, and projected vs last-season goals', async () => {
@@ -290,5 +294,23 @@ describe('TeamStrengthPage', () => {
     expect(await screen.findByText(/Refreshed 100 fixtures \(GW6\u201315\)/)).toBeInTheDocument();
     // Makes clear this doesn't cover everything that might need refreshing.
     expect(screen.getByText(/does not re-run the bonus or finishing-position simulations/)).toBeInTheDocument();
+  });
+
+  it('triggers the final table simulation workflow with the correct season, and the bonus simulation workflow with the current default matchweek window', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getTeamStrengthSummary.mockResolvedValue({ fitRun: null, currentSeasonLabel: '2627', lastSeasonLabel: '2526', rows: [], relegatedTeams: [] });
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
+    mockedTriggerWorkflow.mockResolvedValue(undefined);
+
+    render(<TeamStrengthPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Re-run Proj\. Pos simulation/ })).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /Re-run Proj\. Pos simulation/ }));
+    await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('simulate-final-table', { season_id: '13' }));
+    expect(await screen.findByText(/Triggered.*1.2 minutes/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Re-run bonus simulation/ }));
+    await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('simulate-fixture-bonus', { from_matchweek: '6', to_matchweek: '15' }));
   });
 });

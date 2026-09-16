@@ -1,0 +1,17 @@
+# ============================================================================
+# netlify.toml
+#
+# Explicit build config (matching what's already working via dashboard
+# settings, made explicit so it can't drift) plus a functions directory --
+# added specifically to support a serverless proxy for triggering GitHub
+# Actions workflows from the frontend, since the GitHub token those
+# workflows need can never be embedded in client-side JS (anyone could
+# extract it from the bundle and get write access to the repo).
+# ============================================================================
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"

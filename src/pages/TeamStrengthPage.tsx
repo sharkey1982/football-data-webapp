@@ -12,6 +12,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, refreshFplProjectionsRange, type TeamStrengthSummary } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
+import { triggerWorkflow } from '../lib/workflowTrigger';
 import { getErrorMessage } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null };
@@ -39,6 +40,10 @@ export default function TeamStrengthPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshResult, setRefreshResult] = useState<string | null>(null);
+  const [triggeringSim, setTriggeringSim] = useState(false);
+  const [triggerSimResult, setTriggerSimResult] = useState<string | null>(null);
+  const [triggeringBonus, setTriggeringBonus] = useState(false);
+  const [triggerBonusResult, setTriggerBonusResult] = useState<string | null>(null);
 
   useEffect(() => {
     getLeagues().then((data) => {
@@ -114,6 +119,35 @@ export default function TeamStrengthPage() {
       setRefreshResult(`Failed: ${getErrorMessage(e, 'Could not refresh FPL projections')}`);
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function handleTriggerFinalTableSimulation() {
+    setTriggeringSim(true);
+    setTriggerSimResult(null);
+    try {
+      await triggerWorkflow('simulate-final-table', { season_id: '13' });
+      setTriggerSimResult('Triggered \u2014 the simulation typically takes 1\u20132 minutes to complete. Reload this page after that to see updated Proj. Pos values.');
+    } catch (e) {
+      setTriggerSimResult(`Failed: ${getErrorMessage(e, 'Could not trigger the simulation')}`);
+    } finally {
+      setTriggeringSim(false);
+    }
+  }
+
+  async function handleTriggerBonusSimulation() {
+    setTriggeringBonus(true);
+    setTriggerBonusResult(null);
+    try {
+      const defaultGw = await getDefaultMatchweek();
+      const from = defaultGw;
+      const to = defaultGw + 9;
+      await triggerWorkflow('simulate-fixture-bonus', { from_matchweek: String(from), to_matchweek: String(to) });
+      setTriggerBonusResult(`Triggered for GW${from}\u2013${to} \u2014 typically takes 1\u20132 minutes. Run "Refresh FPL projections" above afterwards to pick up the new bonus values.`);
+    } catch (e) {
+      setTriggerBonusResult(`Failed: ${getErrorMessage(e, 'Could not trigger the simulation')}`);
+    } finally {
+      setTriggeringBonus(false);
     }
   }
 
@@ -242,6 +276,32 @@ export default function TeamStrengthPage() {
               {refreshing ? 'Refreshing\u2026' : 'Refresh FPL projections'}
             </button>
             {refreshResult && <p className="text-xs text-ink-500">{refreshResult}</p>}
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleTriggerFinalTableSimulation}
+              disabled={triggeringSim}
+              className="px-3 py-1.5 text-sm rounded border border-pitch-700 text-pitch-800 hover:bg-pitch-50 disabled:opacity-50"
+              title="Triggers the Simulate Final Table GitHub Actions workflow -- takes 1-2 minutes, and this page won't update live, so reload afterwards to see the new Proj. Pos values"
+            >
+              {triggeringSim ? 'Triggering\u2026' : 'Re-run Proj. Pos simulation'}
+            </button>
+            {triggerSimResult && <p className="text-xs text-ink-500">{triggerSimResult}</p>}
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleTriggerBonusSimulation}
+              disabled={triggeringBonus}
+              className="px-3 py-1.5 text-sm rounded border border-pitch-700 text-pitch-800 hover:bg-pitch-50 disabled:opacity-50"
+              title="Triggers the Simulate Fixture Bonus GitHub Actions workflow for the next 10 gameweeks -- takes 1-2 minutes; run 'Refresh FPL projections' afterwards to pick up the new bonus values"
+            >
+              {triggeringBonus ? 'Triggering\u2026' : 'Re-run bonus simulation'}
+            </button>
+            {triggerBonusResult && <p className="text-xs text-ink-500">{triggerBonusResult}</p>}
           </div>
 
           {summary.rows.some((r) => isPositionStale(r)) && (
