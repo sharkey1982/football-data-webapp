@@ -152,6 +152,21 @@ describe('OptimalSquadPage', () => {
     expect(screen.getAllByText('3-5-2').length).toBeGreaterThan(0);
   });
 
+  it('"Next 10 GWs" preset requests a 10-week range (the backend\'s own cap)', async () => {
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
+    mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult({ from_matchweek: 5, to_matchweek: 14, weeks: Array.from({ length: 10 }, (_, i) => 5 + i) }));
+
+    render(<OptimalSquadPage />);
+    await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
+    await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
+
+    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 14, 100));
+  });
+
   it('shows the backend error message when optimisation fails, and never invents a squad', async () => {
     mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockRejectedValue(new Error('No legal squad found'));

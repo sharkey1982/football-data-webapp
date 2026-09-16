@@ -20,7 +20,7 @@ import WeeklySquadView from '../../components/fpl/WeeklySquadView';
 import { getSquadPitchEnrichment } from '../../lib/fplApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 
-type Preset = 'this' | 'next3' | 'next5' | 'custom';
+type Preset = 'this' | 'next3' | 'next5' | 'next10' | 'custom';
 
 const MAX_RANGE_SPAN = 9; // to - from, matching the backend's own 10-GW cap
 
@@ -118,6 +118,9 @@ export default function OptimalSquadPage() {
     } else if (p === 'next5') {
       setFromGw(defaultGw);
       setToGw(defaultGw + 4);
+    } else if (p === 'next10') {
+      setFromGw(defaultGw);
+      setToGw(defaultGw + MAX_RANGE_SPAN); // the backend's own cap -- 10 gameweeks total
     }
     // 'custom' leaves whatever the person has already set via the number inputs.
   }
@@ -174,6 +177,7 @@ export default function OptimalSquadPage() {
               ['this', 'This GW'],
               ['next3', 'Next 3 GWs'],
               ['next5', 'Next 5 GWs'],
+              ['next10', 'Next 10 GWs'],
               ['custom', 'Custom'],
             ] as [Preset, string][]).map(([key, label]) => (
               <button
