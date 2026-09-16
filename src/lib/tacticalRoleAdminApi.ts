@@ -33,7 +33,7 @@
 
 import { supabase } from './supabase';
 import type { FplElementType } from '../types/database';
-import { seasonContextStats, type SetPieceRole } from './fplApi';
+import { seasonContextStats, getGamesInvolvedCounts, type SetPieceRole } from './fplApi';
 
 export type TacticalRoleRow = {
   fpl_player_id: number;
@@ -145,10 +145,12 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
     setPieceRolesByPlayer.set(playerId, existing);
   }
 
+  const gamesInvolvedByPlayer = await getGamesInvolvedCounts((playerRows ?? []).map((p: any) => p.fpl_player_id));
+
   return (playerRows ?? [])
     .map((p: any) => {
       const td = defaultsByPlayer.get(p.fpl_player_id);
-      const stats = seasonContextStats({ minutes: p.minutes, source_payload: p.source_payload });
+      const stats = seasonContextStats({ minutes: p.minutes, source_payload: p.source_payload }, gamesInvolvedByPlayer.get(p.fpl_player_id) ?? null);
       return {
         fpl_player_id: p.fpl_player_id,
         web_name: p.web_name ?? 'Unknown',

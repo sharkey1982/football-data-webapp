@@ -75,15 +75,47 @@ export function num(v: string | number | null | undefined): number | null {
  * come back as strings there (PostgREST jsonb ->> operator), same as the
  * numeric-string columns num() already handles.
  */
-export function seasonContextStats(player: { minutes: number | null; source_payload: Record<string, unknown> | null }): {
+export function seasonContextStats(
+  player: { minutes: number | null; source_payload: Record<string, unknown> | null },
+  gamesInvolved?: number | null
+): {
   points_per_game: number | null;
   avg_minutes_per_start: number | null;
 } {
   const payload = player.source_payload;
   const pointsPerGame = payload ? num(payload['points_per_game'] as string | number | null) : null;
+  // "games involved" (gameweeks with minutes>0, requested separately via
+  // getGamesInvolvedCounts) is the correct denominator -- requested
+  // directly after minutes/starts was confirmed to show over 90 for
+  // players who've also come on as a substitute in addition to their
+  // starts, since those sub minutes land in the numerator (season total
+  // minutes) without a matching increment to "starts" in the
+  // denominator. Falls back to the old starts-based calculation only
+  // when a caller hasn't fetched games-involved counts, so nothing
+  // breaks for call sites not yet updated.
   const starts = payload ? num(payload['starts'] as string | number | null) : null;
-  const avgMinutesPerStart = starts !== null && starts > 0 && player.minutes !== null ? player.minutes / starts : null;
+  const denominator = gamesInvolved !== undefined ? gamesInvolved : starts;
+  const avgMinutesPerStart = denominator !== null && denominator > 0 && player.minutes !== null ? player.minutes / denominator : null;
   return { points_per_game: pointsPerGame, avg_minutes_per_start: avgMinutesPerStart };
+}
+
+/** Count of gameweeks with minutes > 0 per player -- the correct
+ * denominator for "average minutes per game involved" (requested
+ * directly to replace minutes/starts, which undercounts games played
+ * when a player has also come on as a substitute: those minutes inflate
+ * the numerator without a matching start). */
+export async function getGamesInvolvedCounts(playerIds: number[]): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  if (playerIds.length === 0) return out;
+  const { data, error } = await (supabase as any)
+    .from('fpl_player_gameweeks')
+    .select('fpl_player_id, minutes')
+    .eq('season_id', 13)
+    .in('fpl_player_id', playerIds)
+    .gt('minutes', 0);
+  if (error) throw error;
+  for (const row of (data ?? []) as any[]) out.set(row.fpl_player_id, (out.get(row.fpl_player_id) ?? 0) + 1);
+  return out;
 }
 
 /** Season-to-date points per game, keyed by fpl_player_id -- a simple,
@@ -412,6 +444,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     if (error) throw error;
     players = data ?? [];
   }
+  const gamesInvolvedByPlayer = await getGamesInvolvedCounts(playerIds);
 
   const playerById = new Map((players ?? []).map((p) => [p.fpl_player_id, p]));
   const formationByTeam = new Map((teamTactics ?? []).map((t) => [t.team_id, t]));
@@ -426,7 +459,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     const penaltyPoints = breakdown ? num(breakdown.xpts_penalties) : null;
     const penaltyPointsShare =
       expectedFplPoints !== null && expectedFplPoints > 0 && penaltyPoints !== null ? penaltyPoints / expectedFplPoints : null;
-    const seasonStats = seasonContextStats(player);
+    const seasonStats = seasonContextStats(player, gamesInvolvedByPlayer.get(proj.fpl_player_id) ?? null);
 
     return {
       fpl_player_id: proj.fpl_player_id,
@@ -714,8 +747,9 @@ export async function getSquadPitchEnrichment(matchweek: number, playerIds: numb
   const squadStatusByPlayer = new Map<number, SquadStatus>();
   for (const row of (squadRows ?? []) as PlayerSquadHierarchyRow[]) squadStatusByPlayer.set(row.fpl_player_id, row.squad_status);
 
+  const gamesInvolvedByPlayer = await getGamesInvolvedCounts(playerIds);
   const seasonStatsByPlayer = new Map<number, ReturnType<typeof seasonContextStats>>();
-  for (const row of playerRows ?? []) seasonStatsByPlayer.set(row.fpl_player_id, seasonContextStats(row));
+  for (const row of playerRows ?? []) seasonStatsByPlayer.set(row.fpl_player_id, seasonContextStats(row, gamesInvolvedByPlayer.get(row.fpl_player_id) ?? null));
 
   for (const proj of (v6Rows ?? []) as FplProjectionFrontendFeedV6[]) {
     out.set(proj.fpl_player_id, {
