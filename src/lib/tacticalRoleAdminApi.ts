@@ -233,7 +233,21 @@ export const MANUAL_STATUS_OPTIONS = [
 /** Saves (or clears, if status is null) a manual availability override --
  * takes precedence over the FPL-sourced status/news whenever set.
  * Preserves the existing tactical_role/depth_rank the same way the other
- * partial-update functions on this table do. */
+ * partial-update functions on this table do.
+ *
+ * Also writes (or clears) the corresponding row in fpl_player_squad_state
+ * -- the table that ACTUALLY feeds expected_minutes, projections, and the
+ * optimizer (via fpl_player_squad_state_current -> fixture_player_expected_
+ * minutes_resolved_v3). manual_status on team_player_tactical_defaults on
+ * its own is display-only (used by this page's badges and depth-chart
+ * injury promotion); nothing in the projection pipeline reads it.
+ * Confirmed directly (no view in the database references manual_status)
+ * after a manual injury tag didn't change the optimal squad -- this was
+ * the gap. Uses a fixed sentinel effective_from so repeated edits update
+ * the same row rather than accumulating one per edit, and the view
+ * (updated alongside this) prioritises this source over the automated
+ * feed regardless of which has a more recent effective_from, so a later
+ * scheduled import doesn't silently override it. */
 export async function saveManualStatus(teamId: number, fplPlayerId: number, elementType: FplElementType, status: string | null, note: string | null): Promise<void> {
   const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
   const { data: existing, error: readErr } = await (supabase as any)
@@ -262,6 +276,51 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
       { onConflict: 'season_id,team_id,fpl_player_id' }
     );
   if (writeErr) throw writeErr;
+
+  // Sentinel effective_from -- far enough in the past to never collide
+  // with real automated-feed rows, and fixed so repeated saves upsert
+  // the same manual-override row instead of piling up.
+  const MANUAL_OVERRIDE_EFFECTIVE_FROM = '2020-01-01T00:00:00Z';
+
+  if (!status) {
+    // Cleared back to "Use FPL status" -- remove the override entirely so
+    // the automated feed (or the normal model fallback) takes over again.
+    const { error: deleteErr } = await (supabase as any)
+      .from('fpl_player_squad_state')
+      .delete()
+      .eq('season_id', 13)
+      .eq('fpl_player_id', fplPlayerId)
+      .eq('source_name', 'manual_tactical_override');
+    if (deleteErr) throw deleteErr;
+    return;
+  }
+
+  const STATE_BY_STATUS: Record<string, { state: string; availability_probability: number; start_probability_override: number | null }> = {
+    a: { state: 'active', availability_probability: 1, start_probability_override: null },
+    d: { state: 'doubtful', availability_probability: 0.5, start_probability_override: null },
+    i: { state: 'injured', availability_probability: 0, start_probability_override: 0 },
+    s: { state: 'suspended', availability_probability: 0, start_probability_override: 0 },
+  };
+  const mapped = STATE_BY_STATUS[status];
+  if (!mapped) return; // unrecognised status code -- nothing sensible to write downstream
+
+  const { error: squadStateErr } = await (supabase as any).from('fpl_player_squad_state').upsert(
+    {
+      season_id: 13,
+      fpl_player_id: fplPlayerId,
+      team_id: teamId,
+      state: mapped.state,
+      availability_probability: mapped.availability_probability,
+      start_probability_override: mapped.start_probability_override,
+      effective_from: MANUAL_OVERRIDE_EFFECTIVE_FROM,
+      effective_to: null,
+      source_name: 'manual_tactical_override',
+      source_reference: null,
+      evidence: note,
+    },
+    { onConflict: 'season_id,fpl_player_id,effective_from' }
+  );
+  if (squadStateErr) throw squadStateErr;
 }
 
 /** Last-reviewed timestamp per team, keyed by team_id -- null if never reviewed. */
