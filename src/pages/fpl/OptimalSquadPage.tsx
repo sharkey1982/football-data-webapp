@@ -16,9 +16,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { optimizeFplSquad, getOptimizerEarliestMatchweek, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
-import SquadPitch from '../../components/fpl/SquadPitch';
-import BenchStrip from '../../components/fpl/BenchStrip';
-import { getSquadPitchEnrichment, type SquadPitchEnrichment } from '../../lib/fplApi';
+import WeeklySquadView from '../../components/fpl/WeeklySquadView';
+import { getSquadPitchEnrichment } from '../../lib/fplApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 
 type Preset = 'this' | 'next3' | 'next5' | 'custom';
@@ -80,14 +79,6 @@ export default function OptimalSquadPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
-
-  // Purely presentational context for the pitch (tactical role, set-piece
-  // roles, squad pecking order, season PPG, start-probability reliability)
-  // -- same info the per-fixture Player Projections pitch already shows.
-  // Fetched separately from the optimiser result itself and never feeds
-  // back into it; failing silently here should never block the actual
-  // squad from displaying.
-  const [pitchEnrichment, setPitchEnrichment] = useState<Map<number, SquadPitchEnrichment>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -160,43 +151,8 @@ export default function OptimalSquadPage() {
 
   const isMultiGw = result !== null && result.weeks.length > 1;
 
-  // The earliest requested gameweek's plan drives the main pitch -- the
-  // most immediately actionable week. squad has no starter/bench label of
-  // its own; membership in a given week's XI is by name match against
-  // that week's weekly_plan.xi, which is all the backend provides.
-  const primaryWeek = result?.weekly_plan[0] ?? null;
-  const { xiPlayers, benchPlayers } = useMemo(() => {
-    if (!result || !primaryWeek) return { xiPlayers: [] as FplOptimizerPlayer[], benchPlayers: [] as FplOptimizerPlayer[] };
-    const xiNames = new Set(primaryWeek.xi);
-    return {
-      xiPlayers: result.squad.filter((p) => xiNames.has(p.name)),
-      benchPlayers: result.squad.filter((p) => !xiNames.has(p.name)),
-    };
-  }, [result, primaryWeek]);
-
-  useEffect(() => {
-    if (!result || !primaryWeek) {
-      setPitchEnrichment(new Map());
-      return;
-    }
-    let cancelled = false;
-    getSquadPitchEnrichment(
-      primaryWeek.matchweek,
-      result.squad.map((p) => p.id)
-    )
-      .then((map) => {
-        if (!cancelled) setPitchEnrichment(map);
-      })
-      .catch(() => {
-        // Presentational only -- a failed enrichment fetch should never
-        // block the pitch itself from showing the actual squad.
-        if (!cancelled) setPitchEnrichment(new Map());
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [result, primaryWeek]);
-
+  // squad has no starter/bench label of its own; WeeklySquadView derives
+  // membership per-week by name match against that week's weekly_plan.xi.
   const captainWeeksByPlayer = useMemo(() => {
     const map = new Map<number, number[]>();
     if (!result) return map;
@@ -222,7 +178,6 @@ export default function OptimalSquadPage() {
     return map;
   }, [result]);
 
-  const distinctFormations = result ? new Set(result.weekly_plan.map((w) => w.formation)) : new Set();
 
   return (
     <div className="space-y-4">
@@ -344,15 +299,9 @@ export default function OptimalSquadPage() {
       )}
       {!loading && !error && hasRun && !result && <p className="text-ink-500 text-sm">No result returned.</p>}
 
-      {!loading && !error && result && primaryWeek && (
+      {!loading && !error && result && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white border border-chalk-300 rounded-lg p-3">
-              <div className="text-xs text-ink-500" title={distinctFormations.size > 1 ? 'This squad uses a different formation in at least one other gameweek -- see the weekly plan below' : undefined}>
-                Formation (GW{primaryWeek.matchweek}){distinctFormations.size > 1 ? ' *' : ''}
-              </div>
-              <div className="text-lg font-display text-ink-900">{primaryWeek.formation}</div>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-white border border-chalk-300 rounded-lg p-3">
               <div className="text-xs text-ink-500">Squad cost</div>
               <div className="text-lg font-display text-ink-900">&pound;{result.budget_used.toFixed(1)}m</div>
@@ -372,20 +321,19 @@ export default function OptimalSquadPage() {
             </div>
           </div>
 
-          <div>
-            <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">
-              Starting XI {isMultiGw ? `(GW${primaryWeek.matchweek})` : ''}
-            </h2>
-            <SquadPitch
-              starters={xiPlayers}
-              formation={primaryWeek.formation}
-              captainWeeksByPlayer={captainWeeksByPlayer}
-              viceWeeksByPlayer={viceWeeksByPlayer}
-              enrichmentByPlayer={pitchEnrichment}
-            />
-          </div>
-
-          <BenchStrip bench={benchPlayers} benchOrder={primaryWeek.bench_order} />
+          {isMultiGw && (
+            <p className="text-xs text-ink-500">
+              Formation and starting XI are chosen independently each gameweek &mdash; use the GW tabs below to see how the
+              lineup changes, or switch to the Table view for the whole picture at once.
+            </p>
+          )}
+          <WeeklySquadView
+            squad={result.squad}
+            weeklyPlan={result.weekly_plan}
+            captainWeeksByPlayer={captainWeeksByPlayer}
+            viceWeeksByPlayer={viceWeeksByPlayer}
+            fetchEnrichment={getSquadPitchEnrichment}
+          />
 
           {isMultiGw && (
             <div>

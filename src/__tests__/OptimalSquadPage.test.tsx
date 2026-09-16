@@ -146,10 +146,10 @@ describe('OptimalSquadPage', () => {
 
     await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 7, 100));
     await waitFor(() => expect(screen.getByText('Weekly plan')).toBeInTheDocument());
-    expect(screen.getByText('GW6')).toBeInTheDocument();
+    expect(screen.getAllByText('GW6').length).toBeGreaterThan(0);
     // Different formations across weeks are shown, not hidden behind one squad-wide value.
-    expect(screen.getByText('4-3-3')).toBeInTheDocument();
-    expect(screen.getByText('3-5-2')).toBeInTheDocument();
+    expect(screen.getAllByText('4-3-3').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('3-5-2').length).toBeGreaterThan(0);
   });
 
   it('shows the backend error message when optimisation fails, and never invents a squad', async () => {
@@ -250,5 +250,49 @@ describe('OptimalSquadPage', () => {
     expect(screen.getByText('C1 V2')).toBeInTheDocument();
     // MID1: captain in week 2 only -> "C2".
     expect(screen.getByText('C2')).toBeInTheDocument();
+  });
+
+  it('lets the user switch which gameweek the pitch shows, and toggle to a table view', async () => {
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
+      buildResult({
+        from_matchweek: 5,
+        to_matchweek: 6,
+        weeks: [5, 6],
+        weekly_plan: [
+          {
+            matchweek: 5, formation: '3-4-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'],
+            xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_extra_ev: 8.0,
+            bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.4,
+          },
+          {
+            // Different formation AND a bench player (CheapDef) starts instead of MID4 -- the
+            // exact scenario that was previously hidden by only ever showing week 1's pitch.
+            matchweek: 6, formation: '4-4-2', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'CheapDef', 'MID1', 'MID2', 'MID3', 'FWD1', 'FWD2', 'FWD3'],
+            xi_xpts: 55.0, captain: 'MID1', vice_captain: 'FWD1', captain_extra_ev: 7.0,
+            bench_order: ['MID4', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.3,
+          },
+        ],
+      })
+    );
+    mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
+
+    render(<OptimalSquadPage />);
+    await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
+    await waitFor(() => expect(screen.getAllByText('CB1').length).toBeGreaterThan(0));
+
+    // Week 1 (default): MID4 is a starter, CheapDef is on the bench.
+    expect(screen.getByText('Starting XI (GW5, 3-4-3)')).toBeInTheDocument();
+
+    // Switch to GW6 via its tab -- the XI genuinely changes (CheapDef now starts).
+    const gw6Tabs = screen.getAllByRole('button', { name: 'GW6' });
+    await user.click(gw6Tabs[0]);
+    await waitFor(() => expect(screen.getByText('Starting XI (GW6, 4-4-2)')).toBeInTheDocument());
+
+    // Table view shows every week at once, including bench status per week.
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    await waitFor(() => expect(screen.getAllByText('bench').length).toBeGreaterThan(0));
   });
 });
