@@ -150,4 +150,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback
+        tb = traceback.format_exc()
+        # GitHub Actions error annotation -- surfaces via the check-run
+        # annotations API even when the raw log blob storage isn't reachable.
+        for line in tb.splitlines():
+            print(f"::error::{line}")
+        raise
