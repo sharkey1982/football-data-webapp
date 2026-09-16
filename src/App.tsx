@@ -15,6 +15,7 @@ import FixtureProjectionPage from './pages/fpl/FixtureProjectionPage';
 import OptimalSquadPage from './pages/fpl/OptimalSquadPage';
 import HindsightOptimalSquadPage from './pages/fpl/HindsightOptimalSquadPage';
 import PlayerProjectionsTablePage from './pages/fpl/PlayerProjectionsTablePage';
+import ScoringRulesPage from './pages/fpl/ScoringRulesPage';
 export default function App() {
   return (
     <BrowserRouter>
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="fpl/optimal-squad" element={<OptimalSquadPage />} />
           <Route path="fpl/optimal-squad-so-far" element={<HindsightOptimalSquadPage />} />
           <Route path="fpl/player-points" element={<PlayerProjectionsTablePage />} />
+          <Route path="fpl/scoring-rules" element={<ScoringRulesPage />} />
           <Route path="results-data" element={<ResultsData />} />
           <Route path="source-data" element={<SourceData />} />
           <Route path="data-health" element={<DataHealth />} />
