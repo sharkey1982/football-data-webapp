@@ -236,8 +236,30 @@ export default function OptimalSquadPage() {
     };
   }, [result, primaryWeek]);
 
-  const captainId = primaryWeek ? xiPlayers.find((p) => p.name === primaryWeek.captain)?.id : undefined;
-  const viceCaptainId = primaryWeek ? xiPlayers.find((p) => p.name === primaryWeek.vice_captain)?.id : undefined;
+  const captainWeeksByPlayer = useMemo(() => {
+    const map = new Map<number, number[]>();
+    if (!result) return map;
+    result.weekly_plan.forEach((w, i) => {
+      const player = result.squad.find((p) => p.name === w.captain);
+      if (!player) return;
+      const existing = map.get(player.id) ?? [];
+      existing.push(i + 1); // 1-based ordinal position within the requested range
+      map.set(player.id, existing);
+    });
+    return map;
+  }, [result]);
+  const viceWeeksByPlayer = useMemo(() => {
+    const map = new Map<number, number[]>();
+    if (!result) return map;
+    result.weekly_plan.forEach((w, i) => {
+      const player = result.squad.find((p) => p.name === w.vice_captain);
+      if (!player) return;
+      const existing = map.get(player.id) ?? [];
+      existing.push(i + 1);
+      map.set(player.id, existing);
+    });
+    return map;
+  }, [result]);
 
   const distinctFormations = result ? new Set(result.weekly_plan.map((w) => w.formation)) : new Set();
 
@@ -393,7 +415,13 @@ export default function OptimalSquadPage() {
             <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 mb-2">
               Starting XI {isMultiGw ? `(GW${primaryWeek.matchweek})` : ''}
             </h2>
-            <SquadPitch starters={xiPlayers} formation={primaryWeek.formation} captainId={captainId} viceCaptainId={viceCaptainId} enrichmentByPlayer={pitchEnrichment} />
+            <SquadPitch
+              starters={xiPlayers}
+              formation={primaryWeek.formation}
+              captainWeeksByPlayer={captainWeeksByPlayer}
+              viceWeeksByPlayer={viceWeeksByPlayer}
+              enrichmentByPlayer={pitchEnrichment}
+            />
           </div>
 
           <BenchStrip bench={benchPlayers} benchOrder={primaryWeek.bench_order} />

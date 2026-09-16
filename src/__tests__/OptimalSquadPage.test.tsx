@@ -212,4 +212,43 @@ describe('OptimalSquadPage', () => {
     await waitFor(() => expect(screen.getAllByText('FWD1').length).toBeGreaterThan(0));
     expect(screen.getByText(/Starting XI/)).toBeInTheDocument();
   });
+
+  it('shows abbreviated club names and multi-week C/V badge numbers on the pitch', async () => {
+    mockedOptimizerApi.getOptimizerEarliestMatchweek.mockResolvedValue(5);
+    // 2-week request: FWD1 captains week 1, MID1 captains week 2 -- and
+    // FWD1 is vice in week 2, so FWD1 should show "C1 V2".
+    mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
+      buildResult({
+        from_matchweek: 5,
+        to_matchweek: 6,
+        weeks: [5, 6],
+        weekly_plan: [
+          {
+            matchweek: 5, formation: '3-4-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'],
+            xi_xpts: 58.0, captain: 'FWD1', vice_captain: 'FWD2', captain_extra_ev: 8.0,
+            bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.4,
+          },
+          {
+            matchweek: 6, formation: '3-4-3', xi: ['GK1', 'CB1', 'CB2', 'CB3', 'MID1', 'MID2', 'MID3', 'MID4', 'FWD1', 'FWD2', 'FWD3'],
+            xi_xpts: 55.0, captain: 'MID1', vice_captain: 'FWD1', captain_extra_ev: 7.0,
+            bench_order: ['CheapDef', 'BenchMid', 'BenchFwd'], auto_sub_ev: 0.3,
+          },
+        ],
+      })
+    );
+    mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
+
+    render(<OptimalSquadPage />);
+    await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
+
+    await waitFor(() => expect(screen.getAllByText('CB1').length).toBeGreaterThan(0));
+    // CB1/CB2/CB3 are all on 'Arsenal' in buildResult -- abbreviated to ARS.
+    expect(screen.getAllByText('ARS').length).toBeGreaterThan(0);
+    // FWD1: captain in week 1 (ordinal 1), vice in week 2 (ordinal 2) -> "C1 V2".
+    expect(screen.getByText('C1 V2')).toBeInTheDocument();
+    // MID1: captain in week 2 only -> "C2".
+    expect(screen.getByText('C2')).toBeInTheDocument();
+  });
 });
