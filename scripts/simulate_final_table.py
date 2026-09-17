@@ -23,6 +23,7 @@
 import os
 import sys
 import argparse
+from datetime import datetime, timezone
 import json
 import numpy as np
 from supabase import create_client
@@ -136,6 +137,16 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
         ranking = np.lexsort((-final_gf[s], -final_gd[s], -final_points[s]))
         positions[s, ranking] = np.arange(1, n_teams + 1)
 
+    # Confirmed as a real bug: simulated_at was never included in the row
+    # payload, relying on the column's own `default now()` -- which only
+    # populates on a genuine INSERT. Once a row already exists (every run
+    # after the first), the upsert's "on conflict do update" only touches
+    # columns present in the payload, so simulated_at was silently left
+    # at its original value forever, even though every other column
+    # (projected_position_mean etc) really was updating each run. Set it
+    # explicitly here so it's always part of the update.
+    simulated_at = datetime.now(timezone.utc).isoformat()
+
     results = []
     for tid, idx in team_index.items():
         pos_counts = np.bincount(positions[:, idx], minlength=n_teams + 1)[1:]
@@ -152,6 +163,7 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
                 "current_played": int(current_played[idx]),
                 "position_distribution": pos_dist,
                 "n_simulations": N_SIMS,
+                "simulated_at": simulated_at,
             }
         )
     return results

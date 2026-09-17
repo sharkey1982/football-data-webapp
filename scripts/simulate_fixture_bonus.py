@@ -69,6 +69,7 @@
 import os
 import sys
 import argparse
+from datetime import datetime, timezone
 import numpy as np
 from supabase import create_client
 
@@ -185,15 +186,29 @@ def main():
         ]
 
         bonus_by_player = simulate_fixture(rng, players)
+        # Same two bugs found and fixed in simulate_final_table.py, same
+        # day: simulated_at was never in the payload (relies on the
+        # column's own `default now()`, which only fires on a genuine
+        # INSERT -- an upsert's "on conflict do update" only touches
+        # columns actually present, so re-running this after the first
+        # time would silently leave simulated_at at its original value
+        # forever, even though expected_bonus_points really was
+        # updating), and the upsert's response was never checked, so a
+        # failed write would have looked identical to a successful one.
+        simulated_at = datetime.now(timezone.utc).isoformat()
         rows = [
-            {"fixture_id": fixture_id, "fpl_player_id": pid, "expected_bonus_points": round(bonus, 6)}
+            {"fixture_id": fixture_id, "fpl_player_id": pid, "expected_bonus_points": round(bonus, 6), "simulated_at": simulated_at}
             for pid, bonus in bonus_by_player.items()
         ]
         if rows:
-            supabase.table("fpl_fixture_bonus_montecarlo_v1").upsert(rows, on_conflict="fixture_id,fpl_player_id").execute()
+            result = supabase.table("fpl_fixture_bonus_montecarlo_v1").upsert(rows, on_conflict="fixture_id,fpl_player_id").execute()
+            written = len(result.data) if result.data else 0
+            if written != len(rows):
+                raise RuntimeError(f"Fixture {fixture_id}: upsert returned {written} rows but {len(rows)} were sent -- write did not fully succeed")
             total_rows_written += len(rows)
 
     print(f"Wrote {total_rows_written} rows across {len(fixture_ids)} fixtures.")
+    print(f"::notice::Wrote {total_rows_written} rows across {len(fixture_ids)} fixtures.")
 
 
 if __name__ == "__main__":
