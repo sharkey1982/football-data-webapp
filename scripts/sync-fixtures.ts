@@ -1,11 +1,16 @@
 // ============================================================================
 // scripts/sync-fixtures.ts
 //
-// Daily sync of upcoming fixtures for every division we track, from
-// football-data.co.uk's combined all-leagues fixtures.csv (distinct from
-// the season-by-season results CSVs import-daily.ts uses -- this one
-// carries every division's scheduled matches in one file, keyed by a
-// "Div" column, with no scores since these are unplayed).
+// EC (National League) fixture sync, from football-data.co.uk's combined
+// all-leagues fixtures.csv (distinct from the season-by-season results
+// CSVs import-daily.ts uses -- this one carries every division's
+// scheduled matches in one file, keyed by a "Div" column, with no scores
+// since these are unplayed). Was originally built to cover all five
+// English divisions; narrowed to EC alone after discovering
+// refresh_fixture_feeds() (Supabase pg_cron) already keeps E0-E3 and the
+// Europeans current from a different source -- this script's real value
+// is specifically inserting fixtures that don't exist yet, which that
+// job structurally can't do (it only ever updates existing rows).
 //
 // Two jobs in one pass:
 //   1. Fill in fixtures that don't exist yet (this is how EC ended up with
@@ -14,7 +19,9 @@
 //   2. Detect a genuine kickoff_date/kickoff_time change on a fixture that
 //      DOES already exist -- a postponement or reschedule -- and log it to
 //      fixture_changes, which the frontend surfaces as a notification
-//      (requested directly: EPL schedule changes affect Fantasy).
+//      (requested directly: EPL schedule changes affect Fantasy -- EC
+//      itself doesn't feed FPL, but the same script handles both jobs for
+//      whichever division it's pointed at).
 //
 // Matching an incoming row to an existing fixture is deliberately NOT by
 // the table's own unique constraint (league_id, season_id, kickoff_date,
@@ -39,7 +46,16 @@ import type { Database } from '../src/types/database';
 const FIXTURES_CSV_URL = 'https://www.football-data.co.uk/fixtures.csv';
 const SOURCE_NAME = 'football-data.co.uk';
 const SEASON_LABEL = process.env.SYNC_SEASON_LABEL ?? '2627';
-const TRACKED_DIVISIONS = ['E0', 'E1', 'E2', 'E3', 'EC'];
+// Scoped to EC specifically -- E0/E1/E2/E3 and the European competitions
+// are already kept current by the existing Supabase-native
+// refresh_fixture_feeds() (fixturedownload.com, daily at 04:15 UTC), and
+// LC/FAC by ingest-cup-data (footballwebpages.co.uk). EC is the one gap
+// neither of those closes: refresh_fixture_feeds() only ever UPDATES
+// fixtures that already exist, and neither source's competition list
+// includes the National League at all -- this is specifically the
+// insert-new-rows capability EC needed, not a second updater for
+// divisions that already have one.
+const TRACKED_DIVISIONS = ['EC'];
 
 const STARTED_AT = new Date().toISOString();
 

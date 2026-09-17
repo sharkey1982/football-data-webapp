@@ -44,16 +44,22 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Sync-fixtures step deliberately not scheduled here: its first live
-      # run failed with no diagnosable cause (nothing reached
-      # fixture_refresh_runs, so it crashed before its own error handling
-      # could log anything), and it substantially duplicates an existing,
-      # already-working Supabase-native job (public.refresh_fixture_feeds(),
-      # on pg_cron, daily at 04:15 UTC) that this codebase's own scripts
-      # and workflows were unaware of. Left out of the schedule pending a
-      # decision on reconciling the two rather than running a known-broken,
-      # likely-redundant step daily. scripts/sync-fixtures.ts itself is
-      # left in the repo for now.
+      # Root cause of the earlier silent crash found and fixed: fixtures.slug
+      # is NOT NULL with no default and no trigger, so any insert of a
+      # genuinely new fixture (which is this script's whole purpose) threw
+      # a constraint violation. Fixed at the table level with a trigger
+      # (auto-generates the slug on insert, so every insert path benefits,
+      # not just this one) and verified directly -- re-tested live via the
+      # same mechanism that surfaced the original bug. Scoped to EC only
+      # now (see the script's own header): refresh_fixture_feeds() already
+      # keeps E0-E3 and the Europeans current, this fills the one gap it
+      # structurally can't (inserting fixtures that don't exist yet).
+      - name: Sync EC fixtures (insert new ones; refresh_fixture_feeds covers updates elsewhere)
+        if: always()
+        run: npm run sync:fixtures
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       # Steps 2-3: refit every competition and estimate its promoted AND
       # relegated teams from the adjacent divisions, via one generic loop

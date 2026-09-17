@@ -1,0 +1,84 @@
+name: FPL Projections Pipeline
+
+# Scheduled twice daily (07:00 and 19:00 UTC -- after daily-import's 06:00
+# run and hindsight-optimal's 06:45 have both had time to complete, then
+# again roughly 12h later to catch injury news/team-news updates through
+# the day) plus manual dispatch for an on-demand re-run or a specific
+# matchweek range.
+#
+# Replaces the previously-separate, always-manual Refresh FPL Projections /
+# Simulate Fixture Bonus / Simulate Final Table workflows' SCHEDULING --
+# those three scripts are unchanged and still exist standalone for a
+# targeted one-off run, but routine operation now happens here.
+#
+# Runs the two-pass order confirmed directly from
+# refresh_fpl_projection_fixture_v6's own source: it falls back to an
+# older, less accurate closed-form bonus estimate when
+# fpl_fixture_bonus_montecarlo_v1 has nothing for a fixture yet, so
+# refreshing once, simulating bonus from THAT pass's goals/assists, then
+# refreshing again is what actually produces the more accurate number --
+# not just a safety measure against ordering errors.
+on:
+  schedule:
+    - cron: '0 7,19 * * *'
+  workflow_dispatch:
+    inputs:
+      from_matchweek:
+        description: 'First matchweek (leave blank to auto-detect the next gameweek)'
+        required: false
+        type: string
+      to_matchweek:
+        description: 'Last matchweek (leave blank to auto-detect a 3-gameweek window)'
+        required: false
+        type: string
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+
+      # Manual dispatch can pin an exact range; the scheduled run (and a
+      # manual dispatch left blank) auto-detects the next 3 gameweeks.
+      - name: Determine matchweek range
+        id: range
+        run: |
+          if [ -n "${{ inputs.from_matchweek }}" ] && [ -n "${{ inputs.to_matchweek }}" ]; then
+            echo "from_matchweek=${{ inputs.from_matchweek }}" >> "$GITHUB_OUTPUT"
+            echo "to_matchweek=${{ inputs.to_matchweek }}" >> "$GITHUB_OUTPUT"
+            echo "Using manually specified range: ${{ inputs.from_matchweek }}-${{ inputs.to_matchweek }}"
+          else
+            python scripts/get_next_matchweek_range.py --weeks 3
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Refresh FPL projections (pass 1 -- fallback bonus estimate)
+        run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Simulate fixture bonus
+        run: python scripts/simulate_fixture_bonus.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Refresh FPL projections (pass 2 -- picks up real Monte Carlo bonus)
+        run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Simulate final table
+        run: python scripts/simulate_final_table.py --season-id "13"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
