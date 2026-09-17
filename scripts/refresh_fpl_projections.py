@@ -69,4 +69,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback
+        tb = traceback.format_exc()
+        # GitHub Actions error annotation -- surfaces via the check-run
+        # annotations API even when the raw log blob storage isn't
+        # reachable (confirmed directly needing this: the first live run
+        # of this new script failed with only a generic "exit code 1" in
+        # the annotations, no way to see why without this).
+        for line in tb.splitlines():
+            print(f"::error::{line}")
+        raise
