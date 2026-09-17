@@ -80,6 +80,15 @@
     color: var(--color-amber-400);
     border-radius: 0.25rem;
   }
+
+  /* Phosphor-glow treatment for amber text on a dark panel -- the landing
+     page and the two theme hub pages' "front of house" look, distinct
+     from the lighter, functional pages behind them. Ties back to the
+     app's own teleprinter/scoreboard identity rather than introducing an
+     unrelated aesthetic. */
+  .glow-amber {
+    text-shadow: 0 0 24px rgba(227, 180, 85, 0.5), 0 0 6px rgba(227, 180, 85, 0.4);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

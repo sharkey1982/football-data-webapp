@@ -14,52 +14,73 @@ const facts = [
 // passing test body -- a failed assertion mid-test would otherwise skip
 // a trailing vi.useRealTimers() call and leave fake timers active for
 // the next test, hanging anything (like userEvent) that relies on real
-// timers internally. Confirmed directly: this is exactly what happened
-// on the first pass at this file.
+// timers internally.
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe('TriviaCarousel', () => {
-  it('shows the first fact initially, and auto-rotates to the next one after the interval', () => {
-    vi.useFakeTimers();
+  it('shows only the question at first, with the answer hidden behind a reveal prompt', () => {
     render(<TriviaCarousel facts={facts} />);
-
     expect(screen.getByText('Q1?')).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(7000);
-    });
-    expect(screen.getByText('Q2?')).toBeInTheDocument();
-    expect(screen.queryByText('Q1?')).not.toBeInTheDocument();
+    expect(screen.queryByText('A1.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Tap to reveal/ })).toBeInTheDocument();
   });
 
-  it('pauses auto-rotation while hovered, and resumes once the pointer leaves', () => {
+  it('reveals the answer once tapped, and never advances on its own before that happens', () => {
     vi.useFakeTimers();
     render(<TriviaCarousel facts={facts} />);
 
-    // The outer bordered wrapper itself carries the hover handlers --
-    // one level up from the question <p>, not two.
+    act(() => {
+      vi.advanceTimersByTime(30000); // well past any reasonable auto-advance window
+    });
+    expect(screen.getByText('Q1?')).toBeInTheDocument();
+    expect(screen.queryByText('A1.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Tap to reveal/ }));
+    expect(screen.getByText('A1.')).toBeInTheDocument();
+  });
+
+  it('auto-advances to the next question a few seconds after a reveal, resetting to hidden again', () => {
+    vi.useFakeTimers();
+    render(<TriviaCarousel facts={facts} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Tap to reveal/ }));
+    expect(screen.getByText('A1.')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(screen.getByText('Q2?')).toBeInTheDocument();
+    expect(screen.queryByText('A2.')).not.toBeInTheDocument(); // hidden again on the new question
+  });
+
+  it('pauses the post-reveal auto-advance while hovered', () => {
+    vi.useFakeTimers();
+    render(<TriviaCarousel facts={facts} />);
+
     const container = screen.getByText('Q1?').closest('div')!;
     fireEvent.mouseEnter(container);
+    fireEvent.click(screen.getByRole('button', { name: /Tap to reveal/ }));
     act(() => {
-      vi.advanceTimersByTime(15000); // well past two rotation intervals
+      vi.advanceTimersByTime(15000);
     });
-    expect(screen.getByText('Q1?')).toBeInTheDocument(); // never advanced while hovered
+    expect(screen.getByText('A1.')).toBeInTheDocument(); // never advanced while hovered
 
     fireEvent.mouseLeave(container);
     act(() => {
-      vi.advanceTimersByTime(7000);
+      vi.advanceTimersByTime(6000);
     });
     expect(screen.getByText('Q2?')).toBeInTheDocument();
   });
 
-  it('lets a person manually step forward and back, and jump directly via the dots', async () => {
+  it('lets a person manually step forward, back, and jump via the dots -- each resetting to a hidden answer', async () => {
     render(<TriviaCarousel facts={facts} />);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Next fact' }));
     expect(screen.getByText('Q2?')).toBeInTheDocument();
+    expect(screen.queryByText('A2.')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Previous fact' }));
     expect(screen.getByText('Q1?')).toBeInTheDocument();

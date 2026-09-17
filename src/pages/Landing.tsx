@@ -2,15 +2,14 @@
 // src/pages/Landing.tsx
 //
 // New homepage (replaces the old default of going straight into the
-// Fixtures table, which is still at /fixtures unchanged) -- requested
-// directly, second design pass. The site's actual shape: two parallel
-// themes (Football, Fantasy Premier League), each following the same
-// four-stage journey (Browse -> Predict -> Validate -> Configure), with
-// Football's Predict output seeding Fantasy's. This page's job is just to
-// name that shape and hand the visitor to whichever theme they're after --
-// not to walk them through all four stages itself (that's each theme's
-// own hub page, tracked as separate follow-up work once the Validate/
-// Configure page mapping for Football specifically is confirmed).
+// Fixtures table, which is still at /fixtures unchanged). Third design
+// pass, after direct feedback that the second pass read as too flat/
+// static for a first impression. Leans harder into the app's own
+// teleprinter/scoreboard identity rather than introducing a new one: a
+// dark, glowing "terminal screen" panel -- amber-on-black, phosphor glow,
+// bigger and bolder than anything in the lighter, functional pages
+// behind it. That contrast is deliberate: dramatic front door, calm
+// utility rooms once you're through it.
 // ============================================================================
 
 import { Link } from 'react-router-dom';
@@ -23,12 +22,12 @@ function ThemeButton({ to, title, description }: { to: string; title: string; de
   return (
     <Link
       to={to}
-      className="group block border-2 border-pitch-800 rounded-lg bg-white hover:bg-pitch-800 p-6 sm:p-8 transition-colors flex-1"
+      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-6 sm:p-8 transition-all flex-1 hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
     >
-      <h2 className="font-display uppercase tracking-wide text-2xl sm:text-3xl text-pitch-800 group-hover:text-chalk-100 transition-colors">
+      <h2 className="font-display uppercase tracking-wide text-2xl sm:text-3xl text-chalk-100 group-hover:text-amber-400 transition-colors">
         {title}
       </h2>
-      <p className="text-ink-700 group-hover:text-chalk-200 mt-2 transition-colors">{description}</p>
+      <p className="text-chalk-300 mt-2 transition-colors">{description}</p>
     </Link>
   );
 }
@@ -51,11 +50,13 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="space-y-10">
+    <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-6 sm:p-10 space-y-8">
       <div>
-        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Full-Time &middot; Results Archive</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl sm:text-4xl text-ink-900 mt-1">What are you here to do?</h1>
-        <p className="text-ink-700 mt-2 max-w-prose">
+        <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Full-Time &middot; Results Archive</p>
+        <h1 className="font-display uppercase tracking-wide text-4xl sm:text-6xl text-amber-400 mt-2 glow-amber leading-tight">
+          What are you here to do?
+        </h1>
+        <p className="text-chalk-300 mt-4 max-w-prose text-base sm:text-lg">
           Everything here follows the same shape: start by browsing what's real, see what's predicted to happen next, check how those predictions held
           up, then fine-tune the model behind them yourself. Football's predictions are also what feed Fantasy's.
         </p>
