@@ -365,3 +365,109 @@ export async function getProjectedMinutes(matchweek: number): Promise<Map<number
   for (const row of (data ?? []) as any[]) out.set(row.fpl_player_id, Number(row.expected_minutes));
   return out;
 }
+
+export type SetPieceHierarchyType = 'penalty' | 'direct_free_kick' | 'indirect_free_kick' | 'corner_left' | 'corner_right';
+
+export interface SetPieceHierarchyRow {
+  set_piece_hierarchy_id: number;
+  fpl_player_id: number;
+  web_name: string;
+  rank: number;
+}
+
+export const SET_PIECE_HIERARCHY_TYPES: { type: SetPieceHierarchyType; label: string }[] = [
+  { type: 'penalty', label: 'Penalties' },
+  { type: 'direct_free_kick', label: 'Direct free-kicks' },
+  { type: 'indirect_free_kick', label: 'Indirect free-kicks' },
+  { type: 'corner_left', label: 'Corners (left)' },
+  { type: 'corner_right', label: 'Corners (right)' },
+];
+
+/** A team's full set-piece taking order, one ranked list per type --
+ * requested directly, so a taker change (injury, transfer) can be made
+ * by Chris himself rather than requiring a manual SQL update each time.
+ * Reading this table directly (not via a computed exposure view) since
+ * the edit UI needs the raw ranks, not the derived per-fixture exposure
+ * numbers those views compute from it. */
+export async function getSetPieceHierarchyForTeam(teamId: number): Promise<Map<SetPieceHierarchyType, SetPieceHierarchyRow[]>> {
+  const { data, error } = await (supabase as any)
+    .from('set_piece_hierarchies')
+    .select('set_piece_hierarchy_id, set_piece_type, source_player_id, player_name, rank')
+    .eq('season_id', 13)
+    .eq('team_id', teamId)
+    .order('rank', { ascending: true });
+  if (error) throw error;
+  const out = new Map<SetPieceHierarchyType, SetPieceHierarchyRow[]>();
+  for (const row of (data ?? []) as any[]) {
+    const type = row.set_piece_type as SetPieceHierarchyType;
+    const list = out.get(type) ?? [];
+    list.push({ set_piece_hierarchy_id: row.set_piece_hierarchy_id, fpl_player_id: Number(row.source_player_id), web_name: row.player_name, rank: row.rank });
+    out.set(type, list);
+  }
+  return out;
+}
+
+/** Swaps rank with the adjacent entry (up = swap with the one ranked
+ * above, i.e. numerically lower) -- an atomic pair of updates so ranks
+ * never collide mid-edit, rather than free-text rank entry that could
+ * produce two players sharing a rank. */
+export async function reorderSetPieceTaker(hierarchyId: number, teamId: number, setPieceType: SetPieceHierarchyType, direction: 'up' | 'down'): Promise<void> {
+  const { data: rows, error: readErr } = await (supabase as any)
+    .from('set_piece_hierarchies')
+    .select('set_piece_hierarchy_id, rank')
+    .eq('season_id', 13)
+    .eq('team_id', teamId)
+    .eq('set_piece_type', setPieceType)
+    .order('rank', { ascending: true });
+  if (readErr) throw readErr;
+  const list = (rows ?? []) as { set_piece_hierarchy_id: number; rank: number }[];
+  const idx = list.findIndex((r) => r.set_piece_hierarchy_id === hierarchyId);
+  if (idx === -1) return;
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= list.length) return; // already at the top/bottom
+
+  const a = list[idx];
+  const b = list[swapIdx];
+  // Direct two-step swap -- confirmed directly there's no unique
+  // constraint on rank itself (only a CHECK that it's > 0, which a
+  // negative temporary value would have violated), so no transient-
+  // duplicate collision risk to guard against here.
+  const { error: e1 } = await (supabase as any).from('set_piece_hierarchies').update({ rank: b.rank }).eq('set_piece_hierarchy_id', a.set_piece_hierarchy_id);
+  if (e1) throw e1;
+  const { error: e2 } = await (supabase as any).from('set_piece_hierarchies').update({ rank: a.rank }).eq('set_piece_hierarchy_id', b.set_piece_hierarchy_id);
+  if (e2) throw e2;
+}
+
+/** Adds a player to the bottom of a set-piece list (rank = current max + 1). */
+export async function addSetPieceTaker(teamId: number, setPieceType: SetPieceHierarchyType, fplPlayerId: number, webName: string): Promise<void> {
+  const { data: rows, error: readErr } = await (supabase as any)
+    .from('set_piece_hierarchies')
+    .select('rank')
+    .eq('season_id', 13)
+    .eq('team_id', teamId)
+    .eq('set_piece_type', setPieceType)
+    .order('rank', { ascending: false })
+    .limit(1);
+  if (readErr) throw readErr;
+  const nextRank = ((rows ?? [])[0]?.rank ?? 0) + 1;
+  const { error: insertErr } = await (supabase as any).from('set_piece_hierarchies').insert({
+    season_id: 13,
+    team_id: teamId,
+    set_piece_type: setPieceType,
+    source_name: 'manual',
+    source_player_id: String(fplPlayerId),
+    player_name: webName,
+    rank: nextRank,
+    confidence: 1,
+  });
+  if (insertErr) throw insertErr;
+}
+
+/** Removes a player from a set-piece list entirely (e.g. sold, retired
+ * from set-piece duty) -- does not renumber the remaining ranks, since
+ * gaps are harmless (only relative order matters to 1/rank weighting
+ * downstream). */
+export async function removeSetPieceTaker(hierarchyId: number): Promise<void> {
+  const { error } = await (supabase as any).from('set_piece_hierarchies').delete().eq('set_piece_hierarchy_id', hierarchyId);
+  if (error) throw error;
+}

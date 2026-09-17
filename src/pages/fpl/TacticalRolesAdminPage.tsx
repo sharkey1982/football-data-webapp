@@ -28,11 +28,18 @@ import {
   getTeamReviewDates,
   markTeamReviewed,
   getProjectedMinutes,
+  getSetPieceHierarchyForTeam,
+  reorderSetPieceTaker,
+  addSetPieceTaker,
+  removeSetPieceTaker,
+  SET_PIECE_HIERARCHY_TYPES,
   TACTICAL_ROLE_OPTIONS,
   DEPTH_RANK_OPTIONS,
   MANUAL_STATUS_OPTIONS,
   type TacticalRoleRow,
   type TeamOption,
+  type SetPieceHierarchyType,
+  type SetPieceHierarchyRow,
 } from '../../lib/tacticalRoleAdminApi';
 import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tacticalRoleFormationHelper';
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
@@ -63,6 +70,11 @@ export default function TacticalRolesAdminPage() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
   const [pitchDepth, setPitchDepth] = useState(1);
+  const [setPieceHierarchy, setSetPieceHierarchy] = useState<Map<SetPieceHierarchyType, SetPieceHierarchyRow[]>>(new Map());
+  const [setPieceLoading, setSetPieceLoading] = useState(false);
+  const [setPieceError, setSetPieceError] = useState<string | null>(null);
+  const [addingToType, setAddingToType] = useState<SetPieceHierarchyType | null>(null);
+  const [addPlayerId, setAddPlayerId] = useState<string>('');
   const [projectedMinutesGw, setProjectedMinutesGw] = useState<number | null>(null);
   const [projectedMinutes, setProjectedMinutes] = useState<Map<number, number>>(new Map());
   const [reviewDates, setReviewDates] = useState<Map<number, string>>(new Map());
@@ -125,6 +137,60 @@ export default function TacticalRolesAdminPage() {
       cancelled = true;
     };
   }, [selectedTeamId, displayMode]);
+
+  function reloadSetPieceHierarchy(teamId: number) {
+    setSetPieceLoading(true);
+    setSetPieceError(null);
+    getSetPieceHierarchyForTeam(teamId)
+      .then((m) => setSetPieceHierarchy(m))
+      .catch((e) => setSetPieceError(getErrorMessage(e, 'Failed to load set-piece takers')))
+      .finally(() => setSetPieceLoading(false));
+  }
+
+  useEffect(() => {
+    if (selectedTeamId === null || displayMode !== 'pitch') {
+      return;
+    }
+    reloadSetPieceHierarchy(selectedTeamId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeamId, displayMode]);
+
+  async function handleReorderSetPiece(row: SetPieceHierarchyRow, type: SetPieceHierarchyType, direction: 'up' | 'down') {
+    if (selectedTeamId === null) return;
+    setSetPieceError(null);
+    try {
+      await reorderSetPieceTaker(row.set_piece_hierarchy_id, selectedTeamId, type, direction);
+      reloadSetPieceHierarchy(selectedTeamId);
+    } catch (e) {
+      setSetPieceError(getErrorMessage(e, 'Failed to reorder'));
+    }
+  }
+
+  async function handleRemoveSetPiece(row: SetPieceHierarchyRow) {
+    if (selectedTeamId === null) return;
+    setSetPieceError(null);
+    try {
+      await removeSetPieceTaker(row.set_piece_hierarchy_id);
+      reloadSetPieceHierarchy(selectedTeamId);
+    } catch (e) {
+      setSetPieceError(getErrorMessage(e, 'Failed to remove'));
+    }
+  }
+
+  async function handleAddSetPiece(type: SetPieceHierarchyType) {
+    if (selectedTeamId === null || !addPlayerId) return;
+    const player = rows.find((r) => r.fpl_player_id === Number(addPlayerId));
+    if (!player) return;
+    setSetPieceError(null);
+    try {
+      await addSetPieceTaker(selectedTeamId, type, player.fpl_player_id, player.web_name);
+      setAddingToType(null);
+      setAddPlayerId('');
+      reloadSetPieceHierarchy(selectedTeamId);
+    } catch (e) {
+      setSetPieceError(getErrorMessage(e, 'Failed to add player'));
+    }
+  }
 
   async function handleRoleChange(row: TacticalRoleRow, newRole: string) {
     setSavingId(row.fpl_player_id);
@@ -567,6 +633,75 @@ export default function TacticalRolesAdminPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              <div className="w-full border border-chalk-300 rounded-lg bg-white p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-ink-500 uppercase tracking-wide">Set piece takers</span>
+                  {setPieceLoading && <span className="text-xs text-ink-500 font-mono">{'Loading\u2026'}</span>}
+                </div>
+                {setPieceError && <p className="text-xs text-loss-700 mb-2">{setPieceError}</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {SET_PIECE_HIERARCHY_TYPES.map(({ type, label }) => {
+                    const list = setPieceHierarchy.get(type) ?? [];
+                    const squadOptions = rows.filter((r) => r.team_id === selectedTeamId && !list.some((l) => l.fpl_player_id === r.fpl_player_id));
+                    return (
+                      <div key={type} className="border border-chalk-200 rounded p-2">
+                        <p className="text-xs font-medium text-ink-700 mb-1">{label}</p>
+                        {list.length === 0 && <p className="text-xs text-ink-500 italic">No takers set</p>}
+                        <ul className="space-y-0.5">
+                          {list.map((r, i) => (
+                            <li key={r.set_piece_hierarchy_id} className="flex items-center gap-1 text-xs">
+                              <span className="w-4 text-ink-500 font-mono">{r.rank}</span>
+                              <span className="flex-1 truncate text-ink-900">{r.web_name}</span>
+                              <button type="button" disabled={i === 0} onClick={() => handleReorderSetPiece(r, type, 'up')} title="Move up" className="px-1 text-ink-500 hover:text-ink-900 disabled:opacity-20">
+                                &uarr;
+                              </button>
+                              <button type="button" disabled={i === list.length - 1} onClick={() => handleReorderSetPiece(r, type, 'down')} title="Move down" className="px-1 text-ink-500 hover:text-ink-900 disabled:opacity-20">
+                                &darr;
+                              </button>
+                              <button type="button" onClick={() => handleRemoveSetPiece(r)} title="Remove" className="px-1 text-loss-700 hover:text-loss-900">
+                                &times;
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        {addingToType === type ? (
+                          <div className="flex items-center gap-1 mt-1.5">
+                            <select value={addPlayerId} onChange={(e) => setAddPlayerId(e.target.value)} className="flex-1 text-xs border border-chalk-300 rounded px-1 py-0.5">
+                              <option value="">Select player&hellip;</option>
+                              {squadOptions.map((p) => (
+                                <option key={p.fpl_player_id} value={p.fpl_player_id}>
+                                  {p.web_name}
+                                </option>
+                              ))}
+                            </select>
+                            <button type="button" onClick={() => handleAddSetPiece(type)} disabled={!addPlayerId} className="text-xs px-1.5 py-0.5 rounded bg-pitch-800 text-white disabled:opacity-50">
+                              Add
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingToType(null);
+                                setAddPlayerId('');
+                              }}
+                              className="text-xs px-1.5 py-0.5 rounded border border-chalk-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setAddingToType(type)} className="text-xs text-pitch-800 hover:underline mt-1.5">
+                            + Add taker
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-ink-500 mt-2">
+                  Feeds the penalty/direct free-kick goal-share allocation directly. Changes need &ldquo;Refresh FPL projections&rdquo; (Team Strength page) run afterward to show up in points.
+                </p>
               </div>
             </div>
           )}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TacticalRolesAdminPage from '../pages/fpl/TacticalRolesAdminPage';
 import * as adminApi from '../lib/tacticalRoleAdminApi';
@@ -25,6 +25,10 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveDepthRankCorrection: vi.fn(),
     saveManualStatus: vi.fn(),
     getProjectedMinutes: vi.fn(),
+    getSetPieceHierarchyForTeam: vi.fn(),
+    reorderSetPieceTaker: vi.fn(),
+    addSetPieceTaker: vi.fn(),
+    removeSetPieceTaker: vi.fn(),
   };
 });
 
@@ -61,6 +65,7 @@ describe('TacticalRolesAdminPage', () => {
     // still override these with a more specific mock where relevant.
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+    mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
   });
 
   it('defaults to Needs Review, showing only generic-role players, and lets a role be corrected', async () => {
@@ -250,5 +255,59 @@ describe('TacticalRolesAdminPage', () => {
     await user.selectOptions(depthFilterSelect, '3rd');
     await waitFor(() => expect(screen.queryByText('Gabriel')).not.toBeInTheDocument());
     expect(screen.getByText('Kiwior')).toBeInTheDocument();
+  });
+
+  it('shows the set-piece taking order for the selected team, and lets a taker be reordered, added, and removed', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Saka', element_type: 3, tactical_role: 'RW', source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 2, web_name: 'Gyokeres', element_type: 4, tactical_role: 'CF', source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 3, web_name: 'Odegaard', element_type: 3, tactical_role: 'AM', source_name: 'manual', confidence: 1 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+    mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(
+      new Map([
+        [
+          'penalty',
+          [
+            { set_piece_hierarchy_id: 10, fpl_player_id: 1, web_name: 'Saka', rank: 1 },
+            { set_piece_hierarchy_id: 11, fpl_player_id: 2, web_name: 'Gyokeres', rank: 2 },
+          ],
+        ],
+      ]),
+    );
+    mockedApi.reorderSetPieceTaker.mockResolvedValue(undefined);
+    mockedApi.addSetPieceTaker.mockResolvedValue(undefined);
+    mockedApi.removeSetPieceTaker.mockResolvedValue(undefined);
+
+    render(<TacticalRolesAdminPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Everyone' }));
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+
+    await waitFor(() => expect(screen.getByText('Set piece takers')).toBeInTheDocument());
+    const setPiecePanel = screen.getByText('Set piece takers').closest('div')!.parentElement!;
+    expect(within(setPiecePanel).getByText('Penalties')).toBeInTheDocument();
+    // Gyokeres (rank 2) moving up swaps him with Saka (rank 1).
+    const gyokeresRow = within(setPiecePanel).getByText('Gyokeres').closest('li')!;
+    await user.click(within(gyokeresRow).getByTitle('Move up'));
+    await waitFor(() => expect(mockedApi.reorderSetPieceTaker).toHaveBeenCalledWith(11, 1, 'penalty', 'up'));
+
+    // Adding a taker: dropdown only offers squad players not already listed.
+    const penaltyPanel = within(setPiecePanel).getByText('Penalties').closest('div')!;
+    await user.click(within(penaltyPanel).getByText('+ Add taker'));
+    const addSelect = within(penaltyPanel).getByRole('combobox');
+    expect(within(addSelect).queryByText('Saka')).not.toBeInTheDocument(); // already listed
+    expect(within(addSelect).getByText('Odegaard')).toBeInTheDocument(); // not yet listed
+    await user.selectOptions(addSelect, '3');
+    await user.click(within(penaltyPanel).getByText('Add'));
+    await waitFor(() => expect(mockedApi.addSetPieceTaker).toHaveBeenCalledWith(1, 'penalty', 3, 'Odegaard'));
+
+    // Removing a taker.
+    const sakaRow = within(setPiecePanel).getByText('Saka').closest('li')!;
+    await user.click(within(sakaRow).getByTitle('Remove'));
+    await waitFor(() => expect(mockedApi.removeSetPieceTaker).toHaveBeenCalledWith(10));
   });
 });
