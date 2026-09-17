@@ -22,8 +22,8 @@ const STAGES: HubStage[] = [
     number: '01',
     title: 'Browse',
     description: "Every match, by division or by team, with what's already happened and what's coming up next -- no model involved, just the record.",
-    links: [
-      { label: 'Fixtures & Results', to: '/fixtures' },
+    to: '/fixtures',
+    moreLinks: [
       { label: 'League Table', to: '/table' },
       { label: 'Team Explorer', to: '/teams' },
     ],
@@ -32,23 +32,21 @@ const STAGES: HubStage[] = [
     number: '02',
     title: 'Predict',
     description: "Forecasts produced by a Dixon-Coles model fitted on real results: a predicted scoreline for every upcoming fixture, built from each team's own attack and defence ratings.",
-    links: [
-      { label: 'Match Preview', to: '/preview' },
-      { label: 'Team Strength', to: '/team-strength' },
-    ],
+    to: '/preview',
+    moreLinks: [{ label: 'Team Strength', to: '/team-strength' }],
   },
   {
     number: '03',
     title: 'Validate',
     description: "Comparing those forecasts to what actually happened, to see how reliable the model's been and flag where it's missed.",
     note: "A dedicated page for this is planned. For now, Team Strength's own projected-vs-actual columns are the closest thing.",
-    links: [{ label: 'Team Strength (proj. vs actual)', to: '/team-strength' }],
+    to: '/team-strength',
   },
   {
     number: '04',
     title: 'Configure',
     description: "Amend a team's rating directly when the model doesn't reflect something you know -- an injury, a new signing -- and every future fixture prediction regenerates from it.",
-    links: [{ label: 'Team Strength (adjust ratings)', to: '/team-strength' }],
+    to: '/team-strength',
   },
 ];
 

@@ -13,7 +13,7 @@ vi.mock('../lib/landingApi', async () => {
 const mockedApi = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('FootballHub page', () => {
-  it('shows all four stages, each linking to the right destination page(s)', async () => {
+  it('shows all four stages as clickable boxes, each linking to its primary destination, with any further pages as secondary links', async () => {
     mockedApi.getFootballTrivia.mockResolvedValue([]);
 
     render(
@@ -22,14 +22,17 @@ describe('FootballHub page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: 'Browse' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Predict' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Validate' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Configure' })).toBeInTheDocument();
+    // The stage title itself is the box's own primary link.
+    expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('href', '/fixtures');
+    expect(screen.getByRole('link', { name: 'Predict' })).toHaveAttribute('href', '/preview');
+    expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/team-strength');
+    expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/team-strength');
 
-    expect(screen.getByRole('link', { name: 'Fixtures & Results' })).toHaveAttribute('href', '/fixtures');
+    // Secondary pages a stage also covers are separate, independently
+    // clickable links inside the box.
     expect(screen.getByRole('link', { name: 'League Table' })).toHaveAttribute('href', '/table');
-    expect(screen.getByRole('link', { name: 'Match Preview' })).toHaveAttribute('href', '/preview');
+    expect(screen.getByRole('link', { name: 'Team Explorer' })).toHaveAttribute('href', '/teams');
+    expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
 
     // Validate has no dedicated page yet -- it should say so, not silently
     // point at the interim page as if it were the real thing.

@@ -13,7 +13,7 @@ vi.mock('../lib/landingApi', async () => {
 const mockedApi = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('FplHub page', () => {
-  it('shows all four stages, each linking to the right destination page(s) -- including the two genuine backtest pages under Validate', async () => {
+  it('shows all four stages as clickable boxes, each linking to its primary destination -- including the two genuine backtest pages available under Validate', async () => {
     mockedApi.getFplTrivia.mockResolvedValue([]);
 
     render(
@@ -22,15 +22,14 @@ describe('FplHub page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: 'Browse' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Predict' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Validate' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Configure' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('href', '/fpl');
+    expect(screen.getByRole('link', { name: 'Predict' })).toHaveAttribute('href', '/fpl/optimal-squad');
+    expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/fpl/actual-matches');
+    expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/fpl/tactical-roles');
 
-    expect(screen.getByRole('link', { name: 'Optimal Squad' })).toHaveAttribute('href', '/fpl/optimal-squad');
-    expect(screen.getByRole('link', { name: 'Actual Matches' })).toHaveAttribute('href', '/fpl/actual-matches');
+    expect(screen.getByRole('link', { name: 'Scoring Rules' })).toHaveAttribute('href', '/fpl/scoring-rules');
+    expect(screen.getByRole('link', { name: 'Player Points Table' })).toHaveAttribute('href', '/fpl/player-points');
     expect(screen.getByRole('link', { name: 'Optimal Squad So Far' })).toHaveAttribute('href', '/fpl/optimal-squad-so-far');
-    expect(screen.getByRole('link', { name: 'Tactical Roles' })).toHaveAttribute('href', '/fpl/tactical-roles');
 
     await waitFor(() => expect(mockedApi.getFplTrivia).toHaveBeenCalled());
   });

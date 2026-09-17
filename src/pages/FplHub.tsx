@@ -20,18 +20,16 @@ const STAGES: HubStage[] = [
     number: '01',
     title: 'Browse',
     description: 'Every fixture by gameweek, plus the full Fantasy Premier League scoring rulebook -- no projections yet, just the schedule and the rules.',
-    links: [
-      { label: 'Match List', to: '/fpl' },
-      { label: 'Scoring Rules', to: '/fpl/scoring-rules' },
-    ],
+    to: '/fpl',
+    moreLinks: [{ label: 'Scoring Rules', to: '/fpl/scoring-rules' }],
   },
   {
     number: '02',
     title: 'Predict',
     description: "Forecasts produced from every player's projected points -- factoring in form, fixtures, and set-piece duty -- plus an optimiser that picks the best XV under budget.",
-    links: [
+    to: '/fpl/optimal-squad',
+    moreLinks: [
       { label: 'Player Points Table', to: '/fpl/player-points' },
-      { label: 'Optimal Squad', to: '/fpl/optimal-squad' },
       { label: 'Fixture Heat Map', to: '/fantasy' },
     ],
   },
@@ -39,16 +37,14 @@ const STAGES: HubStage[] = [
     number: '03',
     title: 'Validate',
     description: 'Comparing those forecasts to what players actually scored -- and, in hindsight, what the truly optimal squad would have been -- to see how reliable the projections have been.',
-    links: [
-      { label: 'Actual Matches', to: '/fpl/actual-matches' },
-      { label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far' },
-    ],
+    to: '/fpl/actual-matches',
+    moreLinks: [{ label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far' }],
   },
   {
     number: '04',
     title: 'Configure',
     description: "Amend a team's set-piece takers or a player's role directly when the model doesn't reflect something you know, and every future projection regenerates from it.",
-    links: [{ label: 'Tactical Roles', to: '/fpl/tactical-roles' }],
+    to: '/fpl/tactical-roles',
   },
 ];
 
