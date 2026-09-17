@@ -65,7 +65,15 @@ def main():
     print(f"Refreshing {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}...")
 
     total_rows = 0
-    for fixture_id in fixture_ids:
+    for i, fixture_id in enumerate(fixture_ids):
+        # Diagnostic only (::notice:: is visible via the annotations API
+        # even when raw logs aren't reachable) -- added specifically to
+        # find out whether a failure is a general gateway timeout hit on
+        # nearly every call, or a specific slow fixture (e.g. one still
+        # falling through to the expensive get_fpl_fixture_bonus_v4
+        # branch because it lacks Monte Carlo coverage) pulling the
+        # average up.
+        print(f"::notice::[{i + 1}/{len(fixture_ids)}] Refreshing fixture {fixture_id}...")
         result = supabase.rpc("refresh_fpl_projection_fixture_v6", {"p_fixture_id": fixture_id}).execute()
         rows = result.data
         if not isinstance(rows, int):
