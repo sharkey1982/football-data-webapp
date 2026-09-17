@@ -11,7 +11,7 @@
 // the effect is immediate.
 // ============================================================================
 
-export type TriggerableWorkflow = 'simulate-fixture-bonus' | 'simulate-final-table';
+export type TriggerableWorkflow = 'simulate-fixture-bonus' | 'simulate-final-table' | 'refresh-fpl-projections';
 
 export async function triggerWorkflow(workflow: TriggerableWorkflow, inputs?: Record<string, string>): Promise<void> {
   const resp = await fetch('/.netlify/functions/trigger-workflow', {

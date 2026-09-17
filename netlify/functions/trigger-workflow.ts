@@ -7,13 +7,13 @@
 // function holds it server-side only, read from the GITHUB_ACTIONS_TOKEN
 // environment variable (set in Netlify's dashboard, never committed).
 //
-// Only the three workflows this app actually uses are allowed, hardcoded
-// below -- the request body can select WHICH of these three to run and
+// Only the four workflows this app actually uses are allowed, hardcoded
+// below -- the request body can select WHICH of these four to run and
 // with what inputs, but can't name an arbitrary workflow file. This is a
 // bound on blast radius, not a promise of secrecy: this endpoint has no
 // auth of its own (anything embedded in the frontend bundle is
 // necessarily public, the same as any button on this site), so the real
-// protection is that it can only ever do one of these three specific,
+// protection is that it can only ever do one of these four specific,
 // known-safe things, each of which just re-derives projections from
 // existing data -- not something that can corrupt data or escalate
 // further even if called directly and repeatedly. If tighter access
@@ -24,6 +24,7 @@
 const ALLOWED_WORKFLOWS: Record<string, { file: string; inputKeys: string[] }> = {
   'simulate-fixture-bonus': { file: 'simulate-fixture-bonus.yml', inputKeys: ['from_matchweek', 'to_matchweek'] },
   'simulate-final-table': { file: 'simulate-final-table.yml', inputKeys: ['season_id'] },
+  'refresh-fpl-projections': { file: 'refresh-fpl-projections.yml', inputKeys: ['from_matchweek', 'to_matchweek'] },
 };
 
 const REPO_OWNER = 'sharkey1982';

@@ -10,7 +10,7 @@
 // ============================================================================
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, refreshFplProjectionsRange, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
+import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
 import { triggerWorkflow } from '../lib/workflowTrigger';
 import { getErrorMessage } from '../lib/errorMessage';
@@ -177,10 +177,17 @@ export default function TeamStrengthPage() {
       const defaultGw = await getDefaultMatchweek();
       const from = defaultGw;
       const to = defaultGw + 9;
-      const count = await refreshFplProjectionsRange(from, to);
-      setRefreshResult(`Refreshed ${count} fixtures (GW${from}\u2013${to}). Note: this updates FPL player projections only -- it does not re-run the bonus or finishing-position simulations, or re-solve the optimizer. Those still need their GitHub Actions workflows run separately.`);
+      // Triggers a GitHub Actions workflow rather than calling
+      // refresh_fpl_projections_range() directly -- confirmed directly
+      // this had never actually worked as a direct call: it takes ~85s
+      // for a typical 10-gameweek range, but the anon/authenticated
+      // roles this page connects as have a 3s/8s statement_timeout
+      // respectively, so it was always killed mid-run before ever
+      // reaching the user as anything but a generic failure.
+      await triggerWorkflow('refresh-fpl-projections', { from_matchweek: String(from), to_matchweek: String(to) });
+      setRefreshResult(`Triggered for GW${from}\u2013${to} \u2014 typically takes 1\u20132 minutes. Note: this updates FPL player projections only -- it does not re-run the bonus or finishing-position simulations, or re-solve the optimizer. Those still need their own buttons/workflows run separately.`);
     } catch (e) {
-      setRefreshResult(`Failed: ${getErrorMessage(e, 'Could not refresh FPL projections')}`);
+      setRefreshResult(`Failed: ${getErrorMessage(e, 'Could not trigger the refresh')}`);
     } finally {
       setRefreshing(false);
     }

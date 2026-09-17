@@ -1,0 +1,37 @@
+name: Refresh FPL Projections
+
+# Manual trigger -- runs scripts/refresh_fpl_projections.py for a matchweek
+# range, calling refresh_fpl_projections_range() as service_role instead of
+# through the frontend's direct RPC call. Moved here after confirming
+# directly that the "Refresh FPL projections" button had never actually
+# worked: the call takes ~85 seconds for a typical 10-gameweek range, but
+# the anon/authenticated roles the frontend connects as have a 3s/8s
+# statement_timeout respectively, so it was always killed mid-run.
+on:
+  workflow_dispatch:
+    inputs:
+      from_matchweek:
+        description: 'First matchweek'
+        required: true
+        type: string
+      to_matchweek:
+        description: 'Last matchweek'
+        required: true
+        type: string
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+
+      - name: Refresh FPL projections
+        run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ inputs.from_matchweek }}" --to-matchweek "${{ inputs.to_matchweek }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

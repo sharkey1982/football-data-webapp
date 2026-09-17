@@ -9,7 +9,7 @@ import { triggerWorkflow } from '../lib/workflowTrigger';
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof api>('../lib/api');
-  return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn(), refreshFplProjectionsRange: vi.fn() };
+  return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };
 });
 
 vi.mock('../lib/fplSeasonApi', async () => {
@@ -296,7 +296,7 @@ describe('TeamStrengthPage', () => {
     expect(matches.length).toBeGreaterThan(0);
   });
 
-  it('lets FPL projections be refreshed from the page, using the current default matchweek', async () => {
+  it('lets FPL projections be refreshed from the page, using the current default matchweek -- via a triggered workflow, not a direct RPC call', async () => {
     mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({
       fitRun: null,
@@ -306,7 +306,7 @@ describe('TeamStrengthPage', () => {
       relegatedTeams: [],
     });
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
-    mockedApi.refreshFplProjectionsRange.mockResolvedValue(100);
+    mockedTriggerWorkflow.mockResolvedValue(undefined);
 
     render(<TeamStrengthPage />);
     const user = userEvent.setup();
@@ -314,8 +314,14 @@ describe('TeamStrengthPage', () => {
 
     await user.click(screen.getByRole('button', { name: /Refresh FPL projections/ }));
 
-    await waitFor(() => expect(mockedApi.refreshFplProjectionsRange).toHaveBeenCalledWith(6, 15));
-    expect(await screen.findByText(/Refreshed 100 fixtures \(GW6\u201315\)/)).toBeInTheDocument();
+    // Confirmed directly this button had never actually worked as a
+    // direct RPC call -- the call takes ~85s for a typical range, but
+    // the roles the frontend connects as have a 3-8s statement_timeout,
+    // so it was always killed mid-run. Now triggers a GitHub Actions
+    // workflow (same pattern as the other two buttons on this page)
+    // instead of calling refresh_fpl_projections_range directly.
+    await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('refresh-fpl-projections', { from_matchweek: '6', to_matchweek: '15' }));
+    expect(await screen.findByText(/Triggered for GW6\u201315.*1.2 minutes/)).toBeInTheDocument();
     // Makes clear this doesn't cover everything that might need refreshing.
     expect(screen.getByText(/does not re-run the bonus or finishing-position simulations/)).toBeInTheDocument();
   });
