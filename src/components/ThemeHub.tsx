@@ -87,13 +87,13 @@ export function ThemeHub({
         <p className="text-chalk-300 mt-3 max-w-prose text-base sm:text-lg">{intro}</p>
       </div>
 
+      {trivia.length > 0 && <TriviaCarousel facts={trivia} />}
+
       <div className="grid sm:grid-cols-2 gap-4">
         {stages.map((stage) => (
           <StageBox key={stage.number} stage={stage} />
         ))}
       </div>
-
-      {trivia.length > 0 && <TriviaCarousel facts={trivia} />}
     </div>
   );
 }

@@ -53,7 +53,7 @@ export function TriviaCarousel({ facts }: { facts: TriviaFact[] }) {
       <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Guess it</p>
       <p className="font-display text-xl sm:text-2xl text-chalk-100 mt-2 leading-snug">{current.question}</p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+      <div className="grid grid-cols-2 gap-2 mt-4">
         {current.options.map((option, i) => {
           const isCorrect = i === current.correctIndex;
           const isPicked = i === selected;

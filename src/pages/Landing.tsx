@@ -62,12 +62,12 @@ export default function Landing() {
         </p>
       </div>
 
+      {trivia.length > 0 && <TriviaCarousel facts={trivia} />}
+
       <div className="flex flex-col sm:flex-row gap-4">
         <ThemeButton to="/football" title="Football" description="Results, fixtures, league tables, and Dixon-Coles model predictions." />
         <ThemeButton to="/fpl/start" title="Fantasy Premier League" description="Player projections, an optimal-squad picker, and the tools behind them." />
       </div>
-
-      {trivia.length > 0 && <TriviaCarousel facts={trivia} />}
     </div>
   );
 }
