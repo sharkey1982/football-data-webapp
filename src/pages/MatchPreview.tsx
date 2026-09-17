@@ -107,6 +107,12 @@ export default function MatchPreview() {
     setLoadingTeams(true);
     (async () => {
       try {
+        // getMostRecentFixtureSeason only needs leagueId (already known),
+        // not fit/rated -- start it immediately rather than after the
+        // fit-run chain finishes, so both requests are in flight together
+        // instead of one waiting on the other for no reason.
+        const seasonPromise = getMostRecentFixtureSeason(leagueId);
+
         const fit = await getLatestFitRun(leagueId);
         let rated: TeamWithRating[] = [];
         if (fit) {
@@ -117,7 +123,7 @@ export default function MatchPreview() {
           setError('No model has been fitted for this league yet.');
         }
 
-        const currentSeason = await getMostRecentFixtureSeason(leagueId);
+        const currentSeason = await seasonPromise;
         const merged = new Map<number, string>();
         for (const t of rated) merged.set(t.team_id, t.canonical_name);
         if (currentSeason) {
@@ -169,15 +175,17 @@ export default function MatchPreview() {
           homeAdvantage: fitRun.home_advantage,
         });
       } else {
+        // Both lookups are independent (different team ids, no shared
+        // data dependency) -- only fetch the ones actually needed
+        // (either, both, or neither team may already be in `rated`),
+        // but run them concurrently rather than one after the other.
         const missing: { home?: string; away?: string } = {};
-        if (!home) {
-          const t = await getTeamById(homeTeamId);
-          missing.home = t.canonical_name;
-        }
-        if (!away) {
-          const t = await getTeamById(awayTeamId);
-          missing.away = t.canonical_name;
-        }
+        const [homeTeamData, awayTeamData] = await Promise.all([
+          !home ? getTeamById(homeTeamId) : Promise.resolve(null),
+          !away ? getTeamById(awayTeamId) : Promise.resolve(null),
+        ]);
+        if (homeTeamData) missing.home = homeTeamData.canonical_name;
+        if (awayTeamData) missing.away = awayTeamData.canonical_name;
         setModelUnavailable(missing);
       }
 
