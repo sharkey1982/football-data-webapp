@@ -29,7 +29,7 @@ describe('Landing page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('What are you here to do?')).toBeInTheDocument();
+    expect(screen.getByText('Pick your side.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Football/ })).toHaveAttribute('href', '/football');
     expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
 

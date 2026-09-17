@@ -54,7 +54,7 @@ export default function Landing() {
       <div>
         <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Full-Time &middot; Results Archive</p>
         <h1 className="font-display uppercase tracking-wide text-4xl sm:text-6xl text-amber-400 mt-2 glow-amber leading-tight">
-          What are you here to do?
+          Pick your side.
         </h1>
         <p className="text-chalk-300 mt-4 max-w-prose text-base sm:text-lg">
           Everything here follows the same shape: start by browsing what's real, see what's predicted to happen next, check how those predictions held
