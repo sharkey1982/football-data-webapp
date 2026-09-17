@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
 import {
   getLeagues,
   getCountries,
@@ -607,6 +608,7 @@ export default function GameweekBrowser() {
 
   return (
     <div className="space-y-6">
+      <FixtureChangeBanner />
       <div>
         <div className="flex items-baseline gap-2 flex-wrap">
           <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Fixtures</h1>

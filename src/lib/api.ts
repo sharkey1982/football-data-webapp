@@ -1752,6 +1752,57 @@ export async function getLastFixtureRefresh(): Promise<string | null> {
   return data?.finished_at ?? null;
 }
 
+export type EplFixtureChange = {
+  change_id: number;
+  home_team_name: string;
+  away_team_name: string;
+  old_kickoff_date: string;
+  new_kickoff_date: string;
+  detected_at: string;
+};
+
+/** Premier League fixture kickoff changes detected in the last N days --
+ * postponements, TV-pick reschedules -- for the frontend notification
+ * banner (requested directly: schedule changes affect Fantasy). Scoped
+ * to E0 specifically, not every tracked division, since that's the
+ * fixture set Fantasy actually depends on. Two-step lookup (E0 fixture
+ * ids, then changes filtered to them) rather than a single embedded-
+ * filter query, to stay on a query shape already proven reliable
+ * elsewhere in this codebase. */
+export async function getRecentEplFixtureChanges(withinDays = 7): Promise<EplFixtureChange[]> {
+  const since = new Date(Date.now() - withinDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: changeRows, error: changeErr } = await (supabase as any)
+    .from('fixture_changes')
+    .select('change_id, fixture_id, old_kickoff_date, new_kickoff_date, detected_at')
+    .gte('detected_at', since)
+    .order('detected_at', { ascending: false });
+  if (changeErr) throw changeErr;
+  if (!changeRows || changeRows.length === 0) return [];
+
+  const fixtureIds = changeRows.map((r: any) => r.fixture_id);
+  const { data: fixtureRows, error: fixtureErr } = await (supabase as any)
+    .from('fixtures')
+    .select('fixture_id, league_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name)')
+    .in('fixture_id', fixtureIds);
+  if (fixtureErr) throw fixtureErr;
+  const fixtureById = new Map<number, any>((fixtureRows ?? []).map((f: any) => [f.fixture_id, f]));
+
+  return (changeRows as any[])
+    .filter((r) => fixtureById.get(r.fixture_id)?.league_id === 1)
+    .map((r) => {
+      const fx = fixtureById.get(r.fixture_id);
+      return {
+        change_id: r.change_id,
+        home_team_name: fx?.home_team?.canonical_name ?? 'Unknown',
+        away_team_name: fx?.away_team?.canonical_name ?? 'Unknown',
+        old_kickoff_date: r.old_kickoff_date,
+        new_kickoff_date: r.new_kickoff_date,
+        detected_at: r.detected_at,
+      };
+    });
+}
+
 /** Most recent fixture-refresh runs (any status), newest first -- for the Data Health page's "fixtures changed" section. */
 export async function getRecentFixtureRefreshRuns(limit = 10): Promise<FixtureRefreshRun[]> {
   const { data, error } = await supabase

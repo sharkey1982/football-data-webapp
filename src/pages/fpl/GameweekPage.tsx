@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { FixtureChangeBanner } from '../../components/FixtureChangeBanner';
 import {
   getSeasonSummary,
   getGameweekFixtures,
@@ -170,6 +171,7 @@ export default function GameweekPage() {
 
   return (
     <div className="space-y-4">
+      <FixtureChangeBanner />
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Match Projections</h1>
         <p className="text-sm text-ink-500 mt-1">

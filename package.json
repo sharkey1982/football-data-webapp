@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "import:daily": "tsx scripts/import-daily.ts",
+    "sync:fixtures": "tsx scripts/sync-fixtures.ts",
     "predictions:refresh": "tsx scripts/refresh-predictions.ts",
     "test": "vitest run",
     "optimizer:solve": "tsx scripts/solve-optimal-squads.ts",

@@ -19,16 +19,45 @@ jobs:
       - run: npm install
       - run: pip install -r scripts/requirements.txt
 
-      # Step 1: import today's completed E0 results. (Only E0 has a daily
-      # results source configured today -- E1-EC fit on whatever match
-      # data already exists in the DB.)
-      - name: Import daily results
-        run: npm run import:daily
+      # Step 1: import today's completed results for every division that
+      # has a daily source configured -- previously E0 only, which meant
+      # E1-EC's match data (and, transitively, their model fits) never
+      # actually advanced day to day even though the fit step below has
+      # always looped over all five. Same per-league isolation pattern as
+      # the fit step: one division's import failing (a malformed row, a
+      # source hiccup) must not block the others from updating.
+      - name: Import daily results (all divisions)
+        run: |
+          set +e
+          FAILED=0
+          for LEAGUE in E0 E1 E2 E3 EC; do
+            echo "::group::Importing $LEAGUE"
+            IMPORT_LEAGUE_CODE="$LEAGUE" IMPORT_CSV_URL="https://football-data.co.uk/mmz4281/2627/$LEAGUE.csv" IMPORT_SEASON_LABEL="2627" npm run import:daily
+            if [ $? -ne 0 ]; then
+              echo "::error::Import failed for $LEAGUE"
+              FAILED=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $FAILED
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Steps 2-3: refit every competition and estimate its promoted AND
+      # Fills in fixtures that don't exist yet (this is how EC ended up
+      # with zero rows despite having full match history -- nothing had
+      # ever populated its schedule) and detects genuine kickoff_date/
+      # kickoff_time changes on existing ones (postponements, TV-pick
+      # reschedules), logging each to fixture_changes for the frontend
+      # notification. Independent of the results import above -- a
+      # different source file, so it always runs regardless of that
+      # step's outcome.
+      - name: Sync fixtures (all divisions, detect kickoff changes)
+        if: always()
+        run: npm run sync:fixtures
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       # relegated teams from the adjacent divisions, via one generic loop
       # rather than duplicated per-league steps -- see
       # scripts/fit_dixon_coles.py and scripts/estimate_promoted_team_ratings.py,
@@ -38,6 +67,14 @@ jobs:
       # so each league's estimation step is given whichever adjacent
       # division(s) actually exist for it.
       #
+      # Runs even if the import step above had a per-league failure
+      # (if: always()) -- that step's own internal per-league isolation
+      # means its overall exit code doesn't tell you which leagues are
+      # actually fine, only that at least one wasn't. A division whose
+      # import failed today just refits on yesterday's data here, same
+      # as before this loop existed; the other four still advance rather
+      # than the whole step being skipped over one division's problem.
+      #
       # Each league's fit+estimate pair is independent of every other
       # league's: a problem specific to one competition must not prevent a
       # completely unrelated competition from being fitted. The job still
@@ -45,6 +82,7 @@ jobs:
       # estimation step failed, so nothing is silently swallowed -- it
       # just doesn't take the rest of the pyramid down with it.
       - name: Fit Dixon-Coles models and estimate promoted/relegated teams (all competitions)
+        if: always()
         run: |
           set +e
           FAILED=0
