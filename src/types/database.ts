@@ -279,6 +279,31 @@ export type MatchImportRun = {
   error_message: string | null;
 };
 
+/** One row per refresh_fpl_projections.py / simulate_fixture_bonus.py / simulate_final_table.py run -- the FPL projections pipeline's own run log, distinct from the raw-data ingestion FplIngestionRun tracks. */
+export type PipelineRun = {
+  run_id: number;
+  job_name: string;
+  started_at: string;
+  finished_at: string | null;
+  status: 'running' | 'success' | 'warning' | 'failed';
+  summary: string | null;
+  error_message: string | null;
+};
+
+/** One row per private.refresh_fpl() run (pg_cron, every 6h) -- the raw official-FPL-API ingestion (teams/players/gameweeks/fixtures/snapshots), distinct from PipelineRun's derived-projection jobs. */
+export type FplIngestionRun = {
+  run_id: number;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+  teams_upserted: number | null;
+  players_upserted: number | null;
+  gameweeks_upserted: number | null;
+  fixtures_upserted: number | null;
+  player_gameweeks_upserted: number | null;
+  error_message: string | null;
+};
+
 // ----------------------------------------------------------------------------
 // Raw source data layer -- unprocessed rows as retrieved from each provider,
 // kept separate from the curated matches/fixtures tables. Populated by a

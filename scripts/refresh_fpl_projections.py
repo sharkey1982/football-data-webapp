@@ -53,6 +53,20 @@ def main():
         sys.exit(1)
     supabase = create_client(url, key)
 
+    # Logged to pipeline_runs so this shows up in the app's status view --
+    # requested directly ("I still don't feel clear on how I actually know
+    # things have run, including fantasy updates"): this script had never
+    # logged anywhere before, which is exactly why. Started here (status
+    # 'running') and updated at every exit path below, success or failure,
+    # so a run that never finishes still shows as genuinely stuck rather
+    # than just disappearing.
+    run = (
+        supabase.table("pipeline_runs")
+        .insert({"job_name": "refresh_fpl_projections", "status": "running"})
+        .execute()
+    )
+    run_id = run.data[0]["run_id"]
+
     fixtures_resp = (
         supabase.table("fixtures")
         .select("fixture_id")
@@ -98,19 +112,35 @@ def main():
                 print(f"::warning::Fixture {fixture_id}: attempt {attempt} failed ({e}), retrying...")
                 time.sleep(2 * attempt)
         if last_error is not None:
+            supabase.table("pipeline_runs").update(
+                {"finished_at": "now()", "status": "failed", "error_message": f"Fixture {fixture_id}: {last_error}"}
+            ).eq("run_id", run_id).execute()
             raise last_error
         if not isinstance(rows, int):
-            print(f"::error::Fixture {fixture_id}: unexpected result from refresh_fpl_projection_fixture_v6: {rows!r}", file=sys.stderr)
+            msg = f"Fixture {fixture_id}: unexpected result from refresh_fpl_projection_fixture_v6: {rows!r}"
+            print(f"::error::{msg}", file=sys.stderr)
+            supabase.table("pipeline_runs").update(
+                {"finished_at": "now()", "status": "failed", "error_message": msg}
+            ).eq("run_id", run_id).execute()
             sys.exit(1)
         total_rows += rows
         time.sleep(1.0)  # eases off whatever's causing the intermittent per-call contention -- raised from 0.2s after confirming that wasn't enough headroom in a live run
 
+    summary = f"GW{args.from_matchweek}-{args.to_matchweek}: {total_rows} projection row(s) across {len(fixture_ids)} fixture(s)"
     print(f"Refreshed {total_rows} player-fixture projection rows across {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}.")
-    print(f"::notice::Refreshed {total_rows} player-fixture projection rows across {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}.")
+    print(f"::notice::{summary}")
 
     if len(fixture_ids) > 0 and total_rows == 0:
-        print("::error::No rows were refreshed despite fixtures existing in range.", file=sys.stderr)
+        msg = "No rows were refreshed despite fixtures existing in range."
+        print(f"::error::{msg}", file=sys.stderr)
+        supabase.table("pipeline_runs").update(
+            {"finished_at": "now()", "status": "failed", "error_message": msg}
+        ).eq("run_id", run_id).execute()
         sys.exit(1)
+
+    supabase.table("pipeline_runs").update(
+        {"finished_at": "now()", "status": "success", "summary": summary}
+    ).eq("run_id", run_id).execute()
 
 
 if __name__ == "__main__":

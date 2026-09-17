@@ -109,7 +109,15 @@ jobs:
               [ -n "$ABOVE" ] && ARGS="$ARGS --above-league $ABOVE"
               echo "::group::Estimating promoted/relegated teams for $LEAGUE ($ARGS)"
               python scripts/estimate_promoted_team_ratings.py $ARGS
-              if [ $? -ne 0 ]; then
+              EST_EXIT=$?
+              if [ $EST_EXIT -eq 2 ]; then
+                # Exit 2 = some team(s) genuinely have no rating basis yet
+                # (not enough match history in either this division or the
+                # adjacent one -- expected for a newly-tracked team, not a
+                # bug). Every OTHER team's estimate this run still wrote
+                # successfully. Flagged, not treated as a pipeline failure.
+                echo "::warning::Promoted/relegated-team estimation for $LEAGUE had unresolvable team(s) -- see the run's own output for which"
+              elif [ $EST_EXIT -ne 0 ]; then
                 echo "::error::Promoted/relegated-team estimation failed for $LEAGUE"
                 FAILED=1
               fi

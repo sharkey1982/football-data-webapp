@@ -3,10 +3,14 @@ import {
   getFitRunValidationChecks,
   getLeagueFitStatus,
   getRecentFixtureRefreshRuns,
+  getRecentFplIngestionRuns,
   getRecentMatchImportRuns,
+  getRecentPipelineRuns,
   type FixtureRefreshRun,
+  type FplIngestionRun,
   type LeagueFitStatus,
   type MatchImportRun,
+  type PipelineRun,
 } from '../lib/api';
 
 type SortKey = 'league_code' | 'accepted_fitted_at' | 'accepted_matches_used' | 'latest_attempted_status';
@@ -75,6 +79,8 @@ function StatusBadge({ status }: { status: string | null }) {
     rejected: 'bg-loss-700 text-chalk-100',
     failed: 'bg-loss-700 text-chalk-100',
     pending: 'bg-amber-500 text-ink-900',
+    running: 'bg-amber-500 text-ink-900',
+    warning: 'bg-amber-500 text-ink-900',
   };
   const label = status ?? 'none';
   return (
@@ -139,10 +145,72 @@ function DataLoadTable({
   );
 }
 
+/** Second table style for runs whose useful detail is a single free-text
+ * summary (a matchweek range, a player count) rather than two fixed
+ * numeric columns -- pipeline_runs and fpl_ingestion_runs both have
+ * genuinely different natural metrics per job, so forcing them into
+ * DataLoadTable's Seen/Changed shape would mean losing information or
+ * showing misleading blanks. One flexible "Detail" column instead,
+ * built by the caller into whatever string makes sense for that job. */
+function RunLogTable({
+  title,
+  description,
+  rows,
+}: {
+  title: string;
+  description: string;
+  rows: { key: string | number; when: string | null; label: string; detail: string | null; status: string; error: string | null }[];
+}) {
+  return (
+    <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
+      <div className="px-3 py-2 border-b border-chalk-300">
+        <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">{title}</h2>
+        <p className="text-xs text-ink-500">{description}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-chalk-200 text-ink-500">
+            <tr>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Run</th>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Job</th>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Detail</th>
+              <th className="text-left font-medium text-xs px-3 py-1.5">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-3 py-3 text-center text-ink-500 text-xs">
+                  No runs recorded yet.
+                </td>
+              </tr>
+            )}
+            {rows.map((r, i) => (
+              <tr key={r.key} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                <td className="px-3 py-1.5 whitespace-nowrap font-mono text-xs">{formatDate(r.when)}</td>
+                <td className="px-3 py-1.5 text-xs">{r.label}</td>
+                <td className="px-3 py-1.5 text-xs text-ink-700">{r.detail ?? '\u2014'}</td>
+                <td className="px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={r.status} />
+                    {r.status === 'failed' && r.error && <span className="text-xs text-loss-700">{r.error}</span>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function DataHealth() {
   const [rows, setRows] = useState<LeagueFitStatus[]>([]);
   const [matchImportRuns, setMatchImportRuns] = useState<MatchImportRun[]>([]);
   const [fixtureRefreshRuns, setFixtureRefreshRuns] = useState<FixtureRefreshRun[]>([]);
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
+  const [fplIngestionRuns, setFplIngestionRuns] = useState<FplIngestionRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('league_code');
@@ -156,15 +224,19 @@ export default function DataHealth() {
       setLoading(true);
       setError(null);
       try {
-        const [fitStatus, imports, refreshes] = await Promise.all([
+        const [fitStatus, imports, refreshes, pipelines, fplIngestion] = await Promise.all([
           getLeagueFitStatus(),
           getRecentMatchImportRuns(),
           getRecentFixtureRefreshRuns(),
+          getRecentPipelineRuns(),
+          getRecentFplIngestionRuns(),
         ]);
         if (cancelled) return;
         setRows(fitStatus);
         setMatchImportRuns(imports);
         setFixtureRefreshRuns(refreshes);
+        setPipelineRuns(pipelines);
+        setFplIngestionRuns(fplIngestion);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load data health info');
       } finally {
@@ -231,8 +303,9 @@ export default function DataHealth() {
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Data Health</h1>
         <p className="text-sm text-ink-500 mt-1">
-          Every competition's current production model fit, alongside the most recently attempted fit for it --
-          including ones that didn't pass and were rejected. Click a column header to sort.
+          Every scheduled job's most recent runs -- results imports, fixtures sync, model fits, and the Fantasy
+          projections pipeline -- so it's clear at a glance whether things have actually run, not just that they're
+          scheduled to. Click a column header to sort the fit status table.
         </p>
       </div>
 
@@ -365,6 +438,39 @@ export default function DataHealth() {
               label: r.competitions?.join(', ') ?? '\u2014',
               seen: r.rows_seen,
               changed: r.rows_updated,
+              status: r.status,
+              error: r.error_message,
+            }))}
+          />
+          <RunLogTable
+            title="Fantasy updates"
+            description="Twice-daily FPL projections pipeline (refresh, bonus simulation, final table) -- the log that answers 'has this run today'"
+            rows={pipelineRuns.map((r) => ({
+              key: r.run_id,
+              when: r.started_at,
+              label: r.job_name,
+              detail: r.summary,
+              status: r.status,
+              error: r.error_message,
+            }))}
+          />
+          <RunLogTable
+            title="Fantasy raw data"
+            description="private.refresh_fpl() -- official FPL API sync (players, teams, gameweeks, fixtures), every 6 hours"
+            rows={fplIngestionRuns.map((r) => ({
+              key: r.run_id,
+              when: r.started_at,
+              label: 'refresh_fpl',
+              detail:
+                r.status === 'success'
+                  ? [
+                      r.players_upserted != null ? `${r.players_upserted} players` : null,
+                      r.teams_upserted != null ? `${r.teams_upserted} teams` : null,
+                      r.fixtures_upserted != null ? `${r.fixtures_upserted} fixtures` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || null
+                  : null,
               status: r.status,
               error: r.error_message,
             }))}

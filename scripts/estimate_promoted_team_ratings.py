@@ -243,7 +243,19 @@ def main():
             ". This needs a human decision (another source division, or a fresh fit), not a fabricated number.",
             file=sys.stderr,
         )
-        sys.exit(1)
+        # Exit code 2, not 1 -- deliberately distinct from every other
+        # failure path in this script (all of which are genuine errors:
+        # bad args, missing env, no accepted fit, a partial write). This
+        # one is different in kind: every OTHER team's estimate above was
+        # written successfully, and the remaining gap is an expected,
+        # ongoing state (a newly-promoted/tracked team without enough
+        # history yet), not a bug -- confirmed directly after this first
+        # showed up for EC teams introduced by the EC fixtures backfill.
+        # The calling workflow can treat 2 as "needs attention" rather
+        # than "the pipeline broke", so this doesn't manufacture a false
+        # failure alarm every single day until those teams accumulate
+        # enough match history for a genuine fit.
+        sys.exit(2)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@ vi.mock('../lib/api', async () => {
     getLeagueFitStatus: vi.fn(),
     getRecentMatchImportRuns: vi.fn(),
     getRecentFixtureRefreshRuns: vi.fn(),
+    getRecentPipelineRuns: vi.fn(),
+    getRecentFplIngestionRuns: vi.fn(),
     getFitRunValidationChecks: vi.fn(),
   };
 });
@@ -33,6 +35,8 @@ describe('DataHealth page', () => {
       },
     ]);
     mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
+    mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
+    mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
     mockedApi.getLeagueFitStatus.mockResolvedValue([
       {
         league_id: 1,
@@ -102,6 +106,8 @@ describe('DataHealth page', () => {
   it('lazy-loads and shows the full validation checks for a row when expanded', async () => {
     mockedApi.getRecentMatchImportRuns.mockResolvedValue([]);
     mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
+    mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
+    mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
     mockedApi.getFitRunValidationChecks.mockResolvedValue({
       converged: { pass: true, optimizer_message: 'CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL' },
       sufficient_observations: { pass: true, matches_used: 761, minimum: 50 },
@@ -141,5 +147,54 @@ describe('DataHealth page', () => {
     await user.click(screen.getByRole('button', { name: /Hide checks/ }));
     await user.click(screen.getByRole('button', { name: /Show checks/ }));
     expect(mockedApi.getFitRunValidationChecks).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the Fantasy updates and Fantasy raw data sections, including a failed pipeline run\u2019s error', async () => {
+    mockedApi.getRecentMatchImportRuns.mockResolvedValue([]);
+    mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
+    mockedApi.getLeagueFitStatus.mockResolvedValue([]);
+    mockedApi.getRecentPipelineRuns.mockResolvedValue([
+      {
+        run_id: 1,
+        job_name: 'refresh_fpl_projections',
+        started_at: '2026-09-17T07:00:00Z',
+        finished_at: '2026-09-17T07:02:10Z',
+        status: 'success',
+        summary: 'GW5-7: 1974 projection row(s) across 30 fixture(s)',
+        error_message: null,
+      },
+      {
+        run_id: 2,
+        job_name: 'simulate_fixture_bonus',
+        started_at: '2026-09-17T07:03:00Z',
+        finished_at: '2026-09-17T07:04:00Z',
+        status: 'failed',
+        summary: null,
+        error_message: 'Fixture 512: connection reset',
+      },
+    ]);
+    mockedApi.getRecentFplIngestionRuns.mockResolvedValue([
+      {
+        run_id: 1,
+        started_at: '2026-09-17T18:17:00Z',
+        completed_at: '2026-09-17T18:17:40Z',
+        status: 'success',
+        teams_upserted: 20,
+        players_upserted: 680,
+        gameweeks_upserted: 38,
+        fixtures_upserted: 380,
+        player_gameweeks_upserted: 0,
+        error_message: null,
+      },
+    ]);
+
+    render(<DataHealth />);
+
+    await waitFor(() => expect(screen.getByText('Fantasy updates')).toBeInTheDocument());
+    expect(screen.getByText('GW5-7: 1974 projection row(s) across 30 fixture(s)')).toBeInTheDocument();
+    expect(screen.getByText('Fixture 512: connection reset')).toBeInTheDocument();
+
+    expect(screen.getByText('Fantasy raw data')).toBeInTheDocument();
+    expect(screen.getByText(/680 players/)).toBeInTheDocument();
   });
 });

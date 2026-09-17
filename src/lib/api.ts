@@ -9,17 +9,19 @@
 import { supabase } from './supabase';
 import type {
   FixtureRefreshRun,
+  FplIngestionRun,
   LeagueFitStatus,
   Match,
   MatchImportRun,
   MatchResult,
   ModelFitRun,
+  PipelineRun,
   PointDeduction,
   RawMatchFile,
   SourceMatchRow,
 } from '../types/database';
 
-export type { FixtureRefreshRun, LeagueFitStatus, MatchImportRun } from '../types/database';
+export type { FixtureRefreshRun, LeagueFitStatus, MatchImportRun, PipelineRun, FplIngestionRun } from '../types/database';
 
 /** The league_fit_status row for a single league -- used by FitFreshnessBanner rather than fetching every league's row just to check one. */
 export async function getLeagueFitStatusFor(leagueId: number): Promise<LeagueFitStatus | null> {
@@ -1818,6 +1820,28 @@ export async function getRecentFixtureRefreshRuns(limit = 10): Promise<FixtureRe
 export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportRun[]> {
   const { data, error } = await supabase
     .from('match_import_runs')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Most recent FPL projections pipeline runs (refresh/bonus/final-table, any status), newest first -- for the Data Health page's "Fantasy updates" section. This is the log that answers "how do I know fantasy updates have run" -- these three scripts wrote nowhere at all before it existed. */
+export async function getRecentPipelineRuns(limit = 15): Promise<PipelineRun[]> {
+  const { data, error } = await (supabase as any)
+    .from('pipeline_runs')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Most recent raw FPL data ingestion runs (private.refresh_fpl(), pg_cron every 6h), newest first -- the official-FPL-API layer underneath the projections pipeline above. */
+export async function getRecentFplIngestionRuns(limit = 10): Promise<FplIngestionRun[]> {
+  const { data, error } = await (supabase as any)
+    .from('fpl_ingestion_runs')
     .select('*')
     .order('started_at', { ascending: false })
     .limit(limit);

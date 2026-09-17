@@ -73,6 +73,12 @@ from datetime import datetime, timezone
 import numpy as np
 from supabase import create_client
 
+# Set inside main() once the client/run row exist; read by the __main__
+# exception handler at the bottom of this file so a failure can be
+# logged to pipeline_runs regardless of where it's thrown from.
+_supabase = None
+_pipeline_run_id = None
+
 GOAL_BPS_VALUE = {1: 12, 2: 12, 3: 18, 4: 24}
 RESIDUAL_SD_BY_POS = {1: 7.32, 2: 7.64, 3: 5.91, 4: 4.56}
 N_SIMS = 30000
@@ -144,6 +150,25 @@ def main():
         sys.exit(1)
     supabase = create_client(url, key)
 
+    # Logged to pipeline_runs so this shows up in the app's status view --
+    # requested directly ("I still don't feel clear on how I actually know
+    # things have run, including fantasy updates"): this script had never
+    # logged anywhere before. run_id/supabase are module-level (not
+    # wrapped in a try/except at this indent level, which would mean
+    # re-indenting the whole function body below -- exactly the kind of
+    # edit that caused a real scoping bug in sync-fixtures.ts's own
+    # error handling earlier) so the __main__ exception handler at the
+    # bottom of this file can update this row to 'failed' directly,
+    # whatever throws and wherever it throws from.
+    global _pipeline_run_id, _supabase
+    _supabase = supabase
+    run = (
+        supabase.table("pipeline_runs")
+        .insert({"job_name": "simulate_fixture_bonus", "status": "running"})
+        .execute()
+    )
+    _pipeline_run_id = run.data[0]["run_id"]
+
     fixtures_resp = (
         supabase.table("fixtures")
         .select("fixture_id")
@@ -207,18 +232,26 @@ def main():
                 raise RuntimeError(f"Fixture {fixture_id}: upsert returned {written} rows but {len(rows)} were sent -- write did not fully succeed")
             total_rows_written += len(rows)
 
+    summary = f"GW{args.from_matchweek}-{args.to_matchweek}: {total_rows_written} row(s) across {len(fixture_ids)} fixture(s)"
     print(f"Wrote {total_rows_written} rows across {len(fixture_ids)} fixtures.")
-    print(f"::notice::Wrote {total_rows_written} rows across {len(fixture_ids)} fixtures.")
+    print(f"::notice::{summary}")
+    supabase.table("pipeline_runs").update(
+        {"finished_at": "now()", "status": "success", "summary": summary}
+    ).eq("run_id", _pipeline_run_id).execute()
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
+    except Exception as e:
         import traceback
         tb = traceback.format_exc()
         # GitHub Actions error annotation -- surfaces via the check-run
         # annotations API even when the raw log blob storage isn't reachable.
         for line in tb.splitlines():
             print(f"::error::{line}")
+        if _supabase is not None and _pipeline_run_id is not None:
+            _supabase.table("pipeline_runs").update(
+                {"finished_at": "now()", "status": "failed", "error_message": str(e)}
+            ).eq("run_id", _pipeline_run_id).execute()
         raise

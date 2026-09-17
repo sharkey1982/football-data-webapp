@@ -28,6 +28,12 @@ import json
 import numpy as np
 from supabase import create_client
 
+# Set inside main() once the client/run row exist; read by the __main__
+# exception handler at the bottom of this file so a failure can be
+# logged to pipeline_runs regardless of where it's thrown from.
+_supabase = None
+_pipeline_run_id = None
+
 N_SIMS = 20000
 RNG_SEED = 20260916  # fixed seed -- reproducible runs, not a security-relevant value
 
@@ -181,6 +187,19 @@ def main():
         sys.exit(1)
     supabase = create_client(url, key)
 
+    # Logged to pipeline_runs so this shows up in the app's status view --
+    # requested directly ("I still don't feel clear on how I actually know
+    # things have run, including fantasy updates"): this script had never
+    # logged anywhere before.
+    global _pipeline_run_id, _supabase
+    _supabase = supabase
+    run = (
+        supabase.table("pipeline_runs")
+        .insert({"job_name": "simulate_final_table", "status": "running"})
+        .execute()
+    )
+    _pipeline_run_id = run.data[0]["run_id"]
+
     rng = np.random.default_rng(RNG_SEED)
     total_rows = 0
     for league_id in LEAGUE_IDS:
@@ -208,16 +227,24 @@ def main():
         total_rows += len(rows)
         print(f"League {league_id}: wrote {len(rows)} teams")
 
+    summary = f"{total_rows} team row(s) written across {len(LEAGUE_IDS)} league(s)"
     print(f"Wrote {total_rows} rows total.")
-    print(f"::notice::Wrote {total_rows} rows total.")
+    print(f"::notice::{summary}")
+    supabase.table("pipeline_runs").update(
+        {"finished_at": "now()", "status": "success", "summary": summary}
+    ).eq("run_id", _pipeline_run_id).execute()
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
+    except Exception as e:
         import traceback
         tb = traceback.format_exc()
         for line in tb.splitlines():
             print(f"::error::{line}")
+        if _supabase is not None and _pipeline_run_id is not None:
+            _supabase.table("pipeline_runs").update(
+                {"finished_at": "now()", "status": "failed", "error_message": str(e)}
+            ).eq("run_id", _pipeline_run_id).execute()
         raise
