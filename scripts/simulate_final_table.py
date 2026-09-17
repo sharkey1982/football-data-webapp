@@ -175,12 +175,29 @@ def main():
         rows = simulate_league(supabase, league_id, args.season_id, rng)
         if not rows:
             print(f"League {league_id}: no fixtures found, skipped")
+            print(f"::notice::League {league_id}: no fixtures found, skipped")
             continue
-        supabase.table("team_finishing_position_projection").upsert(rows, on_conflict="league_id,season_id,team_id").execute()
+        # The upsert's own response was previously never captured or
+        # checked -- confirmed directly as a real bug: a run reported
+        # "success" and printed "wrote N teams" while the database's
+        # simulated_at timestamps never actually changed. supabase-py can
+        # return an error inside the response object rather than raising
+        # an exception, so silently discarding .execute()'s result let
+        # that failure mode through undetected. Now checks the returned
+        # row count actually matches what was sent, and raises loudly
+        # (caught by this script's own top-level ::error:: handler) if
+        # it doesn't, rather than trusting that "didn't throw" means
+        # "wrote the data".
+        result = supabase.table("team_finishing_position_projection").upsert(rows, on_conflict="league_id,season_id,team_id").execute()
+        written = len(result.data) if result.data else 0
+        print(f"::notice::League {league_id}: upsert returned {written} rows (sent {len(rows)})")
+        if written != len(rows):
+            raise RuntimeError(f"League {league_id}: upsert returned {written} rows but {len(rows)} were sent -- write did not fully succeed")
         total_rows += len(rows)
         print(f"League {league_id}: wrote {len(rows)} teams")
 
     print(f"Wrote {total_rows} rows total.")
+    print(f"::notice::Wrote {total_rows} rows total.")
 
 
 if __name__ == "__main__":
