@@ -127,9 +127,18 @@ async function logRun(
   if (error) console.error('Failed to write fixture_refresh_runs row:', error);
 }
 
-async function fail(supabase: SupabaseClient<Database> | null, message: string, rowsSeen: number | null = null): Promise<never> {
+// Module-scope, not created inside main() -- the outermost catch handler
+// at the bottom of this file needs access to a real client to log an
+// unexpected failure, which a main()-local const couldn't provide (this
+// is exactly the bug that made the first two live runs of this script
+// crash with nothing logged anywhere: the outer catch always called
+// logRun(null, ...), and logRun silently skips writing when its client
+// argument is null).
+let supabase: SupabaseClient<Database> | null = null;
+
+async function fail(client: SupabaseClient<Database> | null, message: string, rowsSeen: number | null = null): Promise<never> {
   console.error(message);
-  await logRun(supabase, { competitions: TRACKED_DIVISIONS, rowsSeen, rowsUpdated: null, status: 'failed', errorMessage: message });
+  await logRun(client, { competitions: TRACKED_DIVISIONS, rowsSeen, rowsUpdated: null, status: 'failed', errorMessage: message });
   process.exit(1);
 }
 
@@ -139,7 +148,7 @@ async function main() {
   if (!url || !key) {
     await fail(null, 'Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in environment.');
   }
-  const supabase = createClient<Database>(url!, key!, { auth: { persistSession: false } });
+  supabase = createClient<Database>(url!, key!, { auth: { persistSession: false } });
 
   console.log(`Fetching ${FIXTURES_CSV_URL} ...`);
   let text: string;
@@ -285,7 +294,7 @@ async function main() {
 
 main().catch(async (err) => {
   console.error('Unexpected error:', err);
-  await logRun(null, {
+  await logRun(supabase, {
     competitions: TRACKED_DIVISIONS,
     rowsSeen: null,
     rowsUpdated: null,
