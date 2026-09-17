@@ -185,7 +185,7 @@ export default function TeamStrengthPage() {
       // respectively, so it was always killed mid-run before ever
       // reaching the user as anything but a generic failure.
       await triggerWorkflow('refresh-fpl-projections', { from_matchweek: String(from), to_matchweek: String(to) });
-      setRefreshResult(`Triggered for GW${from}\u2013${to} \u2014 typically takes 1\u20132 minutes. Note: this updates FPL player projections only -- it does not re-run the bonus or finishing-position simulations, or re-solve the optimizer. Those still need their own buttons/workflows run separately.`);
+      setRefreshResult(`Triggered for GW${from}\u2013${to} \u2014 typically takes 3\u20135 minutes (loops one fixture at a time with retries, to work around an intermittent gateway timeout). Note: this updates FPL player projections only -- it does not re-run the bonus or finishing-position simulations, or re-solve the optimizer. Those still need their own buttons/workflows run separately.`);
     } catch (e) {
       setRefreshResult(`Failed: ${getErrorMessage(e, 'Could not trigger the refresh')}`);
     } finally {

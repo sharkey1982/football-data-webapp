@@ -321,7 +321,7 @@ describe('TeamStrengthPage', () => {
     // workflow (same pattern as the other two buttons on this page)
     // instead of calling refresh_fpl_projections_range directly.
     await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('refresh-fpl-projections', { from_matchweek: '6', to_matchweek: '15' }));
-    expect(await screen.findByText(/Triggered for GW6\u201315.*1.2 minutes/)).toBeInTheDocument();
+    expect(await screen.findByText(/Triggered for GW6\u201315.*3.5 minutes/)).toBeInTheDocument();
     // Makes clear this doesn't cover everything that might need refreshing.
     expect(screen.getByText(/does not re-run the bonus or finishing-position simulations/)).toBeInTheDocument();
   });
