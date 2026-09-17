@@ -15,6 +15,8 @@ const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
 const GameweekBrowser = lazy(() => import('./pages/GameweekBrowser'));
 const Landing = lazy(() => import('./pages/Landing'));
+const FootballHub = lazy(() => import('./pages/FootballHub'));
+const FplHub = lazy(() => import('./pages/FplHub'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
 const ResultsData = lazy(() => import('./pages/ResultsData'));
@@ -50,6 +52,22 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <Landing />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FootballHub />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/start"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FplHub />
               </Suspense>
             }
           />

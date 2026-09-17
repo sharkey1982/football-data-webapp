@@ -25,8 +25,8 @@ describe('Landing page', () => {
     );
 
     expect(screen.getByText('What are you here to do?')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Football/ })).toHaveAttribute('href', '/fixtures');
-    expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl');
+    expect(screen.getByRole('link', { name: /Football/ })).toHaveAttribute('href', '/football');
+    expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
 
     await waitFor(() => expect(screen.getByText(/most common Premier League scoreline/)).toBeInTheDocument());
   });

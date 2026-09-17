@@ -99,6 +99,7 @@ export default function AppLayout() {
     {
       label: 'Football',
       items: [
+        { to: '/football', label: 'Overview', exact: true, matchPrefix: '/football' },
         { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/fixtures' },
         { to: '/table', label: 'League Table', matchPrefix: '/table' },
         { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
@@ -109,10 +110,16 @@ export default function AppLayout() {
     {
       label: 'Fantasy',
       items: [
+        { to: '/fpl/start', label: 'Overview', exact: true, matchPrefix: '/fpl/start' },
         { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
         { to: '/fpl/optimal-squad-so-far', label: 'Optimal Squad So Far', matchPrefix: '/fpl/optimal-squad-so-far' },
         { to: '/fantasy', label: 'Fixture Heat Map', matchPrefix: '/fantasy' },
-        { to: '/fpl', label: 'Match Projections', matchPrefix: '/fpl', excludePrefix: ['/fpl/optimal-squad', '/fpl/player-points', '/fpl/scoring-rules', '/fpl/tactical-roles', '/fpl/actual-matches'] },
+        {
+          to: '/fpl',
+          label: 'Match Projections',
+          matchPrefix: '/fpl',
+          exact: true,
+        },
         { to: '/fpl/player-points', label: 'Player Points Table', matchPrefix: '/fpl/player-points' },
         { to: '/fpl/scoring-rules', label: 'Scoring Rules', matchPrefix: '/fpl/scoring-rules' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
