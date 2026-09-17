@@ -44,20 +44,18 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Fills in fixtures that don't exist yet (this is how EC ended up
-      # with zero rows despite having full match history -- nothing had
-      # ever populated its schedule) and detects genuine kickoff_date/
-      # kickoff_time changes on existing ones (postponements, TV-pick
-      # reschedules), logging each to fixture_changes for the frontend
-      # notification. Independent of the results import above -- a
-      # different source file, so it always runs regardless of that
-      # step's outcome.
-      - name: Sync fixtures (all divisions, detect kickoff changes)
-        if: always()
-        run: npm run sync:fixtures
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      # Sync-fixtures step deliberately not scheduled here: its first live
+      # run failed with no diagnosable cause (nothing reached
+      # fixture_refresh_runs, so it crashed before its own error handling
+      # could log anything), and it substantially duplicates an existing,
+      # already-working Supabase-native job (public.refresh_fixture_feeds(),
+      # on pg_cron, daily at 04:15 UTC) that this codebase's own scripts
+      # and workflows were unaware of. Left out of the schedule pending a
+      # decision on reconciling the two rather than running a known-broken,
+      # likely-redundant step daily. scripts/sync-fixtures.ts itself is
+      # left in the repo for now.
+
+      # Steps 2-3: refit every competition and estimate its promoted AND
       # relegated teams from the adjacent divisions, via one generic loop
       # rather than duplicated per-league steps -- see
       # scripts/fit_dixon_coles.py and scripts/estimate_promoted_team_ratings.py,
