@@ -87,7 +87,7 @@ def main():
         # cause that may not exist.
         rows = None
         last_error: Exception | None = None
-        for attempt in range(1, 4):
+        for attempt in range(1, 7):
             try:
                 result = supabase.rpc("refresh_fpl_projection_fixture_v6", {"p_fixture_id": fixture_id}).execute()
                 rows = result.data
@@ -103,7 +103,7 @@ def main():
             print(f"::error::Fixture {fixture_id}: unexpected result from refresh_fpl_projection_fixture_v6: {rows!r}", file=sys.stderr)
             sys.exit(1)
         total_rows += rows
-        time.sleep(0.2)  # small pause between calls, easing off whatever's causing the intermittent failures
+        time.sleep(1.0)  # eases off whatever's causing the intermittent per-call contention -- raised from 0.2s after confirming that wasn't enough headroom in a live run
 
     print(f"Refreshed {total_rows} player-fixture projection rows across {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}.")
     print(f"::notice::Refreshed {total_rows} player-fixture projection rows across {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}.")
