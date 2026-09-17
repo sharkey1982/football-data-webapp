@@ -147,6 +147,29 @@ export default function TeamStrengthPage() {
     }
   }
 
+  /** Clears an override entirely, going through saveTeamStrengthOverride
+   * with explicit zeros rather than the normal goals-target path above --
+   * requested directly ("it's not clear how I change the overrides I've
+   * made"), and a dedicated reset avoids a subtle rounding trap: typing
+   * the model's own value back into the goals inputs and saving would
+   * round-trip through toFixed(2) and back through ln(), landing a
+   * hair off exact zero and leaving a negligible-but-nonzero override
+   * behind instead of genuinely clearing it (saveTeamStrengthOverride's
+   * clear condition checks for exact zero). */
+  async function handleResetOverride(row: TeamStrengthRow) {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveTeamStrengthOverride(row.team_id, 0, 0, null);
+      if (leagueId !== null) setSummary(await getTeamStrengthSummary(leagueId));
+      setEditingTeamId(null);
+    } catch (e) {
+      setSaveError(getErrorMessage(e, 'Failed to reset override'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleRefreshFplProjections() {
     setRefreshing(true);
     setRefreshResult(null);
@@ -405,7 +428,7 @@ export default function TeamStrengthPage() {
           )}
 
           <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[70vh]">
               <table className="w-full text-sm">
                 <thead className="bg-chalk-100 text-ink-500">
                   <tr>
@@ -415,8 +438,8 @@ export default function TeamStrengthPage() {
                         title={col.title}
                         onClick={() => handleSort(col.key)}
                         className={[
-                          'font-medium text-xs px-3 py-1.5 cursor-pointer select-none whitespace-nowrap hover:text-ink-900',
-                          col.key === 'canonical_name' ? 'text-left' : 'text-right',
+                          'sticky top-0 z-20 bg-chalk-100 font-medium text-xs px-3 py-1.5 cursor-pointer select-none whitespace-nowrap hover:text-ink-900',
+                          col.key === 'canonical_name' ? 'text-left sticky left-0 z-30' : 'text-right',
                         ].join(' ')}
                       >
                         {col.label}
@@ -425,19 +448,19 @@ export default function TeamStrengthPage() {
                     ))}
                     <th
                       title="Projected goals for per game (this season, full-season rate) vs actual goals for per game (this season's results so far) -- is the model tracking what's actually happening this season, not just last season's different context"
-                      className="font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
+                      className="sticky top-0 z-20 bg-chalk-100 font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
                     >
                       GF/gm proj&rarr;actual
                     </th>
                     <th
                       title="Projected goals against per game (this season, full-season rate) vs actual goals against per game (this season's results so far)"
-                      className="font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
+                      className="sticky top-0 z-20 bg-chalk-100 font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
                     >
                       GA/gm proj&rarr;actual
                     </th>
                     <th
                       title="Manual adjustment on top of the derived attack/defence strength, for known real-world context the model can't see yet (a signing, an injury, actual in-season form). Applied to every future fixture prediction, not just displayed."
-                      className="font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
+                      className="sticky top-0 z-20 bg-chalk-100 font-medium text-xs px-3 py-1.5 whitespace-nowrap text-right"
                     >
                       Override
                     </th>
@@ -447,7 +470,7 @@ export default function TeamStrengthPage() {
                   {sortedRows.map((r, i) => (
                     <Fragment key={r.team_id}>
                     <tr className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                      <td className="px-3 py-1.5 font-medium text-ink-900">
+                      <td className={['sticky left-0 z-10 px-3 py-1.5 font-medium text-ink-900', i % 2 === 1 ? 'bg-chalk-100' : 'bg-white'].join(' ')}>
                         {r.canonical_name}
                         {r.is_estimated && (
                           <span
@@ -523,6 +546,11 @@ export default function TeamStrengthPage() {
                     {editingTeamId === r.team_id && (
                       <tr className="bg-chalk-100">
                         <td colSpan={10} className="px-3 py-2">
+                          <p className="text-xs text-ink-500 mb-2">
+                            <span className="font-medium text-ink-700">Model says (no override):</span>{' '}
+                            {attackToGoalsFor(r.attack_strength).toFixed(2)} goals for/gm, {defenceToGoalsAgainst(r.defence_strength).toFixed(2)} goals
+                            against/gm &mdash; kept here so you can still compare against whatever you change below.
+                          </p>
                           <div className="flex flex-wrap items-end gap-3">
                             <label className="text-xs text-ink-700">
                               Target goals for /gm
@@ -564,6 +592,17 @@ export default function TeamStrengthPage() {
                             >
                               {saving ? 'Saving\u2026' : 'Save & apply'}
                             </button>
+                            {(r.attack_adjustment !== 0 || r.defence_adjustment !== 0 || r.override_note) && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetOverride(r)}
+                                disabled={saving}
+                                title="Clears the override entirely, going back to exactly what the model itself says -- not just entering the model's numbers into the fields above, which is not guaranteed to land on exact zero"
+                                className="px-3 py-1.5 text-sm rounded border border-loss-700 text-loss-700 hover:bg-loss-50 disabled:opacity-50"
+                              >
+                                Reset to model
+                              </button>
+                            )}
                             <button type="button" onClick={cancelEdit} className="px-3 py-1.5 text-sm rounded border border-chalk-300 hover:bg-chalk-100">
                               Cancel
                             </button>

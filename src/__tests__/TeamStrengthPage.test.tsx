@@ -337,4 +337,57 @@ describe('TeamStrengthPage', () => {
     await user.click(screen.getByRole('button', { name: /Re-run bonus simulation/ }));
     await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('simulate-fixture-bonus', { from_matchweek: '6', to_matchweek: '15' }));
   });
+
+  it('shows the model\u2019s own value for comparison while editing, and lets an override be cleared entirely with Reset to model', async () => {
+    const hullRow = {
+      team_id: 8,
+      canonical_name: 'Hull',
+      attack_strength: -0.301,
+      defence_strength: -0.667,
+      is_estimated: true,
+      projected_gf: 42.5,
+      projected_ga: 57.1,
+      projected_fixtures_counted: 38,
+      last_season_gf: null,
+      last_season_ga: null,
+      last_season_played: 0,
+      this_season_actual_gf: null,
+      this_season_actual_ga: null,
+      this_season_actual_played: 0,
+      attack_adjustment: 0.3,
+      defence_adjustment: 0,
+      override_note: 'promoted, strong start',
+      override_updated_at: '2026-09-16T21:25:27.451Z',
+      projected_position_mean: 7.24,
+      projected_position_median: 7,
+      projected_points_mean: 57.99,
+      position_simulated_at: '2026-09-17T04:00:24.955Z',
+    };
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getTeamStrengthSummary
+      .mockResolvedValueOnce({ fitRun: null, currentSeasonLabel: '2627', lastSeasonLabel: '2526', rows: [hullRow], relegatedTeams: [] })
+      .mockResolvedValueOnce({
+        fitRun: null,
+        currentSeasonLabel: '2627',
+        lastSeasonLabel: '2526',
+        rows: [{ ...hullRow, attack_adjustment: 0, defence_adjustment: 0, override_note: null }],
+        relegatedTeams: [],
+      });
+    mockedApi.saveTeamStrengthOverride.mockResolvedValue(undefined);
+
+    render(<TeamStrengthPage />);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('Hull')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Adjust' }));
+    // Model's own (un-overridden) value stays visible while editing:
+    // exp(-0.301)=0.74, exp(0.667)=1.95.
+    expect(screen.getByText(/Model says \(no override\):/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.74 goals for\/gm, 1\.95 goals against\/gm/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Reset to model' }));
+    await waitFor(() => expect(mockedApi.saveTeamStrengthOverride).toHaveBeenCalledWith(8, 0, 0, null));
+    // Edit row closes and the override indicator is gone once cleared.
+    await waitFor(() => expect(screen.queryByLabelText('Target goals for /gm')).not.toBeInTheDocument());
+  });
 });
