@@ -73,11 +73,44 @@ export default function TeamStrengthPage() {
     };
   }, [leagueId]);
 
-  function startEdit(teamId: number, currentAttack: number, currentDefence: number, currentNote: string | null) {
-    setEditingTeamId(teamId);
-    setEditAttack(String(currentAttack));
-    setEditDefence(String(currentDefence));
-    setEditNote(currentNote ?? '');
+  // attack_strength/defence_strength are log-scale Dixon-Coles parameters
+  // (predicted_goals = exp(home_advantage + attack_home - defence_away)) --
+  // requested directly to convert both the display AND the override edit
+  // form to expected goals per game against a neutral (league-average,
+  // no home advantage) opponent, since raw log values gave no sense of
+  // real-world scale (confirmed directly: a +0.3 attack adjustment,
+  // intended as a modest nudge, was actually a 35% swing in expected
+  // goals) and defence_strength's own sign is backwards from normal
+  // intuition (higher = FEWER goals conceded, i.e. better).
+  //
+  // goalsFor = exp(attackStrength); goalsAgainst = exp(-defenceStrength)
+  // (defence_strength is SUBTRACTED from the opponent's expected goals in
+  // the real prediction formula, so its sign flips here too). Inverses:
+  // attackStrength = ln(goalsFor); defenceStrength = -ln(goalsAgainst).
+  function attackToGoalsFor(attackStrength: number): number {
+    return Math.exp(attackStrength);
+  }
+  function defenceToGoalsAgainst(defenceStrength: number): number {
+    return Math.exp(-defenceStrength);
+  }
+  function goalsForToAttack(goalsFor: number): number {
+    return Math.log(goalsFor);
+  }
+  function goalsAgainstToDefence(goalsAgainst: number): number {
+    return -Math.log(goalsAgainst);
+  }
+
+  function startEdit(row: TeamStrengthRow) {
+    setEditingTeamId(row.team_id);
+    // Pre-fill with the CURRENT EFFECTIVE value (base + any existing
+    // override) in goals terms, not the raw adjustment -- editing feels
+    // like "here's what it is now, change it to what you think it should
+    // be" rather than needing to already know the override delta.
+    const effectiveAttack = row.attack_strength + row.attack_adjustment;
+    const effectiveDefence = row.defence_strength + row.defence_adjustment;
+    setEditAttack(attackToGoalsFor(effectiveAttack).toFixed(2));
+    setEditDefence(defenceToGoalsAgainst(effectiveDefence).toFixed(2));
+    setEditNote(row.override_note ?? '');
     setSaveError(null);
   }
 
@@ -86,17 +119,25 @@ export default function TeamStrengthPage() {
     setSaveError(null);
   }
 
-  async function handleSaveOverride(teamId: number) {
-    const attack = Number(editAttack);
-    const defence = Number(editDefence);
-    if (!Number.isFinite(attack) || !Number.isFinite(defence)) {
-      setSaveError('Adjustments must be numbers');
+  async function handleSaveOverride(row: TeamStrengthRow) {
+    const targetGoalsFor = Number(editAttack);
+    const targetGoalsAgainst = Number(editDefence);
+    if (!Number.isFinite(targetGoalsFor) || targetGoalsFor <= 0 || !Number.isFinite(targetGoalsAgainst) || targetGoalsAgainst <= 0) {
+      setSaveError('Goals for/against must be positive numbers');
       return;
     }
+    // Convert the absolute goals-per-game targets back to the additive
+    // log-scale adjustments the database actually stores and applies
+    // (see backfill_fixture_predictions()) -- the override table's
+    // schema and the prediction formula are unchanged by this UI change,
+    // only how a person specifies the value.
+    const attackAdjustment = goalsForToAttack(targetGoalsFor) - row.attack_strength;
+    const defenceAdjustment = goalsAgainstToDefence(targetGoalsAgainst) - row.defence_strength;
+
     setSaving(true);
     setSaveError(null);
     try {
-      await saveTeamStrengthOverride(teamId, attack, defence, editNote.trim() || null);
+      await saveTeamStrengthOverride(row.team_id, attackAdjustment, defenceAdjustment, editNote.trim() || null);
       if (leagueId !== null) setSummary(await getTeamStrengthSummary(leagueId));
       setEditingTeamId(null);
     } catch (e) {
@@ -180,8 +221,8 @@ export default function TeamStrengthPage() {
       label: 'Proj. Pos',
       title: 'Mean projected final league position from a 20,000-run Monte Carlo simulation of the remaining season, using the same predicted goals as everywhere else on the site',
     },
-    { key: 'attack_strength', label: 'Attack', title: 'Log-scale Dixon-Coles parameter vs league average (0). Higher = more attacking.' },
-    { key: 'defence_strength', label: 'Defence', title: 'Log-scale Dixon-Coles parameter vs league average (0). Higher = tighter defence (concedes fewer).' },
+    { key: 'attack_strength', label: 'Goals for/gm', title: 'Expected goals per game against a neutral (league-average, no home advantage) opponent. Higher = more attacking.' },
+    { key: 'defence_strength', label: 'Goals against/gm', title: 'Expected goals conceded per game against a neutral (league-average, no home advantage) opponent. Lower = better defence.' },
     { key: 'projected_gf', label: 'Proj. GF', title: 'Sum of predicted goals for across every fixture this season, played and upcoming' },
     { key: 'projected_ga', label: 'Proj. GA', title: 'Sum of predicted goals against across every fixture this season, played and upcoming' },
     { key: 'last_season_gf', label: 'Last Szn GF' },
@@ -203,46 +244,40 @@ export default function TeamStrengthPage() {
     return new Date(row.override_updated_at) > new Date(row.position_simulated_at);
   }
 
-  /** Live preview of what an in-progress attack/defence edit actually
-   * means in real terms -- requested directly, after a +0.3 attack
-   * adjustment (intended as a modest nudge) turned out to move a team
-   * from 22nd to roughly 16th in the league's own attack ranking, a 35%
-   * increase in expected goals scored. attack_strength/defence_strength
-   * are log-scale Dixon-Coles parameters, where the whole league
-   * typically spans only ~1.0 -- a number like "0.3" gives no sense of
-   * scale on its own, so this converts it to %-change-in-expected-goals
-   * and shows where the EFFECTIVE value would rank among every other
-   * team in the currently-loaded table, computed from summary.rows
-   * (already loaded, no extra fetch needed) rather than the raw base
-   * value alone. */
-  function overridePreview(row: TeamStrengthRow, attackAdjInput: string, defenceAdjInput: string): string | null {
-    const attackAdj = Number(attackAdjInput);
-    const defenceAdj = Number(defenceAdjInput);
-    if (!Number.isFinite(attackAdj) || !Number.isFinite(defenceAdj)) return null;
-    if (attackAdj === 0 && defenceAdj === 0) return null;
+  /** Live preview of what an in-progress edit actually means, now shown
+   * directly in the same goals-per-game units as the input itself
+   * (previously this converted a log-scale delta to a %-change, which
+   * was already an improvement over nothing but still one translation
+   * step removed from what's being typed). Shows the change from the
+   * CURRENT effective value and where the new value would rank among
+   * every other team in the currently-loaded table (summary.rows,
+   * already loaded -- no extra fetch). Originally built after a +0.3
+   * attack-strength adjustment, intended as a modest nudge, turned out
+   * to be a 35% swing in expected goals -- the goals-based input this
+   * function now supports is the actual fix for that; this preview is
+   * the belt-and-braces check on top of it. */
+  function overridePreview(row: TeamStrengthRow, targetGoalsForInput: string, targetGoalsAgainstInput: string): string | null {
+    const targetGoalsFor = Number(targetGoalsForInput);
+    const targetGoalsAgainst = Number(targetGoalsAgainstInput);
+    if (!Number.isFinite(targetGoalsFor) || targetGoalsFor <= 0 || !Number.isFinite(targetGoalsAgainst) || targetGoalsAgainst <= 0) return null;
 
-    const effectiveAttack = row.attack_strength + attackAdj;
-    const effectiveDefence = row.defence_strength + defenceAdj;
+    const currentGoalsFor = attackToGoalsFor(row.attack_strength + row.attack_adjustment);
+    const currentGoalsAgainst = defenceToGoalsAgainst(row.defence_strength + row.defence_adjustment);
+    if (Math.abs(targetGoalsFor - currentGoalsFor) < 0.005 && Math.abs(targetGoalsAgainst - currentGoalsAgainst) < 0.005) return null;
+
+    const effectiveAttack = goalsForToAttack(targetGoalsFor);
+    const effectiveDefence = goalsAgainstToDefence(targetGoalsAgainst);
     const rows = summary?.rows ?? [];
-
     const attackRank = 1 + rows.filter((other) => other.team_id !== row.team_id && other.attack_strength > effectiveAttack).length;
     const defenceRank = 1 + rows.filter((other) => other.team_id !== row.team_id && other.defence_strength > effectiveDefence).length;
     const n = rows.length || 1;
 
     const parts: string[] = [];
-    if (attackAdj !== 0) {
-      const pctChange = (Math.exp(attackAdj) - 1) * 100;
-      parts.push(`Attack: ${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(0)}% expected goals for, ranking ${attackRank} of ${n}`);
+    if (Math.abs(targetGoalsFor - currentGoalsFor) >= 0.005) {
+      parts.push(`Goals for: ${currentGoalsFor.toFixed(2)} \u2192 ${targetGoalsFor.toFixed(2)}/gm, ranking ${attackRank} of ${n}`);
     }
-    if (defenceAdj !== 0) {
-      // defence_strength is SUBTRACTED from the opponent's expected
-      // goals in the prediction formula, so a positive adjustment
-      // REDUCES goals conceded by a factor of exp(-defenceAdj), not
-      // exp(+defenceAdj) -- getting this backwards would show the wrong
-      // magnitude (not just the wrong sign) for exactly the kind of
-      // surprise this preview exists to prevent.
-      const pctChangeConceded = (Math.exp(-defenceAdj) - 1) * 100;
-      parts.push(`Defence: ${pctChangeConceded >= 0 ? '+' : ''}${pctChangeConceded.toFixed(0)}% goals conceded, ranking ${defenceRank} of ${n}`);
+    if (Math.abs(targetGoalsAgainst - currentGoalsAgainst) >= 0.005) {
+      parts.push(`Goals against: ${currentGoalsAgainst.toFixed(2)} \u2192 ${targetGoalsAgainst.toFixed(2)}/gm, ranking ${defenceRank} of ${n}`);
     }
     return parts.join(' \u00b7 ');
   }
@@ -436,20 +471,22 @@ export default function TeamStrengthPage() {
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
                         {r.attack_adjustment !== 0 ? (
-                          <span title={`Base ${r.attack_strength.toFixed(3)} + override ${r.attack_adjustment >= 0 ? '+' : ''}${r.attack_adjustment.toFixed(2)}`}>
-                            {fmt(r.attack_strength, 3)} <span className="text-amber-700 font-semibold">&rarr; {(r.attack_strength + r.attack_adjustment).toFixed(3)}</span>
+                          <span title={`Raw Dixon-Coles: ${r.attack_strength.toFixed(3)} \u2192 ${(r.attack_strength + r.attack_adjustment).toFixed(3)} (log scale)`}>
+                            {attackToGoalsFor(r.attack_strength).toFixed(2)}{' '}
+                            <span className="text-amber-700 font-semibold">&rarr; {attackToGoalsFor(r.attack_strength + r.attack_adjustment).toFixed(2)}</span>
                           </span>
                         ) : (
-                          fmt(r.attack_strength, 3)
+                          attackToGoalsFor(r.attack_strength).toFixed(2)
                         )}
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
                         {r.defence_adjustment !== 0 ? (
-                          <span title={`Base ${r.defence_strength.toFixed(3)} + override ${r.defence_adjustment >= 0 ? '+' : ''}${r.defence_adjustment.toFixed(2)}`}>
-                            {fmt(r.defence_strength, 3)} <span className="text-amber-700 font-semibold">&rarr; {(r.defence_strength + r.defence_adjustment).toFixed(3)}</span>
+                          <span title={`Raw Dixon-Coles: ${r.defence_strength.toFixed(3)} \u2192 ${(r.defence_strength + r.defence_adjustment).toFixed(3)} (log scale)`}>
+                            {defenceToGoalsAgainst(r.defence_strength).toFixed(2)}{' '}
+                            <span className="text-amber-700 font-semibold">&rarr; {defenceToGoalsAgainst(r.defence_strength + r.defence_adjustment).toFixed(2)}</span>
                           </span>
                         ) : (
-                          fmt(r.defence_strength, 3)
+                          defenceToGoalsAgainst(r.defence_strength).toFixed(2)
                         )}
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-pitch-800 font-semibold">{fmt(r.projected_gf, 1)}</td>
@@ -476,7 +513,7 @@ export default function TeamStrengthPage() {
                         )}
                         <button
                           type="button"
-                          onClick={() => startEdit(r.team_id, r.attack_adjustment, r.defence_adjustment, r.override_note)}
+                          onClick={() => startEdit(r)}
                           className="text-xs text-pitch-700 hover:text-pitch-900 underline"
                         >
                           Adjust
@@ -488,23 +525,25 @@ export default function TeamStrengthPage() {
                         <td colSpan={10} className="px-3 py-2">
                           <div className="flex flex-wrap items-end gap-3">
                             <label className="text-xs text-ink-700">
-                              Attack adj.
+                              Target goals for /gm
                               <input
                                 type="number"
                                 step="0.05"
+                                min="0.01"
                                 value={editAttack}
                                 onChange={(e) => setEditAttack(e.target.value)}
-                                className="block w-24 border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
+                                className="block w-28 border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
                               />
                             </label>
                             <label className="text-xs text-ink-700">
-                              Defence adj.
+                              Target goals against /gm
                               <input
                                 type="number"
                                 step="0.05"
+                                min="0.01"
                                 value={editDefence}
                                 onChange={(e) => setEditDefence(e.target.value)}
-                                className="block w-24 border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
+                                className="block w-28 border border-chalk-300 rounded px-2 py-1 text-sm mt-0.5"
                               />
                             </label>
                             <label className="text-xs text-ink-700 flex-1 min-w-[12rem]">
@@ -519,7 +558,7 @@ export default function TeamStrengthPage() {
                             </label>
                             <button
                               type="button"
-                              onClick={() => handleSaveOverride(r.team_id)}
+                              onClick={() => handleSaveOverride(r)}
                               disabled={saving}
                               className="px-3 py-1.5 text-sm rounded bg-pitch-800 text-white hover:bg-pitch-900 disabled:opacity-50"
                             >
@@ -534,8 +573,8 @@ export default function TeamStrengthPage() {
                           )}
                           {saveError && <p className="text-xs text-loss-700 mt-1">{saveError}</p>}
                           <p className="text-xs text-ink-500 mt-1">
-                            Additive, same log scale as Attack/Defence above. Saving re-runs predictions for every
-                            future fixture involving this team immediately.
+                            Expected goals per game against a neutral (league-average, no home advantage) opponent.
+                            Saving re-runs predictions for every future fixture involving this team immediately.
                           </p>
                         </td>
                       </tr>

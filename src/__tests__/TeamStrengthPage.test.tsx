@@ -194,23 +194,39 @@ describe('TeamStrengthPage', () => {
     await waitFor(() => expect(screen.getByText('Arsenal')).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: 'Adjust' }));
-    const attackInput = screen.getByLabelText('Attack adj.');
-    const defenceInput = screen.getByLabelText('Defence adj.');
+    const attackInput = screen.getByLabelText('Target goals for /gm');
+    const defenceInput = screen.getByLabelText('Target goals against /gm');
+    // Pre-filled with the CURRENT effective value (exp(0.31)=1.36,
+    // exp(-0.52)=0.59), not zero/empty -- editing starts from "here's
+    // what it is now".
+    expect(attackInput).toHaveValue(1.36);
+    expect(defenceInput).toHaveValue(0.59);
+
+    // Requested directly, after a raw +0.3 log-scale adjustment turned
+    // out to be a 35% swing nobody intended: entering an absolute goals
+    // target instead (here, roughly the same real-world change as that
+    // old example: attack_strength+0.3, defence_strength-0.1) is the
+    // actual fix, not just a clearer preview on top of the old input.
     await user.clear(attackInput);
-    await user.type(attackInput, '0.3');
+    await user.type(attackInput, '1.84');
     await user.clear(defenceInput);
-    await user.type(defenceInput, '-0.1');
+    await user.type(defenceInput, '0.66');
     await user.type(screen.getByLabelText('Note'), 'signed a new striker');
 
-    // Live preview shows the real-world impact before saving -- exactly
-    // the check that would have caught the Hull surprise (a +0.3 attack
-    // adjustment reads as small, but is +35% expected goals for).
-    expect(screen.getByText(/Attack: \+35% expected goals for, ranking 1 of 1/)).toBeInTheDocument();
-    expect(screen.getByText(/Defence: \+11% goals conceded, ranking 1 of 1/)).toBeInTheDocument();
+    // Live preview shows the change directly in goals terms, not a %.
+    expect(screen.getByText(/Goals for: 1\.36 \u2192 1\.84\/gm, ranking 1 of 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Goals against: 0\.59 \u2192 0\.66\/gm, ranking 1 of 1/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Save & apply' }));
 
-    await waitFor(() => expect(mockedApi.saveTeamStrengthOverride).toHaveBeenCalledWith(1, 0.3, -0.1, 'signed a new striker'));
+    await waitFor(() => expect(mockedApi.saveTeamStrengthOverride).toHaveBeenCalled());
+    // Rounding the goals input to 2dp means the recovered log-scale
+    // adjustment isn't bit-exact -- assert closeness, not exact equality.
+    const [teamId, attackAdj, defenceAdj, note] = mockedApi.saveTeamStrengthOverride.mock.calls[0];
+    expect(teamId).toBe(1);
+    expect(attackAdj).toBeCloseTo(0.2998, 3);
+    expect(defenceAdj).toBeCloseTo(-0.1045, 3);
+    expect(note).toBe('signed a new striker');
     // Once saved, the edit row closes and the new adjustment shows in the table.
     await waitFor(() => expect(screen.getByText(/\+0\.30 \/ -0\.10/)).toBeInTheDocument());
     expect(screen.queryByLabelText('Attack adj.')).not.toBeInTheDocument();
@@ -274,8 +290,9 @@ describe('TeamStrengthPage', () => {
     const banner = screen.getByText(/Proj\. Pos is out of date for:/);
     expect(banner.closest('p')?.textContent).toContain('Hull');
 
-    // Effective attack strength (base + override) is shown, not just the base value.
-    const matches = screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.className.includes('text-amber-700') && el.textContent === '\u2192 -0.001');
+    // Effective goals-for value (base + override, converted from log scale) is
+    // shown, not just the base value: exp(-0.301+0.3) = exp(-0.001) = 1.00.
+    const matches = screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.className.includes('text-amber-700') && el.textContent === '\u2192 1.00');
     expect(matches.length).toBeGreaterThan(0);
   });
 
