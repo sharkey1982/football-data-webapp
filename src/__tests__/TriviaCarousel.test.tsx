@@ -3,11 +3,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TriviaCarousel } from '../components/TriviaCarousel';
+import type { TriviaFact } from '../lib/landingApi';
 
-const facts = [
-  { question: 'Q1?', answer: 'A1.' },
-  { question: 'Q2?', answer: 'A2.' },
-  { question: 'Q3?', answer: 'A3.' },
+const facts: TriviaFact[] = [
+  { question: 'Q1?', options: ['A', 'B', 'C'], correctIndex: 1, explanation: 'B was right.' },
+  { question: 'Q2?', options: ['D', 'E', 'F'], correctIndex: 0, explanation: 'D was right.' },
+  { question: 'Q3?', options: ['G', 'H', 'I'], correctIndex: 2, explanation: 'I was right.' },
 ];
 
 // Always restore real timers after each test, not just at the end of a
@@ -20,67 +21,79 @@ afterEach(() => {
 });
 
 describe('TriviaCarousel', () => {
-  it('shows only the question at first, with the answer hidden behind a reveal prompt', () => {
+  it('shows the question and every option, with no explanation and no right/wrong marking before a guess', () => {
     render(<TriviaCarousel facts={facts} />);
     expect(screen.getByText('Q1?')).toBeInTheDocument();
-    expect(screen.queryByText('A1.')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Tap to reveal/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'A' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'B' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'C' })).toBeInTheDocument();
+    expect(screen.queryByText('B was right.')).not.toBeInTheDocument();
   });
 
-  it('reveals the answer once tapped, and never advances on its own before that happens', () => {
+  it('marks a correct guess, shows the explanation, and disables further picks -- and never advances on its own before a guess is made', () => {
     vi.useFakeTimers();
     render(<TriviaCarousel facts={facts} />);
 
     act(() => {
       vi.advanceTimersByTime(30000); // well past any reasonable auto-advance window
     });
-    expect(screen.getByText('Q1?')).toBeInTheDocument();
-    expect(screen.queryByText('A1.')).not.toBeInTheDocument();
+    expect(screen.getByText('Q1?')).toBeInTheDocument(); // still on Q1, unanswered
 
-    fireEvent.click(screen.getByRole('button', { name: /Tap to reveal/ }));
-    expect(screen.getByText('A1.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^B/ }));
+    expect(screen.getByText('B was right.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^B/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^A/ })).toBeDisabled();
   });
 
-  it('auto-advances to the next question a few seconds after a reveal, resetting to hidden again', () => {
+  it('marks a wrong guess as wrong while still revealing the correct one', () => {
+    render(<TriviaCarousel facts={facts} />);
+    fireEvent.click(screen.getByRole('button', { name: /^A/ })); // A is wrong, B is correct
+
+    expect(screen.getByRole('button', { name: /^A/ }).textContent).toContain('\u2717'); // cross on the wrong pick
+    expect(screen.getByRole('button', { name: /^B/ }).textContent).toContain('\u2713'); // check on the right answer
+    expect(screen.getByText('B was right.')).toBeInTheDocument();
+  });
+
+  it('auto-advances to the next question a few seconds after a guess, resetting to unanswered', () => {
     vi.useFakeTimers();
     render(<TriviaCarousel facts={facts} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tap to reveal/ }));
-    expect(screen.getByText('A1.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^B/ }));
+    expect(screen.getByText('B was right.')).toBeInTheDocument();
 
     act(() => {
-      vi.advanceTimersByTime(6000);
+      vi.advanceTimersByTime(7000);
     });
     expect(screen.getByText('Q2?')).toBeInTheDocument();
-    expect(screen.queryByText('A2.')).not.toBeInTheDocument(); // hidden again on the new question
+    expect(screen.queryByText('D was right.')).not.toBeInTheDocument(); // unanswered again on the new question
   });
 
-  it('pauses the post-reveal auto-advance while hovered', () => {
+  it('pauses the post-answer auto-advance while hovered', () => {
     vi.useFakeTimers();
     render(<TriviaCarousel facts={facts} />);
 
     const container = screen.getByText('Q1?').closest('div')!;
     fireEvent.mouseEnter(container);
-    fireEvent.click(screen.getByRole('button', { name: /Tap to reveal/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^B/ }));
     act(() => {
       vi.advanceTimersByTime(15000);
     });
-    expect(screen.getByText('A1.')).toBeInTheDocument(); // never advanced while hovered
+    expect(screen.getByText('Q1?')).toBeInTheDocument(); // never advanced while hovered
 
     fireEvent.mouseLeave(container);
     act(() => {
-      vi.advanceTimersByTime(6000);
+      vi.advanceTimersByTime(7000);
     });
     expect(screen.getByText('Q2?')).toBeInTheDocument();
   });
 
-  it('lets a person manually step forward, back, and jump via the dots -- each resetting to a hidden answer', async () => {
+  it('lets a person manually step forward, back, and jump via the dots -- each resetting to unanswered', async () => {
     render(<TriviaCarousel facts={facts} />);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Next fact' }));
     expect(screen.getByText('Q2?')).toBeInTheDocument();
-    expect(screen.queryByText('A2.')).not.toBeInTheDocument();
+    expect(screen.queryByText('D was right.')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Previous fact' }));
     expect(screen.getByText('Q1?')).toBeInTheDocument();

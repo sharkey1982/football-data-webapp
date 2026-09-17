@@ -15,3 +15,28 @@
 
 [functions]
   directory = "netlify/functions"
+
+# Explicit no-cache on the HTML shell -- added after two separate reports
+# of the live site visibly not matching what was just deployed. Without
+# this, a browser (or an intermediate cache) is free to hold onto an old
+# index.html indefinitely, which keeps pointing at the OLD hashed JS/CSS
+# bundle filenames even though the new ones are already live -- Netlify's
+# own CDN cache is purged on every deploy, so this is specifically about
+# caches Netlify doesn't control. Hashed assets under /assets/ are the
+# opposite: their filename changes on every build, so they're safe to
+# cache aggressively and immutably -- there's no "stale" version to worry
+# about, a new build just produces new filenames.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
