@@ -10,7 +10,19 @@
       href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap"
       rel="stylesheet"
     />
+    <!--
+      Static fallback title/description -- what a route sees before its own
+      useDocumentHead() call runs (see src/hooks/useDocumentHead.ts), and
+      what's actually served today for any route that doesn't call it yet.
+      Keep this in sync with VITE_BRAND_NAME's default in src/lib/siteConfig.ts
+      (there's no way to read a Vite env var from static HTML) until the
+      prerendering pass generates real per-route <head> content server-side.
+    -->
     <title>Football Data Warehouse</title>
+    <meta
+      name="description"
+      content="Football fixtures, results, league tables, and Dixon-Coles model predictions, plus Fantasy Premier League projections."
+    />
   </head>
   <body>
     <div id="root"></div>

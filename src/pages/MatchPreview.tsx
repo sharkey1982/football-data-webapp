@@ -26,6 +26,7 @@ import { formatMatchDateWithYear } from '../lib/formatDate';
 import { ScoreProbabilityGrid } from '../components/ScoreProbabilityGrid';
 import { TeamStatsPanel } from '../components/TeamStatsPanel';
 import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 
 type LeagueOption = { league_id: number; code: string; name: string };
 type Tab = 'overview' | 'home' | 'away' | 'prediction';
@@ -38,6 +39,12 @@ const TABS: Array<{ id: Tab; label: string }> = [
 ];
 
 export default function MatchPreview() {
+  useDocumentHead({
+    title: 'Match Preview',
+    description: 'Head-to-head history, team form, and Dixon-Coles score probabilities for an upcoming fixture.',
+    path: '/preview',
+  });
+
   const [searchParams] = useSearchParams();
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
   const urlHomeId = searchParams.get('home') ? Number(searchParams.get('home')) : null;

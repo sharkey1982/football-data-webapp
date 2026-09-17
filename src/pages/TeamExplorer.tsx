@@ -11,11 +11,18 @@ import {
 import { TeamStatsPanel } from '../components/TeamStatsPanel';
 import { GoalTrendChart } from '../components/GoalTrendChart';
 import { FormSequenceChart } from '../components/FormSequenceChart';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 
 type TeamOption = { team_id: number; canonical_name: string };
 type LeagueOption = { league_id: number; code: string; name: string };
 
 export default function TeamExplorer() {
+  useDocumentHead({
+    title: 'Team Explorer',
+    description: 'Look up any team’s recent form, goal trends, and head-to-head match history.',
+    path: '/teams',
+  });
+
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
 

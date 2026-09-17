@@ -15,6 +15,7 @@ import GameweekFixtureList from '../../components/fpl/season/GameweekFixtureList
 import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
 import SeasonActualVsProjectedTable from '../../components/fpl/season/SeasonActualVsProjectedTable';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { useDocumentHead } from '../../hooks/useDocumentHead';
 
 /** This whole FPL section only covers the Premier League -- matches the convention already used throughout it (no explicit league picker anywhere else here either). */
 const FPL_LEAGUE_ID = 1;
@@ -29,6 +30,14 @@ export default function GameweekPage() {
   const { matchweek: matchweekParam } = useParams<{ matchweek: string }>();
   const matchweek = Number(matchweekParam);
   const navigate = useNavigate();
+
+  useDocumentHead({
+    title: Number.isFinite(matchweek) ? `Gameweek ${matchweek} FPL Projections` : 'Gameweek FPL Projections',
+    description: Number.isFinite(matchweek)
+      ? `Fantasy Premier League fixtures, expected minutes, and expected points projections for Gameweek ${matchweek}.`
+      : 'Fantasy Premier League fixtures, expected minutes, and expected points projections.',
+    path: Number.isFinite(matchweek) ? `/fpl/gameweek/${matchweek}` : undefined,
+  });
 
   const [summary, setSummary] = useState<SeasonGameweekSummary[]>([]);
   const [summaryError, setSummaryError] = useState<string | null>(null);

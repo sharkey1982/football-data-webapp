@@ -16,6 +16,7 @@ import {
 import { formatMatchDate, formatMatchDateWithYear, formatRefreshDate } from '../lib/formatDate';
 import FixtureCalendarHeatmap from '../components/FixtureCalendarHeatmap';
 import { ScoreChip } from '../components/ScoreChip';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -115,6 +116,13 @@ function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
 }
 
 export default function GameweekBrowser() {
+  useDocumentHead({
+    title: 'Fixtures, Results & League Predictions',
+    description:
+      'Browse football fixtures and results by division or team, with Dixon-Coles expected-goals predictions for upcoming matches.',
+    path: '/fixtures',
+  });
+
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 

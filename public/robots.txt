@@ -1,0 +1,14 @@
+# Internal tools and raw/admin data views -- not stable public content,
+# not meant to be indexed. See the review notes in the project memory for
+# the reasoning (raw source-data layer, personal optimizer output, admin
+# tactical-role editing, internal data-health monitoring).
+User-agent: *
+Disallow: /source-data
+Disallow: /results-data
+Disallow: /data-health
+Disallow: /fpl/tactical-roles
+Disallow: /fpl/optimal-squad
+Disallow: /fpl/optimal-squad-so-far
+
+# No sitemap yet -- added once the prerendered public entity pages exist
+# (tracked as separate, NEXT-phase work).

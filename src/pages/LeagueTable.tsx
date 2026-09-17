@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getLeagues, getCountries, getSeasons, getLeagueTable, type LeagueTableRow } from '../lib/api';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 
 type LeagueOption = {
   league_id: number;
@@ -17,6 +18,12 @@ const selectClass =
 const labelClass = 'block text-xs sm:text-sm font-medium text-ink-700 mb-1';
 
 export default function LeagueTable() {
+  useDocumentHead({
+    title: 'League Tables',
+    description: 'Current league standings across English and European football, built directly from match results.',
+    path: '/table',
+  });
+
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
