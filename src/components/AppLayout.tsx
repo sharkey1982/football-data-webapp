@@ -12,17 +12,14 @@ const navLinkClasses = (isActive: boolean) =>
 
 /**
  * A single matcher used for both an item's own highlight and its group's
- * highlight, so the two can never disagree. Handles two cases NavLink's
- * built-in `end` prop can't express on its own:
- *   - "/" as a prefix would match every route, so it's exact-match only
- *     (root or the equivalent /fixtures).
- *   - "/fpl" (FPL Projections) is a prefix of both "/fpl/optimal-squad" and
- *     "/fpl/player-points" (sibling features, not sub-pages of it) --
- *     excludePrefix (one or more) stops those routes from also lighting up
- *     FPL Projections.
+ * highlight, so the two can never disagree. Handles one case NavLink's
+ * built-in `end` prop can't express on its own: "/fpl" (FPL Projections)
+ * is a prefix of both "/fpl/optimal-squad" and "/fpl/player-points"
+ * (sibling features, not sub-pages of it) -- excludePrefix (one or more)
+ * stops those routes from also lighting up FPL Projections.
  */
 function isItemActive(pathname: string, item: NavItem): boolean {
-  if (item.exact) return pathname === item.matchPrefix || (item.matchPrefix === '/' && pathname === '/fixtures');
+  if (item.exact) return pathname === item.matchPrefix;
   const excludes = item.excludePrefix === undefined ? [] : Array.isArray(item.excludePrefix) ? item.excludePrefix : [item.excludePrefix];
   if (excludes.some((p) => pathname.startsWith(p))) return false;
   return pathname.startsWith(item.matchPrefix);
@@ -89,12 +86,12 @@ export default function AppLayout() {
   // during render is safe here -- it's a derived cache of the current
   // location, not new state, and doesn't need its own re-render.
   const lastFixturesSearch = useRef('');
-  const onFixturesRoute = location.pathname === '/' || location.pathname === '/fixtures';
+  const onFixturesRoute = location.pathname === '/fixtures';
   if (onFixturesRoute) {
     lastFixturesSearch.current = location.search;
   }
 
-  const fixturesTo: To = { pathname: '/', search: lastFixturesSearch.current };
+  const fixturesTo: To = { pathname: '/fixtures', search: lastFixturesSearch.current };
 
   // Four top-level headings -- Football, Fantasy, Data, FPL Admin -- each a
   // dropdown, no separate flat top-level items alongside them.
@@ -102,7 +99,7 @@ export default function AppLayout() {
     {
       label: 'Football',
       items: [
-        { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/' },
+        { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/fixtures' },
         { to: '/table', label: 'League Table', matchPrefix: '/table' },
         { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
         { to: '/teams', label: 'Team Explorer', matchPrefix: '/teams' },
@@ -149,12 +146,14 @@ export default function AppLayout() {
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-baseline gap-2">
-            <span className="font-display uppercase tracking-wide text-xl sm:text-2xl font-semibold">
-              Full-Time
-            </span>
-            <span className="font-mono text-xs text-amber-400 tracking-widest uppercase">
-              Results Archive
-            </span>
+            <NavLink to="/" className="flex items-baseline gap-2 hover:opacity-90 transition-opacity">
+              <span className="font-display uppercase tracking-wide text-xl sm:text-2xl font-semibold">
+                Full-Time
+              </span>
+              <span className="font-mono text-xs text-amber-400 tracking-widest uppercase">
+                Results Archive
+              </span>
+            </NavLink>
           </div>
           <nav aria-label="Main navigation">
             <ul className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm font-medium">

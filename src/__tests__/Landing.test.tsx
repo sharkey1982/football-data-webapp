@@ -1,0 +1,47 @@
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import Landing from '../pages/Landing';
+import * as landingApi from '../lib/landingApi';
+
+vi.mock('../lib/landingApi', async () => {
+  const actual = await vi.importActual<typeof landingApi>('../lib/landingApi');
+  return { ...actual, getLandingTrivia: vi.fn() };
+});
+
+const mockedApi = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+
+describe('Landing page', () => {
+  it('asks what the visitor is here to do, and offers Football and Fantasy Premier League as the two themes', async () => {
+    mockedApi.getLandingTrivia.mockResolvedValue([
+      { question: 'What\u2019s the most common Premier League scoreline?', answer: '1\u20131 \u2014 it\u2019s happened 496 times across every match in the archive.' },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('What are you here to do?')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Football/ })).toHaveAttribute('href', '/fixtures');
+    expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl');
+
+    await waitFor(() => expect(screen.getByText(/most common Premier League scoreline/)).toBeInTheDocument());
+  });
+
+  it('shows no trivia section at all if the trivia fetch fails or returns nothing -- the two theme buttons are the only thing that must always work', async () => {
+    mockedApi.getLandingTrivia.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(mockedApi.getLandingTrivia).toHaveBeenCalled());
+    expect(screen.queryByText('Did you know?')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Football/ })).toBeInTheDocument();
+  });
+});

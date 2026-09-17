@@ -15,6 +15,7 @@ function renderAt(path: string) {
       <Routes>
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Stub />} />
+          <Route path="fixtures" element={<Stub />} />
           <Route path="table" element={<Stub />} />
           <Route path="team-strength" element={<Stub />} />
           <Route path="teams" element={<Stub />} />
@@ -84,9 +85,17 @@ describe('AppLayout main nav', () => {
     expect(optimalSquadLink.className).not.toContain('bg-amber-500');
   });
 
-  it('highlights the Football heading when on the root Fixtures route', () => {
-    renderAt('/');
+  it('highlights the Football heading when on the Fixtures route (not the new landing page at /, which is outside every nav group)', () => {
+    renderAt('/fixtures');
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
+  });
+
+  it('highlights no nav group on the new landing page at / -- it is deliberately outside all four groups', () => {
+    renderAt('/');
+    expect(screen.getByRole('button', { name: /Football/ }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /Fantasy/ }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /Data/ }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /FPL Admin/ }).className).not.toContain('bg-amber-500');
   });
 
   it('Football dropdown contains Team Strength, and visiting it highlights Football, not League Table', async () => {

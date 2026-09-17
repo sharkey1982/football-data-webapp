@@ -14,6 +14,7 @@ import AppLayout from './components/AppLayout';
 const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
 const GameweekBrowser = lazy(() => import('./pages/GameweekBrowser'));
+const Landing = lazy(() => import('./pages/Landing'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
 const ResultsData = lazy(() => import('./pages/ResultsData'));
@@ -48,7 +49,7 @@ export default function App() {
             index
             element={
               <Suspense fallback={<RouteFallback />}>
-                <GameweekBrowser />
+                <Landing />
               </Suspense>
             }
           />
