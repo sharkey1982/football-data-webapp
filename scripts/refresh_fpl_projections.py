@@ -32,6 +32,7 @@
 
 import os
 import sys
+import time
 import argparse
 
 from supabase import create_client
@@ -74,12 +75,35 @@ def main():
         # branch because it lacks Monte Carlo coverage) pulling the
         # average up.
         print(f"::notice::[{i + 1}/{len(fixture_ids)}] Refreshing fixture {fixture_id}...")
-        result = supabase.rpc("refresh_fpl_projection_fixture_v6", {"p_fixture_id": fixture_id}).execute()
-        rows = result.data
+        # Retry with backoff -- confirmed directly this call fails
+        # intermittently with DIFFERENT error types across otherwise
+        # identical runs (a 57014 statement-timeout one run, a pydantic
+        # JSON-parse failure on a non-JSON response body the next,
+        # both around the same ~4th call), which looks like transient
+        # gateway/rate-limit behaviour under rapid sequential calls
+        # rather than one fixable root cause -- a short pause between
+        # calls plus retrying the occasional failure is the robust
+        # answer to that pattern, not chasing a single deterministic
+        # cause that may not exist.
+        rows = None
+        last_error: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                result = supabase.rpc("refresh_fpl_projection_fixture_v6", {"p_fixture_id": fixture_id}).execute()
+                rows = result.data
+                last_error = None
+                break
+            except Exception as e:
+                last_error = e
+                print(f"::warning::Fixture {fixture_id}: attempt {attempt} failed ({e}), retrying...")
+                time.sleep(2 * attempt)
+        if last_error is not None:
+            raise last_error
         if not isinstance(rows, int):
             print(f"::error::Fixture {fixture_id}: unexpected result from refresh_fpl_projection_fixture_v6: {rows!r}", file=sys.stderr)
             sys.exit(1)
         total_rows += rows
+        time.sleep(0.2)  # small pause between calls, easing off whatever's causing the intermittent failures
 
     print(f"Refreshed {total_rows} player-fixture projection rows across {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}.")
     print(f"::notice::Refreshed {total_rows} player-fixture projection rows across {len(fixture_ids)} fixtures for GW{args.from_matchweek}-{args.to_matchweek}.")
