@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
@@ -15,12 +15,14 @@ function renderAt(path: string) {
       <Routes>
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Stub />} />
+          <Route path="football" element={<Stub />} />
           <Route path="fixtures" element={<Stub />} />
           <Route path="table" element={<Stub />} />
           <Route path="team-strength" element={<Stub />} />
           <Route path="teams" element={<Stub />} />
           <Route path="preview" element={<Stub />} />
           <Route path="fantasy" element={<Stub />} />
+          <Route path="fpl/start" element={<Stub />} />
           <Route path="fpl" element={<Stub />} />
           <Route path="fpl/optimal-squad" element={<Stub />} />
           <Route path="fpl/player-points" element={<Stub />} />
@@ -126,5 +128,23 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Player Points Table' }).className).toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'Match Projections' }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'Optimal Squad' }).className).not.toContain('bg-amber-500');
+  });
+
+  it('shows a back-to-hub link on a Football destination page, pointing at /football', () => {
+    renderAt('/team-strength');
+    expect(screen.getByRole('link', { name: /Back to Football/ })).toHaveAttribute('href', '/football');
+  });
+
+  it('shows a back-to-hub link on a Fantasy destination page, pointing at /fpl/start', () => {
+    renderAt('/fpl/optimal-squad');
+    expect(screen.getByRole('link', { name: /Back to Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
+  });
+
+  it('shows no back-to-hub link on the hub pages themselves, the landing page, or Data pages -- there is nothing to loop back to', () => {
+    for (const path of ['/football', '/fpl/start', '/', '/results-data', '/source-data']) {
+      renderAt(path);
+      expect(screen.queryByText(/Back to/)).not.toBeInTheDocument();
+      cleanup();
+    }
   });
 });

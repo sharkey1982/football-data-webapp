@@ -148,6 +148,22 @@ export default function AppLayout() {
       ],
     },
   ];
+  const footballGroup = navGroups.find((g) => g.label === 'Football')!;
+  const fantasyGroup = navGroups.find((g) => g.label === 'Fantasy')!;
+  // A link back up to whichever theme hub the current page belongs to --
+  // requested directly (the sketched flow shows an explicit loop back
+  // from a destination page to its hub, which wasn't actually there
+  // yet; reaching the hub meant digging into the nav dropdown's
+  // "Overview" item instead). Driven by the same navGroups data already
+  // used for nav highlighting, rather than adding a link to every
+  // individual destination page -- one place to maintain, and it can
+  // never drift out of sync with which pages actually belong to which
+  // theme. Suppressed on the hub pages themselves and on Landing/Data
+  // pages, where there's nothing to loop back to.
+  const onFootballPage = location.pathname !== '/football' && footballGroup.items.some((item) => isItemActive(location.pathname, item));
+  const onFantasyPage = location.pathname !== '/fpl/start' && fantasyGroup.items.some((item) => isItemActive(location.pathname, item));
+  const backToHub = onFootballPage ? { to: '/football', label: 'Football' } : onFantasyPage ? { to: '/fpl/start', label: 'Fantasy Premier League' } : null;
+
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
@@ -173,6 +189,11 @@ export default function AppLayout() {
       </header>
 
       <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
+        {backToHub && (
+          <NavLink to={backToHub.to} className="inline-block text-sm font-mono text-ink-500 hover:text-ink-900 mb-4">
+            &larr; Back to {backToHub.label}
+          </NavLink>
+        )}
         <Outlet />
       </main>
 
