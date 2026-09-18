@@ -16,7 +16,9 @@ const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const row = (over: Partial<CrossLeagueRow>): CrossLeagueRow => ({
   league_code: 'E0', league_name: 'Premier League', season_label: '2526',
   matches: 380, goals_per_game: 2.8, home_win_pct: 44.3, draw_pct: 23.8,
-  away_win_pct: 31.9, yellows_per_game: 3.48, reds_per_game: 0.1, ...over,
+  away_win_pct: 31.9, yellows_per_game: 3.48, reds_per_game: 0.1,
+  home_goals_per_game: 1.54, away_goals_per_game: 1.26, over_two_five_pct: 53.8,
+  both_scored_pct: 52.4, nil_nil_pct: 6.5, comeback_pct: 24.1, ...over,
 });
 
 describe('aggregateByLeague', () => {
@@ -52,8 +54,10 @@ describe('CrossLeaguePage', () => {
     await waitFor(() => expect(screen.getByText(/most goals per game/)).toBeInTheDocument());
     expect(screen.getByRole('table')).toBeInTheDocument();
 
+    // Metric picker is a select, not a row of buttons -- twelve metrics
+    // as pills wraps badly on a phone.
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Yellow cards per game' }));
+    await user.selectOptions(screen.getByRole('combobox'), 'yellows_per_game');
     expect(screen.getByText(/most bookings per game/)).toBeInTheDocument();
   });
 });

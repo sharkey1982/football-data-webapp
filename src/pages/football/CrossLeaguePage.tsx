@@ -80,23 +80,23 @@ export default function CrossLeaguePage() {
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-2">
-        {CROSS_LEAGUE_METRICS.map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            onClick={() => setMetricKey(m.key)}
-            className={[
-              'text-sm rounded px-3 py-1.5 border transition-colors',
-              m.key === metricKey
-                ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
-                : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
-            ].join(' ')}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      {/* A select rather than a row of buttons: twelve metrics as pills
+          wraps into a crowded block, especially on a phone, and buries
+          the chart below the fold. */}
+      <label className="block max-w-sm">
+        <span className="text-xs font-mono uppercase tracking-widest text-ink-500">Compare</span>
+        <select
+          value={metricKey}
+          onChange={(e) => setMetricKey(e.target.value as typeof metricKey)}
+          className="mt-1 w-full border border-chalk-300 rounded px-3 py-2 text-sm bg-white"
+        >
+          {CROSS_LEAGUE_METRICS.map((m) => (
+            <option key={m.key} value={m.key}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {highest && lowest && (
         <p className="text-ink-900 max-w-prose">{metric.describe(highest, lowest)}</p>
@@ -133,6 +133,7 @@ export default function CrossLeaguePage() {
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Home wins</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Draws</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Yellows/game</th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Reds/game</th>
               </tr>
             </thead>
             <tbody>
@@ -144,6 +145,7 @@ export default function CrossLeaguePage() {
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.home_win_pct}%</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.draw_pct}%</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.yellows_per_game}</td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.reds_per_game}</td>
                 </tr>
               ))}
             </tbody>

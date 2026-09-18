@@ -22,9 +22,9 @@ function ThemeButton({ to, title, description }: { to: string; title: string; de
   return (
     <Link
       to={to}
-      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-6 sm:p-8 transition-all flex-1 hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
+      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-8 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
     >
-      <h2 className="font-display uppercase tracking-wide text-2xl sm:text-3xl text-chalk-100 group-hover:text-amber-400 transition-colors">
+      <h2 className="font-display uppercase tracking-wide text-lg sm:text-3xl text-chalk-100 group-hover:text-amber-400 transition-colors">
         {title}
       </h2>
       <p className="text-chalk-300 mt-2 transition-colors">{description}</p>
@@ -57,14 +57,13 @@ export default function Landing() {
           Pick your side.
         </h1>
         <p className="text-chalk-300 mt-4 max-w-prose text-base sm:text-lg">
-          Everything here follows the same shape: start by browsing what's real, see what's predicted to happen next, check how those predictions held
-          up, then fine-tune the model behind them yourself. Football's predictions are also what feed Fantasy's.
+          Discover what's real, see what's predicted, check how it held up, then tune the model yourself.
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <ThemeButton to="/football" title="Football" description="Results, fixtures, league tables, and Dixon-Coles model predictions." />
-        <ThemeButton to="/fpl/start" title="Fantasy Premier League" description="Player projections, an optimal-squad picker, and the tools behind them." />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <ThemeButton to="/football" title="Football" description="Results, tables and match predictions." />
+        <ThemeButton to="/fpl/start" title="Fantasy Premier League" description="Projections and an optimal-squad picker." />
       </div>
 
       {trivia.length > 0 && <TriviaCarousel facts={trivia} />}

@@ -51,7 +51,7 @@ export function TriviaCarousel({ facts }: { facts: TriviaFact[] }) {
       onBlur={() => setPaused(false)}
     >
       <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Guess it</p>
-      <p className="font-display text-xl sm:text-2xl text-chalk-100 mt-2 leading-snug">{current.question}</p>
+      <p className="font-display text-base sm:text-lg text-chalk-100 mt-2 leading-snug">{current.question}</p>
 
       <div className="grid grid-cols-2 gap-2 mt-4">
         {current.options.map((option, i) => {
@@ -68,7 +68,7 @@ export function TriviaCarousel({ facts }: { facts: TriviaFact[] }) {
               type="button"
               disabled={answered}
               onClick={() => setSelected(i)}
-              className={['text-left text-sm sm:text-base border rounded px-3 py-2 transition-colors disabled:cursor-default', stateClasses].join(' ')}
+              className={['text-left text-xs sm:text-sm border rounded px-3 py-2 transition-colors disabled:cursor-default', stateClasses].join(' ')}
             >
               {option}
               {answered && isCorrect && <span className="ml-2">&#10003;</span>}
