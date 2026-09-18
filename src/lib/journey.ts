@@ -108,6 +108,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Gameweek Results', to: '/fpl/actual-matches', blurb: 'Real results and FPL returns for gameweeks already played.' },
           { label: 'The FPL Market', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
+          { label: 'Injuries & Availability', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
       },
