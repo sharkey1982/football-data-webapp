@@ -32,13 +32,17 @@ function formatTimestamp(iso: string): string {
   });
 }
 
-export default function MatchPage() {
+/** Injected by the static-site generator -- see PlayerPage's equivalent
+ * for the reasoning. Absent in the browser, where the page fetches as
+ * before. */
+export default function MatchPage({ initialData }: { initialData?: MatchPagePrediction } = {}) {
   const { slug } = useParams<{ slug: string }>();
-  const [match, setMatch] = useState<MatchPagePrediction | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [match, setMatch] = useState<MatchPagePrediction | null>(initialData ?? null);
+  const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     async function load() {
       if (!slug) return;
@@ -59,7 +63,7 @@ export default function MatchPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, initialData]);
 
   const title = match ? `${match.home_team_name} v ${match.away_team_name}` : 'Match prediction';
 

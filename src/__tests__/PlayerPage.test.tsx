@@ -85,6 +85,49 @@ describe('PlayerPage', () => {
     expect(screen.getByText(/model leaguewide_v6/)).toBeInTheDocument();
   });
 
+  it('renders fully from injected data WITHOUT fetching -- the property the static generator depends on', () => {
+    mocked.getPlayerBySlug.mockClear();
+    mocked.getPlayerSeason.mockClear();
+
+    render(
+      <MemoryRouter initialEntries={['/fpl/players/erling-haaland']}>
+        <Routes>
+          <Route
+            path="/fpl/players/:slug"
+            element={
+              <PlayerPage
+                initialData={{
+                  profile,
+                  season: [
+                    {
+                      matchweek: 5,
+                      kickoff_date: '2026-09-20',
+                      opponent_name: 'Sunderland',
+                      is_home: true,
+                      status: 'scheduled',
+                      projected_points: 7.34,
+                      expected_minutes: 88,
+                      actual_points: null,
+                      generated_at: '2026-09-17T22:34:09Z',
+                      model_version: 'leaguewide_v6',
+                    },
+                  ],
+                }}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // Synchronously present -- no waitFor, no loading state, because
+    // nothing had to be fetched.
+    expect(screen.getByRole('heading', { level: 1, name: 'Erling Haaland' })).toBeInTheDocument();
+    expect(screen.getByText('7.3')).toBeInTheDocument();
+    expect(mocked.getPlayerBySlug).not.toHaveBeenCalled();
+    expect(mocked.getPlayerSeason).not.toHaveBeenCalled();
+  });
+
   it('shows a real not-found state for an unknown slug rather than an error', async () => {
     mocked.getPlayerBySlug.mockResolvedValue(null);
     mocked.getPlayerSeason.mockResolvedValue([]);

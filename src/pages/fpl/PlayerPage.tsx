@@ -40,14 +40,24 @@ function formatTimestamp(iso: string): string {
   });
 }
 
-export default function PlayerPage() {
+/** Data injected by the static-site generator so this page can render
+ * fully in Node via renderToString, with no browser and no fetch. When
+ * absent (i.e. in the normal browser SPA) the page fetches for itself
+ * exactly as before -- the two modes share one component, so there's no
+ * second copy of this markup that could silently drift from it. */
+export type PlayerPageData = { profile: PlayerPageProfile; season: PlayerPageGameweek[] };
+
+export default function PlayerPage({ initialData }: { initialData?: PlayerPageData } = {}) {
   const { slug } = useParams<{ slug: string }>();
-  const [profile, setProfile] = useState<PlayerPageProfile | null>(null);
-  const [season, setSeason] = useState<PlayerPageGameweek[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<PlayerPageProfile | null>(initialData?.profile ?? null);
+  const [season, setSeason] = useState<PlayerPageGameweek[]>(initialData?.season ?? []);
+  const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    // Prerendered: the data is already here, so don't refetch it on
+    // hydration and cause a pointless request + flash.
+    if (initialData) return;
     let cancelled = false;
     async function load() {
       if (!slug) return;
@@ -74,7 +84,7 @@ export default function PlayerPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, initialData]);
 
   const upcoming = season.filter((g) => g.projected_points != null && g.status !== 'played');
   const projectedTotal = upcoming.reduce((sum, g) => sum + (g.projected_points ?? 0), 0);
