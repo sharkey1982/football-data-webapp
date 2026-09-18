@@ -36,6 +36,8 @@ const SHELL = join(DIST, 'index.html');
 const ENTRY = join(process.cwd(), 'dist-ssr', 'entry-server.js');
 const SEASON_ID = 13;
 const EPL_LEAGUE_ID = 1;
+const MODEL_VERSION = 'leaguewide_v6';
+const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
 const REQUEST_TIMEOUT_MS = 20000;
 const WATCHDOG_MS = 240000;
 
@@ -66,6 +68,27 @@ async function query(path) {
   }
 }
 
+/** Paginated variant. PostgREST caps a plain select at 1000 rows and
+ * returns no indication that it truncated -- so a single query() over
+ * the ~7,200 projection rows would silently generate correct-looking
+ * pages with most gameweeks missing. Pages through explicitly instead,
+ * stopping when a short page comes back. */
+async function queryAll(path, pageSize = 1000) {
+  const out = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const sep = path.includes('?') ? '&' : '?';
+    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    if (page == null) return out.length > 0 ? out : null;
+    out.push(...page);
+    if (page.length < pageSize) return out;
+    // Guard against an unbounded loop if the server ever ignores offset.
+    if (offset > 200000) {
+      console.error('Static: pagination guard tripped -- stopping.');
+      return out;
+    }
+  }
+}
+
 async function main() {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.warn('Static: no Supabase credentials in the build env -- skipping (SPA still works).');
@@ -76,15 +99,15 @@ async function main() {
     return;
   }
 
-  const { renderMatchPage, buildDocument } = await import(ENTRY);
+  const { renderMatchPage, renderPlayerPage, buildDocument } = await import(ENTRY);
   const shell = readFileSync(SHELL, 'utf8');
 
   // Bulk fetches -- three requests total, not one per page.
   const teams = await query('teams?select=team_id,display_name,slug&limit=1000');
   const fits = await query('model_fit_runs?select=fit_run_id,rho&limit=1000');
-  const fixtures = await query(
-    `fixtures?select=slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id` +
-      `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null&limit=1000`
+  const fixtures = await queryAll(
+    `fixtures?select=fixture_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id` +
+      `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null`
   );
   if (!teams || !fixtures) {
     console.warn('Static: required data unavailable -- skipping.');
@@ -96,9 +119,9 @@ async function main() {
 
   // Actual results, for played fixtures. Keyed the same way the runtime
   // page keys them so generated and client-rendered output agree.
-  const matches = await query(
+  const matches = await queryAll(
     `matches?select=home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
-      `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&limit=1000`
+      `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}`
   );
   const resultKey = (h, a, d) => `${h}|${a}|${d}`;
   const resultByKey = new Map(
@@ -159,6 +182,98 @@ async function main() {
   }
 
   console.log(`Static: wrote ${written} match page(s), skipped ${skipped}, from ${fixtures.length} fixture(s).`);
+
+  // ---- Player pages -------------------------------------------------
+  const players = await queryAll(
+    `fpl_players?select=fpl_player_id,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
+  );
+  const projections = await queryAll(
+    `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
+  );
+  const actuals = await queryAll(
+    `fpl_player_gameweeks?select=fpl_fixture_id,fpl_player_id,total_points&season_id=eq.${SEASON_ID}`
+  );
+
+  if (!players) {
+    console.warn('Static: player data unavailable -- match pages still written.');
+    return;
+  }
+
+  const projByKey = new Map((projections ?? []).map((p) => [`${p.fixture_id}|${p.fpl_player_id}`, p]));
+  const actualByKey = new Map((actuals ?? []).map((a) => [`${a.fpl_fixture_id}|${a.fpl_player_id}`, a.total_points]));
+
+  // Fixtures grouped by team, so each player's season is a lookup rather
+  // than a scan of all 380 fixtures per player.
+  const fixturesByTeam = new Map();
+  for (const f of fixtures) {
+    for (const id of [f.home_team_id, f.away_team_id]) {
+      if (!fixturesByTeam.has(id)) fixturesByTeam.set(id, []);
+      fixturesByTeam.get(id).push(f);
+    }
+  }
+  for (const list of fixturesByTeam.values()) list.sort((a, b) => (a.matchweek ?? 0) - (b.matchweek ?? 0));
+
+  let pWritten = 0;
+  let pSkipped = 0;
+
+  for (const pl of players) {
+    const team = teamById.get(pl.canonical_team_id);
+    const teamFixtures = fixturesByTeam.get(pl.canonical_team_id) ?? [];
+    if (!team || teamFixtures.length === 0) {
+      pSkipped++;
+      continue;
+    }
+
+    const season = teamFixtures
+      .filter((f) => f.matchweek != null)
+      .map((f) => {
+        const isHome = f.home_team_id === pl.canonical_team_id;
+        const opp = teamById.get(isHome ? f.away_team_id : f.home_team_id);
+        const proj = projByKey.get(`${f.fixture_id}|${pl.fpl_player_id}`);
+        const actual = actualByKey.get(`${f.fixture_id}|${pl.fpl_player_id}`);
+        return {
+          matchweek: f.matchweek,
+          kickoff_date: f.kickoff_date,
+          opponent_name: opp?.display_name ?? 'Unknown',
+          is_home: isHome,
+          status: f.status,
+          projected_points: proj?.expected_fpl_points != null ? Number(proj.expected_fpl_points) : null,
+          expected_minutes: proj?.expected_minutes != null ? Number(proj.expected_minutes) : null,
+          actual_points: actual ?? null,
+          generated_at: proj?.generated_at ?? null,
+          model_version: proj?.model_version ?? null,
+        };
+      });
+
+    const fullName = [pl.first_name, pl.second_name].filter(Boolean).join(' ').trim() || pl.web_name;
+    const data = {
+      profile: {
+        fpl_player_id: pl.fpl_player_id,
+        slug: pl.slug,
+        web_name: pl.web_name,
+        full_name: fullName,
+        canonical_team_id: pl.canonical_team_id,
+        team_name: team.display_name,
+        team_slug: team.slug,
+        position_label: POSITION_LABELS[pl.element_type] ?? 'Unknown',
+        price: pl.now_cost != null ? pl.now_cost / 10 : null,
+      },
+      season,
+    };
+
+    try {
+      const page = renderPlayerPage(pl.slug, data);
+      const dir = join(DIST, 'fpl', 'players', pl.slug);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      pWritten++;
+    } catch (err) {
+      console.error(`Static: failed to render player ${pl.slug}: ${err?.message ?? err}`);
+      pSkipped++;
+    }
+  }
+
+  console.log(`Static: wrote ${pWritten} player page(s), skipped ${pSkipped}, from ${players.length} player(s).`);
 }
 
 main()
