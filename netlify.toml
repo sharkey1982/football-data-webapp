@@ -10,11 +10,21 @@
 # ============================================================================
 
 [build]
-  # prerender always exits 0 even on total failure (see its own header
-  # comment) -- chaining it here can never turn a successful build into a
-  # failed deploy, only skip the prerendering step if something's wrong
-  # with headless Chrome in this build environment specifically.
-  command = "npm run build && npm run prerender"
+  # Prerendering is deliberately NOT chained here. The reasoning when it
+  # was added -- "prerender always exits 0, so it can never fail the
+  # build" -- was correct about the SCRIPT but missed the real cost:
+  # puppeteer as a dependency makes Netlify download Chromium on every
+  # npm install. Deploys stopped dead from the moment that landed, and
+  # stayed broken for over an hour across four pushes, while the last
+  # good deploy kept serving. The script exiting 0 never came into it;
+  # the build was dying before it ran.
+  #
+  # Removed rather than patched because the browser-based approach was a
+  # dead end anyway: at ~2-4s per page it cannot prerender the ~1,240
+  # canonical entity pages inside a 15-minute build limit. The
+  # replacement is renderToString-based SSG, which needs no browser at
+  # all -- so puppeteer goes with it.
+  command = "npm run build"
   publish = "dist"
 
 [functions]
