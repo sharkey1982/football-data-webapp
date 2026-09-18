@@ -41,65 +41,6 @@ function match(overrides: Partial<MatchWithNames>): MatchWithNames {
 }
 
 describe('TeamExplorer page', () => {
-  it('wires the previously-unused GoalTrendChart and FormSequenceChart to the team\u2019s recent matches once a team is selected, capped at 15', async () => {
-    mockedApi.getLeagues.mockResolvedValue([]);
-    mockedApi.getTeams.mockResolvedValue([{ team_id: 1, canonical_name: 'Arsenal' }]);
-    const matches: MatchWithNames[] = Array.from({ length: 20 }, (_, i) =>
-      match({
-        match_date: `2026-0${(i % 9) + 1}-01`,
-        home_team_id: 1,
-        away_team_id: 2,
-        full_time_home_goals: 2,
-        full_time_away_goals: 1,
-        full_time_result: 'H',
-      })
-    );
-    mockedApi.getMatchesForTeam.mockResolvedValue(matches);
-
-    render(
-      <MemoryRouter>
-        <TeamExplorer />
-      </MemoryRouter>
-    );
-    const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('Arsenal')).toBeInTheDocument());
-    await user.click(screen.getByText('Arsenal'));
-
-    await waitFor(() => expect(screen.getByText(/Recent form/)).toBeInTheDocument());
-    expect(screen.getByText('Recent form \u2014 last 15')).toBeInTheDocument();
-    const chartSection = screen.getByText('Recent form \u2014 last 15').closest('div')!;
-
-    // Legend text from both chart components confirms they actually
-    // rendered (not just the section wrapper) -- ResponsiveContainer's
-    // own SVG content doesn't reliably render in jsdom, but this plain-JSX
-    // legend does, and is a real signal each component mounted. Scoped to
-    // the chart section specifically, since "Goals for"/"Goals against"
-    // also appear as labels in TeamStatsPanel's own stats table above.
-    expect(within(chartSection).getByText('Goals for')).toBeInTheDocument();
-    expect(within(chartSection).getByText('Goals against')).toBeInTheDocument();
-    expect(within(chartSection).getByText('Win')).toBeInTheDocument();
-    expect(within(chartSection).getByText('Draw')).toBeInTheDocument();
-    expect(within(chartSection).getByText('Loss')).toBeInTheDocument();
-  });
-
-  it('shows no chart section when a selected team has no match history', async () => {
-    mockedApi.getLeagues.mockResolvedValue([]);
-    mockedApi.getTeams.mockResolvedValue([{ team_id: 1, canonical_name: 'Newco FC' }]);
-    mockedApi.getMatchesForTeam.mockResolvedValue([]);
-
-    render(
-      <MemoryRouter>
-        <TeamExplorer />
-      </MemoryRouter>
-    );
-    const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('Newco FC')).toBeInTheDocument());
-    await user.click(screen.getByText('Newco FC'));
-
-    await waitFor(() => expect(mockedApi.getMatchesForTeam).toHaveBeenCalled());
-    expect(screen.queryByText(/Recent form/)).not.toBeInTheDocument();
-  });
-
   it('resolves /football/teams/:slug on load and auto-selects that team -- the canonical, bookmarkable entry point', async () => {
     mockedApi.getLeagues.mockResolvedValue([]);
     mockedApi.getTeams.mockResolvedValue([]);

@@ -7,12 +7,9 @@ import {
   getMatchesForTeam,
   getMostRecentFixtureSeason,
   getTeamsInLeagueFixtures,
-  buildMatchTrend,
   type MatchWithNames,
 } from '../lib/api';
 import { TeamStatsPanel } from '../components/TeamStatsPanel';
-import { GoalTrendChart } from '../components/GoalTrendChart';
-import { FormSequenceChart } from '../components/FormSequenceChart';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
 type TeamOption = { team_id: number; canonical_name: string; slug: string };
@@ -184,17 +181,6 @@ export default function TeamExplorer() {
 
       {team && matches && <TeamStatsPanel team={team} matches={matches} />}
 
-      {team && matches && matches.length > 0 && (
-        <div className="border border-chalk-300 rounded-lg bg-white p-4">
-          <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
-            Recent form &mdash; last {Math.min(15, matches.length)}
-          </h2>
-          <div className="space-y-4">
-            <GoalTrendChart data={buildMatchTrend(matches.slice(0, 15), team.team_id)} />
-            <FormSequenceChart data={buildMatchTrend(matches.slice(0, 15), team.team_id)} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
