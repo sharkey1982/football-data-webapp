@@ -1,0 +1,113 @@
+// ============================================================================
+// src/entry-server.tsx
+//
+// Server-render entry for static generation. Built separately by Vite
+// (`vite build --ssr`) so the page components, their TypeScript, and the
+// path aliases all resolve exactly as they do in the browser build --
+// rather than hand-transpiling them and hoping the two stay in step.
+//
+// Renders the SAME components the browser uses, with data injected as
+// props (see PlayerPage/MatchPage's initialData). No fetching happens
+// here: the generator queries Supabase once in bulk and hands the data
+// in, which is what makes this fast enough to do thousands of pages --
+// the previous browser-based prerenderer needed ~2-4 seconds per page
+// because each one had to boot a real page and wait for its own network
+// requests.
+//
+// Head tags are returned separately rather than rendered by the
+// components, because useDocumentHead does its work in useEffect, which
+// renderToString never runs. The generator injects these into the HTML
+// shell itself.
+// ============================================================================
+
+import { renderToString } from 'react-dom/server';
+import { StaticRouter } from 'react-router';
+import { Route, Routes } from 'react-router-dom';
+import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
+import MatchPage from './pages/football/MatchPage';
+import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
+import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
+
+export type RenderedPage = {
+  html: string;
+  title: string;
+  description: string;
+  canonical: string;
+};
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+export function renderPlayerPage(slug: string, data: PlayerPageData): RenderedPage {
+  const path = `/fpl/players/${slug}`;
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/fpl/players/:slug" element={<PlayerPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+
+  const upcoming = data.season.filter((g) => g.projected_points != null && g.status !== 'played');
+  const total = upcoming.reduce((sum, g) => sum + (g.projected_points ?? 0), 0);
+
+  return {
+    html,
+    title: `${data.profile.full_name} \u2014 FPL projections | ${BRAND_NAME}`,
+    description:
+      upcoming.length > 0
+        ? `${data.profile.full_name} (${data.profile.team_name}) is projected ${total.toFixed(1)} Fantasy Premier League points across the next ${upcoming.length} gameweek${upcoming.length === 1 ? '' : 's'}. Per-gameweek projected points, expected minutes and results.`
+        : `Fantasy Premier League projections, expected minutes and results for ${data.profile.full_name} (${data.profile.team_name}).`,
+    canonical: `${SITE_URL}${path}`,
+  };
+}
+
+/** rho is passed separately because it lives on the fixture's frozen fit
+ * run, not on the fixture row -- the generator fetches fit runs in bulk
+ * and supplies it here, so the model is rebuilt with exactly the same
+ * helper the browser uses. */
+export function renderMatchPage(slug: string, input: MatchPagePrediction & { __rho?: number | null }): RenderedPage {
+  const { __rho, ...rest } = input;
+  const data: MatchPagePrediction =
+    rest.model == null && rest.predicted_home_goals != null && rest.predicted_away_goals != null && __rho != null
+      ? { ...rest, model: buildModelFromLambdas(rest.predicted_home_goals, rest.predicted_away_goals, __rho) }
+      : rest;
+
+  const path = `/football/matches/${slug}`;
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/matches/:slug" element={<MatchPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+
+  const fixture = `${data.home_team_name} v ${data.away_team_name}`;
+  const description = data.model
+    ? `Model prediction for ${fixture}: ${data.home_team_name} ${data.model.homeWinPct.toFixed(1)}%, draw ${data.model.drawPct.toFixed(1)}%, ${data.away_team_name} ${data.model.awayWinPct.toFixed(1)}%. Expected goals and most likely scoreline.`
+    : `Fixture details for ${fixture}.`;
+
+  return {
+    html,
+    title: `${fixture} \u2014 prediction | ${BRAND_NAME}`,
+    description,
+    canonical: `${SITE_URL}${path}`,
+  };
+}
+
+/** Injects a rendered page into the built index.html shell: its markup
+ * into #root, and real head tags replacing the shell's static
+ * placeholders. Without the head replacement every generated page would
+ * carry the same generic title and description, which is most of the
+ * value of doing this at all. */
+export function buildDocument(shell: string, page: RenderedPage): string {
+  let out = shell.replace('<div id="root"></div>', `<div id="root">${page.html}</div>`);
+  out = out.replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeAttr(page.title)}</title>`);
+  out = out.replace(
+    /<meta\s+name="description"[\s\S]*?\/>/,
+    `<meta name="description" content="${escapeAttr(page.description)}" />`
+  );
+  out = out.replace('</head>', `  <link rel="canonical" href="${escapeAttr(page.canonical)}" />\n  </head>`);
+  return out;
+}

@@ -14,7 +14,9 @@
     "test": "vitest run",
     "optimizer:solve": "tsx scripts/solve-optimal-squads.ts",
     "hindsight:solve": "tsx scripts/solve-hindsight-optimal.ts",
-    "sitemap": "node scripts/generate-sitemap.mjs"
+    "sitemap": "node scripts/generate-sitemap.mjs",
+    "build:ssr": "vite build --ssr src/entry-server.tsx --outDir dist-ssr",
+    "static": "node scripts/generate-static.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

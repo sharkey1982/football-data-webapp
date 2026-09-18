@@ -44,6 +44,31 @@ export type MatchPagePrediction = {
   actual_away_goals: number | null;
 };
 
+/** Builds the outcome probabilities and score grid from a fixture's OWN
+ * frozen expected goals.
+ *
+ * Exported so the static generator renders identical numbers to the
+ * browser: this is the single place the technique lives, rather than
+ * two copies that could silently drift apart.
+ *
+ * Reuses calculateDixonColes rather than reimplementing the low-score
+ * correction and score grid. That function derives lambdas from ratings
+ * (exp(homeAdvantage + attack - defence)), but here they're already
+ * fixed by the stored prediction -- so feeding it log-lambdas with
+ * zeroed home advantage and defence makes it reproduce those exact
+ * expected goals rather than re-deriving possibly-different ones from
+ * today's ratings: exp(0 + ln(lambdaHome) - 0) === lambdaHome. */
+export function buildModelFromLambdas(lambdaHome: number, lambdaAway: number, rho: number): DixonColesResult {
+  return calculateDixonColes({
+    homeAttack: Math.log(lambdaHome),
+    homeDefence: 0,
+    awayAttack: Math.log(lambdaAway),
+    awayDefence: 0,
+    rho,
+    homeAdvantage: 0,
+  });
+}
+
 export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction | null> {
   const { data, error } = await (supabase as any)
     .from('fixtures')
@@ -69,26 +94,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     if (fitError) throw fitError;
 
     if (fitRun) {
-      // Reuses calculateDixonColes rather than reimplementing the
-      // low-score correction and score grid here -- duplicated
-      // probability maths that could silently drift from the real
-      // model is exactly what this page must not have.
-      //
-      // That function derives its lambdas from ratings
-      // (exp(homeAdvantage + attack - defence)), but here the lambdas
-      // are already fixed by the frozen prediction. Feeding it
-      // log-lambdas with zeroed home advantage and defence makes it
-      // reproduce those exact expected goals rather than re-deriving
-      // possibly-different ones from today's ratings:
-      //   exp(0 + ln(lambdaHome) - 0) === lambdaHome
-      model = calculateDixonColes({
-        homeAttack: Math.log(lambdaHome),
-        homeDefence: 0,
-        awayAttack: Math.log(lambdaAway),
-        awayDefence: 0,
-        rho: Number(fitRun.rho),
-        homeAdvantage: 0,
-      });
+      model = buildModelFromLambdas(lambdaHome, lambdaAway, Number(fitRun.rho));
     }
   }
 

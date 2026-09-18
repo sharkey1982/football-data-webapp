@@ -30,7 +30,7 @@
   # unconditionally -- so it cannot repeat the "finished its work but
   # never exited" hang that took deploys down for an hour. It also never
   # exits non-zero: a missing sitemap must never cost a deploy.
-  command = "npm run build && npm run sitemap"
+  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap"
   publish = "dist"
 
 [functions]
