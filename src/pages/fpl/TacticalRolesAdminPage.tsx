@@ -17,6 +17,7 @@
 // requested directly, on top of the original role-only review.
 // ============================================================================
 
+import { AdminGateNotice } from '../../components/AdminGateNotice';
 import { useEffect, useMemo, useState } from 'react';
 import {
   getTacticalRoleReview,
@@ -375,6 +376,7 @@ export default function TacticalRolesAdminPage() {
 
   return (
     <div className="space-y-4">
+      <AdminGateNotice />
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Tactical Roles</h1>
         <p className="text-sm text-ink-500 mt-1">

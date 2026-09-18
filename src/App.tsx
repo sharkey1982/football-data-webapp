@@ -1,3 +1,4 @@
+import { AuthProvider } from './lib/auth';
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
@@ -19,6 +20,7 @@ const FootballHub = lazy(() => import('./pages/FootballHub'));
 const FplHub = lazy(() => import('./pages/FplHub'));
 const PlayerPage = lazy(() => import('./pages/fpl/PlayerPage'));
 const MatchPage = lazy(() => import('./pages/football/MatchPage'));
+const Login = lazy(() => import('./pages/Login'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
 const ResultsData = lazy(() => import('./pages/ResultsData'));
@@ -46,6 +48,7 @@ function RouteFallback() {
 
 export default function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
@@ -170,6 +173,14 @@ export default function App() {
             }
           />
           <Route
+            path="login"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Login />
+              </Suspense>
+            }
+          />
+          <Route
             path="football/matches/:slug"
             element={
               <Suspense fallback={<RouteFallback />}>
@@ -260,5 +271,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </AuthProvider>
   );
 }

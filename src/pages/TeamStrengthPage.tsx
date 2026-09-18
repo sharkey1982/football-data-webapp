@@ -9,6 +9,7 @@
 // place, without digging through individual fixtures.
 // ============================================================================
 
+import { AdminGateNotice } from '../components/AdminGateNotice';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
@@ -314,6 +315,7 @@ export default function TeamStrengthPage() {
 
   return (
     <div className="space-y-4">
+      <AdminGateNotice />
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Team Strength</h1>
         <p className="text-sm text-ink-500 mt-1">
