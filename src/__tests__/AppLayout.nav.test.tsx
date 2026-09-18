@@ -36,23 +36,23 @@ function renderAt(path: string) {
 }
 
 describe('AppLayout main nav', () => {
-  it('shows four top-level headings: Football, Fantasy, Admin, FPL Admin -- no standalone items alongside them', () => {
+  it('shows four top-level headings: Football, Fantasy, Admin -- no standalone items alongside them', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fantasy/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Admin/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /FPL Admin/ })).toBeInTheDocument();
     // Old flat top-level items should not exist as their own top-level buttons any more.
     expect(screen.queryByRole('button', { name: /^League Table$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Optimal Squad$/ })).not.toBeInTheDocument();
   });
 
-  it('FPL Admin dropdown links to Team Strength, Tactical Roles, and Optimal Squad -- duplicating them from their own groups, for the described review-then-optimise workflow', async () => {
+  it('the single Admin menu holds the whole workflow: adjust, optimise, then inspect', async () => {
     renderAt('/');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /FPL Admin/ }));
-    expect(screen.getByRole('link', { name: 'Team Strength' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Admin/ }));
+    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
     expect(screen.getByRole('link', { name: 'Tactical Roles' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Data Health' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('button', { name: /Football/ }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /Fantasy/ }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /^Admin/ }).className).not.toContain('bg-amber-500');
-    expect(screen.getByRole('button', { name: /FPL Admin/ }).className).not.toContain('bg-amber-500');
+
   });
 
   it('Football dropdown contains Team Strength, and visiting it highlights Football, not League Table', async () => {
@@ -105,7 +105,7 @@ describe('AppLayout main nav', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Football/ }));
 
-    expect(screen.getByRole('link', { name: 'Team Strength' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
     expect(screen.getByRole('link', { name: 'Team Strength' }).className).toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'League Table' }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');

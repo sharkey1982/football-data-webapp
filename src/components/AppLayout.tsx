@@ -8,7 +8,7 @@ type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: 
 /** A group's items may be split into the four journey stages
  * (Discover / Predict / Validate / Configure) so the menu mirrors the
  * site's own structure. `sections` is optional -- groups that aren't
- * part of that journey (Data, FPL Admin) stay flat, because forcing
+ * part of that journey (Admin) stay flat, because forcing
  * them into stage headings would invent a structure they don't have. */
 type NavSection = { label: string; to?: string; items: NavItem[] };
 type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[] };
@@ -160,7 +160,7 @@ export default function AppLayout() {
 
   const fixturesTo: To = { pathname: '/fixtures', search: lastFixturesSearch.current };
 
-  // Four top-level headings -- Football, Fantasy, Data, FPL Admin -- each a
+  // Three top-level headings -- Football, Fantasy, Admin -- each a
   // dropdown, no separate flat top-level items alongside them.
   // Mirrors the site's own structure: two themes, each following the
   // same Discover -> Predict -> Validate -> Configure journey. Theme
@@ -225,17 +225,6 @@ export default function AppLayout() {
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
-      ],
-    },
-    {
-      // Shortcut through the core admin workflow: team strength, then
-      // tactical roles, then the optimiser. A workflow rather than a
-      // journey stage, so deliberately flat.
-      label: 'FPL Admin',
-      items: [
-        { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
-        { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
-        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
       ],
     },
   ];
