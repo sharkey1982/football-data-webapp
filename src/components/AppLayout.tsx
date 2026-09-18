@@ -4,7 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
 type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[] };
-type NavGroup = { label: string; items: NavItem[] };
+/** A group's items may be split into the four journey stages
+ * (Discover / Predict / Validate / Configure) so the menu mirrors the
+ * site's own structure. `sections` is optional -- groups that aren't
+ * part of that journey (Data, FPL Admin) stay flat, because forcing
+ * them into stage headings would invent a structure they don't have. */
+type NavSection = { label: string; items: NavItem[] };
+type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[] };
+
+/** Every item in a group, whether it's flat or sectioned -- used for
+ * group-level highlighting so both shapes behave identically. */
+function groupItems(group: NavGroup): NavItem[] {
+  return group.items ?? (group.sections ?? []).flatMap((sec) => sec.items);
+}
 
 const navLinkClasses = (isActive: boolean) =>
   [
@@ -32,7 +44,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLLIElement>(null);
   const location = useLocation();
-  const isGroupActive = group.items.some((item) => isItemActive(location.pathname, item));
+  const isGroupActive = groupItems(group).some((item) => isItemActive(location.pathname, item));
 
   // Close on navigation and on any click outside the dropdown -- a menu
   // that stays open after picking an item, or after tapping elsewhere on
@@ -66,12 +78,36 @@ function NavDropdown({ group }: { group: NavGroup }) {
         <span className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>&#9662;</span>
       </button>
       {open && (
-        <ul className="absolute left-0 top-full mt-1 min-w-[10rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium">
-          {group.items.map((item) => (
+        <ul className="absolute left-0 top-full mt-1 min-w-[13rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium max-h-[75vh] overflow-y-auto">
+          {group.items?.map((item) => (
             <li key={item.label}>
               <NavLink to={item.to} className={() => navLinkClasses(isItemActive(location.pathname, item))}>
                 {item.label}
               </NavLink>
+            </li>
+          ))}
+          {group.sections?.map((section, i) => (
+            <li key={section.label}>
+              {/* Stage heading. Deliberately not a link: the stage
+                  itself has no page of its own yet, and a heading that
+                  looks clickable but isn't is worse than a plain one. */}
+              <p
+                className={[
+                  'px-3 pt-2 pb-1 font-mono text-[0.65rem] uppercase tracking-widest text-amber-400',
+                  i > 0 ? 'border-t border-pitch-700 mt-1' : '',
+                ].join(' ')}
+              >
+                {section.label}
+              </p>
+              <ul>
+                {section.items.map((item) => (
+                  <li key={item.label}>
+                    <NavLink to={item.to} className={() => navLinkClasses(isItemActive(location.pathname, item))}>
+                      {item.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>
@@ -108,51 +144,94 @@ export default function AppLayout() {
 
   // Four top-level headings -- Football, Fantasy, Data, FPL Admin -- each a
   // dropdown, no separate flat top-level items alongside them.
+  // Mirrors the site's own structure: two themes, each following the
+  // same Discover -> Predict -> Validate -> Configure journey. Theme
+  // first rather than stage first, because that's the order the landing
+  // page and hubs present it in, and because it keeps the theme
+  // grouping the back-to-hub link derives from.
+  //
+  // A page can legitimately appear under more than one stage: Team
+  // Strength is where you SEE the ratings (Predict), where you compare
+  // them to actuals (Validate) and where you change them (Configure).
+  // Listing it three times reflects what it actually does rather than
+  // forcing a single arbitrary home.
   const navGroups: NavGroup[] = [
     {
       label: 'Football',
-      items: [
-        { to: '/football', label: 'Overview', exact: true, matchPrefix: '/football' },
-        { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/fixtures' },
-        { to: '/table', label: 'League Table', matchPrefix: '/table' },
-        { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
-        { to: '/teams', label: 'Team Explorer', matchPrefix: ['/teams', '/football/teams'] },
-        { to: '/preview', label: 'Match Preview', matchPrefix: '/preview' },
+      sections: [
+        {
+          label: 'Discover',
+          items: [
+            { to: '/football', label: 'Overview', exact: true, matchPrefix: '/football' },
+            { to: fixturesTo, label: 'Fixtures & Results', exact: true, matchPrefix: '/fixtures' },
+            { to: '/table', label: 'League Table', matchPrefix: '/table' },
+            { to: '/teams', label: 'Team Explorer', matchPrefix: ['/teams', '/football/teams'] },
+          ],
+        },
+        {
+          label: 'Predict',
+          items: [
+            { to: '/preview', label: 'Match Preview', matchPrefix: '/preview' },
+            { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
+          ],
+        },
+        {
+          label: 'Validate',
+          items: [{ to: '/team-strength', label: 'Projected vs Actual', matchPrefix: '/team-strength' }],
+        },
+        {
+          label: 'Configure',
+          items: [{ to: '/team-strength', label: 'Adjust Ratings', matchPrefix: '/team-strength' }],
+        },
       ],
     },
     {
       label: 'Fantasy',
-      items: [
-        { to: '/fpl/start', label: 'Overview', exact: true, matchPrefix: '/fpl/start' },
-        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
-        { to: '/fpl/optimal-squad-so-far', label: 'Optimal Squad So Far', matchPrefix: '/fpl/optimal-squad-so-far' },
-        { to: '/fantasy', label: 'Fixture Heat Map', matchPrefix: '/fantasy' },
+      sections: [
         {
-          to: '/fpl',
-          label: 'Match Projections',
-          matchPrefix: '/fpl',
-          exact: true,
+          label: 'Discover',
+          items: [
+            { to: '/fpl/start', label: 'Overview', exact: true, matchPrefix: '/fpl/start' },
+            { to: '/fpl', label: 'Match Projections', matchPrefix: '/fpl', exact: true },
+            { to: '/fpl/scoring-rules', label: 'Scoring Rules', matchPrefix: '/fpl/scoring-rules' },
+          ],
         },
-        { to: '/fpl/player-points', label: 'Player Points Table', matchPrefix: '/fpl/player-points' },
-        { to: '/fpl/scoring-rules', label: 'Scoring Rules', matchPrefix: '/fpl/scoring-rules' },
-        { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
-        { to: '/fpl/actual-matches', label: 'Actual Matches', matchPrefix: '/fpl/actual-matches' },
+        {
+          label: 'Predict',
+          items: [
+            { to: '/fpl/player-points', label: 'Player Points Table', matchPrefix: '/fpl/player-points' },
+            { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
+            { to: '/fantasy', label: 'Fixture Heat Map', matchPrefix: '/fantasy' },
+          ],
+        },
+        {
+          label: 'Validate',
+          items: [
+            { to: '/fpl/actual-matches', label: 'Actual Matches', matchPrefix: '/fpl/actual-matches' },
+            { to: '/fpl/optimal-squad-so-far', label: 'Optimal Squad So Far', matchPrefix: '/fpl/optimal-squad-so-far' },
+          ],
+        },
+        {
+          label: 'Configure',
+          items: [{ to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' }],
+        },
       ],
     },
     {
+      // Flat, not sectioned: these are raw-data and infrastructure
+      // views, not part of the Discover-to-Configure journey. Giving
+      // them stage headings would invent a structure they don't have.
       label: 'Data',
       items: [
         { to: '/results-data', label: 'Results Data', matchPrefix: '/results-data' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
       ],
     },
-    // Duplicate links (not moved -- each page still belongs in its own
-    // group above too) to the three pages in Chris's described core
-    // workflow: review/amend team strength, then tactical roles, then
-    // run the optimiser. Requested directly as a quick way to jump
-    // straight through that sequence without hunting across Football
-    // and Fantasy separately.
     {
+      // Duplicate links to the three pages in the core admin workflow:
+      // review team strength, then tactical roles, then run the
+      // optimiser. A shortcut through that sequence, deliberately kept
+      // flat since it's a workflow rather than a journey stage.
       label: 'FPL Admin',
       items: [
         { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
@@ -173,8 +252,14 @@ export default function AppLayout() {
   // never drift out of sync with which pages actually belong to which
   // theme. Suppressed on the hub pages themselves and on Landing/Data
   // pages, where there's nothing to loop back to.
-  const onFootballPage = location.pathname !== '/football' && footballGroup.items.some((item) => isItemActive(location.pathname, item));
-  const onFantasyPage = location.pathname !== '/fpl/start' && fantasyGroup.items.some((item) => isItemActive(location.pathname, item));
+  // groupItems() rather than .items -- these groups are now split into
+  // stage sections, so .items is undefined for them. TypeScript caught
+  // this the moment the shape changed, which is the whole reason the
+  // sectioned groups share one accessor: without it this would have
+  // silently evaluated to "no theme matched" and quietly removed the
+  // back link from every page, with nothing failing loudly.
+  const onFootballPage = location.pathname !== '/football' && groupItems(footballGroup).some((item) => isItemActive(location.pathname, item));
+  const onFantasyPage = location.pathname !== '/fpl/start' && groupItems(fantasyGroup).some((item) => isItemActive(location.pathname, item));
   const backToHub = onFootballPage ? { to: '/football', label: 'Football' } : onFantasyPage ? { to: '/fpl/start', label: 'Fantasy Premier League' } : null;
 
   return (

@@ -100,11 +100,17 @@ Needs: PK widened, every FK reviewed, and a canonical player identity to
 link the same human across seasons (the FPL id can't, and names alone
 won't — transfers, renames, collisions).
 
-### Naming: Browse → Explore, and a stage-based nav accordion
-Low impact, but one real interaction: the back-to-hub link derives
-"which theme am I in" from nav group labels `Football`/`Fantasy`. A
-stage-based regroup removes that signal and would need an explicit
-route→theme map. It would fail silently, so do it deliberately.
+### Nav accordion — DONE
+Browse → Discover, and both theme menus now group their links under the
+four stages. Theme-first (Football → 4 stages) rather than stage-first,
+mirroring the landing page and hubs.
+
+The back-to-hub risk flagged here did materialise, but as a COMPILE
+error rather than a silent one: splitting groups into `sections` left
+`.items` undefined, and TypeScript refused it. A shared `groupItems()`
+accessor now serves both shapes. Had the field been optional-with-
+default instead, this would have silently evaluated to "no theme
+matched" and removed the back link everywhere with nothing failing.
 
 ### Facts / Forecasts / Verdict naming
 Discussed, not decided. Would become the headers on stage-level landing

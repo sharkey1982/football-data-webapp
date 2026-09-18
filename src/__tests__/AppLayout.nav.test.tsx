@@ -130,6 +130,31 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Optimal Squad' }).className).not.toContain('bg-amber-500');
   });
 
+  it('groups the Football menu into the four journey stages, with every stage present', async () => {
+    renderAt('/fixtures');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Football/ }));
+
+    for (const stage of ['Discover', 'Predict', 'Validate', 'Configure']) {
+      expect(screen.getByText(stage)).toBeInTheDocument();
+    }
+    // Renamed from "Browse" -- and the old label should be gone entirely.
+    expect(screen.queryByText('Browse')).not.toBeInTheDocument();
+  });
+
+  it('lets one page appear under several stages when it genuinely serves them', async () => {
+    renderAt('/fixtures');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Football/ }));
+
+    // Team Strength is where ratings are seen, compared to actuals, and
+    // changed -- so it appears under Predict, Validate and Configure
+    // with a label describing what you'd go there to do.
+    expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
+    expect(screen.getByRole('link', { name: 'Projected vs Actual' })).toHaveAttribute('href', '/team-strength');
+    expect(screen.getByRole('link', { name: 'Adjust Ratings' })).toHaveAttribute('href', '/team-strength');
+  });
+
   it('shows a back-to-hub link on a Football destination page, pointing at /football', () => {
     renderAt('/team-strength');
     expect(screen.getByRole('link', { name: /Back to Football/ })).toHaveAttribute('href', '/football');
