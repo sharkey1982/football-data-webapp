@@ -10,11 +10,11 @@ vi.mock('../lib/landingApi', async () => {
   return { ...actual, getFplTrivia: vi.fn() };
 });
 
-const mockedApi = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mocked = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('FplHub page', () => {
-  it('shows all four stages as clickable boxes, each linking to its primary destination -- including the two genuine backtest pages available under Validate', async () => {
-    mockedApi.getFplTrivia.mockResolvedValue([]);
+  it('shows all four stages as compact boxes linking to their own stage pages', async () => {
+    mocked.getFplTrivia.mockResolvedValue([]);
 
     render(
       <MemoryRouter>
@@ -22,15 +22,14 @@ describe('FplHub page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('link', { name: 'Discover' })).toHaveAttribute('href', '/fpl');
-    expect(screen.getByRole('link', { name: 'Predict' })).toHaveAttribute('href', '/fpl/optimal-squad');
-    expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/fpl/actual-matches');
-    expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/fpl/tactical-roles');
+    // Each box links to the stage page, not straight to a destination --
+    // the destinations and their explanations live on the stage page now,
+    // which is what keeps all four boxes on one phone screen.
+    expect(screen.getByRole('link', { name: /Discover/ })).toHaveAttribute('href', '/fpl/start/discover');
+    expect(screen.getByRole('link', { name: /Predict/ })).toHaveAttribute('href', '/fpl/start/predict');
+    expect(screen.getByRole('link', { name: /Validate/ })).toHaveAttribute('href', '/fpl/start/validate');
+    expect(screen.getByRole('link', { name: /Configure/ })).toHaveAttribute('href', '/fpl/start/configure');
 
-    expect(screen.getByRole('link', { name: 'Scoring Rules' })).toHaveAttribute('href', '/fpl/scoring-rules');
-    expect(screen.getByRole('link', { name: 'Player Points Table' })).toHaveAttribute('href', '/fpl/player-points');
-    expect(screen.getByRole('link', { name: 'Optimal Squad So Far' })).toHaveAttribute('href', '/fpl/optimal-squad-so-far');
-
-    await waitFor(() => expect(mockedApi.getFplTrivia).toHaveBeenCalled());
+    await waitFor(() => expect(mocked.getFplTrivia).toHaveBeenCalled());
   });
 });

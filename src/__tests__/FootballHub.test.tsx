@@ -10,11 +10,11 @@ vi.mock('../lib/landingApi', async () => {
   return { ...actual, getFootballTrivia: vi.fn() };
 });
 
-const mockedApi = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mocked = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('FootballHub page', () => {
-  it('shows all four stages as clickable boxes, each linking to its primary destination, with any further pages as secondary links', async () => {
-    mockedApi.getFootballTrivia.mockResolvedValue([]);
+  it('shows all four stages as compact boxes linking to their own stage pages', async () => {
+    mocked.getFootballTrivia.mockResolvedValue([]);
 
     render(
       <MemoryRouter>
@@ -22,22 +22,14 @@ describe('FootballHub page', () => {
       </MemoryRouter>
     );
 
-    // The stage title itself is the box's own primary link.
-    expect(screen.getByRole('link', { name: 'Discover' })).toHaveAttribute('href', '/fixtures');
-    expect(screen.getByRole('link', { name: 'Predict' })).toHaveAttribute('href', '/preview');
-    expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/team-strength');
-    expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/team-strength');
+    // Each box links to the stage page, not straight to a destination --
+    // the destinations and their explanations live on the stage page now,
+    // which is what keeps all four boxes on one phone screen.
+    expect(screen.getByRole('link', { name: /Discover/ })).toHaveAttribute('href', '/football/discover');
+    expect(screen.getByRole('link', { name: /Predict/ })).toHaveAttribute('href', '/football/predict');
+    expect(screen.getByRole('link', { name: /Validate/ })).toHaveAttribute('href', '/football/validate');
+    expect(screen.getByRole('link', { name: /Configure/ })).toHaveAttribute('href', '/football/configure');
 
-    // Secondary pages a stage also covers are separate, independently
-    // clickable links inside the box.
-    expect(screen.getByRole('link', { name: 'League Table' })).toHaveAttribute('href', '/table');
-    expect(screen.getByRole('link', { name: 'Team Explorer' })).toHaveAttribute('href', '/teams');
-    expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
-
-    // Validate has no dedicated page yet -- it should say so, not silently
-    // point at the interim page as if it were the real thing.
-    expect(screen.getByText(/dedicated page for this is planned/)).toBeInTheDocument();
-
-    await waitFor(() => expect(mockedApi.getFootballTrivia).toHaveBeenCalled());
+    await waitFor(() => expect(mocked.getFootballTrivia).toHaveBeenCalled());
   });
 });

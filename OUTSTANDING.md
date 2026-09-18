@@ -116,9 +116,10 @@ matched" and removed the back link everywhere with nothing failing.
 Discussed, not decided. Would become the headers on stage-level landing
 pages, so settle it before building those.
 
-### Stage-level landing pages
-One per Explore/Predict/Validate/Configure, below the theme hubs. Held
-pending the naming decision above.
+### Stage-level landing pages — DONE
+Eight pages (/football/discover ... /fpl/start/configure), all rendered
+by one StagePage component from src/lib/journey.ts. Adding a link to a
+stage is a config edit, not a code change.
 
 ### Football "Validate"
 No dedicated page. Currently points at Team Strength's proj-vs-actual
