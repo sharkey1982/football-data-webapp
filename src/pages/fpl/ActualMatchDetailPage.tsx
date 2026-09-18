@@ -106,7 +106,7 @@ export default function ActualMatchDetailPage() {
   return (
     <div className="space-y-4">
       <Link to="/fpl/actual-matches" className="text-sm text-pitch-800 hover:underline">
-        &larr; Back to Actual Matches
+        &larr; Back to Gameweek Results
       </Link>
 
       {loading && <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>}
