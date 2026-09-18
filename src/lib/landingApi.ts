@@ -280,6 +280,70 @@ export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> 
   };
 }
 
+
+// ---------------------------------------------------------------------
+// Historic trivia. The season-scoped facts below ("biggest thumping this
+// season") were weak: anyone following the league already knows them, so
+// there's nothing to guess. These span the whole archive and are chosen
+// because the answer genuinely isn't in most people's heads -- and each
+// one points at a section of the site that can show you more.
+// ---------------------------------------------------------------------
+
+export async function getComebackTrivia(): Promise<TriviaFact | null> {
+  const { data } = await (supabase as any).rpc('get_biggest_comebacks');
+  const rows = (data ?? []) as any[];
+  const threes = rows.filter((r) => r.deficit >= 3);
+  if (threes.length < 2) return null;
+
+  // Each comeback happened in a different division, which is the
+  // interesting part -- so the options are the clubs and the answer
+  // names the one from the top flight.
+  const topFlight = threes.find((r) => r.league_code === 'E0');
+  if (!topFlight) return null;
+  const winner = topFlight.ht_home > topFlight.ht_away ? topFlight.away : topFlight.home;
+  const labels = threes
+    .slice(0, 4)
+    .map((r) => (r.ht_home > r.ht_away ? r.away : r.home));
+  const correctAt = labels.indexOf(winner);
+  if (correctAt < 0) return null;
+  const { items: options, newIndex } = shuffleWithIndex(labels, correctAt);
+
+  return {
+    question: `${threes.length} clubs in this archive came back from 3\u20130 down at half time to win. Which did it in the Premier League?`,
+    options,
+    correctIndex: newIndex,
+    explanation: `${winner} \u2014 ${topFlight.ht_home}\u2013${topFlight.ht_away} down at the break, won ${topFlight.ft_home}\u2013${topFlight.ft_away}. The others managed it in the Championship, League One and the National League.`,
+  };
+}
+
+export async function getStrictestRefereeTrivia(): Promise<TriviaFact | null> {
+  const { data } = await (supabase as any).rpc('get_strictest_referees');
+  const rows = (data ?? []) as any[];
+  if (rows.length < 2) return null;
+  const labels = rows.map((r) => r.referee);
+  const { items: options, newIndex } = shuffleWithIndex(labels, 0);
+  return {
+    question: 'Which referee has sent off more players than any other in this archive?',
+    options,
+    correctIndex: newIndex,
+    explanation: `${rows[0].referee} \u2014 ${rows[0].red_cards} red cards across ${rows[0].matches} matches.`,
+  };
+}
+
+export async function getAllTimeScorersTrivia(): Promise<TriviaFact | null> {
+  const { data } = await (supabase as any).rpc('get_all_time_top_scorers');
+  const rows = (data ?? []) as any[];
+  if (rows.length < 2) return null;
+  const labels = rows.map((r) => r.display_name);
+  const { items: options, newIndex } = shuffleWithIndex(labels, 0);
+  return {
+    question: 'Across every English division in this archive, which club has scored the most goals?',
+    options,
+    correctIndex: newIndex,
+    explanation: `${rows[0].display_name} \u2014 ${rows[0].goals} goals, ahead of ${rows[1].display_name} on ${rows[1].goals}.`,
+  };
+}
+
 /** Each function's own failure just means that one fact is skipped -- a
  * decorative feature degrading gracefully rather than blocking the page
  * shell is the right trade-off, so every call here is wrapped
@@ -296,9 +360,10 @@ async function safely(fn: () => Promise<TriviaFact | null>): Promise<TriviaFact 
  * a theme -- one taste of each. */
 export async function getLandingTrivia(): Promise<TriviaFact[]> {
   const results = await Promise.all([
+    safely(getComebackTrivia),
     safely(getMostCommonScorelineTrivia),
+    safely(getAllTimeScorersTrivia),
     safely(getBestDefenceTrivia),
-    safely(getClosestMatchTrivia),
     safely(getTopFplPickTrivia),
   ]);
   return results.filter((f): f is TriviaFact => f !== null);
@@ -306,12 +371,12 @@ export async function getLandingTrivia(): Promise<TriviaFact[]> {
 
 export async function getFootballTrivia(): Promise<TriviaFact[]> {
   const results = await Promise.all([
+    safely(getComebackTrivia),
+    safely(getAllTimeScorersTrivia),
+    safely(getStrictestRefereeTrivia),
     safely(getMostCommonScorelineTrivia),
     safely(getBestDefenceTrivia),
-    safely(getBiggestWinMarginTrivia),
     safely(getClosestMatchTrivia),
-    safely(getGoalsPerGameTrivia),
-    safely(getHighestScoringMatchTrivia),
   ]);
   return results.filter((f): f is TriviaFact => f !== null);
 }

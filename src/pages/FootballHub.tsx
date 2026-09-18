@@ -20,7 +20,7 @@ import { getFootballTrivia, type TriviaFact } from '../lib/landingApi';
 const STAGES: HubStage[] = [
   {
     number: '01',
-    title: 'Browse',
+    title: 'Discover',
     description: "Every match, by division or by team, with what's already happened and what's coming up next -- no model involved, just the record.",
     to: '/fixtures',
     moreLinks: [

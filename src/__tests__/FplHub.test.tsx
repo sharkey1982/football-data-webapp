@@ -22,7 +22,7 @@ describe('FplHub page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('href', '/fpl');
+    expect(screen.getByRole('link', { name: 'Discover' })).toHaveAttribute('href', '/fpl');
     expect(screen.getByRole('link', { name: 'Predict' })).toHaveAttribute('href', '/fpl/optimal-squad');
     expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/fpl/actual-matches');
     expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/fpl/tactical-roles');

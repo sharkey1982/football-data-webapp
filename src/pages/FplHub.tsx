@@ -18,7 +18,7 @@ import { getFplTrivia, type TriviaFact } from '../lib/landingApi';
 const STAGES: HubStage[] = [
   {
     number: '01',
-    title: 'Browse',
+    title: 'Discover',
     description: 'Every fixture by gameweek, plus the full Fantasy Premier League scoring rulebook -- no projections yet, just the schedule and the rules.',
     to: '/fpl',
     moreLinks: [{ label: 'Scoring Rules', to: '/fpl/scoring-rules' }],

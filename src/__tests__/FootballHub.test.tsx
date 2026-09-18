@@ -23,7 +23,7 @@ describe('FootballHub page', () => {
     );
 
     // The stage title itself is the box's own primary link.
-    expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('href', '/fixtures');
+    expect(screen.getByRole('link', { name: 'Discover' })).toHaveAttribute('href', '/fixtures');
     expect(screen.getByRole('link', { name: 'Predict' })).toHaveAttribute('href', '/preview');
     expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/team-strength');
     expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/team-strength');
