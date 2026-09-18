@@ -106,6 +106,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           'What has actually happened: real gameweek returns, what players cost, who owns them, and exactly how points are earned. No projections here.',
         links: [
           { label: 'Gameweek Results', to: '/fpl/actual-matches', blurb: 'Real results and FPL returns for gameweeks already played.' },
+          { label: 'Points Per Million', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
           { label: 'The FPL Market', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
           { label: 'Injuries & Availability', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
