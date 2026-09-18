@@ -67,6 +67,7 @@ const STATIC_ROUTES = [
   '/results-data',
   '/football/leagues-compared',
   '/football/market-efficiency',
+  '/fpl/market',
   // Stage landing pages: each is a real page with its own content.
   '/football/discover',
   '/football/predict',

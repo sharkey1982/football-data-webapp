@@ -78,7 +78,7 @@ export default function ActualMatchesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Actual Matches</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Gameweek Results</h1>
         <p className="text-sm text-ink-500 mt-1">
           Real results and real FPL stats for gameweeks already played &mdash; the counterpart to Match Projections.
           There&rsquo;s a genuine data gap for proper starting lineups/formations here (no per-match source for who

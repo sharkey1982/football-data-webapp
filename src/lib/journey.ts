@@ -125,11 +125,12 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         key: 'discover',
         number: '01',
         title: 'Discover',
-        tagline: 'Fixtures and rules.',
+        tagline: 'Results, prices, rules.',
         intro:
-          'Every fixture by gameweek, plus the full Fantasy Premier League scoring rulebook. No projections yet \u2014 the schedule and the rules.',
+          'What has actually happened: real gameweek results and returns, what players cost and who owns them, and exactly how points are earned. No projections here.',
         links: [
-          { label: 'Match Projections', to: '/fpl', blurb: 'Browse gameweek by gameweek.', exact: true },
+          { label: 'Gameweek Results', to: '/fpl/actual-matches', blurb: 'Real results and FPL returns for gameweeks already played.' },
+          { label: 'The FPL Market', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
       },
@@ -141,6 +142,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           "Every player's projected points \u2014 factoring in form, fixtures and set-piece duty \u2014 plus an optimiser that picks the best XV under budget.",
         links: [
+          { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
           { label: 'Player Points Table', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
@@ -153,10 +155,8 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         tagline: 'Projected vs scored.',
         intro:
           'Comparing projections to what players actually scored \u2014 and, in hindsight, what the truly optimal squad would have been.',
-        links: [
-          { label: 'Actual Matches', to: '/fpl/actual-matches', blurb: 'Real returns next to what was projected.' },
-          { label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight.' },
-        ],
+        links: [{ label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight.' }],
+        note: 'Gameweek Results moved to Discover \u2014 it reports what happened rather than comparing it to projections, so it was never really validation.',
       },
       {
         key: 'configure',
