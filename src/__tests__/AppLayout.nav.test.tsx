@@ -36,11 +36,11 @@ function renderAt(path: string) {
 }
 
 describe('AppLayout main nav', () => {
-  it('shows four top-level headings: Football, Fantasy, Data, FPL Admin -- no standalone items alongside them', () => {
+  it('shows four top-level headings: Football, Fantasy, Admin, FPL Admin -- no standalone items alongside them', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fantasy/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Data/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Admin/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /FPL Admin/ })).toBeInTheDocument();
     // Old flat top-level items should not exist as their own top-level buttons any more.
     expect(screen.queryByRole('button', { name: /^League Table$/ })).not.toBeInTheDocument();
@@ -96,7 +96,7 @@ describe('AppLayout main nav', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /Fantasy/ }).className).not.toContain('bg-amber-500');
-    expect(screen.getByRole('button', { name: /Data/ }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /^Admin/ }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /FPL Admin/ }).className).not.toContain('bg-amber-500');
   });
 
@@ -155,6 +155,11 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Adjust Ratings' })).toHaveAttribute('href', '/team-strength');
   });
 
+  it('treats Results Data as a Football page now it lives under Discover', () => {
+    renderAt('/results-data');
+    expect(screen.getByRole('link', { name: /Back to Football/ })).toHaveAttribute('href', '/football');
+  });
+
   it('shows a back-to-hub link on a Football destination page, pointing at /football', () => {
     renderAt('/team-strength');
     expect(screen.getByRole('link', { name: /Back to Football/ })).toHaveAttribute('href', '/football');
@@ -165,8 +170,11 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: /Back to Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
   });
 
-  it('shows no back-to-hub link on the hub pages themselves, the landing page, or Data pages -- there is nothing to loop back to', () => {
-    for (const path of ['/football', '/fpl/start', '/', '/results-data', '/source-data']) {
+  it('shows no back-to-hub link on the hub pages themselves, the landing page, or Admin pages -- there is nothing to loop back to', () => {
+    // /results-data deliberately NOT in this list any more: it moved into
+    // Football > Discover, so it's a theme page and correctly DOES offer
+    // a way back to the hub.
+    for (const path of ['/football', '/fpl/start', '/', '/source-data']) {
       renderAt(path);
       expect(screen.queryByText(/Back to/)).not.toBeInTheDocument();
       cleanup();

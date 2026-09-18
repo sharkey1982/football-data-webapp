@@ -209,13 +209,17 @@ export default function AppLayout() {
   const navGroups: NavGroup[] = [
     ...themeGroups,
     {
-      // Flat, not sectioned: raw-data and infrastructure views, not part
-      // of the Discover-to-Configure journey. Stage headings would
-      // invent a structure they don't have.
-      label: 'Data',
+      // Renamed from "Data" and re-scoped. Results Data moved into
+      // Football > Discover, where it belongs -- it's the curated match
+      // archive, filterable and exportable, which is exploration rather
+      // than infrastructure. What's left here is genuinely operational:
+      // the raw provider files exactly as ingested, and pipeline health.
+      // Flat, not sectioned: neither is part of the
+      // Discover-to-Configure journey.
+      label: 'Admin',
       items: [
-        { to: '/results-data', label: 'Results Data', matchPrefix: '/results-data' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
+        { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
       ],
     },
     {

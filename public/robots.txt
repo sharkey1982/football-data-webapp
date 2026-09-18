@@ -3,8 +3,11 @@
 # the reasoning (raw source-data layer, personal optimizer output, admin
 # tactical-role editing, internal data-health monitoring).
 User-agent: *
+# Results Data is deliberately NOT disallowed: it moved into
+# Football > Discover as the public, filterable match archive.
+# What remains blocked is operational -- raw provider files and
+# pipeline health -- plus the admin-only configuration pages.
 Disallow: /source-data
-Disallow: /results-data
 Disallow: /data-health
 Disallow: /fpl/tactical-roles
 Disallow: /fpl/optimal-squad

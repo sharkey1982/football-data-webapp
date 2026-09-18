@@ -76,6 +76,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Fixtures & Results', to: '/fixtures', blurb: 'Every match, filterable by division, season and team.', exact: true },
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
           { label: 'Team Explorer', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
+          { label: 'Results Data', to: '/results-data', blurb: 'The full match archive, filterable and exportable.' },
         ],
       },
       {

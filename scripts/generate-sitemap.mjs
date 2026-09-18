@@ -61,6 +61,19 @@ const STATIC_ROUTES = [
   '/fpl/player-points',
   '/fpl/scoring-rules',
   '/fpl/actual-matches',
+  // Public as of the Data/Admin split -- the curated match archive moved
+  // into Football > Discover. Source Data and Data Health stay out,
+  // matching robots.txt.
+  '/results-data',
+  // Stage landing pages: each is a real page with its own content.
+  '/football/discover',
+  '/football/predict',
+  '/football/validate',
+  '/football/configure',
+  '/fpl/start/discover',
+  '/fpl/start/predict',
+  '/fpl/start/validate',
+  '/fpl/start/configure',
 ];
 
 async function query(path) {
