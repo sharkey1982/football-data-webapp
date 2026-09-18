@@ -10,7 +10,11 @@
 # ============================================================================
 
 [build]
-  command = "npm run build"
+  # prerender always exits 0 even on total failure (see its own header
+  # comment) -- chaining it here can never turn a successful build into a
+  # failed deploy, only skip the prerendering step if something's wrong
+  # with headless Chrome in this build environment specifically.
+  command = "npm run build && npm run prerender"
   publish = "dist"
 
 [functions]
@@ -33,6 +37,16 @@
 
 [[headers]]
   for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Every other prerendered route's own index.html (/fixtures/index.html,
+# /table/index.html, etc.) -- same reasoning as the two rules above,
+# widened to cover them now that prerendering writes one per canonical
+# route. Netlify applies the most specific matching path, so /assets/*
+# below still wins for hashed assets regardless of this broader rule.
+[[headers]]
+  for = "/*"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
 
