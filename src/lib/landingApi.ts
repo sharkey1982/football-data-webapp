@@ -89,7 +89,7 @@ export async function getGoalsPerGameTrivia(): Promise<TriviaFact | null> {
 export async function getHighestScoringMatchTrivia(): Promise<TriviaFact | null> {
   const { data: rows } = await supabase
     .from('matches')
-    .select('home_team:teams!matches_home_team_id_fkey(canonical_name), away_team:teams!matches_away_team_id_fkey(canonical_name), full_time_home_goals, full_time_away_goals')
+    .select('home_team:teams!matches_home_team_id_fkey(canonical_name:display_name), away_team:teams!matches_away_team_id_fkey(canonical_name:display_name), full_time_home_goals, full_time_away_goals')
     .eq('league_id', PL_LEAGUE_ID)
     .eq('season_id', PL_SEASON_ID);
   if (!rows || rows.length === 0) return null;
@@ -115,7 +115,7 @@ export async function getHighestScoringMatchTrivia(): Promise<TriviaFact | null>
 export async function getBiggestWinMarginTrivia(): Promise<TriviaFact | null> {
   const { data: rows } = await supabase
     .from('matches')
-    .select('home_team:teams!matches_home_team_id_fkey(canonical_name), away_team:teams!matches_away_team_id_fkey(canonical_name), full_time_home_goals, full_time_away_goals')
+    .select('home_team:teams!matches_home_team_id_fkey(canonical_name:display_name), away_team:teams!matches_away_team_id_fkey(canonical_name:display_name), full_time_home_goals, full_time_away_goals')
     .eq('league_id', PL_LEAGUE_ID)
     .eq('season_id', PL_SEASON_ID);
   if (!rows || rows.length === 0) return null;
@@ -172,7 +172,7 @@ export async function getClosestMatchTrivia(): Promise<TriviaFact | null> {
 
   const { data, error } = await (supabase as any)
     .from('fixtures')
-    .select('home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name), predicted_home_goals, predicted_away_goals')
+    .select('home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name), predicted_home_goals, predicted_away_goals')
     .in('fixture_id', fixtureIds)
     .not('predicted_home_goals', 'is', null);
   if (error) throw error;
@@ -227,7 +227,7 @@ async function getTopFplPicks(): Promise<TopFplPick[]> {
 
   const { data, error } = await (supabase as any)
     .from('fpl_player_projections')
-    .select('expected_fpl_points, fpl_players(web_name, canonical_team_id, teams(canonical_name))')
+    .select('expected_fpl_points, fpl_players(web_name, canonical_team_id, teams(canonical_name:display_name))')
     .eq('model_version', 'leaguewide_v6')
     .eq('scenario_key', 'baseline')
     .in('fixture_id', fixtureIds)

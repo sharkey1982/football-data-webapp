@@ -79,7 +79,7 @@ export const DEPTH_RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
 export async function getTeamOptions(): Promise<TeamOption[]> {
   const { data, error } = await (supabase as any)
     .from('fpl_players')
-    .select('canonical_team_id, teams!fpl_players_canonical_team_id_fkey(canonical_name)')
+    .select('canonical_team_id, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
     .eq('season_id', 13)
     .not('canonical_team_id', 'is', null);
   if (error) throw error;
@@ -106,7 +106,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // proven elsewhere in this project.
   const { data: playerRows, error: playerErr } = await (supabase as any)
     .from('fpl_players')
-    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, teams!fpl_players_canonical_team_id_fkey(canonical_name)')
+    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
     .eq('season_id', 13)
     .not('element_type', 'is', null)
     .not('canonical_team_id', 'is', null)

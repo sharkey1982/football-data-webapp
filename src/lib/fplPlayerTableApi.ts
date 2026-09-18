@@ -246,7 +246,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     .in('fpl_player_id', [...playerIds]);
   if (playerError) throw playerError;
 
-  const { data: teamRows, error: teamError } = await supabase.from('teams').select('team_id, canonical_name');
+  const { data: teamRows, error: teamError } = await supabase.from('teams').select('team_id, canonical_name:display_name');
   if (teamError) throw teamError;
   const teamNameById = new Map<number, string>();
   for (const t of teamRows ?? []) teamNameById.set(t.team_id, t.canonical_name);
@@ -367,7 +367,7 @@ export type TeamFixtureGoals = {
 export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number, toMatchweek: number): Promise<TeamFixtureGoals[]> {
   const { data: fixtureRows, error: fixtureError } = await supabase
     .from('fixtures')
-    .select('fixture_id, matchweek, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name)')
+    .select('fixture_id, matchweek, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)')
     .eq('league_id', 1)
     .eq('season_id', 13)
     .gte('matchweek', fromMatchweek)
