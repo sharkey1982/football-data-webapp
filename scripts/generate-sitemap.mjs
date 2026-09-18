@@ -65,6 +65,7 @@ const STATIC_ROUTES = [
   // into Football > Discover. Source Data and Data Health stay out,
   // matching robots.txt.
   '/results-data',
+  '/football/leagues-compared',
   // Stage landing pages: each is a real page with its own content.
   '/football/discover',
   '/football/predict',
