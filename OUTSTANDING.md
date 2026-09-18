@@ -10,18 +10,15 @@ Ordered roughly by value, not by effort.
 
 ## Needs you (blocked on a manual step)
 
-### Netlify build hook for rebuild-on-refresh
-Both data pipelines now try to trigger a site rebuild when they finish,
-but the secret doesn't exist yet, so the step logs a notice and skips.
+### Netlify build hook — DONE
+Verified end to end: an FPL pipeline run produced a Netlify deploy
+titled "Deploy triggered by hook: Data pipeline refresh", on the same
+commit (so a data rebuild, not a code change), regenerating exactly the
+658 player pages and nothing else — match and team pages were untouched
+because that pipeline doesn't affect them.
 
-Until this is done, prerendered pages show data as of the last deploy
-while simultaneously displaying "Projections updated <timestamp>" — so
-the freshness claim on the page can drift from reality.
-
-1. Netlify → Site configuration → Build & deploy → Build hooks → Add
-2. Copy the URL
-3. GitHub → Settings → Secrets and variables → Actions → new secret
-   named `NETLIFY_BUILD_HOOK_URL`
+Prerendered pages now track the twice-daily FPL refresh and the 6am
+daily-import, so the freshness timestamps they publish stay honest.
 
 ### Change the admin password
 The initial password was set directly in the database and shared in
