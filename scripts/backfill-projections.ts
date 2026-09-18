@@ -101,7 +101,14 @@ async function main() {
     }
     const t0 = Date.now();
     try {
-      const call = supabase.rpc('refresh_fpl_projection_fixture_v6', { p_fixture_id: f.fixture_id });
+      // p_allow_played: true -- this script's whole purpose is
+      // regenerating HISTORICAL gameweeks, which are played by
+      // definition. The function now refuses played fixtures by default
+      // so the routine pipeline can't overwrite a pre-kickoff forecast
+      // with hindsight; this is the one caller that legitimately means
+      // to, so it opts in explicitly. Without this it would silently
+      // return 0 rows for every fixture and report success.
+      const call = supabase.rpc('refresh_fpl_projection_fixture_v6', { p_fixture_id: f.fixture_id, p_allow_played: true });
       const timeout = new Promise((_r, rej) => setTimeout(() => rej(new Error(`timed out after ${PER_FIXTURE_TIMEOUT_MS}ms`)), PER_FIXTURE_TIMEOUT_MS));
       const { data, error } = (await Promise.race([call, timeout])) as any;
       if (error) throw error;

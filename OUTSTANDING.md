@@ -38,20 +38,22 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
-### FPL projections keep no history
-`refresh_fpl_projection_fixture_v6` upserts with `on conflict ... do
-update`, so a projection is overwritten in place. `generated_at` only
-ever shows the latest refresh, and there is no record of what was
-projected before.
+### FPL projection history — RESOLVED (freeze-on-kickoff)
+Projections are no longer overwritten once a fixture is played, so the
+stored row stays a genuine pre-kickoff forecast — mirroring
+`backfill_fixture_predictions()`, which has always worked this way on
+the football side.
 
-Football predictions do NOT have this problem —
-`backfill_fixture_predictions()` deliberately never touches a played
-fixture, so the stored value stays a genuine pre-kickoff forecast.
+Chosen over a history table deliberately: capturing every refresh would
+mean ~7,200 rows x 3 runs a day (~7.9M/year) to keep intermediate values
+nobody asked for. "What did we predict before kickoff, and what
+happened?" needs exactly one frozen row per player-fixture.
 
-This blocks honest model-accuracy reporting on the FPL side, which the
-AI/search audit flagged as a differentiator (data nobody can recreate
-retrospectively). Smallest fix: an `on conflict do nothing` variant that
-inserts a new row, or a history table fed by a trigger.
+Remaining caveat: the 838 projections that already existed for played
+fixtures were written under the old behaviour, so some may already be
+hindsight-tainted. They're frozen now, but the pre-existing ones can't
+be certified as pre-kickoff. Accuracy reporting should either start from
+now, or treat pre-existing rows as unverified.
 
 ### No team pages
 `/football/teams/:slug` currently renders TeamExplorer — a heavy
