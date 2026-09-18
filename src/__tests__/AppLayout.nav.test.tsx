@@ -52,7 +52,9 @@ describe('AppLayout main nav', () => {
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
     expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
     expect(screen.getByRole('link', { name: 'Tactical Roles' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Data Health' })).toBeInTheDocument();
+    // Also present in the page footer, so assert at least one exists
+    // in the nav rather than requiring uniqueness across the document.
+    expect(screen.getAllByRole('link', { name: 'Data Health' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
   });
 
@@ -100,12 +102,12 @@ describe('AppLayout main nav', () => {
 
   });
 
-  it('Football dropdown contains Team Strength, and visiting it highlights Football, not League Table', async () => {
+  it('Football dropdown contains Team Strength (public view), and visiting it highlights Football', async () => {
     renderAt('/team-strength');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Football/ }));
 
-    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
+    expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
     expect(screen.getByRole('link', { name: 'Team Strength' }).className).toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'League Table' }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');

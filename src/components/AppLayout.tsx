@@ -223,8 +223,9 @@ export default function AppLayout() {
       items: [
         { to: '/team-strength', label: 'Adjust Team Ratings', matchPrefix: '/team-strength' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
-        { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
+        { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
+        { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
       ],
     },
   ];
