@@ -1,6 +1,16 @@
 // ============================================================================
 // src/lib/api.ts
 //
+// NOTE ON TEAM NAMES: selects here read `canonical_name:display_name` --
+// PostgREST column aliasing, not a typo. teams.canonical_name is the
+// DATA-SOURCE name used to match incoming football-data.co.uk rows
+// ("Nott'm Forest", "Sheffield Weds"); teams.display_name is the public
+// one ("Nottingham Forest"). The frontend's notion of "the team's name"
+// has always meant the display one, so it's corrected at the query
+// boundary rather than in ~50 call sites -- which also means no consumer
+// of this module had to change. Sorting and search use display_name
+// directly, so searching "Nottingham" finds the club.
+//
 // Data-access layer. Every Supabase query the pages need lives here, so
 // pages stay focused on rendering and this file stays the single place to
 // look when a query needs changing.
@@ -100,12 +110,12 @@ export async function getTeams(
     return q ? teams.filter((t) => t.canonical_name.toLowerCase().includes(q)) : teams;
   }
 
-  let query = (supabase as any).from('teams').select('team_id, canonical_name, country_id, slug');
+  let query = (supabase as any).from('teams').select('team_id, canonical_name:display_name, country_id, slug');
   if (options?.countryId) query = query.eq('country_id', options.countryId);
   if (searchQuery && searchQuery.trim() !== '') {
-    query = query.ilike('canonical_name', `%${searchQuery.trim()}%`);
+    query = query.ilike('display_name', `%${searchQuery.trim()}%`);
   }
-  const { data, error } = await query.order('canonical_name', { ascending: true });
+  const { data, error } = await query.order('display_name', { ascending: true });
   if (error) throw error;
   return data;
 }
@@ -117,7 +127,7 @@ export async function getTeams(
 export async function getTeamBySlug(slug: string): Promise<{ team_id: number; canonical_name: string; slug: string } | null> {
   const { data, error } = await (supabase as any)
     .from('teams')
-    .select('team_id, canonical_name, slug')
+    .select('team_id, canonical_name:display_name, slug')
     .eq('slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -154,7 +164,7 @@ export async function getMostRecentFixtureSeason(leagueId: number) {
 export async function getTeamsInLeagueFixtures(leagueId: number, seasonId: number) {
   const { data, error } = await (supabase as any)
     .from('fixtures')
-    .select('home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name, slug), away_team:teams!fixtures_away_team_id_fkey(canonical_name, slug)')
+    .select('home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name, slug), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name, slug)')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId);
   if (error) throw error;
@@ -173,7 +183,7 @@ export async function getTeamsInLeagueFixtures(leagueId: number, seasonId: numbe
 export async function getTeamById(teamId: number) {
   const { data, error } = await supabase
     .from('teams')
-    .select('team_id, canonical_name, country_id')
+    .select('team_id, canonical_name:display_name, country_id')
     .eq('team_id', teamId)
     .single();
   if (error) throw error;
@@ -194,7 +204,7 @@ export async function getTeamCategories() {
 export async function getTeamsInCategory(categoryId: number, seasonId: number) {
   const { data, error } = await supabase
     .from('team_category_memberships')
-    .select('team_id, team:teams(canonical_name)')
+    .select('team_id, team:teams(canonical_name:display_name)')
     .eq('category_id', categoryId)
     .eq('season_id', seasonId);
   if (error) throw error;
@@ -244,8 +254,8 @@ export async function getRecentMatches(limit = 20): Promise<MatchWithNames[]> {
     .select(
       `
       *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name),
       season:seasons(label)
     `
@@ -271,8 +281,8 @@ export async function getMatchesForTeam(teamId: number, limit = 20) {
     .select(
       `
       *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name),
       season:seasons(label)
     `
@@ -312,8 +322,8 @@ export async function getMatchResult(
     .select(
       `
       *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name),
       season:seasons(label)
     `
@@ -343,8 +353,8 @@ export async function getHeadToHead(teamAId: number, teamBId: number, limit = 20
     .select(
       `
       *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name),
       season:seasons(label)
     `
@@ -379,8 +389,8 @@ export async function searchMatches(params: {
     .select(
       `
       *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name),
       season:seasons(label)
     `
@@ -470,8 +480,8 @@ export async function getLeagueTable(leagueId: number, seasonId: number): Promis
       .select(
         `
         home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, full_time_result,
-        home_team:teams!matches_home_team_id_fkey(canonical_name),
-        away_team:teams!matches_away_team_id_fkey(canonical_name)
+        home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+        away_team:teams!matches_away_team_id_fkey(canonical_name:display_name)
       `
       )
       .eq('league_id', leagueId)
@@ -852,7 +862,7 @@ export async function getLatestFitRun(leagueId: number) {
 export async function getTeamRatingsForFitRun(fitRunId: number): Promise<TeamWithRating[]> {
   const { data, error } = await supabase
     .from('team_ratings')
-    .select('team_id, attack_strength, defence_strength, is_estimated, estimation_note, team:teams!team_ratings_team_id_fkey(canonical_name)')
+    .select('team_id, attack_strength, defence_strength, is_estimated, estimation_note, team:teams!team_ratings_team_id_fkey(canonical_name:display_name)')
     .eq('fit_run_id', fitRunId);
   if (error) throw error;
 
@@ -1218,8 +1228,8 @@ export async function getFantasyFixtureDifficulty(
       `
       fixture_id, kickoff_date, matchweek, status,
       home_team_id, away_team_id, predicted_home_goals, predicted_away_goals,
-      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
-      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)
     `
     )
     .eq('league_id', leagueId)
@@ -1376,8 +1386,8 @@ export async function getRawMatches(
     .select(
       `
       *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues!inner(code, name, competition_type, country:countries(name)),
       season:seasons(label)
     `
@@ -1611,8 +1621,8 @@ export async function getFixturesForTeam(
       fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
       predicted_home_goals, predicted_away_goals,
-      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
-      away_team:teams!fixtures_away_team_id_fkey(canonical_name),
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name, competition_type)
     `
     )
@@ -1663,8 +1673,8 @@ export async function getMatchesForTeamAsFixtures(
       match_date, kickoff_time,
       full_time_home_goals, full_time_away_goals,
       half_time_home_goals, half_time_away_goals,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name),
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name, competition_type)
     `
     )
@@ -1806,7 +1816,7 @@ export async function getRecentEplFixtureChanges(withinDays = 7): Promise<EplFix
   const fixtureIds = changeRows.map((r: any) => r.fixture_id);
   const { data: fixtureRows, error: fixtureErr } = await (supabase as any)
     .from('fixtures')
-    .select('fixture_id, league_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name)')
+    .select('fixture_id, league_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)')
     .in('fixture_id', fixtureIds);
   if (fixtureErr) throw fixtureErr;
   const fixtureById = new Map<number, any>((fixtureRows ?? []).map((f: any) => [f.fixture_id, f]));
@@ -1879,8 +1889,8 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
       fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
       predicted_home_goals, predicted_away_goals,
-      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
-      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
+      home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)
     `
     )
     .eq('league_id', leagueId)
@@ -1924,8 +1934,8 @@ export async function getMatchesForSeasonAsFixtures(leagueId: number, seasonId: 
       match_id, league_id, season_id, home_team_id, away_team_id,
       match_date, kickoff_time,
       full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals,
-      home_team:teams!matches_home_team_id_fkey(canonical_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name)
+      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
+      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name)
     `
     )
     .eq('league_id', leagueId)
