@@ -1,3 +1,4 @@
+import { trackEvent } from '../lib/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -81,6 +82,15 @@ export default function MatchPreview() {
   // ANY competition, possibly a different, later match). Null both before
   // the lookup runs and when the specific fixture hasn't been played yet.
   const [matchResult, setMatchResult] = useState<MatchWithNames | null>(null);
+
+  // Fires when a comparison has actually been built and rendered, not
+  // when the page is merely opened -- the page can sit on the picker
+  // indefinitely without ever producing one. Keyed on previewData
+  // becoming non-null, so re-picking the same teams doesn't re-fire.
+  useEffect(() => {
+    if (previewData) trackEvent('team_comparison_view');
+  }, [previewData]);
+
 
   useEffect(() => {
     getLeagues().then((data) => setLeagues(data ?? []));

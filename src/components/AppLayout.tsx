@@ -1,3 +1,5 @@
+import { trackPageView } from '../lib/analytics';
+import { CookieConsent } from './CookieConsent';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
@@ -86,6 +88,16 @@ export default function AppLayout() {
   // fixtures search string across navigation. Mutating a ref directly
   // during render is safe here -- it's a derived cache of the current
   // location, not new state, and doesn't need its own re-render.
+  // Single owner of pageview tracking. AppLayout wraps every route via
+  // <Outlet/> and never unmounts on navigation, so this fires exactly
+  // once per route change -- including the very first render, which
+  // covers the prerendered entry pages too. GA4's own automatic SPA
+  // tracking is disabled (send_page_view: false) precisely so these
+  // don't double-count.
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location.pathname, location.search]);
+
   const lastFixturesSearch = useRef('');
   const onFixturesRoute = location.pathname === '/fixtures';
   if (onFixturesRoute) {
@@ -197,6 +209,8 @@ export default function AppLayout() {
         )}
         <Outlet />
       </main>
+
+      <CookieConsent />
 
       <footer className="border-t border-chalk-300 py-6">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">

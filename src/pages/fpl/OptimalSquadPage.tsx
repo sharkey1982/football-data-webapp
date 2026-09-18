@@ -14,6 +14,7 @@
 // that the XI can change week to week.
 // ============================================================================
 
+import { trackEvent } from '../../lib/analytics';
 import { useEffect, useState } from 'react';
 import { optimizeFplSquad, OPTIMIZER_POSITION_LABEL, type FplOptimizerPlayer, type FplOptimizerResult } from '../../lib/fplOptimizerApi';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
@@ -126,6 +127,10 @@ export default function OptimalSquadPage() {
     try {
       const data = await optimizeFplSquad(fromGw, toGw, budget);
       setResult(data);
+      // Inside the try and AFTER the await resolves, so a failed
+      // optimisation can't be counted as a success. Params are the run's
+      // own settings -- nothing user-identifying.
+      trackEvent('optimiser_run', { from_gameweek: fromGw, to_gameweek: toGw, budget });
     } catch (e) {
       setError(getErrorMessage(e, 'Failed to optimise squad'));
       setResult(null);

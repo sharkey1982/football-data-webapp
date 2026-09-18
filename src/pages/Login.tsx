@@ -11,6 +11,7 @@
 // gets exactly the permissions they had while signed out.
 // ============================================================================
 
+import { trackEvent } from '../lib/analytics';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
@@ -37,12 +38,18 @@ export default function Login() {
       const { error: err } = await signInWithPassword(email.trim(), password);
       setSubmitting(false);
       if (err) setError(err);
+      // No email, and no other identifying param -- just the method, so
+      // it's possible to see that sign-in works without tracking who.
+      else trackEvent('sign_in', { method: 'password' });
       return;
     }
     const { error: err } = await signInWithEmail(email.trim());
     setSubmitting(false);
     if (err) setError(err);
-    else setSent(true);
+    else {
+      setSent(true);
+      trackEvent('sign_in', { method: 'magic_link' });
+    }
   }
 
   async function handlePasswordChange() {
