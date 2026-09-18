@@ -139,3 +139,34 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Regenerates the static pages so they reflect the data this run
+      # just produced. Without this, every prerendered page keeps showing
+      # whatever was true at the last DEPLOY -- and since those pages now
+      # publish "Projections updated <timestamp>" and a model version,
+      # stale content would make the freshness claims actively wrong
+      # rather than merely old.
+      #
+      # Runs even if an earlier step failed (if: always()): the pipeline
+      # writes to the database step by step, so a partial run still
+      # advanced real data that the site should show.
+      #
+      # No-ops silently when NETLIFY_BUILD_HOOK_URL isn't configured, so
+      # this is safe to have in place before the secret exists. The hook
+      # URL is low-privilege -- it can start a build and nothing else --
+      # which is why it's used here in preference to a Netlify API token.
+      - name: Trigger site rebuild
+        if: always()
+        run: |
+          if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then
+            echo "::notice::NETLIFY_BUILD_HOOK_URL not set -- skipping rebuild. Static pages will refresh on the next deploy."
+            exit 0
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -d '{}' "${{ secrets.NETLIFY_BUILD_HOOK_URL }}")
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "Rebuild triggered (HTTP $STATUS)."
+          else
+            # Deliberately not fatal: the data work succeeded, and failing
+            # the whole run over a rebuild trigger would misreport that.
+            echo "::warning::Rebuild trigger returned HTTP $STATUS"
+          fi
