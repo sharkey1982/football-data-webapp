@@ -17,11 +17,15 @@ import { useAuth } from '../lib/auth';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
 export default function Login() {
-  const { session, isAdmin, loading, signInWithEmail, signOut } = useAuth();
+  const { session, isAdmin, loading, signInWithEmail, signInWithPassword, updatePassword, signOut } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'password' | 'link'>('password');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [pwMessage, setPwMessage] = useState<string | null>(null);
 
   useDocumentHead({ title: 'Sign in', description: 'Sign in to manage model configuration.', path: '/login' });
 
@@ -29,10 +33,26 @@ export default function Login() {
     if (!email.trim()) return;
     setSubmitting(true);
     setError(null);
+    if (mode === 'password') {
+      const { error: err } = await signInWithPassword(email.trim(), password);
+      setSubmitting(false);
+      if (err) setError(err);
+      return;
+    }
     const { error: err } = await signInWithEmail(email.trim());
     setSubmitting(false);
     if (err) setError(err);
     else setSent(true);
+  }
+
+  async function handlePasswordChange() {
+    if (newPassword.length < 8) {
+      setPwMessage('Use at least 8 characters.');
+      return;
+    }
+    const { error: err } = await updatePassword(newPassword);
+    setPwMessage(err ?? 'Password updated.');
+    if (!err) setNewPassword('');
   }
 
   if (loading) return <p className="text-ink-500 font-mono text-sm">Checking session&hellip;</p>;
@@ -59,6 +79,25 @@ export default function Login() {
             not by signing up.
           </p>
         )}
+        <div className="border border-chalk-300 rounded-lg p-4 space-y-2">
+          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Change password</h2>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full border border-chalk-300 rounded px-3 py-2 text-sm"
+            placeholder="New password"
+          />
+          <button
+            type="button"
+            onClick={handlePasswordChange}
+            className="text-sm bg-pitch-800 text-chalk-100 rounded px-3 py-1.5 hover:bg-pitch-700 transition-colors"
+          >
+            Update password
+          </button>
+          {pwMessage && <p className="text-sm text-ink-700">{pwMessage}</p>}
+        </div>
+
         <div className="flex gap-3">
           <button
             type="button"
@@ -100,6 +139,20 @@ export default function Login() {
               placeholder="you@example.com"
             />
           </label>
+          {mode === 'password' && (
+            <label className="block">
+              <span className="text-xs font-mono uppercase tracking-widest text-ink-500">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSubmit();
+                }}
+                className="mt-1 w-full border border-chalk-300 rounded px-3 py-2 text-sm"
+              />
+            </label>
+          )}
           {error && <p className="text-sm text-loss-700">{error}</p>}
           <button
             type="button"
@@ -107,7 +160,17 @@ export default function Login() {
             onClick={handleSubmit}
             className="text-sm bg-pitch-800 text-chalk-100 rounded px-4 py-2 hover:bg-pitch-700 transition-colors disabled:opacity-50"
           >
-            {submitting ? 'Sending\u2026' : 'Email me a sign-in link'}
+            {submitting ? 'Working\u2026' : mode === 'password' ? 'Sign in' : 'Email me a sign-in link'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'password' ? 'link' : 'password');
+              setError(null);
+            }}
+            className="block text-xs text-ink-500 hover:text-ink-900 underline underline-offset-2"
+          >
+            {mode === 'password' ? 'Use an email sign-in link instead' : 'Use a password instead'}
           </button>
         </>
       )}

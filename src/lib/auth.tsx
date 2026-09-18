@@ -27,6 +27,8 @@ type AuthState = {
    * flashing a signed-out state for an already-signed-in admin. */
   loading: boolean;
   signInWithEmail: (email: string) => Promise<{ error: string | null }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 };
 
@@ -82,6 +84,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           options: { emailRedirectTo: `${window.location.origin}/login` },
         });
+        return { error: error?.message ?? null };
+      },
+      // Password sign-in exists alongside the magic link because the
+      // magic link depends on outbound email, and Supabase's default
+      // SMTP is heavily rate-limited (and Hotmail junks it). Needing
+      // working email in order to fix anything is a bad dependency for
+      // the one account that administers the site.
+      async signInWithPassword(email: string, password: string) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        return { error: error?.message ?? null };
+      },
+      async updatePassword(password: string) {
+        const { error } = await supabase.auth.updateUser({ password });
         return { error: error?.message ?? null };
       },
       async signOut() {
