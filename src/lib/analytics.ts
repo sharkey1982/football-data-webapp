@@ -81,9 +81,15 @@ function ensureGtag(): void {
   scriptLoaded = true;
 
   window.dataLayer = window.dataLayer || [];
-  window.gtag = function gtag(...args: unknown[]) {
-    window.dataLayer!.push(args);
-  };
+  // MUST push the `arguments` object, not a rest-parameter array.
+  // gtag.js reads dataLayer entries expecting Arguments; a real Array
+  // isn't processed the same way, so commands get silently ignored --
+  // no error, no events, which looks identical to a broken install.
+  // This mirrors Google's canonical snippet exactly.
+  window.gtag = function gtag() {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer!.push(arguments);
+  } as (...args: unknown[]) => void;
 
   // Consent defaults MUST be set before config, so the very first hit
   // already carries the right state.
