@@ -131,12 +131,37 @@ Eight pages (/football/discover ... /fpl/start/configure), all rendered
 by one StagePage component from src/lib/journey.ts. Adding a link to a
 stage is a config edit, not a code change.
 
-### Multi-user scenarios and leaderboard
-Depends on auth (now exists) plus a scenario/owner dimension on every
-override table and on generated predictions. The admin-identity model
-was built to anticipate this: user-owned rows would add
-`owner_id = auth.uid()` policies alongside the existing admin-only ones,
-not replace them.
+### Chief Scout: raw model vs adjusted — FOUNDATION DONE, accumulating
+fixtures.raw_predicted_home_goals / _away_goals now store the model's
+prediction WITHOUT manual overrides, alongside the adjusted one. So the
+question "does the human adjustment beat the model it adjusts?" becomes
+answerable.
+
+Deliberately two columns, not the projection_scenarios table that
+already exists: scenarios are built for N arbitrary owners, and a
+multi-user league is explicitly unlikely. Two columns needed no new
+table and no migration of the 22 files reading fixtures.predicted_*.
+If scenarios ever become real, that table is still there.
+
+Verified value-neutral on the adjusted side: 1,812 fixtures re-predicted,
+zero changed. 96 currently diverge (where overrides bite) — that's the
+comparison set, and it grows as ratings are tuned.
+
+get_scout_vs_model() scores both on played fixtures, using mean absolute
+goal error rather than a probabilistic score (what's stored is expected
+goals; a Brier score would imply a probability model this comparison
+doesn't have). It counts ONLY fixtures where the override changed
+something — including the ~1,700 identical ones would drag both to the
+same number and hide any real difference.
+
+Currently 0 scored: raw_predicted only populates for scheduled fixtures,
+and already-played ones were frozen before the column existed. It fills
+from here. That data cannot be recreated retrospectively, which is the
+argument for having started.
+
+STILL TO DO: a public page showing the comparison, once there are enough
+played fixtures for it to say anything. Scout profiles and blogging are
+separate and can wait indefinitely.
 
 ### IndexNow
 Deliberately skipped while there was no crawlable content. Worth
