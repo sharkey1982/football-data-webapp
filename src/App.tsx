@@ -20,6 +20,7 @@ const FootballHub = lazy(() => import('./pages/FootballHub'));
 const FplHub = lazy(() => import('./pages/FplHub'));
 const PlayerPage = lazy(() => import('./pages/fpl/PlayerPage'));
 const MatchPage = lazy(() => import('./pages/football/MatchPage'));
+const TeamPage = lazy(() => import('./pages/football/TeamPage'));
 const Login = lazy(() => import('./pages/Login'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
@@ -88,7 +89,7 @@ export default function App() {
             path="football/teams/:slug"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <TeamExplorer />
+                <TeamPage />
               </Suspense>
             }
           />

@@ -55,14 +55,14 @@ hindsight-tainted. They're frozen now, but the pre-existing ones can't
 be certified as pre-kickoff. Accuracy reporting should either start from
 now, or treat pre-existing rows as unverified.
 
-### No team pages
-`/football/teams/:slug` currently renders TeamExplorer — a heavy
-interactive page never designed for injected data, so it can't be
-prerendered the way player and match pages are.
+### TeamExplorer has dead slug-handling code
+`/football/teams/:slug` now renders the new TeamPage, so TeamExplorer's
+own slug resolution is unreachable — nothing routes a slug to it any
+more. Three tests still cover that behaviour and still pass, because
+they render TeamExplorer directly rather than through the app's routes.
 
-Needs a purpose-built semantic team page following the
-PlayerPage/MatchPage pattern, with TeamExplorer staying at `/teams` as
-the interactive tool.
+Harmless but misleading: tested code that can't run. Either remove the
+slug handling and its tests, or give TeamExplorer a reason to accept one.
 
 ### Query-string URLs aren't canonical
 `/fixtures?view=team&team=1&season=13` and

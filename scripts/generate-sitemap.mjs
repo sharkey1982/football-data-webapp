@@ -29,6 +29,7 @@ const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const SITE_URL = (process.env.VITE_SITE_URL || 'https://footballdatashark.netlify.app').replace(/\/+$/, '');
 const OUT = join(process.cwd(), 'dist', 'sitemap.xml');
 const CURRENT_SEASON_ID = 13;
+const PL_LEAGUE_ID = 1;
 const REQUEST_TIMEOUT_MS = 20000;
 const WATCHDOG_MS = 90000;
 
@@ -97,8 +98,22 @@ function urlEntry(loc, lastmod) {
 async function main() {
   const entries = STATIC_ROUTES.map((r) => urlEntry(r, null));
 
-  const teams = await query('teams?select=slug&slug=not.is.null&limit=1000');
-  for (const t of teams ?? []) entries.push(urlEntry(`/football/teams/${t.slug}`));
+  // Only teams with a generated page. The teams table holds 242 rows
+  // across every division and European competition, but pages are
+  // generated for clubs appearing in this season's EPL fixtures --
+  // listing the rest would advertise URLs that render an empty shell.
+  const eplFixtures = await query(
+    `fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}&limit=1000`
+  );
+  const eplTeamIds = new Set();
+  for (const f of eplFixtures ?? []) {
+    eplTeamIds.add(f.home_team_id);
+    eplTeamIds.add(f.away_team_id);
+  }
+  const teams = await query('teams?select=team_id,slug&slug=not.is.null&limit=1000');
+  for (const t of teams ?? []) {
+    if (eplTeamIds.size === 0 || eplTeamIds.has(t.team_id)) entries.push(urlEntry(`/football/teams/${t.slug}`));
+  }
 
   const players = await query(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&limit=2000`);
   for (const p of players ?? []) entries.push(urlEntry(`/fpl/players/${p.slug}`));

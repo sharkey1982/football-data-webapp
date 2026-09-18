@@ -99,7 +99,7 @@ async function main() {
     return;
   }
 
-  const { renderMatchPage, renderPlayerPage, buildDocument } = await import(ENTRY);
+  const { renderMatchPage, renderPlayerPage, renderTeamPage, buildDocument } = await import(ENTRY);
   const shell = readFileSync(SHELL, 'utf8');
 
   // Bulk fetches -- three requests total, not one per page.
@@ -274,6 +274,99 @@ async function main() {
   }
 
   console.log(`Static: wrote ${pWritten} player page(s), skipped ${pSkipped}, from ${players.length} player(s).`);
+
+  // ---- Team pages ---------------------------------------------------
+  // Scoped to teams that actually appear in this season's EPL fixtures.
+  // The teams table holds 242 rows across every division and European
+  // competition; generating pages for clubs with no fixtures here would
+  // produce empty shells and pad the sitemap with nothing.
+  const ratings = await queryAll(
+    'team_ratings?select=team_id,attack_strength,defence_strength,is_estimated,fit_run_id'
+  );
+  const overrides = await queryAll(
+    'team_strength_manual_override?select=team_id,attack_adjustment,defence_adjustment'
+  );
+  const acceptedFits = await queryAll(
+    'model_fit_runs?select=fit_run_id,league_id,fitted_at,status&status=eq.accepted&order=fitted_at.desc'
+  );
+
+  // Current accepted fit per league -- first row wins, since the query
+  // is ordered newest-first.
+  const fitByLeague = new Map();
+  for (const f of acceptedFits ?? []) if (!fitByLeague.has(f.league_id)) fitByLeague.set(f.league_id, f);
+  const currentFit = fitByLeague.get(EPL_LEAGUE_ID);
+
+  const ratingByTeam = new Map(
+    (ratings ?? []).filter((r) => currentFit && r.fit_run_id === currentFit.fit_run_id).map((r) => [r.team_id, r])
+  );
+  const overrideByTeam = new Map((overrides ?? []).map((o) => [o.team_id, o]));
+
+  let tWritten = 0;
+  let tSkipped = 0;
+
+  for (const [teamId, teamFixtures] of fixturesByTeam.entries()) {
+    const team = teamById.get(teamId);
+    if (!team || !team.slug) {
+      tSkipped++;
+      continue;
+    }
+
+    const rating = ratingByTeam.get(teamId);
+    const ov = overrideByTeam.get(teamId);
+    let gf = null;
+    let ga = null;
+    if (rating) {
+      gf = Math.exp(Number(rating.attack_strength) + Number(ov?.attack_adjustment ?? 0));
+      ga = Math.exp(-(Number(rating.defence_strength) + Number(ov?.defence_adjustment ?? 0)));
+    }
+
+    const teamMatches = teamFixtures.map((f) => {
+      const isHome = f.home_team_id === teamId;
+      const opp = teamById.get(isHome ? f.away_team_id : f.home_team_id);
+      const res = resultByKey.get(resultKey(f.home_team_id, f.away_team_id, f.kickoff_date));
+      return {
+        slug: f.slug ?? null,
+        kickoff_date: f.kickoff_date,
+        opponent_name: opp?.display_name ?? 'Unknown',
+        is_home: isHome,
+        status: f.status,
+        goals_for: res ? (isHome ? res.full_time_home_goals : res.full_time_away_goals) : null,
+        goals_against: res ? (isHome ? res.full_time_away_goals : res.full_time_home_goals) : null,
+        predicted_goals_for:
+          f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
+        predicted_goals_against:
+          f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
+      };
+    });
+
+    const data = {
+      profile: {
+        team_id: teamId,
+        slug: team.slug,
+        display_name: team.display_name,
+        league_name: 'Premier League',
+        league_id: EPL_LEAGUE_ID,
+        goals_for_per_game: gf,
+        goals_against_per_game: ga,
+        is_estimated: rating?.is_estimated === true,
+        fitted_at: currentFit?.fitted_at ?? null,
+      },
+      matches: teamMatches,
+    };
+
+    try {
+      const page = renderTeamPage(team.slug, data);
+      const dir = join(DIST, 'football', 'teams', team.slug);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      tWritten++;
+    } catch (err) {
+      console.error(`Static: failed to render team ${team.slug}: ${err?.message ?? err}`);
+      tSkipped++;
+    }
+  }
+
+  console.log(`Static: wrote ${tWritten} team page(s), skipped ${tSkipped}.`);
 }
 
 main()

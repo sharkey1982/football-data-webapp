@@ -25,6 +25,7 @@ import { StaticRouter } from 'react-router';
 import { Route, Routes } from 'react-router-dom';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
+import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
 
@@ -145,6 +146,45 @@ export function renderMatchPage(slug: string, input: MatchPagePrediction & { __r
         { name: 'Football', path: '/football' },
         { name: 'Matches', path: '/fixtures' },
         { name: fixture, path },
+      ]),
+    ],
+  };
+}
+
+export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
+  const path = `/football/teams/${slug}`;
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/teams/:slug" element={<TeamPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+
+  const p = data.profile;
+  const rated =
+    p.goals_for_per_game != null && p.goals_against_per_game != null
+      ? ` The model expects ${p.goals_for_per_game.toFixed(2)} goals scored and ${p.goals_against_per_game.toFixed(2)} conceded per game against an average opponent.`
+      : '';
+
+  return {
+    html,
+    title: `${p.display_name} \u2014 ratings & fixtures | ${BRAND_NAME}`,
+    description: `Model ratings, results and predicted fixtures for ${p.display_name}.${rated}`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SportsTeam',
+        name: p.display_name,
+        sport: 'Football',
+        url: `${SITE_URL}${path}`,
+        ...(p.league_name ? { memberOf: { '@type': 'SportsOrganization', name: p.league_name } } : {}),
+      },
+      breadcrumb([
+        { name: 'Football', path: '/football' },
+        { name: 'Teams', path: '/teams' },
+        { name: p.display_name, path },
       ]),
     ],
   };
