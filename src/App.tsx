@@ -18,6 +18,7 @@ const Landing = lazy(() => import('./pages/Landing'));
 const FootballHub = lazy(() => import('./pages/FootballHub'));
 const FplHub = lazy(() => import('./pages/FplHub'));
 const PlayerPage = lazy(() => import('./pages/fpl/PlayerPage'));
+const MatchPage = lazy(() => import('./pages/football/MatchPage'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
 const ResultsData = lazy(() => import('./pages/ResultsData'));
@@ -165,6 +166,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <HindsightOptimalSquadPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/matches/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <MatchPage />
               </Suspense>
             }
           />

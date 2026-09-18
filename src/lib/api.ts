@@ -1473,6 +1473,8 @@ export function matchesToCsv(matches: MatchWithNames[]): string {
 
 export type FixtureWithNames = {
   fixture_id: number;
+  /** Canonical slug for this fixture's own public page (/football/matches/:slug). */
+  slug: string | null;
   league_id: number;
   season_id: number;
   home_team_id: number;
@@ -1606,7 +1608,7 @@ export async function getFixturesForTeam(
     .from('fixtures')
     .select(
       `
-      fixture_id, league_id, season_id, home_team_id, away_team_id,
+      fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
       predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
@@ -1622,6 +1624,7 @@ export async function getFixturesForTeam(
 
   const fixtures = (data ?? []).map((row: any) => ({
     fixture_id: row.fixture_id,
+    slug: row.slug ?? null,
     league_id: row.league_id,
     season_id: row.season_id,
     home_team_id: row.home_team_id,
@@ -1672,6 +1675,10 @@ export async function getMatchesForTeamAsFixtures(
 
   return (data ?? []).map((row: any) => ({
     fixture_id: row.match_id,
+    // These rows come from `matches` (completed results), not `fixtures`,
+    // so there's no fixture slug to carry -- a played match reached this
+    // way has no /football/matches/:slug page of its own.
+    slug: null,
     league_id: row.league_id,
     season_id: row.season_id,
     home_team_id: row.home_team_id,
@@ -1869,7 +1876,7 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
     .from('fixtures')
     .select(
       `
-      fixture_id, league_id, season_id, home_team_id, away_team_id,
+      fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status,
       predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name),
@@ -1884,6 +1891,7 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
 
   const fixtures = (data ?? []).map((row: any) => ({
     fixture_id: row.fixture_id,
+    slug: row.slug ?? null,
     league_id: row.league_id,
     season_id: row.season_id,
     home_team_id: row.home_team_id,
@@ -1927,6 +1935,10 @@ export async function getMatchesForSeasonAsFixtures(leagueId: number, seasonId: 
 
   return (data ?? []).map((row: any) => ({
     fixture_id: row.match_id,
+    // These rows come from `matches` (completed results), not `fixtures`,
+    // so there's no fixture slug to carry -- a played match reached this
+    // way has no /football/matches/:slug page of its own.
+    slug: null,
     league_id: row.league_id,
     season_id: row.season_id,
     home_team_id: row.home_team_id,

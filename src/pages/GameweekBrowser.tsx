@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
 import {
   getLeagues,
@@ -992,6 +992,21 @@ export default function GameweekBrowser() {
                               <FixtureScoreCell f={f} />
                               <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
                             </div>
+                            {/* A real anchor to the fixture's own canonical
+                                page. The row itself is a JS-only onClick,
+                                which means nothing that can't run
+                                JavaScript could otherwise reach a
+                                prediction from here. stopPropagation keeps
+                                the row's own explore behaviour intact. */}
+                            {f.slug && (
+                              <Link
+                                to={`/football/matches/${f.slug}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-pitch-800 hover:text-pitch-700 underline underline-offset-2 shrink-0 hidden sm:inline"
+                              >
+                                Prediction
+                              </Link>
+                            )}
                             <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">
                               Explore &rarr;
                             </span>
