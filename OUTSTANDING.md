@@ -121,10 +121,20 @@ Eight pages (/football/discover ... /fpl/start/configure), all rendered
 by one StagePage component from src/lib/journey.ts. Adding a link to a
 stage is a config edit, not a code change.
 
-### Football "Validate"
-No dedicated page. Currently points at Team Strength's proj-vs-actual
-columns with an on-page note saying so. FPL's equivalents (Actual
-Matches, Optimal Squad So Far) are genuine backtests.
+### Football "Validate" — needs walk-forward predictions
+Still no dedicated page. The obvious candidate now exists in principle —
+"does Dixon-Coles beat the closing line?" — and the odds are extracted
+(617,907 quotes, 30,760 matches). But only **153 matches** have BOTH a
+frozen pre-kickoff prediction and closing odds, because
+fixtures.predicted_* exists only for the current season.
+
+Historical predictions can't simply be generated: a model fitted on data
+that includes the match being predicted is using hindsight, and any
+"we beat the market" claim from it would be false. A real historical
+sample needs walk-forward refitting — fit on data up to date X, predict
+X, roll forward — which is a modelling exercise, not an extraction.
+
+Meanwhile the sample grows by roughly 380 matches a season on its own.
 
 ### Multi-user scenarios and leaderboard
 Depends on auth (now exists) plus a scenario/owner dimension on every

@@ -66,6 +66,7 @@ const STATIC_ROUTES = [
   // matching robots.txt.
   '/results-data',
   '/football/leagues-compared',
+  '/football/market-efficiency',
   // Stage landing pages: each is a real page with its own content.
   '/football/discover',
   '/football/predict',

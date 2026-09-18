@@ -23,6 +23,7 @@ const MatchPage = lazy(() => import('./pages/football/MatchPage'));
 const TeamPage = lazy(() => import('./pages/football/TeamPage'));
 const StagePage = lazy(() => import('./pages/StagePage'));
 const CrossLeaguePage = lazy(() => import('./pages/football/CrossLeaguePage'));
+const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
 const Login = lazy(() => import('./pages/Login'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
@@ -68,6 +69,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <FootballHub />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/market-efficiency"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <MarketEfficiencyPage />
               </Suspense>
             }
           />

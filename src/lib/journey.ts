@@ -77,6 +77,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
           { label: 'Team Explorer', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
           { label: 'Leagues Compared', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
+          { label: 'Market Efficiency', to: '/football/market-efficiency', blurb: 'Where the betting market is priced sharply \u2014 and where it isn\u2019t.' },
           { label: 'Results Data', to: '/results-data', blurb: 'The full match archive, filterable and exportable.' },
         ],
       },
