@@ -13,7 +13,8 @@
     "predictions:refresh": "tsx scripts/refresh-predictions.ts",
     "test": "vitest run",
     "optimizer:solve": "tsx scripts/solve-optimal-squads.ts",
-    "hindsight:solve": "tsx scripts/solve-hindsight-optimal.ts"
+    "hindsight:solve": "tsx scripts/solve-hindsight-optimal.ts",
+    "sitemap": "node scripts/generate-sitemap.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

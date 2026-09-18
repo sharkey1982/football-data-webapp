@@ -24,7 +24,13 @@
   # canonical entity pages inside a 15-minute build limit. The
   # replacement is renderToString-based SSG, which needs no browser at
   # all -- so puppeteer goes with it.
-  command = "npm run build"
+  # Sitemap generation is chained here, unlike the prerenderer that was
+  # removed: it starts no server, launches no browser, spawns no child
+  # process, hard-timeouts every request, and calls process.exit()
+  # unconditionally -- so it cannot repeat the "finished its work but
+  # never exited" hang that took deploys down for an hour. It also never
+  # exits non-zero: a missing sitemap must never cost a deploy.
+  command = "npm run build && npm run sitemap"
   publish = "dist"
 
 [functions]
