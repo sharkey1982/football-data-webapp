@@ -216,8 +216,13 @@ export default function AppLayout() {
       // the raw provider files exactly as ingested, and pipeline health.
       // Flat, not sectioned: neither is part of the
       // Discover-to-Configure journey.
+      // Configure lives here rather than as a public stage: every page in
+      // it is admin-gated, so showing it to visitors offered a door they
+      // couldn't open. Alongside the operational views it belongs with.
       label: 'Admin',
       items: [
+        { to: '/team-strength', label: 'Adjust Team Ratings', matchPrefix: '/team-strength' },
+        { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
       ],

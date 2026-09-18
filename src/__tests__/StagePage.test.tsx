@@ -25,16 +25,14 @@ describe('StagePage', () => {
     }
   });
 
-  it('surfaces a stage note rather than pretending an interim link is the real page', () => {
-    renderStage('football', 'validate');
-    expect(screen.getByText(/dedicated page for this is planned/)).toBeInTheDocument();
-  });
-
-  it('links across to the other three stages', () => {
+  it('links across to the other stage', () => {
     renderStage('fpl', 'predict');
     expect(screen.getByRole('link', { name: 'Discover' })).toHaveAttribute('href', '/fpl/start/discover');
-    expect(screen.getByRole('link', { name: 'Validate' })).toHaveAttribute('href', '/fpl/start/validate');
-    expect(screen.getByRole('link', { name: 'Configure' })).toHaveAttribute('href', '/fpl/start/configure');
+  });
+
+  it('no longer offers the removed stages', () => {
+    renderStage('football', 'validate');
+    expect(screen.getByRole('heading', { name: 'Not found' })).toBeInTheDocument();
   });
 
   it('shows a not-found state for an unknown stage', () => {

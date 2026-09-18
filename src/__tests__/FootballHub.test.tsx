@@ -13,7 +13,7 @@ vi.mock('../lib/landingApi', async () => {
 const mocked = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('FootballHub page', () => {
-  it('shows all four stages as compact boxes linking to their own stage pages', async () => {
+  it('shows Discover and Predict as compact boxes linking to their own stage pages', async () => {
     mocked.getFootballTrivia.mockResolvedValue([]);
 
     render(
@@ -27,8 +27,6 @@ describe('FootballHub page', () => {
     // which is what keeps all four boxes on one phone screen.
     expect(screen.getByRole('link', { name: /Discover/ })).toHaveAttribute('href', '/football/discover');
     expect(screen.getByRole('link', { name: /Predict/ })).toHaveAttribute('href', '/football/predict');
-    expect(screen.getByRole('link', { name: /Validate/ })).toHaveAttribute('href', '/football/validate');
-    expect(screen.getByRole('link', { name: /Configure/ })).toHaveAttribute('href', '/football/configure');
 
     await waitFor(() => expect(mocked.getFootballTrivia).toHaveBeenCalled());
   });

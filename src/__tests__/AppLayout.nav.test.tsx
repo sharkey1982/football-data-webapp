@@ -130,29 +130,31 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Optimal Squad' }).className).not.toContain('bg-amber-500');
   });
 
-  it('groups the Football menu into the four journey stages, with every stage present', async () => {
+  it('groups the Football menu into Discover and Predict', async () => {
     renderAt('/fixtures');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Football/ }));
 
-    for (const stage of ['Discover', 'Predict', 'Validate', 'Configure']) {
+    for (const stage of ['Discover', 'Predict']) {
       expect(screen.getByText(stage)).toBeInTheDocument();
     }
+    // Validate folded into Predict -- it was QA language for an audience
+    // that wants to know whether to trust a number, not to audit one.
+    // Configure moved to Admin, since every page in it is admin-gated.
+    expect(screen.queryByText('Validate')).not.toBeInTheDocument();
+    expect(screen.queryByText('Configure')).not.toBeInTheDocument();
     // Renamed from "Browse" -- and the old label should be gone entirely.
     expect(screen.queryByText('Browse')).not.toBeInTheDocument();
   });
 
-  it('lets one page appear under several stages when it genuinely serves them', async () => {
+  it('keeps Team Strength public under Predict while its editing lives in Admin', async () => {
     renderAt('/fixtures');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Football/ }));
-
-    // Team Strength is where ratings are seen, compared to actuals, and
-    // changed -- so it appears under Predict, Validate and Configure
-    // with a label describing what you'd go there to do.
     expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
-    expect(screen.getByRole('link', { name: 'Projected vs Actual' })).toHaveAttribute('href', '/team-strength');
-    expect(screen.getByRole('link', { name: 'Adjust Ratings' })).toHaveAttribute('href', '/team-strength');
+
+    await user.click(screen.getByRole('button', { name: /^Admin/ }));
+    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
   });
 
   it('treats Results Data as a Football page now it lives under Discover', () => {

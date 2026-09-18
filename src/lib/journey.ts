@@ -15,7 +15,7 @@
 // Adding a page means adding one entry here.
 // ============================================================================
 
-export type StageKey = 'discover' | 'predict' | 'validate' | 'configure';
+export type StageKey = 'discover' | 'predict';
 export type ThemeKey = 'football' | 'fpl';
 
 export type JourneyLink = {
@@ -35,11 +35,9 @@ export type JourneyLink = {
 
 export type JourneyStage = {
   key: StageKey;
-  number: string;
   title: string;
-  /** Deliberately short: this is all the hub box shows, and four boxes
-   * have to fit one phone screen. The fuller explanation belongs on the
-   * stage page. */
+  /** Deliberately short: this is all the hub box shows. The fuller
+   * explanation belongs on the stage page. */
   tagline: string;
   intro: string;
   links: JourneyLink[];
@@ -63,15 +61,14 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
     title: 'Football',
     eyebrow: 'Full-Time \u00b7 Football',
     hubPath: '/football',
-    intro: "Browse what's real, see what's predicted, check how it held up, then adjust the model yourself.",
+    intro: 'What actually happened, and what the model expects next.',
     stages: [
       {
         key: 'discover',
-        number: '01',
         title: 'Discover',
-        tagline: 'Results, tables, teams.',
+        tagline: 'Results, tables, teams, the archive.',
         intro:
-          "Every match by division or by team, with what's already happened and what's coming up next. No model involved \u2014 just the record.",
+          "Everything that has actually happened. Every match by division or by team, the full archive, and how the divisions compare. No model involved \u2014 just the record.",
         links: [
           { label: 'Fixtures & Results', to: '/fixtures', blurb: 'Every match, filterable by division, season and team.', exact: true },
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
@@ -83,34 +80,14 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       },
       {
         key: 'predict',
-        number: '02',
         title: 'Predict',
-        tagline: 'Scorelines and ratings.',
+        tagline: 'Scorelines, ratings, and how well they hold up.',
         intro:
-          "Forecasts from a Dixon-Coles model fitted on real results: a predicted scoreline for every upcoming fixture, built from each team's own attack and defence ratings.",
+          "Forecasts from a Dixon-Coles model fitted on real results \u2014 and an honest account of how accurate they've been. A prediction is only worth reading next to its track record.",
         links: [
           { label: 'Match Preview', to: '/preview', blurb: 'Pick any two teams for a full head-to-head and prediction.' },
-          { label: 'Team Strength', to: '/team-strength', blurb: 'Every club\u2019s attack and defence rating, as expected goals.' },
+          { label: 'Team Strength', to: '/team-strength', blurb: 'Every club\u2019s attack and defence rating, with projected against actual.' },
         ],
-      },
-      {
-        key: 'validate',
-        number: '03',
-        title: 'Validate',
-        tagline: 'How good were we?',
-        intro:
-          'Comparing forecasts to what actually happened, to see how reliable the model has been and flag where it missed.',
-        note: 'A dedicated page for this is planned. For now, Team Strength\u2019s own projected-vs-actual columns are the closest thing.',
-        links: [{ label: 'Projected vs Actual', to: '/team-strength', blurb: 'Per-team projected and actual points side by side.' }],
-      },
-      {
-        key: 'configure',
-        number: '04',
-        title: 'Configure',
-        tagline: 'Change the inputs.',
-        intro:
-          "Amend a team's rating when the model doesn't reflect something you know \u2014 an injury, a new signing \u2014 and every future fixture prediction regenerates from it.",
-        links: [{ label: 'Adjust Ratings', to: '/team-strength', blurb: 'Override attack and defence, or reset back to the model.' }],
       },
     ],
   },
@@ -119,15 +96,14 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
     title: 'Fantasy Premier League',
     eyebrow: 'Full-Time \u00b7 Fantasy Premier League',
     hubPath: '/fpl/start',
-    intro: "Browse the schedule and rules, see who's projected to score, check how that held up, then adjust the model.",
+    intro: 'What has happened in the game, and who the model expects to score next.',
     stages: [
       {
         key: 'discover',
-        number: '01',
         title: 'Discover',
-        tagline: 'Results, prices, rules.',
+        tagline: 'Results, prices, ownership, rules.',
         intro:
-          'What has actually happened: real gameweek results and returns, what players cost and who owns them, and exactly how points are earned. No projections here.',
+          'What has actually happened: real gameweek returns, what players cost, who owns them, and exactly how points are earned. No projections here.',
         links: [
           { label: 'Gameweek Results', to: '/fpl/actual-matches', blurb: 'Real results and FPL returns for gameweeks already played.' },
           { label: 'The FPL Market', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
@@ -136,36 +112,17 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       },
       {
         key: 'predict',
-        number: '02',
         title: 'Predict',
-        tagline: 'Points and squads.',
+        tagline: 'Projections, squads, and how they scored.',
         intro:
-          "Every player's projected points \u2014 factoring in form, fixtures and set-piece duty \u2014 plus an optimiser that picks the best XV under budget.",
+          "Projected points for every player \u2014 form, fixtures and set-piece duty \u2014 an optimiser that picks the best XV under budget, and what the projections actually returned.",
         links: [
           { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
           { label: 'Player Points Table', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
+          { label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
         ],
-      },
-      {
-        key: 'validate',
-        number: '03',
-        title: 'Validate',
-        tagline: 'Projected vs scored.',
-        intro:
-          'Comparing projections to what players actually scored \u2014 and, in hindsight, what the truly optimal squad would have been.',
-        links: [{ label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight.' }],
-        note: 'Gameweek Results moved to Discover \u2014 it reports what happened rather than comparing it to projections, so it was never really validation.',
-      },
-      {
-        key: 'configure',
-        number: '04',
-        title: 'Configure',
-        tagline: 'Roles and set pieces.',
-        intro:
-          "Amend a team's set-piece takers or a player's role when the model doesn't reflect something you know, and every future projection regenerates from it.",
-        links: [{ label: 'Tactical Roles', to: '/fpl/tactical-roles', blurb: 'Roles, depth and set-piece hierarchies by club.' }],
       },
     ],
   },

@@ -91,6 +91,20 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Model accuracy must surface inside Predict
+Validate was folded into Predict because it was QA language for an
+audience that wants to know whether to trust a number, not to audit one.
+
+That only works if accuracy actually appears ON the prediction pages —
+"Arsenal 74% to win" next to "predictions at this confidence have come
+in 71% of the time" is far more persuasive in context than the same fact
+in a section nobody clicked. If it quietly vanishes instead, the
+differentiator is lost. Currently NOT yet surfaced anywhere.
+
+Still gated on walk-forward refitting for a meaningful sample (153
+matches today).
+
+
 ### Historic season ingestion — BLOCKED, needs schema change first
 `fpl_players`' primary key is `fpl_player_id` alone, not
 `(fpl_player_id, season_id)`. FPL reassigns element IDs every season, so
@@ -112,29 +126,10 @@ accessor now serves both shapes. Had the field been optional-with-
 default instead, this would have silently evaluated to "no theme
 matched" and removed the back link everywhere with nothing failing.
 
-### Facts / Forecasts / Verdict naming
-Discussed, not decided. Would become the headers on stage-level landing
-pages, so settle it before building those.
-
 ### Stage-level landing pages — DONE
 Eight pages (/football/discover ... /fpl/start/configure), all rendered
 by one StagePage component from src/lib/journey.ts. Adding a link to a
 stage is a config edit, not a code change.
-
-### Football "Validate" — needs walk-forward predictions
-Still no dedicated page. The obvious candidate now exists in principle —
-"does Dixon-Coles beat the closing line?" — and the odds are extracted
-(617,907 quotes, 30,760 matches). But only **153 matches** have BOTH a
-frozen pre-kickoff prediction and closing odds, because
-fixtures.predicted_* exists only for the current season.
-
-Historical predictions can't simply be generated: a model fitted on data
-that includes the match being predicted is using hindsight, and any
-"we beat the market" claim from it would be false. A real historical
-sample needs walk-forward refitting — fit on data up to date X, predict
-X, roll forward — which is a modelling exercise, not an extraction.
-
-Meanwhile the sample grows by roughly 380 matches a season on its own.
 
 ### Multi-user scenarios and leaderboard
 Depends on auth (now exists) plus a scenario/owner dimension on every

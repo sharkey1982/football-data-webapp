@@ -44,9 +44,7 @@ export default function StagePage({ themeKey }: { themeKey: ThemeKey }) {
   return (
     <article className="space-y-6">
       <header>
-        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          {theme.title} &middot; Step {stage.number}
-        </p>
+        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">{theme.title}</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">{stage.title}</h1>
         <p className="text-ink-700 mt-2 max-w-prose">{stage.intro}</p>
         {stage.note && <p className="text-ink-500 text-sm mt-2 italic max-w-prose">{stage.note}</p>}

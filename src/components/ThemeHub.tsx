@@ -27,7 +27,8 @@ export function ThemeHub({ theme, trivia }: { theme: JourneyTheme; trivia: Trivi
         <p className="text-chalk-300 mt-2 max-w-prose text-sm sm:text-base">{theme.intro}</p>
       </div>
 
-      {/* grid-cols-2 at every width -- 2x2 on mobile as well as desktop. */}
+      {/* Two doors, not four steps -- so no numbering. Side by side at
+          every width, matching the landing page's two theme buttons. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {theme.stages.map((stage) => (
           <Link
@@ -35,8 +36,7 @@ export function ThemeHub({ theme, trivia }: { theme: JourneyTheme; trivia: Trivi
             to={stagePath(theme, stage)}
             className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-6 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
           >
-            <span className="font-display text-2xl sm:text-3xl text-pitch-600 leading-none tabular-nums">{stage.number}</span>
-            <h2 className="font-display uppercase tracking-wide text-base sm:text-xl text-chalk-100 group-hover:text-amber-400 transition-colors mt-1">
+            <h2 className="font-display uppercase tracking-wide text-lg sm:text-2xl text-chalk-100 group-hover:text-amber-400 transition-colors">
               {stage.title}
             </h2>
             <p className="text-chalk-300 text-xs sm:text-sm mt-1">{stage.tagline}</p>
