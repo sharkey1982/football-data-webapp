@@ -111,6 +111,8 @@ function computeActualContribution(
 export type PlayerGameweekPoints = {
   fpl_player_id: number;
   web_name: string;
+  /** Canonical slug for this player's own public page (/fpl/players/:slug). Null only if slug generation ever failed for them. */
+  slug: string | null;
   team_id: number;
   team_name: string;
   fpl_position: FplElementType | null;
@@ -239,7 +241,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
 
   const { data: playerRows, error: playerError } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, web_name, element_type, canonical_team_id, now_cost')
+    .select('fpl_player_id, web_name, slug, element_type, canonical_team_id, now_cost')
     .eq('season_id', 13)
     .in('fpl_player_id', [...playerIds]);
   if (playerError) throw playerError;
@@ -249,10 +251,11 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   const teamNameById = new Map<number, string>();
   for (const t of teamRows ?? []) teamNameById.set(t.team_id, t.canonical_name);
 
-  const playerInfo = new Map<number, { web_name: string; fpl_position: FplElementType | null; team_id: number; price: number | null }>();
+  const playerInfo = new Map<number, { web_name: string; slug: string | null; fpl_position: FplElementType | null; team_id: number; price: number | null }>();
   for (const p of playerRows ?? []) {
     playerInfo.set(p.fpl_player_id, {
       web_name: p.web_name ?? 'Unknown',
+      slug: (p as any).slug ?? null,
       fpl_position: p.element_type,
       team_id: p.canonical_team_id ?? 0,
       price: p.now_cost != null ? p.now_cost / 10 : null,
@@ -270,6 +273,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     return {
       fpl_player_id: playerId,
       web_name: info?.web_name ?? 'Unknown',
+      slug: info?.slug ?? null,
       team_id: info?.team_id ?? 0,
       team_name: info ? teamNameById.get(info.team_id) ?? 'Unknown' : 'Unknown',
       fpl_position: info?.fpl_position ?? null,

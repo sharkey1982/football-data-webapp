@@ -17,6 +17,7 @@ const GameweekBrowser = lazy(() => import('./pages/GameweekBrowser'));
 const Landing = lazy(() => import('./pages/Landing'));
 const FootballHub = lazy(() => import('./pages/FootballHub'));
 const FplHub = lazy(() => import('./pages/FplHub'));
+const PlayerPage = lazy(() => import('./pages/fpl/PlayerPage'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
 const ResultsData = lazy(() => import('./pages/ResultsData'));
@@ -164,6 +165,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <HindsightOptimalSquadPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/players/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <PlayerPage />
               </Suspense>
             }
           />

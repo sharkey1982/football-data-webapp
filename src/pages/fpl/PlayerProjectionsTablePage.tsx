@@ -9,6 +9,7 @@
 // ============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import { getPlayerGameweekPointsRange, getTeamFixtureGoals, type PlayerGameweekPoints, type TeamFixtureGoals } from '../../lib/fplPlayerTableApi';
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
@@ -20,6 +21,7 @@ type ViewMode = 'by_gameweek' | 'by_contribution';
 type PlayerRow = {
   fpl_player_id: number;
   web_name: string;
+  slug: string | null;
   team_name: string;
   fpl_position: number | null;
   fpl_position_label: string;
@@ -64,6 +66,7 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
       row = {
         fpl_player_id: r.fpl_player_id,
         web_name: r.web_name,
+        slug: r.slug,
         team_name: r.team_name,
         fpl_position: r.fpl_position,
         fpl_position_label: r.fpl_position_label,
@@ -421,7 +424,18 @@ export default function PlayerProjectionsTablePage() {
               <tbody>
                 {sorted.map((r) => (
                   <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0 hover:bg-chalk-100 transition-colors">
-                    <td className="px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
+                    <td className="px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">
+                      {/* Links to the player's own canonical page -- makes those
+                          pages genuinely reachable rather than orphaned behind
+                          this table's client-side filter state. */}
+                      {r.slug ? (
+                        <Link to={`/fpl/players/${r.slug}`} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+                          {r.web_name}
+                        </Link>
+                      ) : (
+                        r.web_name
+                      )}
+                    </td>
                     <td className="px-2 py-1.5 text-xs text-ink-700 whitespace-nowrap">{r.team_name}</td>
                     <td className="px-2 py-1.5 font-mono text-xs text-ink-700">{r.fpl_position_label}</td>
                     <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.price !== null ? `\u00a3${r.price.toFixed(1)}m` : '\u2014'}</td>
