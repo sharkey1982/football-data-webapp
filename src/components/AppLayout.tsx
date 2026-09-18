@@ -1,3 +1,4 @@
+import { THEMES, stagePath } from '../lib/journey';
 import { trackPageView } from '../lib/analytics';
 import { CookieConsent } from './CookieConsent';
 import { useEffect, useRef, useState } from 'react';
@@ -9,13 +10,18 @@ type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: 
  * site's own structure. `sections` is optional -- groups that aren't
  * part of that journey (Data, FPL Admin) stay flat, because forcing
  * them into stage headings would invent a structure they don't have. */
-type NavSection = { label: string; items: NavItem[] };
+type NavSection = { label: string; to?: string; items: NavItem[] };
 type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[] };
 
 /** Every item in a group, whether it's flat or sectioned -- used for
  * group-level highlighting so both shapes behave identically. */
 function groupItems(group: NavGroup): NavItem[] {
-  return group.items ?? (group.sections ?? []).flatMap((sec) => sec.items);
+  // Concatenate, don't choose. An earlier version used `??`, which
+  // silently ignored `sections` on any group that also had `items` --
+  // so once Overview became a plain item alongside the stage sections,
+  // group highlighting and the back-to-hub link only saw Overview and
+  // stopped recognising every other page in the theme.
+  return [...(group.items ?? []), ...(group.sections ?? []).flatMap((sec) => sec.items)];
 }
 
 const navLinkClasses = (isActive: boolean) =>
@@ -88,17 +94,29 @@ function NavDropdown({ group }: { group: NavGroup }) {
           ))}
           {group.sections?.map((section, i) => (
             <li key={section.label}>
-              {/* Stage heading. Deliberately not a link: the stage
-                  itself has no page of its own yet, and a heading that
-                  looks clickable but isn't is worse than a plain one. */}
-              <p
-                className={[
-                  'px-3 pt-2 pb-1 font-mono text-[0.65rem] uppercase tracking-widest text-amber-400',
-                  i > 0 ? 'border-t border-pitch-700 mt-1' : '',
-                ].join(' ')}
-              >
-                {section.label}
-              </p>
+              {/* Stage heading, now a link -- each stage has its own
+                  landing page, so a heading that looks clickable is
+                  clickable. */}
+              {section.to ? (
+                <NavLink
+                  to={section.to}
+                  className={[
+                    'block px-3 pt-2 pb-1 font-mono text-[0.65rem] uppercase tracking-widest text-amber-400 hover:text-amber-300',
+                    i > 0 ? 'border-t border-pitch-700 mt-1' : '',
+                  ].join(' ')}
+                >
+                  {section.label}
+                </NavLink>
+              ) : (
+                <p
+                  className={[
+                    'px-3 pt-2 pb-1 font-mono text-[0.65rem] uppercase tracking-widest text-amber-400',
+                    i > 0 ? 'border-t border-pitch-700 mt-1' : '',
+                  ].join(' ')}
+                >
+                  {section.label}
+                </p>
+              )}
               <ul>
                 {section.items.map((item) => (
                   <li key={item.label}>
@@ -155,72 +173,45 @@ export default function AppLayout() {
   // them to actuals (Validate) and where you change them (Configure).
   // Listing it three times reflects what it actually does rather than
   // forcing a single arbitrary home.
+  // Derived from the journey config rather than hand-listed. That
+  // config is what the hub pages and stage pages already render from,
+  // so the nav can no longer disagree with them about what exists --
+  // which it previously did (the nav said "Browse" after the hubs had
+  // moved to "Discover"). Adding a destination is now one config edit
+  // that updates the nav, the hub and the stage page together.
+  const themeGroups: NavGroup[] = (['football', 'fpl'] as const).map((key) => {
+    const theme = THEMES[key];
+    return {
+      label: key === 'football' ? 'Football' : 'Fantasy',
+      // Overview sits above the stage headings as a plain item, not an
+      // empty section -- a heading with nothing under it reads as a
+      // rendering bug.
+      items: [{ to: theme.hubPath, label: 'Overview', exact: true, matchPrefix: theme.hubPath }],
+      sections: [
+        ...theme.stages.map((stage) => ({
+          label: stage.title,
+          to: stagePath(theme, stage),
+          items: stage.links.map((link) => ({
+            // Fixtures keeps its remembered search string, so returning
+            // to it from elsewhere preserves the division/season you had
+            // selected rather than resetting.
+            to: link.to === '/fixtures' ? fixturesTo : link.to,
+            label: link.label,
+            matchPrefix: link.matchPrefix ?? link.to,
+            exact: link.exact,
+            excludePrefix: link.excludePrefix,
+          })),
+        })),
+      ],
+    };
+  });
+
   const navGroups: NavGroup[] = [
+    ...themeGroups,
     {
-      label: 'Football',
-      sections: [
-        {
-          label: 'Discover',
-          items: [
-            { to: '/football', label: 'Overview', exact: true, matchPrefix: '/football' },
-            { to: fixturesTo, label: 'Fixtures & Results', exact: true, matchPrefix: '/fixtures' },
-            { to: '/table', label: 'League Table', matchPrefix: '/table' },
-            { to: '/teams', label: 'Team Explorer', matchPrefix: ['/teams', '/football/teams'] },
-          ],
-        },
-        {
-          label: 'Predict',
-          items: [
-            { to: '/preview', label: 'Match Preview', matchPrefix: '/preview' },
-            { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
-          ],
-        },
-        {
-          label: 'Validate',
-          items: [{ to: '/team-strength', label: 'Projected vs Actual', matchPrefix: '/team-strength' }],
-        },
-        {
-          label: 'Configure',
-          items: [{ to: '/team-strength', label: 'Adjust Ratings', matchPrefix: '/team-strength' }],
-        },
-      ],
-    },
-    {
-      label: 'Fantasy',
-      sections: [
-        {
-          label: 'Discover',
-          items: [
-            { to: '/fpl/start', label: 'Overview', exact: true, matchPrefix: '/fpl/start' },
-            { to: '/fpl', label: 'Match Projections', matchPrefix: '/fpl', exact: true },
-            { to: '/fpl/scoring-rules', label: 'Scoring Rules', matchPrefix: '/fpl/scoring-rules' },
-          ],
-        },
-        {
-          label: 'Predict',
-          items: [
-            { to: '/fpl/player-points', label: 'Player Points Table', matchPrefix: '/fpl/player-points' },
-            { to: '/fpl/optimal-squad', label: 'Optimal Squad', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
-            { to: '/fantasy', label: 'Fixture Heat Map', matchPrefix: '/fantasy' },
-          ],
-        },
-        {
-          label: 'Validate',
-          items: [
-            { to: '/fpl/actual-matches', label: 'Actual Matches', matchPrefix: '/fpl/actual-matches' },
-            { to: '/fpl/optimal-squad-so-far', label: 'Optimal Squad So Far', matchPrefix: '/fpl/optimal-squad-so-far' },
-          ],
-        },
-        {
-          label: 'Configure',
-          items: [{ to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' }],
-        },
-      ],
-    },
-    {
-      // Flat, not sectioned: these are raw-data and infrastructure
-      // views, not part of the Discover-to-Configure journey. Giving
-      // them stage headings would invent a structure they don't have.
+      // Flat, not sectioned: raw-data and infrastructure views, not part
+      // of the Discover-to-Configure journey. Stage headings would
+      // invent a structure they don't have.
       label: 'Data',
       items: [
         { to: '/results-data', label: 'Results Data', matchPrefix: '/results-data' },
@@ -228,10 +219,9 @@ export default function AppLayout() {
       ],
     },
     {
-      // Duplicate links to the three pages in the core admin workflow:
-      // review team strength, then tactical roles, then run the
-      // optimiser. A shortcut through that sequence, deliberately kept
-      // flat since it's a workflow rather than a journey stage.
+      // Shortcut through the core admin workflow: team strength, then
+      // tactical roles, then the optimiser. A workflow rather than a
+      // journey stage, so deliberately flat.
       label: 'FPL Admin',
       items: [
         { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },

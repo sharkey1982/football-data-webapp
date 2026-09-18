@@ -23,6 +23,14 @@ export type JourneyLink = {
   to: string;
   /** One line on the stage page -- why you'd open this, not what it is. */
   blurb?: string;
+  /** Route-matching hints, used for nav highlighting. They live here
+   * rather than in the nav because they describe where the page sits in
+   * the route tree, which is exactly what this file is for -- and
+   * keeping them here is what stops the nav needing its own parallel
+   * list that can drift. */
+  exact?: boolean;
+  matchPrefix?: string | string[];
+  excludePrefix?: string | string[];
 };
 
 export type JourneyStage = {
@@ -65,9 +73,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           "Every match by division or by team, with what's already happened and what's coming up next. No model involved \u2014 just the record.",
         links: [
-          { label: 'Fixtures & Results', to: '/fixtures', blurb: 'Every match, filterable by division, season and team.' },
+          { label: 'Fixtures & Results', to: '/fixtures', blurb: 'Every match, filterable by division, season and team.', exact: true },
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
-          { label: 'Team Explorer', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.' },
+          { label: 'Team Explorer', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
         ],
       },
       {
@@ -118,7 +126,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           'Every fixture by gameweek, plus the full Fantasy Premier League scoring rulebook. No projections yet \u2014 the schedule and the rules.',
         links: [
-          { label: 'Match Projections', to: '/fpl', blurb: 'Browse gameweek by gameweek.' },
+          { label: 'Match Projections', to: '/fpl', blurb: 'Browse gameweek by gameweek.', exact: true },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
       },
@@ -131,7 +139,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           "Every player's projected points \u2014 factoring in form, fixtures and set-piece duty \u2014 plus an optimiser that picks the best XV under budget.",
         links: [
           { label: 'Player Points Table', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
-          { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.' },
+          { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
         ],
       },
