@@ -66,7 +66,14 @@ export type SeasonInsert = {
 export type Team = {
   team_id: number;
   country_id: number;
+  /** Name used to MATCH incoming source rows (football-data.co.uk's CSV
+   * abbreviations: "Nott'm Forest", "Sheffield Weds"). Never show this to
+   * a user or derive a URL from it -- use display_name. */
   canonical_name: string;
+  /** Public-facing proper name ("Nottingham Forest"). Slugs derive from
+   * this, so it's what determines a team's canonical URL. */
+  display_name: string;
+  slug: string | null;
   created_at: string;
 };
 

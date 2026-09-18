@@ -49,7 +49,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     .from('fixtures')
     .select(
       'fixture_id, slug, kickoff_date, status, matchweek, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, ' +
-        'home_team:teams!fixtures_home_team_id_fkey(canonical_name, slug), away_team:teams!fixtures_away_team_id_fkey(canonical_name, slug), leagues(name)'
+        'home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -111,8 +111,8 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
 
   return {
     slug: data.slug,
-    home_team_name: data.home_team?.canonical_name ?? 'Unknown',
-    away_team_name: data.away_team?.canonical_name ?? 'Unknown',
+    home_team_name: data.home_team?.display_name ?? 'Unknown',
+    away_team_name: data.away_team?.display_name ?? 'Unknown',
     home_team_slug: data.home_team?.slug ?? null,
     away_team_slug: data.away_team?.slug ?? null,
     kickoff_date: data.kickoff_date,

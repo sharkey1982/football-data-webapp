@@ -54,7 +54,7 @@ const POSITION_LABELS: Record<number, string> = { 1: 'Goalkeeper', 2: 'Defender'
 export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile | null> {
   const { data, error } = await (supabase as any)
     .from('fpl_players')
-    .select('fpl_player_id, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(canonical_name, slug)')
+    .select('fpl_player_id, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(display_name, slug)')
     .eq('season_id', PL_SEASON_ID)
     .eq('slug', slug)
     .maybeSingle();
@@ -68,7 +68,7 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
     web_name: data.web_name,
     full_name: fullName,
     canonical_team_id: data.canonical_team_id ?? null,
-    team_name: data.teams?.canonical_name ?? 'Unknown',
+    team_name: data.teams?.display_name ?? 'Unknown',
     team_slug: data.teams?.slug ?? null,
     position_label: POSITION_LABELS[data.element_type] ?? 'Unknown',
     price: data.now_cost != null ? data.now_cost / 10 : null,
@@ -80,7 +80,7 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
 export async function getPlayerSeason(fplPlayerId: number, teamId: number): Promise<PlayerPageGameweek[]> {
   const { data: fixtureRows, error: fixtureError } = await (supabase as any)
     .from('fixtures')
-    .select('fixture_id, matchweek, kickoff_date, status, home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name)')
+    .select('fixture_id, matchweek, kickoff_date, status, home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)')
     .eq('league_id', PL_LEAGUE_ID)
     .eq('season_id', PL_SEASON_ID)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
@@ -120,7 +120,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     return {
       matchweek: f.matchweek,
       kickoff_date: f.kickoff_date,
-      opponent_name: (isHome ? f.away_team?.canonical_name : f.home_team?.canonical_name) ?? 'Unknown',
+      opponent_name: (isHome ? f.away_team?.display_name : f.home_team?.display_name) ?? 'Unknown',
       is_home: isHome,
       status: f.status,
       projected_points: proj?.expected_fpl_points != null ? Number(proj.expected_fpl_points) : null,
