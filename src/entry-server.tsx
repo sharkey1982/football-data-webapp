@@ -33,7 +33,25 @@ export type RenderedPage = {
   title: string;
   description: string;
   canonical: string;
+  /** JSON-LD objects for this page. Only ever describes facts the page
+   * actually shows -- no invented properties to pad the schema out, and
+   * nothing asserted that the data doesn't support (e.g. no venue on a
+   * fixture, because venue isn't stored). */
+  structuredData: object[];
 };
+
+function breadcrumb(items: { name: string; path: string }[]): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      item: `${SITE_URL}${item.path}`,
+    })),
+  };
+}
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -60,6 +78,13 @@ export function renderPlayerPage(slug: string, data: PlayerPageData): RenderedPa
         ? `${data.profile.full_name} (${data.profile.team_name}) is projected ${total.toFixed(1)} Fantasy Premier League points across the next ${upcoming.length} gameweek${upcoming.length === 1 ? '' : 's'}. Per-gameweek projected points, expected minutes and results.`
         : `Fantasy Premier League projections, expected minutes and results for ${data.profile.full_name} (${data.profile.team_name}).`,
     canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      breadcrumb([
+        { name: 'Fantasy Premier League', path: '/fpl/start' },
+        { name: 'Players', path: '/fpl/player-points' },
+        { name: data.profile.full_name, path },
+      ]),
+    ],
   };
 }
 
@@ -88,11 +113,40 @@ export function renderMatchPage(slug: string, input: MatchPagePrediction & { __r
     ? `Model prediction for ${fixture}: ${data.home_team_name} ${data.model.homeWinPct.toFixed(1)}%, draw ${data.model.drawPct.toFixed(1)}%, ${data.away_team_name} ${data.model.awayWinPct.toFixed(1)}%. Expected goals and most likely scoreline.`
     : `Fixture details for ${fixture}.`;
 
+  // SportsEvent describes the fixture itself -- the one genuinely
+  // schema-shaped fact on the page. The model's probabilities have no
+  // standard schema.org representation, so they're deliberately NOT
+  // forced into one; they're in the page's own semantic HTML instead,
+  // which is what actually gets read.
+  const sportsEvent: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'SportsEvent',
+    name: fixture,
+    startDate: data.kickoff_date,
+    // schema.org has no "completed" event status -- its EventStatusType
+    // values cover scheduled/postponed/cancelled/rescheduled/moved.
+    // A played fixture did happen as scheduled, so this is correct for
+    // both cases rather than something to branch on.
+    eventStatus: 'https://schema.org/EventScheduled',
+    sport: 'Football',
+    url: `${SITE_URL}${path}`,
+    homeTeam: { '@type': 'SportsTeam', name: data.home_team_name },
+    awayTeam: { '@type': 'SportsTeam', name: data.away_team_name },
+  };
+
   return {
     html,
     title: `${fixture} \u2014 prediction | ${BRAND_NAME}`,
     description,
     canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      sportsEvent,
+      breadcrumb([
+        { name: 'Football', path: '/football' },
+        { name: 'Matches', path: '/fixtures' },
+        { name: fixture, path },
+      ]),
+    ],
   };
 }
 
@@ -108,6 +162,17 @@ export function buildDocument(shell: string, page: RenderedPage): string {
     /<meta\s+name="description"[\s\S]*?\/>/,
     `<meta name="description" content="${escapeAttr(page.description)}" />`
   );
-  out = out.replace('</head>', `  <link rel="canonical" href="${escapeAttr(page.canonical)}" />\n  </head>`);
+  const ld = (page.structuredData ?? [])
+    .map(
+      (obj) =>
+        // "</script>" inside JSON would terminate the script element
+        // early; escaping the slash is the standard guard.
+        `  <script type="application/ld+json">${JSON.stringify(obj).replace(/<\//g, '<\\/')}</script>`
+    )
+    .join('\n');
+  out = out.replace(
+    '</head>',
+    `  <link rel="canonical" href="${escapeAttr(page.canonical)}" />\n${ld}\n  </head>`
+  );
   return out;
 }
