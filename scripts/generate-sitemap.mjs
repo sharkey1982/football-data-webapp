@@ -71,6 +71,7 @@ const STATIC_ROUTES = [
   '/fpl/set-pieces',
   '/fpl/injuries',
   '/fpl/value',
+  '/fpl/team-of-the-week',
   // Stage landing pages: each is a real page with its own content.
   '/football/discover',
   '/football/predict',
