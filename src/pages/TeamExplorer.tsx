@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   getLeagues,
   getTeams,
+  getTeamBySlug,
   getMatchesForTeam,
   getMostRecentFixtureSeason,
   getTeamsInLeagueFixtures,
@@ -13,15 +15,12 @@ import { GoalTrendChart } from '../components/GoalTrendChart';
 import { FormSequenceChart } from '../components/FormSequenceChart';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
-type TeamOption = { team_id: number; canonical_name: string };
+type TeamOption = { team_id: number; canonical_name: string; slug: string };
 type LeagueOption = { league_id: number; code: string; name: string };
 
 export default function TeamExplorer() {
-  useDocumentHead({
-    title: 'Team Explorer',
-    description: 'Look up any team’s recent form, goal trends, and head-to-head match history.',
-    path: '/teams',
-  });
+  const navigate = useNavigate();
+  const { slug: routeSlug } = useParams<{ slug?: string }>();
 
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
@@ -33,6 +32,14 @@ export default function TeamExplorer() {
   const [team, setTeam] = useState<TeamOption | null>(null);
   const [matches, setMatches] = useState<MatchWithNames[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useDocumentHead({
+    title: team ? `${team.canonical_name} \u2014 Team Explorer` : 'Team Explorer',
+    description: team
+      ? `${team.canonical_name}'s recent form, goal trends, and match history.`
+      : 'Look up any team\u2019s recent form, goal trends, and head-to-head match history.',
+    path: team ? `/football/teams/${team.slug}` : '/teams',
+  });
 
   useEffect(() => {
     getLeagues().then((data) => setLeagues(data ?? []));
@@ -52,7 +59,7 @@ export default function TeamExplorer() {
           }
         }
         const teams = await getTeams();
-        setAllTeams(teams ?? []);
+        setAllTeams((teams ?? []) as TeamOption[]);
       } catch (err: any) {
         setError(err.message ?? 'Failed to load teams');
       } finally {
@@ -61,14 +68,47 @@ export default function TeamExplorer() {
     })();
   }, [leagueFilter]);
 
+  // Resolves /football/teams/:slug on load -- the canonical, bookmarkable
+  // entry point requested directly (previously this page had no URL state
+  // for the selected team at all: not even a query string, just client
+  // component state, so a specific team's view could never be linked to).
+  useEffect(() => {
+    if (!routeSlug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resolved = await getTeamBySlug(routeSlug);
+        if (cancelled) return;
+        if (!resolved) {
+          setError(`No team found for "${routeSlug}".`);
+          return;
+        }
+        await selectTeam(resolved, { updateUrl: false });
+      } catch (err: any) {
+        if (!cancelled) setError(err.message ?? 'Failed to load team');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSlug]);
+
   const visibleTeams = allTeams.filter((t) =>
     t.canonical_name.toLowerCase().includes(nameFilter.trim().toLowerCase())
   );
 
-  async function selectTeam(t: TeamOption) {
+  async function selectTeam(t: TeamOption, opts: { updateUrl?: boolean } = { updateUrl: true }) {
     setTeam(t);
     setError(null);
     setMatches(null);
+    // Keeps the URL in sync with whichever team is actually showing, so
+    // every team has a durable, shareable link -- replace (not push) so
+    // clicking through several teams doesn't fill up back-button history
+    // with intermediate selections.
+    if (opts.updateUrl !== false && t.slug) {
+      navigate(`/football/teams/${t.slug}`, { replace: true });
+    }
     try {
       const data = await getMatchesForTeam(t.team_id, 60);
       setMatches(data);
@@ -80,7 +120,9 @@ export default function TeamExplorer() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Team Explorer</h1>
+        <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">
+          {team ? team.canonical_name : 'Team Explorer'}
+        </h1>
         <p className="text-ink-500 mt-1">
           Browse teams, then dig into their home/away form, goal record, and recent matches.
         </p>

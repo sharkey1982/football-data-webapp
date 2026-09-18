@@ -100,12 +100,26 @@ export async function getTeams(
     return q ? teams.filter((t) => t.canonical_name.toLowerCase().includes(q)) : teams;
   }
 
-  let query = supabase.from('teams').select('team_id, canonical_name, country_id');
+  let query = (supabase as any).from('teams').select('team_id, canonical_name, country_id, slug');
   if (options?.countryId) query = query.eq('country_id', options.countryId);
   if (searchQuery && searchQuery.trim() !== '') {
     query = query.ilike('canonical_name', `%${searchQuery.trim()}%`);
   }
   const { data, error } = await query.order('canonical_name', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+/** Resolves a team's canonical slug (the stable public URL segment) to its
+ * id and name -- for /football/teams/:slug, the durable per-team route
+ * recommended in the AI/search discoverability audit (client-side state
+ * with no URL at all previously). */
+export async function getTeamBySlug(slug: string): Promise<{ team_id: number; canonical_name: string; slug: string } | null> {
+  const { data, error } = await (supabase as any)
+    .from('teams')
+    .select('team_id, canonical_name, slug')
+    .eq('slug', slug)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -138,21 +152,21 @@ export async function getMostRecentFixtureSeason(leagueId: number) {
  * the model can't yet rate.
  */
 export async function getTeamsInLeagueFixtures(leagueId: number, seasonId: number) {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('fixtures')
-    .select('home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name)')
+    .select('home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name, slug), away_team:teams!fixtures_away_team_id_fkey(canonical_name, slug)')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId);
   if (error) throw error;
 
-  const teamsById = new Map<number, string>();
+  const teamsById = new Map<number, { canonical_name: string; slug: string }>();
   for (const row of (data ?? []) as any[]) {
-    teamsById.set(row.home_team_id, row.home_team?.canonical_name ?? 'Unknown');
-    teamsById.set(row.away_team_id, row.away_team?.canonical_name ?? 'Unknown');
+    teamsById.set(row.home_team_id, { canonical_name: row.home_team?.canonical_name ?? 'Unknown', slug: row.home_team?.slug ?? '' });
+    teamsById.set(row.away_team_id, { canonical_name: row.away_team?.canonical_name ?? 'Unknown', slug: row.away_team?.slug ?? '' });
   }
 
   return [...teamsById.entries()]
-    .map(([team_id, canonical_name]) => ({ team_id, canonical_name }))
+    .map(([team_id, t]) => ({ team_id, canonical_name: t.canonical_name, slug: t.slug }))
     .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name));
 }
 

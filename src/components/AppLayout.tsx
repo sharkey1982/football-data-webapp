@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
-type NavItem = { to: To; label: string; matchPrefix: string; exact?: boolean; excludePrefix?: string | string[] };
+type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[] };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navLinkClasses = (isActive: boolean) =>
@@ -19,10 +19,11 @@ const navLinkClasses = (isActive: boolean) =>
  * stops those routes from also lighting up FPL Projections.
  */
 function isItemActive(pathname: string, item: NavItem): boolean {
-  if (item.exact) return pathname === item.matchPrefix;
+  const prefixes = Array.isArray(item.matchPrefix) ? item.matchPrefix : [item.matchPrefix];
+  if (item.exact) return prefixes.includes(pathname);
   const excludes = item.excludePrefix === undefined ? [] : Array.isArray(item.excludePrefix) ? item.excludePrefix : [item.excludePrefix];
   if (excludes.some((p) => pathname.startsWith(p))) return false;
-  return pathname.startsWith(item.matchPrefix);
+  return prefixes.some((p) => pathname.startsWith(p));
 }
 
 function NavDropdown({ group }: { group: NavGroup }) {
@@ -103,7 +104,7 @@ export default function AppLayout() {
         { to: fixturesTo, label: 'Fixtures', exact: true, matchPrefix: '/fixtures' },
         { to: '/table', label: 'League Table', matchPrefix: '/table' },
         { to: '/team-strength', label: 'Team Strength', matchPrefix: '/team-strength' },
-        { to: '/teams', label: 'Team Explorer', matchPrefix: '/teams' },
+        { to: '/teams', label: 'Team Explorer', matchPrefix: ['/teams', '/football/teams'] },
         { to: '/preview', label: 'Match Preview', matchPrefix: '/preview' },
       ],
     },

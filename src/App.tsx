@@ -80,6 +80,14 @@ export default function App() {
             }
           />
           <Route
+            path="football/teams/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TeamExplorer />
+              </Suspense>
+            }
+          />
+          <Route
             path="fixtures"
             element={
               <Suspense fallback={<RouteFallback />}>
