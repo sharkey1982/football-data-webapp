@@ -25,6 +25,7 @@ const StagePage = lazy(() => import('./pages/StagePage'));
 const CrossLeaguePage = lazy(() => import('./pages/football/CrossLeaguePage'));
 const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
 const FplMarketPage = lazy(() => import('./pages/fpl/FplMarketPage'));
+const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const Login = lazy(() => import('./pages/Login'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
@@ -222,6 +223,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <MatchPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/set-pieces"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <SetPiecesPage />
               </Suspense>
             }
           />
