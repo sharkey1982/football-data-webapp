@@ -14,6 +14,7 @@ vi.mock('../lib/api', async () => {
     getRecentFixtureRefreshRuns: vi.fn(),
     getRecentPipelineRuns: vi.fn(),
     getRecentFplIngestionRuns: vi.fn(),
+    getPublicReadAudit: vi.fn(),
     getFitRunValidationChecks: vi.fn(),
   };
 });
@@ -37,6 +38,7 @@ describe('DataHealth page', () => {
     mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
     mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
     mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
+    mockedApi.getPublicReadAudit.mockResolvedValue([]);
     mockedApi.getLeagueFitStatus.mockResolvedValue([
       {
         league_id: 1,
@@ -108,6 +110,7 @@ describe('DataHealth page', () => {
     mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
     mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
     mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
+    mockedApi.getPublicReadAudit.mockResolvedValue([]);
     mockedApi.getFitRunValidationChecks.mockResolvedValue({
       converged: { pass: true, optimizer_message: 'CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL' },
       sufficient_observations: { pass: true, matches_used: 761, minimum: 50 },
@@ -147,6 +150,29 @@ describe('DataHealth page', () => {
     await user.click(screen.getByRole('button', { name: /Hide checks/ }));
     await user.click(screen.getByRole('button', { name: /Show checks/ }));
     expect(mockedApi.getFitRunValidationChecks).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags a table granted to the public but blocked by a missing policy', async () => {
+    mockedApi.getLeagueFitStatus.mockResolvedValue([]);
+    mockedApi.getRecentMatchImportRuns.mockResolvedValue([]);
+    mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
+    mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
+    mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
+    mockedApi.getPublicReadAudit.mockResolvedValue([
+      // Granted but no policy -- the combination that means someone
+      // INTENDED this readable and the policy was forgotten. This is the
+      // exact shape that silently broke fpl_fixtures and match_odds.
+      { table_name: 'something_broken', rls_enabled: true, has_select_policy: false, anon_has_select_grant: true, anon_can_read: false },
+      // Deliberately internal: no grant, no policy. Must NOT be flagged.
+      { table_name: 'internal_thing', rls_enabled: true, has_select_policy: false, anon_has_select_grant: false, anon_can_read: false },
+      { table_name: 'fine', rls_enabled: true, has_select_policy: true, anon_has_select_grant: true, anon_can_read: true },
+    ]);
+
+    render(<DataHealth />);
+
+    await waitFor(() => expect(screen.getByText('something_broken')).toBeInTheDocument());
+    expect(screen.queryByText('internal_thing')).not.toBeInTheDocument();
+    expect(screen.queryByText('fine')).not.toBeInTheDocument();
   });
 
   it('shows the Fantasy updates and Fantasy raw data sections, including a failed pipeline run\u2019s error', async () => {

@@ -6,11 +6,13 @@ import {
   getRecentFplIngestionRuns,
   getRecentMatchImportRuns,
   getRecentPipelineRuns,
+  getPublicReadAudit,
   type FixtureRefreshRun,
   type FplIngestionRun,
   type LeagueFitStatus,
   type MatchImportRun,
   type PipelineRun,
+  type PublicReadAuditRow,
 } from '../lib/api';
 
 type SortKey = 'league_code' | 'accepted_fitted_at' | 'accepted_matches_used' | 'latest_attempted_status';
@@ -211,6 +213,7 @@ export default function DataHealth() {
   const [fixtureRefreshRuns, setFixtureRefreshRuns] = useState<FixtureRefreshRun[]>([]);
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
   const [fplIngestionRuns, setFplIngestionRuns] = useState<FplIngestionRun[]>([]);
+  const [readAudit, setReadAudit] = useState<PublicReadAuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('league_code');
@@ -224,12 +227,13 @@ export default function DataHealth() {
       setLoading(true);
       setError(null);
       try {
-        const [fitStatus, imports, refreshes, pipelines, fplIngestion] = await Promise.all([
+        const [fitStatus, imports, refreshes, pipelines, fplIngestion, audit] = await Promise.all([
           getLeagueFitStatus(),
           getRecentMatchImportRuns(),
           getRecentFixtureRefreshRuns(),
           getRecentPipelineRuns(),
           getRecentFplIngestionRuns(),
+          getPublicReadAudit(),
         ]);
         if (cancelled) return;
         setRows(fitStatus);
@@ -237,6 +241,7 @@ export default function DataHealth() {
         setFixtureRefreshRuns(refreshes);
         setPipelineRuns(pipelines);
         setFplIngestionRuns(fplIngestion);
+        setReadAudit(audit);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load data health info');
       } finally {
@@ -413,6 +418,47 @@ export default function DataHealth() {
           </table>
         </div>
       )}
+
+      {!loading && !error && (() => {
+        // Only the genuinely suspicious case is worth showing by default:
+        // a SELECT grant with no policy means someone INTENDED this
+        // readable and the policy was forgotten. Tables with neither are
+        // almost always deliberately internal.
+        const suspicious = readAudit.filter((r) => !r.anon_can_read && r.anon_has_select_grant);
+        const unreadable = readAudit.filter((r) => !r.anon_can_read);
+        return (
+          <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
+            <div className="px-3 py-2 border-b border-chalk-300">
+              <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Public read access</h2>
+              <p className="text-xs text-ink-500">
+                Tables the site can&rsquo;t read. This failure is silent &mdash; an empty result, not an error &mdash; so
+                it only ever showed up as a blank page. {unreadable.length} of {readAudit.length} tables are unreadable,
+                most of them deliberately.
+              </p>
+            </div>
+            <div className="px-3 py-2">
+              {suspicious.length === 0 ? (
+                <p className="text-xs text-ink-700">
+                  No table has a public SELECT grant without a matching policy &mdash; the combination that means one was
+                  intended to be readable and the policy was missed.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-loss-700 mb-1">
+                    {suspicious.length} table(s) granted to the public but blocked by a missing policy &mdash; almost
+                    certainly unintended:
+                  </p>
+                  <ul className="text-xs font-mono text-ink-900 space-y-0.5">
+                    {suspicious.map((r) => (
+                      <li key={r.table_name}>{r.table_name}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {!loading && !error && (
         <div className="grid gap-4 sm:grid-cols-2">

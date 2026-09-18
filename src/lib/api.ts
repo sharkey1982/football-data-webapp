@@ -1858,6 +1858,33 @@ export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportR
   return data ?? [];
 }
 
+export type PublicReadAuditRow = {
+  table_name: string;
+  rls_enabled: boolean;
+  has_select_policy: boolean;
+  anon_has_select_grant: boolean;
+  anon_can_read: boolean;
+};
+
+/** Tables the public frontend cannot read.
+ *
+ * Exists because this failure is SILENT: a table with RLS enabled and no
+ * SELECT policy returns an empty result, not an error, so a page renders
+ * "no data" and nothing anywhere reports a problem. Four tables shipped
+ * that way before this audit existed -- match_odds, fpl_fixtures,
+ * fixture_refresh_runs and fpl_ingestion_runs -- and each was found only
+ * when a human looked at a blank page.
+ *
+ * Plenty of tables SHOULD be unreadable, so this is a list to review,
+ * not a list of bugs. The one that matters is a table with a SELECT
+ * grant but no policy: the grant means someone intended it to be public
+ * and the policy was forgotten. */
+export async function getPublicReadAudit(): Promise<PublicReadAuditRow[]> {
+  const { data, error } = await (supabase as any).rpc('get_public_read_audit');
+  if (error) throw error;
+  return (data ?? []) as PublicReadAuditRow[];
+}
+
 /** Most recent FPL projections pipeline runs (refresh/bonus/final-table, any status), newest first -- for the Data Health page's "Fantasy updates" section. This is the log that answers "how do I know fantasy updates have run" -- these three scripts wrote nowhere at all before it existed. */
 export async function getRecentPipelineRuns(limit = 15): Promise<PipelineRun[]> {
   const { data, error } = await (supabase as any)
