@@ -9,7 +9,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import { getFormationSlots, type FormationSlot } from './formationApi';
+
 
 export type SetPieceTaker = {
   team_id: number;
@@ -35,45 +35,77 @@ export const SET_PIECE_TYPES: { key: string; label: string }[] = [
   { key: 'corner_right', label: 'Corners (right)' },
 ];
 
-/** How much of a league's goals and assists come from set pieces at all.
+/** Where goals and assists actually come from, split by set-piece type.
  *
- * This is the headline the raw taker list needs: knowing who takes the
- * corners only matters if set pieces are a meaningful share of output,
- * and at ~31% of goals and ~43% of assists they plainly are.
- *
- * IMPORTANT LIMITATION: the Opta dataset has no penalty / corner /
- * free-kick breakdown -- only open_play_goals and set_piece_assists,
- * both undifferentiated. So "x% of goals from penalties" and "x% of
- * assists from corners versus direct free kicks" CANNOT be produced
- * from it, and aren't estimated here. Splitting an undifferentiated
- * total by assumed ratios would be inventing the finding. */
-export type SetPieceShare = {
+ * Previously this could only report an undifferentiated "from set
+ * pieces" total, because the imported slice of the Opta workbook had one
+ * combined bucket. The full workbook has the split, so penalties,
+ * corners and direct free kicks are now separate -- which is the
+ * difference between "set pieces matter" and knowing WHICH duty is
+ * worth having. */
+export type SetPieceBreakdown = {
   goals: number;
-  open_play_goals: number;
-  set_piece_goals: number;
-  pct_goals_from_set_pieces: number;
+  goals_open_play: number;
+  goals_from_corners: number;
+  goals_from_direct_fk: number;
+  goals_from_set_play: number;
+  goals_from_penalties: number;
   assists: number;
-  set_piece_assists: number;
-  pct_assists_from_set_pieces: number;
+  assist_corner: number;
+  assist_free_kick: number;
+  assist_throw_in: number;
+  penalties_taken: number;
+  corners_taken: number;
 };
 
-export async function getSetPieceShare(): Promise<SetPieceShare | null> {
-  const slots: FormationSlot[] = await getFormationSlots();
-  if (slots.length === 0) return null;
-  const goals = slots.reduce((s, r) => s + r.goals, 0);
-  const op = slots.reduce((s, r) => s + r.open_play_goals, 0);
-  const assists = slots.reduce((s, r) => s + r.assists, 0);
-  const spa = slots.reduce((s, r) => s + r.set_piece_assists, 0);
-  const spGoals = Math.max(0, goals - op);
+export type ShareRow = { label: string; goals: number; pct: number };
+
+export async function getSetPieceBreakdown(): Promise<SetPieceBreakdown | null> {
+  const { data, error } = await (supabase as any)
+    .from('opta_slot_breakdown')
+    .select(
+      'goals, goals_open_play, goals_from_corners, goals_from_direct_fk, goals_from_set_play, goals_from_penalties, assists, assist_corner, assist_free_kick, assist_throw_in, penalties_taken, corners_taken'
+    );
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  if (rows.length === 0) return null;
+  const sum = (k: string) => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
   return {
-    goals,
-    open_play_goals: op,
-    set_piece_goals: spGoals,
-    pct_goals_from_set_pieces: goals > 0 ? (spGoals / goals) * 100 : 0,
-    assists,
-    set_piece_assists: spa,
-    pct_assists_from_set_pieces: assists > 0 ? (spa / assists) * 100 : 0,
+    goals: sum('goals'),
+    goals_open_play: sum('goals_open_play'),
+    goals_from_corners: sum('goals_from_corners'),
+    goals_from_direct_fk: sum('goals_from_direct_fk'),
+    goals_from_set_play: sum('goals_from_set_play'),
+    goals_from_penalties: sum('goals_from_penalties'),
+    assists: sum('assists'),
+    assist_corner: sum('assist_corner'),
+    assist_free_kick: sum('assist_free_kick'),
+    assist_throw_in: sum('assist_throw_in'),
+    penalties_taken: sum('penalties_taken'),
+    corners_taken: sum('corners_taken'),
   };
+}
+
+export function goalSplit(b: SetPieceBreakdown): ShareRow[] {
+  const pct = (n: number) => (b.goals > 0 ? (n / b.goals) * 100 : 0);
+  return [
+    { label: 'Open play', goals: b.goals_open_play, pct: pct(b.goals_open_play) },
+    { label: 'Corners', goals: b.goals_from_corners, pct: pct(b.goals_from_corners) },
+    { label: 'Penalties', goals: b.goals_from_penalties, pct: pct(b.goals_from_penalties) },
+    { label: 'Other set plays', goals: b.goals_from_set_play, pct: pct(b.goals_from_set_play) },
+    { label: 'Direct free kicks', goals: b.goals_from_direct_fk, pct: pct(b.goals_from_direct_fk) },
+  ].sort((a, z) => z.goals - a.goals);
+}
+
+export function assistSplit(b: SetPieceBreakdown): ShareRow[] {
+  const setPiece = b.assist_corner + b.assist_free_kick + b.assist_throw_in;
+  const pct = (n: number) => (b.assists > 0 ? (n / b.assists) * 100 : 0);
+  return [
+    { label: 'Open play', goals: Math.max(0, b.assists - setPiece), pct: pct(Math.max(0, b.assists - setPiece)) },
+    { label: 'Corners', goals: b.assist_corner, pct: pct(b.assist_corner) },
+    { label: 'Free kicks', goals: b.assist_free_kick, pct: pct(b.assist_free_kick) },
+    { label: 'Throw-ins', goals: b.assist_throw_in, pct: pct(b.assist_throw_in) },
+  ].sort((a, z) => z.goals - a.goals);
 }
 
 export async function getSetPieceTakers(seasonId = 13): Promise<SetPieceTaker[]> {

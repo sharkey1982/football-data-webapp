@@ -13,10 +13,12 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   getSetPieceTakers,
-  getSetPieceShare,
+  getSetPieceBreakdown,
+  goalSplit,
+  assistSplit,
   SET_PIECE_TYPES,
   type SetPieceTaker,
-  type SetPieceShare,
+  type SetPieceBreakdown,
 } from '../../lib/setPieceApi';
 
 export default function SetPiecesPage() {
@@ -24,7 +26,7 @@ export default function SetPiecesPage() {
   const [typeKey, setTypeKey] = useState(SET_PIECE_TYPES[0].key);
   const [teamFilter, setTeamFilter] = useState('All');
   const [firstChoiceOnly, setFirstChoiceOnly] = useState(false);
-  const [share, setShare] = useState<SetPieceShare | null>(null);
+  const [share, setShare] = useState<SetPieceBreakdown | null>(null);
   const [playerQuery, setPlayerQuery] = useState('');
 
   useDocumentHead({
@@ -38,7 +40,7 @@ export default function SetPiecesPage() {
     getSetPieceTakers(13)
       .then(setTakers)
       .catch(() => setTakers([]));
-    getSetPieceShare()
+    getSetPieceBreakdown()
       .then(setShare)
       .catch(() => setShare(null));
   }, []);
@@ -227,45 +229,58 @@ export default function SetPiecesPage() {
         )}
       </section>
 
-      {share && (
-        <section className="border border-chalk-300 rounded-lg bg-white p-4">
-          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Why set pieces matter</h2>
-          <p className="text-ink-900 mt-1 max-w-prose">
-            Across a full Premier League season of Opta data,{' '}
-            <strong>{share.pct_goals_from_set_pieces.toFixed(1)}% of goals</strong> and{' '}
-            <strong>{share.pct_assists_from_set_pieces.toFixed(1)}% of assists</strong> came from set pieces rather than
-            open play. Taking duty is close to half of all assist output.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 mt-3">
-            <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-ink-500">Goals</p>
-              <div className="flex h-5 rounded overflow-hidden mt-1">
-                <div className="bg-pitch-700" style={{ width: `${100 - share.pct_goals_from_set_pieces}%` }} />
-                <div className="bg-amber-500" style={{ width: `${share.pct_goals_from_set_pieces}%` }} />
+      {share && (() => {
+        const goals = goalSplit(share);
+        const assists = assistSplit(share);
+        const setPieceGoalPct = goals.filter((g) => g.label !== 'Open play').reduce((s, g) => s + g.pct, 0);
+        const Bar = ({ rows }: { rows: { label: string; goals: number; pct: number }[] }) => (
+          <div className="space-y-1.5 mt-2">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-xs text-ink-700 truncate">{r.label}</span>
+                <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
+                  <div
+                    className={r.label === 'Open play' ? 'bg-pitch-700 h-full rounded' : 'bg-amber-500 h-full rounded'}
+                    style={{ width: `${r.pct}%` }}
+                  />
+                </div>
+                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{r.pct.toFixed(1)}%</span>
               </div>
-              <p className="text-xs text-ink-500 mt-1">
-                {share.open_play_goals.toFixed(0)} open play &middot; {share.set_piece_goals.toFixed(0)} set piece
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-ink-500">Assists</p>
-              <div className="flex h-5 rounded overflow-hidden mt-1">
-                <div className="bg-pitch-700" style={{ width: `${100 - share.pct_assists_from_set_pieces}%` }} />
-                <div className="bg-amber-500" style={{ width: `${share.pct_assists_from_set_pieces}%` }} />
-              </div>
-              <p className="text-xs text-ink-500 mt-1">
-                {(share.assists - share.set_piece_assists).toFixed(0)} open play &middot;{' '}
-                {share.set_piece_assists.toFixed(0)} set piece
-              </p>
-            </div>
+            ))}
           </div>
-          <p className="text-ink-500 text-xs mt-3 max-w-prose">
-            Set-piece goals include penalties. This dataset records open-play and set-piece totals but not a breakdown by
-            type, so penalties can&rsquo;t be separated from free kicks, or corners from direct free kicks &mdash;
-            splitting the totals by assumed ratios would be inventing the answer.
-          </p>
-        </section>
-      )}
+        );
+        return (
+          <section className="border border-chalk-300 rounded-lg bg-white p-4">
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What each duty is actually worth</h2>
+            <p className="text-ink-900 mt-1 max-w-prose">
+              Across a full Premier League season, <strong>{setPieceGoalPct.toFixed(1)}% of goals</strong> came from set
+              pieces &mdash; and the split matters. Corners produced{' '}
+              <strong>{goals.find((g) => g.label === 'Corners')?.pct.toFixed(1)}%</strong> of all goals against{' '}
+              <strong>{goals.find((g) => g.label === 'Penalties')?.pct.toFixed(1)}%</strong> from penalties, but
+              penalties are shared among far fewer takers, so a penalty duty is worth much more per player.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 mt-3">
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
+                  Goals &mdash; {share.goals.toLocaleString()}
+                </p>
+                <Bar rows={goals} />
+              </div>
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
+                  Assists &mdash; {share.assists.toLocaleString()}
+                </p>
+                <Bar rows={assists} />
+              </div>
+            </div>
+            <p className="text-ink-500 text-xs mt-3 max-w-prose">
+              {share.penalties_taken.toLocaleString()} penalties and {share.corners_taken.toLocaleString()} corners were
+              taken across the season. &ldquo;Other set plays&rdquo; covers indirect free kicks and similar dead-ball
+              situations that aren&rsquo;t a direct shot.
+            </p>
+          </section>
+        );
+      })()}
 
       <p className="text-ink-500 text-xs max-w-prose">
         Order reflects observed duty, not a guarantee &mdash; managers rotate takers, and a first-choice penalty taker can

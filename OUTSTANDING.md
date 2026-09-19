@@ -91,6 +91,22 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Richer generic player stats (Discover)
+The Opta workbook carries ~214 columns, of which ~22 were extracted.
+Untouched and potentially interesting for Discover: passing accuracy by
+third, duels won/lost (aerial vs ground), dribbles, crosses by side,
+tackles, interceptions, recoveries, clearances, blocks, touches by zone,
+turnovers, and full goalkeeper detail (saves by area, catches, punches,
+crosses not claimed, distribution).
+
+Same caveat as the rest: 2011/12, so it's role-level insight rather than
+anything about current players. Worth extracting only against a specific
+question — importing 200 columns with no consumer is how the original
+truncation problem started in reverse.
+
+scripts/extract_opta_workbook.py is the place to add them.
+
+
 ### Opta set-piece breakdown — DONE
 The full workbook was supplied and extracted. opta_slot_breakdown now
 holds the type split that was previously reported as impossible:
