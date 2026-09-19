@@ -108,6 +108,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
           { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
+          { label: 'What\u2019s Changed', to: '/fpl/whats-changed', blurb: 'Everything that moved since the last update.' },
           { label: 'Transfer Window', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
           { label: "Managers' Dugout", to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },

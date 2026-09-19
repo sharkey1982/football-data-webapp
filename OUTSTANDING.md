@@ -102,23 +102,24 @@ flagged players, whether to play a chip. That's a real page and the name
 belongs to it.
 
 
-### Weekly/daily change summary -> social posts
-The pipeline already runs on schedule and triggers a rebuild. What's
-missing is a "what changed since last run" layer: price risers crossing
-thresholds, optimal squad differences, new bargains.
+### Change summary — DATA DONE, posting still open
+get_daily_digest() diffs the two most recent snapshots into typed
+changes (price rises/falls, availability, ownership swings), surfaced at
+/fpl/whats-changed. Derived rather than stored, so it can't drift from
+the pages it summarises.
 
-Two halves, and only one is technical:
-  - DATA: diff against the previous snapshot. fpl_player_snapshots
-    already holds daily price/ownership, so this is derivable now.
-  - POSTING: needs decisions — which platforms, and crucially whether
-    posts go out automatically or queue for approval.
+Verified live: 36 price changes, 3 availability changes and 12 ownership
+swings in a single 24 hours, so there is genuinely something to say most
+days.
 
-Recommend GENERATE-AND-QUEUE rather than auto-post, at least initially.
-An automated account that posts a wrong price call at 2am is hard to
-walk back, and the model will sometimes be wrong.
+notable() is the filter a post would use: ownership >= 5%, with
+availability exempt because a newly injured player nobody owns yet is
+exactly what's worth hearing early.
 
-Cadence: price-change risk is genuinely daily (driven by overnight net
-transfers); squad and bargain changes are weekly.
+STILL NEEDS YOU: which platforms, and auto-post versus queue.
+Recommendation stands — generate-and-queue. The model will sometimes be
+wrong, and a wrong call published overnight is hard to walk back for an
+account still building credibility.
 
 ### Gameweek Results page retired
 Content merged into the per-gameweek Team of the Week pages. The old

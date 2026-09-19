@@ -154,6 +154,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/whats-changed',
+    title: 'What changed in FPL today',
+    description:
+      'Fantasy Premier League price rises and falls, availability news and ownership swings since the last update.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/market',
     title: 'Transfer Window \u2014 FPL prices and ownership',
     description: 'Price risers and fallers, ownership swings, transfers and availability news, updated daily.',
