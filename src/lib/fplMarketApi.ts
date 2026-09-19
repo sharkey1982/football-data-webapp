@@ -33,7 +33,7 @@ export type FplMover = {
 };
 
 export async function getFplMarketMovers(days = 7): Promise<FplMover[]> {
-  const { data, error } = await (supabase as any).rpc('get_fpl_market_movers', { p_days: days });
+  const { data, error } = await supabase.rpc('get_fpl_market_movers', { p_days: days });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

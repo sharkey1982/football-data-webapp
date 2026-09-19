@@ -72,7 +72,7 @@ export function setPieceGoalPct(r: FormationSlot): number | null {
 export type SlotGeometry = { slot: number; x_pct: number; y_pct: number };
 
 export async function getFormationGeometry(): Promise<Map<string, Map<number, SlotGeometry>>> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('formation_slot_geometry')
     .select('source_formation_code, slot, x_pct, y_pct');
   if (error) throw error;
@@ -89,7 +89,7 @@ export async function getFormationGeometry(): Promise<Map<string, Map<number, Sl
 }
 
 export async function getFormationNames(): Promise<Map<string, string>> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('formation_code_names')
     .select('source_formation_code, canonical_formation');
   if (error) throw error;
@@ -129,7 +129,7 @@ export const FORMATION_METRICS: FormationMetric[] = [
 ];
 
 export async function getFormationSlots(): Promise<FormationSlot[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('tactical_formation_slot_priors')
     .select('source_formation_code, canonical_formation, source_formation_slot, starts, minutes, goals, open_play_goals, assists, key_passes, shots, big_chances, opp_box_touches, set_piece_assists, goal_share, assist_share, open_play_goal_share')
     .eq('venue_scope', 'ALL');

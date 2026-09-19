@@ -33,7 +33,7 @@ export type DigestEntry = {
 };
 
 export async function getDailyDigest(seasonId = 13): Promise<DigestEntry[]> {
-  const { data, error } = await (supabase as any).rpc('get_daily_digest', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_daily_digest', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({ ...r, ownership: Number(r.ownership ?? 0) }));
 }

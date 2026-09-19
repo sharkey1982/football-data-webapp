@@ -30,7 +30,7 @@ export type ValueRow = {
 };
 
 export async function getActualValueTable(seasonId = 13): Promise<ValueRow[]> {
-  const { data, error } = await (supabase as any).rpc('get_actual_value_table', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_actual_value_table', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

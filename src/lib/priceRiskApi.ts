@@ -34,7 +34,7 @@ export type PriceRisk = {
 };
 
 export async function getPriceChangeRisk(seasonId = 13): Promise<PriceRisk[]> {
-  const { data, error } = await (supabase as any).rpc('get_price_change_risk', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_price_change_risk', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

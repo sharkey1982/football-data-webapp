@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 import type { FplIngestionRun, MatchImportRun, PipelineRun } from '../types/database';
 
 export async function getFitRunRhos(): Promise<Map<number, number>> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('model_fit_runs')
     .select('fit_run_id, rho')
     .not('rho', 'is', null);
@@ -44,7 +44,7 @@ export type IntegrityCheck = { check_name: string; status: string; detail: strin
  * ask. Putting the questions on a page means nobody has to remember
  * them. */
 export async function getDataIntegrityReport(): Promise<IntegrityCheck[]> {
-  const { data, error } = await (supabase as any).rpc('get_data_integrity_report');
+  const { data, error } = await supabase.rpc('get_data_integrity_report');
   if (error) throw error;
   return (data ?? []) as IntegrityCheck[];
 }
@@ -72,25 +72,27 @@ export type PublicReadAuditRow = {
  * grant but no policy: the grant means someone intended it to be public
  * and the policy was forgotten. */
 export async function getPublicReadAudit(): Promise<PublicReadAuditRow[]> {
-  const { data, error } = await (supabase as any).rpc('get_public_read_audit');
+  const { data, error } = await supabase.rpc('get_public_read_audit');
   if (error) throw error;
   return (data ?? []) as PublicReadAuditRow[];
 }
 
 /** Most recent FPL projections pipeline runs (refresh/bonus/final-table, any status), newest first -- for the Data Health page's "Fantasy updates" section. This is the log that answers "how do I know fantasy updates have run" -- these three scripts wrote nowhere at all before it existed. */
 export async function getRecentPipelineRuns(limit = 15): Promise<PipelineRun[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('pipeline_runs')
     .select('*')
     .order('started_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return data ?? [];
+  // status has a CHECK constraint ('running','success','warning','failed');
+  // Postgres stores it as text so codegen widens it to string.
+  return (data ?? []) as PipelineRun[];
 }
 
 /** Most recent raw FPL data ingestion runs (private.refresh_fpl(), pg_cron every 6h), newest first -- the official-FPL-API layer underneath the projections pipeline above. */
 export async function getRecentFplIngestionRuns(limit = 10): Promise<FplIngestionRun[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_ingestion_runs')
     .select('*')
     .order('started_at', { ascending: false })

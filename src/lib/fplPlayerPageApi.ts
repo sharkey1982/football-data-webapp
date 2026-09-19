@@ -52,7 +52,7 @@ const POSITION_LABELS: Record<number, string> = { 1: 'Goalkeeper', 2: 'Defender'
 /** Resolves a player by their canonical slug. Returns null for an unknown
  * slug so the page can render a real 404 rather than an error state. */
 export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile | null> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(display_name, slug)')
     .eq('season_id', PL_SEASON_ID)
@@ -61,16 +61,22 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
   if (error) throw error;
   if (!data) return null;
 
-  const fullName = [data.first_name, data.second_name].filter(Boolean).join(' ').trim() || data.web_name;
+  // web_name, slug and element_type are all NULLABLE in fpl_players, though
+  // none is null for the 662 current-season rows. slug is guaranteed here
+  // by this query's own .eq('slug', slug) filter; the other two get
+  // fallbacks rather than assertions, since a missing name or position
+  // should degrade the page, not break it.
+  const webName = data.web_name ?? 'Unknown player';
+  const fullName = [data.first_name, data.second_name].filter(Boolean).join(' ').trim() || webName;
   return {
     fpl_player_id: data.fpl_player_id,
-    slug: data.slug,
-    web_name: data.web_name,
+    slug: data.slug!,
+    web_name: webName,
     full_name: fullName,
     canonical_team_id: data.canonical_team_id ?? null,
     team_name: data.teams?.display_name ?? 'Unknown',
     team_slug: data.teams?.slug ?? null,
-    position_label: POSITION_LABELS[data.element_type] ?? 'Unknown',
+    position_label: data.element_type != null ? (POSITION_LABELS[data.element_type] ?? 'Unknown') : 'Unknown',
     price: data.now_cost != null ? data.now_cost / 10 : null,
   };
 }
@@ -78,7 +84,7 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
 /** Every gameweek for this player that has a projection and/or a real
  * result, in matchweek order -- the page's main table. */
 export async function getPlayerSeason(fplPlayerId: number, teamId: number): Promise<PlayerPageGameweek[]> {
-  const { data: fixtureRows, error: fixtureError } = await (supabase as any)
+  const { data: fixtureRows, error: fixtureError } = await supabase
     .from('fixtures')
     .select('fixture_id, matchweek, kickoff_date, status, home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)')
     .eq('league_id', PL_LEAGUE_ID)
@@ -92,7 +98,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
 
   const fixtureIds = fixtures.map((f) => f.fixture_id);
 
-  const { data: projRows, error: projError } = await (supabase as any)
+  const { data: projRows, error: projError } = await supabase
     .from('fpl_player_projections')
     .select('fixture_id, expected_fpl_points, expected_minutes, generated_at, model_version')
     .eq('fpl_player_id', fplPlayerId)
@@ -105,7 +111,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
   // isn't one on this table) -- verified directly that all 2,548 of this
   // season's rows join cleanly to fixtures.fixture_id on it, and it's the
   // same column fplPlayerTableApi.ts already joins on.
-  const { data: actualRows, error: actualError } = await (supabase as any)
+  const { data: actualRows, error: actualError } = await supabase
     .from('fpl_player_gameweeks')
     .select('fpl_fixture_id, total_points')
     .eq('fpl_player_id', fplPlayerId)
@@ -135,7 +141,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
 /** Slugs for every player in the season -- for the sitemap and for
  * prerendering, both of which need the full URL list up front. */
 export async function getAllPlayerSlugs(): Promise<string[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_players')
     .select('slug')
     .eq('season_id', PL_SEASON_ID)

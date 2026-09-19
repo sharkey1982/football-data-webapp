@@ -50,7 +50,7 @@ export const POSITION: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 
 
 export async function searchPlayers(query: string, limit = 20): Promise<PlayerSearchResult[]> {
   if (query.trim().length < 2) return [];
-  const { data, error } = await (supabase as any).rpc('search_players', {
+  const { data, error } = await supabase.rpc('search_players', {
     p_query: query.trim(),
     p_limit: limit,
   });
@@ -65,7 +65,7 @@ export async function searchPlayers(query: string, limit = 20): Promise<PlayerSe
 }
 
 export async function getPlayerCareer(fplCode: number): Promise<PlayerSeason[]> {
-  const { data, error } = await (supabase as any).rpc('get_player_career', { p_fpl_code: fplCode });
+  const { data, error } = await supabase.rpc('get_player_career', { p_fpl_code: fplCode });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,
@@ -113,7 +113,7 @@ export type PlayerIdentity = {
  * departed players have one at all, which the per-season slug can't
  * give them. */
 export async function getPlayerBySlug(slug: string): Promise<PlayerIdentity | null> {
-  const { data, error } = await (supabase as any).rpc('get_player_by_slug', { p_slug: slug });
+  const { data, error } = await supabase.rpc('get_player_by_slug', { p_slug: slug });
   if (error) throw error;
   const row = ((data ?? []) as any[])[0];
   if (!row) return null;

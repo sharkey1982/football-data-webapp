@@ -24,7 +24,7 @@ export type SeasonXiPlayer = {
 export const POS_LABEL: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
 
 export async function getSeasonBestXi(seasonId: number): Promise<SeasonXiPlayer[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('season_best_xi')
     .select('*')
     .eq('season_id', seasonId)
@@ -41,7 +41,7 @@ export async function getSeasonBestXi(seasonId: number): Promise<SeasonXiPlayer[
 
 /** Season totals, for the surrounding context on the page. */
 export async function getSeasonValueLeaders(seasonId: number, limit = 10) {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_player_season_totals')
     .select('fpl_code, web_name, element_type, start_cost, end_cost, total_points, minutes')
     .eq('season_id', seasonId)
@@ -71,7 +71,7 @@ export type SeasonValueLeader = Awaited<ReturnType<typeof getSeasonValueLeaders>
 export type XiSeason = { season_id: number; slug: string; label: string; points: number; cost: number };
 
 export async function getXiSeasons(): Promise<XiSeason[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('season_best_xi')
     .select('season_id, total_points, start_cost, seasons!inner(slug, label)');
   if (error) throw error;

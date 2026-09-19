@@ -23,7 +23,7 @@ export async function getFplScoringRules(): Promise<FplScoringRule[]> {
   // fpl_scoring_rules is new enough that the generated Database type
   // doesn't know about it yet -- scoped `as any`, matching the same
   // pattern already used for fpl_hindsight_optimal_squad.
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_scoring_rules')
     .select('rule_id, rule_code, player_position, points, threshold, notes')
     .order('rule_id', { ascending: true });

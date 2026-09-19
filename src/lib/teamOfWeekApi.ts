@@ -39,8 +39,11 @@ export type TotwComparison = {
 };
 
 export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> {
-  const { data, error } = await (supabase as any).rpc('get_team_of_the_week', {
-    p_event_id: eventId ?? null,
+  const { data, error } = await supabase.rpc('get_team_of_the_week', {
+    // The SQL function declares p_event_id with DEFAULT NULL, so codegen
+    // types it optional. Omitting it lets that default apply -- passing an
+    // explicit null is what the removed cast was hiding.
+    p_event_id: eventId,
     p_season_id: 13,
   });
   if (error) throw error;
@@ -56,8 +59,11 @@ export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> 
 }
 
 export async function getTotwVsModel(eventId?: number): Promise<TotwComparison | null> {
-  const { data, error } = await (supabase as any).rpc('get_totw_vs_model', {
-    p_event_id: eventId ?? null,
+  const { data, error } = await supabase.rpc('get_totw_vs_model', {
+    // The SQL function declares p_event_id with DEFAULT NULL, so codegen
+    // types it optional. Omitting it lets that default apply -- passing an
+    // explicit null is what the removed cast was hiding.
+    p_event_id: eventId,
     p_season_id: 13,
   });
   if (error) throw error;
@@ -90,7 +96,7 @@ export type CompletedGameweek = {
 };
 
 export async function getCompletedGameweeks(seasonId = 13): Promise<CompletedGameweek[]> {
-  const { data, error } = await (supabase as any).rpc('get_completed_gameweeks', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_completed_gameweeks', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     fpl_event_id: Number(r.fpl_event_id),
@@ -107,7 +113,7 @@ export async function getCompletedGameweeks(seasonId = 13): Promise<CompletedGam
  * competing for the same search, and because the XI only makes sense
  * beside the players who just missed it. */
 export async function getGameweekScorers(eventId: number, seasonId = 13, limit = 25) {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_player_gameweeks')
     .select('fpl_player_id, total_points, minutes, goals_scored, assists, clean_sheets, bonus, fpl_players!inner(web_name, slug, element_type, canonical_team_id)')
     .eq('season_id', seasonId)

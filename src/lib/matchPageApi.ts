@@ -70,11 +70,13 @@ export function buildModelFromLambdas(lambdaHome: number, lambdaAway: number, rh
 }
 
 export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction | null> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fixtures')
+    // Must be a single string LITERAL: supabase-js parses the select at
+    // the type level, and string concatenation defeats that, collapsing
+    // every embedded column to GenericStringError.
     .select(
-      'fixture_id, slug, kickoff_date, status, matchweek, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, ' +
-        'home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
+      'fixture_id, slug, kickoff_date, status, matchweek, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -86,7 +88,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
 
   let model: DixonColesResult | null = null;
   if (lambdaHome != null && lambdaAway != null && data.prediction_fit_run_id != null) {
-    const { data: fitRun, error: fitError } = await (supabase as any)
+    const { data: fitRun, error: fitError } = await supabase
       .from('model_fit_runs')
       .select('rho')
       .eq('fit_run_id', data.prediction_fit_run_id)
@@ -101,7 +103,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
   let actualHome: number | null = null;
   let actualAway: number | null = null;
   if (data.status === 'played') {
-    const { data: match, error: matchError } = await (supabase as any)
+    const { data: match, error: matchError } = await supabase
       .from('matches')
       .select('full_time_home_goals, full_time_away_goals')
       .eq('home_team_id', data.home_team_id)

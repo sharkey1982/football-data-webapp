@@ -212,7 +212,7 @@ export async function getHindsightOptimalSquad(): Promise<FplHindsightResult | n
   // matching the same "deliberately untyped" pattern already used for RPC
   // calls elsewhere in this project, rather than regenerating the whole
   // Database type for one table.
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_hindsight_optimal_squad')
     .select('result, solver_status, objective_points, solve_time_ms, computed_at')
     .order('computed_at', { ascending: false })

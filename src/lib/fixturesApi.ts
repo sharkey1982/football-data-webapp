@@ -336,7 +336,7 @@ export type EplFixtureChange = {
 export async function getRecentEplFixtureChanges(withinDays = 7): Promise<EplFixtureChange[]> {
   const since = new Date(Date.now() - withinDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: changeRows, error: changeErr } = await (supabase as any)
+  const { data: changeRows, error: changeErr } = await supabase
     .from('fixture_changes')
     .select('change_id, fixture_id, old_kickoff_date, new_kickoff_date, detected_at')
     .gte('detected_at', since)
@@ -345,7 +345,7 @@ export async function getRecentEplFixtureChanges(withinDays = 7): Promise<EplFix
   if (!changeRows || changeRows.length === 0) return [];
 
   const fixtureIds = changeRows.map((r: any) => r.fixture_id);
-  const { data: fixtureRows, error: fixtureErr } = await (supabase as any)
+  const { data: fixtureRows, error: fixtureErr } = await supabase
     .from('fixtures')
     .select('fixture_id, league_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)')
     .in('fixture_id', fixtureIds);
@@ -402,10 +402,11 @@ export async function getMatchweekHeadToHead(
   seasonId: number,
   matchweek?: number
 ): Promise<Map<number, FixtureHeadToHead>> {
-  const { data, error } = await (supabase as any).rpc('get_matchweek_head_to_head', {
+  const { data, error } = await supabase.rpc('get_matchweek_head_to_head', {
     p_league_id: leagueId,
     p_season_id: seasonId,
-    p_matchweek: matchweek ?? null,
+    // DEFAULT NULL in SQL -- omit rather than pass an explicit null.
+    p_matchweek: matchweek,
   });
   if (error) throw error;
   return new Map(

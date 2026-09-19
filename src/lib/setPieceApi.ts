@@ -61,7 +61,7 @@ export type SetPieceBreakdown = {
 export type ShareRow = { label: string; goals: number; pct: number };
 
 export async function getSetPieceBreakdown(): Promise<SetPieceBreakdown | null> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('opta_slot_breakdown')
     .select(
       'goals, goals_open_play, goals_from_corners, goals_from_direct_fk, goals_from_set_play, goals_from_penalties, assists, assist_corner, assist_free_kick, assist_throw_in, penalties_taken, corners_taken'
@@ -109,7 +109,7 @@ export function assistSplit(b: SetPieceBreakdown): ShareRow[] {
 }
 
 export async function getSetPieceTakers(seasonId = 13): Promise<SetPieceTaker[]> {
-  const { data, error } = await (supabase as any).rpc('get_set_piece_takers', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_set_piece_takers', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,
@@ -143,7 +143,7 @@ export type SetPieceIndexRow = {
 };
 
 export async function getSetPieceIndex(seasonId = 13): Promise<SetPieceIndexRow[]> {
-  const { data, error } = await (supabase as any).rpc('get_set_piece_index', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

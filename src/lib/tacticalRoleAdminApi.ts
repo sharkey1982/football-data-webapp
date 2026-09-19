@@ -77,7 +77,7 @@ export const DEPTH_RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
  * 13) rather than the raw teams table, which holds 242 teams across every
  * league and season this app has ever touched, not just the current 20. */
 export async function getTeamOptions(): Promise<TeamOption[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_players')
     .select('canonical_team_id, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
     .eq('season_id', 13)
@@ -104,7 +104,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // for it), so it can't be embedded via PostgREST's join syntax. Two-step
   // fetch and client-side match instead, matching the pattern already
   // proven elsewhere in this project.
-  const { data: playerRows, error: playerErr } = await (supabase as any)
+  const { data: playerRows, error: playerErr } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
     .eq('season_id', 13)
@@ -113,7 +113,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
     .neq('status', 'u'); // left the club -- not part of the squad to review any more
   if (playerErr) throw playerErr;
 
-  const { data: defaultRows, error: defaultErr } = await (supabase as any)
+  const { data: defaultRows, error: defaultErr } = await supabase
     .from('team_player_tactical_defaults')
     .select('fpl_player_id, team_id, tactical_role, source_name, confidence, depth_rank, manual_status, manual_status_note')
     .eq('season_id', 13);
@@ -179,7 +179,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
  * the two fields are saved independently since they're edited via
  * separate controls. */
 export async function saveTacticalRoleCorrection(teamId: number, fplPlayerId: number, role: string): Promise<void> {
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('team_player_tactical_defaults')
     .upsert(
       { season_id: 13, team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, source_name: 'manual', confidence: 1 },
@@ -196,7 +196,7 @@ export async function saveTacticalRoleCorrection(teamId: number, fplPlayerId: nu
  * tactical_role. */
 export async function saveDepthRankCorrection(teamId: number, fplPlayerId: number, elementType: FplElementType, depthRank: number | null): Promise<void> {
   const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
-  const { data: existing, error: readErr } = await (supabase as any)
+  const { data: existing, error: readErr } = await supabase
     .from('team_player_tactical_defaults')
     .select('tactical_role, source_name, confidence')
     .eq('season_id', 13)
@@ -204,7 +204,7 @@ export async function saveDepthRankCorrection(teamId: number, fplPlayerId: numbe
     .eq('fpl_player_id', fplPlayerId)
     .maybeSingle();
   if (readErr) throw readErr;
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('team_player_tactical_defaults')
     .upsert(
       {
@@ -250,7 +250,7 @@ export const MANUAL_STATUS_OPTIONS = [
  * scheduled import doesn't silently override it. */
 export async function saveManualStatus(teamId: number, fplPlayerId: number, elementType: FplElementType, status: string | null, note: string | null): Promise<void> {
   const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
-  const { data: existing, error: readErr } = await (supabase as any)
+  const { data: existing, error: readErr } = await supabase
     .from('team_player_tactical_defaults')
     .select('tactical_role, source_name, confidence, depth_rank, depth_rank_source')
     .eq('season_id', 13)
@@ -258,7 +258,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
     .eq('fpl_player_id', fplPlayerId)
     .maybeSingle();
   if (readErr) throw readErr;
-  const { error: writeErr } = await (supabase as any)
+  const { error: writeErr } = await supabase
     .from('team_player_tactical_defaults')
     .upsert(
       {
@@ -285,7 +285,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
   if (!status) {
     // Cleared back to "Use FPL status" -- remove the override entirely so
     // the automated feed (or the normal model fallback) takes over again.
-    const { error: deleteErr } = await (supabase as any)
+    const { error: deleteErr } = await supabase
       .from('fpl_player_squad_state')
       .delete()
       .eq('season_id', 13)
@@ -304,7 +304,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
   const mapped = STATE_BY_STATUS[status];
   if (!mapped) return; // unrecognised status code -- nothing sensible to write downstream
 
-  const { error: squadStateErr } = await (supabase as any).from('fpl_player_squad_state').upsert(
+  const { error: squadStateErr } = await supabase.from('fpl_player_squad_state').upsert(
     {
       season_id: 13,
       fpl_player_id: fplPlayerId,
@@ -325,14 +325,14 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
 
 /** Last-reviewed timestamp per team, keyed by team_id -- null if never reviewed. */
 export async function getTeamReviewDates(): Promise<Map<number, string>> {
-  const { data, error } = await (supabase as any).from('team_tactical_review_log').select('team_id, reviewed_at').eq('season_id', 13);
+  const { data, error } = await supabase.from('team_tactical_review_log').select('team_id, reviewed_at').eq('season_id', 13);
   if (error) throw error;
   return new Map((data ?? []).map((r: any) => [r.team_id, r.reviewed_at]));
 }
 
 /** Marks a team's lineup as reviewed right now -- "Mark reviewed" button. */
 export async function markTeamReviewed(teamId: number): Promise<void> {
-  const { error } = await (supabase as any).from('team_tactical_review_log').upsert({ season_id: 13, team_id: teamId, reviewed_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
+  const { error } = await supabase.from('team_tactical_review_log').upsert({ season_id: 13, team_id: teamId, reviewed_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
   if (error) throw error;
 }
 
@@ -355,7 +355,7 @@ export async function getProjectedMinutes(matchweek: number): Promise<Map<number
   const out = new Map<number, number>();
   if (fixtureIds.length === 0) return out;
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_player_projections')
     .select('fpl_player_id, expected_minutes')
     .eq('model_version', 'leaguewide_v6')
@@ -390,7 +390,7 @@ export const SET_PIECE_HIERARCHY_TYPES: { type: SetPieceHierarchyType; label: st
  * the edit UI needs the raw ranks, not the derived per-fixture exposure
  * numbers those views compute from it. */
 export async function getSetPieceHierarchyForTeam(teamId: number): Promise<Map<SetPieceHierarchyType, SetPieceHierarchyRow[]>> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('set_piece_hierarchies')
     .select('set_piece_hierarchy_id, set_piece_type, source_player_id, player_name, rank')
     .eq('season_id', 13)
@@ -412,7 +412,7 @@ export async function getSetPieceHierarchyForTeam(teamId: number): Promise<Map<S
  * never collide mid-edit, rather than free-text rank entry that could
  * produce two players sharing a rank. */
 export async function reorderSetPieceTaker(hierarchyId: number, teamId: number, setPieceType: SetPieceHierarchyType, direction: 'up' | 'down'): Promise<void> {
-  const { data: rows, error: readErr } = await (supabase as any)
+  const { data: rows, error: readErr } = await supabase
     .from('set_piece_hierarchies')
     .select('set_piece_hierarchy_id, rank')
     .eq('season_id', 13)
@@ -432,15 +432,15 @@ export async function reorderSetPieceTaker(hierarchyId: number, teamId: number, 
   // constraint on rank itself (only a CHECK that it's > 0, which a
   // negative temporary value would have violated), so no transient-
   // duplicate collision risk to guard against here.
-  const { error: e1 } = await (supabase as any).from('set_piece_hierarchies').update({ rank: b.rank }).eq('set_piece_hierarchy_id', a.set_piece_hierarchy_id);
+  const { error: e1 } = await supabase.from('set_piece_hierarchies').update({ rank: b.rank }).eq('set_piece_hierarchy_id', a.set_piece_hierarchy_id);
   if (e1) throw e1;
-  const { error: e2 } = await (supabase as any).from('set_piece_hierarchies').update({ rank: a.rank }).eq('set_piece_hierarchy_id', b.set_piece_hierarchy_id);
+  const { error: e2 } = await supabase.from('set_piece_hierarchies').update({ rank: a.rank }).eq('set_piece_hierarchy_id', b.set_piece_hierarchy_id);
   if (e2) throw e2;
 }
 
 /** Adds a player to the bottom of a set-piece list (rank = current max + 1). */
 export async function addSetPieceTaker(teamId: number, setPieceType: SetPieceHierarchyType, fplPlayerId: number, webName: string): Promise<void> {
-  const { data: rows, error: readErr } = await (supabase as any)
+  const { data: rows, error: readErr } = await supabase
     .from('set_piece_hierarchies')
     .select('rank')
     .eq('season_id', 13)
@@ -450,7 +450,7 @@ export async function addSetPieceTaker(teamId: number, setPieceType: SetPieceHie
     .limit(1);
   if (readErr) throw readErr;
   const nextRank = ((rows ?? [])[0]?.rank ?? 0) + 1;
-  const { error: insertErr } = await (supabase as any).from('set_piece_hierarchies').insert({
+  const { error: insertErr } = await supabase.from('set_piece_hierarchies').insert({
     season_id: 13,
     team_id: teamId,
     set_piece_type: setPieceType,
@@ -468,7 +468,7 @@ export async function addSetPieceTaker(teamId: number, setPieceType: SetPieceHie
  * gaps are harmless (only relative order matters to 1/rank weighting
  * downstream). */
 export async function removeSetPieceTaker(hierarchyId: number): Promise<void> {
-  const { error } = await (supabase as any).from('set_piece_hierarchies').delete().eq('set_piece_hierarchy_id', hierarchyId);
+  const { error } = await supabase.from('set_piece_hierarchies').delete().eq('set_piece_hierarchy_id', hierarchyId);
   if (error) throw error;
 }
 
@@ -497,7 +497,7 @@ export type TacticalWorklistRow = {
 };
 
 export async function getTacticalRoleWorklist(seasonId = 13): Promise<TacticalWorklistRow[]> {
-  const { data, error } = await (supabase as any).rpc('get_tactical_role_worklist', { p_season_id: seasonId });
+  const { data, error } = await supabase.rpc('get_tactical_role_worklist', { p_season_id: seasonId });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

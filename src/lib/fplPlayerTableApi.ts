@@ -376,7 +376,7 @@ export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number,
     .order('matchweek', { ascending: true });
   if (fixtureError) throw fixtureError;
 
-  const { data: matchRows, error: matchError } = await (supabase as any)
+  const { data: matchRows, error: matchError } = await supabase
     .from('matches')
     .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals')
     .eq('league_id', 1)

@@ -91,7 +91,7 @@ export async function getDefaultMatchweek(): Promise<number> {
   // get_fpl_default_matchweek is new enough the generated Database type
   // doesn't know its params yet -- scoped `as any`, matching the
   // "deliberately untyped RPC" convention used elsewhere in this project.
-  const { data, error } = await (supabase.rpc as any)('get_fpl_default_matchweek', { p_season_id: 13, p_league_id: 1 });
+  const { data, error } = await supabase.rpc('get_fpl_default_matchweek', { p_season_id: 13, p_league_id: 1 });
   if (error) throw error;
   return typeof data === 'number' ? data : 1;
 }

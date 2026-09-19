@@ -128,7 +128,7 @@ export function seasonContextStats(
 export async function getGamesInvolvedCounts(playerIds: number[]): Promise<Map<number, number>> {
   const out = new Map<number, number>();
   if (playerIds.length === 0) return out;
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_player_gameweeks')
     .select('fpl_player_id, minutes')
     .eq('season_id', 13)

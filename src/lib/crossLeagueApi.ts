@@ -127,7 +127,7 @@ export const CROSS_LEAGUE_METRICS: CrossLeagueMetric[] = [
 ];
 
 export async function getCrossLeagueSummary(): Promise<CrossLeagueRow[]> {
-  const { data, error } = await (supabase as any).rpc('get_cross_league_summary');
+  const { data, error } = await supabase.rpc('get_cross_league_summary');
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

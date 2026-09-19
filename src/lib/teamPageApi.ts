@@ -44,7 +44,7 @@ export type TeamPageMatch = {
 };
 
 export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile | null> {
-  const { data: team, error } = await (supabase as any)
+  const { data: team, error } = await supabase
     .from('teams')
     .select('team_id, slug, display_name')
     .eq('slug', slug)
@@ -55,7 +55,7 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
   // Which division the team currently plays in -- taken from their most
   // recent fixture rather than stored on the team, because teams get
   // promoted and relegated.
-  const { data: recent } = await (supabase as any)
+  const { data: recent } = await supabase
     .from('fixtures')
     .select('league_id, leagues(name)')
     .or(`home_team_id.eq.${team.team_id},away_team_id.eq.${team.team_id}`)
@@ -73,7 +73,7 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
     // status = 'accepted' only -- a fit can converge and still be
     // statistically pathological, so this mirrors getLatestFitRun()
     // rather than taking the newest row.
-    const { data: fit } = await (supabase as any)
+    const { data: fit } = await supabase
       .from('model_fit_runs')
       .select('fit_run_id, fitted_at')
       .eq('league_id', leagueId)
@@ -84,13 +84,13 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
     fittedAt = fit?.[0]?.fitted_at ?? null;
 
     if (fitRunId != null) {
-      const { data: rating } = await (supabase as any)
+      const { data: rating } = await supabase
         .from('team_ratings')
         .select('attack_strength, defence_strength, is_estimated')
         .eq('fit_run_id', fitRunId)
         .eq('team_id', team.team_id)
         .maybeSingle();
-      const { data: override } = await (supabase as any)
+      const { data: override } = await supabase
         .from('team_strength_manual_override')
         .select('attack_adjustment, defence_adjustment')
         .eq('team_id', team.team_id)
@@ -124,7 +124,7 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
  * into "what's next". */
 export async function getTeamPageMatches(teamId: number, leagueId: number | null): Promise<TeamPageMatch[]> {
   if (leagueId == null) return [];
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fixtures')
     .select(
       'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, ' +
@@ -138,7 +138,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
   const rows = (data ?? []) as any[];
   if (rows.length === 0) return [];
 
-  const { data: results } = await (supabase as any)
+  const { data: results } = await supabase
     .from('matches')
     .select('home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals')
     .eq('league_id', leagueId)

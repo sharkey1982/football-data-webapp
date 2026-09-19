@@ -320,7 +320,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
   // attack/defence rating for known real-world context the model can't
   // see yet. Applied inside backfill_fixture_predictions() itself, not
   // just displayed here.
-  const { data: overrideRows, error: overrideError } = await (supabase as any)
+  const { data: overrideRows, error: overrideError } = await supabase
     .from('team_strength_manual_override')
     .select('team_id, attack_adjustment, defence_adjustment, note, updated_at');
   if (overrideError) throw overrideError;
@@ -333,7 +333,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
   // league+season since it's already scoped per-league.
   const positionByTeam = new Map<number, { mean: number; median: number; points: number; simulated_at: string }>();
   if (currentSeasonId !== null) {
-    const { data: positionRows, error: positionError } = await (supabase as any)
+    const { data: positionRows, error: positionError } = await supabase
       .from('team_finishing_position_projection')
       .select('team_id, projected_position_mean, projected_position_median, projected_points_mean, simulated_at')
       .eq('league_id', leagueId)
@@ -394,15 +394,15 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
  * function itself. */
 export async function saveTeamStrengthOverride(teamId: number, attackAdjustment: number, defenceAdjustment: number, note: string | null): Promise<void> {
   if (attackAdjustment === 0 && defenceAdjustment === 0 && !note) {
-    const { error: deleteErr } = await (supabase as any).from('team_strength_manual_override').delete().eq('team_id', teamId);
+    const { error: deleteErr } = await supabase.from('team_strength_manual_override').delete().eq('team_id', teamId);
     if (deleteErr) throw deleteErr;
   } else {
-    const { error: upsertErr } = await (supabase as any)
+    const { error: upsertErr } = await supabase
       .from('team_strength_manual_override')
       .upsert({ team_id: teamId, attack_adjustment: attackAdjustment, defence_adjustment: defenceAdjustment, note, updated_at: new Date().toISOString() }, { onConflict: 'team_id' });
     if (upsertErr) throw upsertErr;
   }
-  const { error: rpcErr } = await (supabase as any).rpc('backfill_fixture_predictions');
+  const { error: rpcErr } = await supabase.rpc('backfill_fixture_predictions');
   if (rpcErr) throw rpcErr;
 }
 

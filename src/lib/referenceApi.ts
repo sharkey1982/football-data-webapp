@@ -64,7 +64,7 @@ export async function getTeams(
     return q ? teams.filter((t) => t.canonical_name.toLowerCase().includes(q)) : teams;
   }
 
-  let query = (supabase as any).from('teams').select('team_id, canonical_name:display_name, country_id, slug');
+  let query = supabase.from('teams').select('team_id, canonical_name:display_name, country_id, slug');
   if (options?.countryId) query = query.eq('country_id', options.countryId);
   if (searchQuery && searchQuery.trim() !== '') {
     query = query.ilike('display_name', `%${searchQuery.trim()}%`);
@@ -79,7 +79,7 @@ export async function getTeams(
  * recommended in the AI/search discoverability audit (client-side state
  * with no URL at all previously). */
 export async function getTeamBySlug(slug: string): Promise<{ team_id: number; canonical_name: string; slug: string } | null> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('teams')
     .select('team_id, canonical_name:display_name, slug')
     .eq('slug', slug)
@@ -116,7 +116,7 @@ export async function getMostRecentFixtureSeason(leagueId: number) {
  * the model can't yet rate.
  */
 export async function getTeamsInLeagueFixtures(leagueId: number, seasonId: number) {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fixtures')
     .select('home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name, slug), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name, slug)')
     .eq('league_id', leagueId)

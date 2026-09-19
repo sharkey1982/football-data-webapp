@@ -52,7 +52,7 @@ export async function getActualMatchFixtures(matchweek: number): Promise<ActualM
   const fixtureIds = (fixtureRows ?? []).map((f: any) => f.fixture_id);
   const { data: scoreRows, error: scoreErr } =
     fixtureIds.length > 0
-      ? await (supabase as any).from('fpl_fixtures').select('canonical_fixture_id, team_h_score, team_a_score, finished').in('canonical_fixture_id', fixtureIds)
+      ? await supabase.from('fpl_fixtures').select('canonical_fixture_id, team_h_score, team_a_score, finished').in('canonical_fixture_id', fixtureIds)
       : { data: [], error: null };
   if (scoreErr) throw scoreErr;
   const scoreByFixture = new Map<number, any>((scoreRows ?? []).map((r: any) => [r.canonical_fixture_id, r]));
@@ -121,7 +121,7 @@ export async function getActualMatchDetail(fixtureId: number): Promise<ActualMat
   if (!fixtureRow) return null;
   const fr = fixtureRow as any;
 
-  const { data: fplFixtureRow, error: fplFixtureErr } = await (supabase as any)
+  const { data: fplFixtureRow, error: fplFixtureErr } = await supabase
     .from('fpl_fixtures')
     .select('fpl_fixture_id, team_h_score, team_a_score, finished')
     .eq('canonical_fixture_id', fixtureId)
@@ -143,7 +143,7 @@ export async function getActualMatchDetail(fixtureId: number): Promise<ActualMat
     finished: ff.finished,
   };
 
-  const { data: statRows, error: statErr } = await (supabase as any)
+  const { data: statRows, error: statErr } = await supabase
     .from('fpl_player_gameweeks')
     .select(
       'fpl_player_id, minutes, total_points, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_missed, penalties_saved, saves, yellow_cards, red_cards, bonus, bps'

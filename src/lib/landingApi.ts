@@ -49,7 +49,7 @@ function formatPercent(part: number, total: number): string {
 }
 
 export async function getMostCommonScorelineTrivia(): Promise<TriviaFact | null> {
-  const { data } = await (supabase as any).rpc('get_most_common_scoreline', { p_league_id: PL_LEAGUE_ID });
+  const { data } = await supabase.rpc('get_most_common_scoreline', { p_league_id: PL_LEAGUE_ID });
   const rows = (data ?? []) as { home_goals: number; away_goals: number; occurrences: number; total_matches: number }[];
   if (rows.length === 0) return null;
   const labels = rows.map((r) => `${r.home_goals}\u2013${r.away_goals}`);
@@ -136,7 +136,7 @@ export async function getBiggestWinMarginTrivia(): Promise<TriviaFact | null> {
 }
 
 export async function getBestDefenceTrivia(): Promise<TriviaFact | null> {
-  const { data, error } = await (supabase as any).rpc('get_best_defence_rating', { p_league_id: PL_LEAGUE_ID });
+  const { data, error } = await supabase.rpc('get_best_defence_rating', { p_league_id: PL_LEAGUE_ID });
   if (error) throw error;
   const rows = (data ?? []) as { canonical_name: string; goals_against_per_game: number }[];
   if (rows.length === 0) return null;
@@ -170,7 +170,7 @@ export async function getClosestMatchTrivia(): Promise<TriviaFact | null> {
   const fixtureIds = (fixtureRows ?? []).filter((f: any) => f.matchweek === nextMatchweek).map((f: any) => f.fixture_id);
   if (fixtureIds.length === 0) return null;
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fixtures')
     .select('home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name), predicted_home_goals, predicted_away_goals')
     .in('fixture_id', fixtureIds)
@@ -225,7 +225,7 @@ async function getTopFplPicks(): Promise<TopFplPick[]> {
   const fixtureIds = (fixtureRows ?? []).filter((f: any) => f.matchweek === nextMatchweek).map((f: any) => f.fixture_id);
   if (fixtureIds.length === 0) return [];
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('fpl_player_projections')
     .select('expected_fpl_points, fpl_players(web_name, canonical_team_id, teams(canonical_name:display_name))')
     .eq('model_version', 'leaguewide_v6')
@@ -261,7 +261,7 @@ export async function getTopFplPickTrivia(): Promise<TriviaFact | null> {
 }
 
 export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> {
-  const { data, error } = await (supabase as any).rpc('get_top_actual_fpl_scorer', { p_season_id: PL_SEASON_ID });
+  const { data, error } = await supabase.rpc('get_top_actual_fpl_scorer', { p_season_id: PL_SEASON_ID });
   if (error) throw error;
   const rows = (data ?? []) as { web_name: string; total_points: number }[];
   if (rows.length === 0) return null;
@@ -290,7 +290,7 @@ export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> 
 // ---------------------------------------------------------------------
 
 export async function getComebackTrivia(): Promise<TriviaFact | null> {
-  const { data } = await (supabase as any).rpc('get_biggest_comebacks');
+  const { data } = await supabase.rpc('get_biggest_comebacks');
   const rows = (data ?? []) as any[];
   const threes = rows.filter((r) => r.deficit >= 3);
   if (threes.length < 2) return null;
@@ -317,7 +317,7 @@ export async function getComebackTrivia(): Promise<TriviaFact | null> {
 }
 
 export async function getStrictestRefereeTrivia(): Promise<TriviaFact | null> {
-  const { data } = await (supabase as any).rpc('get_strictest_referees');
+  const { data } = await supabase.rpc('get_strictest_referees');
   const rows = (data ?? []) as any[];
   if (rows.length < 2) return null;
   const labels = rows.map((r) => r.referee);
@@ -331,7 +331,7 @@ export async function getStrictestRefereeTrivia(): Promise<TriviaFact | null> {
 }
 
 export async function getAllTimeScorersTrivia(): Promise<TriviaFact | null> {
-  const { data } = await (supabase as any).rpc('get_all_time_top_scorers');
+  const { data } = await supabase.rpc('get_all_time_top_scorers');
   const rows = (data ?? []) as any[];
   if (rows.length < 2) return null;
   const labels = rows.map((r) => r.display_name);

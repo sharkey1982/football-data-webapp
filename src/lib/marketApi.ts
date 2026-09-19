@@ -34,7 +34,7 @@ export type MarketEfficiencyRow = {
 };
 
 export async function getMarketEfficiency(closing = true): Promise<MarketEfficiencyRow[]> {
-  const { data, error } = await (supabase as any).rpc('get_market_efficiency', {
+  const { data, error } = await supabase.rpc('get_market_efficiency', {
     p_bookmaker: 'Avg',
     p_closing: closing,
   });
@@ -70,7 +70,7 @@ export type OverroundPoint = {
 };
 
 export async function getOverroundTrend(): Promise<OverroundPoint[]> {
-  const { data, error } = await (supabase as any).rpc('get_overround_trend', { p_bookmaker: 'Avg' });
+  const { data, error } = await supabase.rpc('get_overround_trend', { p_bookmaker: 'Avg' });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,
