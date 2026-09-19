@@ -96,14 +96,23 @@ the bug.
 Found while planning the fpl_players key change — a composite key needs
 both columns non-null, so this was a prerequisite.
 
-### fpl_players primary key — PHASE 1 DONE
-Phase 1 (season_id reliable) complete, see above.
-Remaining, approved in principle, not yet started:
-  Phase 2 — add fpl_code from source_payload (all 662 present, all
-            distinct, so no name-matching needed)
-  Phase 3 — player_identity table keyed on fpl_code
-  Phase 4 — PK becomes (fpl_player_id, season_id), 3 FKs composite
-  Phase 5 — verification incl. a live refresh_fpl run
+### fpl_players primary key — PHASES 1-3 DONE
+  Phase 1 ✓ season_id reliable (zero NULLs, trigger prevents recurrence)
+  Phase 2 ✓ fpl_code on fpl_players — 662/662 from source_payload, all
+            distinct, unique per (fpl_code, season_id), trigger-maintained
+  Phase 3 ✓ player_identity — 662 rows keyed on fpl_code, stable across
+            seasons, trigger-synced
+
+  Phase 4 — PK becomes (fpl_player_id, season_id), 3 FKs composite.
+            THE ONLY IRREVERSIBLE STEP. Not started.
+  Phase 5 — verification incl. a live refresh_fpl run.
+
+ARCHITECTURAL NOTE for the retention roadmap: anything long-lived that
+references a player — saved comparisons, Beat the Shark entries, linked
+FPL teams — must reference player_identity.fpl_code, NOT
+fpl_player_id. FPL reassigns element ids each season, so a saved
+player pointing at element 1 silently becomes a different human at the
+rollover.
 
 Decision taken: keep every season, add new ones alongside.
 
