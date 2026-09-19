@@ -25,14 +25,20 @@ function fmt(n: number | null, digits = 2): string {
   return n === null ? '\u2014' : n.toFixed(digits);
 }
 
-export default function TeamStrengthPage() {
+export default function TeamStrengthPage({ adminMode = false }: { adminMode?: boolean } = {}) {
   // Since model config became admin-only at the database level, every
   // write control here is inert for a visitor: the buttons render, the
   // request goes out, and Postgres refuses it. Hiding them is not
   // security -- RLS is -- it's honesty about what the page can do for
   // you. useAuthOptional so the page still renders if it's ever mounted
   // outside the provider.
-  const isAdmin = useAuthOptional()?.isAdmin ?? false;
+  // Editing requires BOTH the admin route and an admin session. Before
+  // this, a signed-in admin saw the edit controls on the public Football
+  // > Predict page too, so the two nav entries led to visibly identical
+  // pages -- which is exactly the confusion reported. The public page is
+  // now read-only for everyone, always.
+  const signedInAdmin = useAuthOptional()?.isAdmin ?? false;
+  const isAdmin = adminMode && signedInAdmin;
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [leagueId, setLeagueId] = useState<number | null>(null);
   const [summary, setSummary] = useState<TeamStrengthSummary | null>(null);

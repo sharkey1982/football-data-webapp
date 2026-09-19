@@ -46,16 +46,18 @@ describe('AppLayout main nav', () => {
     expect(screen.queryByRole('button', { name: /^Optimiser$/ })).not.toBeInTheDocument();
   });
 
-  it('the single Admin menu holds the whole workflow: adjust, optimise, then inspect', async () => {
+  it('the Admin menu holds operational tools only -- Optimiser is a Fantasy feature', async () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
-    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
+    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/admin/team-ratings');
     expect(screen.getByRole('link', { name: 'Tactical Roles' })).toBeInTheDocument();
     // Also present in the page footer, so assert at least one exists
     // in the nav rather than requiring uniqueness across the document.
     expect(screen.getAllByRole('link', { name: 'Data Health' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Optimiser' })).toBeInTheDocument();
+    // Optimiser deliberately NOT here: listing it in both Admin and
+    // Fantasy implied two different pages when there is only one.
+    expect(screen.queryByRole('link', { name: 'Optimiser' })).not.toBeInTheDocument();
   });
 
   it('Fantasy dropdown contains Optimiser, Fixture Heat Map, and Gameweek Projections', async () => {
@@ -156,7 +158,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
 
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
-    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/team-strength');
+    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/admin/team-ratings');
   });
 
   it('treats Results Data as a Football page now it lives under Discover', () => {

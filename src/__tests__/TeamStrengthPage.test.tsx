@@ -109,7 +109,7 @@ describe('TeamStrengthPage', () => {
       relegatedTeams: [{ team_id: 99, canonical_name: 'Ipswich' }],
     });
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
 
     await waitFor(() => expect(screen.getByText('Arsenal')).toBeInTheDocument());
     expect(screen.getByText('0.280')).toBeInTheDocument(); // home advantage
@@ -137,7 +137,7 @@ describe('TeamStrengthPage', () => {
       relegatedTeams: [],
     });
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
 
     await waitFor(() => expect(screen.getByText(/No accepted Dixon-Coles fit/)).toBeInTheDocument());
   });
@@ -199,7 +199,7 @@ describe('TeamStrengthPage', () => {
     });
     mockedApi.saveTeamStrengthOverride.mockResolvedValue(undefined);
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('Arsenal')).toBeInTheDocument());
 
@@ -293,7 +293,7 @@ describe('TeamStrengthPage', () => {
       relegatedTeams: [],
     });
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
     await waitFor(() => expect(screen.getByText('Hull')).toBeInTheDocument());
 
     // Page-level banner calls out the stale team by name.
@@ -318,7 +318,7 @@ describe('TeamStrengthPage', () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedTriggerWorkflow.mockResolvedValue(undefined);
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByRole('button', { name: /Refresh FPL projections/ })).toBeInTheDocument());
 
@@ -342,7 +342,7 @@ describe('TeamStrengthPage', () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedTriggerWorkflow.mockResolvedValue(undefined);
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByRole('button', { name: /Re-run Proj\. Pos simulation/ })).toBeInTheDocument());
 
@@ -391,7 +391,7 @@ describe('TeamStrengthPage', () => {
       });
     mockedApi.saveTeamStrengthOverride.mockResolvedValue(undefined);
 
-    render(<TeamStrengthPage />);
+    render(<TeamStrengthPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('Hull')).toBeInTheDocument());
 
@@ -405,5 +405,18 @@ describe('TeamStrengthPage', () => {
     await waitFor(() => expect(mockedApi.saveTeamStrengthOverride).toHaveBeenCalledWith(8, 0, 0, null));
     // Edit row closes and the override indicator is gone once cleared.
     await waitFor(() => expect(screen.queryByLabelText('Target goals for /gm')).not.toBeInTheDocument());
+  });
+
+  it('never shows edit controls on the PUBLIC page, even to a signed-in admin', async () => {
+    // The two nav entries (Football > Predict "Team Strength" and Admin
+    // "Adjust Team Ratings") pointed at one route, so an admin saw the
+    // editing UI on both and they looked like the same page. Editing now
+    // requires the admin ROUTE as well as an admin session.
+    render(<TeamStrengthPage />);
+
+    await waitFor(() => expect(screen.getByText('Team Strength')).toBeInTheDocument());
+    expect(screen.queryByText('Adjust Team Ratings')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reset to model/ })).not.toBeInTheDocument();
   });
 });

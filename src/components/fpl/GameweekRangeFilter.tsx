@@ -12,7 +12,18 @@
 
 import { useEffect, useState } from 'react';
 
-export type GameweekRangePreset = 'this' | 'next3' | 'next5' | 'next10' | 'custom';
+export type GameweekRangePreset = 'this' | 'next' | 'next3' | 'next5' | 'next10' | 'custom';
+
+const PRESET_LABEL: Record<GameweekRangePreset, string> = {
+  this: 'This GW',
+  next: 'Next GW',
+  next3: 'Next 3 GWs',
+  next5: 'Next 5 GWs',
+  next10: 'Next 10 GWs',
+  custom: 'Custom',
+};
+
+const DEFAULT_PRESETS: GameweekRangePreset[] = ['this', 'next3', 'next5', 'next10', 'custom'];
 
 export default function GameweekRangeFilter({
   defaultGw,
@@ -28,6 +39,11 @@ export default function GameweekRangeFilter({
    * whose natural starting window is wider (e.g. a projections table
    * defaulting to "next 5 GWs" instead of just the current one). */
   initialPreset = 'this',
+  /** Which presets to offer. Defaults to the original set; pages with a
+   * narrower question (the Optimiser asks "this week, next week, or the
+   * next ten?") pass their own rather than showing options that don't
+   * apply. */
+  presets = DEFAULT_PRESETS,
 }: {
   defaultGw: number | null;
   fromGw: number | null;
@@ -35,6 +51,7 @@ export default function GameweekRangeFilter({
   onChange: (fromGw: number | null, toGw: number | null) => void;
   maxRangeSpan?: number;
   initialPreset?: GameweekRangePreset;
+  presets?: GameweekRangePreset[];
 }) {
   const [preset, setPreset] = useState<GameweekRangePreset>(initialPreset);
 
@@ -52,6 +69,10 @@ export default function GameweekRangeFilter({
     setPreset(p);
     if (defaultGw === null) return;
     if (p === 'this') onChange(defaultGw, defaultGw);
+    // "Next GW" is the single following week, not a range starting now --
+    // the question is "who should I own for next week", which a range
+    // beginning this week would answer differently.
+    else if (p === 'next') onChange(defaultGw + 1, defaultGw + 1);
     else if (p === 'next3') onChange(defaultGw, defaultGw + 2);
     else if (p === 'next5') onChange(defaultGw, defaultGw + 4);
     else if (p === 'next10') onChange(defaultGw, defaultGw + (maxRangeSpan ?? 9));
@@ -67,15 +88,7 @@ export default function GameweekRangeFilter({
       <div>
         <div className="text-xs font-medium text-ink-500 mb-1">Gameweek range</div>
         <div className="flex flex-wrap gap-1.5">
-          {(
-            [
-              ['this', 'This GW'],
-              ['next3', 'Next 3 GWs'],
-              ['next5', 'Next 5 GWs'],
-              ['next10', 'Next 10 GWs'],
-              ['custom', 'Custom'],
-            ] as [GameweekRangePreset, string][]
-          ).map(([key, label]) => (
+          {presets.map((key) => (
             <button
               key={key}
               type="button"
@@ -85,7 +98,7 @@ export default function GameweekRangeFilter({
                 preset === key ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'bg-white text-ink-700 border-chalk-300 hover:bg-chalk-100',
               ].join(' ')}
             >
-              {label}
+              {PRESET_LABEL[key]}
             </button>
           ))}
         </div>

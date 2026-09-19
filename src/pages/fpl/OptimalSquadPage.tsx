@@ -157,7 +157,14 @@ export default function OptimalSquadPage() {
       </div>
 
       <div className="bg-white border border-chalk-300 rounded-lg p-3 space-y-3">
-        <GameweekRangeFilter defaultGw={defaultGw} fromGw={fromGw} toGw={toGw} onChange={(f, t) => { setFromGw(f); setToGw(t); }} maxRangeSpan={MAX_RANGE_SPAN} />
+        <GameweekRangeFilter
+          defaultGw={defaultGw}
+          fromGw={fromGw}
+          toGw={toGw}
+          onChange={(f, t) => { setFromGw(f); setToGw(t); }}
+          maxRangeSpan={MAX_RANGE_SPAN}
+          presets={['this', 'next', 'next10', 'custom']}
+        />
 
         <div className="flex flex-wrap items-end gap-4">
           <div>

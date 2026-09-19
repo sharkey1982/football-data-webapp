@@ -127,7 +127,7 @@ describe('OptimalSquadPage', () => {
     expect(pitchHeading).toBeInTheDocument();
   });
 
-  it('builds a multi-GW request from the "Next 3 GWs" preset and shows a per-week formation/captain table', async () => {
+  it('builds a multi-GW request from a custom range and shows a per-week formation/captain table', async () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedFplApi.getSquadPitchEnrichment.mockResolvedValue(new Map());
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(
@@ -147,7 +147,12 @@ describe('OptimalSquadPage', () => {
     await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Next 3 GWs' }));
+    // The Optimiser's presets are This GW / Next GW / Next 10 GWs /
+    // Custom -- a 3-week window is a custom range now.
+    await user.click(screen.getByRole('button', { name: 'Custom' }));
+    const toInput = screen.getByLabelText('To GW');
+    await user.clear(toInput);
+    await user.type(toInput, '7');
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
     await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 7, 100));

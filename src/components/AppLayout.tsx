@@ -221,9 +221,10 @@ export default function AppLayout() {
       // couldn't open. Alongside the operational views it belongs with.
       label: 'Admin',
       items: [
-        { to: '/team-strength', label: 'Adjust Team Ratings', matchPrefix: '/team-strength' },
+        // Optimiser removed from Admin: it's a Fantasy feature, not an
+        // operational one, and listing it twice implied two pages.
+        { to: '/admin/team-ratings', label: 'Adjust Team Ratings', matchPrefix: '/admin/team-ratings' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
-        { to: '/fpl/optimal-squad', label: 'Optimiser', matchPrefix: '/fpl/optimal-squad', excludePrefix: '/fpl/optimal-squad-so-far' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
       ],

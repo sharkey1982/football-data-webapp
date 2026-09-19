@@ -46,6 +46,19 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Set pieces: corner_left and corner_right are IDENTICAL in the source
+All 81 corner_left rows have an exactly matching corner_right row — same
+team, same player, same rank. Verified with a self-join.
+
+So the page showing them as two separate duties is misleading: it isn't
+a UI bug, the upstream data genuinely doesn't distinguish the two sides.
+
+Options: collapse them into one "Corners" duty on the page, or find a
+source that actually separates them. Left as-is for now because the fix
+depends on which of those you want.
+
+
+
 ### landingApi top-FPL-pick trivia — FIXED (was silently broken)
 Confirmed live: the card was missing from the site.
 

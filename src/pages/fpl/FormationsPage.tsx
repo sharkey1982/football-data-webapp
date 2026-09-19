@@ -209,9 +209,13 @@ export default function FormationsPage() {
                   style={{
                     width: 'clamp(2.6rem, 9vw, 3.4rem)',
                     height: 'clamp(2.6rem, 9vw, 3.4rem)',
-                    // Opacity carries the value -- a shared scale across
-                    // positions, so the eye compares like with like.
-                    backgroundColor: `rgba(227, 180, 85, ${0.15 + intensity * 0.85})`,
+                    // Intensity interpolates between two SOLID light
+                    // colours rather than fading amber to transparent.
+                    // The old version bottomed out at 0.15 alpha, which
+                    // over a dark pitch left dark text on a near-black
+                    // circle -- the lowest-value slots, the ones most
+                    // worth reading, were the least legible.
+                    backgroundColor: `rgb(${Math.round(250 - intensity * 23)}, ${Math.round(243 - intensity * 63)}, ${Math.round(228 - intensity * 143)})`,
                   }}
                 >
                   <span className="font-mono text-[0.65rem] text-ink-900 font-medium tabular-nums leading-none text-center">

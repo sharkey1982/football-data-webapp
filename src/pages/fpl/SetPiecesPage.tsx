@@ -342,9 +342,14 @@ export default function SetPiecesPage() {
                         {g.label}
                       </dt>
                       <dd className="text-sm text-ink-900 leading-tight">
-                        {g.takers.map((t, i) => (
+                        {g.takers.map((t) => (
                           <span key={`${t.player_name}-${t.rank}`} className="block truncate">
-                            {i > 0 && <span className="text-ink-500 mr-1">{i + 1}.</span>}
+                            {/* Number EVERY taker, including the first.
+                                Hiding "1." made the top taker look like
+                                an unranked note rather than first choice,
+                                which is the single most important thing
+                                on this page. */}
+                            <span className="text-ink-500 mr-1">{t.rank}.</span>
                             {t.player_name}
                           </span>
                         ))}

@@ -171,6 +171,14 @@ export default function App() {
             }
           />
           <Route
+            path="admin/team-ratings"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TeamStrengthPage adminMode />
+              </Suspense>
+            }
+          />
+          <Route
             path="preview"
             element={
               <Suspense fallback={<RouteFallback />}>

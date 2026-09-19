@@ -20,5 +20,8 @@ Disallow: /fpl/tactical-roles
 # The admin sign-in page. Nothing to index, and an indexed login page is
 # an invitation to credential-stuffing traffic.
 Disallow: /login
+# The editable ratings page. Same data as /team-strength, which IS
+# indexable -- this one just carries the admin controls.
+Disallow: /admin/team-ratings
 
 Sitemap: https://footballdatashark.netlify.app/sitemap.xml

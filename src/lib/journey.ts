@@ -108,6 +108,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Player Scout', to: '/fpl/player-scout', blurb: 'Any player\u2019s season-by-season record \u2014 points, price and form.' },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
+          { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
           { label: 'What\u2019s Changed', to: '/fpl/whats-changed', blurb: 'Everything that moved since the last update.' },
           { label: 'Transfer Window', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
@@ -117,7 +118,6 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // Hindsight, not forecast -- what the best squad WAS. That's a
           // record of what happened, so it belongs in Discover.
           { label: 'Set-and-Forget XI', to: '/fpl/season-xi', blurb: 'The best XI of 2025/26 you could have picked in August and never touched.' },
-          { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
       },
