@@ -23,7 +23,10 @@ import {
 
 export default function SetPiecesPage() {
   const [takers, setTakers] = useState<SetPieceTaker[] | null>(null);
-  const [typeKey, setTypeKey] = useState(SET_PIECE_TYPES[0].key);
+  // Multi-select: a club's duties are more useful read together than
+  // tabbed apart -- knowing who takes the penalties AND the corners is
+  // one question, not four. Defaults to all types on.
+  const [activeTypes, setActiveTypes] = useState<string[]>(SET_PIECE_TYPES.map((t) => t.key));
   const [teamFilter, setTeamFilter] = useState('All');
   const [firstChoiceOnly, setFirstChoiceOnly] = useState(false);
   const [share, setShare] = useState<SetPieceBreakdown | null>(null);
@@ -49,7 +52,7 @@ export default function SetPiecesPage() {
     if (!takers) return [];
     const filtered = takers.filter(
       (t) =>
-        t.set_piece_type === typeKey &&
+        activeTypes.includes(t.set_piece_type) &&
         (teamFilter === 'All' || t.team_name === teamFilter) &&
         (!firstChoiceOnly || t.rank === 1)
     );
@@ -59,9 +62,20 @@ export default function SetPiecesPage() {
       map.get(t.team_name)!.push(t);
     }
     return [...map.entries()]
-      .map(([team, list]) => ({ team, slug: list[0].team_slug, list: [...list].sort((a, b) => a.rank - b.rank) }))
+      .map(([team, list]) => ({
+        team,
+        slug: list[0].team_slug,
+        // Grouped by duty within the club, in the display order defined
+        // by SET_PIECE_TYPES (penalties first -- worth the most).
+        groups: SET_PIECE_TYPES.filter((ty) => activeTypes.includes(ty.key))
+          .map((ty) => ({
+            label: ty.label,
+            takers: list.filter((t) => t.set_piece_type === ty.key).sort((a, b) => a.rank - b.rank),
+          }))
+          .filter((g) => g.takers.length > 0),
+      }))
       .sort((a, b) => a.team.localeCompare(b.team));
-  }, [takers, typeKey, teamFilter, firstChoiceOnly]);
+  }, [takers, activeTypes, teamFilter, firstChoiceOnly]);
 
   // Player search cuts ACROSS set-piece types -- the question is "what
   // does this player take", and answering it type-by-type would make a
@@ -106,7 +120,6 @@ export default function SetPiecesPage() {
     );
   }
 
-  const activeLabel = SET_PIECE_TYPES.find((t) => t.key === typeKey)?.label ?? '';
 
   return (
     <article className="space-y-6">
@@ -123,6 +136,60 @@ export default function SetPiecesPage() {
           </p>
         )}
       </header>
+
+      {share && (() => {
+        const goals = goalSplit(share);
+        const assists = assistSplit(share);
+        const setPieceGoalPct = goals.filter((g) => g.label !== 'Open play').reduce((s, g) => s + g.pct, 0);
+        const Bar = ({ rows }: { rows: { label: string; goals: number; pct: number }[] }) => (
+          <div className="space-y-1.5 mt-2">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-xs text-ink-700 truncate">{r.label}</span>
+                <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
+                  <div
+                    className={r.label === 'Open play' ? 'bg-pitch-700 h-full rounded' : 'bg-amber-500 h-full rounded'}
+                    style={{ width: `${r.pct}%` }}
+                  />
+                </div>
+                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{r.pct.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        );
+        return (
+          <section className="border border-chalk-300 rounded-lg bg-white p-4">
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What each duty is actually worth</h2>
+            <p className="text-ink-900 mt-1 max-w-prose">
+              Across a full Premier League season, <strong>{setPieceGoalPct.toFixed(1)}% of goals</strong> came from set
+              pieces &mdash; and the split matters. Corners produced{' '}
+              <strong>{goals.find((g) => g.label === 'Corners')?.pct.toFixed(1)}%</strong> of all goals against{' '}
+              <strong>{goals.find((g) => g.label === 'Penalties')?.pct.toFixed(1)}%</strong> from penalties, but
+              penalties are shared among far fewer takers, so a penalty duty is worth much more per player.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 mt-3">
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
+                  Goals &mdash; {share.goals.toLocaleString()}
+                </p>
+                <Bar rows={goals} />
+              </div>
+              <div>
+                <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
+                  Assists &mdash; {share.assists.toLocaleString()}
+                </p>
+                <Bar rows={assists} />
+              </div>
+            </div>
+            <p className="text-ink-500 text-xs mt-3 max-w-prose">
+              {share.penalties_taken.toLocaleString()} penalties and {share.corners_taken.toLocaleString()} corners were
+              taken across the season. &ldquo;Other set plays&rdquo; covers indirect free kicks and similar dead-ball
+              situations that aren&rsquo;t a direct shot.
+            </p>
+          </section>
+        );
+      })()}
+
 
       <section>
         <label className="block max-w-sm">
@@ -183,28 +250,38 @@ export default function SetPiecesPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {SET_PIECE_TYPES.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTypeKey(t.key)}
-            className={[
-              'text-sm rounded px-3 py-1.5 border transition-colors',
-              t.key === typeKey ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
-            ].join(' ')}
-          >
-            {t.label}
-          </button>
-        ))}
+        {SET_PIECE_TYPES.map((t) => {
+          const on = activeTypes.includes(t.key);
+          return (
+            <button
+              key={t.key}
+              type="button"
+              aria-pressed={on}
+              onClick={() =>
+                setActiveTypes((prev) =>
+                  // Never let the last one be switched off -- an empty
+                  // selection shows nothing and reads as a broken page
+                  // rather than a deliberate filter.
+                  on ? (prev.length > 1 ? prev.filter((k) => k !== t.key) : prev) : [...prev, t.key]
+                )
+              }
+              className={[
+                'text-sm rounded px-3 py-1.5 border transition-colors',
+                on ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'border-chalk-300 text-ink-500 hover:bg-chalk-200',
+              ].join(' ')}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <section>
-        <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">{activeLabel}</h2>
         {byTeam.length === 0 ? (
-          <p className="text-ink-500 text-sm mt-2">No {activeLabel.toLowerCase()} recorded.</p>
+          <p className="text-ink-500 text-sm">Nothing matches those filters.</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mt-3">
-            {byTeam.map(({ team, slug, list }) => (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {byTeam.map(({ team, slug, groups }) => (
               <div key={team} className="border border-chalk-300 rounded-lg bg-white p-3">
                 <h3 className="font-display uppercase tracking-wide text-sm text-ink-900">
                   {slug ? (
@@ -215,72 +292,26 @@ export default function SetPiecesPage() {
                     team
                   )}
                 </h3>
-                <ol className="mt-1 space-y-0.5">
-                  {list.map((t) => (
-                    <li key={`${t.player_name}-${t.rank}`} className="text-sm flex items-baseline gap-2">
-                      <span className="font-mono text-xs text-ink-500 tabular-nums w-4 shrink-0">{t.rank}</span>
-                      <span className="text-ink-900">{t.player_name}</span>
-                    </li>
+                <dl className="mt-2 space-y-1.5">
+                  {groups.map((g) => (
+                    <div key={g.label}>
+                      <dt className="font-mono text-[0.65rem] uppercase tracking-widest text-ink-500">{g.label}</dt>
+                      <dd className="text-sm text-ink-900">
+                        {g.takers.map((t, i) => (
+                          <span key={`${t.player_name}-${t.rank}`}>
+                            {i > 0 && <span className="text-ink-500">, </span>}
+                            {t.player_name}
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
                   ))}
-                </ol>
+                </dl>
               </div>
             ))}
           </div>
         )}
       </section>
-
-      {share && (() => {
-        const goals = goalSplit(share);
-        const assists = assistSplit(share);
-        const setPieceGoalPct = goals.filter((g) => g.label !== 'Open play').reduce((s, g) => s + g.pct, 0);
-        const Bar = ({ rows }: { rows: { label: string; goals: number; pct: number }[] }) => (
-          <div className="space-y-1.5 mt-2">
-            {rows.map((r) => (
-              <div key={r.label} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-xs text-ink-700 truncate">{r.label}</span>
-                <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
-                  <div
-                    className={r.label === 'Open play' ? 'bg-pitch-700 h-full rounded' : 'bg-amber-500 h-full rounded'}
-                    style={{ width: `${r.pct}%` }}
-                  />
-                </div>
-                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{r.pct.toFixed(1)}%</span>
-              </div>
-            ))}
-          </div>
-        );
-        return (
-          <section className="border border-chalk-300 rounded-lg bg-white p-4">
-            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What each duty is actually worth</h2>
-            <p className="text-ink-900 mt-1 max-w-prose">
-              Across a full Premier League season, <strong>{setPieceGoalPct.toFixed(1)}% of goals</strong> came from set
-              pieces &mdash; and the split matters. Corners produced{' '}
-              <strong>{goals.find((g) => g.label === 'Corners')?.pct.toFixed(1)}%</strong> of all goals against{' '}
-              <strong>{goals.find((g) => g.label === 'Penalties')?.pct.toFixed(1)}%</strong> from penalties, but
-              penalties are shared among far fewer takers, so a penalty duty is worth much more per player.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2 mt-3">
-              <div>
-                <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
-                  Goals &mdash; {share.goals.toLocaleString()}
-                </p>
-                <Bar rows={goals} />
-              </div>
-              <div>
-                <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
-                  Assists &mdash; {share.assists.toLocaleString()}
-                </p>
-                <Bar rows={assists} />
-              </div>
-            </div>
-            <p className="text-ink-500 text-xs mt-3 max-w-prose">
-              {share.penalties_taken.toLocaleString()} penalties and {share.corners_taken.toLocaleString()} corners were
-              taken across the season. &ldquo;Other set plays&rdquo; covers indirect free kicks and similar dead-ball
-              situations that aren&rsquo;t a direct shot.
-            </p>
-          </section>
-        );
-      })()}
 
       <p className="text-ink-500 text-xs max-w-prose">
         Order reflects observed duty, not a guarantee &mdash; managers rotate takers, and a first-choice penalty taker can

@@ -19,7 +19,7 @@ const taker = (over: Partial<api.SetPieceTaker>): api.SetPieceTaker => ({
 });
 
 describe('SetPiecesPage', () => {
-  it('shows penalties first and switches set-piece type', async () => {
+  it('shows every duty type per club at once, and lets a type be toggled off', async () => {
     mocked.getSetPieceBreakdown.mockResolvedValue(null);
     mocked.getSetPieceTakers.mockResolvedValue([
       taker({ player_name: 'Saka', rank: 1, set_piece_type: 'penalty' }),
@@ -33,17 +33,18 @@ describe('SetPiecesPage', () => {
       </MemoryRouter>
     );
 
-    // Penalties lead -- worth the most, and the reason most people open
-    // a page like this.
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Penalties' })).toBeInTheDocument());
-    expect(screen.getByText('Saka')).toBeInTheDocument();
+    // All duties for a club shown together -- the point of the
+    // restructure. Penalty and corner takers appear at the same time.
+    await waitFor(() => expect(screen.getByText('Saka')).toBeInTheDocument());
     expect(screen.getByText('Rice')).toBeInTheDocument();
-    expect(screen.queryByText('Odegaard')).not.toBeInTheDocument();
+    expect(screen.getByText('Odegaard')).toBeInTheDocument();
 
+    // Types are toggles, not tabs: switching corners off removes only
+    // the corner taker.
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Corners (left)' }));
-    expect(screen.getByText('Odegaard')).toBeInTheDocument();
-    expect(screen.queryByText('Saka')).not.toBeInTheDocument();
+    expect(screen.queryByText('Odegaard')).not.toBeInTheDocument();
+    expect(screen.getByText('Saka')).toBeInTheDocument();
   });
 
   it('degrades to a message rather than an empty page when there is no data', async () => {
@@ -70,7 +71,7 @@ describe('SetPiecesPage', () => {
         <SetPiecesPage />
       </MemoryRouter>
     );
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Penalties' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Saka').length).toBeGreaterThan(0));
 
     const user = userEvent.setup();
     await user.type(screen.getByRole('searchbox'), 'Saka');
@@ -84,7 +85,10 @@ describe('SetPiecesPage', () => {
     const card = screen.getAllByText('Saka')[0].closest('div')!;
     expect(card.textContent).toMatch(/Penalties/);
     expect(card.textContent).toMatch(/Corners \(right\)/);
-    expect(screen.queryByText('Rice')).not.toBeInTheDocument();
+    // Rice appears in the club grid below (all duties now show at once),
+    // so scope the exclusion to the search result card rather than the
+    // whole document.
+    expect(card.textContent).not.toMatch(/Rice/);
   });
 
   it('shows the set-piece type split, not just a combined total', async () => {
@@ -110,5 +114,28 @@ describe('SetPiecesPage', () => {
     // Each figure appears both in the prose summary and on its bar.
     expect(screen.getAllByText(/12\.8%/).length).toBeGreaterThan(0); // corners
     expect(screen.getAllByText(/7\.3%/).length).toBeGreaterThan(0);  // penalties
+  });
+
+  it('refuses to switch off the last remaining type', async () => {
+    mocked.getSetPieceBreakdown.mockResolvedValue(null);
+    mocked.getSetPieceTakers.mockResolvedValue([taker({ set_piece_type: 'penalty' })]);
+
+    render(
+      <MemoryRouter>
+        <SetPiecesPage />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByText('Saka')).toBeInTheDocument());
+
+    // Turn everything off except penalties, then try penalties too. An
+    // empty selection would render a blank page that reads as broken
+    // rather than as a deliberate filter.
+    const user = userEvent.setup();
+    for (const label of ['Direct free kicks', 'Corners (left)', 'Corners (right)']) {
+      await user.click(screen.getByRole('button', { name: label }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Penalties' }));
+    expect(screen.getByRole('button', { name: 'Penalties' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Saka')).toBeInTheDocument();
   });
 });
