@@ -176,6 +176,18 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Known, accepted
 
+### Team of the Week: a part-played gameweek can't be repaired
+The club-limit repair loop gives up after 8 passes. For a gameweek where
+almost every player is on zero points (fixtures not finished), the
+ordering is arbitrary and excluding one player just promotes another
+from the same club, so it can't converge.
+
+Not reachable in practice: such gameweeks are no longer offered by
+get_completed_gameweeks, aren't the default, and aren't in the sitemap.
+Direct navigation to one would show an odd XI.
+
+
+
 ### Eager bundle is 450KB (130KB gzipped)
 AuthProvider wraps the whole app in App.tsx, which pulls supabase-js
 into the eager chunk. It was ~246KB before auth existed.
