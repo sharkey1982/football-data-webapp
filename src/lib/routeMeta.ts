@@ -30,7 +30,9 @@ const FPL = { name: 'Fantasy Premier League', path: '/fpl/start' };
 export const STATIC_ROUTES: RouteMeta[] = [
   {
     path: '/',
-    title: 'Football results, predictions & Fantasy Premier League projections',
+    // Kept under ~55 chars so the brand suffix still fits inside
+    // Google's ~70-char display limit rather than being cut off.
+    title: 'Football results, predictions & FPL projections',
     description:
       'A Premier League and EFL archive with Dixon-Coles match predictions, Fantasy Premier League projections, and the model behind them.',
   },
@@ -197,6 +199,20 @@ export const STATIC_ROUTES: RouteMeta[] = [
     path: '/fpl/player-points',
     title: 'Player Projections \u2014 every FPL player, sortable',
     description: 'Every Fantasy Premier League player, sortable, across any gameweek range.',
+    crumbs: [FPL],
+  },
+  {
+    path: '/fpl/optimal-squad',
+    title: 'FPL Optimiser \u2014 the best squad under budget',
+    description:
+      'Builds the highest-projected Fantasy Premier League squad within budget and squad rules, from the model\u2019s own player projections.',
+    crumbs: [FPL],
+  },
+  {
+    path: '/fpl/optimal-squad-so-far',
+    title: 'Squad of the Season \u2014 the best XV with hindsight',
+    description:
+      'The highest-scoring Fantasy Premier League squad it was possible to build this season, and how close the model came to it.',
     crumbs: [FPL],
   },
   {

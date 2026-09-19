@@ -5,12 +5,17 @@
 User-agent: *
 # Results Data is deliberately NOT disallowed: it moved into
 # Football > Discover as the public, filterable match archive.
-# What remains blocked is operational -- raw provider files and
-# pipeline health -- plus the admin-only configuration pages.
+#
+# The optimiser pages are no longer disallowed either. They were blocked
+# when they were personal output behind the admin menu; they're now
+# public features -- Optimiser under Predict, Squad of the Season under
+# Discover -- and blocking a page that's linked from the main nav is
+# both contradictory and a waste of two real content pages.
+#
+# What remains blocked is operational: raw provider files, pipeline
+# health, and admin-only configuration.
 Disallow: /source-data
 Disallow: /data-health
 Disallow: /fpl/tactical-roles
-Disallow: /fpl/optimal-squad
-Disallow: /fpl/optimal-squad-so-far
 
 Sitemap: https://footballdatashark.netlify.app/sitemap.xml
