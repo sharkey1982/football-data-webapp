@@ -152,7 +152,7 @@ export default function SetPiecesPage() {
                     style={{ width: `${r.pct}%` }}
                   />
                 </div>
-                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{r.pct.toFixed(1)}%</span>
+                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{Math.round(r.pct)}%</span>
               </div>
             ))}
           </div>
@@ -161,10 +161,10 @@ export default function SetPiecesPage() {
           <section className="border border-chalk-300 rounded-lg bg-white p-4">
             <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What each duty is actually worth</h2>
             <p className="text-ink-900 mt-1 max-w-prose">
-              Across a full Premier League season, <strong>{setPieceGoalPct.toFixed(1)}% of goals</strong> came from set
+              Across a full Premier League season, <strong>{Math.round(setPieceGoalPct)}% of goals</strong> came from set
               pieces &mdash; and the split matters. Corners produced{' '}
-              <strong>{goals.find((g) => g.label === 'Corners')?.pct.toFixed(1)}%</strong> of all goals against{' '}
-              <strong>{goals.find((g) => g.label === 'Penalties')?.pct.toFixed(1)}%</strong> from penalties, but
+              <strong>{Math.round(goals.find((g) => g.label === 'Corners')?.pct ?? 0)}%</strong> of all goals against{' '}
+              <strong>{Math.round(goals.find((g) => g.label === 'Penalties')?.pct ?? 0)}%</strong> from penalties, but
               penalties are shared among far fewer takers, so a penalty duty is worth much more per player.
             </p>
             <div className="grid gap-4 sm:grid-cols-2 mt-3">
@@ -280,7 +280,7 @@ export default function SetPiecesPage() {
         {byTeam.length === 0 ? (
           <p className="text-ink-500 text-sm">Nothing matches those filters.</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {byTeam.map(({ team, slug, groups }) => (
               <div key={team} className="border border-chalk-300 rounded-lg bg-white p-3">
                 <h3 className="font-display uppercase tracking-wide text-sm text-ink-900">
@@ -292,14 +292,22 @@ export default function SetPiecesPage() {
                     team
                   )}
                 </h3>
-                <dl className="mt-2 space-y-1.5">
+                {/* Columns, not stacked rows: a club's duties read across
+                    in one glance and each card stays compact, which is
+                    what lets all 20 clubs fit a page. */}
+                <dl
+                  className="mt-2 grid gap-x-3 gap-y-1.5"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(groups.length, 2)}, minmax(0, 1fr))` }}
+                >
                   {groups.map((g) => (
-                    <div key={g.label}>
-                      <dt className="font-mono text-[0.65rem] uppercase tracking-widest text-ink-500">{g.label}</dt>
-                      <dd className="text-sm text-ink-900">
+                    <div key={g.label} className="min-w-0">
+                      <dt className="font-mono text-[0.6rem] uppercase tracking-widest text-ink-500 truncate">
+                        {g.label}
+                      </dt>
+                      <dd className="text-sm text-ink-900 leading-tight">
                         {g.takers.map((t, i) => (
-                          <span key={`${t.player_name}-${t.rank}`}>
-                            {i > 0 && <span className="text-ink-500">, </span>}
+                          <span key={`${t.player_name}-${t.rank}`} className="block truncate">
+                            {i > 0 && <span className="text-ink-500 mr-1">{i + 1}.</span>}
                             {t.player_name}
                           </span>
                         ))}

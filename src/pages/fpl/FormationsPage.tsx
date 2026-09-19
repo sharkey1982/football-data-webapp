@@ -80,12 +80,19 @@ export default function FormationsPage() {
     if (metric.isShare) return raw * 100;
     return r.starts > 0 ? raw / r.starts : 0;
   };
-  const fmt = (v: number) => (metric.isShare ? `${v.toFixed(1)}%` : v.toFixed(2));
+    // Whole percentages: a slot producing "31.2%" of goals implies a
+  // precision 251 starts can't support, and the extra digit crowds the
+  // pitch markers.
+  const fmt = (v: number) => (metric.isShare ? `${Math.round(v)}%` : v.toFixed(2));
 
   const values = active.map((r) => ({
     slot: Number(r.source_formation_slot),
     value: valueOf(r),
     starts: r.starts,
+    // Goals and assists are the two numbers people actually compare, so
+    // both sit on the marker rather than requiring a metric switch.
+    goalShare: Math.round(r.goal_share * 100),
+    assistShare: Math.round(r.assist_share * 100),
   }));
   const max = values.length ? Math.max(...values.map((v) => v.value)) : 0;
 
@@ -184,7 +191,7 @@ export default function FormationsPage() {
           <div className="absolute left-1/4 right-1/4 bottom-0 h-[18%] border-2 border-b-0 border-pitch-600/70" />
           <div className="absolute left-1/4 right-1/4 top-0 h-[18%] border-2 border-t-0 border-pitch-600/70" />
 
-          {values.map(({ slot, value, starts }) => {
+          {values.map(({ slot, value, starts, goalShare, assistShare }) => {
             // This formation's OWN geometry -- a shared template would
             // place a 5-3-2 sweeper in midfield.
             const pos = code ? geometry.get(code)?.get(slot) : undefined;
@@ -200,14 +207,23 @@ export default function FormationsPage() {
                 <div
                   className="rounded-full border-2 border-chalk-100 flex items-center justify-center"
                   style={{
-                    width: 'clamp(2.2rem, 8vw, 3rem)',
-                    height: 'clamp(2.2rem, 8vw, 3rem)',
+                    width: 'clamp(2.6rem, 9vw, 3.4rem)',
+                    height: 'clamp(2.6rem, 9vw, 3.4rem)',
                     // Opacity carries the value -- a shared scale across
                     // positions, so the eye compares like with like.
                     backgroundColor: `rgba(227, 180, 85, ${0.15 + intensity * 0.85})`,
                   }}
                 >
-                  <span className="font-mono text-[0.65rem] text-ink-900 font-medium tabular-nums">{fmt(value)}</span>
+                  <span className="font-mono text-[0.65rem] text-ink-900 font-medium tabular-nums leading-none text-center">
+                    {metric.isShare ? (
+                      <>
+                        {goalShare}%
+                        <span className="block text-[0.55rem] font-normal opacity-70">{assistShare}% A</span>
+                      </>
+                    ) : (
+                      fmt(value)
+                    )}
+                  </span>
                 </div>
                 <span className="font-mono text-[0.6rem] text-chalk-300 mt-0.5">{slot}</span>
               </div>
@@ -279,13 +295,13 @@ export default function FormationsPage() {
                       </th>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.starts}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.open_play_goals.toFixed(0)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{(r.goal_share * 100).toFixed(1)}%</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{Math.round(r.goal_share * 100)}%</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{setPieceGoals(r).toFixed(0)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">
                         {(() => { const p = setPieceGoalPct(r); return p == null ? '\u2014' : `${p.toFixed(0)}%`; })()}
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.assists.toFixed(0)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{(r.assist_share * 100).toFixed(1)}%</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{Math.round(r.assist_share * 100)}%</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.set_piece_assists.toFixed(0)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.opp_box_touches.toFixed(0)}</td>
                     </tr>

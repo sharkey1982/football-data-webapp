@@ -32,12 +32,9 @@ describe('FormationsPage', () => {
     // 31.15% of the formation's goals from one slot -- the share is the
     // interpretable claim, and it's read from the view rather than
     // recomputed here.
-    // Matched on content rather than exact node text: the same figure
-    // appears on the pitch marker and in the table, and toFixed rounding
-    // of 0.3115 can land on either side of the boundary.
-    await waitFor(() =>
-      expect(screen.getAllByText((t) => t.includes('31.1%') || t.includes('31.2%')).length).toBeGreaterThan(0)
-    );
+    // Whole percentages now -- a decimal implies precision 251 starts
+    // can't support, and crowds the pitch markers.
+    await waitFor(() => expect(screen.getAllByText((t) => t.includes('31%')).length).toBeGreaterThan(0));
   });
 
   it('compares one position across formations, with sample sizes shown', async () => {

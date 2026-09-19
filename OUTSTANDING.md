@@ -91,6 +91,43 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Team of the Week: pitch view
+Present the XI on a pitch rather than as position-grouped cards, using
+FPL positions (GKP/DEF/MID/FWD) rather than real ones — FPL only knows
+those four, and inventing a real position would be guessing.
+
+The formation_slot_geometry work gives the pitch component; it needs a
+variant that lays out an arbitrary XI by FPL position rather than by a
+known formation shape.
+
+### Bargain Basement: positional value analysis
+Requested: which POSITIONS are the best value per million, and what that
+implies for formation choice — e.g. if defenders dominate value, should
+a squad carry five of them?
+
+Genuinely answerable from data already held (points per £m by
+element_type). The formation implication is the interesting half and
+would pair with the optimiser.
+
+### Transfer Window: split herd behaviour from price prediction
+Two distinct things currently conflated:
+  - What everyone else is doing (most transferred in/out) — FACTUAL,
+    stays in Discover.
+  - Which prices will rise or fall tonight — a FORECAST, belongs in
+    Predict.
+
+Price change is driven by net transfers crossing a threshold. We have
+transfers_in_event / transfers_out_event daily, so direction is
+derivable; the exact threshold is not public, so it should be presented
+as "at risk" rather than a precise call.
+
+### Physio Room: flag short absences for high scorers
+A high-scoring player missing only one or two fixtures is a hold, not a
+sell — that's the actionable case and it's currently buried among
+long-term absences. Needs total_points alongside the existing
+fixtures_missed.
+
+
 ### Fixtures & Results: strip model output, link to it
 Discover's fixtures page should report what happened and link OUT to the
 prediction, rather than mixing modelled and factual columns.

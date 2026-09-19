@@ -112,8 +112,8 @@ describe('SetPiecesPage', () => {
     expect(screen.getAllByText('Penalties').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Corners').length).toBeGreaterThan(0);
     // Each figure appears both in the prose summary and on its bar.
-    expect(screen.getAllByText(/12\.8%/).length).toBeGreaterThan(0); // corners
-    expect(screen.getAllByText(/7\.3%/).length).toBeGreaterThan(0);  // penalties
+    expect(screen.getAllByText(/13%/).length).toBeGreaterThan(0); // corners
+    expect(screen.getAllByText(/7%/).length).toBeGreaterThan(0);  // penalties
   });
 
   it('refuses to switch off the last remaining type', async () => {
