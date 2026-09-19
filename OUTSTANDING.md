@@ -176,6 +176,22 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Known, accepted
 
+### Eager bundle is 450KB (130KB gzipped)
+AuthProvider wraps the whole app in App.tsx, which pulls supabase-js
+into the eager chunk. It was ~246KB before auth existed.
+
+Fixable by lazy-loading the auth context, but that touches the admin
+gate and carries real regression risk for a load-time gain most visitors
+won't notice. Deliberately NOT attempted at the end of a long session.
+Worth doing deliberately, with the admin pages checked afterwards.
+
+### Duplicate season constant in the two build scripts
+generate-sitemap.mjs has CURRENT_SEASON_ID and generate-static.mjs has
+SEASON_ID, both 13, both used to pick completed gameweeks. They agree
+today; they're two places to change at the season rollover.
+
+
+
 ### One upstream discrepancy in 2024/25
 Ferguson (fpl_code 487117) has 28 season points but his gameweeks sum
 to 27, and 385 minutes against 368. The SOURCE has 38 rows and 38 were
