@@ -28,6 +28,7 @@ import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
+import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
 
 export type RenderedPage = {
   html: string;
@@ -190,13 +191,43 @@ export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
   };
 }
 
+/** Head tags and breadcrumbs for a static route.
+ *
+ * Content stays client-rendered for these -- they're interactive pages
+ * whose data is fetched on mount, and giving each one an injected-data
+ * path would be a large refactor. But the HEAD can be correct now, and
+ * that's the part that was actively harmful: 26 sitemap URLs all
+ * serving the same title and no description reads as duplicate content,
+ * which is worse than not listing them.
+ *
+ * Google renders JavaScript, so the body still indexes; what it can't
+ * do is guess which page is which before rendering. */
+export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
+  const crumbs = meta.crumbs
+    ? [...meta.crumbs, { name: meta.title.split(' — ')[0], path: meta.path }]
+    : [];
+  return {
+    html: '',
+    title: `${meta.title} | ${BRAND_NAME}`,
+    description: meta.description,
+    canonical: `${SITE_URL}${meta.path}`,
+    structuredData: crumbs.length > 1 ? [breadcrumb(crumbs)] : [],
+  };
+}
+
+export { STATIC_ROUTES };
+
 /** Injects a rendered page into the built index.html shell: its markup
  * into #root, and real head tags replacing the shell's static
  * placeholders. Without the head replacement every generated page would
  * carry the same generic title and description, which is most of the
  * value of doing this at all. */
 export function buildDocument(shell: string, page: RenderedPage): string {
-  let out = shell.replace('<div id="root"></div>', `<div id="root">${page.html}</div>`);
+  // Empty html means head-only generation: leave the root div alone so
+  // the SPA boots normally rather than being handed an empty string.
+  let out = page.html
+    ? shell.replace('<div id="root"></div>', `<div id="root">${page.html}</div>`)
+    : shell;
   out = out.replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeAttr(page.title)}</title>`);
   out = out.replace(
     /<meta\s+name="description"[\s\S]*?\/>/,

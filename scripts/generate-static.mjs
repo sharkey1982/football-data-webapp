@@ -90,17 +90,42 @@ async function queryAll(path, pageSize = 1000) {
 }
 
 async function main() {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.warn('Static: no Supabase credentials in the build env -- skipping (SPA still works).');
-    return;
-  }
   if (!existsSync(SHELL) || !existsSync(ENTRY)) {
     console.warn('Static: missing dist/index.html or dist-ssr/entry-server.js -- skipping.');
     return;
   }
 
-  const { renderMatchPage, renderPlayerPage, renderTeamPage, buildDocument } = await import(ENTRY);
+  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument } = await import(ENTRY);
   const shell = readFileSync(SHELL, 'utf8');
+
+  // ---- Static routes: correct head tags per page --------------------
+  // These are interactive pages that fetch on mount, so the BODY stays
+  // client-rendered. The head does not have to be: before this, all 26
+  // fell back to the SPA shell with an identical title and no
+  // description, while the sitemap advertised them as distinct URLs.
+  // Identical titles across a sitemap reads as duplicate content.
+  let staticWritten = 0;
+  for (const meta of STATIC_ROUTES) {
+    try {
+      const page = renderStaticRouteHead(meta);
+      const dir = meta.path === '/' ? DIST : join(DIST, ...meta.path.split('/').filter(Boolean));
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      staticWritten++;
+    } catch (err) {
+      console.error(`Static: failed head for ${meta.path}: ${err?.message ?? err}`);
+    }
+  }
+  console.log(`Static: wrote head tags for ${staticWritten} static route(s).`);
+
+
+  // Entity pages need the database; head tags above do not, which is
+  // why they run first. A build without credentials should still fix
+  // the duplicate-title problem rather than skipping everything.
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.warn('Static: no Supabase credentials -- head tags written, entity pages skipped.');
+    return;
+  }
 
   // Bulk fetches -- three requests total, not one per page.
   const teams = await query('teams?select=team_id,display_name,slug&limit=1000');

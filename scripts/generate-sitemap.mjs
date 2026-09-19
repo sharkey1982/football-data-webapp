@@ -47,38 +47,11 @@ watchdog.unref();
 // data-health, tactical-roles, optimal-squad*) -- listing a page in a
 // sitemap while telling crawlers not to fetch it is a contradiction
 // Search Console reports as an error.
-const STATIC_ROUTES = [
-  '/',
-  '/football',
-  '/fpl/start',
-  '/fixtures',
-  '/table',
-  '/team-strength',
-  '/teams',
-  '/preview',
-  '/fantasy',
-  '/fpl',
-  '/fpl/player-points',
-  '/fpl/scoring-rules',
-  '/fpl/actual-matches',
-  // Public as of the Data/Admin split -- the curated match archive moved
-  // into Football > Discover. Source Data and Data Health stay out,
-  // matching robots.txt.
-  '/results-data',
-  '/football/leagues-compared',
-  '/football/market-efficiency',
-  '/fpl/market',
-  '/fpl/set-pieces',
-  '/fpl/injuries',
-  '/fpl/value',
-  '/fpl/team-of-the-week',
-  '/fpl/formations',
-  // Stage landing pages: each is a real page with its own content.
-  '/football/discover',
-  '/football/predict',
-  '/fpl/start/discover',
-  '/fpl/start/predict',
-];
+// Static routes come from the SSR bundle's own registry (routeMeta.ts),
+// not a second hand-maintained list here. Those two lists agreed only
+// because they were kept in step by hand -- exactly the drift that put
+// "Browse" in the nav after the hubs had moved to "Discover". The
+// sitemap runs after build:ssr in the chain, so the bundle exists.
 
 async function query(path) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
@@ -113,7 +86,17 @@ function urlEntry(loc, lastmod) {
 }
 
 async function main() {
-  const entries = STATIC_ROUTES.map((r) => urlEntry(r, null));
+  let staticPaths = [];
+  try {
+    const entry = join(process.cwd(), 'dist-ssr', 'entry-server.js');
+    const mod = await import(entry);
+    staticPaths = (mod.STATIC_ROUTES ?? []).map((r) => r.path);
+  } catch (err) {
+    // A sitemap with only entity pages beats no sitemap, so this
+    // degrades rather than aborting.
+    console.error('Sitemap: could not read static routes from the SSR bundle --', err?.message ?? err);
+  }
+  const entries = staticPaths.map((r) => urlEntry(r, null));
 
   // Only teams with a generated page. The teams table holds 242 rows
   // across every division and European competition, but pages are
@@ -148,7 +131,7 @@ async function main() {
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, xml, 'utf8');
   console.log(
-    `Sitemap: wrote ${entries.length} URL(s) -- ${STATIC_ROUTES.length} static, ` +
+    `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ` +
       `${(teams ?? []).length} team(s), ${(players ?? []).length} player(s), ${(fixtures ?? []).length} match(es).`
   );
 }
