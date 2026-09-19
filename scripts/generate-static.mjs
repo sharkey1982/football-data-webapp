@@ -119,6 +119,37 @@ async function main() {
   console.log(`Static: wrote head tags for ${staticWritten} static route(s).`);
 
 
+  // ---- Per-gameweek Team of the Week -------------------------------
+  // These are in the sitemap but were getting no head tags, so every
+  // one served the generic shell -- the same duplicate-title problem
+  // the static routes had. They need the database (to know which
+  // gameweeks exist), so they sit below the credentials guard but are
+  // written the same way.
+  async function writeGameweekPages() {
+    const played = await queryAll(
+      `fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`
+    );
+    const weeks = [...new Set((played ?? []).map((r) => r.fpl_event_id))].sort((a, b) => a - b);
+    let n = 0;
+    for (const gw of weeks) {
+      try {
+        const page = renderStaticRouteHead({
+          path: `/fpl/team-of-the-week/gw${gw}`,
+          title: `FPL team of the week \u2014 gameweek ${gw}`,
+          description: `The highest-scoring valid Fantasy Premier League XI of gameweek ${gw}, who else scored, and how the model's own picks compared.`,
+          crumbs: [{ name: 'Fantasy Premier League', path: '/fpl/start' }],
+        });
+        const dir = join(DIST, 'fpl', 'team-of-the-week', `gw${gw}`);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+        n++;
+      } catch (err) {
+        console.error(`Static: failed gameweek ${gw}: ${err?.message ?? err}`);
+      }
+    }
+    console.log(`Static: wrote head tags for ${n} gameweek page(s).`);
+  }
+
   // Entity pages need the database; head tags above do not, which is
   // why they run first. A build without credentials should still fix
   // the duplicate-title problem rather than skipping everything.
@@ -126,6 +157,8 @@ async function main() {
     console.warn('Static: no Supabase credentials -- head tags written, entity pages skipped.');
     return;
   }
+
+  await writeGameweekPages();
 
   // Bulk fetches -- three requests total, not one per page.
   const teams = await query('teams?select=team_id,display_name,slug&limit=1000');

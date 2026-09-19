@@ -174,6 +174,18 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ---
 
+## Known, accepted
+
+### One upstream discrepancy in 2024/25
+Ferguson (fpl_code 487117) has 28 season points but his gameweeks sum
+to 27, and 385 minutes against 368. The SOURCE has 38 rows and 38 were
+imported, so nothing was dropped — the gap is between vaastav's own
+gameweek file and their season totals.
+
+One player, one point, out of ~80,000 gameweek rows. Recorded rather
+than chased. get_data_integrity_report() will keep showing it, which is
+correct: the check should flag it even though the cause is upstream.
+
 ## Deferred by decision
 
 ### FPL player Discover page — THE GAP
