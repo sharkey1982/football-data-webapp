@@ -425,7 +425,9 @@ export default function DataHealth() {
       )}
 
       {!loading && !error && integrity.length > 0 && (() => {
-        const failing = integrity.filter((c) => c.status !== 'ok');
+        // Only a hard FAIL frames the panel as broken. A WARN is a known,
+        // accepted gap -- colouring it red would train you to ignore red.
+        const failing = integrity.filter((c) => c.status === 'FAIL');
         return (
           <div className={`border rounded-lg bg-white overflow-hidden ${failing.length ? 'border-loss-700' : 'border-chalk-300'}`}>
             <div className="px-3 py-2 border-b border-chalk-300">
@@ -440,7 +442,11 @@ export default function DataHealth() {
                 <li key={c.check_name} className="px-3 py-1.5 flex items-baseline gap-2 flex-wrap">
                   <span
                     className={`font-mono text-[0.65rem] uppercase px-1.5 py-0.5 rounded ${
-                      c.status === 'ok' ? 'bg-pitch-800 text-chalk-100' : 'bg-loss-700 text-chalk-100'
+                      c.status === 'ok'
+                        ? 'bg-pitch-800 text-chalk-100'
+                        : c.status === 'WARN'
+                          ? 'bg-amber-500 text-ink-900'
+                          : 'bg-loss-700 text-chalk-100'
                     }`}
                   >
                     {c.status}
