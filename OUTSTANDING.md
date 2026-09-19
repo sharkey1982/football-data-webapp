@@ -199,9 +199,22 @@ Now possible, in rough order of value:
   - top scorer by season: 344 in 2024/25 against 239 in 2025/26 is a
     big swing worth explaining
 
-NOT possible without more data: phasing WITHIN a season (form curves,
-fast/slow starters). That needs gws/merged_gw.csv, roughly 30k rows per
-season.
+PHASING NOW POSSIBLE: 2025/26 gameweek history imported — 19,375 rows
+covering all 537 players with minutes, in
+fpl_player_gameweek_history. import_fpl_gameweeks(season_id, folder)
+loads any other season.
+
+CORRECTION to an earlier note: I said price/ownership history was
+unrecoverable for past seasons. That's true DAILY, but the gameweek file
+carries `value` (price) and `selected` (ownership) per gameweek, so both
+ARE recoverable at gameweek granularity.
+
+Proven immediately: Haaland front-loaded 2025/26 (106 / 81 / 45 by
+third) while Bruno Fernandes climbed (63 / 80 / 92) — near-identical
+totals, opposite shapes.
+
+The 10,104 "unmatched" rows the importer reports are the 304 zero-minute
+players excluded from season totals, not a join failure. Verified.
 
 ### "Deadline Day" page — name reserved
 Considered for the price-risk page and rejected: in FPL, "deadline"
