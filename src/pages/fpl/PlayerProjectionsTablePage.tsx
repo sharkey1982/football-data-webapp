@@ -270,7 +270,7 @@ export default function PlayerProjectionsTablePage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Player Points Table</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Player Projections</h1>
         <p className="text-sm text-ink-500 mt-1">
           Every player, one row each, across the gameweek range below. Actual points where a fixture&rsquo;s been played, the
           model&rsquo;s projection otherwise. Switch to the contribution view to see those points broken down by source (goals,

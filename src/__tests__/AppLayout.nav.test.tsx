@@ -43,7 +43,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('button', { name: /^Admin/ })).toBeInTheDocument();
     // Old flat top-level items should not exist as their own top-level buttons any more.
     expect(screen.queryByRole('button', { name: /^League Table$/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Optimal Squad$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Optimiser$/ })).not.toBeInTheDocument();
   });
 
   it('the single Admin menu holds the whole workflow: adjust, optimise, then inspect', async () => {
@@ -55,35 +55,35 @@ describe('AppLayout main nav', () => {
     // Also present in the page footer, so assert at least one exists
     // in the nav rather than requiring uniqueness across the document.
     expect(screen.getAllByRole('link', { name: 'Data Health' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Optimiser' })).toBeInTheDocument();
   });
 
-  it('Fantasy dropdown contains Optimal Squad, Fixture Heat Map, and Gameweek Projections', async () => {
+  it('Fantasy dropdown contains Optimiser, Fixture Heat Map, and Gameweek Projections', async () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
-    expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Optimiser' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Fixture Heat Map' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Gameweek Projections' })).toBeInTheDocument();
   });
 
-  it('highlights Optimal Squad, not Gameweek Projections, when on /fpl/optimal-squad', async () => {
+  it('highlights Optimiser, not Gameweek Projections, when on /fpl/optimal-squad', async () => {
     renderAt('/fpl/optimal-squad');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
-    const optimalSquadLink = screen.getByRole('link', { name: 'Optimal Squad' });
+    const optimalSquadLink = screen.getByRole('link', { name: 'Optimiser' });
     const matchProjectionsLink = screen.getByRole('link', { name: 'Gameweek Projections' });
     expect(optimalSquadLink.className).toContain('bg-amber-500');
     expect(matchProjectionsLink.className).not.toContain('bg-amber-500');
   });
 
-  it('highlights Gameweek Projections, not Optimal Squad, when on /fpl itself', async () => {
+  it('highlights Gameweek Projections, not Optimiser, when on /fpl itself', async () => {
     renderAt('/fpl');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
-    const optimalSquadLink = screen.getByRole('link', { name: 'Optimal Squad' });
+    const optimalSquadLink = screen.getByRole('link', { name: 'Optimiser' });
     const matchProjectionsLink = screen.getByRole('link', { name: 'Gameweek Projections' });
     expect(matchProjectionsLink.className).toContain('bg-amber-500');
     expect(optimalSquadLink.className).not.toContain('bg-amber-500');
@@ -113,23 +113,23 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
   });
 
-  it('Fantasy dropdown also contains Player Points Table, distinct from Gameweek Projections and Optimal Squad', async () => {
+  it('Fantasy dropdown also contains Player Projections, distinct from Gameweek Projections and Optimiser', async () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
-    expect(screen.getByRole('link', { name: 'Player Points Table' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Player Projections' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Gameweek Projections' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Optimal Squad' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Optimiser' })).toBeInTheDocument();
   });
 
-  it('highlights only Player Points Table, not Gameweek Projections or Optimal Squad, when on /fpl/player-points', async () => {
+  it('highlights only Player Projections, not Gameweek Projections or Optimiser, when on /fpl/player-points', async () => {
     renderAt('/fpl/player-points');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Fantasy/ }));
 
-    expect(screen.getByRole('link', { name: 'Player Points Table' }).className).toContain('bg-amber-500');
+    expect(screen.getByRole('link', { name: 'Player Projections' }).className).toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'Gameweek Projections' }).className).not.toContain('bg-amber-500');
-    expect(screen.getByRole('link', { name: 'Optimal Squad' }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('link', { name: 'Optimiser' }).className).not.toContain('bg-amber-500');
   });
 
   it('groups the Football menu into Discover and Predict', async () => {

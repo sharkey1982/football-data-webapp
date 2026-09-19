@@ -149,7 +149,7 @@ export default function OptimalSquadPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Optimal Squad</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Optimiser</h1>
         <p className="text-sm text-ink-500 mt-1">
           The best 15-player FPL squad for a gameweek range, within budget &mdash; built by the backend optimiser, not
           recomputed here.

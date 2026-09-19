@@ -63,3 +63,20 @@ export async function getTotwVsModel(eventId?: number): Promise<TotwComparison |
     model_xi_projected: Number(row.model_xi_projected ?? 0),
   };
 }
+
+/** Completed gameweeks, newest first -- the weeks that have a team of
+ * the week at all.
+ *
+ * A gameweek counts as complete only if somebody scored: FPL creates
+ * rows for an upcoming week with zeros, and treating those as played
+ * would produce an XI of eleven blanks. */
+export async function getCompletedGameweeks(seasonId = 13): Promise<number[]> {
+  const { data, error } = await (supabase as any)
+    .from('fpl_player_gameweeks')
+    .select('fpl_event_id, total_points')
+    .eq('season_id', seasonId)
+    .gt('total_points', 0);
+  if (error) throw error;
+  const weeks = new Set<number>(((data ?? []) as any[]).map((r) => Number(r.fpl_event_id)));
+  return [...weeks].sort((a, b) => b - a);
+}

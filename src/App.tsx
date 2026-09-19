@@ -247,6 +247,14 @@ export default function App() {
             }
           />
           <Route
+            path="fpl/team-of-the-week/gw:gw"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TeamOfTheWeekPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="fpl/team-of-the-week"
             element={
               <Suspense fallback={<RouteFallback />}>

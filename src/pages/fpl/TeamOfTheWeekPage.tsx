@@ -12,9 +12,15 @@
 // ============================================================================
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getTeamOfTheWeek, getTotwVsModel, type TotwPlayer, type TotwComparison } from '../../lib/teamOfWeekApi';
+import {
+  getTeamOfTheWeek,
+  getTotwVsModel,
+  getCompletedGameweeks,
+  type TotwPlayer,
+  type TotwComparison,
+} from '../../lib/teamOfWeekApi';
 import { layoutByBand } from '../../lib/pitchLayout';
 
 
@@ -40,24 +46,36 @@ function verdict(c: TotwComparison): string {
 }
 
 export default function TeamOfTheWeekPage() {
+  // A gameweek in the URL makes every completed week its own page.
+  // Each is a distinct, permanent record -- "GW4's best XI" doesn't
+  // change once the week is done -- which is both what a reader wants to
+  // link to and what a crawler can index. A single always-latest page
+  // would have one URL whose content silently changes every week.
+  const { gw: gwParam } = useParams<{ gw?: string }>();
+  const requestedGw = gwParam ? Number(gwParam) : undefined;
   const [xi, setXi] = useState<TotwPlayer[] | null>(null);
   const [cmp, setCmp] = useState<TotwComparison | null>(null);
+  const [weeks, setWeeks] = useState<number[]>([]);
 
   useDocumentHead({
-    title: 'FPL team of the week',
-    description:
-      'The highest-scoring valid Fantasy Premier League XI of the gameweek, and how it compares to the players the model rated highest.',
-    path: '/fpl/team-of-the-week',
+    title: requestedGw ? `FPL team of the week — gameweek ${requestedGw}` : 'FPL team of the week',
+    description: requestedGw
+      ? `The highest-scoring valid Fantasy Premier League XI of gameweek ${requestedGw}, and how it compares to the players the model rated highest.`
+      : 'The highest-scoring valid Fantasy Premier League XI of the gameweek, and how it compares to the players the model rated highest.',
+    path: requestedGw ? `/fpl/team-of-the-week/gw${requestedGw}` : '/fpl/team-of-the-week',
   });
 
   useEffect(() => {
-    Promise.all([getTeamOfTheWeek(), getTotwVsModel()])
+    Promise.all([getTeamOfTheWeek(requestedGw), getTotwVsModel(requestedGw)])
       .then(([a, b]) => {
         setXi(a);
         setCmp(b);
       })
       .catch(() => setXi([]));
-  }, []);
+    getCompletedGameweeks()
+      .then(setWeeks)
+      .catch(() => setWeeks([]));
+  }, [requestedGw]);
 
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (xi.length === 0) {
@@ -83,6 +101,24 @@ export default function TeamOfTheWeekPage() {
           The highest-scoring legal XI of gameweek {gw}, worth <strong>{total} points</strong>. Formation rules apply, so
           this is a side someone could actually have picked &mdash; not simply the eleven top scorers.
         </p>
+        {weeks.length > 1 && (
+          <nav aria-label="Gameweeks" className="flex flex-wrap gap-1.5 mt-3">
+            {weeks.map((w) => (
+              <Link
+                key={w}
+                to={`/fpl/team-of-the-week/gw${w}`}
+                className={[
+                  'text-xs rounded px-2.5 py-1 border transition-colors',
+                  w === gw
+                    ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
+                    : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
+                ].join(' ')}
+              >
+                GW{w}
+              </Link>
+            ))}
+          </nav>
+        )}
       </header>
 
       {cmp && (

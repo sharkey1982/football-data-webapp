@@ -126,12 +126,15 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           "Projected points for every player \u2014 form, fixtures and set-piece duty \u2014 an optimiser that picks the best XV under budget, and what the projections actually returned.",
         links: [
+          // Player Projections first: the per-player number is what most
+          // people arrive for, and the fixture-level view is a way of
+          // slicing it rather than the other way round.
+          { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Gameweek Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
-          { label: 'Player Points Table', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
-          { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
+          { label: 'Optimiser', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
         ],
       },
     ],

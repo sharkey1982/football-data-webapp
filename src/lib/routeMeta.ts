@@ -181,7 +181,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/player-points',
-    title: 'FPL player points table',
+    title: 'Player Projections \u2014 every FPL player, sortable',
     description: 'Every Fantasy Premier League player, sortable, across any gameweek range.',
     crumbs: [FPL],
   },
