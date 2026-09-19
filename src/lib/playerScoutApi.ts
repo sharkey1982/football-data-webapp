@@ -126,3 +126,143 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerIdentity | nu
     career_minutes: Number(row.career_minutes),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Browsing
+//
+// Search-only assumed you already knew who you were looking for, which
+// rather defeats "scouting". The list is filtered server-side so the
+// page never pulls 662 rows to show 20.
+// ---------------------------------------------------------------------------
+
+export type ScoutListPlayer = {
+  fpl_code: number;
+  slug: string | null;
+  fpl_player_id: number;
+  web_name: string;
+  full_name: string | null;
+  team_name: string | null;
+  team_id: number | null;
+  element_type: number;
+  now_cost: number | null;
+  total_points: number;
+  minutes: number;
+  goals_scored: number;
+  assists: number;
+  clean_sheets: number;
+  bonus: number;
+  selected_by_percent: number | null;
+  points_per_million: number | null;
+  seasons_played: number;
+};
+
+export type ScoutFilters = {
+  position?: number | null;
+  teamId?: number | null;
+  minMinutes?: number;
+  search?: string;
+  limit?: number;
+};
+
+export async function listScoutPlayers(f: ScoutFilters = {}): Promise<ScoutListPlayer[]> {
+  const { data, error } = await (supabase as any).rpc('list_scout_players', {
+    p_season_id: 13,
+    p_position: f.position ?? null,
+    p_team_id: f.teamId ?? null,
+    p_min_minutes: f.minMinutes ?? 0,
+    p_search: f.search ?? null,
+    p_limit: f.limit ?? 100,
+  });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    fpl_code: Number(r.fpl_code),
+    fpl_player_id: Number(r.fpl_player_id),
+    element_type: Number(r.element_type),
+    total_points: Number(r.total_points ?? 0),
+    minutes: Number(r.minutes ?? 0),
+    goals_scored: Number(r.goals_scored ?? 0),
+    assists: Number(r.assists ?? 0),
+    clean_sheets: Number(r.clean_sheets ?? 0),
+    bonus: Number(r.bonus ?? 0),
+    seasons_played: Number(r.seasons_played ?? 0),
+    now_cost: r.now_cost == null ? null : Number(r.now_cost),
+    selected_by_percent: r.selected_by_percent == null ? null : Number(r.selected_by_percent),
+    points_per_million: r.points_per_million == null ? null : Number(r.points_per_million),
+  }));
+}
+
+export type GameweekBreakdown = {
+  gameweek: number;
+  opponent: string | null;
+  was_home: boolean;
+  kickoff_date: string | null;
+  minutes: number;
+  total_points: number;
+  goals_scored: number;
+  assists: number;
+  clean_sheets: number;
+  goals_conceded: number;
+  bonus: number;
+  bps: number;
+  saves: number;
+  yellow_cards: number;
+  red_cards: number;
+  own_goals: number;
+  penalties_missed: number;
+  penalties_saved: number;
+  /** Pre-kickoff projection where one exists. Null for most early
+   * gameweeks -- projections only began partway through the season, and
+   * anything generated after kickoff isn't a forecast. */
+  projected_points: number | null;
+};
+
+export async function getPlayerGameweekBreakdown(fplPlayerId: number): Promise<GameweekBreakdown[]> {
+  const { data, error } = await (supabase as any).rpc('get_player_gameweek_breakdown', {
+    p_fpl_player_id: fplPlayerId,
+    p_season_id: 13,
+  });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    gameweek: Number(r.gameweek),
+    minutes: Number(r.minutes ?? 0),
+    total_points: Number(r.total_points ?? 0),
+    goals_scored: Number(r.goals_scored ?? 0),
+    assists: Number(r.assists ?? 0),
+    clean_sheets: Number(r.clean_sheets ?? 0),
+    goals_conceded: Number(r.goals_conceded ?? 0),
+    bonus: Number(r.bonus ?? 0),
+    bps: Number(r.bps ?? 0),
+    saves: Number(r.saves ?? 0),
+    yellow_cards: Number(r.yellow_cards ?? 0),
+    red_cards: Number(r.red_cards ?? 0),
+    own_goals: Number(r.own_goals ?? 0),
+    penalties_missed: Number(r.penalties_missed ?? 0),
+    penalties_saved: Number(r.penalties_saved ?? 0),
+    projected_points: r.projected_points == null ? null : Number(r.projected_points),
+  }));
+}
+
+/** FPL's own scoring, used to explain where a gameweek's points came
+ * from. Appearance points are derived rather than stored. */
+export function contributionParts(g: GameweekBreakdown, elementType: number): { label: string; points: number }[] {
+  const goalPoints = elementType === 1 || elementType === 2 ? 6 : elementType === 3 ? 5 : 4;
+  const parts: { label: string; points: number }[] = [];
+  if (g.minutes > 0) parts.push({ label: 'Played', points: g.minutes >= 60 ? 2 : 1 });
+  if (g.goals_scored) parts.push({ label: `${g.goals_scored} goal${g.goals_scored > 1 ? 's' : ''}`, points: g.goals_scored * goalPoints });
+  if (g.assists) parts.push({ label: `${g.assists} assist${g.assists > 1 ? 's' : ''}`, points: g.assists * 3 });
+  if (g.clean_sheets && (elementType === 1 || elementType === 2)) parts.push({ label: 'Clean sheet', points: 4 });
+  if (g.clean_sheets && elementType === 3) parts.push({ label: 'Clean sheet', points: 1 });
+  if (g.saves >= 3) parts.push({ label: `${g.saves} saves`, points: Math.floor(g.saves / 3) });
+  if (g.bonus) parts.push({ label: 'Bonus', points: g.bonus });
+  if (g.penalties_saved) parts.push({ label: 'Penalty saved', points: g.penalties_saved * 5 });
+  if (g.goals_conceded >= 2 && (elementType === 1 || elementType === 2)) {
+    parts.push({ label: `${g.goals_conceded} conceded`, points: -Math.floor(g.goals_conceded / 2) });
+  }
+  if (g.yellow_cards) parts.push({ label: 'Yellow card', points: -g.yellow_cards });
+  if (g.red_cards) parts.push({ label: 'Red card', points: -3 * g.red_cards });
+  if (g.own_goals) parts.push({ label: 'Own goal', points: -2 * g.own_goals });
+  if (g.penalties_missed) parts.push({ label: 'Penalty missed', points: -2 * g.penalties_missed });
+  return parts;
+}

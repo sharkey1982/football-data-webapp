@@ -8,7 +8,14 @@ import * as api from '../lib/playerScoutApi';
 
 vi.mock('../lib/playerScoutApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/playerScoutApi');
-  return { ...actual, searchPlayers: vi.fn(), getPlayerCareer: vi.fn(), getPlayerBySlug: vi.fn() };
+  return {
+    ...actual,
+    searchPlayers: vi.fn(),
+    getPlayerCareer: vi.fn(),
+    getPlayerBySlug: vi.fn(),
+    listScoutPlayers: vi.fn(),
+    getPlayerGameweekBreakdown: vi.fn(),
+  };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -48,28 +55,37 @@ const season = (over: Partial<api.PlayerSeason> = {}): api.PlayerSeason => ({
 describe('PlayerScoutPage', () => {
   beforeEach(() => {
     mocked.searchPlayers.mockReset();
+    mocked.listScoutPlayers.mockReset();
+    mocked.getPlayerGameweekBreakdown.mockReset();
     mocked.getPlayerCareer.mockReset();
     mocked.getPlayerBySlug.mockReset();
   });
 
-  it('navigates to the player’s own URL when a search result is chosen', async () => {
-    mocked.searchPlayers.mockResolvedValue([hit()]);
-    mocked.getPlayerBySlug.mockResolvedValue(identity());
-    mocked.getPlayerCareer.mockResolvedValue([season(), season({ season_id: 11, season_slug: '2024-25', total_points: 127 })]);
+  it('lists this season\u2019s players by default, without needing a search', async () => {
+    // Search-only assumed you already knew the name you wanted, which is
+    // the opposite of scouting. The list is the landing state now.
+    mocked.listScoutPlayers.mockResolvedValue([
+      {
+        fpl_code: 223094, slug: 'erling-haaland', fpl_player_id: 411, web_name: 'Haaland',
+        full_name: 'Erling Haaland', team_name: 'Manchester City', team_id: 43, element_type: 4,
+        now_cost: 156, total_points: 33, minutes: 360, goals_scored: 4, assists: 0,
+        clean_sheets: 0, bonus: 9, selected_by_percent: 60.1, points_per_million: 2.1, seasons_played: 4,
+      },
+    ]);
+    mocked.getPlayerGameweekBreakdown.mockResolvedValue([]);
+    mocked.getPlayerBySlug.mockResolvedValue(null);
 
     renderScout();
-    const user = userEvent.setup();
-    await user.type(screen.getByRole('searchbox'), 'saka');
-    await waitFor(() => expect(screen.getByText('Bukayo Saka')).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: /Bukayo Saka/ }));
 
-    // Resolved by slug, not by keeping the search result in state.
-    await waitFor(() => expect(mocked.getPlayerBySlug).toHaveBeenCalledWith('bukayo-saka'));
-    await waitFor(() => expect(screen.getByText('2024/25')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Haaland/)).toBeInTheDocument());
+    expect(screen.getByText('Manchester City')).toBeInTheDocument();
+    expect(mocked.listScoutPlayers).toHaveBeenCalled();
   });
 
   it('resolves a player directly from the URL, without searching', async () => {
     mocked.searchPlayers.mockResolvedValue([]);
+    mocked.listScoutPlayers.mockResolvedValue([]);
+    mocked.getPlayerGameweekBreakdown.mockResolvedValue([]);
     mocked.getPlayerBySlug.mockResolvedValue(identity());
     mocked.getPlayerCareer.mockResolvedValue([season()]);
 
@@ -81,6 +97,8 @@ describe('PlayerScoutPage', () => {
 
   it('says so when a slug matches nobody, rather than showing an empty page', async () => {
     mocked.searchPlayers.mockResolvedValue([]);
+    mocked.listScoutPlayers.mockResolvedValue([]);
+    mocked.getPlayerGameweekBreakdown.mockResolvedValue([]);
     mocked.getPlayerBySlug.mockResolvedValue(null);
     renderScout('/fpl/player-scout/nobody-here');
     await waitFor(() => expect(screen.getByText(/No player at that address/)).toBeInTheDocument());
@@ -91,6 +109,8 @@ describe('PlayerScoutPage', () => {
     // about, so they must be reachable -- but a link to a projection
     // page that doesn't exist would 404.
     mocked.searchPlayers.mockResolvedValue([]);
+    mocked.listScoutPlayers.mockResolvedValue([]);
+    mocked.getPlayerGameweekBreakdown.mockResolvedValue([]);
     mocked.getPlayerBySlug.mockResolvedValue(identity({ canonical_name: 'Gone Player', current_slug: null }));
     mocked.getPlayerCareer.mockResolvedValue([season({ team_name: 'Burnley' })]);
 
@@ -102,6 +122,8 @@ describe('PlayerScoutPage', () => {
 
   it('renders a dash for seasons with no gameweek detail imported', async () => {
     mocked.searchPlayers.mockResolvedValue([]);
+    mocked.listScoutPlayers.mockResolvedValue([]);
+    mocked.getPlayerGameweekBreakdown.mockResolvedValue([]);
     mocked.getPlayerBySlug.mockResolvedValue(identity());
     mocked.getPlayerCareer.mockResolvedValue([
       season({ points_early: null, points_mid: null, points_late: null }),

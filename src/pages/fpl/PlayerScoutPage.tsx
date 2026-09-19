@@ -12,14 +12,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
-  searchPlayers,
+  listScoutPlayers,
+  getPlayerGameweekBreakdown,
+  contributionParts,
   getPlayerCareer,
   getPlayerBySlug,
   seasonLabel,
   POSITION,
-  type PlayerSearchResult,
   type PlayerSeason,
   type PlayerIdentity,
+  type ScoutListPlayer,
+  type GameweekBreakdown,
 } from '../../lib/playerScoutApi';
 
 function Phasing({ s }: { s: PlayerSeason }) {
@@ -49,11 +52,15 @@ export default function PlayerScoutPage() {
   const { slug } = useParams<{ slug?: string }>();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<PlayerSearchResult[]>([]);
-  const [selected, setSelected] = useState<PlayerIdentity | PlayerSearchResult | null>(null);
+  const [selected, setSelected] = useState<PlayerIdentity | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [list, setList] = useState<ScoutListPlayer[] | null>(null);
+  const [position, setPosition] = useState<number | null>(null);
+  const [minMinutes, setMinMinutes] = useState(0);
+  const [breakdown, setBreakdown] = useState<GameweekBreakdown[]>([]);
+  const [selectedListPlayer, setSelectedListPlayer] = useState<ScoutListPlayer | null>(null);
+  const [showCareer, setShowCareer] = useState(false);
   const [career, setCareer] = useState<PlayerSeason[]>([]);
-  const [searching, setSearching] = useState(false);
 
   const headName = selected?.canonical_name;
   useDocumentHead({
@@ -85,31 +92,33 @@ export default function PlayerScoutPage() {
     };
   }, [slug]);
 
+
+  // The browse list is the default view: this season's players, filtered
+  // server-side. Search narrows the same list rather than replacing it.
   useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      return;
-    }
     let cancelled = false;
-    setSearching(true);
-    // Debounced: a query per keystroke would be a request per keystroke.
-    const t = setTimeout(() => {
-      searchPlayers(query)
-        .then((r) => {
-          if (!cancelled) setResults(r);
-        })
-        .catch(() => {
-          if (!cancelled) setResults([]);
-        })
-        .finally(() => {
-          if (!cancelled) setSearching(false);
-        });
-    }, 250);
+    listScoutPlayers({ position, minMinutes, search: query, limit: 150 })
+      .then((r) => {
+        if (!cancelled) setList(r);
+      })
+      .catch(() => {
+        if (!cancelled) setList([]);
+      });
     return () => {
       cancelled = true;
-      clearTimeout(t);
     };
-  }, [query]);
+  }, [position, minMinutes, query]);
+
+  // Current-season gameweek detail is the main event once a player is
+  // chosen; career history sits behind a toggle.
+  useEffect(() => {
+    const id = selectedListPlayer?.fpl_player_id;
+    if (id == null) {
+      setBreakdown([]);
+      return;
+    }
+    getPlayerGameweekBreakdown(id).then(setBreakdown).catch(() => setBreakdown([]));
+  }, [selectedListPlayer]);
 
   useEffect(() => {
     if (!selected) {
@@ -163,41 +172,204 @@ export default function PlayerScoutPage() {
         </p>
       )}
 
-      {query.trim().length >= 2 && !selected && (
-        <section>
-          {searching && results.length === 0 && <p className="text-ink-500 text-sm">Searching&hellip;</p>}
-          {!searching && results.length === 0 && (
-            <p className="text-ink-500 text-sm">
-              No player matches that name in the seasons held here.
+      {/* Filters + browse list. This is the DEFAULT view -- a
+          search-only page assumed you already knew the name you wanted,
+          which is the opposite of scouting. */}
+      {!selectedListPlayer && (
+        <>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div>
+              <span className="block text-xs font-mono uppercase tracking-widest text-ink-500 mb-1">Position</span>
+              <div className="flex flex-wrap gap-1.5">
+                {([[null, 'All'], [1, 'GKP'], [2, 'DEF'], [3, 'MID'], [4, 'FWD']] as [number | null, string][]).map(
+                  ([val, label]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setPosition(val)}
+                      className={[
+                        'px-3 py-1.5 text-sm rounded border transition-colors',
+                        position === val
+                          ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
+                          : 'bg-white text-ink-700 border-chalk-300 hover:bg-chalk-100',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+            <div>
+              <span className="block text-xs font-mono uppercase tracking-widest text-ink-500 mb-1">Minutes played</span>
+              <div className="flex flex-wrap gap-1.5">
+                {([[0, 'Any'], [90, '90+'], [450, '450+'], [900, '900+']] as [number, string][]).map(([val, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setMinMinutes(val)}
+                    className={[
+                      'px-3 py-1.5 text-sm rounded border transition-colors',
+                      minMinutes === val
+                        ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
+                        : 'bg-white text-ink-700 border-chalk-300 hover:bg-chalk-100',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <section>
+            {list === null && <p className="text-ink-500 text-sm">Loading players&hellip;</p>}
+            {list !== null && list.length === 0 && (
+              <p className="text-ink-500 text-sm">No player in this season matches those filters.</p>
+            )}
+            {list !== null && list.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+                  <thead className="bg-chalk-200 text-ink-500">
+                    <tr>
+                      <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+                      <th scope="col" className="text-left font-medium text-xs px-3 py-2">Club</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Price</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Per &pound;m</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((p, i) => (
+                      <tr
+                        key={p.fpl_code}
+                        className={[
+                          'cursor-pointer hover:bg-chalk-200/70',
+                          i % 2 === 1 ? 'bg-chalk-100/60' : '',
+                        ].join(' ')}
+                        onClick={() => setSelectedListPlayer(p)}
+                      >
+                        <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
+                          {p.web_name}{' '}
+                          <span className="text-ink-500">{POSITION[p.element_type]}</span>
+                        </th>
+                        <td className="px-3 py-1.5 text-xs text-ink-700">{p.team_name ?? '\u2014'}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
+                          {p.now_cost != null ? `\u00a3${(p.now_cost / 10).toFixed(1)}m` : '\u2014'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{p.total_points}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{p.minutes}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.points_per_million ?? '\u2014'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* A player chosen from the list: CURRENT-season actuals lead,
+          because that's the question people actually arrive with.
+          Career history sits behind a toggle rather than competing
+          with it. */}
+      {selectedListPlayer && (
+        <>
+          <section className="border border-chalk-300 rounded-lg bg-white p-4">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">
+                  {selectedListPlayer.full_name || selectedListPlayer.web_name}
+                </h2>
+                <p className="text-ink-500 text-xs">
+                  {POSITION[selectedListPlayer.element_type]} &middot; {selectedListPlayer.team_name ?? 'unknown club'}
+                  {selectedListPlayer.now_cost != null && <> &middot; &pound;{(selectedListPlayer.now_cost / 10).toFixed(1)}m</>}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedListPlayer(null);
+                  setShowCareer(false);
+                }}
+                className="text-sm text-pitch-800 underline underline-offset-2"
+              >
+                Back to all players
+              </button>
+            </div>
+            <p className="text-ink-700 text-sm mt-2">
+              <strong>{selectedListPlayer.total_points}</strong> points this season from{' '}
+              {selectedListPlayer.minutes.toLocaleString()} minutes &mdash; {selectedListPlayer.goals_scored} goals,{' '}
+              {selectedListPlayer.assists} assists, {selectedListPlayer.bonus} bonus.
             </p>
+          </section>
+
+          <section>
+            <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Gameweek by gameweek</h2>
+            {breakdown.length === 0 ? (
+              <p className="text-ink-500 text-sm mt-1">No gameweek data for this player yet.</p>
+            ) : (
+              <ul className="mt-2 space-y-1.5">
+                {breakdown.map((g) => {
+                  const parts = contributionParts(g, selectedListPlayer.element_type);
+                  return (
+                    <li key={g.gameweek} className="border border-chalk-300 rounded-lg bg-white p-3">
+                      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                        <span className="text-sm text-ink-900">
+                          <span className="font-mono text-xs text-ink-500 mr-2">GW{g.gameweek}</span>
+                          {g.opponent ?? 'Unknown'}{' '}
+                          <span className="text-ink-500 text-xs">({g.was_home ? 'H' : 'A'})</span>
+                        </span>
+                        <span className="font-mono text-sm tabular-nums">
+                          <strong>{g.total_points}</strong> pts
+                          <span className="text-ink-500 text-xs"> &middot; {g.minutes} mins</span>
+                          {/* Only shown where a genuine PRE-KICKOFF
+                              projection exists. Most early gameweeks have
+                              none -- projections began partway through the
+                              season, and anything generated after kickoff
+                              isn't a forecast. */}
+                          {g.projected_points != null && (
+                            <span className="text-ink-500 text-xs"> &middot; projected {g.projected_points}</span>
+                          )}
+                        </span>
+                      </div>
+                      {parts.length > 0 && (
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          {parts.map((part) => (
+                            <span key={part.label} className="text-xs text-ink-700">
+                              {part.label}{' '}
+                              <span className={part.points < 0 ? 'text-loss-700 font-mono' : 'text-pitch-800 font-mono'}>
+                                {part.points > 0 ? '+' : ''}
+                                {part.points}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          {selectedListPlayer.seasons_played > 0 && selectedListPlayer.slug && (
+            <section>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCareer((v) => !v);
+                  if (!showCareer && selectedListPlayer.slug) navigate(`/fpl/player-scout/${selectedListPlayer.slug}`);
+                }}
+                className="text-sm text-pitch-800 underline underline-offset-2"
+              >
+                {showCareer ? 'Hide' : 'Show'} earlier seasons ({selectedListPlayer.seasons_played})
+              </button>
+            </section>
           )}
-          <ul className="space-y-1.5">
-            {results.map((r) => (
-              <li key={r.fpl_code}>
-                <button
-                  type="button"
-                  onClick={() => (r.slug ? navigate(`/fpl/player-scout/${r.slug}`) : setSelected(r))}
-                  className="w-full text-left border border-chalk-300 rounded-lg bg-white p-3 hover:bg-chalk-100 transition-colors"
-                >
-                  <span className="text-sm font-medium text-ink-900">{r.canonical_name}</span>{' '}
-                  <span className="text-ink-500 text-xs">
-                    {POSITION[r.element_type]} &middot; {r.latest_team ?? 'unknown club'}
-                  </span>
-                  <span className="block text-xs text-ink-500 mt-0.5 font-mono">
-                    {r.career_points} pts over {r.seasons_played} season{r.seasons_played === 1 ? '' : 's'}
-                    {r.first_season && r.last_season && (
-                      <>
-                        {' '}
-                        &middot; {seasonLabel(r.first_season)}
-                        {r.first_season !== r.last_season && <>&ndash;{seasonLabel(r.last_season)}</>}
-                      </>
-                    )}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        </>
       )}
 
       {selected && (
