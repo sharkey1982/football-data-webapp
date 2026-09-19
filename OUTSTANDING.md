@@ -91,6 +91,35 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Re-ingest the full Opta workbook — HIGH VALUE
+The database holds an aggregated SLICE of the source file: 121
+formation-slot rows with ~12 stats. The original workbook is
+per-player-per-match with ~200 columns, including exactly the
+breakdowns previously recorded as impossible:
+
+  Goals from penalties / Goals from Direct Free Kick / Goals from
+  Corners / Goals from Set Play / Goals Open Play
+  Goal Assist Corner / Goal Assist Free Kick / Goal Assist Throw In /
+  Goal Assist Set Piece
+  Penalties Taken, Corners Taken, Key Corner, Key Free Kick
+  Team Formation, Position in Formation
+
+So "x% of goals from penalties" and a properly weighted set-piece INDEX
+(penalty takers worth more than corner takers) both become possible --
+they were blocked only by the truncated import, not by the data.
+
+It also unlocks per-PLAYER analysis rather than slot aggregates, and a
+real answer to which slot a player occupied.
+
+The workbook is not stored in the database; it would need re-supplying.
+
+### Player position half-steps (e.g. 9.5)
+When configuring team set-ups, a player may sit between two slots -- a
+9.5 behind the striker. The current model has integer slots only.
+Worth deciding whether that's a distinct slot, a pair of weights, or
+just a label.
+
+
 ### Set-piece index for players (Predict)
 Requested: a per-player set-piece index, and what share of projected
 goals/assists their taking duty accounts for.

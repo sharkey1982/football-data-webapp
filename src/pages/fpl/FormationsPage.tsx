@@ -17,7 +17,8 @@ import {
   setPieceGoalPct,
   getFormationSlots,
   formationLabel,
-  SLOT_POSITIONS,
+  getFormationGeometry,
+  getFormationNames,
   FORMATION_METRICS,
   type FormationSlot,
 } from '../../lib/formationApi';
@@ -29,6 +30,8 @@ export default function FormationsPage() {
   const [sortKey, setSortKey] = useState<'slot' | 'starts' | 'goal_share' | 'assist_share' | 'open_play_goals' | 'set_piece_assists' | 'opp_box_touches'>('slot');
   const [sortDesc, setSortDesc] = useState(false);
   const [compareSlot, setCompareSlot] = useState<number | null>(null);
+  const [geometry, setGeometry] = useState<Map<string, Map<number, { slot: number; x_pct: number; y_pct: number }>>>(new Map());
+  const [names, setNames] = useState<Map<string, string>>(new Map());
 
   useDocumentHead({
     title: 'Where goals come from, by formation',
@@ -47,20 +50,22 @@ export default function FormationsPage() {
         setCode(top?.[0] ?? null);
       })
       .catch(() => setSlots([]));
+    getFormationGeometry().then(setGeometry).catch(() => setGeometry(new Map()));
+    getFormationNames().then(setNames).catch(() => setNames(new Map()));
   }, []);
 
   const formations = useMemo(() => {
     if (!slots) return [];
     const m = new Map<string, { code: string; canonical: string | null; starts: number }>();
     for (const r of slots) {
-      const cur = m.get(r.source_formation_code) ?? { code: r.source_formation_code, canonical: r.canonical_formation, starts: 0 };
+      const cur = m.get(r.source_formation_code) ?? { code: r.source_formation_code, canonical: names.get(r.source_formation_code) ?? r.canonical_formation, starts: 0 };
       cur.starts += r.starts;
-      if (r.canonical_formation) cur.canonical = r.canonical_formation;
+      cur.canonical = names.get(r.source_formation_code) ?? cur.canonical;
       m.set(r.source_formation_code, cur);
     }
     // Team-starts, not player-starts: each XI contributes 11 rows.
     return [...m.values()].map((f) => ({ ...f, starts: Math.round(f.starts / 11) })).sort((a, b) => b.starts - a.starts);
-  }, [slots]);
+  }, [slots, names]);
 
   const active = useMemo(() => (slots ?? []).filter((r) => r.source_formation_code === code), [slots, code]);
   const metric = FORMATION_METRICS.find((m) => m.key === metricKey)!;
@@ -167,6 +172,12 @@ export default function FormationsPage() {
 
         {/* Pitch. Plain SVG-free divs: a pitch is a green rectangle with
             some lines, which needs no charting dependency. */}
+        {code && !geometry.has(code) && (
+          <p className="text-sm text-ink-500 mt-2">
+            No pitch layout is recorded for this formation, so positions aren&rsquo;t drawn. The table below still shows
+            every slot.
+          </p>
+        )}
         <div className="relative mt-3 rounded-lg bg-pitch-800 border-2 border-pitch-600 aspect-[3/4] sm:aspect-[4/3] max-w-2xl overflow-hidden">
           <div className="absolute inset-x-0 top-1/2 border-t border-pitch-600/70" />
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-pitch-600/70" />
@@ -174,15 +185,17 @@ export default function FormationsPage() {
           <div className="absolute left-1/4 right-1/4 top-0 h-[18%] border-2 border-t-0 border-pitch-600/70" />
 
           {values.map(({ slot, value, starts }) => {
-            const pos = SLOT_POSITIONS[slot];
+            // This formation's OWN geometry -- a shared template would
+            // place a 5-3-2 sweeper in midfield.
+            const pos = code ? geometry.get(code)?.get(slot) : undefined;
             if (!pos) return null;
             const intensity = max > 0 ? value / max : 0;
             return (
               <div
                 key={slot}
                 className="absolute -translate-x-1/2 translate-y-1/2 flex flex-col items-center"
-                style={{ left: `${pos.x}%`, bottom: `${pos.y}%` }}
-                title={`${pos.label} (slot ${slot}) — ${fmt(value)}${metric.isShare ? ' of the formation total' : ' per start'} over ${starts} starts`}
+                style={{ left: `${pos.x_pct}%`, bottom: `${pos.y_pct}%` }}
+                title={`Slot ${slot} — ${fmt(value)}${metric.isShare ? ' of the formation total' : ' per start'} over ${starts} starts`}
               >
                 <div
                   className="rounded-full border-2 border-chalk-100 flex items-center justify-center"
@@ -196,7 +209,7 @@ export default function FormationsPage() {
                 >
                   <span className="font-mono text-[0.65rem] text-ink-900 font-medium tabular-nums">{fmt(value)}</span>
                 </div>
-                <span className="font-mono text-[0.6rem] text-chalk-300 mt-0.5">{pos.label}</span>
+                <span className="font-mono text-[0.6rem] text-chalk-300 mt-0.5">{slot}</span>
               </div>
             );
           })}
@@ -252,7 +265,6 @@ export default function FormationsPage() {
             <tbody>
               {sortedActive.map((r, i) => {
                   const slot = Number(r.source_formation_slot);
-                  const pos = SLOT_POSITIONS[slot];
                   return (
                     <tr key={slot} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
                       <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
@@ -261,7 +273,7 @@ export default function FormationsPage() {
                           onClick={() => setCompareSlot(compareSlot === slot ? null : slot)}
                           className="text-pitch-800 underline underline-offset-2 hover:text-pitch-700"
                         >
-                          {pos?.label ?? `Slot ${slot}`}
+                          {`Slot ${slot}`}
                         </button>{' '}
                         <span className="text-ink-500">({slot})</span>
                       </th>
@@ -288,7 +300,7 @@ export default function FormationsPage() {
         <section>
           <div className="flex items-baseline justify-between gap-3 flex-wrap">
             <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">
-              {SLOT_POSITIONS[compareSlot]?.label ?? `Slot ${compareSlot}`} across every formation
+              {`Slot ${compareSlot}`} across every formation
             </h2>
             <button type="button" onClick={() => setCompareSlot(null)} className="text-sm text-pitch-800 underline underline-offset-2">
               Clear

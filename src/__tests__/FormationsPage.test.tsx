@@ -8,7 +8,7 @@ import * as api from '../lib/formationApi';
 
 vi.mock('../lib/formationApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/formationApi');
-  return { ...actual, getFormationSlots: vi.fn() };
+  return { ...actual, getFormationSlots: vi.fn(), getFormationGeometry: vi.fn(), getFormationNames: vi.fn() };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -21,6 +21,8 @@ const slot = (over: Partial<api.FormationSlot>): api.FormationSlot => ({
 
 describe('FormationsPage', () => {
   it('shows contribution shares as percentages', async () => {
+    mocked.getFormationGeometry.mockResolvedValue(new Map());
+    mocked.getFormationNames.mockResolvedValue(new Map());
     mocked.getFormationSlots.mockResolvedValue([
       slot({}),
       slot({ source_formation_slot: '1', goals: 1, open_play_goals: 2, assists: 0, opp_box_touches: 0, goal_share: 0.0031, assist_share: 0 }),
@@ -39,6 +41,8 @@ describe('FormationsPage', () => {
   });
 
   it('compares one position across formations, with sample sizes shown', async () => {
+    mocked.getFormationGeometry.mockResolvedValue(new Map());
+    mocked.getFormationNames.mockResolvedValue(new Map());
     mocked.getFormationSlots.mockResolvedValue([
       slot({ source_formation_code: '2', canonical_formation: '4-4-2', starts: 251 }),
       // A tiny-sample formation: its bar may top the chart, so the start
@@ -48,11 +52,12 @@ describe('FormationsPage', () => {
 
     render(<MemoryRouter><FormationsPage /></MemoryRouter>);
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'ST' })).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'ST' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Slot 9' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Slot 9' }));
 
     expect(screen.getByText(/across every formation/)).toBeInTheDocument();
     expect(screen.getByText('3 starts')).toBeInTheDocument();
-    expect(screen.getByText('Formation 17')).toBeInTheDocument();
+    // Appears in both the formation picker and the comparison list.
+    expect(screen.getAllByText(/Formation 17/).length).toBeGreaterThan(0);
   });
 });

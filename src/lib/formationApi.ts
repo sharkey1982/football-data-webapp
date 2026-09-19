@@ -62,21 +62,39 @@ export function setPieceGoalPct(r: FormationSlot): number | null {
   return (setPieceGoals(r) / r.goals) * 100;
 }
 
-/** Pitch coordinates for the traditional numbering, as percentages.
- * x = across the pitch (0 left, 100 right), y = up it (0 own goal). */
-export const SLOT_POSITIONS: Record<number, { x: number; y: number; label: string }> = {
-  1: { x: 50, y: 6, label: 'GK' },
-  2: { x: 84, y: 26, label: 'RB' },
-  5: { x: 62, y: 20, label: 'CB' },
-  6: { x: 38, y: 20, label: 'CB' },
-  3: { x: 16, y: 26, label: 'LB' },
-  7: { x: 84, y: 58, label: 'RM' },
-  4: { x: 62, y: 48, label: 'CM' },
-  8: { x: 38, y: 48, label: 'CM' },
-  11: { x: 16, y: 58, label: 'LM' },
-  10: { x: 62, y: 76, label: 'SS' },
-  9: { x: 38, y: 88, label: 'ST' },
-};
+/** Per-formation slot geometry, from the Opta formation guide.
+ *
+ * This replaces a single hardcoded 4-4-2-style layout that was applied
+ * to every formation. That was right for 4-4-2 and wrong elsewhere: in
+ * 5-3-2 slot 4 is a defender, not a midfielder, and in 3-4-3 slot 2 is
+ * a wing-back in midfield rather than a full-back. One template put
+ * players in the wrong third of the pitch. */
+export type SlotGeometry = { slot: number; x_pct: number; y_pct: number };
+
+export async function getFormationGeometry(): Promise<Map<string, Map<number, SlotGeometry>>> {
+  const { data, error } = await (supabase as any)
+    .from('formation_slot_geometry')
+    .select('source_formation_code, slot, x_pct, y_pct');
+  if (error) throw error;
+  const out = new Map<string, Map<number, SlotGeometry>>();
+  for (const r of (data ?? []) as any[]) {
+    if (!out.has(r.source_formation_code)) out.set(r.source_formation_code, new Map());
+    out.get(r.source_formation_code)!.set(Number(r.slot), {
+      slot: Number(r.slot),
+      x_pct: Number(r.x_pct),
+      y_pct: Number(r.y_pct),
+    });
+  }
+  return out;
+}
+
+export async function getFormationNames(): Promise<Map<string, string>> {
+  const { data, error } = await (supabase as any)
+    .from('formation_code_names')
+    .select('source_formation_code, canonical_formation');
+  if (error) throw error;
+  return new Map(((data ?? []) as any[]).map((r) => [r.source_formation_code, r.canonical_formation]));
+}
 
 export type FormationMetric = {
   key: keyof FormationSlot | 'set_piece_goals';
@@ -134,8 +152,8 @@ export async function getFormationSlots(): Promise<FormationSlot[]> {
   }));
 }
 
-/** Formation label: the canonical name where it's known, otherwise the
- * code. Never a guess. */
-export function formationLabel(code: string, canonical: string | null): string {
-  return canonical ? `${canonical}` : `Formation ${code}`;
+/** Formation label: the name from the Opta guide where known, otherwise
+ * the raw code. Never a guess. */
+export function formationLabel(code: string, canonical: string | null | undefined): string {
+  return canonical ? canonical : `Formation ${code}`;
 }
