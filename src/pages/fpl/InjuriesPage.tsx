@@ -53,10 +53,17 @@ export default function InjuriesPage() {
     return withNews;
   }, [rows, filter]);
 
-  // The genuinely interesting case: a long absence that costs few
-  // fixtures because a break absorbs it.
-  const breakCushioned = useMemo(
-    () => view.filter((r) => r.fixtures_missed != null && r.fixtures_missed <= 1 && r.return_date),
+  // The genuinely actionable case: someone who has actually been
+  // scoring, out for only a fixture or two. That's a hold -- or a buy
+  // while others panic-sell -- and it reads identically to a fringe
+  // player out indefinitely unless points and fixtures-missed are shown
+  // together.
+  const shortAbsences = useMemo(
+    () =>
+      view
+        .filter((r) => r.fixtures_missed != null && r.fixtures_missed <= 2 && r.total_points > 0)
+        .sort((a, b) => b.total_points - a.total_points)
+        .slice(0, 6),
     [view]
   );
 
@@ -82,19 +89,36 @@ export default function InjuriesPage() {
         </p>
       </header>
 
-      {breakCushioned.length > 0 && (
+      {shortAbsences.length > 0 && (
         <section className="border border-chalk-300 rounded-lg bg-white p-4">
-          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Cushioned by the break</h2>
-          <p className="text-ink-700 text-sm mt-1">
-            These absences look long but cost almost nothing, because the fixture calendar absorbs them:
+          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth holding</h2>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            Players who have been scoring and are only out for a fixture or two. The calendar often absorbs most of an
+            absence &mdash; a three-week injury over an international break can cost a single match.
           </p>
-          <ul className="mt-2 space-y-1">
-            {breakCushioned.slice(0, 5).map((r) => (
-              <li key={r.fpl_player_id} className="text-sm">
-                <span className="font-medium text-ink-900">{r.web_name}</span>{' '}
-                <span className="text-ink-500">({r.team_name})</span> &mdash; back{' '}
-                {r.return_date && formatMatchDateWithYear(r.return_date)}, misses{' '}
-                <strong>{r.fixtures_missed === 0 ? 'no fixtures' : `${r.fixtures_missed} fixture`}</strong>
+          <ul className="mt-2 space-y-1.5">
+            {shortAbsences.map((r) => (
+              <li key={r.fpl_player_id} className="text-sm flex items-baseline gap-2 flex-wrap">
+                <span className="font-medium text-ink-900">
+                  {r.slug ? (
+                    <Link to={`/fpl/players/${r.slug}`} className="text-pitch-800 underline underline-offset-2">
+                      {r.web_name}
+                    </Link>
+                  ) : (
+                    r.web_name
+                  )}
+                </span>
+                <span className="text-ink-500">
+                  {r.team_name} &middot; {r.total_points} pts
+                  {r.ownership != null && <> &middot; {r.ownership.toFixed(1)}% owned</>}
+                </span>
+                <span className="text-ink-900">
+                  misses{' '}
+                  <strong>
+                    {r.fixtures_missed === 0 ? 'no fixtures' : `${r.fixtures_missed} fixture${r.fixtures_missed === 1 ? '' : 's'}`}
+                  </strong>
+                  {r.return_date && <> &mdash; back {formatMatchDateWithYear(r.return_date)}</>}
+                </span>
               </li>
             ))}
           </ul>
@@ -125,6 +149,7 @@ export default function InjuriesPage() {
               <th scope="col" className="text-left font-medium text-xs px-3 py-2">Team</th>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2">Status</th>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2">Reported</th>
+              <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
               <th scope="col" className="text-right font-medium text-xs px-3 py-2">Fixtures missed</th>
               <th scope="col" className="text-right font-medium text-xs px-3 py-2">Owned</th>
             </tr>
@@ -145,6 +170,7 @@ export default function InjuriesPage() {
                 <td className="px-3 py-1.5 text-xs text-ink-700">{r.team_name ?? '\u2014'}</td>
                 <td className="px-3 py-1.5"><StatusPill status={r.status} chance={r.chance_next_round} /></td>
                 <td className="px-3 py-1.5 text-xs text-ink-700">{r.news}</td>
+                <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.total_points}</td>
                 <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
                   {/* Null is unknown, not zero -- FPL often states no
                       return date at all, and "0" would read as "misses
@@ -158,7 +184,7 @@ export default function InjuriesPage() {
             ))}
             {view.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-center text-ink-500 text-xs">Nobody in this category.</td>
+                <td colSpan={7} className="px-3 py-4 text-center text-ink-500 text-xs">Nobody in this category.</td>
               </tr>
             )}
           </tbody>

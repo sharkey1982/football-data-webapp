@@ -138,12 +138,14 @@ transfers_in_event / transfers_out_event daily, so direction is
 derivable; the exact threshold is not public, so it should be presented
 as "at risk" rather than a precise call.
 
-### Physio Room: flag short absences for high scorers
-A high-scoring player missing only one or two fixtures is a hold, not a
-sell — that's the actionable case and it's currently buried among
-long-term absences. Needs total_points alongside the existing
-fixtures_missed.
+### Physio Room: short absences — DONE
+"Worth holding" panel surfaces players who have been scoring and are out
+for only a fixture or two, sorted by points. Season points added to
+get_injury_report() and shown as a table column.
 
+Excludes two cases that would otherwise clutter it: players with no
+return date (can't know the cost) and players on zero points (nobody
+owns them). Both covered by test.
 
 ### Fixtures & Results: strip model output, link to it
 Discover's fixtures page should report what happened and link OUT to the

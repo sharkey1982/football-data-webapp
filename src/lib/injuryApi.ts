@@ -26,6 +26,7 @@ export type InjuryRow = {
   position_label: string;
   price: number | null;
   ownership: number | null;
+  total_points: number;
   status: string;
   chance_next_round: number | null;
   news: string | null;
@@ -50,6 +51,7 @@ export async function getInjuryReport(seasonId = 13): Promise<InjuryRow[]> {
     ...r,
     price: r.price == null ? null : Number(r.price),
     ownership: r.ownership == null ? null : Number(r.ownership),
+    total_points: Number(r.total_points ?? 0),
     chance_next_round: r.chance_next_round == null ? null : Number(r.chance_next_round),
     fixtures_missed: r.fixtures_missed == null ? null : Number(r.fixtures_missed),
   }));
