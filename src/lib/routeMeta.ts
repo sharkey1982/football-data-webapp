@@ -66,13 +66,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/teams',
-    title: 'Team explorer',
+    title: 'Your Team \u2014 club form, history and head-to-head',
     description: 'Form, history and head-to-head records for every club in the archive.',
     crumbs: [FOOTBALL],
   },
   {
     path: '/football/leagues-compared',
-    title: 'How the English divisions compare',
+    title: 'League Insights \u2014 how the English divisions compare',
     description:
       'Goals, home advantage, draws and cards compared across all five English divisions, from 30,000+ matches.',
     crumbs: [FOOTBALL],
@@ -86,13 +86,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/results-data',
-    title: 'Match archive',
+    title: 'Raw Data \u2014 the full match archive',
     description: 'The full curated match archive, filterable by division, season and team, and exportable.',
     crumbs: [FOOTBALL],
   },
   {
     path: '/preview',
-    title: 'Match preview',
+    title: 'Head to Heads \u2014 compare any two teams',
     description: 'Pick any two teams for a head-to-head comparison and a Dixon-Coles prediction.',
     crumbs: [FOOTBALL],
   },
@@ -122,7 +122,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl',
-    title: 'FPL match projections by gameweek',
+    title: 'Gameweek Projections \u2014 FPL projected returns',
     description: 'Projected Fantasy Premier League returns, gameweek by gameweek.',
     crumbs: [FPL],
   },
@@ -134,14 +134,14 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/value',
-    title: 'FPL value: points per million',
+    title: 'Bargain Basement \u2014 FPL points per million',
     description:
       'Which Fantasy Premier League players have returned the most points per million, with the goals, assists, clean sheets and bonus behind each figure.',
     crumbs: [FPL],
   },
   {
     path: '/fpl/market',
-    title: 'FPL price and ownership moves',
+    title: 'Transfer Window \u2014 FPL prices and ownership',
     description: 'Price risers and fallers, ownership swings, transfers and availability news, updated daily.',
     crumbs: [FPL],
   },
@@ -154,7 +154,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/injuries',
-    title: 'FPL injuries and availability',
+    title: 'Physio Room \u2014 FPL injuries and availability',
     description:
       'Who is injured, doubtful or suspended, with how many fixtures each absence actually costs.',
     crumbs: [FPL],
@@ -167,7 +167,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/formations',
-    title: 'Where FPL goals come from, by formation',
+    title: "Managers' Dugout \u2014 where FPL goals come from",
     description:
       'Open-play and set-piece goals, assists and box touches by pitch position across Premier League formations.',
     crumbs: [FPL],

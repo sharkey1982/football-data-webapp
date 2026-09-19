@@ -23,7 +23,7 @@ export default function ValuePage() {
   const [minMinutes, setMinMinutes] = useState(180);
 
   useDocumentHead({
-    title: 'FPL value: points per million',
+    title: 'Bargain Basement \u2014 FPL points per million',
     description:
       'Which Fantasy Premier League players have actually returned the most points per million spent, with the goals, assists, clean sheets and bonus behind each figure.',
     path: '/fpl/value',
@@ -46,7 +46,7 @@ export default function ValuePage() {
   if (rows.length === 0) {
     return (
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Points per million</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Bargain Basement</h1>
         <p className="text-ink-700 mt-2">No scoring data is available yet.</p>
       </div>
     );
@@ -56,7 +56,7 @@ export default function ValuePage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Points per million</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Bargain Basement</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           What players have actually returned for what they cost. Every figure here is points already scored &mdash; no
           projections.

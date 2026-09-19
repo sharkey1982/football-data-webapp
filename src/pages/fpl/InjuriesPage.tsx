@@ -33,7 +33,7 @@ export default function InjuriesPage() {
   const [filter, setFilter] = useState<Filter>('all');
 
   useDocumentHead({
-    title: 'FPL injuries and availability',
+    title: 'Physio Room \u2014 FPL injuries and availability',
     description:
       'Who is injured, doubtful or suspended in Fantasy Premier League, with how many fixtures each absence actually costs.',
     path: '/fpl/injuries',
@@ -64,7 +64,7 @@ export default function InjuriesPage() {
   if (rows.length === 0) {
     return (
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Injuries &amp; availability</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Physio Room</h1>
         <p className="text-ink-700 mt-2">No availability data is available right now.</p>
       </div>
     );
@@ -74,7 +74,7 @@ export default function InjuriesPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Injuries &amp; availability</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Physio Room</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           Who&rsquo;s out, who&rsquo;s doubtful, and &mdash; where a return date is known &mdash; how many fixtures the
           absence actually costs. A three-week injury can cost one match or four, depending entirely on where the

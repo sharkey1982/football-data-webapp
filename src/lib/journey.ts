@@ -72,10 +72,10 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Fixtures & Results', to: '/fixtures', blurb: 'Every match, filterable by division, season and team.', exact: true },
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
-          { label: 'Team Explorer', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
-          { label: 'Leagues Compared', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
+          { label: 'Your Team', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
+          { label: 'League Insights', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
           { label: 'Market Efficiency', to: '/football/market-efficiency', blurb: 'Where the betting market is priced sharply \u2014 and where it isn\u2019t.' },
-          { label: 'Results Data', to: '/results-data', blurb: 'The full match archive, filterable and exportable.' },
+          { label: 'Raw Data', to: '/results-data', blurb: 'The full match archive, filterable and exportable.' },
         ],
       },
       {
@@ -85,7 +85,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           "Forecasts from a Dixon-Coles model fitted on real results \u2014 and an honest account of how accurate they've been. A prediction is only worth reading next to its track record.",
         links: [
-          { label: 'Match Preview', to: '/preview', blurb: 'Pick any two teams for a full head-to-head and prediction.' },
+          { label: 'Head to Heads', to: '/preview', blurb: 'Pick any two teams for a full head-to-head and prediction.' },
           { label: 'Team Strength', to: '/team-strength', blurb: 'Every club\u2019s attack and defence rating, with projected against actual.' },
         ],
       },
@@ -107,11 +107,14 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Gameweek Results', to: '/fpl/actual-matches', blurb: 'Real results and FPL returns for gameweeks already played.' },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best legal XI of the gameweek, and how the model fared against it.' },
-          { label: 'Points Per Million', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
-          { label: 'The FPL Market', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
+          { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
+          { label: 'Transfer Window', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
-          { label: 'Goals By Formation', to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
-          { label: 'Injuries & Availability', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
+          { label: "Managers' Dugout", to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
+          { label: 'Physio Room', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
+          // Hindsight, not forecast -- what the best squad WAS. That's a
+          // record of what happened, so it belongs in Discover.
+          { label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
       },
@@ -122,11 +125,12 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           "Projected points for every player \u2014 form, fixtures and set-piece duty \u2014 an optimiser that picks the best XV under budget, and what the projections actually returned.",
         links: [
-          { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          { label: 'Gameweek Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
           { label: 'Player Points Table', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
-          { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
+          // Heat map before the optimiser: you check the fixtures before
+          // you pick a squad, not after.
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
-          { label: 'Optimal Squad So Far', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
+          { label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
         ],
       },
     ],

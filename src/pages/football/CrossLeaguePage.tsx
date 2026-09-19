@@ -32,7 +32,7 @@ export default function CrossLeaguePage() {
   const [metricKey, setMetricKey] = useState(CROSS_LEAGUE_METRICS[0].key);
 
   useDocumentHead({
-    title: 'How the English divisions compare',
+    title: 'League Insights \u2014 how the English divisions compare',
     description:
       'Goals, home advantage, draws and bookings compared across the Premier League, Championship, League One, League Two and the National League, every season in the archive.',
     path: '/football/leagues-compared',
@@ -73,7 +73,7 @@ export default function CrossLeaguePage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Football &middot; Discover</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">How the divisions compare</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">League Insights</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           The whole English pyramid on one axis, from {totalMatches.toLocaleString()} matches. Most football sites cover one
           division, so this comparison is hard to find elsewhere &mdash; and the answer is not what most people expect.

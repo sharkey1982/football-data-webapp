@@ -59,7 +59,7 @@ export default function FplMarketPage() {
   const [tab, setTab] = useState<Tab>('risers');
 
   useDocumentHead({
-    title: 'FPL price and ownership moves',
+    title: 'Transfer Window \u2014 FPL price and ownership moves',
     description:
       'Fantasy Premier League price risers and fallers, ownership swings, transfers and availability news, updated daily.',
     path: '/fpl/market',
@@ -103,7 +103,7 @@ export default function FplMarketPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">The FPL market</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Transfer Window</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           What managers are actually doing &mdash; prices, ownership and transfers, captured daily from the official game.
           No projections here, just the facts.
