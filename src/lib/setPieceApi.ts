@@ -9,7 +9,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import { getFormationSlots, SLOT_POSITIONS, type FormationSlot } from './formationApi';
+import { getFormationSlots, type FormationSlot } from './formationApi';
 
 export type SetPieceTaker = {
   team_id: number;
@@ -25,53 +25,55 @@ export type SetPieceTaker = {
 
 /** Display order and labels. Penalties first because they're worth the
  * most and are what people actually come to check. */
+/** Indirect free kicks are deliberately excluded: they rarely produce a
+ * direct goal threat and the taker is usually incidental, so listing
+ * them adds noise without telling a manager anything actionable. */
 export const SET_PIECE_TYPES: { key: string; label: string }[] = [
   { key: 'penalty', label: 'Penalties' },
   { key: 'direct_free_kick', label: 'Direct free kicks' },
-  { key: 'indirect_free_kick', label: 'Indirect free kicks' },
   { key: 'corner_left', label: 'Corners (left)' },
   { key: 'corner_right', label: 'Corners (right)' },
 ];
 
-/** What the historical Opta data says about set-piece output by pitch
- * position, pooled across formations.
+/** How much of a league's goals and assists come from set pieces at all.
  *
- * This is the honest form of "what does taking set pieces imply". It
- * describes POSITIONS, not players: the tactical-role data can't yet say
- * which slot a given player occupies (most are still on a positional
- * fallback), so attaching a per-player expectation would be inventing
- * precision the data doesn't support. Pooling across formations is
- * deliberate too -- a single formation's slot can rest on 33 starts. */
-export type SetPiecePositionContext = {
-  slot: number;
-  label: string;
-  starts: number;
+ * This is the headline the raw taker list needs: knowing who takes the
+ * corners only matters if set pieces are a meaningful share of output,
+ * and at ~31% of goals and ~43% of assists they plainly are.
+ *
+ * IMPORTANT LIMITATION: the Opta dataset has no penalty / corner /
+ * free-kick breakdown -- only open_play_goals and set_piece_assists,
+ * both undifferentiated. So "x% of goals from penalties" and "x% of
+ * assists from corners versus direct free kicks" CANNOT be produced
+ * from it, and aren't estimated here. Splitting an undifferentiated
+ * total by assumed ratios would be inventing the finding. */
+export type SetPieceShare = {
+  goals: number;
+  open_play_goals: number;
+  set_piece_goals: number;
+  pct_goals_from_set_pieces: number;
+  assists: number;
   set_piece_assists: number;
-  set_piece_assists_per_start: number;
-  share_of_set_piece_assists: number;
+  pct_assists_from_set_pieces: number;
 };
 
-export async function getSetPiecePositionContext(): Promise<SetPiecePositionContext[]> {
+export async function getSetPieceShare(): Promise<SetPieceShare | null> {
   const slots: FormationSlot[] = await getFormationSlots();
-  const agg = new Map<number, { starts: number; spa: number }>();
-  for (const r of slots) {
-    const slot = Number(r.source_formation_slot);
-    const cur = agg.get(slot) ?? { starts: 0, spa: 0 };
-    cur.starts += r.starts;
-    cur.spa += r.set_piece_assists;
-    agg.set(slot, cur);
-  }
-  const totalSpa = [...agg.values()].reduce((s, v) => s + v.spa, 0);
-  return [...agg.entries()]
-    .map(([slot, v]) => ({
-      slot,
-      label: SLOT_POSITIONS[slot]?.label ?? `Slot ${slot}`,
-      starts: v.starts,
-      set_piece_assists: v.spa,
-      set_piece_assists_per_start: v.starts > 0 ? v.spa / v.starts : 0,
-      share_of_set_piece_assists: totalSpa > 0 ? (v.spa / totalSpa) * 100 : 0,
-    }))
-    .sort((a, b) => b.share_of_set_piece_assists - a.share_of_set_piece_assists);
+  if (slots.length === 0) return null;
+  const goals = slots.reduce((s, r) => s + r.goals, 0);
+  const op = slots.reduce((s, r) => s + r.open_play_goals, 0);
+  const assists = slots.reduce((s, r) => s + r.assists, 0);
+  const spa = slots.reduce((s, r) => s + r.set_piece_assists, 0);
+  const spGoals = Math.max(0, goals - op);
+  return {
+    goals,
+    open_play_goals: op,
+    set_piece_goals: spGoals,
+    pct_goals_from_set_pieces: goals > 0 ? (spGoals / goals) * 100 : 0,
+    assists,
+    set_piece_assists: spa,
+    pct_assists_from_set_pieces: assists > 0 ? (spa / assists) * 100 : 0,
+  };
 }
 
 export async function getSetPieceTakers(seasonId = 13): Promise<SetPieceTaker[]> {

@@ -13,10 +13,10 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   getSetPieceTakers,
-  getSetPiecePositionContext,
+  getSetPieceShare,
   SET_PIECE_TYPES,
   type SetPieceTaker,
-  type SetPiecePositionContext,
+  type SetPieceShare,
 } from '../../lib/setPieceApi';
 
 export default function SetPiecesPage() {
@@ -24,7 +24,8 @@ export default function SetPiecesPage() {
   const [typeKey, setTypeKey] = useState(SET_PIECE_TYPES[0].key);
   const [teamFilter, setTeamFilter] = useState('All');
   const [firstChoiceOnly, setFirstChoiceOnly] = useState(false);
-  const [context, setContext] = useState<SetPiecePositionContext[]>([]);
+  const [share, setShare] = useState<SetPieceShare | null>(null);
+  const [playerQuery, setPlayerQuery] = useState('');
 
   useDocumentHead({
     title: 'Who takes the set pieces?',
@@ -37,9 +38,9 @@ export default function SetPiecesPage() {
     getSetPieceTakers(13)
       .then(setTakers)
       .catch(() => setTakers([]));
-    getSetPiecePositionContext()
-      .then(setContext)
-      .catch(() => setContext([]));
+    getSetPieceShare()
+      .then(setShare)
+      .catch(() => setShare(null));
   }, []);
 
   const byTeam = useMemo(() => {
@@ -59,6 +60,29 @@ export default function SetPiecesPage() {
       .map(([team, list]) => ({ team, slug: list[0].team_slug, list: [...list].sort((a, b) => a.rank - b.rank) }))
       .sort((a, b) => a.team.localeCompare(b.team));
   }, [takers, typeKey, teamFilter, firstChoiceOnly]);
+
+  // Player search cuts ACROSS set-piece types -- the question is "what
+  // does this player take", and answering it type-by-type would make a
+  // manager click through five tabs to assemble one answer.
+  const playerMatches = useMemo(() => {
+    if (!takers || playerQuery.trim().length < 2) return [];
+    const q = playerQuery.trim().toLowerCase();
+    const hits = takers.filter((t) => t.player_name.toLowerCase().includes(q));
+    const byPlayer = new Map<string, typeof hits>();
+    for (const h of hits) {
+      const key = `${h.player_name}|${h.team_name}`;
+      if (!byPlayer.has(key)) byPlayer.set(key, []);
+      byPlayer.get(key)!.push(h);
+    }
+    return [...byPlayer.entries()]
+      .map(([key, list]) => ({
+        name: key.split('|')[0],
+        team: list[0].team_name,
+        duties: list.slice().sort((a, b) => a.rank - b.rank),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 12);
+  }, [takers, playerQuery]);
 
   const teams = useMemo(() => {
     if (!takers) return [];
@@ -97,6 +121,39 @@ export default function SetPiecesPage() {
           </p>
         )}
       </header>
+
+      <section>
+        <label className="block max-w-sm">
+          <span className="text-xs font-mono uppercase tracking-widest text-ink-500">Find a player</span>
+          <input
+            type="search"
+            value={playerQuery}
+            onChange={(e) => setPlayerQuery(e.target.value)}
+            placeholder="Every duty they take, in one view"
+            className="mt-1 w-full border border-chalk-300 rounded px-3 py-2 text-sm"
+          />
+        </label>
+        {playerQuery.trim().length >= 2 && (
+          <div className="mt-3 space-y-2">
+            {playerMatches.length === 0 && <p className="text-sm text-ink-500">No set-piece duty recorded for that name.</p>}
+            {playerMatches.map((p) => (
+              <div key={`${p.name}-${p.team}`} className="border border-chalk-300 rounded-lg bg-white p-3">
+                <p className="text-sm font-medium text-ink-900">
+                  {p.name} <span className="text-ink-500 font-normal">{p.team}</span>
+                </p>
+                <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  {p.duties.map((d) => (
+                    <li key={d.set_piece_type} className="text-xs text-ink-700">
+                      {SET_PIECE_TYPES.find((t) => t.key === d.set_piece_type)?.label ?? d.set_piece_type}
+                      <span className="text-ink-500"> &mdash; #{d.rank}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="flex flex-wrap gap-3 items-end">
         <label className="block">
@@ -170,37 +227,42 @@ export default function SetPiecesPage() {
         )}
       </section>
 
-      {context.length > 0 && (
+      {share && (
         <section className="border border-chalk-300 rounded-lg bg-white p-4">
-          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What set-piece duty is worth</h2>
-          <p className="text-ink-700 text-sm mt-1 max-w-prose">
-            Historical Opta data on where set-piece assists actually come from, by pitch position. Wide midfield and
-            full-back roles deliver most of them &mdash; which is why taking duty matters far more for a player in those
-            positions than the raw goal numbers suggest.
+          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Why set pieces matter</h2>
+          <p className="text-ink-900 mt-1 max-w-prose">
+            Across a full Premier League season of Opta data,{' '}
+            <strong>{share.pct_goals_from_set_pieces.toFixed(1)}% of goals</strong> and{' '}
+            <strong>{share.pct_assists_from_set_pieces.toFixed(1)}% of assists</strong> came from set pieces rather than
+            open play. Taking duty is close to half of all assist output.
           </p>
-          <div className="space-y-1.5 mt-3">
-            {context.slice(0, 6).map((c) => {
-              const mx = context[0].share_of_set_piece_assists || 1;
-              return (
-                <div key={c.slot} className="flex items-center gap-3">
-                  <span className="w-12 shrink-0 text-xs font-mono text-ink-700">{c.label}</span>
-                  <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
-                    <div
-                      className="bg-pitch-700 h-full rounded"
-                      style={{ width: `${(c.share_of_set_piece_assists / mx) * 100}%` }}
-                    />
-                  </div>
-                  <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">
-                    {c.share_of_set_piece_assists.toFixed(1)}%
-                  </span>
-                </div>
-              );
-            })}
+          <div className="grid gap-3 sm:grid-cols-2 mt-3">
+            <div>
+              <p className="text-xs font-mono uppercase tracking-widest text-ink-500">Goals</p>
+              <div className="flex h-5 rounded overflow-hidden mt-1">
+                <div className="bg-pitch-700" style={{ width: `${100 - share.pct_goals_from_set_pieces}%` }} />
+                <div className="bg-amber-500" style={{ width: `${share.pct_goals_from_set_pieces}%` }} />
+              </div>
+              <p className="text-xs text-ink-500 mt-1">
+                {share.open_play_goals.toFixed(0)} open play &middot; {share.set_piece_goals.toFixed(0)} set piece
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-mono uppercase tracking-widest text-ink-500">Assists</p>
+              <div className="flex h-5 rounded overflow-hidden mt-1">
+                <div className="bg-pitch-700" style={{ width: `${100 - share.pct_assists_from_set_pieces}%` }} />
+                <div className="bg-amber-500" style={{ width: `${share.pct_assists_from_set_pieces}%` }} />
+              </div>
+              <p className="text-xs text-ink-500 mt-1">
+                {(share.assists - share.set_piece_assists).toFixed(0)} open play &middot;{' '}
+                {share.set_piece_assists.toFixed(0)} set piece
+              </p>
+            </div>
           </div>
           <p className="text-ink-500 text-xs mt-3 max-w-prose">
-            Positions, not players. Which slot a given player occupies isn&rsquo;t reliably known yet &mdash; most are
-            still on a positional fallback &mdash; so this shows what the role has historically produced rather than
-            predicting an individual.
+            Set-piece goals include penalties. This dataset records open-play and set-piece totals but not a breakdown by
+            type, so penalties can&rsquo;t be separated from free kicks, or corners from direct free kicks &mdash;
+            splitting the totals by assumed ratios would be inventing the answer.
           </p>
         </section>
       )}

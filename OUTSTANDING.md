@@ -91,6 +91,23 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Set-piece index for players (Predict)
+Requested: a per-player set-piece index, and what share of projected
+goals/assists their taking duty accounts for.
+
+Buildable in principle — set_piece_hierarchies gives duty and rank per
+club, and the Opta data gives the league-wide set-piece share (31% of
+goals, 43% of assists). What it CANNOT do is split that by set-piece
+type: the dataset has only open_play_goals and set_piece_assists, both
+undifferentiated. So a penalty taker and a corner taker can't be
+weighted differently from this data, which is most of the point of an
+index.
+
+Options: weight by type using published league-wide rates from an
+external source (and say so), or source a dataset with the breakdown.
+Not started.
+
+
 ### Model accuracy must surface inside Predict
 Validate was folded into Predict because it was QA language for an
 audience that wants to know whether to trust a number, not to audit one.
