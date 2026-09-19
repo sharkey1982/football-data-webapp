@@ -121,6 +121,20 @@ async function main() {
     console.error('Sitemap: could not list completed gameweeks --', err?.message ?? err);
   }
 
+  // Player Scout: one URL per player with real history, including those
+  // who have left the league and have no other page here.
+  let scoutCount = 0;
+  try {
+    const players = await query('player_identity?select=slug&order=slug.asc&limit=5000');
+    for (const p of players ?? []) {
+      if (!p.slug) continue;
+      entries.push(urlEntry(`/fpl/player-scout/${p.slug}`, null));
+      scoutCount++;
+    }
+  } catch (err) {
+    console.error('Sitemap: could not list players --', err?.message ?? err);
+  }
+
   // Only teams with a generated page. The teams table holds 242 rows
   // across every division and European competition, but pages are
   // generated for clubs appearing in this season's EPL fixtures --
@@ -154,7 +168,7 @@ async function main() {
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, xml, 'utf8');
   console.log(
-    `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ${gameweekCount} gameweek, ` +
+    `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ${gameweekCount} gameweek, ${scoutCount} scout, ` +
       `${(teams ?? []).length} team(s), ${(players ?? []).length} player(s), ${(fixtures ?? []).length} match(es).`
   );
 }

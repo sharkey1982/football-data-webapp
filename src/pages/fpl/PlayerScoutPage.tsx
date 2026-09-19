@@ -9,15 +9,17 @@
 // ============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   searchPlayers,
   getPlayerCareer,
+  getPlayerBySlug,
   seasonLabel,
   POSITION,
   type PlayerSearchResult,
   type PlayerSeason,
+  type PlayerIdentity,
 } from '../../lib/playerScoutApi';
 
 function Phasing({ s }: { s: PlayerSeason }) {
@@ -41,18 +43,47 @@ function Phasing({ s }: { s: PlayerSeason }) {
 }
 
 export default function PlayerScoutPage() {
+  // A slug in the URL makes the page linkable, shareable and
+  // indexable -- the whole point of the identity slug. Without one the
+  // page is search-only and invisible to a crawler.
+  const { slug } = useParams<{ slug?: string }>();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlayerSearchResult[]>([]);
-  const [selected, setSelected] = useState<PlayerSearchResult | null>(null);
+  const [selected, setSelected] = useState<PlayerIdentity | PlayerSearchResult | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [career, setCareer] = useState<PlayerSeason[]>([]);
   const [searching, setSearching] = useState(false);
 
+  const headName = selected?.canonical_name;
   useDocumentHead({
-    title: 'Player Scout — every FPL player’s history',
-    description:
-      'Search any Fantasy Premier League player and see their season-by-season points, price, returns and form across multiple seasons.',
-    path: '/fpl/player-scout',
+    title: headName ? `${headName} — FPL career record` : 'Player Scout — every FPL player’s history',
+    description: headName
+      ? `${headName}'s season-by-season Fantasy Premier League record: points, price, goals, assists and form across every season held.`
+      : 'Search any Fantasy Premier League player and see their season-by-season points, price, returns and form across multiple seasons.',
+    path: slug ? `/fpl/player-scout/${slug}` : '/fpl/player-scout',
   });
+
+  // Direct visit to a player URL resolves without a search.
+  useEffect(() => {
+    if (!slug) {
+      setNotFound(false);
+      return;
+    }
+    let cancelled = false;
+    getPlayerBySlug(slug)
+      .then((p) => {
+        if (cancelled) return;
+        setSelected(p);
+        setNotFound(p === null);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -126,6 +157,12 @@ export default function PlayerScoutPage() {
         />
       </label>
 
+      {notFound && (
+        <p className="text-ink-700 text-sm">
+          No player at that address. Try searching by name.
+        </p>
+      )}
+
       {query.trim().length >= 2 && !selected && (
         <section>
           {searching && results.length === 0 && <p className="text-ink-500 text-sm">Searching&hellip;</p>}
@@ -139,7 +176,7 @@ export default function PlayerScoutPage() {
               <li key={r.fpl_code}>
                 <button
                   type="button"
-                  onClick={() => setSelected(r)}
+                  onClick={() => (r.slug ? navigate(`/fpl/player-scout/${r.slug}`) : setSelected(r))}
                   className="w-full text-left border border-chalk-300 rounded-lg bg-white p-3 hover:bg-chalk-100 transition-colors"
                 >
                   <span className="text-sm font-medium text-ink-900">{r.canonical_name}</span>{' '}
@@ -170,7 +207,10 @@ export default function PlayerScoutPage() {
               <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">{selected.canonical_name}</h2>
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null);
+                  navigate('/fpl/player-scout');
+                }}
                 className="text-sm text-pitch-800 underline underline-offset-2"
               >
                 Search again

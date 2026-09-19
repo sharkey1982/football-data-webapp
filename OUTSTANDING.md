@@ -230,12 +230,18 @@ Departed players ARE searchable, which is the point — they're who the
 historic data is most interesting about. They get no projection link,
 and the page says why rather than linking to a 404.
 
-NOT YET, deliberately:
-  - no per-player URL, so a player can't be linked or indexed. Needs a
-    slug on player_identity (fpl_players.slug is per-season). That's the
-    obvious v2 and the main SEO opportunity.
+v2 DONE: every player has a stable URL at /fpl/player-scout/<slug>.
+1,279 identities slugged, all distinct, no collisions or fallbacks.
+1,096 have real history and get a prerendered page plus a sitemap entry.
+
+The slug lives on player_identity, not fpl_players, so it survives a
+transfer, a name change and a season rollover — and departed players
+have one at all, which a per-season slug can't give them.
+
+STILL NOT DONE:
   - price journey within a season (the gameweek data has `value`)
   - value before/after a transfer, which the club column hints at
+  - ownership history (`selected` per gameweek)
 
 ### Season filters: audited, mostly NOT needed
 Season 13 is hardcoded in ~11 frontend modules, and that's CORRECT for

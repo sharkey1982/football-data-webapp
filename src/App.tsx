@@ -291,6 +291,14 @@ export default function App() {
             }
           />
           <Route
+            path="fpl/player-scout/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <PlayerScoutPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="fpl/player-scout"
             element={
               <Suspense fallback={<RouteFallback />}>

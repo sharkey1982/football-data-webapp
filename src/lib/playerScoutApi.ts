@@ -12,6 +12,7 @@
 import { supabase } from './supabase';
 
 export type PlayerSearchResult = {
+  slug?: string | null;
   fpl_code: number;
   canonical_name: string;
   latest_web_name: string | null;
@@ -88,4 +89,40 @@ export async function getPlayerCareer(fplCode: number): Promise<PlayerSeason[]> 
 /** Pretty form of the dataset slug: "2025-26" -> "2025/26". */
 export function seasonLabel(slug: string): string {
   return slug.replace('-', '/');
+}
+
+export type PlayerIdentity = {
+  fpl_code: number;
+  slug: string;
+  canonical_name: string;
+  latest_web_name: string | null;
+  latest_team: string | null;
+  element_type: number;
+  seasons_played: number;
+  career_points: number;
+  career_minutes: number;
+  first_season: string | null;
+  last_season: string | null;
+  current_slug: string | null;
+};
+
+/** Resolve a player page from its stable slug.
+ *
+ * The slug lives on player_identity rather than fpl_players, so it
+ * survives a transfer, a name change and a season rollover -- and
+ * departed players have one at all, which the per-season slug can't
+ * give them. */
+export async function getPlayerBySlug(slug: string): Promise<PlayerIdentity | null> {
+  const { data, error } = await (supabase as any).rpc('get_player_by_slug', { p_slug: slug });
+  if (error) throw error;
+  const row = ((data ?? []) as any[])[0];
+  if (!row) return null;
+  return {
+    ...row,
+    fpl_code: Number(row.fpl_code),
+    element_type: Number(row.element_type),
+    seasons_played: Number(row.seasons_played),
+    career_points: Number(row.career_points),
+    career_minutes: Number(row.career_minutes),
+  };
 }

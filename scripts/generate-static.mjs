@@ -160,6 +160,38 @@ async function main() {
 
   await writeGameweekPages();
 
+  // ---- Player Scout pages ------------------------------------------
+  // One per player who actually played, across every imported season.
+  // These are the only pages a DEPARTED player has -- their per-season
+  // slug disappeared with them -- so they're also the ones with no
+  // other route into the site.
+  async function writePlayerScoutPages() {
+    const players = await queryAll(
+      'player_identity?select=slug,canonical_name&order=slug.asc'
+    );
+    let n = 0;
+    for (const p of players ?? []) {
+      if (!p.slug) continue;
+      try {
+        const page = renderStaticRouteHead({
+          path: `/fpl/player-scout/${p.slug}`,
+          title: `${p.canonical_name} \u2014 FPL career record`,
+          description: `${p.canonical_name}'s season-by-season Fantasy Premier League record: points, price, goals, assists and form.`,
+          crumbs: [{ name: 'Fantasy Premier League', path: '/fpl/start' }],
+        });
+        const dir = join(DIST, 'fpl', 'player-scout', p.slug);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+        n++;
+      } catch (err) {
+        console.error(`Static: failed scout page ${p.slug}: ${err?.message ?? err}`);
+      }
+    }
+    console.log(`Static: wrote head tags for ${n} player scout page(s).`);
+  }
+
+  await writePlayerScoutPages();
+
   // Bulk fetches -- three requests total, not one per page.
   const teams = await query('teams?select=team_id,display_name,slug&limit=1000');
   const fits = await query('model_fit_runs?select=fit_run_id,rho&limit=1000');
