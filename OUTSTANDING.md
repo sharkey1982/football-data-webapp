@@ -91,14 +91,15 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
-### Team of the Week: pitch view
-Present the XI on a pitch rather than as position-grouped cards, using
-FPL positions (GKP/DEF/MID/FWD) rather than real ones — FPL only knows
-those four, and inventing a real position would be guessing.
+### Team of the Week: pitch view — DONE
+Laid out by FPL position (GKP/DEF/MID/FWD), which is all FPL records —
+a real position would have been invented. The shape falls out of the XI
+rather than being a formation.
 
-The formation_slot_geometry work gives the pitch component; it needs a
-variant that lays out an arbitrary XI by FPL position rather than by a
-known formation shape.
+Layout logic lives in src/lib/pitchLayout.ts, shared with any future XI
+view. It carries the band-centring fix from the formation geometry bug
+(single-player bands centred, two-man bands kept as a pair) and has its
+own unit tests, so that bug can't reappear in a second place.
 
 ### Managers' Dugout: surface the cross-formation comparison better
 Clicking a position already compares that role across every formation,

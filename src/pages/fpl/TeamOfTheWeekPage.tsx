@@ -15,8 +15,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getTeamOfTheWeek, getTotwVsModel, type TotwPlayer, type TotwComparison } from '../../lib/teamOfWeekApi';
+import { layoutByBand } from '../../lib/pitchLayout';
 
-const POS_ORDER = ['GKP', 'DEF', 'MID', 'FWD'];
+
 
 /** The week's read, derived from the numbers rather than written. */
 function verdict(c: TotwComparison): string {
@@ -70,7 +71,8 @@ export default function TeamOfTheWeekPage() {
 
   const gw = xi[0].fpl_event_id;
   const total = xi.reduce((s, p) => s + p.points, 0);
-  const byPos = POS_ORDER.map((pos) => ({ pos, players: xi.filter((p) => p.position_label === pos) })).filter((g) => g.players.length);
+  const placed = layoutByBand(xi, (p) => p.position_label);
+  const maxPoints = Math.max(...xi.map((p) => p.points), 1);
 
   return (
     <article className="space-y-6">
@@ -95,30 +97,48 @@ export default function TeamOfTheWeekPage() {
         </section>
       )}
 
-      {byPos.map(({ pos, players }) => (
-        <section key={pos}>
-          <h2 className="font-display uppercase tracking-wide text-sm text-ink-500">{pos}</h2>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mt-2">
-            {players.map((p) => (
-              <div key={p.fpl_player_id} className="border border-chalk-300 rounded-lg bg-white p-3 flex items-baseline justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink-900 truncate">
-                    {p.slug ? (
-                      <Link to={`/fpl/players/${p.slug}`} className="text-pitch-800 underline underline-offset-2">
-                        {p.web_name}
-                      </Link>
-                    ) : (
-                      p.web_name
-                    )}
-                  </p>
-                  <p className="text-xs text-ink-500 truncate">{p.team_name}</p>
-                </div>
-                <span className="font-mono text-lg tabular-nums text-ink-900 shrink-0">{p.points}</span>
+      <section>
+        {/* Laid out by FPL position, because that's all FPL records --
+            a real position would be invented. The shape therefore falls
+            out of the XI rather than being a formation. */}
+        <div className="relative rounded-lg bg-pitch-800 border-2 border-pitch-600 aspect-[3/4] sm:aspect-[4/3] max-w-2xl overflow-hidden">
+          <div className="absolute inset-x-0 top-1/2 border-t border-pitch-600/70" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-pitch-600/70" />
+          <div className="absolute left-1/4 right-1/4 bottom-0 h-[18%] border-2 border-b-0 border-pitch-600/70" />
+          <div className="absolute left-1/4 right-1/4 top-0 h-[18%] border-2 border-t-0 border-pitch-600/70" />
+
+          {placed.map(({ item: p, x, y }) => (
+            <div
+              key={p.fpl_player_id}
+              className="absolute -translate-x-1/2 translate-y-1/2 flex flex-col items-center w-20"
+              style={{ left: `${x}%`, bottom: `${y}%` }}
+            >
+              <div
+                className="rounded-full border-2 border-chalk-100 flex items-center justify-center shrink-0"
+                style={{
+                  width: 'clamp(2rem, 7vw, 2.6rem)',
+                  height: 'clamp(2rem, 7vw, 2.6rem)',
+                  // Shaded by score relative to the best in the XI, so
+                  // the standout performers read at a glance.
+                  backgroundColor: `rgba(227, 180, 85, ${0.25 + (p.points / maxPoints) * 0.75})`,
+                }}
+              >
+                <span className="font-mono text-xs text-ink-900 font-medium tabular-nums">{p.points}</span>
               </div>
-            ))}
-          </div>
-        </section>
-      ))}
+              <span className="text-[0.65rem] text-chalk-100 mt-0.5 text-center leading-tight truncate w-full">
+                {p.slug ? (
+                  <Link to={`/fpl/players/${p.slug}`} className="hover:text-amber-400">
+                    {p.web_name}
+                  </Link>
+                ) : (
+                  p.web_name
+                )}
+              </span>
+              <span className="text-[0.55rem] text-chalk-300 truncate w-full text-center">{p.team_name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/fpl/actual-matches" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
