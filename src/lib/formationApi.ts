@@ -33,7 +33,34 @@ export type FormationSlot = {
   big_chances: number;
   opp_box_touches: number;
   set_piece_assists: number;
+  /** Share of the formation's total, 0-1. Already computed in the view,
+   * and the shares across a formation's eleven slots sum to 1 -- so
+   * "this position produced 31% of the goals" is exact, not derived
+   * here and at risk of disagreeing with the source. */
+  goal_share: number;
+  assist_share: number;
+  open_play_goal_share: number;
 };
+
+/** Goals from set pieces, INCLUDING penalties -- derived as total minus
+ * open play, since the source has no set-piece goals column.
+ *
+ * Clamped at zero: one slot of 121 (a goalkeeper, on 1 vs 2 goals) has
+ * open-play goals exceeding total goals, which is rounding noise in the
+ * source rather than a systemic problem. Clamping keeps a nonsense
+ * negative off the page without hiding that the two columns can
+ * disagree at the margin. */
+export function setPieceGoals(r: FormationSlot): number {
+  return Math.max(0, r.goals - r.open_play_goals);
+}
+
+/** Share of a position's goals that came from set pieces. The headline
+ * distinction: a striker on 31% is a different player to a centre-back
+ * on 100%. */
+export function setPieceGoalPct(r: FormationSlot): number | null {
+  if (r.goals <= 0) return null;
+  return (setPieceGoals(r) / r.goals) * 100;
+}
 
 /** Pitch coordinates for the traditional numbering, as percentages.
  * x = across the pitch (0 left, 100 right), y = up it (0 own goal). */
@@ -52,16 +79,28 @@ export const SLOT_POSITIONS: Record<number, { x: number; y: number; label: strin
 };
 
 export type FormationMetric = {
-  key: keyof FormationSlot;
+  key: keyof FormationSlot | 'set_piece_goals';
   label: string;
   /** Per-start rather than totals: formations have wildly different
    * sample sizes (2,761 starts down to 33), so raw totals would just
    * rank formations by popularity. */
   perStart: boolean;
+  /** Already a 0-1 proportion -- render as a percentage, don't divide
+   * by starts. */
+  isShare?: boolean;
+  /** Computed rather than read straight from a column. */
+  derived?: boolean;
 };
 
 export const FORMATION_METRICS: FormationMetric[] = [
+  // Shares first: "this position scores 31% of the team's goals" is the
+  // more interpretable claim, and unlike per-start rates it's directly
+  // comparable between formations without thinking about sample size.
+  { key: 'goal_share', label: 'Share of goals', perStart: false, isShare: true },
+  { key: 'open_play_goal_share', label: 'Share of open-play goals', perStart: false, isShare: true },
+  { key: 'assist_share', label: 'Share of assists', perStart: false, isShare: true },
   { key: 'open_play_goals', label: 'Open-play goals', perStart: true },
+  { key: 'set_piece_goals', label: 'Set-piece goals (inc. pens)', perStart: true, derived: true },
   { key: 'goals', label: 'All goals', perStart: true },
   { key: 'assists', label: 'Assists', perStart: true },
   { key: 'set_piece_assists', label: 'Set-piece assists', perStart: true },
@@ -74,7 +113,7 @@ export const FORMATION_METRICS: FormationMetric[] = [
 export async function getFormationSlots(): Promise<FormationSlot[]> {
   const { data, error } = await (supabase as any)
     .from('tactical_formation_slot_priors')
-    .select('source_formation_code, canonical_formation, source_formation_slot, starts, minutes, goals, open_play_goals, assists, key_passes, shots, big_chances, opp_box_touches, set_piece_assists')
+    .select('source_formation_code, canonical_formation, source_formation_slot, starts, minutes, goals, open_play_goals, assists, key_passes, shots, big_chances, opp_box_touches, set_piece_assists, goal_share, assist_share, open_play_goal_share')
     .eq('venue_scope', 'ALL');
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
@@ -89,6 +128,9 @@ export async function getFormationSlots(): Promise<FormationSlot[]> {
     big_chances: Number(r.big_chances ?? 0),
     opp_box_touches: Number(r.opp_box_touches ?? 0),
     set_piece_assists: Number(r.set_piece_assists ?? 0),
+    goal_share: Number(r.goal_share ?? 0),
+    assist_share: Number(r.assist_share ?? 0),
+    open_play_goal_share: Number(r.open_play_goal_share ?? 0),
   }));
 }
 

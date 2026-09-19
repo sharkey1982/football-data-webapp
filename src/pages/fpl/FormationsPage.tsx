@@ -13,6 +13,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
+  setPieceGoals,
+  setPieceGoalPct,
   getFormationSlots,
   formationLabel,
   SLOT_POSITIONS,
@@ -24,6 +26,9 @@ export default function FormationsPage() {
   const [slots, setSlots] = useState<FormationSlot[] | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [metricKey, setMetricKey] = useState(FORMATION_METRICS[0].key);
+  const [sortKey, setSortKey] = useState<'slot' | 'starts' | 'goal_share' | 'assist_share' | 'open_play_goals' | 'set_piece_assists' | 'opp_box_touches'>('slot');
+  const [sortDesc, setSortDesc] = useState(false);
+  const [compareSlot, setCompareSlot] = useState<number | null>(null);
 
   useDocumentHead({
     title: 'Where goals come from, by formation',
@@ -60,11 +65,48 @@ export default function FormationsPage() {
   const active = useMemo(() => (slots ?? []).filter((r) => r.source_formation_code === code), [slots, code]);
   const metric = FORMATION_METRICS.find((m) => m.key === metricKey)!;
 
-  const values = active.map((r) => {
-    const raw = Number(r[metric.key] ?? 0);
-    return { slot: Number(r.source_formation_slot), value: r.starts > 0 ? raw / r.starts : 0, starts: r.starts };
-  });
+  // Shares are already proportions; everything else is divided by starts
+  // so formations with 33 starts can sit beside ones with 2,761.
+  const valueOf = (r: FormationSlot) => {
+    if (metric.key === 'set_piece_goals') {
+      return r.starts > 0 ? setPieceGoals(r) / r.starts : 0;
+    }
+    const raw = Number(r[metric.key as keyof FormationSlot] ?? 0);
+    if (metric.isShare) return raw * 100;
+    return r.starts > 0 ? raw / r.starts : 0;
+  };
+  const fmt = (v: number) => (metric.isShare ? `${v.toFixed(1)}%` : v.toFixed(2));
+
+  const values = active.map((r) => ({
+    slot: Number(r.source_formation_slot),
+    value: valueOf(r),
+    starts: r.starts,
+  }));
   const max = values.length ? Math.max(...values.map((v) => v.value)) : 0;
+
+  const sortedActive = useMemo(() => {
+    const get = (r: FormationSlot): number => {
+      if (sortKey === 'slot') return Number(r.source_formation_slot);
+      return Number(r[sortKey] ?? 0);
+    };
+    return active.slice().sort((a, b) => (sortDesc ? get(b) - get(a) : get(a) - get(b)));
+  }, [active, sortKey, sortDesc]);
+
+  // The same position across every formation -- the comparison that
+  // answers "is this role more productive in one shape than another",
+  // which reading formations one at a time can't.
+  const slotAcrossFormations = useMemo(() => {
+    if (compareSlot == null || !slots) return [];
+    return slots
+      .filter((r) => Number(r.source_formation_slot) === compareSlot)
+      .map((r) => ({
+        code: r.source_formation_code,
+        canonical: r.canonical_formation,
+        starts: r.starts,
+        value: valueOf(r),
+      }))
+      .sort((a, b) => b.starts - a.starts);
+  }, [slots, compareSlot, metricKey]);
 
   if (slots === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (slots.length === 0) {
@@ -120,7 +162,7 @@ export default function FormationsPage() {
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">
-          {metric.label} per start &mdash; {current ? formationLabel(current.code, current.canonical) : ''}
+          {metric.label}{metric.isShare ? '' : ' per start'} &mdash; {current ? formationLabel(current.code, current.canonical) : ''}
         </h2>
 
         {/* Pitch. Plain SVG-free divs: a pitch is a green rectangle with
@@ -140,7 +182,7 @@ export default function FormationsPage() {
                 key={slot}
                 className="absolute -translate-x-1/2 translate-y-1/2 flex flex-col items-center"
                 style={{ left: `${pos.x}%`, bottom: `${pos.y}%` }}
-                title={`${pos.label} (slot ${slot}) — ${value.toFixed(2)} per start over ${starts} starts`}
+                title={`${pos.label} (slot ${slot}) — ${fmt(value)}${metric.isShare ? ' of the formation total' : ' per start'} over ${starts} starts`}
               >
                 <div
                   className="rounded-full border-2 border-chalk-100 flex items-center justify-center"
@@ -152,7 +194,7 @@ export default function FormationsPage() {
                     backgroundColor: `rgba(227, 180, 85, ${0.15 + intensity * 0.85})`,
                   }}
                 >
-                  <span className="font-mono text-xs text-ink-900 font-medium tabular-nums">{value.toFixed(2)}</span>
+                  <span className="font-mono text-[0.65rem] text-ink-900 font-medium tabular-nums">{fmt(value)}</span>
                 </div>
                 <span className="font-mono text-[0.6rem] text-chalk-300 mt-0.5">{pos.label}</span>
               </div>
@@ -168,28 +210,70 @@ export default function FormationsPage() {
             <thead className="bg-chalk-200 text-ink-500">
               <tr>
                 <th scope="col" className="text-left font-medium text-xs px-3 py-2">Position</th>
-                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Starts</th>
-                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Open-play goals</th>
-                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Assists</th>
-                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Set-piece assists</th>
-                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Box touches</th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'starts') setSortDesc(!sortDesc); else { setSortKey('starts'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    Starts{sortKey === 'starts' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'open_play_goals') setSortDesc(!sortDesc); else { setSortKey('open_play_goals'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    Open-play goals{sortKey === 'open_play_goals' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'goal_share') setSortDesc(!sortDesc); else { setSortKey('goal_share'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    % of goals{sortKey === 'goal_share' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Set-piece goals</th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">From set pieces</th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'assist_share') setSortDesc(!sortDesc); else { setSortKey('assist_share'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    Assists{sortKey === 'assist_share' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'assist_share') setSortDesc(!sortDesc); else { setSortKey('assist_share'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    % of assists{sortKey === 'assist_share' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'set_piece_assists') setSortDesc(!sortDesc); else { setSortKey('set_piece_assists'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    Set-piece assists{sortKey === 'set_piece_assists' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">
+                  <button type="button" onClick={() => { if (sortKey === 'opp_box_touches') setSortDesc(!sortDesc); else { setSortKey('opp_box_touches'); setSortDesc(true); } }} className="hover:text-ink-900">
+                    Box touches{sortKey === 'opp_box_touches' ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {active
-                .slice()
-                .sort((a, b) => Number(a.source_formation_slot) - Number(b.source_formation_slot))
-                .map((r, i) => {
+              {sortedActive.map((r, i) => {
                   const slot = Number(r.source_formation_slot);
                   const pos = SLOT_POSITIONS[slot];
                   return (
                     <tr key={slot} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
                       <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
-                        {pos?.label ?? `Slot ${slot}`} <span className="text-ink-500">({slot})</span>
+                        <button
+                          type="button"
+                          onClick={() => setCompareSlot(compareSlot === slot ? null : slot)}
+                          className="text-pitch-800 underline underline-offset-2 hover:text-pitch-700"
+                        >
+                          {pos?.label ?? `Slot ${slot}`}
+                        </button>{' '}
+                        <span className="text-ink-500">({slot})</span>
                       </th>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.starts}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.open_play_goals.toFixed(0)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{(r.goal_share * 100).toFixed(1)}%</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{setPieceGoals(r).toFixed(0)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">
+                        {(() => { const p = setPieceGoalPct(r); return p == null ? '\u2014' : `${p.toFixed(0)}%`; })()}
+                      </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.assists.toFixed(0)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{(r.assist_share * 100).toFixed(1)}%</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.set_piece_assists.toFixed(0)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.opp_box_touches.toFixed(0)}</td>
                     </tr>
@@ -199,6 +283,45 @@ export default function FormationsPage() {
           </table>
         </div>
       </section>
+
+      {compareSlot != null && slotAcrossFormations.length > 0 && (
+        <section>
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">
+              {SLOT_POSITIONS[compareSlot]?.label ?? `Slot ${compareSlot}`} across every formation
+            </h2>
+            <button type="button" onClick={() => setCompareSlot(null)} className="text-sm text-pitch-800 underline underline-offset-2">
+              Clear
+            </button>
+          </div>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            {metric.label}{metric.isShare ? '' : ' per start'} for this position in each shape &mdash; the comparison
+            that says whether a role is more productive in one formation than another.
+          </p>
+          <div className="space-y-2 mt-3">
+            {(() => {
+              const mx = Math.max(...slotAcrossFormations.map((f) => f.value), 0);
+              return slotAcrossFormations.map((f) => (
+                <div key={f.code} className="flex items-center gap-3">
+                  <span className="w-28 sm:w-36 shrink-0 text-sm text-ink-700 truncate">
+                    {formationLabel(f.code, f.canonical)}
+                  </span>
+                  <div className="flex-1 bg-chalk-200 rounded h-5 overflow-hidden">
+                    <div className="bg-pitch-700 h-full rounded" style={{ width: `${mx > 0 ? (f.value / mx) * 100 : 0}%` }} />
+                  </div>
+                  <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums">{fmt(f.value)}</span>
+                  {/* Sample size stated inline: a 33-start formation
+                      topping this chart is noise, and hiding the count
+                      would present it as a finding. */}
+                  <span className="w-20 shrink-0 text-right font-mono text-[0.65rem] text-ink-500 tabular-nums">
+                    {f.starts} starts
+                  </span>
+                </div>
+              ));
+            })()}
+          </div>
+        </section>
+      )}
 
       <section className="border border-chalk-300 rounded-lg bg-white p-4">
         <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">About this data</h2>
