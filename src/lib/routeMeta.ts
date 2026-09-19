@@ -74,7 +74,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/football/leagues-compared',
-    title: 'League Insights \u2014 how the English divisions compare',
+    title: 'League Insights \u2014 the English divisions compared',
     description:
       'Goals, home advantage, draws and cards compared across all five English divisions, from 30,000+ matches.',
     crumbs: [FOOTBALL],

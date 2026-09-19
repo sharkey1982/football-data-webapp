@@ -8,7 +8,18 @@ Ordered roughly by value, not by effort.
 
 ---
 
-## Needs you (blocked on a manual step)
+## Needs you
+
+### Drop the pre-key-change backups when ready
+backup_fpl_players_20260919, backup_fpl_player_snapshots_20260919,
+backup_fpl_player_gameweeks_20260919,
+backup_player_availability_events_20260919 — 16MB total, RLS on, no
+grants.
+
+refresh_fpl() has run successfully against the new composite key, but
+only manually. Worth leaving until the SCHEDULED runs have gone through
+unattended for a few days, then drop.
+ (blocked on a manual step)
 
 ### Netlify build hook — DONE
 Verified end to end: an FPL pipeline run produced a Netlify deploy
