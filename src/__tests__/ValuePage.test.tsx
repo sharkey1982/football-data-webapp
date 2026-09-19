@@ -33,7 +33,9 @@ describe('ValuePage', () => {
     expect(screen.queryByText('Cameo')).not.toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByRole('combobox'), '0');
+    // Two selects now (minutes floor and ownership ceiling), so target
+    // the minutes one by its current value rather than by role alone.
+    await user.selectOptions(screen.getByDisplayValue('180+'), '0');
     expect(screen.getByText('Cameo')).toBeInTheDocument();
   });
 
@@ -96,5 +98,43 @@ describe('ValuePage', () => {
     // Clicking again reverses rather than re-sorting the same way.
     await user.click(screen.getByRole('button', { name: /^Points/ }));
     await waitFor(() => expect(names()[0]).toContain('BestValue'));
+  });
+
+  it('shows differentials only when they are both cheap-to-own AND returning', async () => {
+    mocked.getActualValueTable.mockResolvedValue([
+      // Good returns, barely owned -- a real differential.
+      row({ fpl_player_id: 1, web_name: 'Hidden', slug: 'hidden', ownership: 2.9, points_per_million: 6.0, total_points: 24, minutes: 360 }),
+      // Barely owned and barely returning -- unowned for a reason, and
+      // the thing a naive "low ownership" filter would wrongly surface.
+      row({ fpl_player_id: 2, web_name: 'Nobody', slug: 'nobody', ownership: 0.2, points_per_million: 0.4, total_points: 2, minutes: 360 }),
+      // Excellent but everyone has them -- not a differential.
+      row({ fpl_player_id: 3, web_name: 'Template', slug: 'template', ownership: 62, points_per_million: 5.5, total_points: 40, minutes: 360 }),
+    ]);
+
+    render(<MemoryRouter><ValuePage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Differentials' })).toBeInTheDocument());
+
+    const panel = screen.getByRole('heading', { name: 'Differentials' }).closest('section')!;
+    expect(panel.textContent).toMatch(/Hidden/);
+    expect(panel.textContent).not.toMatch(/Template/);
+    // Nobody is included by the ownership filter but sorted last, so the
+    // ordering is what protects the reader rather than the filter alone.
+    expect(panel.textContent!.indexOf('Hidden')).toBeLessThan(panel.textContent!.indexOf('Nobody'));
+  });
+
+  it('lets the ownership ceiling be widened', async () => {
+    mocked.getActualValueTable.mockResolvedValue([
+      row({ fpl_player_id: 4, web_name: 'MidOwned', slug: 'mid', ownership: 8, points_per_million: 5.0, minutes: 360 }),
+    ]);
+    render(<MemoryRouter><ValuePage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('MidOwned')).toBeInTheDocument());
+
+    // At the 5% default an 8%-owned player isn't a differential.
+    const panel = () => screen.queryByRole('heading', { name: 'Differentials' })?.closest('section');
+    expect(panel()?.textContent ?? '').not.toMatch(/MidOwned/);
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByDisplayValue('5%'), '10');
+    await waitFor(() => expect(panel()?.textContent).toMatch(/MidOwned/));
   });
 });

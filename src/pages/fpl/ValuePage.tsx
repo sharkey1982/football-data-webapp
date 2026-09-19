@@ -44,6 +44,10 @@ export default function ValuePage() {
   // numbers.
   const [sortKey, setSortKey] = useState<SortKey>('points_per_million');
   const [sortDesc, setSortDesc] = useState(true);
+  // Ownership ceiling for the differentials view. 5% is the usual
+  // working definition of a differential -- below it, owning a player
+  // who hauls actually moves you up your leagues.
+  const [maxOwnership, setMaxOwnership] = useState(5);
 
   useDocumentHead({
     title: 'Bargain Basement \u2014 FPL points per million',
@@ -60,6 +64,18 @@ export default function ValuePage() {
 
   const byPosition = useMemo(() => (rows ? valueByPosition(rows, 5, 180) : []), [rows]);
   const byTeam = useMemo(() => (rows ? valueByTeam(rows) : []), [rows]);
+
+  // Differentials: returning well AND lightly owned. The two conditions
+  // matter together -- a cheap player nobody owns is usually unowned for
+  // good reason, so the value filter is what separates a differential
+  // from a nobody.
+  const differentials = useMemo(() => {
+    if (!rows) return [];
+    return rows
+      .filter((r) => r.minutes >= minMinutes && r.ownership != null && r.ownership < maxOwnership)
+      .sort((a, b) => b.points_per_million - a.points_per_million)
+      .slice(0, 10);
+  }, [rows, minMinutes, maxOwnership]);
 
   const view = useMemo(() => {
     if (!rows) return [];
@@ -159,6 +175,83 @@ export default function ValuePage() {
           </section>
         );
       })()}
+
+      {/* Rendered whenever there are rows at all, not only when the
+          filter matches: putting the ownership control inside a section
+          that disappears when nothing matches left no way to widen it. */}
+      {rows.length > 0 && (
+        <section className="border border-chalk-300 rounded-lg bg-white p-4">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Differentials</h2>
+            <label className="text-xs text-ink-500">
+              Owned under{' '}
+              <select
+                value={maxOwnership}
+                onChange={(e) => setMaxOwnership(Number(e.target.value))}
+                className="border border-chalk-300 rounded px-1.5 py-0.5 text-xs bg-white ml-1"
+              >
+                {[2, 5, 10, 15].map((v) => (
+                  <option key={v} value={v}>{v}%</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            Returning well and lightly owned. Both conditions matter: a cheap player nobody owns is usually unowned for
+            good reason, so it&rsquo;s the returns that separate a differential from a nobody.
+          </p>
+          {differentials.length === 0 ? (
+            <p className="text-ink-500 text-sm mt-3">
+              Nobody under {maxOwnership}% ownership clears the minutes filter. Try widening either.
+            </p>
+          ) : (
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+              <thead className="bg-chalk-200 text-ink-500">
+                <tr>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Team</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Price</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Per &pound;m</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Owned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {differentials.map((r, i) => (
+                  <tr key={r.fpl_player_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                    <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal whitespace-nowrap">
+                      {r.slug ? (
+                        <Link to={`/fpl/players/${r.slug}`} className="text-pitch-800 underline underline-offset-2">
+                          {r.web_name}
+                        </Link>
+                      ) : (
+                        r.web_name
+                      )}
+                      <span className="text-ink-500"> {r.position_label}</span>
+                    </th>
+                    <td className="px-3 py-1.5 text-xs text-ink-700">{r.team_name ?? '\u2014'}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">&pound;{r.price.toFixed(1)}m</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.total_points}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">
+                      {r.points_per_million.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-amber-600">
+                      {r.ownership?.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )}
+          <p className="text-ink-500 text-xs mt-2 max-w-prose">
+            Low ownership cuts both ways: it&rsquo;s where rank is won, and also where it&rsquo;s lost. These are players
+            the market hasn&rsquo;t rated, not players the market has missed &mdash; sometimes those are the same thing
+            and sometimes they very much aren&rsquo;t.
+          </p>
+        </section>
+      )}
 
       {byTeam.length > 2 && (() => {
         const top = byTeam.slice(0, 5);

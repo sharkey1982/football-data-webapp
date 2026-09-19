@@ -91,6 +91,17 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### "Deadline Day" page — name reserved
+Considered for the price-risk page and rejected: in FPL, "deadline"
+means the GAMEWEEK deadline, when the team must be set. Price changes
+happen overnight on their own schedule, so the name would point people
+at the wrong clock.
+
+Worth keeping for an actual pre-deadline page — your XI, captain choice,
+flagged players, whether to play a chip. That's a real page and the name
+belongs to it.
+
+
 ### Weekly/daily change summary -> social posts
 The pipeline already runs on schedule and triggers a rebuild. What's
 missing is a "what changed since last run" layer: price risers crossing
