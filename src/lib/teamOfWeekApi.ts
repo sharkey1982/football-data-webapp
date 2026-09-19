@@ -23,6 +23,10 @@ export type TotwPlayer = {
   points: number;
   minutes: number;
   is_mandatory: boolean;
+  goals: number;
+  assists: number;
+  clean_sheets: number;
+  bonus: number;
 };
 
 export type TotwComparison = {
@@ -44,6 +48,10 @@ export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> 
     ...r,
     points: Number(r.points),
     minutes: Number(r.minutes),
+    goals: Number(r.goals ?? 0),
+    assists: Number(r.assists ?? 0),
+    clean_sheets: Number(r.clean_sheets ?? 0),
+    bonus: Number(r.bonus ?? 0),
   }));
 }
 

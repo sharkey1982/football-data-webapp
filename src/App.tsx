@@ -248,7 +248,7 @@ export default function App() {
             }
           />
           <Route
-            path="fpl/team-of-the-week/gw:gw"
+            path="fpl/team-of-the-week/:gw"
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TeamOfTheWeekPage />

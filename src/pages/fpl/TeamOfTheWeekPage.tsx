@@ -54,7 +54,15 @@ export default function TeamOfTheWeekPage() {
   // link to and what a crawler can index. A single always-latest page
   // would have one URL whose content silently changes every week.
   const { gw: gwParam } = useParams<{ gw?: string }>();
-  const requestedGw = gwParam ? Number(gwParam) : undefined;
+  // URLs read /gw4, but React Router v6 has no partial dynamic segments
+  // -- "gw:gw" matches nothing, which is why every gameweek except the
+  // default rendered blank. The param is the whole segment and the "gw"
+  // prefix is stripped here.
+  const requestedGw = (() => {
+    if (!gwParam) return undefined;
+    const n = Number(gwParam.replace(/^gw/i, ''));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  })();
   const [xi, setXi] = useState<TotwPlayer[] | null>(null);
   const [cmp, setCmp] = useState<TotwComparison | null>(null);
   const [weeks, setWeeks] = useState<number[]>([]);
@@ -185,6 +193,21 @@ export default function TeamOfTheWeekPage() {
                 ) : (
                   p.web_name
                 )}
+              </span>
+              {/* The breakdown, not just the total: 12 points from two
+                  goals reads very differently from 12 off a clean sheet
+                  and three bonus, and without it each marker is
+                  decorative. Zeros are omitted so a defender's marker
+                  doesn't carry "0G 0A". */}
+              <span className="text-[0.55rem] text-amber-400 font-mono truncate w-full text-center leading-tight">
+                {[
+                  p.goals > 0 ? `${p.goals}G` : null,
+                  p.assists > 0 ? `${p.assists}A` : null,
+                  p.clean_sheets > 0 ? 'CS' : null,
+                  p.bonus > 0 ? `+${p.bonus}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || `${p.minutes}'`}
               </span>
               <span className="text-[0.55rem] text-chalk-300 truncate w-full text-center">{p.team_name}</span>
             </div>
