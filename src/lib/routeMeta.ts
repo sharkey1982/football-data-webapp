@@ -156,6 +156,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/player-scout',
+    title: 'Player Scout \u2014 every FPL player\u2019s history',
+    description:
+      'Search any Fantasy Premier League player and see their season-by-season points, price, returns and form.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/season-xi',
     title: 'The perfect FPL XI of 2025/26',
     description:

@@ -216,28 +216,26 @@ correct: the check should flag it even though the cause is upstream.
 
 ## Deferred by decision
 
-### FPL player Discover page — THE GAP
-There's no per-player page in FPL Discover. Historic data has nowhere
-natural to live, and there's now a lot of it:
-  - 4 seasons of totals (2,223 player-seasons)
-  - 19,375 gameweek rows for 2025/26 incl. price and ownership per GW
-  - player_identity linking the same human across seasons and clubs
+### Player Scout — BUILT (v1)
+/fpl/player-scout. Search any player by name, see their season-by-season
+record: August price, points, points per £m, minutes, goals, assists,
+and a "shape" sparkline splitting the season into thirds.
 
-What such a page could show, all from data already held:
-  - career arc: points, price and ownership by season
-  - within-season phasing (Haaland 106/81/45 vs Bruno 63/80/92)
-  - price journey across a season
-  - value at different clubs, before and after a transfer
-  - set-piece duty and tactical role for the current season
+Works across all four seasons because player_identity links the same
+human by fpl_code — FPL reassigns element ids annually, so name matching
+would have been the only alternative and would have had to reconcile
+"Bukayo Saka" with "Saka".
 
-Existing /fpl/players/:slug is a CURRENT-season projection page, already
-prerendered for 658 players. The historic view could extend it rather
-than becoming a second player page — one canonical URL per player is
-also the better SEO answer.
+Departed players ARE searchable, which is the point — they're who the
+historic data is most interesting about. They get no projection link,
+and the page says why rather than linking to a 404.
 
-Needs: a slug on player_identity (fpl_players.slug is per-season), and
-a decision on whether departed players get pages at all.
-
+NOT YET, deliberately:
+  - no per-player URL, so a player can't be linked or indexed. Needs a
+    slug on player_identity (fpl_players.slug is per-season). That's the
+    obvious v2 and the main SEO opportunity.
+  - price journey within a season (the gameweek data has `value`)
+  - value before/after a transfer, which the club column hints at
 
 ### Season filters: audited, mostly NOT needed
 Season 13 is hardcoded in ~11 frontend modules, and that's CORRECT for
