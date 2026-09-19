@@ -59,7 +59,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
   football: {
     key: 'football',
     title: 'Football',
-    eyebrow: 'Full-Time \u00b7 Football',
+    eyebrow: 'FixtureShark \u00b7 Football',
     hubPath: '/football',
     intro: 'What actually happened, and what the model expects next.',
     stages: [
@@ -94,7 +94,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
   fpl: {
     key: 'fpl',
     title: 'Fantasy Premier League',
-    eyebrow: 'Full-Time \u00b7 Fantasy Premier League',
+    eyebrow: 'FixtureShark \u00b7 Fantasy Premier League',
     hubPath: '/fpl/start',
     intro: 'What has happened in the game, and who the model expects to score next.',
     stages: [

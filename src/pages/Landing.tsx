@@ -52,7 +52,7 @@ export default function Landing() {
   return (
     <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-6 sm:p-10 space-y-8">
       <div>
-        <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Full-Time &middot; Results Archive</p>
+        <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">FixtureShark &middot; Results &amp; Predictions</p>
         <h1 className="font-display uppercase tracking-wide text-4xl sm:text-6xl text-amber-400 mt-2 glow-amber leading-tight">
           Pick your side.
         </h1>

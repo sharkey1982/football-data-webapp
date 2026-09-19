@@ -7,7 +7,7 @@
 // was removed, nothing replaced its coverage of the non-entity pages.
 // Entity pages (players, matches, teams) kept being generated, but all
 // 26 static and content pages fell back to the SPA shell -- every one
-// serving the same <title>Football Data Warehouse</title>, no
+// serving the same generic shell <title>, no
 // description and no canonical, while the sitemap advertised them as 26
 // distinct URLs. Identical titles across a sitemap is worse than not
 // listing the pages at all.

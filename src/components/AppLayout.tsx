@@ -258,10 +258,10 @@ export default function AppLayout() {
           <div className="flex items-baseline gap-2">
             <NavLink to="/" className="flex items-baseline gap-2 hover:opacity-90 transition-opacity">
               <span className="font-display uppercase tracking-wide text-xl sm:text-2xl font-semibold">
-                Full-Time
+                FixtureShark
               </span>
               <span className="font-mono text-xs text-amber-400 tracking-widest uppercase">
-                Results Archive
+                Results &amp; Predictions
               </span>
             </NavLink>
           </div>

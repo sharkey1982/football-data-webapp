@@ -14,7 +14,7 @@
 // ============================================================================
 
 const DEFAULT_SITE_URL = 'https://footballdatashark.netlify.app';
-const DEFAULT_BRAND_NAME = 'Football Data Warehouse';
+const DEFAULT_BRAND_NAME = 'FixtureShark';
 
 const rawSiteUrl = (import.meta.env.VITE_SITE_URL as string | undefined) || DEFAULT_SITE_URL;
 
