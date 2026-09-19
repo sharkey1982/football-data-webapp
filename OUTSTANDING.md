@@ -117,15 +117,35 @@ ARCHITECTURAL NOTE: anything long-lived referencing a player (saved
 comparisons, Beat the Shark entries, linked FPL teams) must reference
 player_identity.fpl_code, NOT fpl_player_id.
 
-### Historic FPL season ingestion — NOW UNBLOCKED
-The schema no longer prevents it. Still required:
-  - a source. The FPL API serves only the current season, so this needs
-    a third-party dataset (vaastav/Fantasy-Premier-League is the usual
-    one, 2016/17 onward).
-  - a season_id for the import, passed explicitly — the trigger only
-    fills NULLs, so an explicit value wins and back-dated imports work.
-  - fpl_code mapping, which that dataset carries, so players link to
-    existing identities rather than creating duplicates.
+### Historic FPL: 2025/26 IMPORTED
+537 players (those with minutes) in fpl_player_season_totals, season 12,
+from vaastav/Fantasy-Premier-League. 409 link to current-season
+identities by fpl_code; the other 128 left the PL and now have their own
+identity rows.
+
+player_identity now spans both seasons: 790 people — 409 played both,
+128 departed, 253 new this season.
+
+Stores BOTH start_cost and end_cost. Start price is what a no-transfer
+squad would actually have paid; end price is what the season made them
+worth. They answer different questions.
+
+Postgres fetches the CSV itself via the http extension rather than
+routing it through a client. The same DO block works for any other
+season by changing the URL and season_id.
+
+WHAT'S NOT IMPORTED:
+  - gameweek-by-gameweek (gws/merged_gw.csv, ~30k rows). Needed only if
+    historic Team of the Week pages are wanted.
+  - daily price/ownership snapshots. These don't exist for past seasons
+    and can't — they're capture-as-you-go, so Transfer Window and
+    Trading Floor stay current-season only.
+  - the xP column, deliberately: the dataset's own docs warn it has
+    lookahead bias (scraped after gameweeks end), so it must never feed
+    a model.
+
+NEXT: a Squad of the Season 2025/26 page built at START prices — the
+best XI you could have picked in August and never touched.
 
 ### Main bundle absorbed the Supabase client
 `AuthProvider` wraps the whole app, so Supabase moved from its own
