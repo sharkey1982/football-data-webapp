@@ -46,18 +46,23 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
-### Set pieces: corner_left and corner_right are IDENTICAL in the source
-All 81 corner_left rows have an exactly matching corner_right row — same
-team, same player, same rank. Verified with a self-join.
+### Set-piece corners — RESOLVED (sides now derived from taker order)
+The source never distinguished sides: it gave one ordered list of corner
+takers per club and the importer wrote it to BOTH corner_left and
+corner_right, so all 81 rows were duplicated.
 
-So the page showing them as two separate duties is misleading: it isn't
-a UI bug, the upstream data genuinely doesn't distinguish the two sides.
+Now dealt alternately — odd positions left, even right, rank =
+ceil(position/2). So takers 1 and 2 are joint first choice (one a side),
+3 and 4 second, and so on. Arsenal reads Rice (left #1) and Saka (right
+#1) rather than both players listed twice.
 
-Options: collapse them into one "Corners" duty on the page, or find a
-source that actually separates them. Left as-is for now because the fix
-depends on which of those you want.
+81 rows preserved (46 left, 35 right), every club still has a first
+choice on each side, zero duplication remains.
 
-
+WHICH player takes WHICH side is an ASSUMPTION — the data can't say.
+It's a better assumption than claiming both sides share an identical
+pecking order, which is what the duplicates asserted. The page states
+this plainly rather than implying the sides are observed.
 
 ### landingApi top-FPL-pick trivia — FIXED (was silently broken)
 Confirmed live: the card was missing from the site.

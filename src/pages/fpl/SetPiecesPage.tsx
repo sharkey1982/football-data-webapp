@@ -136,6 +136,11 @@ export default function SetPiecesPage() {
           Penalty, free-kick and corner duty for every Premier League club, ranked in order. Set-piece duty is one of the
           biggest single swings in a player&rsquo;s fantasy value, and it changes more often than most lists reflect.
         </p>
+        <p className="text-ink-500 text-xs mt-2 max-w-prose">
+          On corners, the source gives one ordered list per club rather than naming sides. We treat the top two takers as
+          joint first choice &mdash; one each side &mdash; the next two as second choice, and so on. Which player takes
+          which side is an assumption; the ranking is not.
+        </p>
         {lastUpdated && (
           <p className="text-xs text-ink-500 font-mono mt-2">
             Updated <time dateTime={lastUpdated}>{new Date(lastUpdated).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</time>
