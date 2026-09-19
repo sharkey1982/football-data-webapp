@@ -174,17 +174,17 @@ and one up front.
 The page states the counter-argument too: forwards carry the higher
 weekly ceiling and captaincy is picked for upside, not efficiency.
 
-### Transfer Window: split herd behaviour from price prediction
-Two distinct things currently conflated:
-  - What everyone else is doing (most transferred in/out) — FACTUAL,
-    stays in Discover.
-  - Which prices will rise or fall tonight — a FORECAST, belongs in
-    Predict.
+### Transfer Window split — DONE
+Price-change risk is now its own Predict page (/fpl/price-risk); the
+Transfer Window stays in Discover as the record of what managers have
+already done. Same numbers, different kind of claim.
 
-Price change is driven by net transfers crossing a threshold. We have
-transfers_in_event / transfers_out_event daily, so direction is
-derivable; the exact threshold is not public, so it should be presented
-as "at risk" rather than a precise call.
+Ranks by net transfers relative to OWNER BASE rather than raw count:
+20,000 net transfers is decisive at 2% ownership and noise at 40%.
+
+States plainly that FPL's threshold isn't published, so it ranks risk
+rather than calling a change — pinned by a test, since that's the kind
+of caveat that quietly disappears in a later edit.
 
 ### Physio Room: short absences — DONE
 "Worth holding" panel surfaces players who have been scoring and are out
