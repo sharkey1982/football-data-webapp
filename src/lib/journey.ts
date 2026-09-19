@@ -132,7 +132,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Gameweek Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
-          { label: 'Price Change Risk', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall.' },
+          { label: 'The Trading Floor', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
           { label: 'Optimiser', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
         ],

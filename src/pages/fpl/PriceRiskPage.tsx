@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getPriceChangeRisk, type PriceRisk } from '../../lib/priceRiskApi';
+import { getPriceChangeRisk, riskBands, bandOf, type PriceRisk, type RiskBand } from '../../lib/priceRiskApi';
 
 function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' }) {
   if (rows.length === 0) return <p className="text-ink-500 text-sm">Nobody under meaningful pressure.</p>;
@@ -65,9 +65,10 @@ function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' })
 
 export default function PriceRiskPage() {
   const [rows, setRows] = useState<PriceRisk[] | null>(null);
+  const [minBand, setMinBand] = useState<RiskBand | 'all'>('all');
 
   useDocumentHead({
-    title: 'FPL price change risk',
+    title: 'The Trading Floor \u2014 FPL price change risk',
     description:
       'Which Fantasy Premier League players are under the most transfer pressure to rise or fall in price.',
     path: '/fpl/price-risk',
@@ -79,19 +80,28 @@ export default function PriceRiskPage() {
       .catch(() => setRows([]));
   }, []);
 
+  const bands = useMemo(() => riskBands(rows ?? []), [rows]);
+
   const { risers, fallers } = useMemo(() => {
     const r = rows ?? [];
-    return {
-      risers: r.filter((x) => x.direction === 'rise').slice(0, 15),
-      fallers: r.filter((x) => x.direction === 'fall').slice(0, 15),
+    const keep = (x: PriceRisk) => {
+      if (minBand === 'all') return true;
+      const b = bandOf(x, bands);
+      // "medium" means medium AND high -- a filter that excluded the
+      // most urgent cases would be the opposite of what's wanted.
+      return minBand === 'high' ? b === 'high' : b !== 'low';
     };
-  }, [rows]);
+    return {
+      risers: r.filter((x) => x.direction === 'rise' && keep(x)).slice(0, 15),
+      fallers: r.filter((x) => x.direction === 'fall' && keep(x)).slice(0, 15),
+    };
+  }, [rows, minBand, bands]);
 
   if (rows === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (rows.length === 0) {
     return (
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Price change risk</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">The Trading Floor</h1>
         <p className="text-ink-700 mt-2">No transfer data is available right now.</p>
       </div>
     );
@@ -101,13 +111,35 @@ export default function PriceRiskPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Predict</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Price change risk</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">The Trading Floor</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           Who&rsquo;s under the most transfer pressure. Pressure is net transfers measured against a player&rsquo;s owner
           base, not the raw count &mdash; 20,000 net transfers is decisive for a player owned by 2% of squads and barely
           registers for one owned by 40%.
         </p>
       </header>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ['all', 'Everyone'],
+            ['medium', 'Notable'],
+            ['high', 'High risk'],
+          ] as [RiskBand | 'all', string][]
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setMinBand(k)}
+            className={[
+              'text-sm rounded px-3 py-1.5 border transition-colors',
+              k === minBand ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
+            ].join(' ')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <section className="border border-chalk-300 rounded-lg bg-white p-4">
         <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What this can and can&rsquo;t tell you</h2>
@@ -116,6 +148,11 @@ export default function PriceRiskPage() {
           actual algorithm isn&rsquo;t known outside the game. So this ranks pressure rather than calling a change: a
           player at the top is far likelier to move tonight than one at the bottom, but no figure here is a prediction
           that they will.
+        </p>
+        <p className="text-ink-500 text-sm mt-2 max-w-prose">
+          &ldquo;High risk&rdquo; means the top tenth of today&rsquo;s pressure, not a fixed number. Transfer activity
+          swings enormously around deadlines and falls away mid-week, so a fixed threshold would call everyone high risk
+          on a Friday and nobody on a Tuesday.
         </p>
         <p className="text-ink-500 text-sm mt-2 max-w-prose">
           Snapshots are taken daily, so this reflects the position as of the last capture rather than the live count.

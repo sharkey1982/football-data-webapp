@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import PriceRiskPage from '../pages/fpl/PriceRiskPage';
 import * as api from '../lib/priceRiskApi';
@@ -56,5 +57,34 @@ describe('PriceRiskPage', () => {
     expect(screen.getByRole('heading', { name: /Under pressure to fall/ })).toBeInTheDocument();
     expect(screen.getByText('Riser')).toBeInTheDocument();
     expect(screen.getByText('Faller')).toBeInTheDocument();
+  });
+
+  it('filters to high risk relative to today, and keeps high inside notable', async () => {
+    const many = Array.from({ length: 10 }, (_, i) =>
+      row({ fpl_player_id: i + 10, web_name: `P${i}`, slug: `p${i}`, pressure: i * 0.5, net_transfers: 1000 * (i + 1) })
+    );
+    mocked.getPriceChangeRisk.mockResolvedValue([
+      row({ fpl_player_id: 99, web_name: 'Extreme', slug: 'extreme', pressure: 20, net_transfers: 99999 }),
+      ...many,
+    ]);
+
+    render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('Extreme')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'High risk' }));
+    expect(screen.getByText('Extreme')).toBeInTheDocument();
+    expect(screen.queryByText('P0')).not.toBeInTheDocument();
+
+    // "Notable" must still include the high-risk cases -- a filter that
+    // excluded the most urgent players would be exactly backwards.
+    await user.click(screen.getByRole('button', { name: 'Notable' }));
+    expect(screen.getByText('Extreme')).toBeInTheDocument();
+  });
+
+  it('explains that high risk is relative, not a fixed number', async () => {
+    mocked.getPriceChangeRisk.mockResolvedValue([row({})]);
+    render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText(/top tenth of today/)).toBeInTheDocument());
   });
 });
