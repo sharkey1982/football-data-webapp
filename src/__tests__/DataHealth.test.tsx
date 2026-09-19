@@ -162,10 +162,10 @@ describe('DataHealth page', () => {
       // Granted but no policy -- the combination that means someone
       // INTENDED this readable and the policy was forgotten. This is the
       // exact shape that silently broke fpl_fixtures and match_odds.
-      { table_name: 'something_broken', rls_enabled: true, has_select_policy: false, anon_has_select_grant: true, anon_can_read: false },
+      { object_name: 'something_broken', object_kind: 'table', rls_enabled: true, has_select_policy: false, anon_has_select_grant: true, anon_can_read: false },
       // Deliberately internal: no grant, no policy. Must NOT be flagged.
-      { table_name: 'internal_thing', rls_enabled: true, has_select_policy: false, anon_has_select_grant: false, anon_can_read: false },
-      { table_name: 'fine', rls_enabled: true, has_select_policy: true, anon_has_select_grant: true, anon_can_read: true },
+      { object_name: 'internal_thing', object_kind: 'table', rls_enabled: true, has_select_policy: false, anon_has_select_grant: false, anon_can_read: false },
+      { object_name: 'fine', object_kind: 'view', rls_enabled: true, has_select_policy: true, anon_has_select_grant: true, anon_can_read: true },
     ]);
 
     render(<DataHealth />);

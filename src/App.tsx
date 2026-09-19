@@ -29,6 +29,7 @@ const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
 const TeamOfTheWeekPage = lazy(() => import('./pages/fpl/TeamOfTheWeekPage'));
+const FormationsPage = lazy(() => import('./pages/fpl/FormationsPage'));
 const Login = lazy(() => import('./pages/Login'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
 const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
@@ -226,6 +227,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <MatchPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/formations"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FormationsPage />
               </Suspense>
             }
           />

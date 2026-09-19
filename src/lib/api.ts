@@ -1859,7 +1859,8 @@ export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportR
 }
 
 export type PublicReadAuditRow = {
-  table_name: string;
+  object_name: string;
+  object_kind: string;
   rls_enabled: boolean;
   has_select_policy: boolean;
   anon_has_select_grant: boolean;

@@ -432,7 +432,7 @@ export default function DataHealth() {
               <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Public read access</h2>
               <p className="text-xs text-ink-500">
                 Tables the site can&rsquo;t read. This failure is silent &mdash; an empty result, not an error &mdash; so
-                it only ever showed up as a blank page. {unreadable.length} of {readAudit.length} tables are unreadable,
+                it only ever showed up as a blank page. {unreadable.length} of {readAudit.length} tables and views are unreadable,
                 most of them deliberately.
               </p>
             </div>
@@ -450,7 +450,9 @@ export default function DataHealth() {
                   </p>
                   <ul className="text-xs font-mono text-ink-900 space-y-0.5">
                     {suspicious.map((r) => (
-                      <li key={r.table_name}>{r.table_name}</li>
+                      <li key={r.object_name}>
+                        {r.object_name} <span className="text-ink-500">({r.object_kind})</span>
+                      </li>
                     ))}
                   </ul>
                 </>

@@ -110,6 +110,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Points Per Million', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
           { label: 'The FPL Market', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
+          { label: 'Goals By Formation', to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
           { label: 'Injuries & Availability', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
