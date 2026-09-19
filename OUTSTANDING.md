@@ -91,6 +91,30 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Weekly/daily change summary -> social posts
+The pipeline already runs on schedule and triggers a rebuild. What's
+missing is a "what changed since last run" layer: price risers crossing
+thresholds, optimal squad differences, new bargains.
+
+Two halves, and only one is technical:
+  - DATA: diff against the previous snapshot. fpl_player_snapshots
+    already holds daily price/ownership, so this is derivable now.
+  - POSTING: needs decisions — which platforms, and crucially whether
+    posts go out automatically or queue for approval.
+
+Recommend GENERATE-AND-QUEUE rather than auto-post, at least initially.
+An automated account that posts a wrong price call at 2am is hard to
+walk back, and the model will sometimes be wrong.
+
+Cadence: price-change risk is genuinely daily (driven by overnight net
+transfers); squad and bargain changes are weekly.
+
+### Gameweek Results page retired
+Content merged into the per-gameweek Team of the Week pages. The old
+/fpl/actual-matches route still exists; decide whether to redirect it to
+/fpl/team-of-the-week or keep it as the match-level view.
+
+
 ### Fixtures & Results: head-to-head — DONE
 Archive rows now carry the head-to-head record (W-D-L from the home
 side's perspective, plus the last scoreline) and no longer show model

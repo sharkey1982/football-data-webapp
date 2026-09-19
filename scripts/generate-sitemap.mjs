@@ -98,6 +98,29 @@ async function main() {
   }
   const entries = staticPaths.map((r) => urlEntry(r, null));
 
+  // One URL per completed gameweek. These are stable -- gameweek 4's
+  // team of the week never changes once played -- so they accumulate
+  // rather than overwrite, unlike the single page they replaced.
+  // Uses the same REST helper as everything else here rather than a
+  // Supabase client -- this script deliberately has no client, so it can
+  // run with only a URL and anon key.
+  let gameweekCount = 0;
+  try {
+    const gwRows = await query(
+      `fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0&limit=20000`
+    );
+    // A gameweek counts only once somebody has scored: FPL creates rows
+    // for an upcoming week with zeros, and listing those would advertise
+    // a page showing an XI of blanks.
+    const played = new Set((gwRows ?? []).map((r) => r.fpl_event_id));
+    for (const gw of [...played].sort((a, b) => a - b)) {
+      entries.push(urlEntry(`/fpl/team-of-the-week/gw${gw}`, null));
+      gameweekCount++;
+    }
+  } catch (err) {
+    console.error('Sitemap: could not list completed gameweeks --', err?.message ?? err);
+  }
+
   // Only teams with a generated page. The teams table holds 242 rows
   // across every division and European competition, but pages are
   // generated for clubs appearing in this season's EPL fixtures --
@@ -131,7 +154,7 @@ async function main() {
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, xml, 'utf8');
   console.log(
-    `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ` +
+    `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ${gameweekCount} gameweek, ` +
       `${(teams ?? []).length} team(s), ${(players ?? []).length} player(s), ${(fixtures ?? []).length} match(es).`
   );
 }

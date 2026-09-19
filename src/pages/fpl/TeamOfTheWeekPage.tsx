@@ -18,6 +18,8 @@ import {
   getTeamOfTheWeek,
   getTotwVsModel,
   getCompletedGameweeks,
+  getGameweekScorers,
+  type GameweekScorer,
   type TotwPlayer,
   type TotwComparison,
 } from '../../lib/teamOfWeekApi';
@@ -56,6 +58,10 @@ export default function TeamOfTheWeekPage() {
   const [xi, setXi] = useState<TotwPlayer[] | null>(null);
   const [cmp, setCmp] = useState<TotwComparison | null>(null);
   const [weeks, setWeeks] = useState<number[]>([]);
+  const [scorers, setScorers] = useState<GameweekScorer[]>([]);
+  // Kept as bare numbers: the selector only needs the id, and the
+  // richer shape (points, best score) belongs to whatever shows a
+  // gameweek index rather than this page's nav strip.
 
   useDocumentHead({
     title: requestedGw ? `FPL team of the week — gameweek ${requestedGw}` : 'FPL team of the week',
@@ -70,9 +76,19 @@ export default function TeamOfTheWeekPage() {
       .then(([a, b]) => {
         setXi(a);
         setCmp(b);
+        // Scorers need the resolved gameweek, which only the XI knows
+        // when no gameweek was requested -- fetching them in parallel
+        // would mean guessing the latest and sometimes guessing wrong.
+        const gw = requestedGw ?? a[0]?.fpl_event_id;
+        if (gw != null) {
+          getGameweekScorers(gw)
+            .then(setScorers)
+            .catch(() => setScorers([]));
+        }
       })
       .catch(() => setXi([]));
     getCompletedGameweeks()
+      .then((gws) => gws.map((g) => g.fpl_event_id))
       .then(setWeeks)
       .catch(() => setWeeks([]));
   }, [requestedGw]);
@@ -175,6 +191,64 @@ export default function TeamOfTheWeekPage() {
           ))}
         </div>
       </section>
+
+      {scorers.length > 0 && (
+        <section>
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Everyone who scored</h2>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            The full gameweek, not just the XI &mdash; including the players who just missed out, which is where the
+            selection actually gets interesting.
+          </p>
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+              <thead className="bg-chalk-200 text-ink-500">
+                <tr>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">G</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">A</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">CS</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Bonus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scorers.map((p, i) => {
+                  const inXi = xi.some((x) => x.fpl_player_id === p.fpl_player_id);
+                  return (
+                    <tr
+                      key={p.fpl_player_id}
+                      className={[
+                        i % 2 === 1 ? 'bg-chalk-100/60' : '',
+                        // Marking the XI shows WHY someone missed out:
+                        // usually a formation limit, not a lower score.
+                        inXi ? 'font-medium' : '',
+                      ].join(' ')}
+                    >
+                      <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
+                        {p.slug ? (
+                          <Link to={`/fpl/players/${p.slug}`} className="text-pitch-800 underline underline-offset-2">
+                            {p.web_name}
+                          </Link>
+                        ) : (
+                          p.web_name
+                        )}
+                        {inXi && <span className="text-pitch-700 ml-1" title="In the team of the week">&#9733;</span>}
+                      </th>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.points}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{p.minutes}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.goals}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.assists}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.clean_sheets}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.bonus}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/fpl/actual-matches" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

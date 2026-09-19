@@ -64,19 +64,60 @@ export async function getTotwVsModel(eventId?: number): Promise<TotwComparison |
   };
 }
 
-/** Completed gameweeks, newest first -- the weeks that have a team of
- * the week at all.
+/** Gameweeks that actually have returns, newest first.
  *
- * A gameweek counts as complete only if somebody scored: FPL creates
- * rows for an upcoming week with zeros, and treating those as played
- * would produce an XI of eleven blanks. */
-export async function getCompletedGameweeks(seasonId = 13): Promise<number[]> {
+ * Drives one page per gameweek instead of a single page that silently
+ * means something different each week. A URL that changes under you
+ * can't be linked to or indexed with confidence -- the same argument
+ * that gave players and matches their own slugs.
+ *
+ * "Completed" means someone scored: rows exist for an upcoming gameweek
+ * with zero points, so counting rows would call a gameweek finished
+ * before it kicked off. */
+export type CompletedGameweek = {
+  fpl_event_id: number;
+  players: number;
+  total_points: number;
+  best_score: number;
+};
+
+export async function getCompletedGameweeks(seasonId = 13): Promise<CompletedGameweek[]> {
+  const { data, error } = await (supabase as any).rpc('get_completed_gameweeks', { p_season_id: seasonId });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    fpl_event_id: Number(r.fpl_event_id),
+    players: Number(r.players),
+    total_points: Number(r.total_points),
+    best_score: Number(r.best_score),
+  }));
+}
+
+/** Top scorers of a gameweek, whether or not they made the XI.
+ *
+ * This is what the separate Gameweek Results page was for. Folded in
+ * here because one substantial page per gameweek beats two thin ones
+ * competing for the same search, and because the XI only makes sense
+ * beside the players who just missed it. */
+export async function getGameweekScorers(eventId: number, seasonId = 13, limit = 25) {
   const { data, error } = await (supabase as any)
     .from('fpl_player_gameweeks')
-    .select('fpl_event_id, total_points')
+    .select('fpl_player_id, total_points, minutes, goals_scored, assists, clean_sheets, bonus, fpl_players!inner(web_name, slug, element_type, canonical_team_id)')
     .eq('season_id', seasonId)
-    .gt('total_points', 0);
+    .eq('fpl_event_id', eventId)
+    .order('total_points', { ascending: false })
+    .limit(limit);
   if (error) throw error;
-  const weeks = new Set<number>(((data ?? []) as any[]).map((r) => Number(r.fpl_event_id)));
-  return [...weeks].sort((a, b) => b - a);
+  return ((data ?? []) as any[]).map((r) => ({
+    fpl_player_id: Number(r.fpl_player_id),
+    web_name: r.fpl_players?.web_name ?? null,
+    slug: r.fpl_players?.slug ?? null,
+    element_type: Number(r.fpl_players?.element_type ?? 0),
+    points: Number(r.total_points ?? 0),
+    minutes: Number(r.minutes ?? 0),
+    goals: Number(r.goals_scored ?? 0),
+    assists: Number(r.assists ?? 0),
+    clean_sheets: Number(r.clean_sheets ?? 0),
+    bonus: Number(r.bonus ?? 0),
+  }));
 }
+export type GameweekScorer = Awaited<ReturnType<typeof getGameweekScorers>>[number];
