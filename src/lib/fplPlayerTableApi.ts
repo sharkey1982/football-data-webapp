@@ -157,6 +157,27 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   const fixtureIds = (fixtureRows ?? []).map((f) => f.fixture_id);
   const matchweekByFixture = new Map<number, number>();
   for (const f of fixtureRows ?? []) if (f.matchweek !== null) matchweekByFixture.set(f.fixture_id, f.matchweek);
+
+  // fpl_player_gameweeks keys on FPL'S OWN fixture id, which is NOT
+  // fixtures.fixture_id -- only 35 of 376 coincide this season. Matching
+  // them directly dropped ~91% of actual points. fpl_fixtures maps
+  // between the two, so build a matchweek lookup keyed the way the
+  // gameweek rows actually are.
+  const { data: fplFixtureRows, error: fplFixtureError } = await supabase
+    .from('fpl_fixtures')
+    .select('fpl_fixture_id, canonical_fixture_id')
+    .eq('season_id', 13)
+    .in('canonical_fixture_id', fixtureIds);
+  if (fplFixtureError) throw fplFixtureError;
+  const matchweekByFplFixture = new Map<number, number>();
+  const fplFixtureIds: number[] = [];
+  for (const m of fplFixtureRows ?? []) {
+    if (m.fpl_fixture_id === null || m.canonical_fixture_id === null) continue;
+    const mw = matchweekByFixture.get(m.canonical_fixture_id);
+    if (mw === undefined) continue;
+    matchweekByFplFixture.set(m.fpl_fixture_id, mw);
+    fplFixtureIds.push(m.fpl_fixture_id);
+  }
   if (fixtureIds.length === 0) return [];
 
   // PostgREST caps rows per request (confirmed live: a 6-week range hit the
@@ -230,7 +251,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
       .select(
         'fpl_player_id, fpl_fixture_id, total_points, minutes, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_saved, penalties_missed, yellow_cards, red_cards, saves, bonus, source_payload'
       )
-      .in('fpl_fixture_id', fixtureIds)
+      .in('fpl_fixture_id', fplFixtureIds)
       .range(from, to)
   );
 
@@ -316,7 +337,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   }
 
   for (const g of gwRows) {
-    const mw = matchweekByFixture.get(g.fpl_fixture_id);
+    const mw = matchweekByFplFixture.get(g.fpl_fixture_id);
     if (mw === undefined || g.total_points === null) continue;
     const key = keyOf(g.fpl_player_id, mw);
     const row = rowByKey.get(key) ?? emptyRow(g.fpl_player_id, mw);

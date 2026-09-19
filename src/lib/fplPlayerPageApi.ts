@@ -107,24 +107,45 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
   if (projError) throw projError;
   const projByFixture = new Map<number, any>((projRows ?? []).map((p) => [p.fixture_id, p]));
 
-  // Actual results link via fpl_fixture_id, NOT a fixture_id column (there
-  // isn't one on this table) -- verified directly that all 2,548 of this
-  // season's rows join cleanly to fixtures.fixture_id on it, and it's the
-  // same column fplPlayerTableApi.ts already joins on.
+  // fpl_player_gameweeks.fpl_fixture_id is FPL'S OWN fixture id, which is
+  // NOT the same number as fixtures.fixture_id -- only 35 of 376 (9.3%)
+  // coincide. The previous version compared them directly and claimed in
+  // a comment that they "join cleanly"; in practice roughly 91% of a
+  // player's actual points silently vanished, and only the handful of
+  // accidental id collisions ever showed (Haaland's GW1 was one, which is
+  // why the page looked half-right rather than empty).
+  //
+  // fpl_fixtures is the mapping table: fpl_fixture_id -> canonical_fixture_id.
+  const { data: fplFixtureRows, error: mapError } = await supabase
+    .from('fpl_fixtures')
+    .select('fpl_fixture_id, canonical_fixture_id')
+    .eq('season_id', PL_SEASON_ID)
+    .in('canonical_fixture_id', fixtureIds);
+  if (mapError) throw mapError;
+  const canonicalByFplFixture = new Map<number, number>(
+    (fplFixtureRows ?? [])
+      .filter((m): m is typeof m & { fpl_fixture_id: number; canonical_fixture_id: number } =>
+        m.fpl_fixture_id !== null && m.canonical_fixture_id !== null)
+      .map((m) => [m.fpl_fixture_id, m.canonical_fixture_id])
+  );
+
   const { data: actualRows, error: actualError } = await supabase
     .from('fpl_player_gameweeks')
     .select('fpl_fixture_id, total_points')
     .eq('fpl_player_id', fplPlayerId)
     .eq('season_id', PL_SEASON_ID)
-    .in('fpl_fixture_id', fixtureIds);
+    .in('fpl_fixture_id', [...canonicalByFplFixture.keys()]);
   if (actualError) throw actualError;
-  // fpl_fixture_id and total_points are both nullable in
-  // fpl_player_gameweeks; a row missing either can't be keyed or scored.
+  // Keyed by CANONICAL fixture id, so the lookup below matches the
+  // fixture rows this page is built from.
   const actualByFixture = new Map<number, number>(
     (actualRows ?? [])
       .filter((a): a is typeof a & { fpl_fixture_id: number; total_points: number } =>
         a.fpl_fixture_id !== null && a.total_points !== null)
-      .map((a) => [a.fpl_fixture_id, a.total_points])
+      .flatMap((a) => {
+        const canonical = canonicalByFplFixture.get(a.fpl_fixture_id);
+        return canonical === undefined ? [] : [[canonical, a.total_points] as [number, number]];
+      })
   );
 
   return fixtures.map((f) => {

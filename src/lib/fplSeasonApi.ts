@@ -372,14 +372,36 @@ export async function getGameweekPlayerProjections(
 
   const actualPointsByKey = new Map<string, number>();
   if (fixtureIds.length > 0 && playerIds.length > 0) {
+    // fpl_player_gameweeks keys on FPL'S OWN fixture id, NOT
+    // fixtures.fixture_id -- only 35 of 376 coincide this season, so
+    // matching them directly silently dropped ~91% of actual points.
+    // fpl_fixtures is the mapping table.
+    const { data: mapRows, error: mapError } = await supabase
+      .from('fpl_fixtures')
+      .select('fpl_fixture_id, canonical_fixture_id')
+      .eq('season_id', 13)
+      .in('canonical_fixture_id', fixtureIds);
+    if (mapError) throw mapError;
+    const canonicalByFplFixture = new Map<number, number>();
+    for (const m of mapRows ?? []) {
+      if (m.fpl_fixture_id !== null && m.canonical_fixture_id !== null) {
+        canonicalByFplFixture.set(m.fpl_fixture_id, m.canonical_fixture_id);
+      }
+    }
+
     const { data: gwRows, error: gwError } = await supabase
       .from('fpl_player_gameweeks')
       .select('fpl_fixture_id, fpl_player_id, total_points')
-      .in('fpl_fixture_id', fixtureIds)
+      .in('fpl_fixture_id', [...canonicalByFplFixture.keys()])
       .in('fpl_player_id', playerIds);
     if (gwError) throw gwError;
     for (const row of (gwRows ?? [])) {
-      if (row.total_points !== null) actualPointsByKey.set(`${row.fpl_fixture_id}:${row.fpl_player_id}`, row.total_points);
+      const canonical = row.fpl_fixture_id === null ? undefined : canonicalByFplFixture.get(row.fpl_fixture_id);
+      // Keyed by CANONICAL fixture id, matching how the rest of this
+      // function identifies a fixture.
+      if (canonical !== undefined && row.total_points !== null) {
+        actualPointsByKey.set(`${canonical}:${row.fpl_player_id}`, row.total_points);
+      }
     }
   }
 

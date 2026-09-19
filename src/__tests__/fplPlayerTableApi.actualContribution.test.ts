@@ -35,6 +35,9 @@ describe('actual-points contribution reconstruction (via getPlayerGameweekPoints
   it('reconstructs a real MID gameweek to the exact official total -- Gro\u00df, GW4: 17 points', async () => {
     const data: Record<string, any[]> = {
       fixtures: [{ fixture_id: 40, matchweek: 4, league_id: 1, season_id: 13 }],
+      // fpl_player_gameweeks keys on FPL's own fixture id, which differs
+      // from the canonical one -- the mapping table is what joins them.
+      fpl_fixtures: [{ fpl_fixture_id: 40, canonical_fixture_id: 40, season_id: 13 }],
       fpl_player_projections: [],
       fpl_player_gameweeks: [
         {
@@ -85,6 +88,9 @@ describe('actual-points contribution reconstruction (via getPlayerGameweekPoints
   it('reconstructs a real GK gameweek to the exact official total -- Raya, GW4: 14 points', async () => {
     const data: Record<string, any[]> = {
       fixtures: [{ fixture_id: 40, matchweek: 4, league_id: 1, season_id: 13 }],
+      // fpl_player_gameweeks keys on FPL's own fixture id, which differs
+      // from the canonical one -- the mapping table is what joins them.
+      fpl_fixtures: [{ fpl_fixture_id: 40, canonical_fixture_id: 40, season_id: 13 }],
       fpl_player_projections: [],
       fpl_player_gameweeks: [
         {
