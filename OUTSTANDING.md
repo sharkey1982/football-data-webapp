@@ -165,6 +165,29 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### FPL player Discover page — THE GAP
+There's no per-player page in FPL Discover. Historic data has nowhere
+natural to live, and there's now a lot of it:
+  - 4 seasons of totals (2,223 player-seasons)
+  - 19,375 gameweek rows for 2025/26 incl. price and ownership per GW
+  - player_identity linking the same human across seasons and clubs
+
+What such a page could show, all from data already held:
+  - career arc: points, price and ownership by season
+  - within-season phasing (Haaland 106/81/45 vs Bruno 63/80/92)
+  - price journey across a season
+  - value at different clubs, before and after a transfer
+  - set-piece duty and tactical role for the current season
+
+Existing /fpl/players/:slug is a CURRENT-season projection page, already
+prerendered for 658 players. The historic view could extend it rather
+than becoming a second player page — one canonical URL per player is
+also the better SEO answer.
+
+Needs: a slug on player_identity (fpl_players.slug is per-season), and
+a decision on whether departed players get pages at all.
+
+
 ### Season filters: audited, mostly NOT needed
 Season 13 is hardcoded in ~11 frontend modules, and that's CORRECT for
 almost all of them. Injuries, price risk, transfer window, set pieces
