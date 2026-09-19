@@ -17,12 +17,21 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getMarketEfficiency, marginPct, type MarketEfficiencyRow } from '../../lib/marketApi';
+import {
+  getMarketEfficiency,
+  getOverroundTrend,
+  overroundBySeason,
+  seasonLabel,
+  marginPct,
+  type MarketEfficiencyRow,
+  type OverroundPoint,
+} from '../../lib/marketApi';
 
 const PYRAMID = ['E0', 'E1', 'E2', 'E3', 'EC'];
 
 export default function MarketEfficiencyPage() {
   const [rows, setRows] = useState<MarketEfficiencyRow[] | null>(null);
+  const [trend, setTrend] = useState<OverroundPoint[]>([]);
 
   useDocumentHead({
     title: 'How sharply is each division priced?',
@@ -35,6 +44,9 @@ export default function MarketEfficiencyPage() {
     getMarketEfficiency(true)
       .then(setRows)
       .catch(() => setRows([]));
+    getOverroundTrend()
+      .then(setTrend)
+      .catch(() => setTrend([]));
   }, []);
 
   if (rows === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
@@ -91,6 +103,48 @@ export default function MarketEfficiencyPage() {
           })}
         </div>
       </section>
+
+      {trend.length > 1 && (() => {
+        const series = overroundBySeason(trend);
+        if (series.length < 2) return null;
+        const first = series[0];
+        const last = series[series.length - 1];
+        const max = Math.max(...series.map((s2) => s2.margin));
+        const rising = last.margin > first.margin;
+        return (
+          <section>
+            <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Has the margin moved?</h2>
+            <p className="text-ink-700 mt-1 max-w-prose">
+              Margins are widely assumed to have compressed as online betting grew more competitive. Across this
+              archive the opposite has happened: the average closing overround went from{' '}
+              <strong>{first.margin.toFixed(2)}%</strong> in {seasonLabel(first.season)} to{' '}
+              <strong>{last.margin.toFixed(2)}%</strong> in {seasonLabel(last.season)}
+              {rising ? ' \u2014 wider, not tighter.' : '.'}
+            </p>
+            <div className="space-y-1.5 mt-3">
+              {series.map((s2) => (
+                <div key={s2.season} className="flex items-center gap-3">
+                  <span className="w-16 shrink-0 font-mono text-xs text-ink-700">{seasonLabel(s2.season)}</span>
+                  <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
+                    <div className="bg-pitch-700 h-full rounded" style={{ width: `${(s2.margin / max) * 100}%` }} />
+                  </div>
+                  <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{s2.margin.toFixed(2)}%</span>
+                  {/* Sample size inline: a season still in progress sits
+                      on a fraction of the matches and shouldn't be read
+                      as a finished data point. */}
+                  <span className="w-20 shrink-0 text-right font-mono text-[0.65rem] text-ink-500 tabular-nums">
+                    {s2.matches.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-ink-500 text-xs mt-2 max-w-prose">
+              Closing odds only, pooled across divisions and weighted by matches played. The current season covers far
+              fewer matches than the rest and will move.
+            </p>
+          </section>
+        );
+      })()}
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Favourites and outsiders</h2>

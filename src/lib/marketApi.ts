@@ -56,3 +56,48 @@ export async function getMarketEfficiency(closing = true): Promise<MarketEfficie
 export function marginPct(overround: number): number {
   return Number(((overround - 1) * 100).toFixed(2));
 }
+
+/** Bookmaker margin by season -- the trend, not the snapshot.
+ *
+ * Worth surfacing because it contradicts the common assumption. Margins
+ * are widely said to have compressed as online competition grew; across
+ * this archive the average overround has RISEN since 2019/20. */
+export type OverroundPoint = {
+  season_label: string;
+  league_code: string;
+  matches: number;
+  overround: number;
+};
+
+export async function getOverroundTrend(): Promise<OverroundPoint[]> {
+  const { data, error } = await (supabase as any).rpc('get_overround_trend', { p_bookmaker: 'Avg' });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    matches: Number(r.matches),
+    overround: Number(r.overround),
+  }));
+}
+
+/** Pooled across divisions, weighted by matches -- a season's margin
+ * shouldn't be the flat mean of five divisions of very different size. */
+export function overroundBySeason(points: OverroundPoint[]): { season: string; margin: number; matches: number }[] {
+  const bySeason = new Map<string, OverroundPoint[]>();
+  for (const p of points) {
+    if (!bySeason.has(p.season_label)) bySeason.set(p.season_label, []);
+    bySeason.get(p.season_label)!.push(p);
+  }
+  return [...bySeason.entries()]
+    .map(([season, list]) => {
+      const matches = list.reduce((s, p) => s + p.matches, 0);
+      const weighted = list.reduce((s, p) => s + p.overround * p.matches, 0) / (matches || 1);
+      return { season, matches, margin: Number(((weighted - 1) * 100).toFixed(2)) };
+    })
+    .sort((a, b) => a.season.localeCompare(b.season));
+}
+
+/** Formats "2425" as "2024/25". */
+export function seasonLabel(raw: string): string {
+  if (raw.length !== 4) return raw;
+  return `20${raw.slice(0, 2)}/${raw.slice(2)}`;
+}

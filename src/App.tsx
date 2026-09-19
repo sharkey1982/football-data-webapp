@@ -135,6 +135,14 @@ export default function App() {
             }
           />
           <Route
+            path="football/projections"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <GameweekBrowser variant="projections" />
+              </Suspense>
+            }
+          />
+          <Route
             path="fixtures"
             element={
               <Suspense fallback={<RouteFallback />}>

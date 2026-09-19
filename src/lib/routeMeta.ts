@@ -91,6 +91,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/projections',
+    title: 'Results Projections',
+    description:
+      'Predicted scorelines for upcoming fixtures across the English divisions, from a Dixon-Coles model fitted on real results.',
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/preview',
     title: 'Head to Heads \u2014 compare any two teams',
     description: 'Pick any two teams for a head-to-head comparison and a Dixon-Coles prediction.',

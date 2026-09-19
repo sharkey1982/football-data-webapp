@@ -166,11 +166,12 @@ owns them). Both covered by test.
 Discover's fixtures page should report what happened and link OUT to the
 prediction, rather than mixing modelled and factual columns.
 
-### Upcoming fixtures with predictions
-Requested as a second "Match Preview"-style page. Recommend building it
-as a MODE of the fixtures page (future-only + prediction columns) rather
-than a third page — otherwise there are three near-identical fixture
-lists to keep consistent.
+### Results Projections — DONE
+Added to Football > Predict at /football/projections, as a VARIANT of
+the fixtures browser rather than a new page. The browser already shows a
+result where one exists and a prediction where it doesn't, so archive
+and projections are the same data framed backward or forward. A separate
+copy would have meant a third fixture list to keep in step.
 
 ### Gameweek Results: add a player-level table
 Currently match-level only. The data is already there.

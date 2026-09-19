@@ -85,6 +85,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           "Forecasts from a Dixon-Coles model fitted on real results \u2014 and an honest account of how accurate they've been. A prediction is only worth reading next to its track record.",
         links: [
+          { label: 'Results Projections', to: '/football/projections', blurb: 'Predicted scorelines for every upcoming fixture.' },
           { label: 'Head to Heads', to: '/preview', blurb: 'Pick any two teams for a full head-to-head and prediction.' },
           { label: 'Team Strength', to: '/team-strength', blurb: 'Every club\u2019s attack and defence rating, with projected against actual.' },
         ],

@@ -116,13 +116,31 @@ function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
   return <span className="text-ink-500 text-xs font-mono text-center">vs</span>;
 }
 
-export default function GameweekBrowser() {
-  useDocumentHead({
-    title: 'Fixtures, Results & League Predictions',
-    description:
-      'Browse football fixtures and results by division or team, with Dixon-Coles expected-goals predictions for upcoming matches.',
-    path: '/fixtures',
-  });
+/** `variant` changes what the page is FOR, not what it fetches.
+ *
+ * The browser already shows a result where one exists and a prediction
+ * where it doesn't, so "fixtures and results" and "results projections"
+ * are the same data framed backward or forward. Giving Predict its own
+ * copy would mean a third fixture list to keep consistent with the other
+ * two -- the thing that has already gone wrong twice here with nav
+ * labels and route lists. */
+export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'archive' | 'projections' } = {}) {
+  const isProjections = variant === 'projections';
+  useDocumentHead(
+    isProjections
+      ? {
+          title: 'Results Projections',
+          description:
+            'Predicted scorelines for upcoming fixtures across the English divisions, from a Dixon-Coles model fitted on real results.',
+          path: '/football/projections',
+        }
+      : {
+          title: 'Fixtures, Results & League Predictions',
+          description:
+            'Browse football fixtures and results by division or team, with Dixon-Coles expected-goals predictions for upcoming matches.',
+          path: '/fixtures',
+        }
+  );
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -611,7 +629,15 @@ export default function GameweekBrowser() {
       <FixtureChangeBanner />
       <div>
         <div className="flex items-baseline gap-2 flex-wrap">
-          <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">Fixtures</h1>
+          <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">
+            {isProjections ? 'Results Projections' : 'Fixtures'}
+          </h1>
+          {isProjections && (
+            <p className="text-sm text-ink-500 mt-1 max-w-prose">
+              Predicted scorelines for fixtures still to be played, from the Dixon-Coles model. Matches already played
+              show the real result instead &mdash; the same browser, looking forward.
+            </p>
+          )}
           {lastRefresh && (
             <span className="text-xs text-ink-500 font-mono">Updated {formatRefreshDate(lastRefresh)}</span>
           )}
