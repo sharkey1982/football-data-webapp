@@ -418,5 +418,11 @@ describe('TeamStrengthPage', () => {
     expect(screen.queryByText('Adjust Team Ratings')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reset to model/ })).not.toBeInTheDocument();
+
+    // No job triggers either. "Refresh FPL projections" kicks off a real
+    // GitHub Actions workflow and sat OUTSIDE the admin guard, so every
+    // visitor to the public Football > Predict page could fire it.
+    expect(screen.queryByRole('button', { name: /Refresh FPL projections/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Simulate/i })).not.toBeInTheDocument();
   });
 });

@@ -391,6 +391,12 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
             </div>
           )}
 
+          {isAdmin && (
+            <>
+          {/* Kicks off a GitHub Actions workflow -- operational, so it
+              belongs behind the admin gate with the other job triggers.
+              It previously sat ABOVE the guard and rendered for every
+              visitor on the public page. */}
           <div className="flex items-center gap-3 flex-wrap">
             <button
               type="button"
@@ -403,9 +409,6 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
             </button>
             {refreshResult && <p className="text-xs text-ink-500">{refreshResult}</p>}
           </div>
-
-          {isAdmin && (
-            <>
           <div className="flex items-center gap-3 flex-wrap">
             <button
               type="button"
