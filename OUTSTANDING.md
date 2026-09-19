@@ -91,27 +91,24 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
-### Re-ingest the full Opta workbook — HIGH VALUE
-The database holds an aggregated SLICE of the source file: 121
-formation-slot rows with ~12 stats. The original workbook is
-per-player-per-match with ~200 columns, including exactly the
-breakdowns previously recorded as impossible:
+### Opta set-piece breakdown — DONE
+The full workbook was supplied and extracted. opta_slot_breakdown now
+holds the type split that was previously reported as impossible:
 
-  Goals from penalties / Goals from Direct Free Kick / Goals from
-  Corners / Goals from Set Play / Goals Open Play
-  Goal Assist Corner / Goal Assist Free Kick / Goal Assist Throw In /
-  Goal Assist Set Piece
-  Penalties Taken, Corners Taken, Key Corner, Key Free Kick
-  Team Formation, Position in Formation
+  7.3% of goals from penalties, 12.8% from corners, 3.2% from direct
+  free kicks; 13.4% of assists from corners, 7.0% from free kicks.
 
-So "x% of goals from penalties" and a properly weighted set-piece INDEX
-(penalty takers worth more than corner takers) both become possible --
-they were blocked only by the truncated import, not by the data.
+Aggregated to formation-slot level (121 rows), not per-player: this is
+2011/12, so no player is current, and the ROLE is what carries forward.
+scripts/extract_opta_workbook.py reproduces it from the source file.
 
-It also unlocks per-PLAYER analysis rather than slot aggregates, and a
-real answer to which slot a player occupied.
+Totals reconcile exactly with the pre-existing aggregates (916 goals,
+635 open play), confirming the two agree.
 
-The workbook is not stored in the database; it would need re-supplying.
+REMAINING: the weighted set-piece index can now be built -- penalties
+are worth ~7.3% of goals against corners' 12.8% spread across far more
+takers, so takers can finally be weighted by type rather than treated
+alike.
 
 ### Player position half-steps (e.g. 9.5)
 When configuring team set-ups, a player may sit between two slots -- a
