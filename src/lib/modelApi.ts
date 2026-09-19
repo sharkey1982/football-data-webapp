@@ -13,7 +13,9 @@ import { getMostRecentFixtureSeason } from './referenceApi';
 export async function getLeagueFitStatusFor(leagueId: number): Promise<LeagueFitStatus | null> {
   const { data, error } = await supabase.from('league_fit_status').select('*').eq('league_id', leagueId).maybeSingle();
   if (error) throw error;
-  return data;
+  // latest_attempted_status mirrors model_fit_runs.status, which has a
+  // CHECK constraint ('pending','accepted','rejected').
+  return data as LeagueFitStatus | null;
 }
 
 /** Full validation_checks jsonb for one fit run -- lazy-loaded on the Data Health page when a row is expanded, rather than bloating league_fit_status with it for every row on every load. */
@@ -79,7 +81,10 @@ export async function getLatestFitRun(leagueId: number) {
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data;
+  // model_fit_runs.status has a CHECK constraint
+  // ('pending','accepted','rejected') and this query filters to
+  // 'accepted'; Postgres stores it as text so codegen widens it.
+  return data as ModelFitRun | null;
 }
 
 /**

@@ -174,7 +174,13 @@ export async function getRawMatchFiles(): Promise<RawMatchFile[]> {
     .order('season_label', { ascending: false })
     .order('competition_code', { ascending: true, nullsFirst: false });
   if (error) throw error;
-  return data ?? [];
+  // column_names is jsonb, so codegen types it as Json. It is an array of
+  // CSV header strings in all 190 rows; normalise here so consumers can
+  // iterate it, defaulting to empty rather than crashing if that changes.
+  return (data ?? []).map((r) => ({
+    ...r,
+    column_names: Array.isArray(r.column_names) ? (r.column_names as string[]) : [],
+  }));
 }
 
 /**
@@ -193,6 +199,18 @@ export async function getSourceMatchRows(rawFileId: number): Promise<SourceMatch
     .order('source_match_date', { ascending: true, nullsFirst: false })
     .order('source_row_number', { ascending: true, nullsFirst: false });
   if (error) throw error;
-  return data ?? [];
+  // raw_data is jsonb, so its generated type is Json -- which legitimately
+  // includes scalars and arrays. Every row the importer writes is an object
+  // keyed by that file's CSV column names, and every consumer reads it as
+  // one, so normalise here (once) rather than guarding at each of the ~14
+  // places SourceData indexes into it. A non-object becomes an empty
+  // record instead of crashing the page.
+  return (data ?? []).map((r) => ({
+    ...r,
+    raw_data:
+      r.raw_data !== null && typeof r.raw_data === 'object' && !Array.isArray(r.raw_data)
+        ? (r.raw_data as Record<string, unknown>)
+        : {},
+  }));
 }
 

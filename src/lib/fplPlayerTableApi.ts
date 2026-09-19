@@ -29,7 +29,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION } from './fplApi';
+import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION, asElementType } from './fplApi';
 import type { FplElementType } from '../types/database';
 
 export const PLAYER_TABLE_MODEL_VERSION = CURRENT_MODEL_VERSION;
@@ -256,7 +256,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     playerInfo.set(p.fpl_player_id, {
       web_name: p.web_name ?? 'Unknown',
       slug: (p as any).slug ?? null,
-      fpl_position: p.element_type,
+      fpl_position: asElementType(p.element_type),
       team_id: p.canonical_team_id ?? 0,
       price: p.now_cost != null ? p.now_cost / 10 : null,
     });

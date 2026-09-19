@@ -19,6 +19,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import type { Json } from '../types/database';
 import type {
   FplElementType,
   FplPlayer,
@@ -75,14 +76,34 @@ export function num(v: string | number | null | undefined): number | null {
  * come back as strings there (PostgREST jsonb ->> operator), same as the
  * numeric-string columns num() already handles.
  */
+
+/** FPL encodes position as 1-4 (GKP/DEF/MID/FWD), but fpl_players.element_type
+ * has NO check constraint -- the database could hold any int, and only does
+ * hold 1-4 because that's what FPL's API sends. Narrow at the read boundary
+ * rather than claiming the guarantee in the table type. */
+/** A v6 feed row already confirmed to carry a player id -- see the filter
+ * in getFixtureProjection. Named so the guarantee survives into helper
+ * signatures instead of being re-proved at each use. */
+type ProjectedRow = FplProjectionFrontendFeedV6 & { fpl_player_id: number };
+
+export function asElementType(v: number | null | undefined): FplElementType | null {
+  return v === 1 || v === 2 || v === 3 || v === 4 ? v : null;
+}
+
 export function seasonContextStats(
-  player: { minutes: number | null; source_payload: Record<string, unknown> | null },
+  player: { minutes: number | null; source_payload: Json | null },
   gamesInvolved?: number | null
 ): {
   points_per_game: number | null;
   avg_minutes_per_start: number | null;
 } {
-  const payload = player.source_payload;
+  // source_payload is jsonb, so its generated type is Json -- which
+  // legitimately includes scalars and arrays, not just objects. Only
+  // index it once it's actually been confirmed to be a plain object.
+  const payload =
+    player.source_payload !== null && typeof player.source_payload === 'object' && !Array.isArray(player.source_payload)
+      ? (player.source_payload as Record<string, unknown>)
+      : null;
   const pointsPerGame = payload ? num(payload['points_per_game'] as string | number | null) : null;
   // "games involved" (gameweeks with minutes>0, requested separately via
   // getGamesInvolvedCounts) is the correct denominator -- requested
@@ -434,7 +455,13 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     squadStatusByPlayer.set(row.fpl_player_id, row.squad_status);
   }
 
-  const projections = (v6Rows ?? []) as FplProjectionFrontendFeedV6[];
+  // The v6 feed's fpl_player_id is nullable in the generated type (it's a
+  // view, so PostgREST can't prove otherwise); 0 of 7,302 rows are null
+  // today. A row with no player id can't be joined to fpl_players or keyed,
+  // so drop it rather than assert.
+  const projections: ProjectedRow[] = ((v6Rows ?? []) as FplProjectionFrontendFeedV6[]).filter(
+    (p): p is ProjectedRow => p.fpl_player_id !== null
+  );
   const playerIds = [...new Set(projections.map((p) => p.fpl_player_id))];
   const xptsBreakdownByPlayer = new Map((xptsBreakdownRows ?? []).map((r) => [r.fpl_player_id, r]));
 
@@ -449,7 +476,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
   const playerById = new Map((players ?? []).map((p) => [p.fpl_player_id, p]));
   const formationByTeam = new Map((teamTactics ?? []).map((t) => [t.team_id, t]));
 
-  const buildPlayer = (proj: FplProjectionFrontendFeedV6): FplFixtureProjectionPlayer | null => {
+  const buildPlayer = (proj: ProjectedRow): FplFixtureProjectionPlayer | null => {
     const player = playerById.get(proj.fpl_player_id);
     if (!player) return null;
     const breakdown = xptsBreakdownByPlayer.get(proj.fpl_player_id);
@@ -464,11 +491,13 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     return {
       fpl_player_id: proj.fpl_player_id,
       web_name: player.web_name ?? proj.web_name ?? `Player ${proj.fpl_player_id}`,
-      fpl_position: player.element_type ?? proj.fpl_position,
-      fpl_position_label: player.element_type ? FPL_POSITION_LABEL[player.element_type] : '—',
+      fpl_position: asElementType(player.element_type) ?? asElementType(proj.fpl_position),
+      fpl_position_label: asElementType(player.element_type)
+        ? FPL_POSITION_LABEL[asElementType(player.element_type)!]
+        : '—',
       tactical_role: proj.tactical_role,
       tactical_role_sources: null, // not part of the v6 feed -- the feed itself is already the consensus output
-      position_signal: computePositionSignal(player.element_type, proj.tactical_role),
+      position_signal: computePositionSignal(asElementType(player.element_type), proj.tactical_role),
       set_piece_roles: (setPieceRolesByPlayer.get(proj.fpl_player_id) ?? []).sort((a, b) => a.rank - b.rank),
       squad_status: squadStatusByPlayer.get(proj.fpl_player_id) ?? null,
       penalty_points_share: penaltyPointsShare,
@@ -508,7 +537,9 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
   const byTeam = new Map<number, FplFixtureProjectionPlayer[]>();
   let modelVersion = CURRENT_MODEL_VERSION;
   for (const proj of projections ?? []) {
-    modelVersion = proj.model_version;
+    // model_version is nullable in the view's generated type; keep the
+    // existing CURRENT_MODEL_VERSION default rather than asserting.
+    modelVersion = proj.model_version ?? modelVersion;
     const player = playerById.get(proj.fpl_player_id);
     if (!player || player.canonical_team_id == null) continue;
     const built = buildPlayer(proj);
@@ -619,11 +650,26 @@ export async function getFplActualVsPredicted(fixtureId: number): Promise<FplAct
     .select('*')
     .eq('fixture_id', fixtureId);
   if (error) throw error;
-  const rows = (data ?? []) as FplPredictionActualStartComparison[];
+  // fpl_prediction_actual_start_comparison reads fixture_actual_lineup_players
+  // through a plain JOIN, but fpl_player_id, web_name and minutes are all
+  // NULLABLE in that base table -- an inner join doesn't rescue a nullable
+  // column. 0 of 1,229 rows are null today. A row with no player id can't be
+  // keyed, and one with no name or minutes can't be displayed or sorted, so
+  // drop those rather than assert. starter, team_id and player_name_source
+  // are NOT NULL at source.
+  type ActualComparisonRow = FplPredictionActualStartComparison & {
+    fpl_player_id: number;
+    web_name: string;
+    actual_minutes: number;
+  };
+  const rows = ((data ?? []) as FplPredictionActualStartComparison[]).filter(
+    (r): r is ActualComparisonRow =>
+      r.fpl_player_id !== null && r.web_name !== null && r.actual_minutes !== null
+  );
   if (rows.length === 0) return null;
 
   const first = rows[0];
-  const teamIds = [...new Set(rows.map((r) => r.team_id))];
+  const teamIds = [...new Set(rows.map((r) => r.team_id!))];
   // The view has no home/away flag or team name -- both come from fixtures/teams.
   const { data: fixture, error: fixtureError } = await supabase
     .from('fixtures')
@@ -652,9 +698,11 @@ export async function getFplActualVsPredicted(fixtureId: number): Promise<FplAct
       .filter((r) => r.team_id === teamId)
       .map((r) => ({
         fpl_player_id: r.fpl_player_id,
-        player_name: r.player_name_source,
+        // player_name_source, starter and team_id are NOT NULL in
+        // fixture_actual_lineup_players; the view exposes them unchanged.
+        player_name: r.player_name_source!,
         web_name: r.web_name,
-        actual_started: r.actual_started,
+        actual_started: r.actual_started!,
         actual_minutes: r.actual_minutes,
         predicted_start_probability: r.predicted_start_probability,
         predicted_minutes: r.predicted_minutes,
@@ -751,11 +799,16 @@ export async function getSquadPitchEnrichment(matchweek: number, playerIds: numb
   const seasonStatsByPlayer = new Map<number, ReturnType<typeof seasonContextStats>>();
   for (const row of playerRows ?? []) seasonStatsByPlayer.set(row.fpl_player_id, seasonContextStats(row, gamesInvolvedByPlayer.get(row.fpl_player_id) ?? null));
 
-  for (const proj of (v6Rows ?? []) as FplProjectionFrontendFeedV6[]) {
+  // Same guard as getFixtureProjection: a feed row with no player id can't
+  // be keyed into the output map.
+  const v6Projected = ((v6Rows ?? []) as FplProjectionFrontendFeedV6[]).filter(
+    (p): p is ProjectedRow => p.fpl_player_id !== null
+  );
+  for (const proj of v6Projected) {
     out.set(proj.fpl_player_id, {
       fpl_player_id: proj.fpl_player_id,
       tactical_role: proj.tactical_role,
-      position_signal: computePositionSignal(proj.fpl_position, proj.tactical_role),
+      position_signal: computePositionSignal(asElementType(proj.fpl_position), proj.tactical_role),
       start_probability: num(proj.start_probability),
       lineup_confidence: num(proj.lineup_confidence),
       set_piece_roles: setPieceRolesByPlayer.get(proj.fpl_player_id) ?? [],

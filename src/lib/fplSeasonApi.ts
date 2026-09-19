@@ -20,6 +20,13 @@ import { supabase } from './supabase';
 import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION } from './fplApi';
 import type { FplElementType } from '../types/database';
 
+/** FPL encodes position as 1-4 (GKP/DEF/MID/FWD). Postgres stores it as a
+ * plain int, so generated types widen it to `number`; this narrows it back
+ * without asserting, returning null for anything outside the known set. */
+function asElementType(v: number | null): FplElementType | null {
+  return v === 1 || v === 2 || v === 3 || v === 4 ? v : null;
+}
+
 /** The model_version the production xPts feed currently uses league-wide -- re-exported from fplApi.ts's single source of truth so the two screens never disagree. */
 export const SEASON_XPTS_MODEL_VERSION = CURRENT_MODEL_VERSION;
 
@@ -45,8 +52,15 @@ export async function getSeasonSummary(): Promise<SeasonGameweekSummary[]> {
 
   const byWeek = new Map<number, { dates: string[]; played: number; total: number }>();
   for (const row of data ?? []) {
+    // fixtures.matchweek is NULLABLE in the schema (24 fixtures across
+    // other leagues/seasons have no matchweek). This view's WHERE clause
+    // happens to exclude all of them today, but nothing guarantees that,
+    // so skip rather than assert -- a null here would otherwise become a
+    // Map key and silently corrupt the gameweek grouping.
+    // kickoff_date IS NOT NULL in fixtures, so it needs no such guard.
+    if (row.matchweek === null) continue;
     const entry = byWeek.get(row.matchweek) ?? { dates: [], played: 0, total: 0 };
-    entry.dates.push(row.kickoff_date);
+    entry.dates.push(row.kickoff_date!);
     entry.total += 1;
     if (row.status === 'played') entry.played += 1;
     byWeek.set(row.matchweek, entry);
@@ -107,19 +121,29 @@ export async function getGameweekFixtures(matchweek: number): Promise<SeasonFixt
     .order('kickoff_time', { ascending: true });
   if (error) throw error;
 
+  // Non-null assertions below are justified per column, not blanket:
+  //   fixture_id, kickoff_date, status  -- NOT NULL in fixtures
+  //   home_team/away_team, *_team_id    -- reached via plain (inner) JOIN
+  //                                        onto teams, and NOT NULL there
+  //   has_projection                    -- a CASE that always yields t/f
+  //   matchweek                         -- nullable in fixtures, but this
+  //                                        query filters .eq('matchweek', n)
+  //                                        so any returned row has it set
+  // predicted_* are genuinely nullable and stay so. PostgREST types every
+  // view column as nullable because it can't see any of this from the SQL.
   return (data ?? []).map((f) => ({
-    fixture_id: f.fixture_id,
-    matchweek: f.matchweek,
-    kickoff_date: f.kickoff_date,
+    fixture_id: f.fixture_id!,
+    matchweek: f.matchweek!,
+    kickoff_date: f.kickoff_date!,
     kickoff_time: f.kickoff_time,
-    status: f.status,
-    home_team_id: f.home_team_id,
-    home_team: f.home_team,
-    away_team_id: f.away_team_id,
-    away_team: f.away_team,
+    status: f.status!,
+    home_team_id: f.home_team_id!,
+    home_team: f.home_team!,
+    away_team_id: f.away_team_id!,
+    away_team: f.away_team!,
     predicted_home_goals: num(f.predicted_home_goals),
     predicted_away_goals: num(f.predicted_away_goals),
-    has_projection: f.has_projection,
+    has_projection: f.has_projection!,
   }));
 }
 
@@ -207,8 +231,26 @@ export async function getGameweekPlayerProjections(
 ): Promise<SeasonPlayerProjection[]> {
   let query = supabase.from('fpl_season_player_projection_feed').select('*').eq('matchweek', matchweek);
   if (fixtureId !== undefined) query = query.eq('fixture_id', fixtureId);
-  const { data: projections, error } = await query;
+  const { data: projectionsRaw, error } = await query;
   if (error) throw error;
+
+  // fpl_season_player_projection_feed reads fpl_player_projections via
+  // plain JOINs onto fixtures and fpl_players. fixture_id and
+  // fpl_player_id are NOT NULL in fpl_player_projections, and matchweek
+  // is constrained by this query's own .eq() filter -- but team_id is a
+  // COALESCE of two NULLABLE fpl_players columns and web_name is
+  // nullable there too, so a row can genuinely lack either. Those rows
+  // can't be keyed to a team or displayed, so drop them here rather than
+  // assert further down.
+  type ProjRow = NonNullable<typeof projectionsRaw>[number];
+  const projections = (projectionsRaw ?? []).filter(
+    (p): p is ProjRow & { fixture_id: number; fpl_player_id: number; matchweek: number; team_id: number; web_name: string } =>
+      p.fixture_id !== null &&
+      p.fpl_player_id !== null &&
+      p.matchweek !== null &&
+      p.team_id !== null &&
+      p.web_name !== null
+  );
 
   // Actual results are fetched independently of projections -- a fixture
   // can have real backfilled results with no projection at all (true for
@@ -219,17 +261,43 @@ export async function getGameweekPlayerProjections(
   const { data: actualRows, error: actualError } = await actualQuery;
   if (actualError) throw actualError;
 
+  // fpl_prediction_actual_start_comparison reads fixture_actual_lineup_players
+  // via a plain JOIN, but fpl_player_id, web_name and minutes are all
+  // NULLABLE in that base table -- an inner join doesn't rescue a nullable
+  // column. None are null today (1,229 rows checked), but a row missing an
+  // id or a name can't be keyed or displayed, so drop those rather than
+  // assert. starter and team_id are NOT NULL at source.
+  type ActualRow = NonNullable<typeof actualRows>[number];
+  const usableActuals = (actualRows ?? []).filter(
+    (
+      r
+    ): r is ActualRow & {
+      fpl_player_id: number;
+      web_name: string;
+      actual_minutes: number;
+      fixture_id: number;
+      matchweek: number;
+      team_id: number;
+    } =>
+      r.fpl_player_id !== null &&
+      r.web_name !== null &&
+      r.actual_minutes !== null &&
+      r.fixture_id !== null &&
+      r.matchweek !== null &&
+      r.team_id !== null
+  );
+
   const actualByKey = new Map<string, { started: boolean; minutes: number; team_id: number; web_name: string }>();
-  for (const r of actualRows ?? []) {
+  for (const r of usableActuals) {
     actualByKey.set(`${r.fixture_id}:${r.fpl_player_id}`, {
-      started: r.actual_started,
+      started: r.actual_started!,
       minutes: r.actual_minutes,
-      team_id: r.team_id,
+      team_id: r.team_id!,
       web_name: r.web_name,
     });
   }
 
-  const fixtureIds = [...new Set([...(projections ?? []).map((p) => p.fixture_id), ...(actualRows ?? []).map((r) => r.fixture_id)])];
+  const fixtureIds = [...new Set([...projections.map((p) => p.fixture_id), ...usableActuals.map((r) => r.fixture_id)])];
   const statusByFixture = new Map<number, string>();
   const kickoffByFixture = new Map<number, string>();
   if (fixtureIds.length > 0) {
@@ -239,12 +307,14 @@ export async function getGameweekPlayerProjections(
       .in('fixture_id', fixtureIds);
     if (fixtureError) throw fixtureError;
     for (const f of fixtureRows ?? []) {
-      statusByFixture.set(f.fixture_id, f.status);
-      kickoffByFixture.set(f.fixture_id, f.kickoff_date);
+      // fixture_id, status and kickoff_date are all NOT NULL in fixtures;
+      // this view selects them through a plain JOIN, so they're present.
+      statusByFixture.set(f.fixture_id!, f.status!);
+      kickoffByFixture.set(f.fixture_id!, f.kickoff_date!);
     }
   }
 
-  const playerIds = [...new Set((projections ?? []).map((p) => p.fpl_player_id))];
+  const playerIds = [...new Set(projections.map((p) => p.fpl_player_id))];
   const xptsByKey = new Map<string, {
     expected_fpl_points: number | null;
     xpts_appearance: number | null;
@@ -313,19 +383,22 @@ export async function getGameweekPlayerProjections(
     }
   }
 
-  const rows: SeasonPlayerProjection[] = (projections ?? []).map((p) => {
+  const rows: SeasonPlayerProjection[] = projections.map((p) => {
     const actual = actualByKey.get(`${p.fixture_id}:${p.fpl_player_id}`);
     const xpts = xptsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`);
     return {
       fixture_id: p.fixture_id,
       matchweek: p.matchweek,
-      kickoff_date: p.kickoff_date,
+      // fixtures.kickoff_date is NOT NULL, reached via a plain JOIN.
+      kickoff_date: p.kickoff_date!,
       team_id: p.team_id,
       team_name: teamNames.get(p.team_id) ?? 'Unknown',
       web_name: p.web_name,
       fpl_player_id: p.fpl_player_id,
-      fpl_position: p.fpl_position,
-      fpl_position_label: p.fpl_position ? FPL_POSITION_LABEL[p.fpl_position] : '\u2014',
+      // element_type is FPL's own 1-4 GKP/DEF/MID/FWD encoding; the
+      // column is a plain int in Postgres so codegen widens it to number.
+      fpl_position: asElementType(p.fpl_position),
+      fpl_position_label: asElementType(p.fpl_position) ? FPL_POSITION_LABEL[asElementType(p.fpl_position)!] : '\u2014',
       tactical_role: p.tactical_role,
       expected_minutes: num(p.expected_minutes),
       start_probability: num(p.start_probability),
@@ -361,14 +434,14 @@ export async function getGameweekPlayerProjections(
   // player right now -- gets its own row rather than being dropped. Real
   // tactical role/position aren't available for these (no projection
   // pipeline ran for them), so those fields are null -- never guessed.
-  const projectedKeys = new Set((projections ?? []).map((p) => `${p.fixture_id}:${p.fpl_player_id}`));
-  for (const r of actualRows ?? []) {
+  const projectedKeys = new Set(projections.map((p) => `${p.fixture_id}:${p.fpl_player_id}`));
+  for (const r of usableActuals) {
     const key = `${r.fixture_id}:${r.fpl_player_id}`;
     if (projectedKeys.has(key)) continue;
     rows.push({
       fixture_id: r.fixture_id,
       matchweek: r.matchweek,
-      kickoff_date: kickoffByFixture.get(r.fixture_id) ?? r.kickoff_date,
+      kickoff_date: kickoffByFixture.get(r.fixture_id) ?? r.kickoff_date!,
       team_id: r.team_id,
       team_name: teamNames.get(r.team_id) ?? 'Unknown',
       web_name: r.web_name,

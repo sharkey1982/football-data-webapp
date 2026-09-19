@@ -28,7 +28,9 @@ export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportR
     .order('started_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return data ?? [];
+  // status has a CHECK constraint ('success','failed'); Postgres stores it
+  // as text so codegen widens it to string.
+  return (data ?? []) as MatchImportRun[];
 }
 
 export type IntegrityCheck = { check_name: string; status: string; detail: string };
