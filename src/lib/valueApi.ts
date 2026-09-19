@@ -89,3 +89,45 @@ export function valueByPosition(rows: ValueRow[], topN = 5, minMinutes = 180): P
     };
   }).filter((p) => p.playersConsidered > 0);
 }
+
+/** Value by club: whose players have collectively over- or
+ * under-delivered against what they cost.
+ *
+ * A squad-level read that the per-player table can't give. A club high
+ * here is one whose players FPL priced cheaply relative to how they've
+ * actually performed -- typically a promoted or improved side the
+ * pricing model hadn't caught up with.
+ *
+ * Same minutes floor as everywhere else, and a minimum squad size:
+ * a club with three qualifying players would otherwise top the table on
+ * a fluke. */
+export type TeamValue = {
+  team: string;
+  players: number;
+  points: number;
+  cost: number;
+  pointsPerMillion: number;
+};
+
+export function valueByTeam(rows: ValueRow[], minMinutes = 180, minPlayers = 8): TeamValue[] {
+  const byTeam = new Map<string, ValueRow[]>();
+  for (const r of rows) {
+    if (!r.team_name || r.minutes < minMinutes) continue;
+    if (!byTeam.has(r.team_name)) byTeam.set(r.team_name, []);
+    byTeam.get(r.team_name)!.push(r);
+  }
+  return [...byTeam.entries()]
+    .filter(([, list]) => list.length >= minPlayers)
+    .map(([team, list]) => {
+      const points = list.reduce((s, r) => s + r.total_points, 0);
+      const cost = list.reduce((s, r) => s + r.price, 0);
+      return {
+        team,
+        players: list.length,
+        points,
+        cost: Number(cost.toFixed(1)),
+        pointsPerMillion: cost > 0 ? Number((points / cost).toFixed(2)) : 0,
+      };
+    })
+    .sort((a, b) => b.pointsPerMillion - a.pointsPerMillion);
+}

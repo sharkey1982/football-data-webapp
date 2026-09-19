@@ -111,7 +111,21 @@ Blocked on nothing; needs position names per formation (the geometry
 table has coordinates but not labels, and a slot's role genuinely
 differs by shape, so labels have to be per-formation rather than global).
 
-### Bargain Basement: positional value — DONE
+### Bargain Basement: positional value — DONE (claim corrected)
+IMPORTANT: the first version concluded "play five at the back" from the
+value ratio. That was WRONG and is now corrected on the page.
+
+Tested by solving both objectives over this season's data under a
+realistic XI budget:
+  - maximise POINTS: 356 pts, £77.8m, shape 3-5-2
+  - maximise VALUE:  324 pts, £53.9m, shape 5-4-1
+
+Chasing value costs 32 points and leaves ~£24m unspent — maximising a
+ratio doesn't spend a budget. Cheap defenders really are the best value
+per pound, but the saving has to be spent somewhere, and premium
+midfielders convert it better than a fifth budget defender.
+
+A test now asserts the page does NOT draw the five-defender conclusion.
 Compares the five best-value players in each position rather than the
 positional average, because that's who a squad is actually built from
 and the two give different answers: averaged across everyone the four

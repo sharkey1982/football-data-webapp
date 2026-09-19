@@ -67,6 +67,10 @@ describe('ValuePage', () => {
     expect(screen.getByText(/Defenders/)).toBeInTheDocument();
     // 8.0 vs 3.0 -> 2.7x, and the cameo's 20 must not have inflated FWD.
     expect(screen.getByText(/2\.7&times;|2\.7×/)).toBeInTheDocument();
-    expect(screen.getByText(/five at\s+the back/)).toBeInTheDocument();
+    // The page must NOT conclude "play five defenders" from a value
+    // ratio -- tested explicitly, because that was the original claim
+    // and it's wrong: the points-maximising XI plays three at the back.
+    expect(screen.getByText(/value isn.t points/i)).toBeInTheDocument();
+    expect(screen.getByText(/three/)).toBeInTheDocument();
   });
 });

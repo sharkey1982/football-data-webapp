@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getActualValueTable, valueByPosition, type ValueRow } from '../../lib/valueApi';
+import { getActualValueTable, valueByPosition, valueByTeam, type ValueRow } from '../../lib/valueApi';
 
 const POSITIONS = ['All', 'GKP', 'DEF', 'MID', 'FWD'];
 
@@ -36,6 +36,7 @@ export default function ValuePage() {
   }, []);
 
   const byPosition = useMemo(() => (rows ? valueByPosition(rows, 5, 180) : []), [rows]);
+  const byTeam = useMemo(() => (rows ? valueByTeam(rows) : []), [rows]);
 
   const view = useMemo(() => {
     if (!rows) return [];
@@ -105,15 +106,65 @@ export default function ValuePage() {
               ))}
             </div>
             <p className="text-ink-700 text-sm mt-3 max-w-prose">
-              <strong>What that means for your XI.</strong> An FPL side must field 3&ndash;5 defenders, 2&ndash;5
-              midfielders and 1&ndash;3 forwards, so the only real choice is where the flexible places go. On these
-              numbers the marginal defender is better value than the marginal forward, which argues for playing five at
-              the back and one up front rather than the reverse.
+              <strong>But value isn&rsquo;t points.</strong> Points per million is a ratio, and maximising a ratio
+              doesn&rsquo;t spend a budget. Building the highest-value XI from this season&rsquo;s data returns 324 points
+              and leaves roughly &pound;24m unused; building the highest-scoring XI within the same budget returns 356
+              &mdash; and it plays <strong>three</strong> defenders, not five.
             </p>
-            <p className="text-ink-500 text-xs mt-2 max-w-prose">
-              Value isn&rsquo;t everything: forwards carry the higher ceiling on any given week, and a captain is picked
-              for upside rather than efficiency. This says where a budget stretches furthest, not who to captain. Early
-              in a season these gaps move a lot.
+            <p className="text-ink-500 text-sm mt-2 max-w-prose">
+              So cheap defenders are genuinely the best value per pound, and that is still worth knowing &mdash; it tells
+              you where to save. It does not follow that a squad should be built around them. The money saved has to go
+              somewhere, and premium midfielders convert it into more points than a fifth budget defender does. Use this
+              page to find the savings, and the{' '}
+              <Link to="/fpl/optimal-squad" className="text-pitch-800 underline underline-offset-2">
+                optimiser
+              </Link>{' '}
+              to decide where the money goes.
+            </p>
+          </section>
+        );
+      })()}
+
+      {byTeam.length > 2 && (() => {
+        const top = byTeam.slice(0, 5);
+        const bottom = byTeam.slice(-3).reverse();
+        const max = byTeam[0].pointsPerMillion || 1;
+        const Row = ({ t }: { t: (typeof byTeam)[number] }) => (
+          <div className="flex items-center gap-3">
+            <span className="w-28 sm:w-36 shrink-0 text-sm text-ink-700 truncate">{t.team}</span>
+            <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
+              <div className="bg-pitch-700 h-full rounded" style={{ width: `${(t.pointsPerMillion / max) * 100}%` }} />
+            </div>
+            <span className="w-12 shrink-0 text-right font-mono text-xs tabular-nums">{t.pointsPerMillion}</span>
+            <span className="w-24 shrink-0 text-right font-mono text-[0.65rem] text-ink-500 tabular-nums">
+              {t.points} pts / &pound;{t.cost}m
+            </span>
+          </div>
+        );
+        return (
+          <section className="border border-chalk-300 rounded-lg bg-white p-4">
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Which clubs are underpriced</h2>
+            <p className="text-ink-700 text-sm mt-1 max-w-prose">
+              Every qualifying player at a club, pooled: points returned against what the squad costs.{' '}
+              <strong>{byTeam[0].team}</strong> lead on {byTeam[0].pointsPerMillion} points per &pound;m. A club near the
+              top is usually one FPL priced before it improved &mdash; promoted sides and overperformers take time for
+              the pricing to catch up.
+            </p>
+            <div className="space-y-1.5 mt-3">
+              {top.map((t) => (
+                <Row key={t.team} t={t} />
+              ))}
+            </div>
+            <p className="text-xs font-mono uppercase tracking-widest text-ink-500 mt-4">Priced above their returns</p>
+            <div className="space-y-1.5 mt-1.5">
+              {bottom.map((t) => (
+                <Row key={t.team} t={t} />
+              ))}
+            </div>
+            <p className="text-ink-500 text-xs mt-3 max-w-prose">
+              Clubs with fewer than eight qualifying players are excluded &mdash; a small squad sample tops this kind of
+              table on a fluke. Expensive clubs sit lower by construction: a side full of premium players can be both
+              poor value and the right place to spend.
             </p>
           </section>
         );
