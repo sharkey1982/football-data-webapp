@@ -7,6 +7,16 @@ import * as api from '../lib/api';
 import * as seasonApi from '../lib/fplSeasonApi';
 import { triggerWorkflow } from '../lib/workflowTrigger';
 
+// These tests exercise the ADMIN controls -- overrides, reset, workflow
+// triggers -- which are now hidden from visitors because they're inert
+// for them at the database level. Mocking an admin session is the
+// honest way to test them; loosening the gate to make tests pass would
+// put dead buttons back in front of every visitor.
+vi.mock('../lib/auth', () => ({
+  useAuthOptional: () => ({ isAdmin: true, session: null, loading: false }),
+  useAuth: () => ({ isAdmin: true, session: null, loading: false }),
+}));
+
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof api>('../lib/api');
   return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };

@@ -9,7 +9,7 @@
 // place, without digging through individual fixtures.
 // ============================================================================
 
-import { AdminGateNotice } from '../components/AdminGateNotice';
+import { useAuthOptional } from '../lib/auth';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
@@ -26,6 +26,13 @@ function fmt(n: number | null, digits = 2): string {
 }
 
 export default function TeamStrengthPage() {
+  // Since model config became admin-only at the database level, every
+  // write control here is inert for a visitor: the buttons render, the
+  // request goes out, and Postgres refuses it. Hiding them is not
+  // security -- RLS is -- it's honesty about what the page can do for
+  // you. useAuthOptional so the page still renders if it's ever mounted
+  // outside the provider.
+  const isAdmin = useAuthOptional()?.isAdmin ?? false;
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [leagueId, setLeagueId] = useState<number | null>(null);
   const [summary, setSummary] = useState<TeamStrengthSummary | null>(null);
@@ -315,12 +322,14 @@ export default function TeamStrengthPage() {
 
   return (
     <div className="space-y-4">
-      <AdminGateNotice />
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Team Strength</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">
+          {isAdmin ? 'Adjust Team Ratings' : 'Team Strength'}
+        </h1>
         <p className="text-sm text-ink-500 mt-1">
-          Dixon-Coles attack/defence ratings, this season&rsquo;s total projected goals, and last season&rsquo;s actual goals
-          &mdash; a quick sanity check for whether a projection looks fixture-sensitive or just off.
+          {isAdmin
+            ? 'Dixon-Coles attack/defence ratings with manual overrides. Changing a rating regenerates every future fixture prediction from it.'
+            : 'How strong the model rates each club: expected goals scored and conceded against an average opponent, with this season\u2019s projected total beside last season\u2019s actual.'}
         </p>
       </div>
 
@@ -389,6 +398,8 @@ export default function TeamStrengthPage() {
             {refreshResult && <p className="text-xs text-ink-500">{refreshResult}</p>}
           </div>
 
+          {isAdmin && (
+            <>
           <div className="flex items-center gap-3 flex-wrap">
             <button
               type="button"
@@ -414,6 +425,8 @@ export default function TeamStrengthPage() {
             </button>
             {triggerBonusResult && <p className="text-xs text-ink-500">{triggerBonusResult}</p>}
           </div>
+            </>
+          )}
 
           {summary.rows.some((r) => isPositionStale(r)) && (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
@@ -543,16 +556,18 @@ export default function TeamStrengthPage() {
                             {r.defence_adjustment.toFixed(2)}
                           </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => startEdit(r)}
-                          className="text-xs text-pitch-700 hover:text-pitch-900 underline"
-                        >
-                          Adjust
-                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(r)}
+                            className="text-xs text-pitch-700 hover:text-pitch-900 underline"
+                          >
+                            Adjust
+                          </button>
+                        )}
                       </td>
                     </tr>
-                    {editingTeamId === r.team_id && (
+                    {isAdmin && editingTeamId === r.team_id && (
                       <tr className="bg-chalk-100">
                         <td colSpan={10} className="px-3 py-2">
                           <p className="text-xs text-ink-500 mb-2">

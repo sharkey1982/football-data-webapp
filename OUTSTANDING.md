@@ -91,6 +91,30 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Fixtures & Results: strip model output, link to it
+Discover's fixtures page should report what happened and link OUT to the
+prediction, rather than mixing modelled and factual columns.
+
+### Upcoming fixtures with predictions
+Requested as a second "Match Preview"-style page. Recommend building it
+as a MODE of the fixtures page (future-only + prediction columns) rather
+than a third page — otherwise there are three near-identical fixture
+lists to keep consistent.
+
+### Gameweek Results: add a player-level table
+Currently match-level only. The data is already there.
+
+### Bargain Basement: make every column sortable
+Requested as a separate "Player Scout" actuals table. Recommend instead
+making Bargain Basement sortable on any column, so one page answers
+value, points, minutes and contribution questions. Three overlapping
+player-actuals views (Bargain Basement, Gameweek Results, Player Scout)
+would drift apart.
+
+"Chief Scout" is better saved for the adjusted-model version, where the
+scouting metaphor actually means something.
+
+
 ### Richer generic player stats (Discover)
 The Opta workbook carries ~214 columns, of which ~22 were extracted.
 Untouched and potentially interesting for Discover: passing accuracy by
