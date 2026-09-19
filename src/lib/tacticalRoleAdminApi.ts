@@ -471,3 +471,39 @@ export async function removeSetPieceTaker(hierarchyId: number): Promise<void> {
   const { error } = await (supabase as any).from('set_piece_hierarchies').delete().eq('set_piece_hierarchy_id', hierarchyId);
   if (error) throw error;
 }
+
+/** Prioritised worklist for the manual tactical-role pass.
+ *
+ * 412 players sit on the positional fallback, which sounds like a large
+ * job and isn't: only 6 are regular starters and 51 are rotation
+ * players. The remaining 355 have under 90 minutes all season, and a
+ * role assigned to someone who never plays changes no projection.
+ *
+ * Ordered by minutes then ownership so the pass can stop at any point
+ * and whatever's left is always the least consequential. */
+export type TacticalWorklistRow = {
+  team_id: number;
+  team_name: string | null;
+  fpl_player_id: number;
+  web_name: string;
+  slug: string | null;
+  position_label: string;
+  assigned_role: string | null;
+  confidence: number | null;
+  minutes: number;
+  ownership: number;
+  total_points: number;
+  priority: 'starter' | 'rotation' | 'fringe';
+};
+
+export async function getTacticalRoleWorklist(seasonId = 13): Promise<TacticalWorklistRow[]> {
+  const { data, error } = await (supabase as any).rpc('get_tactical_role_worklist', { p_season_id: seasonId });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    minutes: Number(r.minutes ?? 0),
+    ownership: Number(r.ownership ?? 0),
+    total_points: Number(r.total_points ?? 0),
+    confidence: r.confidence == null ? null : Number(r.confidence),
+  }));
+}

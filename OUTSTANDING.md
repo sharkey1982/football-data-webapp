@@ -352,8 +352,26 @@ reconsidering now that pages are prerendered and rebuilds are automatic.
 ### GW15–38 backfill
 Paused.
 
-### Tactical role data gap
-438 of 658 players on generic fallback roles.
+### Tactical role data gap — SCOPED, manual pass next week
+412 players on fpl_position_fallback at 0.30 confidence. But the job is
+far smaller than that number suggests:
+
+  6 regular starters (270+ mins)
+  51 rotation players (90-269 mins)
+  355 fringe (under 90 mins all season)
+
+A role assigned to someone who never plays changes no projection, so
+the real work is ~57 players, not 412.
+
+get_tactical_role_worklist() and a panel on the Tactical Roles admin
+page list them ordered by minutes then ownership, so the pass can stop
+at any point and whatever remains is the least consequential.
+
+Highest-value single fix: Gakpo — 12.8% owned, 29 points, still on a
+guessed role.
+
+Once done, three things unblock: set-piece exposure, bonus projection,
+and feeding the set-piece index into the optimiser.
 
 ### Optimizer: force include/exclude
 Not started.

@@ -41,6 +41,8 @@ import {
   type TeamOption,
   type SetPieceHierarchyType,
   type SetPieceHierarchyRow,
+  getTacticalRoleWorklist,
+  type TacticalWorklistRow,
 } from '../../lib/tacticalRoleAdminApi';
 import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tacticalRoleFormationHelper';
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
@@ -54,6 +56,12 @@ type ScopeMode = 'needs_review' | 'everyone';
 type TableSort = 'position' | 'depth';
 
 export default function TacticalRolesAdminPage() {
+  const [worklist, setWorklist] = useState<TacticalWorklistRow[]>([]);
+  useEffect(() => {
+    getTacticalRoleWorklist(13)
+      .then(setWorklist)
+      .catch(() => setWorklist([]));
+  }, []);
   const [rows, setRows] = useState<TacticalRoleRow[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -384,6 +392,56 @@ export default function TacticalRolesAdminPage() {
           is available yet. Rows flagged &ldquo;generic&rdquo; only have a position-based placeholder, not a real role.
         </p>
       </div>
+
+      {worklist.length > 0 && (() => {
+        const needed = worklist.filter((w) => w.priority !== 'fringe');
+        const starters = needed.filter((w) => w.priority === 'starter');
+        return (
+          <section className="border border-amber-500 rounded-lg bg-white p-4">
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth reviewing first</h2>
+            <p className="text-ink-700 text-sm mt-1 max-w-prose">
+              {worklist.length} players sit on the positional fallback, but only <strong>{needed.length}</strong> play
+              enough to matter &mdash; {starters.length} regular starters and {needed.length - starters.length} rotation
+              players. The other {worklist.length - needed.length} have under 90 minutes all season, and a role assigned
+              to someone who never plays changes no projection.
+            </p>
+            <div className="overflow-x-auto mt-3">
+              <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+                <thead className="bg-chalk-200 text-ink-500">
+                  <tr>
+                    <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+                    <th scope="col" className="text-left font-medium text-xs px-3 py-2">Team</th>
+                    <th scope="col" className="text-left font-medium text-xs px-3 py-2">Pos</th>
+                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
+                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Owned</th>
+                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {needed.map((w, i) => (
+                    <tr key={w.fpl_player_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                      <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
+                        {w.web_name}
+                        {w.priority === 'starter' && (
+                          <span className="ml-1 text-[0.6rem] font-mono uppercase text-amber-600">starter</span>
+                        )}
+                      </th>
+                      <td className="px-3 py-1.5 text-xs text-ink-700">{w.team_name ?? '\u2014'}</td>
+                      <td className="px-3 py-1.5 text-xs text-ink-500">{w.position_label}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{w.minutes}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{w.ownership.toFixed(1)}%</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{w.total_points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-ink-500 text-xs mt-2 max-w-prose">
+              Ordered by minutes, so the pass can stop at any point and whatever&rsquo;s left is the least consequential.
+            </p>
+          </section>
+        );
+      })()}
 
       {loading && <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>}
       {error && <p className="text-loss-700 text-sm">{error}</p>}
