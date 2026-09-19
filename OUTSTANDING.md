@@ -46,31 +46,31 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
-### landingApi embed has no foreign key to resolve against — LIKELY BROKEN
-`getTopFplPicks()` in src/lib/landingApi.ts does:
+### landingApi top-FPL-pick trivia — FIXED (was silently broken)
+Confirmed live: the card was missing from the site.
 
-    .from('fpl_player_projections')
-    .select('expected_fpl_points, fpl_players(web_name, ...)')
+`getTopFplPicks()` embedded fpl_players inside a select on
+fpl_player_projections, but that table has ZERO foreign keys and
+PostgREST requires a declared FK to embed. The query failed every time.
 
-but `fpl_player_projections` has ZERO foreign key constraints — verified
-against pg_constraint. PostgREST needs a declared FK to embed a related
-table, so this select cannot resolve and the call almost certainly
-returns an error, which the function then throws.
+It failed SILENTLY because getLandingTrivia wraps each fact in
+safely() — so one of five landing facts and one of three FPL facts had
+never once rendered, with no error anywhere.
 
-Found by the type checker once the `as any` hiding it was removed:
-"could not find the relation between fpl_player_projections and
-fpl_players". The underlying data is fine — the equivalent SQL join
-matches all 7,302 rows on (fpl_player_id, season_id).
+Fixed by splitting into three plain queries joined in JS (projections →
+players → teams), matching how the rest of the codebase works. Chose
+this over adding a foreign key because the join is COMPOSITE
+(fpl_player_id, season_id) and a schema change wasn't needed to make it
+work.
 
-NOT fixed here because both options are out of scope for a typing pass:
-  - add the FK (schema change; note the join is COMPOSITE, on
-    fpl_player_id AND season_id, because of the composite key work)
-  - or split into two queries and join in JS, as most other modules do
+Verified against real data: returns Barry, Haaland, Wissa and
+Calvert-Lewin for GW5 with correct team names. Regression-tested, with
+one test asserting the select string never contains an `fpl_players(`
+embed again.
 
-Worth checking whether the landing page trivia card is silently empty
-in production.
-
-
+NOTE FOR ELSEWHERE: any other PostgREST embed involving
+fpl_player_projections has the same problem. Worth a grep if more
+appear.
 
 ### FPL projection history — RESOLVED (freeze-on-kickoff)
 Projections are no longer overwritten once a fixture is played, so the

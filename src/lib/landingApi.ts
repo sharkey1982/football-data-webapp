@@ -225,26 +225,55 @@ async function getTopFplPicks(): Promise<TopFplPick[]> {
   const fixtureIds = (fixtureRows ?? []).filter((f: any) => f.matchweek === nextMatchweek).map((f: any) => f.fixture_id);
   if (fixtureIds.length === 0) return [];
 
-  const { data, error } = await supabase
+  // TWO QUERIES, NOT AN EMBED. fpl_player_projections has no foreign key
+  // constraints at all, and PostgREST requires a declared FK to embed a
+  // related table -- so the previous
+  // `.select('..., fpl_players(web_name, ...)')` could never resolve and
+  // this whole fact failed every time. It failed SILENTLY because
+  // getLandingTrivia wraps each fact in safely(), so the card simply
+  // never appeared rather than erroring.
+  const { data: projRows, error } = await supabase
     .from('fpl_player_projections')
-    .select('expected_fpl_points, fpl_players(web_name, canonical_team_id, teams(canonical_name:display_name))')
+    .select('fpl_player_id, expected_fpl_points')
     .eq('model_version', 'leaguewide_v6')
     .eq('scenario_key', 'baseline')
     .in('fixture_id', fixtureIds)
     .order('expected_fpl_points', { ascending: false })
     .limit(4);
   if (error) throw error;
-  // CAST RETAINED, and it is hiding a real problem rather than a typing
-  // quirk: fpl_player_projections has no foreign key, so PostgREST cannot
-  // resolve this embed and the query likely fails at runtime. Logged in
-  // OUTSTANDING.md -- fixing it needs either an FK or a two-query split,
-  // both out of scope for a typing pass.
-  return ((data ?? []) as any[]).map((row) => ({
-    web_name: row.fpl_players?.web_name ?? 'Unknown',
-    team_name: row.fpl_players?.teams?.canonical_name ?? '',
-    expected_fpl_points: Number(row.expected_fpl_points),
-    matchweek: nextMatchweek,
-  }));
+  if ((projRows ?? []).length === 0) return [];
+
+  // The join is COMPOSITE -- (fpl_player_id, season_id) -- since element
+  // ids are reassigned each season.
+  const { data: playerRows, error: playerError } = await supabase
+    .from('fpl_players')
+    .select('fpl_player_id, web_name, canonical_team_id')
+    .eq('season_id', PL_SEASON_ID)
+    .in('fpl_player_id', (projRows ?? []).map((p) => p.fpl_player_id));
+  if (playerError) throw playerError;
+
+  const teamIds = [...new Set((playerRows ?? []).map((p) => p.canonical_team_id).filter((id): id is number => id != null))];
+  const teamNameById = new Map<number, string>();
+  if (teamIds.length > 0) {
+    const { data: teamRows, error: teamError } = await supabase
+      .from('teams')
+      .select('team_id, display_name')
+      .in('team_id', teamIds);
+    if (teamError) throw teamError;
+    for (const t of teamRows ?? []) teamNameById.set(t.team_id, t.display_name);
+  }
+
+  const playerById = new Map((playerRows ?? []).map((p) => [p.fpl_player_id, p]));
+
+  return (projRows ?? []).map((row) => {
+    const player = playerById.get(row.fpl_player_id);
+    return {
+      web_name: player?.web_name ?? 'Unknown',
+      team_name: player?.canonical_team_id != null ? (teamNameById.get(player.canonical_team_id) ?? '') : '',
+      expected_fpl_points: Number(row.expected_fpl_points),
+      matchweek: nextMatchweek,
+    };
+  });
 }
 
 export async function getTopFplPickTrivia(): Promise<TriviaFact | null> {
