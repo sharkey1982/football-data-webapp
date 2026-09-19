@@ -1516,6 +1516,7 @@ export type FixtureWithNames = {
   // fixture's full_time_* goals take precedence in the UI.
   predicted_home_goals?: number | null;
   predicted_away_goals?: number | null;
+  prediction_fit_run_id?: number | null;
 };
 
 /**
@@ -1619,7 +1620,7 @@ export async function getFixturesForTeam(
     .select(
       `
       fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
-      kickoff_date, kickoff_time, matchweek, status,
+      kickoff_date, kickoff_time, matchweek, status, prediction_fit_run_id,
       predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name),
@@ -1847,6 +1848,22 @@ export async function getRecentFixtureRefreshRuns(limit = 10): Promise<FixtureRe
   return data ?? [];
 }
 
+/** rho per accepted fit run, so a fixture's frozen prediction can be
+ * turned back into a full score grid.
+ *
+ * Small enough to fetch whole (tens of rows) rather than joining per
+ * fixture, and fixtures reference their fit run by id so the pairing
+ * stays exact -- using the LATEST rho would silently re-model an old
+ * prediction with today's parameters. */
+export async function getFitRunRhos(): Promise<Map<number, number>> {
+  const { data, error } = await (supabase as any)
+    .from('model_fit_runs')
+    .select('fit_run_id, rho')
+    .not('rho', 'is', null);
+  if (error) throw error;
+  return new Map(((data ?? []) as any[]).map((r) => [Number(r.fit_run_id), Number(r.rho)]));
+}
+
 /** Most recent daily match-result import runs (any status), newest first -- for the Data Health page's "results added" section. */
 export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportRun[]> {
   const { data, error } = await supabase
@@ -1915,7 +1932,7 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
     .select(
       `
       fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
-      kickoff_date, kickoff_time, matchweek, status,
+      kickoff_date, kickoff_time, matchweek, status, prediction_fit_run_id,
       predicted_home_goals, predicted_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)

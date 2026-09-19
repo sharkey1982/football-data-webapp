@@ -145,3 +145,45 @@ export function mostLikelyScore(model: DixonColesResult): { home: number; away: 
   }
   return best;
 }
+
+/** Derived markets from a fixture's frozen expected goals.
+ *
+ * Over/under and both-teams-to-score fall straight out of the score
+ * grid the model already produces -- no extra modelling, and they're
+ * what people actually ask about a fixture beyond the scoreline.
+ * Computed from the SAME grid as the outcome probabilities, so the
+ * numbers on a page can't disagree with each other. */
+export type DerivedMarkets = {
+  overTwoFive: number;
+  underTwoFive: number;
+  bothScore: number;
+  homeCleanSheet: number;
+  awayCleanSheet: number;
+};
+
+export function derivedMarkets(model: DixonColesResult): DerivedMarkets {
+  let over = 0;
+  let btts = 0;
+  let homeCS = 0;
+  let awayCS = 0;
+  for (let h = 0; h < model.scoreGrid.length; h++) {
+    for (let a = 0; a < model.scoreGrid[h].length; a++) {
+      const p = model.scoreGrid[h][a];
+      if (h + a > 2.5) over += p;
+      if (h > 0 && a > 0) btts += p;
+      if (a === 0) homeCS += p;
+      if (h === 0) awayCS += p;
+    }
+  }
+  // The grid is truncated at a maximum scoreline, so it sums to slightly
+  // under 1. Normalising keeps "over" and "under" adding to 100 rather
+  // than 99.4, which looks like a bug even though it isn't.
+  const total = model.scoreGrid.reduce((s, row) => s + row.reduce((t, v) => t + v, 0), 0) || 1;
+  return {
+    overTwoFive: (over / total) * 100,
+    underTwoFive: ((total - over) / total) * 100,
+    bothScore: (btts / total) * 100,
+    homeCleanSheet: (homeCS / total) * 100,
+    awayCleanSheet: (awayCS / total) * 100,
+  };
+}

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { buildModelFromLambdas, derivedMarkets } from '../lib/matchPageApi';
 import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
 import {
   getLeagues,
+  getFitRunRhos,
   getCountries,
   getSeasons,
   getTeams,
@@ -79,7 +81,7 @@ const labelClass = 'block text-xs sm:text-sm font-medium text-ink-700 mb-1';
  * to look like a real scoreline (no ScoreChip), so an expectation can
  * never be mistaken for a result.
  */
-function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
+function FixtureScoreCell({ f, rhoFor }: { f: FixtureWithNames; rhoFor?: (f: FixtureWithNames) => number | null }) {
   if (f.full_time_home_goals != null && f.full_time_away_goals != null) {
     return (
       <div className="flex flex-col items-center">
@@ -101,6 +103,14 @@ function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
     );
   }
   if (f.predicted_home_goals != null && f.predicted_away_goals != null) {
+    // In projections mode the model's own view IS the content, so the
+    // markets people actually ask about -- over/under and both to score
+    // -- sit alongside the scoreline rather than being a click away.
+    // Derived from the same score grid as the scoreline, so the numbers
+    // on a row cannot disagree with each other.
+    const rho = rhoFor?.(f) ?? null;
+    const markets =
+      rho != null ? derivedMarkets(buildModelFromLambdas(f.predicted_home_goals, f.predicted_away_goals, rho)) : null;
     return (
       <div
         className="flex flex-col items-center"
@@ -109,7 +119,13 @@ function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
         <span className="text-ink-500 text-xs font-mono text-center italic">
           {f.predicted_home_goals.toFixed(1)}&ndash;{f.predicted_away_goals.toFixed(1)}
         </span>
-        <span className="text-[8px] text-ink-400 uppercase tracking-wide mt-0.5">xG est.</span>
+        {markets ? (
+          <span className="text-[9px] text-ink-400 font-mono mt-0.5 whitespace-nowrap">
+            O2.5 {Math.round(markets.overTwoFive)}% &middot; BTTS {Math.round(markets.bothScore)}%
+          </span>
+        ) : (
+          <span className="text-[8px] text-ink-400 uppercase tracking-wide mt-0.5">xG est.</span>
+        )}
       </div>
     );
   }
@@ -126,6 +142,19 @@ function FixtureScoreCell({ f }: { f: FixtureWithNames }) {
  * labels and route lists. */
 export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'archive' | 'projections' } = {}) {
   const isProjections = variant === 'projections';
+  const [fitRhos, setFitRhos] = useState<Map<number, number>>(new Map());
+  // Only needed in projections mode -- the archive view shows results,
+  // and fetching a lookup nothing reads would be waste on every visit.
+  useEffect(() => {
+    if (!isProjections) return;
+    getFitRunRhos()
+      .then(setFitRhos)
+      .catch(() => setFitRhos(new Map()));
+  }, [isProjections]);
+  const rhoFor = isProjections
+    ? (fx: FixtureWithNames) =>
+        fx.prediction_fit_run_id != null ? fitRhos.get(fx.prediction_fit_run_id) ?? null : null
+    : undefined;
   useDocumentHead(
     isProjections
       ? {
@@ -951,7 +980,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                       <span className={['truncate font-medium min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
                         {f.home_team_name}
                       </span>
-                      <FixtureScoreCell f={f} />
+                      <FixtureScoreCell f={f} rhoFor={rhoFor} />
                       <span className={['truncate font-medium text-right min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
                         {f.away_team_name}
                       </span>
@@ -1015,7 +1044,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                             </span>
                             <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
                               <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
-                              <FixtureScoreCell f={f} />
+                              <FixtureScoreCell f={f} rhoFor={rhoFor} />
                               <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
                             </div>
                             {/* A real anchor to the fixture's own canonical

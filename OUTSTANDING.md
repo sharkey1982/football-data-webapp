@@ -91,6 +91,17 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Fixtures & Results (Discover): lean into head-to-head history
+The Discover fixtures page should be about what HAPPENED — previous
+meetings between the two sides, form going in, historical scorelines —
+rather than carrying model output, which now lives in Results
+Projections.
+
+The head-to-head data already exists (HeadToHeadSummary, used by Match
+Preview). This is mostly a matter of surfacing it per fixture row or on
+expand, and removing the xG line from the archive variant.
+
+
 ### Team of the Week: pitch view — DONE
 Laid out by FPL position (GKP/DEF/MID/FWD), which is all FPL records —
 a real position would have been invented. The shape falls out of the XI
