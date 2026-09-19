@@ -156,6 +156,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/season-xi',
+    title: 'The perfect FPL XI of 2025/26',
+    description:
+      'The highest-scoring Fantasy Premier League XI you could have picked before a ball was kicked in 2025/26 and never changed, at start-of-season prices.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/whats-changed',
     title: 'What changed in FPL today',
     description:

@@ -27,6 +27,7 @@ const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficienc
 const FplMarketPage = lazy(() => import('./pages/fpl/FplMarketPage'));
 const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
 const DigestPage = lazy(() => import('./pages/fpl/DigestPage'));
+const SeasonXiPage = lazy(() => import('./pages/fpl/SeasonXiPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
@@ -285,6 +286,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <SetPiecesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/season-xi"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <SeasonXiPage />
               </Suspense>
             }
           />

@@ -144,8 +144,16 @@ WHAT'S NOT IMPORTED:
     lookahead bias (scraped after gameweeks end), so it must never feed
     a model.
 
-NEXT: a Squad of the Season 2025/26 page built at START prices — the
-best XI you could have picked in August and never touched.
+DONE: /fpl/season-xi — the Set-and-Forget XI for 2025/26. 2,141 points
+for £78.5m in a 3-4-3, at August prices.
+
+Result is STORED rather than recomputed: it's a fixed historical answer
+that can't change once a season ends, so solving a knapsack per page
+load would be work for nothing. To add another season, solve it once and
+insert into season_best_xi.
+
+Notable: the optimum leaves £4.5m of the £83m unspent — the marginal
+upgrade wasn't worth it.
 
 ### Main bundle absorbed the Supabase client
 `AuthProvider` wraps the whole app, so Supabase moved from its own
@@ -156,6 +164,21 @@ longer parallelised or skippable. Revisit if load time matters.
 ---
 
 ## Deferred by decision
+
+### Import 2024/25 (and earlier)
+The importer generalises — same DO block, change the URL and season_id.
+vaastav has 2016-17 onward.
+
+Needed per season:
+  - a seasons row (2024/25 doesn't exist yet; 12 = 2025/26, 13 = 2026/27)
+  - re-run the import block against data/2024-25/players_raw.csv
+  - solve the best XI once and insert into season_best_xi
+  - extend player_identity for players who don't appear in later seasons
+
+Worth checking per season: the importer resolves columns BY NAME and
+aborts on unexpected field counts or quotes, so an older file with a
+different shape fails loudly rather than importing shifted data.
+
 
 ### "Deadline Day" page — name reserved
 Considered for the price-risk page and rejected: in FPL, "deadline"

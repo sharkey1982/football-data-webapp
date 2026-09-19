@@ -115,6 +115,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Physio Room', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
           // Hindsight, not forecast -- what the best squad WAS. That's a
           // record of what happened, so it belongs in Discover.
+          { label: 'Set-and-Forget XI', to: '/fpl/season-xi', blurb: 'The best XI of 2025/26 you could have picked in August and never touched.' },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
