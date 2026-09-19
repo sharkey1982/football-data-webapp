@@ -176,6 +176,26 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Known, accepted
 
+### Sandbox cannot reach Supabase — verify generation from the deploy log
+Not a credentials problem: the sandbox proxy refuses supabase.co with
+`x-deny-reason: host_not_allowed`. So generate-static.mjs can never be
+run end to end from a session.
+
+What CAN be verified locally, and was: the render path itself, by
+calling renderStaticRouteHead and buildDocument directly with supplied
+data. Confirmed correct titles under 70 chars, descriptions, canonicals,
+BreadcrumbList JSON-LD, an intact #root so the SPA still boots, and
+proper HTML escaping (quotes, ampersands and script tags all
+neutralised — no injection via player names).
+
+Slugs confirmed safe for filesystem paths: 1,279 of them, none with
+characters outside [a-z0-9-], none containing / or .., longest 55 chars.
+
+What to check on the deploy log:
+  "Static: wrote head tags for N player scout page(s)"  (expect ~1,096)
+  "Static: wrote head tags for N gameweek page(s)"      (expect 4)
+
+
 ### Team of the Week: a part-played gameweek can't be repaired
 The club-limit repair loop gives up after 8 passes. For a gameweek where
 almost every player is on zero points (fixtures not finished), the
