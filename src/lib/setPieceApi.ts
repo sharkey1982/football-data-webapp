@@ -117,3 +117,37 @@ export async function getSetPieceTakers(seasonId = 13): Promise<SetPieceTaker[]>
     confidence: r.confidence == null ? null : Number(r.confidence),
   }));
 }
+
+/** How much a player's set-piece duty is worth, weighted by type.
+ *
+ * This is what the Opta type breakdown unlocked. Counting duties treats
+ * a penalty taker and a corner taker alike, which is most of the point
+ * of an index: penalties produced ~7.3% of all goals from roughly one
+ * taker per club, corners ~12.8% spread across more.
+ *
+ * Weights come from the data rather than being assumed, goals count
+ * double against assists (6 points vs 3), and rank decays -- a
+ * second-choice penalty taker only takes them when the first is off the
+ * pitch.
+ *
+ * The score is a RANKING, not an expected points figure. It says one
+ * player's dead-ball role is worth more than another's, not how many
+ * points it will produce. */
+export type SetPieceIndexRow = {
+  team_id: number;
+  team_name: string;
+  player_name: string;
+  duties: number;
+  index_score: number;
+  detail: string;
+};
+
+export async function getSetPieceIndex(seasonId = 13): Promise<SetPieceIndexRow[]> {
+  const { data, error } = await (supabase as any).rpc('get_set_piece_index', { p_season_id: seasonId });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    duties: Number(r.duties),
+    index_score: Number(r.index_score),
+  }));
+}

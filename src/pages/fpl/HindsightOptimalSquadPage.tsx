@@ -40,7 +40,11 @@ export default function HindsightOptimalSquadPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Optimal Squad So Far</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Squad of the Season</h1>
+        {/* The pun lands here, where it costs nothing. In the nav it
+            would have been a hashtag nobody searches for, next to a
+            "Team of the Week" it's deliberately paired with. */}
+        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest mt-0.5">#SquadGoals</p>
         <p className="text-sm text-ink-500 mt-1">
           The genuinely best possible squad for the season so far, within &pound;100m &mdash; built from real points
           actually scored, not projections. Formation and starting XI are chosen independently each gameweek (that's

@@ -14,6 +14,8 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   getSetPieceTakers,
   getSetPieceBreakdown,
+  getSetPieceIndex,
+  type SetPieceIndexRow,
   goalSplit,
   assistSplit,
   SET_PIECE_TYPES,
@@ -30,6 +32,7 @@ export default function SetPiecesPage() {
   const [teamFilter, setTeamFilter] = useState('All');
   const [firstChoiceOnly, setFirstChoiceOnly] = useState(false);
   const [share, setShare] = useState<SetPieceBreakdown | null>(null);
+  const [index, setIndex] = useState<SetPieceIndexRow[]>([]);
   const [playerQuery, setPlayerQuery] = useState('');
 
   useDocumentHead({
@@ -46,6 +49,9 @@ export default function SetPiecesPage() {
     getSetPieceBreakdown()
       .then(setShare)
       .catch(() => setShare(null));
+    getSetPieceIndex(13)
+      .then(setIndex)
+      .catch(() => setIndex([]));
   }, []);
 
   const byTeam = useMemo(() => {
@@ -190,6 +196,37 @@ export default function SetPiecesPage() {
         );
       })()}
 
+
+      {index.length > 0 && (
+        <section>
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Set-piece index</h2>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            Whose dead-ball role is worth the most, weighting each duty by what it historically produces rather than
+            counting duties alike. A penalty is worth far more per taker than a corner, and a second-choice taker is
+            worth far less than a first.
+          </p>
+          <div className="space-y-1.5 mt-3">
+            {index.slice(0, 12).map((r) => (
+              <div key={`${r.team_id}-${r.player_name}`} className="flex items-center gap-3">
+                <span className="w-28 sm:w-36 shrink-0 text-sm text-ink-900 truncate">{r.player_name}</span>
+                <span className="w-20 shrink-0 text-xs text-ink-500 truncate hidden sm:block">{r.team_name}</span>
+                <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-full rounded"
+                    style={{ width: `${(r.index_score / index[0].index_score) * 100}%` }}
+                  />
+                </div>
+                <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums">{Math.round(r.index_score)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-ink-500 text-xs mt-3 max-w-prose">
+            A ranking, not an expected-points figure: it says one player&rsquo;s dead-ball role is worth more than
+            another&rsquo;s, not how many points it will return. Weights come from a full Opta season, so they describe
+            the Premier League in general rather than these specific takers.
+          </p>
+        </section>
+      )}
 
       <section>
         <label className="block max-w-sm">

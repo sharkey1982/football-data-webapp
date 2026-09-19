@@ -259,22 +259,19 @@ Worth deciding whether that's a distinct slot, a pair of weights, or
 just a label.
 
 
-### Set-piece index for players (Predict)
-Requested: a per-player set-piece index, and what share of projected
-goals/assists their taking duty accounts for.
+### Set-piece index — DONE
+Weighted by duty type using the Opta breakdown, on the set-pieces page.
+Penalties are worth far more per taker than corners (7.3% of all goals
+from ~1 taker per club against 12.8% spread across more), goals count
+double against assists, and rank decays so a second-choice penalty taker
+scores far below the first.
 
-Buildable in principle — set_piece_hierarchies gives duty and rank per
-club, and the Opta data gives the league-wide set-piece share (31% of
-goals, 43% of assists). What it CANNOT do is split that by set-piece
-type: the dataset has only open_play_goals and set_piece_assists, both
-undifferentiated. So a penalty taker and a corner taker can't be
-weighted differently from this data, which is most of the point of an
-index.
+Presented as a RANKING, not expected points — the weights describe the
+Premier League in general, not these specific takers.
 
-Options: weight by type using published league-wide rates from an
-external source (and say so), or source a dataset with the breakdown.
-Not started.
-
+NOT yet fed into the optimiser. That would need the tactical-role data
+to say which players actually occupy the roles, which is the 412-on-
+fallback gap.
 
 ### Model accuracy must surface inside Predict
 Validate was folded into Predict because it was QA language for an

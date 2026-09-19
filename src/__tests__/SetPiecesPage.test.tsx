@@ -8,7 +8,7 @@ import * as api from '../lib/setPieceApi';
 
 vi.mock('../lib/setPieceApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/setPieceApi');
-  return { ...actual, getSetPieceTakers: vi.fn(), getSetPieceBreakdown: vi.fn() };
+  return { ...actual, getSetPieceTakers: vi.fn(), getSetPieceBreakdown: vi.fn(), getSetPieceIndex: vi.fn() };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -21,6 +21,7 @@ const taker = (over: Partial<api.SetPieceTaker>): api.SetPieceTaker => ({
 describe('SetPiecesPage', () => {
   it('shows every duty type per club at once, and lets a type be toggled off', async () => {
     mocked.getSetPieceBreakdown.mockResolvedValue(null);
+    mocked.getSetPieceIndex.mockResolvedValue([]);
     mocked.getSetPieceTakers.mockResolvedValue([
       taker({ player_name: 'Saka', rank: 1, set_piece_type: 'penalty' }),
       taker({ player_name: 'Rice', rank: 2, set_piece_type: 'penalty' }),
@@ -49,6 +50,7 @@ describe('SetPiecesPage', () => {
 
   it('degrades to a message rather than an empty page when there is no data', async () => {
     mocked.getSetPieceBreakdown.mockResolvedValue(null);
+    mocked.getSetPieceIndex.mockResolvedValue([]);
     mocked.getSetPieceTakers.mockResolvedValue([]);
     render(
       <MemoryRouter>
@@ -60,6 +62,7 @@ describe('SetPiecesPage', () => {
 
   it('finds every duty a player takes in one view, across types', async () => {
     mocked.getSetPieceBreakdown.mockResolvedValue(null);
+    mocked.getSetPieceIndex.mockResolvedValue([]);
     mocked.getSetPieceTakers.mockResolvedValue([
       taker({ player_name: 'Saka', rank: 1, set_piece_type: 'penalty' }),
       taker({ player_name: 'Saka', rank: 2, set_piece_type: 'corner_right' }),
@@ -99,6 +102,7 @@ describe('SetPiecesPage', () => {
       assists: 658, assist_corner: 88, assist_free_kick: 46, assist_throw_in: 15,
       penalties_taken: 100, corners_taken: 4321,
     });
+    mocked.getSetPieceIndex.mockResolvedValue([]);
 
     render(
       <MemoryRouter>
@@ -118,6 +122,7 @@ describe('SetPiecesPage', () => {
 
   it('refuses to switch off the last remaining type', async () => {
     mocked.getSetPieceBreakdown.mockResolvedValue(null);
+    mocked.getSetPieceIndex.mockResolvedValue([]);
     mocked.getSetPieceTakers.mockResolvedValue([taker({ set_piece_type: 'penalty' })]);
 
     render(
@@ -137,5 +142,29 @@ describe('SetPiecesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Penalties' }));
     expect(screen.getByRole('button', { name: 'Penalties' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Saka')).toBeInTheDocument();
+  });
+
+  it('ranks the index by weighted duty, not by number of duties', async () => {
+    mocked.getSetPieceBreakdown.mockResolvedValue(null);
+    mocked.getSetPieceTakers.mockResolvedValue([taker({})]);
+    mocked.getSetPieceIndex.mockResolvedValue([
+      // Fewer duties but a penalty: must outrank the corner-only taker.
+      // Counting duties alike is exactly what the index exists to avoid.
+      { team_id: 1, team_name: 'Arsenal', player_name: 'PenTaker', duties: 1, index_score: 40, detail: 'penalty #1' },
+      { team_id: 2, team_name: 'Chelsea', player_name: 'CornerOnly', duties: 2, index_score: 22, detail: 'corner left #1, corner right #1' },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <SetPiecesPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText(/Set-piece index/)).toBeInTheDocument());
+    const panel = screen.getByText(/Set-piece index/).closest('section')!;
+    const order = panel.textContent ?? '';
+    expect(order.indexOf('PenTaker')).toBeLessThan(order.indexOf('CornerOnly'));
+    // The caveat that it's a ranking, not expected points.
+    expect(panel.textContent).toMatch(/not an expected-points figure/);
   });
 });
