@@ -73,4 +73,28 @@ describe('ValuePage', () => {
     expect(screen.getByText(/value isn.t points/i)).toBeInTheDocument();
     expect(screen.getByText(/three/)).toBeInTheDocument();
   });
+
+  it('sorts on any column, replacing the need for a separate actuals table', async () => {
+    mocked.getActualValueTable.mockResolvedValue([
+      row({ fpl_player_id: 1, web_name: 'BestValue', slug: 'bv', price: 4.0, total_points: 20, points_per_million: 5.0, minutes: 360 }),
+      row({ fpl_player_id: 2, web_name: 'TopScorer', slug: 'ts', price: 12.0, total_points: 48, points_per_million: 4.0, minutes: 360 }),
+    ]);
+
+    render(<MemoryRouter><ValuePage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('BestValue')).toBeInTheDocument());
+
+    const names = () => screen.getAllByRole('rowheader').map((r) => r.textContent ?? '');
+    // Defaults to value, so the cheap high-ratio player leads.
+    expect(names()[0]).toContain('BestValue');
+
+    // Sorting by points answers a different question from the same data
+    // -- which is the whole argument against a second table.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^Points/ }));
+    await waitFor(() => expect(names()[0]).toContain('TopScorer'));
+
+    // Clicking again reverses rather than re-sorting the same way.
+    await user.click(screen.getByRole('button', { name: /^Points/ }));
+    await waitFor(() => expect(names()[0]).toContain('BestValue'));
+  });
 });

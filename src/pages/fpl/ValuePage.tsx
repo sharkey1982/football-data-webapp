@@ -17,10 +17,33 @@ import { getActualValueTable, valueByPosition, valueByTeam, type ValueRow } from
 
 const POSITIONS = ['All', 'GKP', 'DEF', 'MID', 'FWD'];
 
+type SortKey =
+  | 'web_name' | 'team_name' | 'price' | 'total_points' | 'points_per_million'
+  | 'minutes' | 'goals' | 'assists' | 'clean_sheets' | 'bonus';
+
+const COLUMNS: { key: SortKey; label: string; numeric: boolean }[] = [
+  { key: 'web_name', label: 'Player', numeric: false },
+  { key: 'team_name', label: 'Team', numeric: false },
+  { key: 'price', label: 'Price', numeric: true },
+  { key: 'total_points', label: 'Points', numeric: true },
+  { key: 'points_per_million', label: 'Per \u00a3m', numeric: true },
+  { key: 'minutes', label: 'Mins', numeric: true },
+  { key: 'goals', label: 'G', numeric: true },
+  { key: 'assists', label: 'A', numeric: true },
+  { key: 'clean_sheets', label: 'CS', numeric: true },
+  { key: 'bonus', label: 'Bonus', numeric: true },
+];
+
 export default function ValuePage() {
   const [rows, setRows] = useState<ValueRow[] | null>(null);
   const [position, setPosition] = useState('All');
   const [minMinutes, setMinMinutes] = useState(180);
+  // Sortable rather than a second "player scout" table -- three
+  // overlapping player-actuals views would drift apart; one sortable
+  // table answers value, points, minutes and contribution from the same
+  // numbers.
+  const [sortKey, setSortKey] = useState<SortKey>('points_per_million');
+  const [sortDesc, setSortDesc] = useState(true);
 
   useDocumentHead({
     title: 'Bargain Basement \u2014 FPL points per million',
@@ -40,10 +63,22 @@ export default function ValuePage() {
 
   const view = useMemo(() => {
     if (!rows) return [];
-    return rows
-      .filter((r) => (position === 'All' || r.position_label === position) && r.minutes >= minMinutes)
+    const filtered = rows.filter(
+      (r) => (position === 'All' || r.position_label === position) && r.minutes >= minMinutes
+    );
+    const dir = sortDesc ? -1 : 1;
+    return filtered
+      .slice()
+      .sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        if (typeof av === 'string' || typeof bv === 'string') {
+          return String(av ?? '').localeCompare(String(bv ?? '')) * dir;
+        }
+        return (Number(av ?? 0) - Number(bv ?? 0)) * dir;
+      })
       .slice(0, 40);
-  }, [rows, position, minMinutes]);
+  }, [rows, position, minMinutes, sortKey, sortDesc]);
 
   if (rows === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (rows.length === 0) {
@@ -207,16 +242,30 @@ export default function ValuePage() {
         <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
           <thead className="bg-chalk-200 text-ink-500">
             <tr>
-              <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
-              <th scope="col" className="text-left font-medium text-xs px-3 py-2">Team</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">Price</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">Per &pound;m</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">G</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">A</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">CS</th>
-              <th scope="col" className="text-right font-medium text-xs px-3 py-2">Bonus</th>
+              {COLUMNS.map((c) => (
+                <th
+                  key={c.key}
+                  scope="col"
+                  className={`font-medium text-xs px-3 py-2 ${c.numeric ? 'text-right' : 'text-left'}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (sortKey === c.key) setSortDesc(!sortDesc);
+                      else {
+                        setSortKey(c.key);
+                        // Numbers are interesting largest-first; names
+                        // are not, so the default follows the type.
+                        setSortDesc(c.numeric);
+                      }
+                    }}
+                    className="hover:text-ink-900"
+                  >
+                    {c.label}
+                    {sortKey === c.key ? (sortDesc ? ' \u2193' : ' \u2191') : ''}
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>

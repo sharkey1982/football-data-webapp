@@ -176,16 +176,17 @@ copy would have meant a third fixture list to keep in step.
 ### Gameweek Results: add a player-level table
 Currently match-level only. The data is already there.
 
-### Bargain Basement: make every column sortable
-Requested as a separate "Player Scout" actuals table. Recommend instead
-making Bargain Basement sortable on any column, so one page answers
-value, points, minutes and contribution questions. Three overlapping
-player-actuals views (Bargain Basement, Gameweek Results, Player Scout)
-would drift apart.
+### Bargain Basement: sortable — DONE
+Every column sorts, defaulting to points per £m. Numeric columns default
+to descending, names ascending, and a second click reverses.
 
-"Chief Scout" is better saved for the adjusted-model version, where the
-scouting metaphor actually means something.
+This deliberately replaces the proposed separate "Player Scout" actuals
+table: three overlapping player-actuals views (value, gameweek results,
+scout) would answer the same questions from the same numbers and drift
+apart. One sortable table does it.
 
+"Chief Scout" stays reserved for the adjusted-model version, where the
+scouting metaphor means something.
 
 ### Richer generic player stats (Discover)
 The Opta workbook carries ~214 columns, of which ~22 were extracted.
