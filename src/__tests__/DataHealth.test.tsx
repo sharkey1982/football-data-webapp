@@ -15,6 +15,7 @@ vi.mock('../lib/api', async () => {
     getRecentPipelineRuns: vi.fn(),
     getRecentFplIngestionRuns: vi.fn(),
     getPublicReadAudit: vi.fn(),
+    getDataIntegrityReport: vi.fn(),
     getFitRunValidationChecks: vi.fn(),
   };
 });
@@ -39,6 +40,7 @@ describe('DataHealth page', () => {
     mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
     mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
     mockedApi.getPublicReadAudit.mockResolvedValue([]);
+    mockedApi.getDataIntegrityReport.mockResolvedValue([]);
     mockedApi.getLeagueFitStatus.mockResolvedValue([
       {
         league_id: 1,
@@ -111,6 +113,7 @@ describe('DataHealth page', () => {
     mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
     mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
     mockedApi.getPublicReadAudit.mockResolvedValue([]);
+    mockedApi.getDataIntegrityReport.mockResolvedValue([]);
     mockedApi.getFitRunValidationChecks.mockResolvedValue({
       converged: { pass: true, optimizer_message: 'CONVERGENCE: NORM_OF_PROJECTED_GRADIENT_<=_PGTOL' },
       sufficient_observations: { pass: true, matches_used: 761, minimum: 50 },
@@ -222,5 +225,26 @@ describe('DataHealth page', () => {
 
     expect(screen.getByText('Fantasy raw data')).toBeInTheDocument();
     expect(screen.getByText(/680 players/)).toBeInTheDocument();
+  });
+
+  it('shows a failing integrity check prominently rather than as a number', async () => {
+    mockedApi.getLeagueFitStatus.mockResolvedValue([]);
+    mockedApi.getRecentMatchImportRuns.mockResolvedValue([]);
+    mockedApi.getRecentFixtureRefreshRuns.mockResolvedValue([]);
+    mockedApi.getRecentPipelineRuns.mockResolvedValue([]);
+    mockedApi.getRecentFplIngestionRuns.mockResolvedValue([]);
+    mockedApi.getPublicReadAudit.mockResolvedValue([]);
+    mockedApi.getDataIntegrityReport.mockResolvedValue([
+      { check_name: 'gameweek history reconciles', status: 'FAIL', detail: '137 player(s) do not reconcile' },
+      { check_name: 'public read access', status: 'ok', detail: 'nothing granted-but-blocked' },
+    ]);
+
+    render(<DataHealth />);
+
+    // These checks exist because the bugs they catch produce NO error,
+    // so the status has to be legible at a glance rather than inferred.
+    await waitFor(() => expect(screen.getByText('gameweek history reconciles')).toBeInTheDocument());
+    expect(screen.getByText('FAIL')).toBeInTheDocument();
+    expect(screen.getByText(/137 player/)).toBeInTheDocument();
   });
 });

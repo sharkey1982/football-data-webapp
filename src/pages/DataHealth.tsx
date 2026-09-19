@@ -7,12 +7,14 @@ import {
   getRecentMatchImportRuns,
   getRecentPipelineRuns,
   getPublicReadAudit,
+  getDataIntegrityReport,
   type FixtureRefreshRun,
   type FplIngestionRun,
   type LeagueFitStatus,
   type MatchImportRun,
   type PipelineRun,
   type PublicReadAuditRow,
+  type IntegrityCheck,
 } from '../lib/api';
 
 type SortKey = 'league_code' | 'accepted_fitted_at' | 'accepted_matches_used' | 'latest_attempted_status';
@@ -214,6 +216,7 @@ export default function DataHealth() {
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
   const [fplIngestionRuns, setFplIngestionRuns] = useState<FplIngestionRun[]>([]);
   const [readAudit, setReadAudit] = useState<PublicReadAuditRow[]>([]);
+  const [integrity, setIntegrity] = useState<IntegrityCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('league_code');
@@ -227,13 +230,14 @@ export default function DataHealth() {
       setLoading(true);
       setError(null);
       try {
-        const [fitStatus, imports, refreshes, pipelines, fplIngestion, audit] = await Promise.all([
+        const [fitStatus, imports, refreshes, pipelines, fplIngestion, audit, checks] = await Promise.all([
           getLeagueFitStatus(),
           getRecentMatchImportRuns(),
           getRecentFixtureRefreshRuns(),
           getRecentPipelineRuns(),
           getRecentFplIngestionRuns(),
           getPublicReadAudit(),
+          getDataIntegrityReport(),
         ]);
         if (cancelled) return;
         setRows(fitStatus);
@@ -242,6 +246,7 @@ export default function DataHealth() {
         setPipelineRuns(pipelines);
         setFplIngestionRuns(fplIngestion);
         setReadAudit(audit);
+        setIntegrity(checks);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load data health info');
       } finally {
@@ -418,6 +423,36 @@ export default function DataHealth() {
           </table>
         </div>
       )}
+
+      {!loading && !error && integrity.length > 0 && (() => {
+        const failing = integrity.filter((c) => c.status !== 'ok');
+        return (
+          <div className={`border rounded-lg bg-white overflow-hidden ${failing.length ? 'border-loss-700' : 'border-chalk-300'}`}>
+            <div className="px-3 py-2 border-b border-chalk-300">
+              <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Data integrity</h2>
+              <p className="text-xs text-ink-500">
+                Checks that catch wrong data rather than failed jobs. Each of these has caught a real bug that produced
+                no error at all.
+              </p>
+            </div>
+            <ul className="divide-y divide-chalk-200">
+              {integrity.map((c) => (
+                <li key={c.check_name} className="px-3 py-1.5 flex items-baseline gap-2 flex-wrap">
+                  <span
+                    className={`font-mono text-[0.65rem] uppercase px-1.5 py-0.5 rounded ${
+                      c.status === 'ok' ? 'bg-pitch-800 text-chalk-100' : 'bg-loss-700 text-chalk-100'
+                    }`}
+                  >
+                    {c.status}
+                  </span>
+                  <span className="text-xs text-ink-900">{c.check_name}</span>
+                  <span className="text-xs text-ink-500">{c.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
 
       {!loading && !error && (() => {
         // Only the genuinely suspicious case is worth showing by default:

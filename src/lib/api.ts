@@ -1920,6 +1920,22 @@ export async function getRecentMatchImportRuns(limit = 10): Promise<MatchImportR
   return data ?? [];
 }
 
+export type IntegrityCheck = { check_name: string; status: string; detail: string };
+
+/** Every data check this project has learned to need, in one call.
+ *
+ * These bugs produce no error. Three in one session ran cleanly and
+ * served wrong data -- NULL season_ids invisible to season-filtered
+ * queries, double gameweeks dropped by a narrow primary key, tables
+ * readable by nobody. Each was found only because someone thought to
+ * ask. Putting the questions on a page means nobody has to remember
+ * them. */
+export async function getDataIntegrityReport(): Promise<IntegrityCheck[]> {
+  const { data, error } = await (supabase as any).rpc('get_data_integrity_report');
+  if (error) throw error;
+  return (data ?? []) as IntegrityCheck[];
+}
+
 export type PublicReadAuditRow = {
   object_name: string;
   object_kind: string;
