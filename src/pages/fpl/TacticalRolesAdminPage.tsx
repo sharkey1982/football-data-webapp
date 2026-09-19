@@ -75,6 +75,9 @@ export default function TacticalRolesAdminPage() {
   const [depthFilter, setDepthFilter] = useState<number | 'all'>('all');
   const [tableSort, setTableSort] = useState<TableSort>('position');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  // Set when arriving from the worklist, so the row you came for is
+  // obvious rather than something to hunt for in a 25-player squad.
+  const [highlightPlayerId, setHighlightPlayerId] = useState<number | null>(null);
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
@@ -421,7 +424,27 @@ export default function TacticalRolesAdminPage() {
                   {needed.map((w, i) => (
                     <tr key={w.fpl_player_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
                       <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
-                        {w.web_name}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTeamId(w.team_id);
+                            setHighlightPlayerId(w.fpl_player_id);
+                            // Pitch mode renders no editable rows, so a
+                            // jump into it would silently land nowhere.
+                            setDisplayMode('table');
+                            // The editor is further down the page and the
+                            // team switch re-renders it, so wait a tick
+                            // before scrolling to a row that now exists.
+                            window.setTimeout(() => {
+                              document
+                                .getElementById(`role-row-${w.fpl_player_id}`)
+                                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 50);
+                          }}
+                          className="text-pitch-800 underline underline-offset-2 hover:text-pitch-700"
+                        >
+                          {w.web_name}
+                        </button>
                         {w.priority === 'starter' && (
                           <span className="ml-1 text-[0.6rem] font-mono uppercase text-amber-600">starter</span>
                         )}
@@ -550,7 +573,14 @@ export default function TacticalRolesAdminPage() {
                     <table className="w-full text-sm">
                       <tbody>
                         {visible.map((r) => (
-                          <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
+                          <tr
+                            key={r.fpl_player_id}
+                            id={`role-row-${r.fpl_player_id}`}
+                            className={[
+                              'border-b border-chalk-200 last:border-b-0',
+                              highlightPlayerId === r.fpl_player_id ? 'bg-amber-100' : '',
+                            ].join(' ')}
+                          >
                             <td className="px-3 py-1.5 font-medium text-ink-900">{r.web_name}</td>
                             <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                             <td className="px-2 py-1.5">
@@ -669,8 +699,18 @@ export default function TacticalRolesAdminPage() {
                     </thead>
                     <tbody>
                       {selectedTeamRows.map((r) => (
-                        <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
-                          <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
+                        <tr
+                          key={r.fpl_player_id}
+                          id={`role-row-${r.fpl_player_id}`}
+                          className={[
+                            'border-b border-chalk-200 last:border-b-0',
+                            highlightPlayerId === r.fpl_player_id ? 'bg-amber-100' : '',
+                          ].join(' ')}
+                        >
+                          <td className={[
+                            'sticky left-0 z-10 px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap',
+                            highlightPlayerId === r.fpl_player_id ? 'bg-amber-100' : 'bg-white',
+                          ].join(' ')}>{r.web_name}</td>
                           <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                           <td className="px-2 py-1.5">
                             <RoleSelect row={r} />

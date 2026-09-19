@@ -17,6 +17,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
   return {
     ...actual,
     getTacticalRoleReview: vi.fn(),
+    getTacticalRoleWorklist: vi.fn(),
     getTeamOptions: vi.fn(),
     getTeamFormation: vi.fn(),
     getTeamReviewDates: vi.fn(),
@@ -66,6 +67,8 @@ describe('TacticalRolesAdminPage', () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
+    // Same reasoning as above: the worklist panel loads on mount.
+    mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);
   });
 
   it('defaults to Needs Review, showing only generic-role players, and lets a role be corrected', async () => {
@@ -309,5 +312,41 @@ describe('TacticalRolesAdminPage', () => {
     const sakaRow = within(setPiecePanel).getByText('Saka').closest('li')!;
     await user.click(within(sakaRow).getByTitle('Remove'));
     await waitFor(() => expect(mockedApi.removeSetPieceTaker).toHaveBeenCalledWith(10));
+  });
+
+  it('jumps from a worklist name straight to that player\u2019s edit row', async () => {
+    // The worklist names ~57 players needing a role, but reaching one
+    // meant reading the name, finding their club in a dropdown, then
+    // hunting the row in a 25-player squad. The name is the obvious
+    // thing to click.
+    mockedApi.getTeamOptions.mockResolvedValue([
+      { team_id: 1, team_name: 'Arsenal' },
+      { team_id: 2, team_name: 'Liverpool' },
+    ]);
+    mockedApi.getTeamReviewDates.mockResolvedValue({});
+    mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 99, web_name: 'Gakpo', team_id: 2, team_name: 'Liverpool' }),
+    ]);
+    mockedApi.getTacticalRoleWorklist.mockResolvedValue([
+      {
+        team_id: 2, team_name: 'Liverpool', fpl_player_id: 99, web_name: 'Gakpo',
+        slug: 'gakpo', position_label: 'MID', assigned_role: null, confidence: null,
+        minutes: 400, ownership: 12.8, total_points: 29, priority: 'starter' as const,
+      },
+    ]);
+
+    render(<TacticalRolesAdminPage />);
+
+    const link = await screen.findByRole('button', { name: 'Gakpo' });
+    await userEvent.click(link);
+
+    // The edit row exists and is marked, so it's findable rather than
+    // something to hunt for.
+    await waitFor(() => {
+      const row = document.getElementById('role-row-99');
+      expect(row).not.toBeNull();
+      expect(row!.className).toContain('bg-amber-100');
+    });
   });
 });
