@@ -165,20 +165,43 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
-### Import 2024/25 (and earlier)
-The importer generalises — same DO block, change the URL and season_id.
-vaastav has 2016-17 onward.
+### Historic FPL seasons — FOUR IMPORTED
+2022/23 (554), 2023/24 (570), 2024/25 (562), 2025/26 (537) player rows
+in fpl_player_season_totals. seasons 9-12.
 
-Needed per season:
-  - a seasons row (2024/25 doesn't exist yet; 12 = 2025/26, 13 = 2026/27)
-  - re-run the import block against data/2024-25/players_raw.csv
-  - solve the best XI once and insert into season_best_xi
-  - extend player_identity for players who don't appear in later seasons
+import_fpl_season(season_id, folder) does it all: fetch, validate,
+import, extend player_identity. service_role only.
 
-Worth checking per season: the importer resolves columns BY NAME and
-aborts on unexpected field counts or quotes, so an older file with a
-different shape fails loudly rather than importing shifted data.
+Column COUNT varies wildly by season — 67 in 2021/22, 88 in 2022/23 and
+2023/24, 103 in 2024/25, 105 in 2025/26 — which is why the importer
+resolves columns by NAME. Anything positional would silently import
+shifted data for most of them.
 
+Malformed rows are skipped and REPORTED, but only up to 1% of the file;
+beyond that it aborts, because one bad row is a quirk and fifty is a
+format change. 2023/24 has exactly one (a news field containing a
+comma).
+
+2021/22 is available and not imported — 67 columns, worth checking the
+required set exists before adding.
+
+VERIFIED WORKING: career totals resolve across seasons by fpl_code —
+Salah 917 points over four seasons, Haaland 909 — which is the whole
+reason player_identity was built.
+
+### Trend pages to build on this data
+Now possible, in rough order of value:
+  - career arc per player (points/value by season) on the player page
+  - value at different clubs: a player's returns before and after a
+    transfer, which fpl_code makes tractable
+  - set-and-forget XI per season, showing whether the perfect squad's
+    cost is stable (£78.5m in 2025/26; solve the others)
+  - top scorer by season: 344 in 2024/25 against 239 in 2025/26 is a
+    big swing worth explaining
+
+NOT possible without more data: phasing WITHIN a season (form curves,
+fast/slow starters). That needs gws/merged_gw.csv, roughly 30k rows per
+season.
 
 ### "Deadline Day" page — name reserved
 Considered for the price-risk page and rejected: in FPL, "deadline"
