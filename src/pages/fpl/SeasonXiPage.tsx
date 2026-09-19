@@ -13,29 +13,46 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   getSeasonBestXi,
   getSeasonValueLeaders,
+  getXiSeasons,
+  seasonName,
   POS_LABEL,
   type SeasonXiPlayer,
   type SeasonValueLeader,
+  type XiSeason,
 } from '../../lib/seasonXiApi';
 import { layoutByBand } from '../../lib/pitchLayout';
-
-const SEASON_ID = 12;
-const SEASON_LABEL = '2025/26';
 
 export default function SeasonXiPage() {
   const [xi, setXi] = useState<SeasonXiPlayer[] | null>(null);
   const [value, setValue] = useState<SeasonValueLeader[]>([]);
+  const [seasons, setSeasons] = useState<XiSeason[]>([]);
+  // Newest season selected once the list arrives, rather than a
+  // hardcoded id -- adding a season should be an insert, not an edit.
+  const [seasonId, setSeasonId] = useState<number | null>(null);
+
+  const current = seasons.find((s) => s.season_id === seasonId);
+  const label = current ? seasonName(current.slug) : '';
 
   useDocumentHead({
-    title: `The perfect FPL XI of ${SEASON_LABEL}`,
-    description: `The highest-scoring Fantasy Premier League XI you could have picked before a ball was kicked in ${SEASON_LABEL} and never changed, at start-of-season prices.`,
+    title: label ? `The perfect FPL XI of ${label}` : 'The perfect FPL XI',
+    description: `The highest-scoring Fantasy Premier League XI you could have picked before a ball was kicked and never changed, at start-of-season prices.`,
     path: '/fpl/season-xi',
   });
 
   useEffect(() => {
-    getSeasonBestXi(SEASON_ID).then(setXi).catch(() => setXi([]));
-    getSeasonValueLeaders(SEASON_ID).then(setValue).catch(() => setValue([]));
+    getXiSeasons()
+      .then((list) => {
+        setSeasons(list);
+        setSeasonId((cur) => cur ?? list[0]?.season_id ?? null);
+      })
+      .catch(() => setSeasons([]));
   }, []);
+
+  useEffect(() => {
+    if (seasonId == null) return;
+    getSeasonBestXi(seasonId).then(setXi).catch(() => setXi([]));
+    getSeasonValueLeaders(seasonId).then(setValue).catch(() => setValue([]));
+  }, [seasonId]);
 
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (xi.length === 0) {
@@ -57,7 +74,7 @@ export default function SeasonXiPage() {
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">
-          The set-and-forget XI &mdash; {SEASON_LABEL}
+          The set-and-forget XI{label && ` \u2014 ${label}`}
         </h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           The highest-scoring eleven you could have picked before a ball was kicked and never touched again:{' '}
@@ -65,6 +82,56 @@ export default function SeasonXiPage() {
           no chips, no hits.
         </p>
       </header>
+
+      {seasons.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {seasons.map((s2) => (
+            <button
+              key={s2.season_id}
+              type="button"
+              onClick={() => setSeasonId(s2.season_id)}
+              className={[
+                'text-sm rounded px-3 py-1.5 border transition-colors',
+                s2.season_id === seasonId
+                  ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
+                  : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
+              ].join(' ')}
+            >
+              {seasonName(s2.slug)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {seasons.length > 1 && (
+        <section className="border border-chalk-300 rounded-lg bg-white p-4">
+          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">The perfect XI barely changes price</h2>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            Across {seasons.length} seasons the best possible eleven has cost between{' '}
+            <strong>&pound;{(Math.min(...seasons.map((s2) => s2.cost)) / 10).toFixed(1)}m</strong> and{' '}
+            <strong>&pound;{(Math.max(...seasons.map((s2) => s2.cost)) / 10).toFixed(1)}m</strong>, and scored between{' '}
+            {Math.min(...seasons.map((s2) => s2.points)).toLocaleString()} and{' '}
+            {Math.max(...seasons.map((s2) => s2.points)).toLocaleString()} points. The ceiling is remarkably steady.
+          </p>
+          <div className="space-y-1.5 mt-3">
+            {seasons.map((s2) => {
+              const mx = Math.max(...seasons.map((z) => z.points));
+              return (
+                <div key={s2.season_id} className="flex items-center gap-3">
+                  <span className="w-16 shrink-0 font-mono text-xs text-ink-700">{seasonName(s2.slug)}</span>
+                  <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
+                    <div className="bg-pitch-700 h-full rounded" style={{ width: `${(s2.points / mx) * 100}%` }} />
+                  </div>
+                  <span className="w-12 shrink-0 text-right font-mono text-xs tabular-nums">{s2.points}</span>
+                  <span className="w-16 shrink-0 text-right font-mono text-[0.65rem] text-ink-500 tabular-nums">
+                    &pound;{(s2.cost / 10).toFixed(1)}m
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="border border-chalk-300 rounded-lg bg-white p-4">
         <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Why August prices matter</h2>

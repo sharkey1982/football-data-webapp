@@ -165,6 +165,21 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
+### Season filters: audited, mostly NOT needed
+Season 13 is hardcoded in ~11 frontend modules, and that's CORRECT for
+almost all of them. Injuries, price risk, transfer window, set pieces
+and the digest are current-season questions — "injuries in 2023/24"
+isn't something anyone wants, and adding filters there would be work
+for nobody.
+
+Only pages that genuinely compare across seasons need the dimension.
+/fpl/season-xi now has it, driven by the data rather than a hardcoded
+list, so adding a season is an insert.
+
+If career-arc or transfer-comparison pages get built, they'd need it
+too. Nothing else does.
+
+
 ### Historic FPL seasons — FOUR IMPORTED
 2022/23 (554), 2023/24 (570), 2024/25 (562), 2025/26 (537) player rows
 in fpl_player_season_totals. seasons 9-12.

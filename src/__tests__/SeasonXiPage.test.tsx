@@ -7,7 +7,7 @@ import * as api from '../lib/seasonXiApi';
 
 vi.mock('../lib/seasonXiApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/seasonXiApi');
-  return { ...actual, getSeasonBestXi: vi.fn(), getSeasonValueLeaders: vi.fn() };
+  return { ...actual, getSeasonBestXi: vi.fn(), getSeasonValueLeaders: vi.fn(), getXiSeasons: vi.fn() };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -19,6 +19,7 @@ const p = (over: Partial<api.SeasonXiPlayer>): api.SeasonXiPlayer => ({
 describe('SeasonXiPage', () => {
   it('shows August prices, not end-of-season prices', async () => {
     mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
     mocked.getSeasonBestXi.mockResolvedValue([p({}), p({ fpl_code: 2, web_name: 'Haaland', element_type: 4, start_cost: 140, total_points: 239 })]);
 
     render(<MemoryRouter><SeasonXiPage /></MemoryRouter>);
@@ -32,6 +33,7 @@ describe('SeasonXiPage', () => {
 
   it('totals points and cost across the XI', async () => {
     mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
     mocked.getSeasonBestXi.mockResolvedValue([
       p({ fpl_code: 1, total_points: 100, start_cost: 50 }),
       p({ fpl_code: 2, total_points: 200, start_cost: 100 }),
@@ -45,10 +47,32 @@ describe('SeasonXiPage', () => {
 
   it('states it is an XI, not a fifteen', async () => {
     mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
     mocked.getSeasonBestXi.mockResolvedValue([p({})]);
     render(<MemoryRouter><SeasonXiPage /></MemoryRouter>);
     // Bench autosubs need gameweek data that isn't imported, so
     // claiming a full squad would overstate what was computed.
     await waitFor(() => expect(screen.getByText(/XI rather than a full fifteen/)).toBeInTheDocument());
+  });
+
+  it('lets a season be chosen, and compares the ceiling across them', async () => {
+    mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([
+      { season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 },
+      { season_id: 11, slug: '2024-25', label: '2425', points: 2187, cost: 805 },
+    ]);
+    mocked.getSeasonBestXi.mockResolvedValue([p({})]);
+
+    render(<MemoryRouter><SeasonXiPage /></MemoryRouter>);
+
+    // Newest season selected by default, without a hardcoded id.
+    await waitFor(() => expect(screen.getByRole('button', { name: '2025/26' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: '2024/25' })).toBeInTheDocument();
+
+    // The cross-season point: the ceiling barely moves.
+    expect(screen.getByText(/perfect XI barely changes price/)).toBeInTheDocument();
+// Both appear in the prose summary and again on their own bars.
+    expect(screen.getAllByText(/£78\.5m/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/£80\.5m/).length).toBeGreaterThan(0);
   });
 });
