@@ -100,14 +100,31 @@ The formation_slot_geometry work gives the pitch component; it needs a
 variant that lays out an arbitrary XI by FPL position rather than by a
 known formation shape.
 
-### Bargain Basement: positional value analysis
-Requested: which POSITIONS are the best value per million, and what that
-implies for formation choice — e.g. if defenders dominate value, should
-a squad carry five of them?
+### Managers' Dugout: surface the cross-formation comparison better
+Clicking a position already compares that role across every formation,
+but it's hidden behind a click and labelled "Slot 9" rather than by
+position. The question it answers — does this role produce more in one
+shape than another — is the most interesting thing on the page and
+should be visible without hunting for it.
 
-Genuinely answerable from data already held (points per £m by
-element_type). The formation implication is the interesting half and
-would pair with the optimiser.
+Blocked on nothing; needs position names per formation (the geometry
+table has coordinates but not labels, and a slot's role genuinely
+differs by shape, so labels have to be per-formation rather than global).
+
+### Bargain Basement: positional value — DONE
+Compares the five best-value players in each position rather than the
+positional average, because that's who a squad is actually built from
+and the two give different answers: averaged across everyone the four
+positions look alike (medians 2.15-2.95), but restricted to the top five
+they diverge sharply.
+
+Current data: defenders 6.59 points per £m at £4.38 average, forwards
+3.59 at £6.78 — nearly twice the value for £2.40 less. Since an XI must
+field 3-5 defenders and 1-3 forwards, that argues for five at the back
+and one up front.
+
+The page states the counter-argument too: forwards carry the higher
+weekly ceiling and captaincy is picked for upside, not efficiency.
 
 ### Transfer Window: split herd behaviour from price prediction
 Two distinct things currently conflated:

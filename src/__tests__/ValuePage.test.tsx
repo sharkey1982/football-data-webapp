@@ -40,11 +40,33 @@ describe('ValuePage', () => {
   it('shows the contributions behind each ratio, so it can be interrogated', async () => {
     mocked.getActualValueTable.mockResolvedValue([row({})]);
     render(<MemoryRouter><ValuePage /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByText('8.04')).toBeInTheDocument());
+    // Also appears in the positional-value panel above the table.
+    await waitFor(() => expect(screen.getAllByText('8.04').length).toBeGreaterThan(0));
     // Goals, assists, clean sheets and bonus all present: 8.04 from
     // bonus is a different proposition from 8.04 from goals.
     for (const col of ['G', 'A', 'CS', 'Bonus']) {
       expect(screen.getByRole('columnheader', { name: col })).toBeInTheDocument();
     }
+  });
+
+  it('compares the best few per position, not the positional average', async () => {
+    // Averages across everyone make the positions look alike; the top
+    // few -- who a squad is actually built from -- diverge sharply, and
+    // that divergence is what should drive formation choice.
+    mocked.getActualValueTable.mockResolvedValue([
+      row({ fpl_player_id: 1, web_name: 'CheapDef', slug: 'cheapdef', position_label: 'DEF', price: 4.0, total_points: 32, points_per_million: 8.0, minutes: 360 }),
+      row({ fpl_player_id: 2, web_name: 'PriceyFwd', slug: 'priceyfwd', position_label: 'FWD', price: 9.0, total_points: 27, points_per_million: 3.0, minutes: 360 }),
+      // Below the minutes floor: must be excluded from the positional
+      // maths as well as the table, or a cameo distorts the headline.
+      row({ fpl_player_id: 3, web_name: 'Cameo', slug: 'cameo', position_label: 'FWD', price: 4.5, total_points: 9, points_per_million: 20, minutes: 20 }),
+    ]);
+
+    render(<MemoryRouter><ValuePage /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText(/Where the value actually is/)).toBeInTheDocument());
+    expect(screen.getByText(/Defenders/)).toBeInTheDocument();
+    // 8.0 vs 3.0 -> 2.7x, and the cameo's 20 must not have inflated FWD.
+    expect(screen.getByText(/2\.7&times;|2\.7×/)).toBeInTheDocument();
+    expect(screen.getByText(/five at\s+the back/)).toBeInTheDocument();
   });
 });

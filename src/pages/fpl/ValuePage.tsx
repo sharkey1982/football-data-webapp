@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getActualValueTable, type ValueRow } from '../../lib/valueApi';
+import { getActualValueTable, valueByPosition, type ValueRow } from '../../lib/valueApi';
 
 const POSITIONS = ['All', 'GKP', 'DEF', 'MID', 'FWD'];
 
@@ -34,6 +34,8 @@ export default function ValuePage() {
       .then(setRows)
       .catch(() => setRows([]));
   }, []);
+
+  const byPosition = useMemo(() => (rows ? valueByPosition(rows, 5, 180) : []), [rows]);
 
   const view = useMemo(() => {
     if (!rows) return [];
@@ -62,6 +64,60 @@ export default function ValuePage() {
           projections.
         </p>
       </header>
+
+      {byPosition.length > 0 && (() => {
+        const best = [...byPosition].sort((a, b) => b.topPointsPerMillion - a.topPointsPerMillion)[0];
+        const worst = [...byPosition].sort((a, b) => a.topPointsPerMillion - b.topPointsPerMillion)[0];
+        const max = Math.max(...byPosition.map((p) => p.topPointsPerMillion));
+        const NAMES: Record<string, string> = { GKP: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', FWD: 'Forwards' };
+        const ratio = worst.topPointsPerMillion > 0 ? best.topPointsPerMillion / worst.topPointsPerMillion : 0;
+        return (
+          <section className="border border-chalk-300 rounded-lg bg-white p-4">
+            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Where the value actually is</h2>
+            <p className="text-ink-900 mt-1 max-w-prose">
+              Comparing the five best-value players in each position &mdash; the ones a squad is actually built from
+              &mdash; {NAMES[best.position].toLowerCase()} return{' '}
+              <strong>{best.topPointsPerMillion} points per &pound;m</strong> at an average of &pound;
+              {best.topAveragePrice.toFixed(1)}m, against <strong>{worst.topPointsPerMillion}</strong> for{' '}
+              {NAMES[worst.position].toLowerCase()} at &pound;{worst.topAveragePrice.toFixed(1)}m.
+              {ratio >= 1.5 && (
+                <>
+                  {' '}
+                  That&rsquo;s {ratio.toFixed(1)}&times; the value, for less money.
+                </>
+              )}
+            </p>
+            <div className="space-y-2 mt-3">
+              {byPosition.map((p) => (
+                <div key={p.position} className="flex items-center gap-3">
+                  <span className="w-24 shrink-0 text-sm text-ink-700">{NAMES[p.position]}</span>
+                  <div className="flex-1 bg-chalk-200 rounded h-5 overflow-hidden">
+                    <div
+                      className="bg-pitch-700 h-full rounded"
+                      style={{ width: `${max > 0 ? (p.topPointsPerMillion / max) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums">{p.topPointsPerMillion}</span>
+                  <span className="w-16 shrink-0 text-right font-mono text-[0.65rem] text-ink-500 tabular-nums">
+                    &pound;{p.topAveragePrice.toFixed(1)}m
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-ink-700 text-sm mt-3 max-w-prose">
+              <strong>What that means for your XI.</strong> An FPL side must field 3&ndash;5 defenders, 2&ndash;5
+              midfielders and 1&ndash;3 forwards, so the only real choice is where the flexible places go. On these
+              numbers the marginal defender is better value than the marginal forward, which argues for playing five at
+              the back and one up front rather than the reverse.
+            </p>
+            <p className="text-ink-500 text-xs mt-2 max-w-prose">
+              Value isn&rsquo;t everything: forwards carry the higher ceiling on any given week, and a captain is picked
+              for upside rather than efficiency. This says where a budget stretches furthest, not who to captain. Early
+              in a season these gaps move a lot.
+            </p>
+          </section>
+        );
+      })()}
 
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-wrap gap-2">
