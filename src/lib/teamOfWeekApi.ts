@@ -47,7 +47,7 @@ export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> 
     p_season_id: 13,
   });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     points: Number(r.points),
     minutes: Number(r.minutes),
@@ -67,7 +67,7 @@ export async function getTotwVsModel(eventId?: number): Promise<TotwComparison |
     p_season_id: 13,
   });
   if (error) throw error;
-  const row = ((data ?? []) as any[])[0];
+  const row = (data ?? [])[0];
   if (!row) return null;
   return {
     ...row,
@@ -98,7 +98,7 @@ export type CompletedGameweek = {
 export async function getCompletedGameweeks(seasonId = 13): Promise<CompletedGameweek[]> {
   const { data, error } = await supabase.rpc('get_completed_gameweeks', { p_season_id: seasonId });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     fpl_event_id: Number(r.fpl_event_id),
     players: Number(r.players),
     total_points: Number(r.total_points),
@@ -121,7 +121,7 @@ export async function getGameweekScorers(eventId: number, seasonId = 13, limit =
     .order('total_points', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     fpl_player_id: Number(r.fpl_player_id),
     web_name: r.fpl_players?.web_name ?? null,
     slug: r.fpl_players?.slug ?? null,

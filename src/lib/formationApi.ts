@@ -77,7 +77,7 @@ export async function getFormationGeometry(): Promise<Map<string, Map<number, Sl
     .select('source_formation_code, slot, x_pct, y_pct');
   if (error) throw error;
   const out = new Map<string, Map<number, SlotGeometry>>();
-  for (const r of (data ?? []) as any[]) {
+  for (const r of (data ?? [])) {
     if (!out.has(r.source_formation_code)) out.set(r.source_formation_code, new Map());
     out.get(r.source_formation_code)!.set(Number(r.slot), {
       slot: Number(r.slot),
@@ -93,7 +93,7 @@ export async function getFormationNames(): Promise<Map<string, string>> {
     .from('formation_code_names')
     .select('source_formation_code, canonical_formation');
   if (error) throw error;
-  return new Map(((data ?? []) as any[]).map((r) => [r.source_formation_code, r.canonical_formation]));
+  return new Map((data ?? []).map((r) => [r.source_formation_code, r.canonical_formation]));
 }
 
 export type FormationMetric = {

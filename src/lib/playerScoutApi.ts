@@ -55,7 +55,7 @@ export async function searchPlayers(query: string, limit = 20): Promise<PlayerSe
     p_limit: limit,
   });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     fpl_code: Number(r.fpl_code),
     element_type: Number(r.element_type),
@@ -67,7 +67,7 @@ export async function searchPlayers(query: string, limit = 20): Promise<PlayerSe
 export async function getPlayerCareer(fplCode: number): Promise<PlayerSeason[]> {
   const { data, error } = await supabase.rpc('get_player_career', { p_fpl_code: fplCode });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     season_id: Number(r.season_id),
     element_type: Number(r.element_type),
@@ -115,7 +115,7 @@ export type PlayerIdentity = {
 export async function getPlayerBySlug(slug: string): Promise<PlayerIdentity | null> {
   const { data, error } = await supabase.rpc('get_player_by_slug', { p_slug: slug });
   if (error) throw error;
-  const row = ((data ?? []) as any[])[0];
+  const row = (data ?? [])[0];
   if (!row) return null;
   return {
     ...row,

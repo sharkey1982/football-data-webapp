@@ -162,7 +162,7 @@ export async function getActualMatchDetail(fixtureId: number): Promise<ActualMat
 
   const home: ActualMatchPlayerStat[] = [];
   const away: ActualMatchPlayerStat[] = [];
-  for (const r of (statRows ?? []) as any[]) {
+  for (const r of (statRows ?? [])) {
     const player = playerById.get(r.fpl_player_id);
     if (!player) continue;
     const stat: ActualMatchPlayerStat = {

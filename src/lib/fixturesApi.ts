@@ -410,7 +410,7 @@ export async function getMatchweekHeadToHead(
   });
   if (error) throw error;
   return new Map(
-    ((data ?? []) as any[]).map((r) => [
+    (data ?? []).map((r) => [
       Number(r.fixture_id),
       {
         ...r,

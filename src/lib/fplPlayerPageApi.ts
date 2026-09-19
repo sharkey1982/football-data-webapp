@@ -93,7 +93,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     .not('matchweek', 'is', null)
     .order('matchweek', { ascending: true });
   if (fixtureError) throw fixtureError;
-  const fixtures = (fixtureRows ?? []) as any[];
+  const fixtures = (fixtureRows ?? []);
   if (fixtures.length === 0) return [];
 
   const fixtureIds = fixtures.map((f) => f.fixture_id);
@@ -105,7 +105,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     .eq('model_version', MODEL_VERSION)
     .in('fixture_id', fixtureIds);
   if (projError) throw projError;
-  const projByFixture = new Map<number, any>(((projRows ?? []) as any[]).map((p) => [p.fixture_id, p]));
+  const projByFixture = new Map<number, any>((projRows ?? []).map((p) => [p.fixture_id, p]));
 
   // Actual results link via fpl_fixture_id, NOT a fixture_id column (there
   // isn't one on this table) -- verified directly that all 2,548 of this
@@ -118,7 +118,14 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     .eq('season_id', PL_SEASON_ID)
     .in('fpl_fixture_id', fixtureIds);
   if (actualError) throw actualError;
-  const actualByFixture = new Map<number, number>(((actualRows ?? []) as any[]).map((a) => [a.fpl_fixture_id, a.total_points]));
+  // fpl_fixture_id and total_points are both nullable in
+  // fpl_player_gameweeks; a row missing either can't be keyed or scored.
+  const actualByFixture = new Map<number, number>(
+    (actualRows ?? [])
+      .filter((a): a is typeof a & { fpl_fixture_id: number; total_points: number } =>
+        a.fpl_fixture_id !== null && a.total_points !== null)
+      .map((a) => [a.fpl_fixture_id, a.total_points])
+  );
 
   return fixtures.map((f) => {
     const isHome = f.home_team_id === teamId;
@@ -147,5 +154,5 @@ export async function getAllPlayerSlugs(): Promise<string[]> {
     .eq('season_id', PL_SEASON_ID)
     .not('slug', 'is', null);
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => r.slug);
+  return (data ?? []).map((r) => r.slug);
 }

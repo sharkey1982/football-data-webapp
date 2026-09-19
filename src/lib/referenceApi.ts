@@ -124,7 +124,7 @@ export async function getTeamsInLeagueFixtures(leagueId: number, seasonId: numbe
   if (error) throw error;
 
   const teamsById = new Map<number, { canonical_name: string; slug: string }>();
-  for (const row of (data ?? []) as any[]) {
+  for (const row of (data ?? [])) {
     teamsById.set(row.home_team_id, { canonical_name: row.home_team?.canonical_name ?? 'Unknown', slug: row.home_team?.slug ?? '' });
     teamsById.set(row.away_team_id, { canonical_name: row.away_team?.canonical_name ?? 'Unknown', slug: row.away_team?.slug ?? '' });
   }

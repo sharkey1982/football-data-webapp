@@ -17,7 +17,7 @@ export async function getFitRunRhos(): Promise<Map<number, number>> {
     .select('fit_run_id, rho')
     .not('rho', 'is', null);
   if (error) throw error;
-  return new Map(((data ?? []) as any[]).map((r) => [Number(r.fit_run_id), Number(r.rho)]));
+  return new Map((data ?? []).map((r) => [Number(r.fit_run_id), Number(r.rho)]));
 }
 
 /** Most recent daily match-result import runs (any status), newest first -- for the Data Health page's "results added" section. */

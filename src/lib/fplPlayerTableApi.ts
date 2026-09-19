@@ -389,7 +389,7 @@ export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number,
   // enough since a team plays each opponent at most twice a season (once
   // home, once away), and is_home already disambiguates which of those two.
   const actualByOpponentAndVenue = new Map<string, { for: number; against: number }>();
-  for (const m of (matchRows ?? []) as any[]) {
+  for (const m of (matchRows ?? [])) {
     const isHome = m.home_team_id === teamId;
     const opponentId = isHome ? m.away_team_id : m.home_team_id;
     const goalsFor = isHome ? m.full_time_home_goals : m.full_time_away_goals;

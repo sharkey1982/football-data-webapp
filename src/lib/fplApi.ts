@@ -135,7 +135,7 @@ export async function getGamesInvolvedCounts(playerIds: number[]): Promise<Map<n
     .in('fpl_player_id', playerIds)
     .gt('minutes', 0);
   if (error) throw error;
-  for (const row of (data ?? []) as any[]) out.set(row.fpl_player_id, (out.get(row.fpl_player_id) ?? 0) + 1);
+  for (const row of (data ?? [])) out.set(row.fpl_player_id, (out.get(row.fpl_player_id) ?? 0) + 1);
   return out;
 }
 
@@ -368,7 +368,7 @@ export async function getFplProjectedFixtures(): Promise<FplProjectedFixtureSumm
     .order('kickoff_date', { ascending: true });
   if (error) throw error;
 
-  return ((data ?? []) as any[]).map((row) => ({
+  return (data ?? []).map((row) => ({
     fixture_id: row.fixture_id,
     kickoff_date: row.kickoff_date,
     kickoff_time: row.kickoff_time,

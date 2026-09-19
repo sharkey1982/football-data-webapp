@@ -47,7 +47,7 @@ export const STATUS_LABEL: Record<string, string> = {
 export async function getInjuryReport(seasonId = 13): Promise<InjuryRow[]> {
   const { data, error } = await supabase.rpc('get_injury_report', { p_season_id: seasonId });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     price: r.price == null ? null : Number(r.price),
     ownership: r.ownership == null ? null : Number(r.ownership),

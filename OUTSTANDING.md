@@ -46,6 +46,32 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### landingApi embed has no foreign key to resolve against — LIKELY BROKEN
+`getTopFplPicks()` in src/lib/landingApi.ts does:
+
+    .from('fpl_player_projections')
+    .select('expected_fpl_points, fpl_players(web_name, ...)')
+
+but `fpl_player_projections` has ZERO foreign key constraints — verified
+against pg_constraint. PostgREST needs a declared FK to embed a related
+table, so this select cannot resolve and the call almost certainly
+returns an error, which the function then throws.
+
+Found by the type checker once the `as any` hiding it was removed:
+"could not find the relation between fpl_player_projections and
+fpl_players". The underlying data is fine — the equivalent SQL join
+matches all 7,302 rows on (fpl_player_id, season_id).
+
+NOT fixed here because both options are out of scope for a typing pass:
+  - add the FK (schema change; note the join is COMPOSITE, on
+    fpl_player_id AND season_id, because of the composite key work)
+  - or split into two queries and join in JS, as most other modules do
+
+Worth checking whether the landing page trivia card is silently empty
+in production.
+
+
+
 ### FPL projection history — RESOLVED (freeze-on-kickoff)
 Projections are no longer overwritten once a fixture is played, so the
 stored row stays a genuine pre-kickoff forecast — mirroring

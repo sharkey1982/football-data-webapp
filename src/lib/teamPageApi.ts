@@ -127,15 +127,17 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
   const { data, error } = await supabase
     .from('fixtures')
     .select(
-      'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, ' +
-        'home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
+      // Single string LITERAL: supabase-js parses .select() at the type
+      // level, and concatenation collapses every embedded column to
+      // GenericStringError.
+      'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
     )
     .eq('league_id', leagueId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .order('kickoff_date', { ascending: true });
   if (error) throw error;
 
-  const rows = (data ?? []) as any[];
+  const rows = (data ?? []);
   if (rows.length === 0) return [];
 
   const { data: results } = await supabase
@@ -144,7 +146,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
     .eq('league_id', leagueId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
   const resultByKey = new Map<string, any>(
-    ((results ?? []) as any[]).map((m) => [`${m.home_team_id}|${m.away_team_id}|${m.match_date}`, m])
+    (results ?? []).map((m) => [`${m.home_team_id}|${m.away_team_id}|${m.match_date}`, m])
   );
 
   return rows.map((f) => {

@@ -373,12 +373,12 @@ export async function getGameweekPlayerProjections(
   const actualPointsByKey = new Map<string, number>();
   if (fixtureIds.length > 0 && playerIds.length > 0) {
     const { data: gwRows, error: gwError } = await supabase
-      .from('fpl_player_gameweeks' as any)
+      .from('fpl_player_gameweeks')
       .select('fpl_fixture_id, fpl_player_id, total_points')
       .in('fpl_fixture_id', fixtureIds)
       .in('fpl_player_id', playerIds);
     if (gwError) throw gwError;
-    for (const row of (gwRows ?? []) as any[]) {
+    for (const row of (gwRows ?? [])) {
       if (row.total_points !== null) actualPointsByKey.set(`${row.fpl_fixture_id}:${row.fpl_player_id}`, row.total_points);
     }
   }
@@ -502,13 +502,13 @@ export async function getSeasonActualVsProjected(leagueId: number, seasonId: num
   if (playedFixtureIds.length === 0) return [];
 
   const { data: gwRows, error: gwError } = await supabase
-    .from('fpl_player_gameweeks' as any)
+    .from('fpl_player_gameweeks')
     .select('fpl_player_id, fpl_fixture_id, total_points')
     .in('fpl_fixture_id', playedFixtureIds);
   if (gwError) throw gwError;
 
   const byPlayer = new Map<number, { games: number; points: number; fixtureIds: number[] }>();
-  for (const row of (gwRows ?? []) as any[]) {
+  for (const row of (gwRows ?? [])) {
     if (row.total_points === null) continue;
     const entry = byPlayer.get(row.fpl_player_id) ?? { games: 0, points: 0, fixtureIds: [] };
     entry.games += 1;

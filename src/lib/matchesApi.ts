@@ -304,7 +304,7 @@ export async function getLeagueTable(leagueId: number, seasonId: number): Promis
     return row;
   }
 
-  for (const m of (data ?? []) as any[]) {
+  for (const m of (data ?? [])) {
     const home = rowFor(m.home_team_id, m.home_team?.canonical_name ?? 'Unknown');
     const away = rowFor(m.away_team_id, m.away_team?.canonical_name ?? 'Unknown');
 

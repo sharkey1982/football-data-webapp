@@ -39,7 +39,7 @@ export async function getMarketEfficiency(closing = true): Promise<MarketEfficie
     p_closing: closing,
   });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     matches: Number(r.matches),
     overround: Number(r.overround),
@@ -72,7 +72,7 @@ export type OverroundPoint = {
 export async function getOverroundTrend(): Promise<OverroundPoint[]> {
   const { data, error } = await supabase.rpc('get_overround_trend', { p_bookmaker: 'Avg' });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     matches: Number(r.matches),
     overround: Number(r.overround),

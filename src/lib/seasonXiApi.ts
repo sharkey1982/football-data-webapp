@@ -31,7 +31,7 @@ export async function getSeasonBestXi(seasonId: number): Promise<SeasonXiPlayer[
     .order('element_type')
     .order('total_points', { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     start_cost: Number(r.start_cost),
     total_points: Number(r.total_points),
@@ -49,7 +49,7 @@ export async function getSeasonValueLeaders(seasonId: number, limit = 10) {
     .order('total_points', { ascending: false })
     .limit(200);
   if (error) throw error;
-  return ((data ?? []) as any[])
+  return (data ?? [])
     .map((r) => ({
       ...r,
       start_cost: Number(r.start_cost),
@@ -76,7 +76,7 @@ export async function getXiSeasons(): Promise<XiSeason[]> {
     .select('season_id, total_points, start_cost, seasons!inner(slug, label)');
   if (error) throw error;
   const by = new Map<number, XiSeason>();
-  for (const r of (data ?? []) as any[]) {
+  for (const r of (data ?? [])) {
     const id = Number(r.season_id);
     const cur = by.get(id) ?? {
       season_id: id,

@@ -234,6 +234,11 @@ async function getTopFplPicks(): Promise<TopFplPick[]> {
     .order('expected_fpl_points', { ascending: false })
     .limit(4);
   if (error) throw error;
+  // CAST RETAINED, and it is hiding a real problem rather than a typing
+  // quirk: fpl_player_projections has no foreign key, so PostgREST cannot
+  // resolve this embed and the query likely fails at runtime. Logged in
+  // OUTSTANDING.md -- fixing it needs either an FK or a two-query split,
+  // both out of scope for a typing pass.
   return ((data ?? []) as any[]).map((row) => ({
     web_name: row.fpl_players?.web_name ?? 'Unknown',
     team_name: row.fpl_players?.teams?.canonical_name ?? '',
@@ -291,7 +296,7 @@ export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> 
 
 export async function getComebackTrivia(): Promise<TriviaFact | null> {
   const { data } = await supabase.rpc('get_biggest_comebacks');
-  const rows = (data ?? []) as any[];
+  const rows = (data ?? []);
   const threes = rows.filter((r) => r.deficit >= 3);
   if (threes.length < 2) return null;
 
@@ -318,7 +323,7 @@ export async function getComebackTrivia(): Promise<TriviaFact | null> {
 
 export async function getStrictestRefereeTrivia(): Promise<TriviaFact | null> {
   const { data } = await supabase.rpc('get_strictest_referees');
-  const rows = (data ?? []) as any[];
+  const rows = (data ?? []);
   if (rows.length < 2) return null;
   const labels = rows.map((r) => r.referee);
   const { items: options, newIndex } = shuffleWithIndex(labels, 0);
@@ -332,7 +337,7 @@ export async function getStrictestRefereeTrivia(): Promise<TriviaFact | null> {
 
 export async function getAllTimeScorersTrivia(): Promise<TriviaFact | null> {
   const { data } = await supabase.rpc('get_all_time_top_scorers');
-  const rows = (data ?? []) as any[];
+  const rows = (data ?? []);
   if (rows.length < 2) return null;
   const labels = rows.map((r) => r.display_name);
   const { items: options, newIndex } = shuffleWithIndex(labels, 0);

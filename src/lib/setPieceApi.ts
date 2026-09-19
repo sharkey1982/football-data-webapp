@@ -67,9 +67,11 @@ export async function getSetPieceBreakdown(): Promise<SetPieceBreakdown | null> 
       'goals, goals_open_play, goals_from_corners, goals_from_direct_fk, goals_from_set_play, goals_from_penalties, assists, assist_corner, assist_free_kick, assist_throw_in, penalties_taken, corners_taken'
     );
   if (error) throw error;
-  const rows = (data ?? []) as any[];
+  const rows = (data ?? []);
   if (rows.length === 0) return null;
-  const sum = (k: string) => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+  // Dynamic column lookup by name -- the row type is a fixed struct, so
+  // indexing it with an arbitrary string needs a widening cast here.
+  const sum = (k: string) => rows.reduce((s, r) => s + Number((r as Record<string, unknown>)[k] ?? 0), 0);
   return {
     goals: sum('goals'),
     goals_open_play: sum('goals_open_play'),
@@ -111,7 +113,7 @@ export function assistSplit(b: SetPieceBreakdown): ShareRow[] {
 export async function getSetPieceTakers(seasonId = 13): Promise<SetPieceTaker[]> {
   const { data, error } = await supabase.rpc('get_set_piece_takers', { p_season_id: seasonId });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     rank: Number(r.rank),
     confidence: r.confidence == null ? null : Number(r.confidence),
@@ -145,7 +147,7 @@ export type SetPieceIndexRow = {
 export async function getSetPieceIndex(seasonId = 13): Promise<SetPieceIndexRow[]> {
   const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: seasonId });
   if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({
+  return (data ?? []).map((r) => ({
     ...r,
     duties: Number(r.duties),
     index_score: Number(r.index_score),

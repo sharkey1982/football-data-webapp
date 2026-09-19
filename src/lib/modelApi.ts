@@ -200,7 +200,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       .eq('league_id', leagueId)
       .eq('season_id', currentSeasonId);
     if (error) throw error;
-    for (const f of (data ?? []) as any[]) {
+    for (const f of (data ?? [])) {
       currentSeasonTeamIds.add(f.home_team_id);
       currentSeasonTeamIds.add(f.away_team_id);
     }
@@ -230,7 +230,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       .not('predicted_home_goals', 'is', null)
       .not('predicted_away_goals', 'is', null);
     if (error) throw error;
-    for (const f of (data ?? []) as any[]) {
+    for (const f of (data ?? [])) {
       const hg = f.predicted_home_goals as number;
       const ag = f.predicted_away_goals as number;
       const h = projectedByTeam.get(f.home_team_id) ?? { gf: 0, ga: 0, count: 0 };
@@ -269,7 +269,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
         .not('full_time_home_goals', 'is', null)
         .not('full_time_away_goals', 'is', null);
       if (error) throw error;
-      for (const m of (data ?? []) as any[]) {
+      for (const m of (data ?? [])) {
         const hg = m.full_time_home_goals as number;
         const ag = m.full_time_away_goals as number;
         const h = actualByTeam.get(m.home_team_id) ?? { gf: 0, ga: 0, played: 0 };
@@ -300,7 +300,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       .not('full_time_home_goals', 'is', null)
       .not('full_time_away_goals', 'is', null);
     if (error) throw error;
-    for (const m of (data ?? []) as any[]) {
+    for (const m of (data ?? [])) {
       const hg = m.full_time_home_goals as number;
       const ag = m.full_time_away_goals as number;
       const h = thisSeasonActualByTeam.get(m.home_team_id) ?? { gf: 0, ga: 0, played: 0 };
@@ -325,7 +325,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     .select('team_id, attack_adjustment, defence_adjustment, note, updated_at');
   if (overrideError) throw overrideError;
   const overrideByTeam = new Map<number, { attack_adjustment: number; defence_adjustment: number; note: string | null; updated_at: string }>(
-    ((overrideRows ?? []) as any[]).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note, updated_at: o.updated_at }])
+    (overrideRows ?? []).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note, updated_at: o.updated_at }])
   );
 
   // Projected final position, requested directly -- from the Monte
@@ -339,7 +339,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       .eq('league_id', leagueId)
       .eq('season_id', currentSeasonId);
     if (positionError) throw positionError;
-    for (const p of (positionRows ?? []) as any[]) {
+    for (const p of (positionRows ?? [])) {
       positionByTeam.set(p.team_id, { mean: Number(p.projected_position_mean), median: Number(p.projected_position_median), points: Number(p.projected_points_mean), simulated_at: p.simulated_at });
     }
   }
@@ -485,7 +485,7 @@ export async function getFantasyFixtureDifficulty(
     return entry;
   };
 
-  for (const row of (data ?? []) as any[]) {
+  for (const row of (data ?? [])) {
     const homeRating = ratingByTeam.get(row.home_team_id);
     const awayRating = ratingByTeam.get(row.away_team_id);
     // Requested directly: this used to recompute xG client-side via the
