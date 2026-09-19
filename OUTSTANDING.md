@@ -96,25 +96,36 @@ the bug.
 Found while planning the fpl_players key change — a composite key needs
 both columns non-null, so this was a prerequisite.
 
-### fpl_players primary key — PHASES 1-3 DONE
+### fpl_players primary key — COMPLETE
   Phase 1 ✓ season_id reliable (zero NULLs, trigger prevents recurrence)
-  Phase 2 ✓ fpl_code on fpl_players — 662/662 from source_payload, all
-            distinct, unique per (fpl_code, season_id), trigger-maintained
-  Phase 3 ✓ player_identity — 662 rows keyed on fpl_code, stable across
-            seasons, trigger-synced
+  Phase 2 ✓ fpl_code from source_payload, 662/662, trigger-maintained
+  Phase 3 ✓ player_identity keyed on fpl_code, trigger-synced
+  Phase 4 ✓ PK is (fpl_player_id, season_id), 3 FKs composite,
+            refresh_fpl upsert repointed
+  Phase 5 ✓ verified — live refresh_fpl run succeeded, row counts
+            unchanged, two seasons proven to coexist for one element id
 
-  Phase 4 — PK becomes (fpl_player_id, season_id), 3 FKs composite.
-            THE ONLY IRREVERSIBLE STEP. Not started.
-  Phase 5 — verification incl. a live refresh_fpl run.
+Season rollover is no longer a risk: 2027/28 players will be inserted
+alongside 2026/27 rather than overwriting them.
 
-ARCHITECTURAL NOTE for the retention roadmap: anything long-lived that
-references a player — saved comparisons, Beat the Shark entries, linked
-FPL teams — must reference player_identity.fpl_code, NOT
-fpl_player_id. FPL reassigns element ids each season, so a saved
-player pointing at element 1 silently becomes a different human at the
-rollover.
+BACKUPS: backup_fpl_players_20260919, backup_fpl_player_snapshots_20260919,
+backup_fpl_player_gameweeks_20260919,
+backup_player_availability_events_20260919. Keep until the pipeline has
+run unattended for a few days, then drop.
 
-Decision taken: keep every season, add new ones alongside.
+ARCHITECTURAL NOTE: anything long-lived referencing a player (saved
+comparisons, Beat the Shark entries, linked FPL teams) must reference
+player_identity.fpl_code, NOT fpl_player_id.
+
+### Historic FPL season ingestion — NOW UNBLOCKED
+The schema no longer prevents it. Still required:
+  - a source. The FPL API serves only the current season, so this needs
+    a third-party dataset (vaastav/Fantasy-Premier-League is the usual
+    one, 2016/17 onward).
+  - a season_id for the import, passed explicitly — the trigger only
+    fills NULLs, so an explicit value wins and back-dated imports work.
+  - fpl_code mapping, which that dataset carries, so players link to
+    existing identities rather than creating duplicates.
 
 ### Main bundle absorbed the Supabase client
 `AuthProvider` wraps the whole app, so Supabase moved from its own
