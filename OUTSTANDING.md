@@ -91,16 +91,14 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ## Deferred by decision
 
-### Fixtures & Results (Discover): lean into head-to-head history
-The Discover fixtures page should be about what HAPPENED — previous
-meetings between the two sides, form going in, historical scorelines —
-rather than carrying model output, which now lives in Results
-Projections.
+### Fixtures & Results: head-to-head — DONE
+Archive rows now carry the head-to-head record (W-D-L from the home
+side's perspective, plus the last scoreline) and no longer show model
+output — predictions live in Results Projections.
 
-The head-to-head data already exists (HeadToHeadSummary, used by Match
-Preview). This is mostly a matter of surfacing it per fixture row or on
-expand, and removing the xG line from the archive variant.
-
+get_matchweek_head_to_head() fetches a whole league+season in one call
+rather than per pairing: the browser groups a season into expandable
+matchweeks, so a per-matchweek fetch would fire again on every expand.
 
 ### Team of the Week: pitch view — DONE
 Laid out by FPL position (GKP/DEF/MID/FWD), which is all FPL records —
@@ -172,10 +170,6 @@ get_injury_report() and shown as a table column.
 Excludes two cases that would otherwise clutter it: players with no
 return date (can't know the cost) and players on zero points (nobody
 owns them). Both covered by test.
-
-### Fixtures & Results: strip model output, link to it
-Discover's fixtures page should report what happened and link OUT to the
-prediction, rather than mixing modelled and factual columns.
 
 ### Results Projections — DONE
 Added to Football > Predict at /football/projections, as a VARIANT of

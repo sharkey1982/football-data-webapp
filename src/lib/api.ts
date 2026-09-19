@@ -1848,6 +1848,51 @@ export async function getRecentFixtureRefreshRuns(limit = 10): Promise<FixtureRe
   return data ?? [];
 }
 
+/** Head-to-head record for every fixture in a matchweek, in one call.
+ *
+ * The per-pair getHeadToHead() suits Match Preview but not a fixture
+ * list -- ten fixtures would be ten round trips before the page renders.
+ *
+ * Counts span every competition and season in the archive: "we never
+ * beat them" is a claim about history, not about this season. */
+export type FixtureHeadToHead = {
+  fixture_id: number;
+  meetings: number;
+  home_wins: number;
+  draws: number;
+  away_wins: number;
+  last_meeting_date: string | null;
+  last_home_goals: number | null;
+  last_away_goals: number | null;
+  last_home_was_fixture_home: boolean | null;
+};
+
+export async function getMatchweekHeadToHead(
+  leagueId: number,
+  seasonId: number,
+  matchweek?: number
+): Promise<Map<number, FixtureHeadToHead>> {
+  const { data, error } = await (supabase as any).rpc('get_matchweek_head_to_head', {
+    p_league_id: leagueId,
+    p_season_id: seasonId,
+    p_matchweek: matchweek ?? null,
+  });
+  if (error) throw error;
+  return new Map(
+    ((data ?? []) as any[]).map((r) => [
+      Number(r.fixture_id),
+      {
+        ...r,
+        fixture_id: Number(r.fixture_id),
+        meetings: Number(r.meetings),
+        home_wins: Number(r.home_wins),
+        draws: Number(r.draws),
+        away_wins: Number(r.away_wins),
+      } as FixtureHeadToHead,
+    ])
+  );
+}
+
 /** rho per accepted fit run, so a fixture's frozen prediction can be
  * turned back into a full score grid.
  *

@@ -8,6 +8,11 @@ import * as api from '../lib/api';
 vi.mock('../lib/api', async () => {
   return {
     getLeagues: vi.fn(),
+    // Head-to-head and fit-run rho are fetched by the browser for the
+    // archive and projections views respectively; both default to empty
+    // so these tests stay about fixture grouping.
+    getMatchweekHeadToHead: vi.fn().mockResolvedValue(new Map()),
+    getFitRunRhos: vi.fn().mockResolvedValue(new Map()),
     getCountries: vi.fn(),
     getSeasons: vi.fn(),
     getTeams: vi.fn(),
@@ -68,10 +73,13 @@ describe('GameweekBrowser predicted expected-goals display', () => {
     expect(screen.getByText('1.8\u20131.2')).toBeInTheDocument();
     expect(screen.getByText('xG est.')).toBeInTheDocument();
 
-    // Played fixture shows the real score AND its frozen pre-match xG.
+    // Played fixture shows the real score only. The frozen pre-match xG
+    // deliberately no longer appears here: model output moved to Results
+    // Projections, and mixing it into the archive was what made the two
+    // sections feel interchangeable.
     const scoreChip = document.querySelector('.scoreline');
     expect(scoreChip?.textContent).toBe('3\u20131');
-    expect(screen.getByText('xG 2.1\u20130.9')).toBeInTheDocument();
+    expect(screen.queryByText('xG 2.1\u20130.9')).not.toBeInTheDocument();
 
     // Scheduled fixture with no prediction stored falls back to plain "vs".
     expect(screen.getByText('vs')).toBeInTheDocument();

@@ -8,6 +8,11 @@ import * as api from '../lib/api';
 vi.mock('../lib/api', async () => {
   return {
     getLeagues: vi.fn(),
+    // Head-to-head and fit-run rho are fetched by the browser for the
+    // archive and projections views respectively; both default to empty
+    // so these tests stay about fixture grouping.
+    getMatchweekHeadToHead: vi.fn().mockResolvedValue(new Map()),
+    getFitRunRhos: vi.fn().mockResolvedValue(new Map()),
     getCountries: vi.fn(),
     getSeasons: vi.fn(),
     getTeams: vi.fn(),

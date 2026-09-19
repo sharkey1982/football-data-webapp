@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { buildModelFromLambdas, derivedMarkets } from '../lib/matchPageApi';
+import type { FixtureHeadToHead } from '../lib/api';
 import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
 import {
   getLeagues,
   getFitRunRhos,
+  getMatchweekHeadToHead,
   getCountries,
   getSeasons,
   getTeams,
@@ -81,7 +83,34 @@ const labelClass = 'block text-xs sm:text-sm font-medium text-ink-700 mb-1';
  * to look like a real scoreline (no ScoreChip), so an expectation can
  * never be mistaken for a result.
  */
-function FixtureScoreCell({ f, rhoFor }: { f: FixtureWithNames; rhoFor?: (f: FixtureWithNames) => number | null }) {
+function HeadToHeadChip({ h2h }: { h2h: FixtureHeadToHead | undefined }) {
+  if (!h2h || h2h.meetings === 0) return null;
+  const last =
+    h2h.last_home_goals != null && h2h.last_away_goals != null
+      ? h2h.last_home_was_fixture_home
+        ? `${h2h.last_home_goals}-${h2h.last_away_goals}`
+        : `${h2h.last_away_goals}-${h2h.last_home_goals}`
+      : null;
+  return (
+    <span
+      className="text-[9px] text-ink-400 font-mono mt-0.5 whitespace-nowrap"
+      title={`${h2h.meetings} previous meetings in this archive, counted from the home side's perspective`}
+    >
+      H2H {h2h.home_wins}-{h2h.draws}-{h2h.away_wins}
+      {last && <> &middot; last {last}</>}
+    </span>
+  );
+}
+
+function FixtureScoreCell({
+  f,
+  rhoFor,
+  h2h,
+}: {
+  f: FixtureWithNames;
+  rhoFor?: (f: FixtureWithNames) => number | null;
+  h2h?: FixtureHeadToHead;
+}) {
   if (f.full_time_home_goals != null && f.full_time_away_goals != null) {
     return (
       <div className="flex flex-col items-center">
@@ -91,14 +120,10 @@ function FixtureScoreCell({ f, rhoFor }: { f: FixtureWithNames; rhoFor?: (f: Fix
             HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
           </span>
         )}
-        {f.predicted_home_goals != null && f.predicted_away_goals != null && (
-          <span
-            className="text-[9px] text-ink-400 font-mono italic mt-0.5"
-            title="Dixon-Coles pre-match expected goals, frozen before kickoff -- how the model rated this game beforehand, for comparison with what actually happened"
-          >
-            xG {f.predicted_home_goals.toFixed(1)}&ndash;{f.predicted_away_goals.toFixed(1)}
-          </span>
-        )}
+        {/* No model output here. Predictions live in Results
+            Projections; this view is about what happened, and mixing the
+            two was what made the sections feel interchangeable. */}
+        <HeadToHeadChip h2h={h2h} />
       </div>
     );
   }
@@ -129,7 +154,12 @@ function FixtureScoreCell({ f, rhoFor }: { f: FixtureWithNames; rhoFor?: (f: Fix
       </div>
     );
   }
-  return <span className="text-ink-500 text-xs font-mono text-center">vs</span>;
+  return (
+    <div className="flex flex-col items-center">
+      <span className="text-ink-500 text-xs font-mono text-center">vs</span>
+      <HeadToHeadChip h2h={h2h} />
+    </div>
+  );
 }
 
 /** `variant` changes what the page is FOR, not what it fetches.
@@ -195,6 +225,29 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
   const [competitionType, setCompetitionType] = useState<string>(urlCompetitionType ?? '');
   const [leagueId, setLeagueId] = useState<number | null>(urlLeagueId);
   const [seasonId, setSeasonId] = useState<number | null>(urlSeasonId);
+
+  const [h2h, setH2h] = useState<Map<number, FixtureHeadToHead>>(new Map());
+  // Archive mode only, and once per league+season rather than per
+  // expanded matchweek -- the browser groups a whole season, so a
+  // per-matchweek fetch would fire again on every expand.
+  useEffect(() => {
+    if (isProjections || leagueId == null || seasonId == null) {
+      setH2h(new Map());
+      return;
+    }
+    let cancelled = false;
+    getMatchweekHeadToHead(leagueId, seasonId)
+      .then((m) => {
+        if (!cancelled) setH2h(m);
+      })
+      .catch(() => {
+        if (!cancelled) setH2h(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isProjections, leagueId, seasonId]);
+
 
   const filteredLeagues = useMemo(() => {
     return leagues.filter(
@@ -980,7 +1033,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                       <span className={['truncate font-medium min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
                         {f.home_team_name}
                       </span>
-                      <FixtureScoreCell f={f} rhoFor={rhoFor} />
+                      <FixtureScoreCell f={f} rhoFor={rhoFor} h2h={!isProjections ? h2h.get(f.fixture_id) : undefined} />
                       <span className={['truncate font-medium text-right min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
                         {f.away_team_name}
                       </span>
@@ -1044,7 +1097,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                             </span>
                             <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
                               <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
-                              <FixtureScoreCell f={f} rhoFor={rhoFor} />
+                              <FixtureScoreCell f={f} rhoFor={rhoFor} h2h={!isProjections ? h2h.get(f.fixture_id) : undefined} />
                               <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
                             </div>
                             {/* A real anchor to the fixture's own canonical
