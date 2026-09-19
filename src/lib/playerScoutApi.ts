@@ -211,6 +211,7 @@ export type GameweekBreakdown = {
   own_goals: number;
   penalties_missed: number;
   penalties_saved: number;
+  defensive_contribution: number;
   /** Pre-kickoff projection where one exists. Null for most early
    * gameweeks -- projections only began partway through the season, and
    * anything generated after kickoff isn't a forecast. */
@@ -240,29 +241,66 @@ export async function getPlayerGameweekBreakdown(fplPlayerId: number): Promise<G
     own_goals: Number(r.own_goals ?? 0),
     penalties_missed: Number(r.penalties_missed ?? 0),
     penalties_saved: Number(r.penalties_saved ?? 0),
+    defensive_contribution: Number(r.defensive_contribution ?? 0),
     projected_points: r.projected_points == null ? null : Number(r.projected_points),
   }));
 }
 
-/** FPL's own scoring, used to explain where a gameweek's points came
- * from. Appearance points are derived rather than stored. */
-export function contributionParts(g: GameweekBreakdown, elementType: number): { label: string; points: number }[] {
+/** The SAME contribution columns Player Projections shows, computed
+ * from actuals instead of forecasts. Keeping the two column sets
+ * identical is the point: one page is what happened, the other what's
+ * expected, and reading one should teach you how to read the other. */
+export const SCOUT_CONTRIBUTION_COLUMNS = [
+  'appearance',
+  'goals',
+  'assists',
+  'cleanSheet',
+  'defensiveContribution',
+  'saves',
+  'bonus',
+  'goalsConceded',
+  'penalties',
+  'cardsOwnGoals',
+] as const;
+
+export type ScoutContributionKey = (typeof SCOUT_CONTRIBUTION_COLUMNS)[number];
+
+export const SCOUT_CONTRIBUTION_LABEL: Record<ScoutContributionKey, string> = {
+  appearance: 'Playing time',
+  goals: 'Goals',
+  assists: 'Assists',
+  cleanSheet: 'Clean sheet',
+  defensiveContribution: 'Def. contribution',
+  saves: 'Saves',
+  bonus: 'Bonus',
+  goalsConceded: 'Goals conceded',
+  penalties: 'Penalties',
+  cardsOwnGoals: 'Cards / OG',
+};
+
+/** Actual points by category, using FPL's own scoring. Derived rather
+ * than stored, so the breakdown explains the total instead of just
+ * restating it. */
+export function actualContribution(
+  g: GameweekBreakdown,
+  elementType: number
+): Record<ScoutContributionKey, number> {
   const goalPoints = elementType === 1 || elementType === 2 ? 6 : elementType === 3 ? 5 : 4;
-  const parts: { label: string; points: number }[] = [];
-  if (g.minutes > 0) parts.push({ label: 'Played', points: g.minutes >= 60 ? 2 : 1 });
-  if (g.goals_scored) parts.push({ label: `${g.goals_scored} goal${g.goals_scored > 1 ? 's' : ''}`, points: g.goals_scored * goalPoints });
-  if (g.assists) parts.push({ label: `${g.assists} assist${g.assists > 1 ? 's' : ''}`, points: g.assists * 3 });
-  if (g.clean_sheets && (elementType === 1 || elementType === 2)) parts.push({ label: 'Clean sheet', points: 4 });
-  if (g.clean_sheets && elementType === 3) parts.push({ label: 'Clean sheet', points: 1 });
-  if (g.saves >= 3) parts.push({ label: `${g.saves} saves`, points: Math.floor(g.saves / 3) });
-  if (g.bonus) parts.push({ label: 'Bonus', points: g.bonus });
-  if (g.penalties_saved) parts.push({ label: 'Penalty saved', points: g.penalties_saved * 5 });
-  if (g.goals_conceded >= 2 && (elementType === 1 || elementType === 2)) {
-    parts.push({ label: `${g.goals_conceded} conceded`, points: -Math.floor(g.goals_conceded / 2) });
-  }
-  if (g.yellow_cards) parts.push({ label: 'Yellow card', points: -g.yellow_cards });
-  if (g.red_cards) parts.push({ label: 'Red card', points: -3 * g.red_cards });
-  if (g.own_goals) parts.push({ label: 'Own goal', points: -2 * g.own_goals });
-  if (g.penalties_missed) parts.push({ label: 'Penalty missed', points: -2 * g.penalties_missed });
-  return parts;
+  const csPoints = elementType === 1 || elementType === 2 ? 4 : elementType === 3 ? 1 : 0;
+  // Defensive contribution: 2 points at 10+ actions for defenders,
+  // 12+ for everyone else.
+  const dcThreshold = elementType === 2 ? 10 : 12;
+  return {
+    appearance: g.minutes > 0 ? (g.minutes >= 60 ? 2 : 1) : 0,
+    goals: g.goals_scored * goalPoints,
+    assists: g.assists * 3,
+    cleanSheet: g.minutes >= 60 ? g.clean_sheets * csPoints : 0,
+    defensiveContribution: g.defensive_contribution >= dcThreshold ? 2 : 0,
+    saves: Math.floor(g.saves / 3),
+    bonus: g.bonus,
+    goalsConceded:
+      elementType === 1 || elementType === 2 ? -Math.floor(g.goals_conceded / 2) : 0,
+    penalties: g.penalties_saved * 5 - g.penalties_missed * 2,
+    cardsOwnGoals: -(g.yellow_cards + g.red_cards * 3 + g.own_goals * 2),
+  };
 }

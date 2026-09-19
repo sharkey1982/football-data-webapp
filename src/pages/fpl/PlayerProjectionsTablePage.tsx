@@ -279,7 +279,13 @@ export default function PlayerProjectionsTablePage() {
       </div>
 
       <div className="bg-white border border-chalk-300 rounded-lg p-3">
-        <GameweekRangeFilter defaultGw={defaultGw} fromGw={fromMatchweek} toGw={toMatchweek} onChange={(f, t) => { setFromMatchweek(f); setToMatchweek(t); }} initialPreset="next5" />
+        <GameweekRangeFilter
+          defaultGw={defaultGw}
+          fromGw={fromMatchweek}
+          toGw={toMatchweek}
+          onChange={(f, t) => { setFromMatchweek(f); setToMatchweek(t); }}
+          presets={['this', 'next', 'next10', 'custom']}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white border border-chalk-300 rounded-lg px-3 py-2">

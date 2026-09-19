@@ -14,7 +14,9 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   listScoutPlayers,
   getPlayerGameweekBreakdown,
-  contributionParts,
+  actualContribution,
+  SCOUT_CONTRIBUTION_COLUMNS,
+  SCOUT_CONTRIBUTION_LABEL,
   getPlayerCareer,
   getPlayerBySlug,
   seasonLabel,
@@ -311,47 +313,51 @@ export default function PlayerScoutPage() {
             {breakdown.length === 0 ? (
               <p className="text-ink-500 text-sm mt-1">No gameweek data for this player yet.</p>
             ) : (
-              <ul className="mt-2 space-y-1.5">
-                {breakdown.map((g) => {
-                  const parts = contributionParts(g, selectedListPlayer.element_type);
-                  return (
-                    <li key={g.gameweek} className="border border-chalk-300 rounded-lg bg-white p-3">
-                      <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                        <span className="text-sm text-ink-900">
-                          <span className="font-mono text-xs text-ink-500 mr-2">GW{g.gameweek}</span>
-                          {g.opponent ?? 'Unknown'}{' '}
-                          <span className="text-ink-500 text-xs">({g.was_home ? 'H' : 'A'})</span>
-                        </span>
-                        <span className="font-mono text-sm tabular-nums">
-                          <strong>{g.total_points}</strong> pts
-                          <span className="text-ink-500 text-xs"> &middot; {g.minutes} mins</span>
-                          {/* Only shown where a genuine PRE-KICKOFF
-                              projection exists. Most early gameweeks have
-                              none -- projections began partway through the
-                              season, and anything generated after kickoff
-                              isn't a forecast. */}
-                          {g.projected_points != null && (
-                            <span className="text-ink-500 text-xs"> &middot; projected {g.projected_points}</span>
-                          )}
-                        </span>
-                      </div>
-                      {parts.length > 0 && (
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                          {parts.map((part) => (
-                            <span key={part.label} className="text-xs text-ink-700">
-                              {part.label}{' '}
-                              <span className={part.points < 0 ? 'text-loss-700 font-mono' : 'text-pitch-800 font-mono'}>
-                                {part.points > 0 ? '+' : ''}
-                                {part.points}
-                              </span>
-                            </span>
+              <div className="overflow-x-auto mt-2">
+                <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+                  <thead className="bg-chalk-200 text-ink-500">
+                    <tr>
+                      <th scope="col" className="text-left font-medium text-xs px-3 py-2">GW</th>
+                      <th scope="col" className="text-left font-medium text-xs px-3 py-2">Opponent</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
+                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Projected</th>
+                      {SCOUT_CONTRIBUTION_COLUMNS.map((c) => (
+                        <th key={c} scope="col" className="text-right font-medium text-xs px-3 py-2 whitespace-nowrap">
+                          {SCOUT_CONTRIBUTION_LABEL[c]}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {breakdown.map((g, i) => {
+                      const c = actualContribution(g, selectedListPlayer.element_type);
+                      return (
+                        <tr key={g.gameweek} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                          <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">GW{g.gameweek}</th>
+                          <td className="px-3 py-1.5 text-xs text-ink-700 whitespace-nowrap">
+                            {g.opponent ?? '\u2014'} <span className="text-ink-500">({g.was_home ? 'H' : 'A'})</span>
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{g.minutes}</td>
+                          <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{g.total_points}</td>
+                          <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">
+                            {/* Only a genuine PRE-KICKOFF projection. Most
+                                early gameweeks have none: projections began
+                                partway through the season, and anything
+                                generated after kickoff isn't a forecast. */}
+                            {g.projected_points ?? '\u2014'}
+                          </td>
+                          {SCOUT_CONTRIBUTION_COLUMNS.map((key) => (
+                            <td key={key} className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
+                              {c[key] === 0 ? <span className="text-ink-500">&ndash;</span> : c[key]}
+                            </td>
                           ))}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 

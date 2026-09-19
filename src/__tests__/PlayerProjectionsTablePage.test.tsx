@@ -1,4 +1,5 @@
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -65,6 +66,9 @@ describe('PlayerProjectionsTablePage', () => {
 
     renderPage();
     await waitFor(() => expect(screen.getByText('Haaland')).toBeInTheDocument());
+    // The page defaults to "This GW" now, so widen the range to bring
+    // GW6 into view.
+    await userEvent.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
 
     const actualCell = screen.getByText('12.0');
     expect(actualCell.className).toContain('font-semibold');
@@ -147,7 +151,8 @@ describe('PlayerProjectionsTablePage', () => {
 
     fireEvent.change(screen.getByDisplayValue('All teams'), { target: { value: 'Man City' } });
 
-    await waitFor(() => expect(mockedTableApi.getTeamFixtureGoals).toHaveBeenCalledWith(18, 5, 9));
+    // Default preset is now "This GW", consistent with the Optimiser.
+    await waitFor(() => expect(mockedTableApi.getTeamFixtureGoals).toHaveBeenCalledWith(18, 5, 5));
     expect(await screen.findByText(/Man City.s own fixtures/)).toBeInTheDocument();
     expect(screen.getByText('Liverpool')).toBeInTheDocument();
     expect(screen.getByText('2.15')).toBeInTheDocument();
