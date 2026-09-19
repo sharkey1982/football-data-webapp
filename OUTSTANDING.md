@@ -76,10 +76,36 @@ Unambiguous, but nobody searches these. `web_name` is closer to search
 intent but collides more and contains punctuation. Low priority —
 revisit if search data shows it mattering.
 
-### One player has a NULL season_id
-Mason Miley (Newcastle) — invisible on every FPL page, since they all
-filter `season_id = 13`. Single row. Unknown whether the 6-hourly
-ingestion caused it and would recreate it.
+### NULL season_id — FIXED (was bigger than recorded)
+Recorded as one player (Mason Miley) being invisible on FPL pages. It
+was actually systematic: refresh_fpl()'s inserts into fpl_players and
+fpl_player_snapshots omit season_id entirely, so EVERY row added after
+the initial load was NULL — 3,956 of 4,614 snapshots (86%), 663 gameweek
+rows, and 4 players.
+
+Those rows were invisible to every season-filtered query, which is most
+of them.
+
+Backfilled (zero NULLs across all six FPL tables) and prevented from
+recurring by a BEFORE INSERT trigger that derives the season from the
+date. A trigger rather than rewriting refresh_fpl: that's an 11KB
+function the whole pipeline depends on, and reproducing its body from
+fragments to add one column in two places is a much larger risk than
+the bug.
+
+Found while planning the fpl_players key change — a composite key needs
+both columns non-null, so this was a prerequisite.
+
+### fpl_players primary key — PHASE 1 DONE
+Phase 1 (season_id reliable) complete, see above.
+Remaining, approved in principle, not yet started:
+  Phase 2 — add fpl_code from source_payload (all 662 present, all
+            distinct, so no name-matching needed)
+  Phase 3 — player_identity table keyed on fpl_code
+  Phase 4 — PK becomes (fpl_player_id, season_id), 3 FKs composite
+  Phase 5 — verification incl. a live refresh_fpl run
+
+Decision taken: keep every season, add new ones alongside.
 
 ### Main bundle absorbed the Supabase client
 `AuthProvider` wraps the whole app, so Supabase moved from its own
