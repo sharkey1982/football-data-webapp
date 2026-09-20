@@ -6356,6 +6356,19 @@ export type Database = {
           worst_points_gap: number
         }[]
       }
+      fixture_derived_markets: {
+        Args: { p_lambda_away: number; p_lambda_home: number; p_rho: number }
+        Returns: {
+          away_clean_sheet: number
+          away_win: number
+          btts: number
+          draw: number
+          home_clean_sheet: number
+          home_win: number
+          over_2_5: number
+          under_2_5: number
+        }[]
+      }
       get_actual_value_table: {
         Args: { p_season_id?: number }
         Returns: {
@@ -6598,6 +6611,46 @@ export type Database = {
           meetings: number
         }[]
       }
+      get_model_accuracy: {
+        Args: { p_league_id?: number }
+        Returns: {
+          actual: string
+          away_team: string
+          brier: number
+          correct: boolean
+          fixture_id: number
+          home_team: string
+          kickoff_date: string
+          league_code: string
+          p_actual: number
+          p_away: number
+          p_draw: number
+          p_home: number
+          picked: string
+        }[]
+      }
+      get_model_accuracy_summary: {
+        Args: { p_league_id?: number }
+        Returns: {
+          always_home_hit_rate: number
+          correct: number
+          fixtures: number
+          hit_rate: number
+          mean_p_actual: number
+          model_brier: number
+          uniform_brier: number
+        }[]
+      }
+      get_model_calibration: {
+        Args: { p_league_id?: number }
+        Returns: {
+          actual_rate: number
+          band: string
+          forecasts: number
+          gap: number
+          mean_predicted: number
+        }[]
+      }
       get_most_common_scoreline: {
         Args: { p_league_id: number }
         Returns: {
@@ -6653,6 +6706,31 @@ export type Database = {
           team_name: string
           total_points: number
           web_name: string
+        }[]
+      }
+      get_player_gameweek_breakdown: {
+        Args: { p_fpl_player_id: number; p_season_id?: number }
+        Returns: {
+          assists: number
+          bonus: number
+          bps: number
+          clean_sheets: number
+          defensive_contribution: number
+          gameweek: number
+          goals_conceded: number
+          goals_scored: number
+          kickoff_date: string
+          minutes: number
+          opponent: string
+          own_goals: number
+          penalties_missed: number
+          penalties_saved: number
+          projected_points: number
+          red_cards: number
+          saves: number
+          total_points: number
+          was_home: boolean
+          yellow_cards: number
         }[]
       }
       get_price_change_risk: {
@@ -6793,6 +6871,36 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      list_scout_players: {
+        Args: {
+          p_limit?: number
+          p_min_minutes?: number
+          p_position?: number
+          p_search?: string
+          p_season_id?: number
+          p_team_id?: number
+        }
+        Returns: {
+          assists: number
+          bonus: number
+          clean_sheets: number
+          element_type: number
+          fpl_code: number
+          fpl_player_id: number
+          full_name: string
+          goals_scored: number
+          minutes: number
+          now_cost: number
+          points_per_million: number
+          seasons_played: number
+          selected_by_percent: number
+          slug: string
+          team_id: number
+          team_name: string
+          total_points: number
+          web_name: string
+        }[]
+      }
       list_scoutable_players: {
         Args: never
         Returns: {

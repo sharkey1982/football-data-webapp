@@ -80,6 +80,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/model-accuracy',
+    title: 'How accurate is the model?',
+    description:
+      'An honest record of how the Dixon-Coles predictions have performed against real results: calibration, hit rate, and the baselines worth beating.',
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/football/market-efficiency',
     title: 'How sharply is each division priced?',
     description:
