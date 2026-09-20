@@ -667,6 +667,33 @@ longer parallelised or skippable. Revisit if load time matters.
 
 ---
 
+### Site hung forever on "Checking session..." after a token refresh — FIXED
+Reported live, from a phone: the whole app stuck on "Checking session..."
+indefinitely (visible on /login, but the effect blocks any admin-gated
+UI everywhere via useAuth's loading flag).
+
+Confirmed from the Supabase auth/rest logs, not guessed: is_admin
+succeeded fine on the initial page load (11:23:04). A later token refresh
+(200 OK on /auth/v1/token) had NO follow-up is_admin call at all -- it
+never reached the server, meaning the client-side code never got past
+the `await`.
+
+ROOT CAUSE: auth.tsx's `onAuthStateChange` callback was `async` and
+awaited `supabase.rpc('is_admin')` (via resolveAdmin) directly inside
+it. Supabase's own docs warn against exactly this: the callback fires
+while an internal session lock is held during the refresh, and calling
+the client again from inside it tries to acquire that same lock and
+deadlocks. `getSession()` at initial mount doesn't have this problem --
+it isn't inside the listener -- which is why sign-in and normal use
+worked fine and this only ever surfaced later, after a token refresh
+(e.g. reopening the app after it had been idle).
+
+FIXED: deferred the supabase call to the next tick (`setTimeout(fn, 0)`
+inside the listener), exactly as Supabase's docs recommend for this
+case. 212 tests still passing, tsc clean, build clean. No auth test
+existed to update -- worth adding one that mocks onAuthStateChange
+firing a TOKEN_REFRESHED event and asserts loading eventually clears.
+
 ## Resolved this session
 
 ### refresh_fpl consolidation — DONE, and it found an outage
