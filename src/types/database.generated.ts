@@ -6675,7 +6675,14 @@ export type Database = {
           canonical_name: string
           career_minutes: number
           career_points: number
+          current_assists: number
+          current_bonus: number
+          current_fpl_player_id: number
+          current_goals: number
+          current_minutes: number
+          current_now_cost: number
           current_slug: string
+          current_total_points: number
           element_type: number
           first_season: string
           fpl_code: number
@@ -6899,6 +6906,14 @@ export type Database = {
           team_name: string
           total_points: number
           web_name: string
+        }[]
+      }
+      list_scout_teams: {
+        Args: { p_season_id?: number }
+        Returns: {
+          players: number
+          team_id: number
+          team_name: string
         }[]
       }
       list_scoutable_players: {

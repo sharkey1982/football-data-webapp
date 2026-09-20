@@ -104,7 +104,68 @@ export type PlayerIdentity = {
   first_season: string | null;
   last_season: string | null;
   current_slug: string | null;
+  /** Null for a player no longer in the league -- they have history but
+   * no current season, and the page should say so rather than show
+   * zeros. */
+  current_fpl_player_id: number | null;
+  current_total_points: number | null;
+  current_minutes: number | null;
+  current_goals: number | null;
+  current_assists: number | null;
+  current_bonus: number | null;
+  current_now_cost: number | null;
 };
+
+export type ScoutTeam = { team_id: number; team_name: string; players: number };
+
+export async function listScoutTeams(): Promise<ScoutTeam[]> {
+  const { data, error } = await supabase.rpc('list_scout_teams', { p_season_id: 13 });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    team_id: Number(r.team_id),
+    team_name: String(r.team_name),
+    players: Number(r.players),
+  }));
+}
+
+/** Columns the browse list can be sorted by. Kept here rather than in
+ * the page so the labels and the sort keys can't drift apart. */
+export const SCOUT_SORT_COLUMNS = [
+  { key: 'total_points', label: 'Points' },
+  { key: 'now_cost', label: 'Price' },
+  { key: 'minutes', label: 'Mins' },
+  { key: 'points_per_million', label: 'Per £m' },
+  { key: 'goals_scored', label: 'Goals' },
+  { key: 'assists', label: 'Assists' },
+  { key: 'web_name', label: 'Player' },
+] as const;
+
+export type ScoutSortKey = (typeof SCOUT_SORT_COLUMNS)[number]['key'];
+
+/** Sorts a loaded page of players. Done client-side deliberately: the
+ * list is capped at 150 rows, so re-querying to reorder would be a round
+ * trip for something already in memory. */
+export function sortScoutPlayers(
+  rows: ScoutListPlayer[],
+  key: ScoutSortKey,
+  dir: 'asc' | 'desc'
+): ScoutListPlayer[] {
+  const factor = dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (key === 'web_name') return factor * a.web_name.localeCompare(b.web_name);
+    const av = a[key] as number | null;
+    const bv = b[key] as number | null;
+    // Nulls (an unpriced or unplayed player) sort LAST in both
+    // directions. Substituting -Infinity would float them to the top of
+    // an ascending sort, which reads as "cheapest" when it means
+    // "unknown".
+    if (av == null && bv == null) return a.web_name.localeCompare(b.web_name);
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (av === bv) return a.web_name.localeCompare(b.web_name);
+    return factor * (av - bv);
+  });
+}
 
 /** Resolve a player page from its stable slug.
  *
@@ -124,6 +185,13 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerIdentity | nu
     seasons_played: Number(row.seasons_played),
     career_points: Number(row.career_points),
     career_minutes: Number(row.career_minutes),
+    current_fpl_player_id: row.current_fpl_player_id == null ? null : Number(row.current_fpl_player_id),
+    current_total_points: row.current_total_points == null ? null : Number(row.current_total_points),
+    current_minutes: row.current_minutes == null ? null : Number(row.current_minutes),
+    current_goals: row.current_goals == null ? null : Number(row.current_goals),
+    current_assists: row.current_assists == null ? null : Number(row.current_assists),
+    current_bonus: row.current_bonus == null ? null : Number(row.current_bonus),
+    current_now_cost: row.current_now_cost == null ? null : Number(row.current_now_cost),
   };
 }
 

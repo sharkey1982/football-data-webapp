@@ -13,6 +13,9 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   listScoutPlayers,
+  listScoutTeams,
+  sortScoutPlayers,
+  SCOUT_SORT_COLUMNS,
   getPlayerGameweekBreakdown,
   actualContribution,
   SCOUT_CONTRIBUTION_COLUMNS,
@@ -24,6 +27,8 @@ import {
   type PlayerSeason,
   type PlayerIdentity,
   type ScoutListPlayer,
+  type ScoutTeam,
+  type ScoutSortKey,
   type GameweekBreakdown,
 } from '../../lib/playerScoutApi';
 
@@ -61,7 +66,10 @@ export default function PlayerScoutPage() {
   const [minMinutes, setMinMinutes] = useState(0);
   const [breakdown, setBreakdown] = useState<GameweekBreakdown[]>([]);
   const [selectedListPlayer, setSelectedListPlayer] = useState<ScoutListPlayer | null>(null);
-  const [showCareer, setShowCareer] = useState(false);
+  const [teams, setTeams] = useState<ScoutTeam[]>([]);
+  const [teamId, setTeamId] = useState<number | null>(null);
+  const [sortKey, setSortKey] = useState<ScoutSortKey>('total_points');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [career, setCareer] = useState<PlayerSeason[]>([]);
 
   const headName = selected?.canonical_name;
@@ -95,11 +103,15 @@ export default function PlayerScoutPage() {
   }, [slug]);
 
 
+  useEffect(() => {
+    listScoutTeams().then(setTeams).catch(() => setTeams([]));
+  }, []);
+
   // The browse list is the default view: this season's players, filtered
   // server-side. Search narrows the same list rather than replacing it.
   useEffect(() => {
     let cancelled = false;
-    listScoutPlayers({ position, minMinutes, search: query, limit: 150 })
+    listScoutPlayers({ position, teamId, minMinutes, search: query, limit: 150 })
       .then((r) => {
         if (!cancelled) setList(r);
       })
@@ -109,18 +121,18 @@ export default function PlayerScoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [position, minMinutes, query]);
+  }, [position, teamId, minMinutes, query]);
 
   // Current-season gameweek detail is the main event once a player is
   // chosen; career history sits behind a toggle.
   useEffect(() => {
-    const id = selectedListPlayer?.fpl_player_id;
+    const id = selected?.current_fpl_player_id ?? selectedListPlayer?.fpl_player_id;
     if (id == null) {
       setBreakdown([]);
       return;
     }
     getPlayerGameweekBreakdown(id).then(setBreakdown).catch(() => setBreakdown([]));
-  }, [selectedListPlayer]);
+  }, [selectedListPlayer, selected]);
 
   useEffect(() => {
     if (!selected) {
@@ -131,6 +143,19 @@ export default function PlayerScoutPage() {
       .then(setCareer)
       .catch(() => setCareer([]));
   }, [selected]);
+
+  const sorted = useMemo(() => (list ? sortScoutPlayers(list, sortKey, sortDir) : []), [list, sortKey, sortDir]);
+
+  function toggleSort(key: ScoutSortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortKey(key);
+      // A new column opens on the reading people want: biggest first for
+      // a number, A-Z for a name.
+      setSortDir(key === 'web_name' ? 'asc' : 'desc');
+    }
+  }
 
   const careerTotals = useMemo(() => {
     if (career.length === 0) return null;
@@ -166,6 +191,24 @@ export default function PlayerScoutPage() {
           placeholder="Saka, Haaland, Gabriel…"
           className="mt-1 w-full border border-chalk-300 rounded px-3 py-2 text-sm"
         />
+      </label>
+
+      <label className="block max-w-xs">
+        <span className="text-xs font-mono uppercase tracking-widest text-ink-500">Club</span>
+        {/* A dropdown, not buttons: position and minutes are short enough
+            to show in full, twenty clubs are not. */}
+        <select
+          value={teamId ?? ''}
+          onChange={(e) => setTeamId(e.target.value === '' ? null : Number(e.target.value))}
+          className="mt-1 w-full border border-chalk-300 rounded px-3 py-2 text-sm bg-white"
+        >
+          <option value="">All clubs</option>
+          {teams.map((t) => (
+            <option key={t.team_id} value={t.team_id}>
+              {t.team_name}
+            </option>
+          ))}
+        </select>
       </label>
 
       {notFound && (
@@ -234,35 +277,55 @@ export default function PlayerScoutPage() {
                 <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
                   <thead className="bg-chalk-200 text-ink-500">
                     <tr>
-                      <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+                      {/* Sort keys and labels come from one exported list,
+                          so a header can't end up sorting by a different
+                          column than it names. */}
+                      {SCOUT_SORT_COLUMNS.map((col) => {
+                        const active = sortKey === col.key;
+                        return (
+                          <th
+                            key={col.key}
+                            scope="col"
+                            aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            className={`font-medium text-xs px-3 py-2 ${col.key === 'web_name' ? 'text-left' : 'text-right'}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(col.key)}
+                              className={`hover:text-ink-900 transition-colors ${active ? 'text-ink-900 font-semibold' : ''}`}
+                            >
+                              {col.label}
+                              {active && <span aria-hidden="true">{sortDir === 'asc' ? ' \u2191' : ' \u2193'}</span>}
+                            </button>
+                          </th>
+                        );
+                      })}
                       <th scope="col" className="text-left font-medium text-xs px-3 py-2">Club</th>
-                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Price</th>
-                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
-                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
-                      <th scope="col" className="text-right font-medium text-xs px-3 py-2">Per &pound;m</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {list.map((p, i) => (
+                    {sorted.map((p, i) => (
                       <tr
                         key={p.fpl_code}
                         className={[
                           'cursor-pointer hover:bg-chalk-200/70',
                           i % 2 === 1 ? 'bg-chalk-100/60' : '',
                         ].join(' ')}
-                        onClick={() => setSelectedListPlayer(p)}
+                        onClick={() => (p.slug ? navigate(`/fpl/player-scout/${p.slug}`) : setSelectedListPlayer(p))}
                       >
                         <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
                           {p.web_name}{' '}
                           <span className="text-ink-500">{POSITION[p.element_type]}</span>
                         </th>
-                        <td className="px-3 py-1.5 text-xs text-ink-700">{p.team_name ?? '\u2014'}</td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
                           {p.now_cost != null ? `\u00a3${(p.now_cost / 10).toFixed(1)}m` : '\u2014'}
                         </td>
-                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{p.total_points}</td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{p.minutes}</td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.points_per_million ?? '\u2014'}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.goals_scored}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.assists}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{p.total_points}</td>
+                        <td className="px-3 py-1.5 text-xs text-ink-700">{p.team_name ?? '\u2014'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -294,7 +357,7 @@ export default function PlayerScoutPage() {
                 type="button"
                 onClick={() => {
                   setSelectedListPlayer(null);
-                  setShowCareer(false);
+                  navigate('/fpl/player-scout');
                 }}
                 className="text-sm text-pitch-800 underline underline-offset-2"
               >
@@ -361,20 +424,11 @@ export default function PlayerScoutPage() {
             )}
           </section>
 
-          {selectedListPlayer.seasons_played > 0 && selectedListPlayer.slug && (
-            <section>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCareer((v) => !v);
-                  if (!showCareer && selectedListPlayer.slug) navigate(`/fpl/player-scout/${selectedListPlayer.slug}`);
-                }}
-                className="text-sm text-pitch-800 underline underline-offset-2"
-              >
-                {showCareer ? 'Hide' : 'Show'} earlier seasons ({selectedListPlayer.seasons_played})
-              </button>
-            </section>
-          )}
+          {/* No career toggle: the career table below always renders
+              for a player reached by URL, which is now every player. The
+              old control had to set state AND navigate because the page
+              kept two parallel ideas of "which player", and it behaved
+              oddly as a result. */}
         </>
       )}
 
