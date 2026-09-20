@@ -6740,6 +6740,38 @@ export type Database = {
           yellow_cards: number
         }[]
       }
+      get_player_season_gameweeks: {
+        Args: { p_fpl_code: number; p_season_id: number }
+        Returns: {
+          assists: number
+          bonus: number
+          clean_sheets: number
+          defensive_contribution: number
+          gameweek: number
+          goals_conceded: number
+          goals_scored: number
+          minutes: number
+          opponent: string
+          own_goals: number
+          penalties_missed: number
+          penalties_saved: number
+          price: number
+          red_cards: number
+          saves: number
+          total_points: number
+          was_home: boolean
+          yellow_cards: number
+        }[]
+      }
+      get_player_seasons: {
+        Args: { p_fpl_code: number }
+        Returns: {
+          is_current: boolean
+          season_id: number
+          season_slug: string
+          total_points: number
+        }[]
+      }
       get_price_change_risk: {
         Args: { p_season_id?: number }
         Returns: {

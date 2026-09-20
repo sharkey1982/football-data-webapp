@@ -29,6 +29,7 @@ const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
 const DigestPage = lazy(() => import('./pages/fpl/DigestPage'));
 const SeasonXiPage = lazy(() => import('./pages/fpl/SeasonXiPage'));
 const PlayerScoutPage = lazy(() => import('./pages/fpl/PlayerScoutPage'));
+const PlayerRecordPage = lazy(() => import('./pages/fpl/PlayerRecordPage'));
 const ModelAccuracyPage = lazy(() => import('./pages/football/ModelAccuracyPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
@@ -311,7 +312,7 @@ export default function App() {
             path="fpl/player-scout/:slug"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <PlayerScoutPage />
+                <PlayerRecordPage />
               </Suspense>
             }
           />

@@ -372,3 +372,129 @@ export function actualContribution(
     cardsOwnGoals: -(g.yellow_cards + g.red_cards * 3 + g.own_goals * 2),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Dedicated player page: any season, gameweek by gameweek
+// ---------------------------------------------------------------------------
+
+export type PlayerSeasonOption = {
+  season_id: number;
+  season_slug: string;
+  total_points: number;
+  is_current: boolean;
+};
+
+export type SeasonGameweek = {
+  gameweek: number;
+  opponent: string | null;
+  was_home: boolean;
+  minutes: number;
+  total_points: number;
+  goals_scored: number;
+  assists: number;
+  clean_sheets: number;
+  goals_conceded: number;
+  bonus: number;
+  saves: number;
+  yellow_cards: number;
+  red_cards: number;
+  own_goals: number;
+  penalties_missed: number;
+  penalties_saved: number;
+  defensive_contribution: number;
+  /** Price at that gameweek, in 0.1m units. Historic seasons only --
+   * the current-season table doesn't carry a per-gameweek price. */
+  price: number | null;
+};
+
+export async function getPlayerSeasons(fplCode: number): Promise<PlayerSeasonOption[]> {
+  const { data, error } = await supabase.rpc('get_player_seasons', { p_fpl_code: fplCode });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    season_id: Number(r.season_id),
+    season_slug: String(r.season_slug),
+    total_points: Number(r.total_points ?? 0),
+    is_current: Boolean(r.is_current),
+  }));
+}
+
+export async function getPlayerSeasonGameweeks(fplCode: number, seasonId: number): Promise<SeasonGameweek[]> {
+  const { data, error } = await supabase.rpc('get_player_season_gameweeks', {
+    p_fpl_code: fplCode,
+    p_season_id: seasonId,
+  });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    gameweek: Number(r.gameweek),
+    opponent: r.opponent == null ? null : String(r.opponent),
+    was_home: Boolean(r.was_home),
+    minutes: Number(r.minutes ?? 0),
+    total_points: Number(r.total_points ?? 0),
+    goals_scored: Number(r.goals_scored ?? 0),
+    assists: Number(r.assists ?? 0),
+    clean_sheets: Number(r.clean_sheets ?? 0),
+    goals_conceded: Number(r.goals_conceded ?? 0),
+    bonus: Number(r.bonus ?? 0),
+    saves: Number(r.saves ?? 0),
+    yellow_cards: Number(r.yellow_cards ?? 0),
+    red_cards: Number(r.red_cards ?? 0),
+    own_goals: Number(r.own_goals ?? 0),
+    penalties_missed: Number(r.penalties_missed ?? 0),
+    penalties_saved: Number(r.penalties_saved ?? 0),
+    defensive_contribution: Number(r.defensive_contribution ?? 0),
+    price: r.price == null ? null : Number(r.price),
+  }));
+}
+
+/** Season points split by what produced them. Summed from the gameweek
+ * rows rather than the season totals, so it always reconciles with the
+ * gameweek table shown beside it. */
+export function seasonContributionTotals(
+  gws: SeasonGameweek[],
+  elementType: number
+): { key: ScoutContributionKey; label: string; points: number }[] {
+  const totals = {} as Record<ScoutContributionKey, number>;
+  for (const k of SCOUT_CONTRIBUTION_COLUMNS) totals[k] = 0;
+  for (const g of gws) {
+    // actualContribution only reads the scoring fields, which a
+    // SeasonGameweek has in full; the cast avoids inventing a
+    // projected_points it has no business carrying.
+    const c = actualContribution(g as unknown as GameweekBreakdown, elementType);
+    for (const k of SCOUT_CONTRIBUTION_COLUMNS) totals[k] += c[k];
+  }
+  return SCOUT_CONTRIBUTION_COLUMNS.map((k) => ({
+    key: k,
+    label: SCOUT_CONTRIBUTION_LABEL[k],
+    points: totals[k],
+  })).filter((r) => r.points !== 0);
+}
+
+/** Running total after each gameweek -- the shape of a season rather
+ * than its endpoint. */
+export function cumulativePoints(gws: SeasonGameweek[]): { gameweek: number; total: number }[] {
+  let running = 0;
+  return gws.map((g) => {
+    running += g.total_points;
+    return { gameweek: g.gameweek, total: running };
+  });
+}
+
+/** Rate stats, which is what actually compares seasons of different
+ * lengths. A 38-game season and a 5-game one aren't comparable on
+ * totals, and points per 90 is the honest version of "per game" for a
+ * player who is often a substitute. */
+export function seasonRates(gws: SeasonGameweek[]) {
+  const appearances = gws.filter((g) => g.minutes > 0).length;
+  const starts = gws.filter((g) => g.minutes >= 60).length;
+  const minutes = gws.reduce((s, g) => s + g.minutes, 0);
+  const points = gws.reduce((s, g) => s + g.total_points, 0);
+  return {
+    appearances,
+    starts,
+    minutes,
+    points,
+    pointsPerGame: appearances ? Number((points / appearances).toFixed(2)) : 0,
+    pointsPer90: minutes ? Number(((points / minutes) * 90).toFixed(2)) : 0,
+    minutesPerAppearance: appearances ? Math.round(minutes / appearances) : 0,
+  };
+}

@@ -69,6 +69,15 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### PlayerScoutPage still carries dead slug-handling code
+/fpl/player-scout/:slug now renders PlayerRecordPage, so the slug branch
+inside PlayerScoutPage (useParams, getPlayerBySlug, the `selected` state
+and its career/breakdown rendering) is unreachable.
+
+Harmless but untidy, and its tests exercise a path users can't take.
+Strip it when next in that file -- attempted here and reverted rather
+than risk a half-applied edit.
+
 ### Trading Floor — filters do nothing, and rise/fall colours unclear
 Two separate problems on /fpl/price-risk:
   1. The filter controls have no effect on the table. Either they're not
