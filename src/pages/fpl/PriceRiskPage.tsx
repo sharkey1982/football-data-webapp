@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getPriceChangeRisk, riskBands, bandOf, type PriceRisk, type RiskBand } from '../../lib/priceRiskApi';
+import { getPriceChangeRisk, type PriceRisk } from '../../lib/priceRiskApi';
 
 function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' }) {
   if (rows.length === 0) return <p className="text-ink-500 text-sm">Nobody under meaningful pressure.</p>;
@@ -65,7 +65,13 @@ function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' })
 
 export default function PriceRiskPage() {
   const [rows, setRows] = useState<PriceRisk[] | null>(null);
-  const [minBand, setMinBand] = useState<RiskBand | 'all'>('all');
+  // Was a "minimum risk band" filter. It could never change anything:
+  // the tables show the top 15 by pressure, and 31 risers already sit in
+  // the high band, so the top 15 are always high whatever is selected.
+  // Direction is the filter that actually does something -- and on a
+  // phone, two 15-row tables is a lot of scrolling to reach the one you
+  // wanted.
+  const [show, setShow] = useState<'both' | 'rise' | 'fall'>('both');
 
   useDocumentHead({
     title: 'Bullpit \u2014 FPL price change risk',
@@ -80,22 +86,14 @@ export default function PriceRiskPage() {
       .catch(() => setRows([]));
   }, []);
 
-  const bands = useMemo(() => riskBands(rows ?? []), [rows]);
 
   const { risers, fallers } = useMemo(() => {
     const r = rows ?? [];
-    const keep = (x: PriceRisk) => {
-      if (minBand === 'all') return true;
-      const b = bandOf(x, bands);
-      // "medium" means medium AND high -- a filter that excluded the
-      // most urgent cases would be the opposite of what's wanted.
-      return minBand === 'high' ? b === 'high' : b !== 'low';
-    };
     return {
-      risers: r.filter((x) => x.direction === 'rise' && keep(x)).slice(0, 15),
-      fallers: r.filter((x) => x.direction === 'fall' && keep(x)).slice(0, 15),
+      risers: r.filter((x) => x.direction === 'rise').slice(0, 15),
+      fallers: r.filter((x) => x.direction === 'fall').slice(0, 15),
     };
-  }, [rows, minBand, bands]);
+  }, [rows]);
 
   if (rows === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (rows.length === 0) {
@@ -122,18 +120,24 @@ export default function PriceRiskPage() {
       <div className="flex flex-wrap gap-2">
         {(
           [
-            ['all', 'Everyone'],
-            ['medium', 'Notable'],
-            ['high', 'High risk'],
-          ] as [RiskBand | 'all', string][]
+            ['both', 'Both'],
+            ['rise', '\u2191 Rising'],
+            ['fall', '\u2193 Falling'],
+          ] as ['both' | 'rise' | 'fall', string][]
         ).map(([k, label]) => (
           <button
             key={k}
             type="button"
-            onClick={() => setMinBand(k)}
+            onClick={() => setShow(k)}
             className={[
               'text-sm rounded px-3 py-1.5 border transition-colors',
-              k === minBand ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
+              k === show
+                ? k === 'rise'
+                  ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
+                  : k === 'fall'
+                    ? 'bg-loss-700 text-chalk-100 border-loss-700'
+                    : 'bg-ink-900 text-chalk-100 border-ink-900'
+                : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
             ].join(' ')}
           >
             {label}
@@ -160,19 +164,27 @@ export default function PriceRiskPage() {
         </p>
       </section>
 
-      <section>
-        <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Under pressure to rise</h2>
+      {show !== 'fall' && (
+      <section className="border-l-4 border-pitch-700 bg-pitch-50/40 rounded-r-lg pl-3 py-2">
+        <h2 className="font-display uppercase tracking-wide text-lg text-pitch-800">
+          &uarr; Under pressure to rise
+        </h2>
         <div className="mt-2">
           <RiskTable rows={risers} kind="rise" />
         </div>
       </section>
+      )}
 
-      <section>
-        <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Under pressure to fall</h2>
+      {show !== 'rise' && (
+      <section className="border-l-4 border-loss-700 bg-loss-700/5 rounded-r-lg pl-3 py-2">
+        <h2 className="font-display uppercase tracking-wide text-lg text-loss-700">
+          &darr; Under pressure to fall
+        </h2>
         <div className="mt-2">
           <RiskTable rows={fallers} kind="fall" />
         </div>
       </section>
+      )}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/fpl/market" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

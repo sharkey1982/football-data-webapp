@@ -120,7 +120,21 @@ Harmless but untidy, and its tests exercise a path users can't take.
 Strip it when next in that file -- attempted here and reverted rather
 than risk a half-applied edit.
 
-### Trading Floor — filters do nothing, and rise/fall colours unclear
+### Bullpit — FIXED (filters were inert by construction)
+The band filter couldn't change anything. The tables show the top 15 by
+pressure, and 31 risers / 36 fallers already sit in the high band — so
+the top 15 were ALWAYS high whatever was selected. Correct logic,
+useless outcome.
+
+Replaced with a direction filter (Both / Rising / Falling), which does
+narrow the view and matters most on a phone where two 15-row tables is a
+lot of scrolling.
+
+Colour: rise and fall now have tinted panels, coloured headings and
+arrows, rather than the direction being carried by one number's text
+colour.
+
+### (superseded) Trading Floor — filters do nothing, and rise/fall colours unclear
 Two separate problems on /fpl/price-risk:
   1. The filter controls have no effect on the table. Either they're not
      wired to the query/derived state at all, or they are and the
@@ -271,7 +285,21 @@ hindsight at August prices. Note the model view needs projections that
 existed BEFORE the season — check what's actually stored, since
 pre-kickoff projections currently only go back to gameweek 5.
 
-### Optimiser — include/exclude: SPEC (capability already half-built)
+### Optimiser — forced picks BUILT; two cheap guards still worth adding
+Working, with a self-check that reports whether the solver honoured the
+constraints (the edge function's source isn't in this repo, so that was
+otherwise unverifiable).
+
+Not yet done, and low-risk either way:
+  - cap forced-in at 15 (a squad can't hold more)
+  - validate position and 3-per-club limits client-side, so an
+    impossible request never reaches the solver
+Forcing picks does NOT increase solve cost -- each forced player removes
+a slot to search -- so this adds no new abuse surface. The pre-existing
+one (unlimited anonymous solves, no rate limiting) is unchanged and is
+still the thing to settle before the page goes public.
+
+### (superseded) Optimiser — include/exclude: SPEC
 
 FINDING THAT CHANGES THE JOB: this is mostly not a solver problem.
 optimizeFplSquad() in fplOptimizerApi.ts ALREADY takes mustIncludeIds

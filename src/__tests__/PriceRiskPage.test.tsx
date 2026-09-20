@@ -59,27 +59,28 @@ describe('PriceRiskPage', () => {
     expect(screen.getByText('Faller')).toBeInTheDocument();
   });
 
-  it('filters to high risk relative to today, and keeps high inside notable', async () => {
-    const many = Array.from({ length: 10 }, (_, i) =>
-      row({ fpl_player_id: i + 10, web_name: `P${i}`, slug: `p${i}`, pressure: i * 0.5, net_transfers: 1000 * (i + 1) })
-    );
+  it('filters by direction, which is the one thing that actually changes the view', async () => {
+    // The old "risk band" filter could never change anything: the tables
+    // show the top 15 by pressure, and far more than 15 rows already sit
+    // in the high band, so the top 15 were always high whatever was
+    // picked. Direction genuinely narrows what's on screen.
     mocked.getPriceChangeRisk.mockResolvedValue([
-      row({ fpl_player_id: 99, web_name: 'Extreme', slug: 'extreme', pressure: 20, net_transfers: 99999 }),
-      ...many,
+      row({ fpl_player_id: 1, web_name: 'Riser', slug: 'riser', pressure: 8, direction: 'rise' }),
+      row({ fpl_player_id: 2, web_name: 'Faller', slug: 'faller', pressure: -8, direction: 'fall' }),
     ]);
 
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByText('Extreme')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Riser')).toBeInTheDocument());
+    expect(screen.getByText('Faller')).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'High risk' }));
-    expect(screen.getByText('Extreme')).toBeInTheDocument();
-    expect(screen.queryByText('P0')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Rising/ }));
+    expect(screen.getByText('Riser')).toBeInTheDocument();
+    expect(screen.queryByText('Faller')).not.toBeInTheDocument();
 
-    // "Notable" must still include the high-risk cases -- a filter that
-    // excluded the most urgent players would be exactly backwards.
-    await user.click(screen.getByRole('button', { name: 'Notable' }));
-    expect(screen.getByText('Extreme')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Falling/ }));
+    expect(screen.getByText('Faller')).toBeInTheDocument();
+    expect(screen.queryByText('Riser')).not.toBeInTheDocument();
   });
 
   it('explains that high risk is relative, not a fixed number', async () => {
