@@ -44,27 +44,31 @@ because that pipeline doesn't affect them.
 Prerendered pages now track the twice-daily FPL refresh and the 6am
 daily-import, so the freshness timestamps they publish stay honest.
 
-### Login — password reset, needs a real attempt to confirm
-Ruled out structurally first: account confirmed, auth.identities row
-present, not banned, bcrypt $2a$ hash of the right length, provider
-'email'. All fine. But last_sign_in_at has been NULL since 18 Sept, so
-no sign-in has ever succeeded.
+### Login — ROOT CAUSE FOUND AND FIXED
+From the auth logs, not from guessing:
 
-With the structure eliminated, the password itself was what remained.
-Reset via pgcrypto to a known value and VERIFIED cryptographically: the
-new password validates against the stored hash, the old one does not.
+  "error finding user: sql: Scan error on column index 3, name
+   confirmation_token: converting NULL to string is unsupported"
 
-  /login  ·  sharkey1982@hotmail.com  ·  Shark-2026-Login!
+GoTrue's Go driver scans auth.users token columns into NON-NULLABLE
+strings. Four of them were NULL, so EVERY user lookup 500'd before any
+password was examined. That is why the account looked perfect in SQL,
+why the password verified against the hash, and why last_sign_in_at
+stayed NULL — sign-in never reached the credentials.
 
-CHANGE IT once in, on the same page. And do NOT use the magic-link
-option -- SMTP is still unconfigured, so that path silently goes
-nowhere. That remains open below.
+NULLs there are the signature of a user row created by direct INSERT
+rather than through the auth API. Fixed by setting all eight token
+columns to ''. Now covered by get_data_integrity_report() as "auth token
+columns", so it can never hide silently again.
 
-IF IT STILL FAILS, the problem is not the credentials, and the next step
-is the browser console on submit: signInWithPassword's error is caught
-by the page, so whatever GoTrue actually returns is currently invisible.
-That would point at project auth config (email provider disabled,
-confirmations required) rather than the account.
+Two client bugs fixed alongside, both real and both independently
+blocking: persistSession was false (a successful sign-in would not have
+survived the next render) and detectSessionInUrl was off (magic-link
+callbacks unreadable).
+
+  /login · sharkey1982@hotmail.com · Shark-2026-Login!
+
+Change it once in. Magic links additionally need SMTP — see below.
 
 ### (superseded) Login still not working
 Account is confirmed, is_admin true, password set, but last_sign_in_at
