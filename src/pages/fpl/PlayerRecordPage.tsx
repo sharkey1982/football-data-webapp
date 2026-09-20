@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import PlayerCareerRecord from '../../components/fpl/PlayerCareerRecord';
 import {
   getPlayerBySlug,
   getPlayerCareer,
@@ -139,7 +140,6 @@ export default function PlayerRecordPage() {
   const cumulative = useMemo(() => cumulativePoints(gws), [gws]);
   const rates = useMemo(() => seasonRates(gws), [gws]);
   const selected = seasons.find((s) => s.season_id === seasonId);
-  const maxCareerPoints = Math.max(...career.map((c) => c.total_points), 1);
 
   if (notFound) {
     return (
@@ -317,79 +317,9 @@ export default function PlayerRecordPage() {
         </>
       )}
 
-      {career.length > 1 && (
-        <section>
-          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Every season compared</h2>
-          <ul className="mt-2 space-y-1.5">
-            {career.map((c) => (
-              <li key={c.season_id} className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSeasonId(c.season_id)}
-                  className={`w-16 shrink-0 text-left font-mono text-xs underline-offset-2 hover:underline ${
-                    c.season_id === seasonId ? 'text-ink-900 font-semibold' : 'text-pitch-800'
-                  }`}
-                >
-                  {seasonLabel(c.season_slug)}
-                </button>
-                <div className="flex-1 bg-chalk-200 rounded h-4 overflow-hidden">
-                  <div className="bg-pitch-700 h-full" style={{ width: `${(c.total_points / maxCareerPoints) * 100}%` }} />
-                </div>
-                <span className="w-10 text-right font-mono text-xs tabular-nums">{c.total_points}</span>
-                <span className="w-14 text-right font-mono text-[0.65rem] text-ink-500 tabular-nums">
-                  &pound;{(c.start_cost / 10).toFixed(1)}m
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="overflow-x-auto mt-3">
-            <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
-              <thead className="bg-chalk-200 text-ink-500">
-                <tr>
-                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Season</th>
-                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Club</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Aug price</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Per 90</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Per &pound;m</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">G</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">A</th>
-                </tr>
-              </thead>
-              <tbody>
-                {career.map((c, i) => (
-                  <tr key={c.season_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                    <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
-                      {seasonLabel(c.season_slug)}
-                    </th>
-                    <td className="px-3 py-1.5 text-xs text-ink-700">{c.team_name ?? '\u2014'}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
-                      &pound;{(c.start_cost / 10).toFixed(1)}m
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">
-                      {c.total_points}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{c.minutes}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
-                      {/* Per 90 puts a 900-minute season and a
-                          3,000-minute one on the same footing, which
-                          totals never can. */}
-                      {c.minutes > 0 ? ((c.total_points / c.minutes) * 90).toFixed(2) : '\u2014'}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
-                      {c.points_per_start_million ?? '\u2014'}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{c.goals_scored}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{c.assists}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      {/* Shared with the canonical player page -- one implementation,
+          so the same player can't read differently in two places. */}
+      <PlayerCareerRecord career={career} selectedSeasonId={seasonId} onSelectSeason={setSeasonId} />
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/fpl/player-scout" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

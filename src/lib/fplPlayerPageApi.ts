@@ -22,6 +22,12 @@ const MODEL_VERSION = 'leaguewide_v6';
 
 export type PlayerPageProfile = {
   fpl_player_id: number;
+  /** The cross-season identity key. fpl_player_id is reassigned by FPL
+   * every season, so anything spanning seasons (career record, previous
+   * clubs) keys on this instead -- it's what player_identity is built
+   * on. Verified non-null with a matching identity row for all 667
+   * current-season players. */
+  fpl_code: number | null;
   slug: string;
   web_name: string;
   full_name: string;
@@ -54,7 +60,7 @@ const POSITION_LABELS: Record<number, string> = { 1: 'Goalkeeper', 2: 'Defender'
 export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile | null> {
   const { data, error } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(display_name, slug)')
+    .select('fpl_player_id, fpl_code, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(display_name, slug)')
     .eq('season_id', PL_SEASON_ID)
     .eq('slug', slug)
     .maybeSingle();
@@ -70,6 +76,7 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
   const fullName = [data.first_name, data.second_name].filter(Boolean).join(' ').trim() || webName;
   return {
     fpl_player_id: data.fpl_player_id,
+    fpl_code: data.fpl_code ?? null,
     slug: data.slug!,
     web_name: webName,
     full_name: fullName,

@@ -80,10 +80,9 @@ workflow triggers. Needs a real debugging session -- check the browser
 console on submit, and whether signInWithPassword returns an error that
 the page swallows.
 
-### Change the admin password
-The initial password was set directly in the database and shared in
-plain text in chat. Treat it as compromised. There's a change-password
-form on `/login` once signed in.
+### Change the admin password — DONE
+Confirmed changed by Chris (2026-09-20), after login started working.
+The password quoted in the login section above is stale; ignore it.
 
 ### Supabase email (SMTP)
 Magic-link sign-in and password resets depend on outbound email, and
@@ -694,7 +693,31 @@ case. 212 tests still passing, tsc clean, build clean. No auth test
 existed to update -- worth adding one that mocks onAuthStateChange
 firing a TOKEN_REFRESHED event and asserts loading eventually clears.
 
-### Player pages: three pages, the richest one orphaned — SCOPED, not built
+### Player pages: canonical page enriched — DONE (v1)
+The canonical /fpl/players/:slug now carries the season-by-season record
+that previously only existed on the orphaned scout page, via a SHARED
+component (components/fpl/PlayerCareerRecord.tsx) used by both -- one
+implementation, so the same player can't read differently in two places.
+
+Done: fpl_code added to PlayerPageProfile (verified non-null with a
+matching player_identity row for all 667 current players); career fetched
+separately and allowed to fail on its own, since it's a secondary section
+and must not take out a page that projection links point at; "Full career
+record" deep link added.
+
+STILL ON THE SCOUT PAGE ONLY, deliberately not duplicated: the
+contribution split, the cumulative-points line, and the per-gameweek
+breakdown per season. Worth deciding whether those move too, or whether
+the scout page stays as the deep-dive. If they move, the scout route
+should probably redirect rather than linger.
+
+NOTE, an assumption worth re-checking: the scout route keys on
+player_identity.slug, this page on fpl_players.slug -- two separately
+maintained columns, agreeing for all 667 today (checked, zero
+mismatches). Same generation rule, so divergence is unlikely, and it
+degrades to the scout page's own not-found state.
+
+### (superseded) Player pages: three pages, the richest one orphaned
 Requested: every player name should link to one rich page; actuals and
 projections mostly the same view, with projection info added on top.
 
