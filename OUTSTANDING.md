@@ -1290,20 +1290,23 @@ header comment must be rewritten at the same time; leaving a stale
 rationale in the file is how the next person concludes it's fine.
 
 ### Confirmed still open, lower urgency
-  - 4 RLS-disabled tables WITH anon+authenticated SELECT:
-    fpl_hindsight_optimal_squad, fpl_fixture_bonus_montecarlo_v1,
-    fixture_actual_lineup_players, fixture_actual_team_lineups.
-    Verified: these are read by public pages, so the fix is enable RLS +
-    explicit public-read policy, NOT hiding them.
-  - 2 RLS-disabled tables with NO grants (fpl_player_return_assumptions,
-    team_strength_forward_adjustments) -- harmless today, tidy later.
+  - RLS on 6 tables: FIXED 2026-09-20. Classified by actual usage, not
+    guesswork. The 4 read by frontend pages got RLS + an explicit
+    public-read policy (declaring the intent, not hiding data the site
+    needs); the 2 that appear only in generated types got RLS with NO
+    policy, so they are service-only. Verified AS anon afterwards: all
+    four still return rows, both service-only tables correctly denied.
   - get_data_integrity_report has NO pinned search_path and is
     anon-callable; it also exposes operational internals. Pin the path;
     consider restricting to admin.
   - handle_new_auth_user is EXECUTE to PUBLIC. It's a trigger helper and
     should be callable by nobody.
-  - npm audit: 12 vulns (1 critical, 7 high, 4 moderate) reproduced
-    today. react-router-dom ^7.18.0, vitest ^2.1.9 both behind.
+  - Dependencies: FIXED 2026-09-20. react-router-dom -> ^7.18.2,
+    vitest/@vitest/ui -> ^3 (the critical advisory), then a non-forced
+    `npm audit fix` for the transitive four (brace-expansion,
+    browserslist, nanoid, postcss). 12 vulns (1 critical, 7 high) -> 3
+    moderate, and PROD-ONLY is now ZERO. All 232 tests pass on vitest 3
+    with no test changes needed; tsc and build clean.
   - Change control: PARTLY FIXED 2026-09-20. supabase/ now exists with 4
     of 5 Edge Function sources recovered byte-for-byte from the live
     deployment, config.toml, and a README covering deploy/rollback and
