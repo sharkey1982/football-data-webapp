@@ -271,14 +271,51 @@ hindsight at August prices. Note the model view needs projections that
 existed BEFORE the season — check what's actually stored, since
 pre-kickoff projections currently only go back to gameweek 5.
 
-### Optimiser — include/exclude specific players
-Need to pin players in (I already own Haaland, build around him) and
-lock players out (injured, or I refuse to own him). Currently it solves
-unconstrained within budget and formation rules.
+### Optimiser — include/exclude: SPEC (capability already half-built)
 
-Mechanically straightforward: both are constraints on the same solve —
-forced-in players consume budget and a squad slot before optimisation,
-forced-out are filtered from the pool.
+FINDING THAT CHANGES THE JOB: this is mostly not a solver problem.
+optimizeFplSquad() in fplOptimizerApi.ts ALREADY takes mustIncludeIds
+and mustExcludeIds and forwards them to the fpl-optimize-squad edge
+function as must_include_ids / must_exclude_ids. No UI has ever passed
+them, so the capability exists and is unreachable.
+
+STEP 0 — VERIFY THE EDGE FUNCTION HONOURS THEM. Its source is NOT in
+this repo (deployed separately), so this is an assumption until tested.
+Call optimizeFplSquad with a forced-in cheap player and confirm he
+appears; call it with the top scorer excluded and confirm he doesn't.
+If the edge function ignores the fields, everything below still holds
+but the work moves there first. Do NOT build UI on an untested
+contract.
+
+STEP 1 — UI ON THE OPTIMISER PAGE
+  - a player picker per list (include / exclude), searching the same
+    candidate pool the solve uses, so a chosen player is guaranteed to
+    be solvable
+  - show forced players as chips with a remove control
+  - live budget feedback: forced-in players consume budget and squad
+    slots before optimisation, so the page should say how much is left
+    and how many slots remain
+  - validation the SOLVE can't do gracefully: more than 3 from one club
+    forced in, more than 2 GK, a forced set that already exceeds budget.
+    Catch these in the UI with a clear message rather than letting the
+    solve fail.
+
+STEP 2 — EDGE CASES worth deciding before building
+  - forced-in player with zero projected minutes: allow (a user may know
+    something the model doesn't) but warn
+  - forced-in AND forced-out: UI should make this impossible
+  - a forced set with no feasible completion: the solve must return a
+    clear "no legal squad" rather than a partial one. Same failure mode
+    as the rolling XI solver, which returns null rather than an illegal
+    side.
+
+STEP 3 — ADMIN SCENARIOS (the separate item below) builds on this:
+once include/exclude works, a stored scenario is just a named
+(include, exclude, range) triple plus its solved output.
+
+RATE LIMITING: see the end-user-facing item below. Include/exclude makes
+the page far more inviting to hammer, and each solve is real work. That
+question should be answered BEFORE this ships publicly, not after.
 
 ### Optimiser — admin scenario runs, stored alongside the default
 Rather than exposing include/exclude to everyone, let the ADMIN run
