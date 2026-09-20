@@ -694,6 +694,43 @@ case. 212 tests still passing, tsc clean, build clean. No auth test
 existed to update -- worth adding one that mocks onAuthStateChange
 firing a TOKEN_REFRESHED event and asserts loading eventually clears.
 
+### Player pages: three pages, the richest one orphaned — SCOPED, not built
+Requested: every player name should link to one rich page; actuals and
+projections mostly the same view, with projection info added on top.
+
+WHAT'S ACTUALLY THERE (checked, not assumed):
+  - /fpl/players/:slug  (PlayerPage, 202 lines) — CANONICAL. Prerendered,
+    in the sitemap, and what almost every player-name link on the site
+    points to (Digest, Market, Injuries, PriceRisk, TeamOfTheWeek, Value,
+    PlayerProjectionsTable all link here). Content is thin: projected
+    points + one gameweek table.
+  - /fpl/player-scout/:slug (PlayerRecordPage, 409 lines) — RICHER by
+    far: contribution split, cumulative-points line, per-season compare
+    (Aug price, pts, mins, per-90, per-£m, G, A), full gameweek
+    breakdown across every season held. Reachable ONLY from the Player
+    Scout search. Effectively orphaned.
+  - /fpl/player-points (PlayerProjectionsTablePage) — the sortable
+    all-players table, not a per-player page. Not part of this merge.
+
+THE BLOCKER, and why this wasn't just done: the two pages don't share a
+key. PlayerPageProfile is keyed on fpl_player_id and has NO fpl_code;
+every scout API (getPlayerCareer, getPlayerSeasons,
+getPlayerSeasonGameweeks) keys on fpl_code via player_identity. So
+enriching the canonical page needs an fpl_player_id -> fpl_code lookup
+first. fpl_players carries fpl_code (trigger-maintained), so the data is
+there — it just isn't on the type or in that query.
+
+RECOMMENDED SHAPE (not yet agreed):
+  1. Add fpl_code to PlayerPageProfile / getPlayerBySlug.
+  2. Extract the rich actuals sections out of PlayerRecordPage into a
+     shared component, so the two can't drift.
+  3. Canonical PlayerPage renders shared-actuals + its projections
+     block, becoming a genuine superset.
+  4. Leave /fpl/player-scout/:slug routed (it's slugged, prerendered and
+     linked) — either keep it as the career-only view or redirect it.
+Doing it this way keeps every existing link and the prerendering intact,
+which repointing ~10 files' worth of links would not.
+
 ## Resolved this session
 
 ### refresh_fpl consolidation — DONE, and it found an outage
