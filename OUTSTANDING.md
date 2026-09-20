@@ -44,6 +44,16 @@ because that pipeline doesn't affect them.
 Prerendered pages now track the twice-daily FPL refresh and the 6am
 daily-import, so the freshness timestamps they publish stay honest.
 
+### Login still not working — UNRESOLVED
+Account is confirmed, is_admin true, password set, but last_sign_in_at
+remains NULL. Making the /login route findable (AdminGateNotice button)
+did not fix it, so the problem is in the sign-in itself, not the route.
+
+Blocks every admin feature: tactical roles, team-strength overrides, the
+workflow triggers. Needs a real debugging session -- check the browser
+console on submit, and whether signInWithPassword returns an error that
+the page swallows.
+
 ### Change the admin password
 The initial password was set directly in the database and shared in
 plain text in chat. Treat it as compromised. There's a change-password
@@ -58,6 +68,37 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 ---
 
 ## Known gaps
+
+### Model accuracy + model-vs-odds — MUCH smaller than assumed
+Investigated rather than estimated, because the assumption was that
+adding 1X2/over-under to fixture projections needs a retrofit.
+
+It doesn't need a model re-run at all. Nothing stores probabilities --
+only expected goals (predicted_home_goals/away_goals) and
+prediction_fit_run_id, which resolves to that fit's rho. 1X2, over/under
+and BTTS are a pure FUNCTION of those three numbers, computed today
+client-side by derivedMarkets(). The same maths runs in SQL over stored
+rows.
+
+Measured:
+  346 played fixtures
+  168 have lambda AND rho stored -- fully derivable, retroactively
+  178 have no prediction at all (predate the freeze-on-kickoff work,
+      genuinely unrecoverable without refitting)
+
+And the odds join works: those 168 fixtures carry 3,362 bookmaker odds
+rows, via fixtures -> matches (league, season, teams, date) -> match_odds.
+
+So BOTH of these are achievable from data already held:
+  - model accuracy (predicted 1X2 vs actual result) on 168 fixtures
+  - model vs market (model probability vs implied probability, after
+    removing overround) on the same set
+
+No refit, no re-run, no new ingestion. The only real decision is whether
+the derived markets are STORED on fixtures (fast, but needs
+recomputation whenever a fit changes) or exposed as a FUNCTION over
+lambda+rho (always consistent, slightly slower). Function is probably
+right: it can never drift from the fit that produced it.
 
 ### Football Discover — win % and over/under goals never added
 Discussed but never built. The model side has this: derivedMarkets() in
