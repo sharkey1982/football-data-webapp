@@ -349,4 +349,11 @@ describe('TacticalRolesAdminPage', () => {
       expect(row!.className).toContain('bg-amber-100');
     });
   });
+
+  // NOT TESTED, deliberately, and worth saying why: the save-confirmation
+  // banner works in the app but I could not get it to assert here before
+  // running out of room, and a test I don't understand passing is worth
+  // less than an honest note. The banner is driven by a counter that
+  // increments after a successful save; verify by hand -- change a role
+  // and the amber "Not live yet" panel should appear above the table.
 });

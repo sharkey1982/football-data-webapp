@@ -19,6 +19,7 @@
 
 import { AdminGateNotice } from '../../components/AdminGateNotice';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getTacticalRoleReview,
   getTeamOptions,
@@ -78,6 +79,26 @@ export default function TacticalRolesAdminPage() {
   // Set when arriving from the worklist, so the row you came for is
   // obvious rather than something to hunt for in a 25-player squad.
   const [highlightPlayerId, setHighlightPlayerId] = useState<number | null>(null);
+  // Edits save the moment a dropdown changes. Without confirmation a
+  // successful save and a silent failure look identical, which is
+  // exactly how a working page comes to feel broken.
+  const [savedIds, setSavedIds] = useState<Record<number, number>>({});
+  // Count of edits made this session. A saved change does NOT reach
+  // projections until the refresh job runs, so the page has to say so --
+  // otherwise a correct edit also looks like it did nothing.
+  const [unappliedEdits, setUnappliedEdits] = useState(0);
+
+  function markSaved(playerId: number) {
+    setSavedIds((prev) => ({ ...prev, [playerId]: Date.now() }));
+    setUnappliedEdits((n) => n + 1);
+    window.setTimeout(() => {
+      setSavedIds((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+    }, 4000);
+  }
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
@@ -209,6 +230,7 @@ export default function TacticalRolesAdminPage() {
     setSaveError(null);
     try {
       await saveTacticalRoleCorrection(row.team_id, row.fpl_player_id, newRole);
+      markSaved(row.fpl_player_id);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, tactical_role: newRole, source_name: 'manual', confidence: 1 } : r)));
     } catch (e) {
       setSaveError(getErrorMessage(e, `Failed to save the new role for ${row.web_name}`));
@@ -222,6 +244,7 @@ export default function TacticalRolesAdminPage() {
     setSaveError(null);
     try {
       await saveDepthRankCorrection(row.team_id, row.fpl_player_id, row.element_type, newRank);
+      markSaved(row.fpl_player_id);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, depth_rank: newRank } : r)));
     } catch (e) {
       setSaveError(getErrorMessage(e, `Failed to save the depth rank for ${row.web_name}`));
@@ -236,6 +259,7 @@ export default function TacticalRolesAdminPage() {
     try {
       if (newStatus === '') {
         await saveManualStatus(row.team_id, row.fpl_player_id, row.element_type, null, null);
+        markSaved(row.fpl_player_id);
         // Re-fetch this one player's effective status is awkward without a
         // dedicated endpoint -- simplest correct thing is a full reload,
         // since clearing an override means falling back to whatever the
@@ -314,6 +338,18 @@ export default function TacticalRolesAdminPage() {
   }, [teamRowsForPitch, pitchDepth, scopeMode]);
   const pitchPlayers = useMemo(() => pitchStarters.map(toFormationPitchPlayer), [pitchStarters]);
 
+  /** A visible, unmistakable outcome for a save that happens on change.
+   * "Saving…" then nothing is the same shape as a failure. */
+  function SaveState({ row }: { row: TacticalRoleRow }) {
+    if (savingId === row.fpl_player_id) {
+      return <span className="text-xs text-ink-500 ml-1.5">saving&hellip;</span>;
+    }
+    if (savedIds[row.fpl_player_id]) {
+      return <span className="text-xs text-pitch-800 ml-1.5" aria-live="polite">&#10003; saved</span>;
+    }
+    return null;
+  }
+
   function RoleSelect({ row }: { row: TacticalRoleRow }) {
     return (
       <select
@@ -388,6 +424,24 @@ export default function TacticalRolesAdminPage() {
   return (
     <div className="space-y-4">
       <AdminGateNotice />
+
+      {/* A saved role does NOT reach projections until the refresh runs.
+          Without saying so, a correct edit looks identical to one that
+          failed -- which is the same symptom as a broken save, and the
+          two would be indistinguishable. */}
+      {unappliedEdits > 0 && (
+        <div className="border border-amber-500 bg-amber-500/10 rounded-lg px-4 py-3">
+          <p className="font-mono text-xs text-amber-700 uppercase tracking-widest">Not live yet</p>
+          <p className="text-sm text-ink-900 mt-1">
+            {unappliedEdits} change{unappliedEdits === 1 ? '' : 's'} saved. These are stored, but projections still use
+            the old roles until the FPL projections refresh runs.{' '}
+            <Link to="/admin/team-ratings" className="text-pitch-800 underline underline-offset-2">
+              Run it from Team Strength Admin
+            </Link>
+            .
+          </p>
+        </div>
+      )}
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Tactical Roles</h1>
         <p className="text-sm text-ink-500 mt-1">
@@ -585,6 +639,7 @@ export default function TacticalRolesAdminPage() {
                             <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                             <td className="px-2 py-1.5">
                               <RoleSelect row={r} />
+                              <SaveState row={r} />
                             </td>
                             <td className="px-2 py-1.5">
                               <DepthRankSelect row={r} />
@@ -714,6 +769,7 @@ export default function TacticalRolesAdminPage() {
                           <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                           <td className="px-2 py-1.5">
                             <RoleSelect row={r} />
+                              <SaveState row={r} />
                           </td>
                           <td className="px-2 py-1.5">
                             <DepthRankSelect row={r} />
