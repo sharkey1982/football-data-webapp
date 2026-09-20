@@ -69,6 +69,29 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### TWO different accuracy questions — don't conflate them
+Clarified by Chris, and worth keeping separate because one is cheap and
+one is a real modelling job.
+
+(a) LIVE ACCURACY — how the model has done on predictions it actually
+    made. Uses stored lambda + rho on the 168 fixtures that have them.
+    No refit. Cheap. Honest but a SMALL sample, and only covers the
+    period since freeze-on-kickoff.
+
+(b) WALK-FORWARD BACKTEST — what Chris actually asked for. Refit the
+    model at each historical point using ONLY data available then,
+    project the next period, score it, roll forward. Produces a large,
+    genuinely out-of-sample accuracy record across seasons and
+    divisions.
+    This is a modelling exercise: it needs the Python fitter run
+    repeatedly over historical windows, with strict care that no future
+    result leaks into a fit. It is NOT derivable from stored rows.
+
+(a) is a quick win and should ship first -- it makes the Predict section
+honest immediately. (b) is the real answer and should follow, with its
+own session. Neither replaces the other: (a) is "did our live
+predictions work", (b) is "does the method work".
+
 ### Model accuracy + model-vs-odds — MUCH smaller than assumed
 Investigated rather than estimated, because the assumption was that
 adding 1X2/over-under to fixture projections needs a retrofit.
