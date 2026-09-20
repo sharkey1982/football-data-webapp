@@ -65,7 +65,7 @@ describe('AppLayout main nav', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
     expect(screen.getByRole('link', { name: 'Team Strength Admin' })).toHaveAttribute('href', '/admin/team-ratings');
-    expect(screen.getByRole('link', { name: 'Tactical Roles' })).toBeInTheDocument();
+    // Tactical Roles moved to Fantasy > Predict as "Predicted Line-ups".
     // Also present in the page footer, so assert at least one exists
     // in the nav rather than requiring uniqueness across the document.
     expect(screen.getAllByRole('link', { name: 'Data Health' }).length).toBeGreaterThan(0);

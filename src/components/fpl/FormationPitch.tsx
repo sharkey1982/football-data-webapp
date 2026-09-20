@@ -228,13 +228,38 @@ type PitchSlot = {
  * tactical_role, or a specific role this formation's template doesn't
  * have a slot for): nearest-fit fuzzy matching, same as before.
  */
+/** Roles that are the same job under different names, so an exact match
+ * isn't missed on a naming difference.
+ *
+ * This was a real bug: the 4-2-3-1 template calls its double pivot DM,
+ * but most players in that role are assigned CM. With no CM slot in the
+ * template, a CM found no exact match, fell through to fuzzy matching,
+ * and could be placed in a DEFENDER'S slot -- a central midfielder
+ * appearing next to the goalkeeper.
+ *
+ * Deliberately narrow: only pairs that genuinely describe one position.
+ * A wide pair (LW/LM) is NOT included, because the difference between
+ * them is real and the fuzzy pass already handles it with a side bonus. */
+const ROLE_ALIASES: string[][] = [
+  ['CM', 'DM', 'CDM'],
+  ['AM', 'CAM'],
+  ['CF', 'ST'],
+];
+
+function rolesEquivalent(playerRole: string, slotRole: string): boolean {
+  const a = playerRole.toUpperCase();
+  const b = slotRole.toUpperCase();
+  if (a === b) return true;
+  return ROLE_ALIASES.some((group) => group.includes(a) && group.includes(b));
+}
+
 function assignToTemplate(starters: FplFixtureProjectionPlayer[], template: Slot[]): PitchSlot[] {
   const slotPlayer: (FplFixtureProjectionPlayer | null)[] = new Array(template.length).fill(null);
   const used = new Set<number>();
 
   template.forEach((slot, slotIndex) => {
     const exact = starters.find(
-      (p) => !used.has(p.fpl_player_id) && isKnownRole(p.tactical_role) && p.tactical_role!.toUpperCase() === slot.role.toUpperCase()
+      (p) => !used.has(p.fpl_player_id) && isKnownRole(p.tactical_role) && rolesEquivalent(p.tactical_role!, slot.role)
     );
     if (exact) {
       slotPlayer[slotIndex] = exact;

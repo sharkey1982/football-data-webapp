@@ -135,6 +135,11 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // slicing it rather than the other way round.
           { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          // Predicted line-ups belong with the projections they feed,
+          // not in Admin. Editing inside the page stays admin-gated;
+          // viewing who is expected to start is exactly what someone
+          // picking a squad wants.
+          { label: 'Predicted Line-ups', to: '/fpl/tactical-roles', blurb: 'Who\u2019s expected to start, by club and formation.' },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
           { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },

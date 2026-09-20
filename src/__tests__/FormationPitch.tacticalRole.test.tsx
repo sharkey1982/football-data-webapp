@@ -136,4 +136,25 @@ describe('FormationPitch -- 3-4-3 sides', () => {
     expect(leftOf('LeftCB')).toBeLessThan(leftOf('RightCB'));
     expect(leftOf('CentreForward')).toBeCloseTo(50, 0);
   });
+
+  it('places a CM in the 4-2-3-1 pivot, not in a defensive slot', () => {
+    // The 4-2-3-1 template calls its double pivot DM, but players are
+    // usually assigned CM. With no CM slot, a CM found no exact match,
+    // fell to fuzzy matching, and could land in a DEFENDER'S slot -- a
+    // central midfielder drawn next to the goalkeeper.
+    const partialSquad = [
+      player({ fpl_player_id: 301, web_name: 'Keeper', tactical_role: 'GK', fpl_position: 1 }),
+      player({ fpl_player_id: 302, web_name: 'Pivot', tactical_role: 'CM', fpl_position: 3 }),
+    ];
+    render(
+      <FormationPitch players={partialSquad} formation="4-2-3-1" selectedPlayerId={null} onSelectPlayer={() => {}} />
+    );
+
+    const pivot = screen.getByText('Pivot').closest('[style]') as HTMLElement | null;
+    expect(pivot).not.toBeNull();
+    // The pivot slots sit at top: 54; defenders at 70-74. Anything at or
+    // below 65 means the CM was dropped into the back line.
+    const top = Number((pivot!.style.top || '').replace('%', ''));
+    expect(top).toBeLessThan(65);
+  });
 });
