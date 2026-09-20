@@ -1,5 +1,14 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
+import * as authLib from '../lib/auth';
+
+// The Admin menu now depends on who's looking, so the tests have to say.
+vi.mock('../lib/auth', async () => {
+  const actual = await vi.importActual<typeof authLib>('../lib/auth');
+  return { ...actual, useAuthOptional: vi.fn() };
+});
+const mockedAuth = authLib as unknown as Record<string, ReturnType<typeof vi.fn>>;
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -36,6 +45,11 @@ function renderAt(path: string) {
 }
 
 describe('AppLayout main nav', () => {
+  beforeEach(() => {
+    // Default: an admin is looking, so the Admin menu renders.
+    mockedAuth.useAuthOptional.mockReturnValue({ isAdmin: true });
+  });
+
   it('shows four top-level headings: Football, Fantasy, Admin -- no standalone items alongside them', () => {
     renderAt('/');
     expect(screen.getByRole('button', { name: /Football/ })).toBeInTheDocument();
@@ -50,7 +64,7 @@ describe('AppLayout main nav', () => {
     renderAt('/');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
-    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/admin/team-ratings');
+    expect(screen.getByRole('link', { name: 'Team Strength Admin' })).toHaveAttribute('href', '/admin/team-ratings');
     expect(screen.getByRole('link', { name: 'Tactical Roles' })).toBeInTheDocument();
     // Also present in the page footer, so assert at least one exists
     // in the nav rather than requiring uniqueness across the document.
@@ -158,7 +172,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
 
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
-    expect(screen.getByRole('link', { name: 'Adjust Team Ratings' })).toHaveAttribute('href', '/admin/team-ratings');
+    expect(screen.getByRole('link', { name: 'Team Strength Admin' })).toHaveAttribute('href', '/admin/team-ratings');
   });
 
   it('treats Results Data as a Football page now it lives under Discover', () => {
@@ -185,5 +199,17 @@ describe('AppLayout main nav', () => {
       expect(screen.queryByText(/Back to/)).not.toBeInTheDocument();
       cleanup();
     }
+  });
+
+  it('hides the Admin menu entirely from a visitor who is not a signed-in admin', async () => {
+    // Every page behind Admin is gated anyway, so showing the menu
+    // advertised doors a visitor can't open -- and put operational
+    // tooling in front of an audience it isn't for.
+    mockedAuth.useAuthOptional.mockReturnValue(null);
+    renderAt('/');
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    // The public groups are untouched.
+    expect(screen.getAllByText('Football').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Fantasy').length).toBeGreaterThan(0);
   });
 });

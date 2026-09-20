@@ -1,6 +1,7 @@
 import { THEMES, stagePath } from '../lib/journey';
 import { trackPageView } from '../lib/analytics';
 import { CookieConsent } from './CookieConsent';
+import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
@@ -206,6 +207,12 @@ export default function AppLayout() {
     };
   });
 
+  // The Admin menu is hidden entirely unless a signed-in admin is
+  // looking. Every page behind it is admin-gated anyway, so showing the
+  // menu to a visitor advertised doors they can't open -- and put
+  // operational tooling in front of an audience it isn't for.
+  const isAdmin = useAuthOptional()?.isAdmin ?? false;
+
   const navGroups: NavGroup[] = [
     ...themeGroups,
     {
@@ -223,13 +230,13 @@ export default function AppLayout() {
       items: [
         // Optimiser removed from Admin: it's a Fantasy feature, not an
         // operational one, and listing it twice implied two pages.
-        { to: '/admin/team-ratings', label: 'Adjust Team Ratings', matchPrefix: '/admin/team-ratings' },
+        { to: '/admin/team-ratings', label: 'Team Strength Admin', matchPrefix: '/admin/team-ratings' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
       ],
     },
-  ];
+  ].filter((g) => g.label !== 'Admin' || isAdmin);
   const footballGroup = navGroups.find((g) => g.label === 'Football')!;
   const fantasyGroup = navGroups.find((g) => g.label === 'Fantasy')!;
   // A link back up to whichever theme hub the current page belongs to --
@@ -290,9 +297,6 @@ export default function AppLayout() {
       <footer className="border-t border-chalk-300 py-6">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">
           <span>Data sourced from football-data.co.uk &middot; England, 2014/15&ndash;2025/26</span>
-          <NavLink to="/data-health" className="text-ink-500 hover:text-ink-900 underline">
-            Data Health
-          </NavLink>
         </div>
       </footer>
     </div>

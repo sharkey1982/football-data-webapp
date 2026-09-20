@@ -91,6 +91,27 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Remaining admin/job-button cleanup
+Done: Admin menu hidden from non-admins, "Adjust Team Ratings" renamed
+"Team Strength Admin", footer Data Health link removed, Team Strength
+workflow buttons already moved behind the admin gate.
+
+Still to do:
+  - sweep EVERY page for backend-job trigger buttons and move them into
+    the admin section. Team Strength was fixed; others have not been
+    checked one by one.
+  - consider a single "Run jobs" admin page rather than buttons scattered
+    across whichever page happens to relate
+  - Source Data reported missing. The route and the nav entry both exist
+    (/source-data, in the Admin menu) — most likely it was invisible
+    because the Admin menu showed for everyone and is now gated, or the
+    page itself errors. Check while signed in before assuming it's gone.
+
+### Managers' Dugout — stale caveat and unnamed slots
+The "about this data" section carries a caveat that is now out of date.
+Slots are also still labelled by NUMBER ("Slot 9"); they should read as
+roles, in line with the tactical-roles vocabulary used elsewhere.
+
 ### Creating a function opens a door — check the grant every time
 Bitten TWICE now by the same Postgres default: CREATE FUNCTION grants
 EXECUTE to PUBLIC unless revoked.
