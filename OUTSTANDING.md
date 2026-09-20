@@ -94,6 +94,38 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Predicted Line-ups — needs a REAL public page, not a link to the admin one
+Attempted by adding the admin Tactical Roles page to Fantasy > Predict.
+That was wrong and has been reverted: it duplicated the page rather than
+moving it, and exposed review filters, "mark reviewed" and formation
+editing to a section where none of that belongs.
+
+The admin page is organised around a REVIEW WORKFLOW — which players
+still need a role assigned. A public page answers a different question:
+what XI and shape is each club likely to field? Same underlying data,
+opposite framing, so it needs its own page rather than a filtered view
+of the admin one.
+
+WHAT IT SHOULD BE (new route, e.g. /fpl/line-ups):
+  - club selector, and the pitch
+  - the model's most likely formation for that club, stated plainly,
+    not as an editable dropdown
+  - the expected XI at 1st choice, with 2nd choice available as a
+    "if there are changes" view (depth is now capped at 3, so those are
+    the only meaningful tiers)
+  - per-player: expected minutes or ppg, set-piece duty, and the
+    "role not yet confirmed" marker where it applies — that caveat IS
+    worth showing publicly, since it tells a reader how much to trust
+    the position
+  - NO review filters, NO mark-reviewed, NO editing
+
+REUSE: FormationPitch already renders all of this and is the expensive
+part. The new page is a thin read-only wrapper around it plus a club
+selector. The admin page keeps its own controls and stays in Admin.
+
+Note the CM/DM alias fix landed already, so pitch placement is correct
+for both pages.
+
 ### Tactical Roles page — five refinements (GK noise already fixed) — DONE
 DONE: goalkeepers no longer appear in the worklist. It listed everyone
 whose role came from the positional fallback, which is a real gap for a
