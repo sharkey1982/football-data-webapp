@@ -16,8 +16,9 @@ import {
   computeStreaks,
   type TeamWithRating,
   type MatchWithNames,
+  getUpcomingFixtureForPairing,
 } from '../lib/api';
-import { calculateDixonColes, type DixonColesResult } from '../lib/dixonColes';
+import { calculateDixonColes, calculateDixonColesFromExpectedGoals, type DixonColesResult } from '../lib/dixonColes';
 import type { ModelFitRun } from '../types/database';
 import { ComparisonCard, StreakBadges } from '../components/ComparisonCard';
 import { HeadToHeadSummary } from '../components/HeadToHeadSummary';
@@ -72,6 +73,10 @@ export default function MatchPreview() {
     awayMatchesFull: MatchWithNames[];
     h2hMatches: MatchWithNames[];
     dixonColes: DixonColesResult | null;
+    /** True when the numbers came from the stored production prediction
+     * rather than a live recompute -- the two can differ where a manual
+     * override is in play, so the reader is told which they're seeing. */
+    usedStoredPrediction: boolean;
   } | null>(null);
 
   const [error, setError] = useState<string | null>(null);
@@ -182,15 +187,41 @@ export default function MatchPreview() {
       setMatchResult(matchedResult);
 
       let dixonColes: DixonColesResult | null = null;
+      let usedStoredPrediction = false;
       if (home && away && fitRun) {
-        dixonColes = calculateDixonColes({
-          homeAttack: home.attack_strength,
-          homeDefence: home.defence_strength,
-          awayAttack: away.attack_strength,
-          awayDefence: away.defence_strength,
-          rho: fitRun.rho,
-          homeAdvantage: fitRun.home_advantage,
-        });
+        // PREFER THE STORED PREDICTION where this pairing is a real
+        // scheduled fixture. fixtures.predicted_* includes manual
+        // team-strength overrides; recomputing from raw ratings drops
+        // them, and 96 fixtures currently differ by up to 0.14 goals.
+        // Without this the same match reads one way here and another on
+        // Results Projections.
+        const storedFixture =
+          leagueId != null ? await getUpcomingFixtureForPairing(leagueId, homeTeamId!, awayTeamId!) : null;
+
+        if (
+          storedFixture &&
+          storedFixture.predicted_home_goals != null &&
+          storedFixture.predicted_away_goals != null
+        ) {
+          dixonColes = calculateDixonColesFromExpectedGoals(
+            storedFixture.predicted_home_goals,
+            storedFixture.predicted_away_goals,
+            fitRun.rho
+          );
+          usedStoredPrediction = true;
+        } else {
+          // No scheduled fixture for this pairing -- the picker allows
+          // any two teams, so this is a hypothetical. Recomputing from
+          // ratings is the only option and is correct here.
+          dixonColes = calculateDixonColes({
+            homeAttack: home.attack_strength,
+            homeDefence: home.defence_strength,
+            awayAttack: away.attack_strength,
+            awayDefence: away.defence_strength,
+            rho: fitRun.rho,
+            homeAdvantage: fitRun.home_advantage,
+          });
+        }
       } else {
         // Both lookups are independent (different team ids, no shared
         // data dependency) -- only fetch the ones actually needed
@@ -206,7 +237,7 @@ export default function MatchPreview() {
         setModelUnavailable(missing);
       }
 
-      setPreviewData({ homeMatchesFull, awayMatchesFull, h2hMatches, dixonColes });
+      setPreviewData({ homeMatchesFull, awayMatchesFull, h2hMatches, dixonColes, usedStoredPrediction });
     } catch (err: any) {
       setError(err.message ?? 'Failed to build match preview');
     } finally {
@@ -412,6 +443,17 @@ export default function MatchPreview() {
               <p className="text-xs text-ink-500 -mt-2">
                 Form shown is each team&rsquo;s record in the role they&rsquo;re playing here &mdash;{' '}
                 {homeTeamName}&rsquo;s last 5 home games, {awayTeamName}&rsquo;s last 5 away games.
+              </p>
+              {/* Which prediction the reader is looking at. A scheduled
+                  fixture shows the STORED production number, including any
+                  manual rating override; an arbitrary pairing has no
+                  fixture and is computed live from ratings alone. Those
+                  differ, so saying which avoids the same match appearing
+                  to have two answers. */}
+              <p className="text-xs text-ink-500 -mt-1">
+                {previewData.usedStoredPrediction
+                  ? 'These are the production predictions for this fixture \u2014 the same figures used across the site.'
+                  : 'No scheduled fixture between these two, so this is modelled live from current team ratings.'}
               </p>
               <div className="border border-chalk-300 rounded-lg bg-white p-4">
                 <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">Notable streaks</h2>

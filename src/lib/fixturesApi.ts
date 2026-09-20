@@ -520,3 +520,52 @@ export async function getMatchesForSeasonAsFixtures(leagueId: number, seasonId: 
 
 
 
+
+/**
+ * The scheduled fixture for a specific pairing, with its STORED
+ * prediction.
+ *
+ * Match Preview recomputes Dixon-Coles client-side from raw team
+ * ratings, which is correct for a hypothetical pairing the picker
+ * allows but no fixture exists for. It is WRONG for a real upcoming
+ * fixture: the stored prediction includes manual team-strength
+ * overrides, and a raw recompute silently drops them -- 96 fixtures
+ * currently differ, by up to 0.14 goals. The same match then reads
+ * differently here and on Results Projections.
+ *
+ * Returns null when the pairing has no scheduled fixture, which is the
+ * signal to fall back to recomputing.
+ */
+export async function getUpcomingFixtureForPairing(
+  leagueId: number,
+  homeTeamId: number,
+  awayTeamId: number
+): Promise<{
+  fixture_id: number;
+  kickoff_date: string;
+  matchweek: number | null;
+  predicted_home_goals: number | null;
+  predicted_away_goals: number | null;
+  prediction_fit_run_id: number | null;
+} | null> {
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select('fixture_id, kickoff_date, matchweek, predicted_home_goals, predicted_away_goals, prediction_fit_run_id')
+    .eq('league_id', leagueId)
+    .eq('home_team_id', homeTeamId)
+    .eq('away_team_id', awayTeamId)
+    .eq('status', 'scheduled')
+    .order('kickoff_date', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.predicted_home_goals === null) return null;
+  return {
+    fixture_id: data.fixture_id,
+    kickoff_date: data.kickoff_date,
+    matchweek: data.matchweek,
+    predicted_home_goals: data.predicted_home_goals,
+    predicted_away_goals: data.predicted_away_goals,
+    prediction_fit_run_id: data.prediction_fit_run_id,
+  };
+}

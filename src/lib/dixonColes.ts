@@ -72,6 +72,54 @@ export interface DixonColesResult {
  *   lambda_home = exp(home_advantage + attack_home - defence_away)
  *   lambda_away = exp(attack_away - defence_home)
  */
+/**
+ * The same model, driven by expected goals that were computed ELSEWHERE
+ * and stored -- specifically fixtures.predicted_home_goals, which
+ * includes any manual team-strength override.
+ *
+ * Recomputing from raw team ratings drops those overrides silently: 96
+ * fixtures currently differ between the two routes, by up to 0.14
+ * goals, which is enough to move a scoreline and the 1X2 split. Where a
+ * stored prediction exists it is the production number and should be
+ * what's displayed; this lets a page show it without rebuilding the
+ * grid from parameters it doesn't have.
+ */
+export function calculateDixonColesFromExpectedGoals(
+  expectedHomeGoals: number,
+  expectedAwayGoals: number,
+  rho: number,
+  maxGoals = 8
+): DixonColesResult {
+  const scoreGrid: number[][] = [];
+  let homeWinPct = 0;
+  let drawPct = 0;
+  let awayWinPct = 0;
+
+  for (let h = 0; h <= maxGoals; h++) {
+    const row: number[] = [];
+    for (let a = 0; a <= maxGoals; a++) {
+      const tau = dixonColesTau(h, a, expectedHomeGoals, expectedAwayGoals, rho);
+      const prob = tau * poissonPmf(h, expectedHomeGoals) * poissonPmf(a, expectedAwayGoals);
+      row.push(prob);
+      if (h > a) homeWinPct += prob;
+      else if (h === a) drawPct += prob;
+      else awayWinPct += prob;
+    }
+    scoreGrid.push(row);
+  }
+
+  const total = homeWinPct + drawPct + awayWinPct;
+  return {
+    expectedHomeGoals,
+    expectedAwayGoals,
+    scoreGrid,
+    homeWinPct: (homeWinPct / total) * 100,
+    drawPct: (drawPct / total) * 100,
+    awayWinPct: (awayWinPct / total) * 100,
+    maxGoals,
+  };
+}
+
 export function calculateDixonColes(inputs: DixonColesInputs, maxGoals = 8): DixonColesResult {
   const { homeAttack, homeDefence, awayAttack, awayDefence, rho, homeAdvantage } = inputs;
 
