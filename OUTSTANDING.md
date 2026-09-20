@@ -69,6 +69,41 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Model accuracy — FIRST RESULTS, and they are not flattering
+get_model_accuracy(), get_model_accuracy_summary() and
+get_model_calibration() now score every fixture whose prediction was
+frozen before kickoff. 166 fixtures, four divisions, 15 Aug - 18 Sep.
+
+HEADLINE (verified twice, see below):
+  hit rate            41.0%
+  always pick home    41.6%   <- the model does NOT beat this
+  Brier               0.6614
+  uniform baseline    0.6667  <- barely better than 33/33/33
+  mean prob. assigned to what actually happened: 35.6%
+
+BUT argmax accuracy is the wrong lens. The model picks DRAW as most
+likely only 10 times in 166, while draws occur 53 times -- not because
+it thinks draws are rare, but because a draw is rarely the single
+highest cell even at a well-judged 27%. Hit rate cannot see that.
+
+CALIBRATION IS THE FAIR TEST, and it looks much better where the
+forecasts actually live:
+  20-30%  170 forecasts  predicted 25.4  actual 25.3  gap -0.1
+  30-40%  173 forecasts  predicted 34.3  actual 33.5  gap -0.8
+  40-50%   70 forecasts  predicted 44.2  actual 48.6  gap +4.4
+343 of 498 forecasts sit in the two middle bands and are near-perfectly
+calibrated. The tails are poor (60+%: says 67, happens 50) but rest on
+14 forecasts, which is far too few to conclude anything.
+
+SO THE HONEST SUMMARY: well calibrated in the range where most of its
+forecasts fall; overconfident at the extremes on a sample too small to
+judge; and it does not beat home-advantage as a pick-the-winner
+heuristic. All of that should be stated plainly on the page rather than
+led with a hit rate.
+
+This is also the strongest argument yet for the walk-forward backtest:
+166 fixtures over five weeks cannot settle any of it.
+
 ### TWO different accuracy questions — don't conflate them
 Clarified by Chris, and worth keeping separate because one is cheap and
 one is a real modelling job.
