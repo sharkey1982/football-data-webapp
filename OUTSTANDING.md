@@ -1243,8 +1243,12 @@ The audit is broadly sound but PARTLY STALE: it predates the refresh_fpl
 consolidation and the anon-grant revoke. Re-verified against live DB
 today rather than taken on trust. What's actually true now:
 
-### LIVE HOLE 1 — authenticated can still run privileged refreshes
-CONFIRMED STILL OPEN. anon was revoked (that fix held), but
+### LIVE HOLE 1 — authenticated could run privileged refreshes — FIXED 2026-09-20
+CLOSED. Verified after: anon=false, authenticated=false, service_role=true
+on both functions; cron calls private.refresh_fpl so is unaffected.
+Also revoked PUBLIC execute on handle_new_auth_user() and pinned
+get_data_integrity_report()'s search_path in the same migration.
+ORIGINAL FINDING: anon was revoked (that fix held), but
 `authenticated` retains EXECUTE on public.refresh_fpl() and
 public.refresh_fpl_projections_range(), both SECURITY DEFINER, neither
 with an internal is_admin() check.
@@ -1259,8 +1263,19 @@ dashboard; that determines whether this is urgent or merely wrong.
 Fix is small: revoke from authenticated, add is_admin() inside the
 wrapper. Do NOT break pg_cron (it calls private.refresh_fpl, unaffected).
 
-### LIVE HOLE 2 — netlify/functions/trigger-workflow.ts is unauthenticated
-CONFIRMED. Holds GITHUB_ACTIONS_TOKEN server-side and will trigger any
+### LIVE HOLE 2 — trigger-workflow.ts was unauthenticated — FIXED 2026-09-20
+CLOSED. Now requires a Supabase access token verified server-side against
+Supabase (not decoded locally) plus is_admin() checked server-side; a
+client-sent admin flag is ignored. Bounded-integer input validation that
+REJECTS rather than clamps, unknown workflow/input keys rejected, 5/min
+per-user rate limit, GitHub error detail logged not returned. 11 tests
+cover anonymous / bad-token / non-admin / forged-flag / valid-admin /
+bad-input / rate-limited / no-leak. The stale 'no auth is fine here'
+header comment was rewritten at the same time.
+NOTE: the rate limit is in-memory and therefore per-instance -- a
+backstop, not a guarantee. A shared counter needs Supabase or KV; only
+worth it if this proves insufficient.
+ORIGINAL FINDING: Holds GITHUB_ACTIONS_TOKEN server-side and will trigger any
 of three workflows for any anonymous caller. The file's own header
 argues this is acceptable because blast radius is bounded to three
 known-safe re-derivation workflows.
