@@ -103,7 +103,7 @@ describe('OptimalSquadPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
-    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 5, 100));
+    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 5, 100, [], []));
 
     // Full 15-man table has all 15 names.
     await waitFor(() => expect(screen.getAllByText('BenchFwd').length).toBeGreaterThan(0));
@@ -155,7 +155,7 @@ describe('OptimalSquadPage', () => {
     await user.type(toInput, '7');
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
-    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 7, 100));
+    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 7, 100, [], []));
     await waitFor(() => expect(screen.getByText('Weekly plan')).toBeInTheDocument());
     expect(screen.getAllByText('GW6').length).toBeGreaterThan(0);
     // Different formations across weeks are shown, not hidden behind one squad-wide value.
@@ -175,7 +175,7 @@ describe('OptimalSquadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
-    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 14, 100));
+    await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 14, 100, [], []));
   });
 
   it('shows the backend error message when optimisation fails, and never invents a squad', async () => {
