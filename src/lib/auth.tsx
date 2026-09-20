@@ -34,6 +34,28 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/** Supabase auth errors sometimes arrive with an empty `message` -- a
+ * network or CORS failure, or a non-JSON response, serialises to the
+ * literal string "{}". That rendered on screen as curly brackets and
+ * hid the real cause for days. Pull out whatever the error actually
+ * carries: status, name, and any nested body. */
+function describeAuthError(error: unknown): string {
+  if (!error) return 'Unknown error';
+  const e = error as { message?: unknown; status?: unknown; name?: unknown; code?: unknown };
+  const msg = typeof e.message === 'string' ? e.message.trim() : '';
+  const parts: string[] = [];
+  if (msg && msg !== '{}' && msg !== '[object Object]') parts.push(msg);
+  if (e.status != null) parts.push(`status ${String(e.status)}`);
+  if (typeof e.code === 'string' && e.code) parts.push(`code ${e.code}`);
+  if (typeof e.name === 'string' && e.name && e.name !== 'Error') parts.push(e.name);
+  if (parts.length === 0) {
+    // Nothing usable at all -- almost always the request never reached
+    // the auth server (wrong URL, CORS, offline, blocked).
+    return 'The sign-in request did not reach the auth server. Check the browser console Network tab for the /auth/v1 request.';
+  }
+  return parts.join(' \u00b7 ');
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -84,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           options: { emailRedirectTo: `${window.location.origin}/login` },
         });
-        return { error: error?.message ?? null };
+        return { error: error ? describeAuthError(error) : null };
       },
       // Password sign-in exists alongside the magic link because the
       // magic link depends on outbound email, and Supabase's default
@@ -93,11 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // the one account that administers the site.
       async signInWithPassword(email: string, password: string) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error?.message ?? null };
+        return { error: error ? describeAuthError(error) : null };
       },
       async updatePassword(password: string) {
         const { error } = await supabase.auth.updateUser({ password });
-        return { error: error?.message ?? null };
+        return { error: error ? describeAuthError(error) : null };
       },
       async signOut() {
         await supabase.auth.signOut();

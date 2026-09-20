@@ -91,6 +91,21 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Managers' Dugout — formation contribution matrix
+Wanted: positions down the first column, the top 3-4 formations across
+as columns, and filterable cells showing goals / assists / goals+assists
+share for each position-formation pair. Colour-scaled so the highest
+percentages read green at a glance.
+
+The data exists: opta_slot_breakdown holds goals and assists by slot and
+type, and formation_slot_geometry maps slots to formations. The pieces
+are there; this is a presentation build.
+
+Do it alongside the two other Dugout items already recorded (stale
+caveat in "about this data", and slot labels that still read "Slot 9"
+rather than a role name) -- naming the positions properly is a
+prerequisite for this table making sense as rows.
+
 ### Remaining admin/job-button cleanup
 Done: Admin menu hidden from non-admins, "Adjust Team Ratings" renamed
 "Team Strength Admin", footer Data Health link removed, Team Strength

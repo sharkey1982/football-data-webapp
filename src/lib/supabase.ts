@@ -38,5 +38,18 @@ if (!supabaseUrl || !supabasePublishableKey) {
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
-  auth: { persistSession: false },
+  auth: {
+    // persistSession was FALSE, which made signing in impossible to
+    // complete: supabase-js kept the session in memory only, so a
+    // successful password grant left no stored session, getSession()
+    // came back empty on the next render, and the app showed you as
+    // signed out again. The admin session never survived the round
+    // trip.
+    persistSession: true,
+    // Needed for the magic-link callback: the session arrives in the
+    // URL fragment when the emailed link is followed, and without this
+    // the client never reads it, so the link appears to do nothing.
+    detectSessionInUrl: true,
+    autoRefreshToken: true,
+  },
 });
