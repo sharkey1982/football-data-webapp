@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import TacticalRolesAdminPage from '../pages/fpl/TacticalRolesAdminPage';
 import * as adminApi from '../lib/tacticalRoleAdminApi';
@@ -350,10 +351,131 @@ describe('TacticalRolesAdminPage', () => {
     });
   });
 
-  // NOT TESTED, deliberately, and worth saying why: the save-confirmation
-  // banner works in the app but I could not get it to assert here before
-  // running out of room, and a test I don't understand passing is worth
-  // less than an honest note. The banner is driven by a counter that
-  // increments after a successful save; verify by hand -- change a role
-  // and the amber "Not live yet" panel should appear above the table.
+  it('shows a per-row saved confirmation and a page-level "not live yet" warning after a save', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Martinelli', tactical_role: 'MID', source_name: 'fpl_position_fallback' }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+    mockedApi.saveTacticalRoleCorrection.mockResolvedValue(undefined);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <TacticalRolesAdminPage />
+      </MemoryRouter>
+    );
+
+    // No "not live yet" banner before any edit.
+    expect(screen.queryByText('Not live yet')).not.toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
+    // "Everyone" scope, not the default "Needs Review" -- saving flips
+    // source_name to 'manual', which would otherwise remove the row from
+    // the needs-review list the instant it saves, hiding the very
+    // confirmation this test is checking for.
+    await user.click(screen.getByRole('button', { name: 'Everyone' }));
+    const select = screen.getByDisplayValue('MID');
+    await user.selectOptions(select, 'LW');
+    await waitFor(() => expect(mockedApi.saveTacticalRoleCorrection).toHaveBeenCalledWith(1, 1, 'LW'));
+
+    // Per-row confirmation appears immediately...
+    await waitFor(() => expect(screen.getByText((_, node) => node?.textContent === '\u2713 saved')).toBeInTheDocument());
+    // ...and the page-level banner says the change hasn't reached
+    // projections yet, linking to where the refresh job is run.
+    expect(screen.getByText('Not live yet')).toBeInTheDocument();
+    expect(screen.getByText(/1 change saved/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Run it from Team Strength Admin/ })).toHaveAttribute(
+      'href',
+      '/admin/team-ratings'
+    );
+
+    // The per-row tick clears itself after a few seconds; the page-level
+    // banner does NOT -- a saved-but-unrefreshed edit stays true until a
+    // refresh actually runs, however long that takes.
+    await waitFor(
+      () => expect(screen.queryByText((_, node) => node?.textContent === '\u2713 saved')).not.toBeInTheDocument(),
+      { timeout: 5000 }
+    );
+    expect(screen.getByText('Not live yet')).toBeInTheDocument();
+  }, 10000);
+
+  it('needs-review teams are collapsible, individually and all at once', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Martinelli', team_id: 1, team_name: 'Arsenal' }),
+      baseRow({ fpl_player_id: 2, web_name: 'Wissa', team_id: 2, team_name: 'Brentford' }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([
+      { team_id: 1, team_name: 'Arsenal' },
+      { team_id: 2, team_name: 'Brentford' },
+    ]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <TacticalRolesAdminPage />
+      </MemoryRouter>
+    );
+
+    // Expanded by default, matching prior behaviour.
+    await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
+    expect(screen.getByText('Wissa')).toBeInTheDocument();
+
+    // Collapsing one team's header hides just that team's rows.
+    await user.click(screen.getByRole('button', { name: /Arsenal/ }));
+    await waitFor(() => expect(screen.queryByText('Martinelli')).not.toBeInTheDocument());
+    expect(screen.getByText('Wissa')).toBeInTheDocument();
+
+    // "Collapse all" / "Expand all" toggles every visible team together.
+    await user.click(screen.getByRole('button', { name: 'Collapse all' }));
+    await waitFor(() => expect(screen.queryByText('Wissa')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Expand all' }));
+    await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
+    expect(screen.getByText('Wissa')).toBeInTheDocument();
+  });
+
+  it('the "Worth reviewing first" worklist can be narrowed to one club', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 99, web_name: 'Gakpo', team_id: 2, team_name: 'Liverpool' }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([
+      { team_id: 1, team_name: 'Arsenal' },
+      { team_id: 2, team_name: 'Liverpool' },
+    ]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTacticalRoleWorklist.mockResolvedValue([
+      {
+        team_id: 2, team_name: 'Liverpool', fpl_player_id: 99, web_name: 'Gakpo',
+        slug: 'gakpo', position_label: 'MID', assigned_role: null, confidence: null,
+        minutes: 400, ownership: 12.8, total_points: 29, priority: 'starter' as const,
+      },
+      {
+        team_id: 1, team_name: 'Arsenal', fpl_player_id: 100, web_name: 'Havertz',
+        slug: 'havertz', position_label: 'FWD', assigned_role: null, confidence: null,
+        minutes: 900, ownership: 8.1, total_points: 40, priority: 'starter' as const,
+      },
+    ]);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <TacticalRolesAdminPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('Worth reviewing first')).toBeInTheDocument());
+    const worklistSection = screen.getByText('Worth reviewing first').closest('section')!;
+    await waitFor(() => expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument());
+    expect(within(worklistSection).getByText('Havertz')).toBeInTheDocument();
+
+    const worklistTeamSelect = within(worklistSection).getByRole('combobox', { name: 'Team' });
+    await user.selectOptions(worklistTeamSelect, 'Liverpool');
+
+    await waitFor(() => expect(within(worklistSection).queryByText('Havertz')).not.toBeInTheDocument());
+    expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument();
+  });
 });

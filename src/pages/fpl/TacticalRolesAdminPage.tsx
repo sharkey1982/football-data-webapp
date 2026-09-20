@@ -63,6 +63,23 @@ export default function TacticalRolesAdminPage() {
       .then(setWorklist)
       .catch(() => setWorklist([]));
   }, []);
+  // Narrows the "Worth reviewing first" worklist to one club -- separate
+  // from reviewTeamFilter below, which scopes the by-team editor list.
+  const [worklistTeamFilter, setWorklistTeamFilter] = useState<number | 'all'>('all');
+  // Which teams are COLLAPSED in the by-team "needs review" list. Starts
+  // empty (everything expanded, matching prior behaviour) -- a team is
+  // collapsed only once a person chooses to, or via "Collapse all". A
+  // collapsed team still shows its row count, so nothing is hidden,
+  // just deferred.
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set());
+  function toggleTeamExpanded(team: string) {
+    setCollapsedTeams((prev) => {
+      const next = new Set(prev);
+      if (next.has(team)) next.delete(team);
+      else next.add(team);
+      return next;
+    });
+  }
   const [rows, setRows] = useState<TacticalRoleRow[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -451,16 +468,41 @@ export default function TacticalRolesAdminPage() {
       </div>
 
       {worklist.length > 0 && (() => {
-        const needed = worklist.filter((w) => w.priority !== 'fringe');
+        const needed = worklist
+          .filter((w) => w.priority !== 'fringe')
+          .filter((w) => worklistTeamFilter === 'all' || w.team_id === worklistTeamFilter);
         const starters = needed.filter((w) => w.priority === 'starter');
+        const worklistTeamOptions = [...new Map(worklist.map((w) => [w.team_id, w.team_name])).entries()].sort((a, b) =>
+          (a[1] ?? '').localeCompare(b[1] ?? '')
+        );
         return (
           <section className="border border-amber-500 rounded-lg bg-white p-4">
-            <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth reviewing first</h2>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth reviewing first</h2>
+              <label className="flex items-center gap-1.5 text-xs text-ink-700">
+                Team
+                <select
+                  value={worklistTeamFilter}
+                  onChange={(e) => setWorklistTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="border border-chalk-300 rounded px-1.5 py-0.5 text-xs"
+                >
+                  <option value="all">All teams</option>
+                  {worklistTeamOptions.map(([teamId, teamName]) => (
+                    <option key={teamId} value={teamId}>
+                      {teamName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <p className="text-ink-700 text-sm mt-1 max-w-prose">
-              {worklist.length} players sit on the positional fallback, but only <strong>{needed.length}</strong> play
+              {worklistTeamFilter === 'all' ? worklist.length : worklist.filter((w) => w.team_id === worklistTeamFilter).length}{' '}
+              players sit on the positional fallback, but only <strong>{needed.length}</strong> play
               enough to matter &mdash; {starters.length} regular starters and {needed.length - starters.length} rotation
-              players. The other {worklist.length - needed.length} have under 90 minutes all season, and a role assigned
-              to someone who never plays changes no projection.
+              players.{' '}
+              {worklistTeamFilter === 'all' &&
+                `The other ${worklist.length - needed.length} have under 90 minutes all season, and a role assigned
+              to someone who never plays changes no projection.`}
             </p>
             <div className="overflow-x-auto mt-3">
               <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
@@ -612,18 +654,51 @@ export default function TacticalRolesAdminPage() {
 
           {displayMode === 'table' && (
             <div className="space-y-4">
+              {(() => {
+                const visibleTeams = [...byTeam.entries()].filter(([, players]) => players.some((p) => reviewRows.includes(p)));
+                if (visibleTeams.length <= 1) return null;
+                const allCollapsed = visibleTeams.every(([team]) => collapsedTeams.has(team));
+                return (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCollapsedTeams(allCollapsed ? new Set() : new Set(visibleTeams.map(([team]) => team)))
+                      }
+                      className="text-xs text-pitch-800 hover:underline"
+                    >
+                      {allCollapsed ? 'Expand all' : 'Collapse all'}
+                    </button>
+                  </div>
+                );
+              })()}
               {[...byTeam.entries()].map(([team, players]) => {
                 const visible = players.filter((p) => reviewRows.includes(p));
                 if (visible.length === 0) return null;
                 const genericCount = players.filter((p) => p.source_name === 'fpl_position_fallback').length;
+                // A row with an active highlight (arrived here from the
+                // worklist) forces this team open even if collapsed --
+                // otherwise jumping from "Worth reviewing first" would
+                // land on a row hidden inside a closed team.
+                const isExpanded = !collapsedTeams.has(team) || visible.some((p) => p.fpl_player_id === highlightPlayerId);
                 return (
                   <div key={team} className="bg-white border border-chalk-300 rounded-lg overflow-hidden">
-                    <div className="px-3 py-2 border-b border-chalk-200 bg-chalk-100 flex items-center justify-between">
-                      <span className="font-display uppercase tracking-wide text-sm text-ink-900">{team}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleTeamExpanded(team)}
+                      aria-expanded={isExpanded}
+                      className="w-full px-3 py-2 border-b border-chalk-200 bg-chalk-100 flex items-center justify-between hover:bg-chalk-200/60"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-ink-500 text-xs">{isExpanded ? '\u25be' : '\u25b8'}</span>
+                        <span className="font-display uppercase tracking-wide text-sm text-ink-900">{team}</span>
+                        <span className="text-xs text-ink-500 font-mono">({visible.length})</span>
+                      </span>
                       <span className="text-xs text-ink-500 font-mono">
                         {players.length - genericCount}/{players.length} specific
                       </span>
-                    </div>
+                    </button>
+                    {isExpanded && (
                     <table className="w-full text-sm">
                       <tbody>
                         {visible.map((r) => (
@@ -657,6 +732,7 @@ export default function TacticalRolesAdminPage() {
                         ))}
                       </tbody>
                     </table>
+                    )}
                   </div>
                 );
               })}
