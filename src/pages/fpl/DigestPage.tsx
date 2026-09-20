@@ -4,7 +4,7 @@
 // What changed since yesterday.
 //
 // Factual throughout -- what moved, not what will -- so this sits in
-// Discover. The Trading Floor's forecast of what might move next lives
+// Discover. Bullpit's forecast of what might move next lives
 // in Predict.
 // ============================================================================
 
@@ -26,7 +26,7 @@ export default function DigestPage() {
   const [notableOnly, setNotableOnly] = useState(true);
 
   useDocumentHead({
-    title: 'What changed in FPL today',
+    title: 'Newsroom \u2014 what changed in FPL today',
     description:
       'Fantasy Premier League price rises and falls, availability news and ownership swings since the last update.',
     path: '/fpl/whats-changed',
@@ -53,7 +53,7 @@ export default function DigestPage() {
   if (entries.length === 0) {
     return (
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">What&rsquo;s changed</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Newsroom</h1>
         <p className="text-ink-700 mt-2">Nothing has moved since the last update.</p>
       </div>
     );
@@ -65,7 +65,7 @@ export default function DigestPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">What&rsquo;s changed</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Newsroom</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           Everything that moved since the last update &mdash; prices, availability and ownership. What happened, not what
           might.

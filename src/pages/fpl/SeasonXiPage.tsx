@@ -11,6 +11,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
+  getRollingXiCandidates,
+  solveRollingXi,
+  type SolvedXi,
   getSeasonBestXi,
   getSeasonValueLeaders,
   getXiSeasons,
@@ -26,6 +29,9 @@ export default function SeasonXiPage() {
   const [xi, setXi] = useState<SeasonXiPlayer[] | null>(null);
   const [value, setValue] = useState<SeasonValueLeader[]>([]);
   const [seasons, setSeasons] = useState<XiSeason[]>([]);
+  // The season in progress: solved on read, because unlike a finished
+  // season the answer changes every gameweek.
+  const [rolling, setRolling] = useState<SolvedXi | null | 'loading'>('loading');
   // Newest season selected once the list arrives, rather than a
   // hardcoded id -- adding a season should be an insert, not an edit.
   const [seasonId, setSeasonId] = useState<number | null>(null);
@@ -38,6 +44,12 @@ export default function SeasonXiPage() {
     description: `The highest-scoring Fantasy Premier League XI you could have picked before a ball was kicked and never changed, at start-of-season prices.`,
     path: '/fpl/season-xi',
   });
+
+  useEffect(() => {
+    getRollingXiCandidates(13)
+      .then((pool) => setRolling(solveRollingXi(pool)))
+      .catch(() => setRolling(null));
+  }, []);
 
   useEffect(() => {
     getXiSeasons()
@@ -82,6 +94,62 @@ export default function SeasonXiPage() {
           no chips, no hits.
         </p>
       </header>
+
+      {/* The season in progress, kept separate from the completed ones.
+          Different question: those are settled, this one moves every
+          week and is hindsight applied live rather than a finished
+          answer. */}
+      {rolling && rolling !== 'loading' && (
+        <section className="border border-chalk-300 rounded-lg bg-white p-4">
+          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">
+            This season so far &mdash; the XI you&rsquo;d wish you&rsquo;d picked
+          </h2>
+          <p className="text-ink-700 text-sm mt-1 max-w-prose">
+            <strong>{rolling.points}</strong> points for <strong>&pound;{(rolling.cost / 10).toFixed(1)}m</strong> in a{' '}
+            {rolling.formation}, at August prices. This one moves: it&rsquo;s the best eleven available on today&rsquo;s
+            results, not a settled answer.
+          </p>
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+              <thead className="bg-chalk-200 text-ink-500">
+                <tr>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Club</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Aug price</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Now</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...rolling.players]
+                  .sort((a, b) => a.element_type - b.element_type || b.total_points - a.total_points)
+                  .map((p, i) => (
+                    <tr key={p.fpl_code} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                      <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
+                        {p.web_name} <span className="text-ink-500">{POS_LABEL[p.element_type]}</span>
+                      </th>
+                      <td className="px-3 py-1.5 text-xs text-ink-700">{p.team_name ?? '\u2014'}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
+                        &pound;{(p.august_cost / 10).toFixed(1)}m
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">
+                        &pound;{(p.now_cost / 10).toFixed(1)}m
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">
+                        {p.total_points}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-ink-500 text-xs mt-2 max-w-prose">
+            What this is NOT: the XI the model would have picked in August. That would be a genuine accuracy record, but
+            no projections were stored before this season started &mdash; the earliest is 14 September &mdash; so it
+            can&rsquo;t be reconstructed. It becomes possible from next August.
+          </p>
+        </section>
+      )}
 
       {seasons.length > 1 && (
         <div className="flex flex-wrap gap-2">

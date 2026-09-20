@@ -219,7 +219,21 @@ Scope to decide: which cuts matter (league/season certainly; club and
 head-to-head probably), and whether it's a page of its own or folded
 into League Insights.
 
-### Set-and-Forget XI — 2026/27 needs TWO views, not one
+### Set-and-Forget XI — ROLLING view DONE, model view BLOCKED
+(1) Rolling 2026/27 XI: built. Best eleven on today's actuals at August
+prices, solved on read since the answer moves every gameweek.
+
+(2) Model view at start of season: NOT POSSIBLE for 2026/27. The
+earliest stored projection is 2026-09-14, three weeks after gameweek 1.
+Nothing was captured pre-season, so there is no August model view to
+recover.
+
+TO MAKE IT POSSIBLE FROM 2027/28: generate and freeze player projections
+BEFORE gameweek 1, then store that XI. It's the same shape as the
+existing stored season_best_xi rows. Worth a calendar note for
+pre-season, because the window closes the moment the season starts.
+
+### (superseded) Set-and-Forget XI — 2026/27 needs TWO views, not one
 Currently only the hindsight XI exists, and only for completed seasons.
 2026/27 should carry two distinct things, because they answer different
 questions and must not be conflated:

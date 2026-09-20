@@ -111,7 +111,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
-          { label: 'What\u2019s Changed', to: '/fpl/whats-changed', blurb: 'Everything that moved since the last update.' },
+          { label: 'Newsroom', to: '/fpl/whats-changed', blurb: 'Everything that moved since the last update.' },
           { label: 'Transfer Window', to: '/fpl/market', blurb: 'Price risers and fallers, ownership swings and availability news.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
           { label: "Managers' Dugout", to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
@@ -136,7 +136,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Gameweek Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
-          { label: 'The Trading Floor', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
+          { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
           { label: 'Optimiser', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
         ],

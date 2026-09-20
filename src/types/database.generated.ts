@@ -6800,6 +6800,19 @@ export type Database = {
           rls_enabled: boolean
         }[]
       }
+      get_rolling_xi_candidates: {
+        Args: { p_season_id?: number }
+        Returns: {
+          august_cost: number
+          element_type: number
+          fpl_code: number
+          minutes: number
+          now_cost: number
+          team_name: string
+          total_points: number
+          web_name: string
+        }[]
+      }
       get_scout_vs_model: {
         Args: never
         Returns: {

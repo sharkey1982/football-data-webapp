@@ -157,7 +157,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/price-risk',
-    title: 'The Trading Floor \u2014 FPL price change risk',
+    title: 'Bullpit \u2014 FPL price change risk',
     description:
       'Which Fantasy Premier League players are under the most transfer pressure to rise or fall in price.',
     crumbs: [FPL],
@@ -178,7 +178,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/whats-changed',
-    title: 'What changed in FPL today',
+    title: 'Newsroom \u2014 what changed in FPL today',
     description:
       'Fantasy Premier League price rises and falls, availability news and ownership swings since the last update.',
     crumbs: [FPL],

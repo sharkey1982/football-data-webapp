@@ -96,3 +96,188 @@ export async function getXiSeasons(): Promise<XiSeason[]> {
 export function seasonName(slug: string): string {
   return slug.replace('-', '/');
 }
+
+// ---------------------------------------------------------------------------
+// Rolling XI for a season in progress
+//
+// The completed-season XIs are solved once and stored, because the
+// answer can never change. A season in progress changes every gameweek,
+// so this one is solved on read from the current pool.
+// ---------------------------------------------------------------------------
+
+export type RollingCandidate = {
+  fpl_code: number;
+  web_name: string;
+  team_name: string | null;
+  element_type: number;
+  august_cost: number;
+  now_cost: number;
+  total_points: number;
+  minutes: number;
+};
+
+export async function getRollingXiCandidates(seasonId = 13): Promise<RollingCandidate[]> {
+  const { data, error } = await supabase.rpc('get_rolling_xi_candidates', { p_season_id: seasonId });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    fpl_code: Number(r.fpl_code),
+    web_name: String(r.web_name),
+    team_name: r.team_name == null ? null : String(r.team_name),
+    element_type: Number(r.element_type),
+    august_cost: Number(r.august_cost),
+    now_cost: Number(r.now_cost),
+    total_points: Number(r.total_points),
+    minutes: Number(r.minutes),
+  }));
+}
+
+/** Budget for the XI, in 0.1m units. Leaves roughly £17m of the £100m
+ * for a four-man bench, matching how the completed-season XIs were
+ * solved so the two are comparable. */
+export const ROLLING_XI_BUDGET = 830;
+
+export type SolvedXi = {
+  players: RollingCandidate[];
+  points: number;
+  cost: number;
+  formation: string;
+};
+
+/**
+ * Best XI on points within budget, a valid formation, and at most three
+ * players per club.
+ *
+ * Same constraints as the stored completed-season XIs, including the
+ * club limit -- which was NOT enforced originally and produced illegal
+ * sides with five from one team. A repair loop drops the
+ * lowest-scoring player from an over-represented club and re-solves,
+ * which costs the fewest points to reach legality.
+ */
+export function solveRollingXi(pool: RollingCandidate[], budget = ROLLING_XI_BUDGET): SolvedXi | null {
+  const best = solveUnconstrained(pool, budget);
+  if (!best) return null;
+
+  // Repair by SWAP, not by banning and re-solving. Banning removes one
+  // player per pass, so an XI legitimately holding ten from one club
+  // needs many passes and can strip a position bare -- it returned null
+  // on a pool that clearly had a legal answer. Swapping replaces the
+  // over-represented club's weakest with the best available player in
+  // the SAME position from a club with room, which keeps the formation
+  // and the budget intact by construction.
+  const players = [...best.players];
+  const countByClub = () => {
+    const m = new Map<string, RollingCandidate[]>();
+    for (const p of players) {
+      const k = p.team_name ?? 'unknown';
+      m.set(k, [...(m.get(k) ?? []), p]);
+    }
+    return m;
+  };
+
+  for (let pass = 0; pass < 30; pass++) {
+    const clubs = countByClub();
+    const overEntry = [...clubs.entries()].find(([, ps]) => ps.length > 3);
+    if (!overEntry) break;
+    const [, overPlayers] = overEntry;
+
+    // Drop the club's lowest scorer: the constraint costs fewest points
+    // that way.
+    const out = overPlayers.reduce((a, b) => (a.total_points <= b.total_points ? a : b));
+    const spend = players.reduce((sum, p) => sum + p.august_cost, 0) - out.august_cost;
+    const chosen = new Set(players.map((p) => p.fpl_code));
+
+    const replacement = pool
+      .filter(
+        (c) =>
+          !chosen.has(c.fpl_code) &&
+          c.element_type === out.element_type &&
+          (clubs.get(c.team_name ?? 'unknown')?.length ?? 0) < 3 &&
+          spend + c.august_cost <= budget
+      )
+      .sort((a, b) => b.total_points - a.total_points)[0];
+
+    // No legal replacement at that position and price: the pool can't
+    // support a legal XI, so say so rather than return an illegal one.
+    if (!replacement) return null;
+    players[players.indexOf(out)] = replacement;
+  }
+
+  if ([...countByClub().values()].some((ps) => ps.length > 3)) return null;
+
+  return {
+    players,
+    points: players.reduce((s, p) => s + p.total_points, 0),
+    cost: players.reduce((s, p) => s + p.august_cost, 0),
+    formation: best.formation,
+  };
+}
+
+/** Knapsack over the four positions, ignoring the club limit. */
+function solveUnconstrained(pool: RollingCandidate[], budget: number): SolvedXi | null {
+  const byPos: Record<number, RollingCandidate[]> = { 1: [], 2: [], 3: [], 4: [] };
+  for (const p of pool) byPos[p.element_type]?.push(p);
+  // Trim to the top of each position: an optimal XI never reaches past
+  // the best ~26, and the full pool makes the DP needlessly slow.
+  for (const k of [1, 2, 3, 4]) {
+    byPos[k] = byPos[k].sort((a, b) => b.total_points - a.total_points).slice(0, 26);
+  }
+
+  // dp[count][cost] -> best points and the squad that got there
+  const dp = (list: RollingCandidate[], maxCount: number) => {
+    let states = new Map<string, { pts: number; sq: RollingCandidate[] }>([['0:0', { pts: 0, sq: [] }]]);
+    for (const p of list) {
+      const next = new Map(states);
+      for (const [key, val] of states) {
+        const [c, cost] = key.split(':').map(Number);
+        if (c >= maxCount) continue;
+        const nc = c + 1;
+        const ncost = cost + p.august_cost;
+        if (ncost > budget) continue;
+        const nk = `${nc}:${ncost}`;
+        const cand = { pts: val.pts + p.total_points, sq: [...val.sq, p] };
+        const prev = next.get(nk);
+        if (!prev || prev.pts < cand.pts) next.set(nk, cand);
+      }
+      states = next;
+    }
+    return states;
+  };
+
+  const D = { 1: dp(byPos[1], 1), 2: dp(byPos[2], 5), 3: dp(byPos[3], 5), 4: dp(byPos[4], 3) };
+  let best: SolvedXi | null = null;
+
+  for (const nd of [3, 4, 5]) {
+    for (const nm of [2, 3, 4, 5]) {
+      for (const nf of [1, 2, 3]) {
+        if (1 + nd + nm + nf !== 11) continue;
+        for (const [gk, gv] of D[1]) {
+          const [gc, gcost] = gk.split(':').map(Number);
+          if (gc !== 1) continue;
+          for (const [dk, dv] of D[2]) {
+            const [dc, dcost] = dk.split(':').map(Number);
+            if (dc !== nd || gcost + dcost > budget) continue;
+            for (const [mk, mv] of D[3]) {
+              const [mc, mcost] = mk.split(':').map(Number);
+              if (mc !== nm || gcost + dcost + mcost > budget) continue;
+              for (const [fk, fv] of D[4]) {
+                const [fc, fcost] = fk.split(':').map(Number);
+                const cost = gcost + dcost + mcost + fcost;
+                if (fc !== nf || cost > budget) continue;
+                const pts = gv.pts + dv.pts + mv.pts + fv.pts;
+                if (!best || pts > best.points) {
+                  best = {
+                    players: [...gv.sq, ...dv.sq, ...mv.sq, ...fv.sq],
+                    points: pts,
+                    cost,
+                    formation: `${nd}-${nm}-${nf}`,
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return best;
+}

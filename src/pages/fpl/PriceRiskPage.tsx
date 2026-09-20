@@ -68,7 +68,7 @@ export default function PriceRiskPage() {
   const [minBand, setMinBand] = useState<RiskBand | 'all'>('all');
 
   useDocumentHead({
-    title: 'The Trading Floor \u2014 FPL price change risk',
+    title: 'Bullpit \u2014 FPL price change risk',
     description:
       'Which Fantasy Premier League players are under the most transfer pressure to rise or fall in price.',
     path: '/fpl/price-risk',
@@ -101,7 +101,7 @@ export default function PriceRiskPage() {
   if (rows.length === 0) {
     return (
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">The Trading Floor</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Bullpit</h1>
         <p className="text-ink-700 mt-2">No transfer data is available right now.</p>
       </div>
     );
@@ -111,7 +111,7 @@ export default function PriceRiskPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Predict</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">The Trading Floor</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Bullpit</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           Who&rsquo;s under the most transfer pressure. Pressure is net transfers measured against a player&rsquo;s owner
           base, not the raw count &mdash; 20,000 net transfers is decisive for a player owned by 2% of squads and barely
