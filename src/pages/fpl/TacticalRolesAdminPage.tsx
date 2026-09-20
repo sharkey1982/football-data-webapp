@@ -8,10 +8,14 @@
 // generic position-based placeholder because the external source
 // (fantasy_football_scout) doesn't cover every player.
 //
-// Two view modes: "Needs Review" (flat list across every team, filtered to
-// generic-role rows by default -- the original quick-scan workflow) and
-// "By Team" (pick one team, see its formation on a pitch built from
-// depth_rank=1 starters, plus the full squad as a table alongside it).
+// Two view modes -- Table (flat list across every team, grouped by team
+// and collapsible) and Pitch (pick one team, see its formation on a pitch
+// built from depth_rank=1 starters, plus the full squad as a table
+// alongside it) -- each filterable by a shared scope: Needs Review
+// (generic-role rows only), Worth Reviewing (generic AND not fringe, per
+// get_tactical_role_worklist -- was a standalone "Worth reviewing first"
+// list; now a filter applied to these same views on request, rather than
+// a third view), or Everyone.
 // Depth rank (1st/2nd/3rd... choice starter within a position) and
 // set-piece info (read-only here, sourced from set_piece_hierarchies)
 // requested directly, on top of the original role-only review.
@@ -53,24 +57,23 @@ import { getErrorMessage } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
 type DisplayMode = 'table' | 'pitch';
-type ScopeMode = 'needs_review' | 'everyone';
+type ScopeMode = 'needs_review' | 'worth_reviewing' | 'everyone';
 type TableSort = 'position' | 'depth';
 
 export default function TacticalRolesAdminPage() {
+  // Was a standalone "Worth reviewing first" panel (its own list of
+  // names, separate from the Table/Pitch team views below). Replaced on
+  // request with a third scope option -- "Worth Reviewing" -- that
+  // filters the SAME team views everything else already uses, rather
+  // than duplicating them in a second list. worklist itself is still
+  // fetched; it now only supplies which players are non-fringe.
   const [worklist, setWorklist] = useState<TacticalWorklistRow[]>([]);
   useEffect(() => {
     getTacticalRoleWorklist(13)
       .then(setWorklist)
       .catch(() => setWorklist([]));
   }, []);
-  // Narrows the "Worth reviewing first" worklist to one club -- separate
-  // from reviewTeamFilter below, which scopes the by-team editor list.
-  const [worklistTeamFilter, setWorklistTeamFilter] = useState<number | 'all'>('all');
-  // Whether the "Worth reviewing first" panel itself is expanded. Starts
-  // open (matching prior behaviour), collapsible because the unfiltered
-  // list can run to ~57 rows -- separate from collapsing individual
-  // teams further down in the by-team needs-review list.
-  const [worklistExpanded, setWorklistExpanded] = useState(true);
+  const nonFringeWorklistIds = useMemo(() => new Set(worklist.filter((w) => w.priority !== 'fringe').map((w) => w.fpl_player_id)), [worklist]);
   // Which teams are COLLAPSED in the by-team "needs review" list. Starts
   // empty (everything expanded, matching prior behaviour) -- a team is
   // collapsed only once a person chooses to, or via "Collapse all". A
@@ -98,9 +101,6 @@ export default function TacticalRolesAdminPage() {
   const [depthFilter, setDepthFilter] = useState<number | 'all'>('all');
   const [tableSort, setTableSort] = useState<TableSort>('position');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-  // Set when arriving from the worklist, so the row you came for is
-  // obvious rather than something to hunt for in a 25-player squad.
-  const [highlightPlayerId, setHighlightPlayerId] = useState<number | null>(null);
   // Edits save the moment a dropdown changes. Without confirmation a
   // successful save and a silent failure look identical, which is
   // exactly how a working page comes to feel broken.
@@ -316,6 +316,7 @@ export default function TacticalRolesAdminPage() {
 
   const teamScopedRows = useMemo(() => (reviewTeamFilter === 'all' ? rows : rows.filter((r) => r.team_id === reviewTeamFilter)), [rows, reviewTeamFilter]);
   const totalGeneric = teamScopedRows.filter((r) => r.source_name === 'fpl_position_fallback').length;
+  const totalWorthReviewing = teamScopedRows.filter((r) => nonFringeWorklistIds.has(r.fpl_player_id)).length;
 
   const byTeam = useMemo(() => {
     const map = new Map<string, TacticalRoleRow[]>();
@@ -323,12 +324,22 @@ export default function TacticalRolesAdminPage() {
     return map;
   }, [rows]);
 
+  /** Applies the current scope to any row list -- shared by the by-team
+   * table below and by pitchStarters further down, so "Worth Reviewing"
+   * means the same thing everywhere rather than drifting between views. */
+  function applyScope(list: TacticalRoleRow[]): TacticalRoleRow[] {
+    if (scopeMode === 'needs_review') return list.filter((r) => r.source_name === 'fpl_position_fallback');
+    if (scopeMode === 'worth_reviewing') return list.filter((r) => nonFringeWorklistIds.has(r.fpl_player_id));
+    return list;
+  }
+
   const reviewRows = useMemo(() => {
-    let visible = scopeMode === 'needs_review' ? rows.filter((r) => r.source_name === 'fpl_position_fallback') : rows;
+    let visible = applyScope(rows);
     if (positionFilter !== 'all') visible = visible.filter((r) => r.element_type === positionFilter);
     if (reviewTeamFilter !== 'all') visible = visible.filter((r) => r.team_id === reviewTeamFilter);
     return visible;
-  }, [rows, scopeMode, positionFilter, reviewTeamFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, scopeMode, positionFilter, reviewTeamFilter, nonFringeWorklistIds]);
 
   const selectedTeamRows = useMemo(() => {
     if (selectedTeamId === null) return [];
@@ -355,9 +366,10 @@ export default function TacticalRolesAdminPage() {
     const starters = selectStartersAtDepth(teamRowsForPitch, pitchDepth);
     // scopeMode is applied AFTER selection, not before -- selectStartersAtDepth's
     // injury-promotion logic needs the full team pool to find a role-matched
-    // replacement; pre-filtering to generic-only rows would break that.
-    return scopeMode === 'needs_review' ? starters.filter((r) => r.source_name === 'fpl_position_fallback') : starters;
-  }, [teamRowsForPitch, pitchDepth, scopeMode]);
+    // replacement; pre-filtering would break that.
+    return applyScope(starters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamRowsForPitch, pitchDepth, scopeMode, nonFringeWorklistIds]);
   const pitchPlayers = useMemo(() => pitchStarters.map(toFormationPitchPlayer), [pitchStarters]);
 
   /** A visible, unmistakable outcome for a save that happens on change.
@@ -472,114 +484,6 @@ export default function TacticalRolesAdminPage() {
         </p>
       </div>
 
-      {worklist.length > 0 && (() => {
-        const needed = worklist
-          .filter((w) => w.priority !== 'fringe')
-          .filter((w) => worklistTeamFilter === 'all' || w.team_id === worklistTeamFilter);
-        const starters = needed.filter((w) => w.priority === 'starter');
-        const worklistTeamOptions = [...new Map(worklist.map((w) => [w.team_id, w.team_name])).entries()].sort((a, b) =>
-          (a[1] ?? '').localeCompare(b[1] ?? '')
-        );
-        return (
-          <section className="border border-amber-500 rounded-lg bg-white p-4">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setWorklistExpanded((v) => !v)}
-                aria-expanded={worklistExpanded}
-                className="flex items-center gap-1.5 hover:opacity-80"
-              >
-                <span className="text-ink-500 text-xs">{worklistExpanded ? '\u25be' : '\u25b8'}</span>
-                <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth reviewing first</h2>
-                <span className="text-xs text-ink-500 font-mono">({needed.length})</span>
-              </button>
-              <label className="flex items-center gap-1.5 text-xs text-ink-700">
-                Team
-                <select
-                  value={worklistTeamFilter}
-                  onChange={(e) => setWorklistTeamFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="border border-chalk-300 rounded px-1.5 py-0.5 text-xs"
-                >
-                  <option value="all">All teams</option>
-                  {worklistTeamOptions.map(([teamId, teamName]) => (
-                    <option key={teamId} value={teamId}>
-                      {teamName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <p className="text-ink-700 text-sm mt-1 max-w-prose">
-              {worklistTeamFilter === 'all' ? worklist.length : worklist.filter((w) => w.team_id === worklistTeamFilter).length}{' '}
-              players sit on the positional fallback, but only <strong>{needed.length}</strong> play
-              enough to matter &mdash; {starters.length} regular starters and {needed.length - starters.length} rotation
-              players.{' '}
-              {worklistTeamFilter === 'all' &&
-                `The other ${worklist.length - needed.length} have under 90 minutes all season, and a role assigned
-              to someone who never plays changes no projection.`}
-            </p>
-            {worklistExpanded && (
-            <div className="overflow-x-auto mt-3">
-              <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
-                <thead className="bg-chalk-200 text-ink-500">
-                  <tr>
-                    <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
-                    <th scope="col" className="text-left font-medium text-xs px-3 py-2">Team</th>
-                    <th scope="col" className="text-left font-medium text-xs px-3 py-2">Pos</th>
-                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Mins</th>
-                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Owned</th>
-                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Pts</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {needed.map((w, i) => (
-                    <tr key={w.fpl_player_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                      <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedTeamId(w.team_id);
-                            setHighlightPlayerId(w.fpl_player_id);
-                            // Pitch mode renders no editable rows, so a
-                            // jump into it would silently land nowhere.
-                            setDisplayMode('table');
-                            // The editor is further down the page and the
-                            // team switch re-renders it, so wait a tick
-                            // before scrolling to a row that now exists.
-                            window.setTimeout(() => {
-                              document
-                                .getElementById(`role-row-${w.fpl_player_id}`)
-                                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }, 50);
-                          }}
-                          className="text-pitch-800 underline underline-offset-2 hover:text-pitch-700"
-                        >
-                          {w.web_name}
-                        </button>
-                        {w.priority === 'starter' && (
-                          <span className="ml-1 text-[0.6rem] font-mono uppercase text-amber-600">starter</span>
-                        )}
-                      </th>
-                      <td className="px-3 py-1.5 text-xs text-ink-700">{w.team_name ?? '\u2014'}</td>
-                      <td className="px-3 py-1.5 text-xs text-ink-500">{w.position_label}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{w.minutes}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{w.ownership.toFixed(1)}%</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{w.total_points}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            )}
-            {worklistExpanded && (
-            <p className="text-ink-500 text-xs mt-2 max-w-prose">
-              Ordered by minutes, so the pass can stop at any point and whatever&rsquo;s left is the least consequential.
-            </p>
-            )}
-          </section>
-        );
-      })()}
-
       {loading && <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>}
       {error && <p className="text-loss-700 text-sm">{error}</p>}
       {saveError && <p className="text-loss-700 text-sm">{saveError}</p>}
@@ -611,6 +515,14 @@ export default function TacticalRolesAdminPage() {
                 className={['px-3 py-1.5 text-sm font-medium transition-colors', scopeMode === 'needs_review' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
               >
                 Needs Review
+              </button>
+              <button
+                type="button"
+                onClick={() => setScopeMode('worth_reviewing')}
+                title="Needs Review, narrowed to players who actually play enough for a role to matter -- excludes fringe players under 90 minutes all season"
+                className={['px-3 py-1.5 text-sm font-medium transition-colors', scopeMode === 'worth_reviewing' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+              >
+                Worth Reviewing
               </button>
               <button
                 type="button"
@@ -668,6 +580,11 @@ export default function TacticalRolesAdminPage() {
                 {totalGeneric} of {teamScopedRows.length} unassigned
               </span>
             )}
+            {displayMode === 'table' && scopeMode === 'worth_reviewing' && (
+              <span className="text-sm text-ink-500">
+                {totalWorthReviewing} of {teamScopedRows.length} worth reviewing
+              </span>
+            )}
           </div>
 
           {displayMode === 'table' && (
@@ -694,11 +611,7 @@ export default function TacticalRolesAdminPage() {
                 const visible = players.filter((p) => reviewRows.includes(p));
                 if (visible.length === 0) return null;
                 const genericCount = players.filter((p) => p.source_name === 'fpl_position_fallback').length;
-                // A row with an active highlight (arrived here from the
-                // worklist) forces this team open even if collapsed --
-                // otherwise jumping from "Worth reviewing first" would
-                // land on a row hidden inside a closed team.
-                const isExpanded = !collapsedTeams.has(team) || visible.some((p) => p.fpl_player_id === highlightPlayerId);
+                const isExpanded = !collapsedTeams.has(team);
                 return (
                   <div key={team} className="bg-white border border-chalk-300 rounded-lg overflow-hidden">
                     <button
@@ -720,14 +633,7 @@ export default function TacticalRolesAdminPage() {
                     <table className="w-full text-sm">
                       <tbody>
                         {visible.map((r) => (
-                          <tr
-                            key={r.fpl_player_id}
-                            id={`role-row-${r.fpl_player_id}`}
-                            className={[
-                              'border-b border-chalk-200 last:border-b-0',
-                              highlightPlayerId === r.fpl_player_id ? 'bg-amber-100' : '',
-                            ].join(' ')}
-                          >
+                          <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
                             <td className="px-3 py-1.5 font-medium text-ink-900">{r.web_name}</td>
                             <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                             <td className="px-2 py-1.5">
@@ -848,18 +754,8 @@ export default function TacticalRolesAdminPage() {
                     </thead>
                     <tbody>
                       {selectedTeamRows.map((r) => (
-                        <tr
-                          key={r.fpl_player_id}
-                          id={`role-row-${r.fpl_player_id}`}
-                          className={[
-                            'border-b border-chalk-200 last:border-b-0',
-                            highlightPlayerId === r.fpl_player_id ? 'bg-amber-100' : '',
-                          ].join(' ')}
-                        >
-                          <td className={[
-                            'sticky left-0 z-10 px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap',
-                            highlightPlayerId === r.fpl_player_id ? 'bg-amber-100' : 'bg-white',
-                          ].join(' ')}>{r.web_name}</td>
+                        <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
+                          <td className="sticky left-0 z-10 px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap bg-white">{r.web_name}</td>
                           <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                           <td className="px-2 py-1.5">
                             <RoleSelect row={r} />

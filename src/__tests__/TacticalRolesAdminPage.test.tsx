@@ -315,42 +315,6 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(mockedApi.removeSetPieceTaker).toHaveBeenCalledWith(10));
   });
 
-  it('jumps from a worklist name straight to that player\u2019s edit row', async () => {
-    // The worklist names ~57 players needing a role, but reaching one
-    // meant reading the name, finding their club in a dropdown, then
-    // hunting the row in a 25-player squad. The name is the obvious
-    // thing to click.
-    mockedApi.getTeamOptions.mockResolvedValue([
-      { team_id: 1, team_name: 'Arsenal' },
-      { team_id: 2, team_name: 'Liverpool' },
-    ]);
-    mockedApi.getTeamReviewDates.mockResolvedValue({});
-    mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
-    mockedApi.getTacticalRoleReview.mockResolvedValue([
-      baseRow({ fpl_player_id: 99, web_name: 'Gakpo', team_id: 2, team_name: 'Liverpool' }),
-    ]);
-    mockedApi.getTacticalRoleWorklist.mockResolvedValue([
-      {
-        team_id: 2, team_name: 'Liverpool', fpl_player_id: 99, web_name: 'Gakpo',
-        slug: 'gakpo', position_label: 'MID', assigned_role: null, confidence: null,
-        minutes: 400, ownership: 12.8, total_points: 29, priority: 'starter' as const,
-      },
-    ]);
-
-    render(<TacticalRolesAdminPage />);
-
-    const link = await screen.findByRole('button', { name: 'Gakpo' });
-    await userEvent.click(link);
-
-    // The edit row exists and is marked, so it's findable rather than
-    // something to hunt for.
-    await waitFor(() => {
-      const row = document.getElementById('role-row-99');
-      expect(row).not.toBeNull();
-      expect(row!.className).toContain('bg-amber-100');
-    });
-  });
-
   it('shows a per-row saved confirmation and a page-level "not live yet" warning after a save', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 1, web_name: 'Martinelli', tactical_role: 'MID', source_name: 'fpl_position_fallback' }),
@@ -401,18 +365,23 @@ describe('TacticalRolesAdminPage', () => {
     expect(screen.getByText('Not live yet')).toBeInTheDocument();
   }, 10000);
 
-  it('the "Worth reviewing first" panel itself is collapsible', async () => {
+  it('"Worth Reviewing" is a scope filter applied to the Table AND Pitch team views, not a separate list', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
-      baseRow({ fpl_player_id: 99, web_name: 'Gakpo', team_id: 2, team_name: 'Liverpool' }),
+      // GK and a lone forward slot both fill trivially in any formation
+      // (same trick the "independent toggles" test above uses), so the
+      // pitch-mode half of this test isn't fighting formation-matching
+      // logic unrelated to what's being tested here.
+      baseRow({ fpl_player_id: 1, web_name: 'Raya', element_type: 1, team_id: 2, team_name: 'Liverpool', tactical_role: 'GK', depth_rank: 1, source_name: 'fpl_position_fallback' }),
+      baseRow({ fpl_player_id: 2, web_name: 'Havertz', element_type: 4, team_id: 2, team_name: 'Liverpool', tactical_role: 'CF', depth_rank: 1, source_name: 'fpl_position_fallback' }),
     ]);
     mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 2, team_name: 'Liverpool' }]);
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([
-      {
-        team_id: 2, team_name: 'Liverpool', fpl_player_id: 99, web_name: 'Gakpo',
-        slug: 'gakpo', position_label: 'MID', assigned_role: null, confidence: null,
-        minutes: 400, ownership: 12.8, total_points: 29, priority: 'starter' as const,
-      },
+      // Raya: on the fallback but a goalkeeper, so correctly fringe --
+      // excluded from "Worth Reviewing" even though he's a starter.
+      { team_id: 2, team_name: 'Liverpool', fpl_player_id: 1, web_name: 'Raya', slug: 'raya', position_label: 'GK', assigned_role: null, confidence: null, minutes: 900, ownership: 20, total_points: 60, priority: 'fringe' as const },
+      { team_id: 2, team_name: 'Liverpool', fpl_player_id: 2, web_name: 'Havertz', slug: 'havertz', position_label: 'FWD', assigned_role: null, confidence: null, minutes: 900, ownership: 8.1, total_points: 40, priority: 'starter' as const },
     ]);
 
     const user = userEvent.setup();
@@ -422,18 +391,19 @@ describe('TacticalRolesAdminPage', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText('Worth reviewing first')).toBeInTheDocument());
-    const worklistSection = screen.getByText('Worth reviewing first').closest('section')!;
-    // Expanded by default.
-    expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Everyone')).toBeInTheDocument());
+    // No separate "Worth reviewing first" list exists any more.
+    expect(screen.queryByText('Worth reviewing first')).not.toBeInTheDocument();
 
-    await user.click(within(worklistSection).getByRole('button', { name: /Worth reviewing first/ }));
-    await waitFor(() => expect(within(worklistSection).queryByText('Gakpo')).not.toBeInTheDocument());
-    // The row count stays visible in the collapsed header.
-    expect(within(worklistSection).getByText('(1)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Worth Reviewing' }));
+    await waitFor(() => expect(screen.getByText('Havertz')).toBeInTheDocument());
+    expect(screen.queryByText('Raya')).not.toBeInTheDocument();
 
-    await user.click(within(worklistSection).getByRole('button', { name: /Worth reviewing first/ }));
-    await waitFor(() => expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument());
+    // The same scope also narrows the Pitch view's starters -- it's the
+    // same filter, not a separate mechanism.
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    await waitFor(() => expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0));
+    expect(document.querySelectorAll('button[title^="Raya"]').length).toBe(0);
   });
 
   it('needs-review teams are collapsible, individually and all at once', async () => {
@@ -473,44 +443,4 @@ describe('TacticalRolesAdminPage', () => {
     expect(screen.getByText('Wissa')).toBeInTheDocument();
   });
 
-  it('the "Worth reviewing first" worklist can be narrowed to one club', async () => {
-    mockedApi.getTacticalRoleReview.mockResolvedValue([
-      baseRow({ fpl_player_id: 99, web_name: 'Gakpo', team_id: 2, team_name: 'Liverpool' }),
-    ]);
-    mockedApi.getTeamOptions.mockResolvedValue([
-      { team_id: 1, team_name: 'Arsenal' },
-      { team_id: 2, team_name: 'Liverpool' },
-    ]);
-    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
-    mockedApi.getTacticalRoleWorklist.mockResolvedValue([
-      {
-        team_id: 2, team_name: 'Liverpool', fpl_player_id: 99, web_name: 'Gakpo',
-        slug: 'gakpo', position_label: 'MID', assigned_role: null, confidence: null,
-        minutes: 400, ownership: 12.8, total_points: 29, priority: 'starter' as const,
-      },
-      {
-        team_id: 1, team_name: 'Arsenal', fpl_player_id: 100, web_name: 'Havertz',
-        slug: 'havertz', position_label: 'FWD', assigned_role: null, confidence: null,
-        minutes: 900, ownership: 8.1, total_points: 40, priority: 'starter' as const,
-      },
-    ]);
-
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <TacticalRolesAdminPage />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => expect(screen.getByText('Worth reviewing first')).toBeInTheDocument());
-    const worklistSection = screen.getByText('Worth reviewing first').closest('section')!;
-    await waitFor(() => expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument());
-    expect(within(worklistSection).getByText('Havertz')).toBeInTheDocument();
-
-    const worklistTeamSelect = within(worklistSection).getByRole('combobox', { name: 'Team' });
-    await user.selectOptions(worklistTeamSelect, 'Liverpool');
-
-    await waitFor(() => expect(within(worklistSection).queryByText('Havertz')).not.toBeInTheDocument());
-    expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument();
-  });
 });
