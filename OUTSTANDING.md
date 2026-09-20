@@ -69,6 +69,24 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Creating a function opens a door — check the grant every time
+Bitten TWICE now by the same Postgres default: CREATE FUNCTION grants
+EXECUTE to PUBLIC unless revoked.
+
+The second time was worse. public.refresh_fpl, created as a wrapper
+while fixing the pipeline outage, was SECURITY DEFINER owned by postgres
+and anon-callable -- so any anonymous visitor could have triggered a full
+FPL ingestion, hammering the FPL API and writing thousands of rows, as
+often as they liked. refresh_fpl_projections_range was the same.
+
+Both revoked. The rule: any new function that WRITES or is SECURITY
+DEFINER needs an explicit revoke from public/anon in the SAME migration
+that creates it.
+
+Verified end state: the only SECURITY DEFINER functions anon can call
+are get_data_integrity_report, get_public_read_audit and is_admin -- all
+read-only by design.
+
 ### 1X2 not visible — needs revisiting
 Added to the `projections` variant of GameweekBrowser, which renders at
 /football/projections ONLY. The same component at /fixtures uses the
