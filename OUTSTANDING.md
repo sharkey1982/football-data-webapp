@@ -1237,6 +1237,129 @@ Not started.
 
 ---
 
+## SECURITY REMEDIATION (audit vs commit 2b3d392) — TRIAGED 2026-09-20
+
+The audit is broadly sound but PARTLY STALE: it predates the refresh_fpl
+consolidation and the anon-grant revoke. Re-verified against live DB
+today rather than taken on trust. What's actually true now:
+
+### LIVE HOLE 1 — authenticated can still run privileged refreshes
+CONFIRMED STILL OPEN. anon was revoked (that fix held), but
+`authenticated` retains EXECUTE on public.refresh_fpl() and
+public.refresh_fpl_projections_range(), both SECURITY DEFINER, neither
+with an internal is_admin() check.
+
+Why this is worse than it looks: is_admin defaults FALSE for a new
+signup, so "authenticated" is not a trusted set. If Supabase email
+signup is enabled on the project, anyone holding the publishable key
+(it's in the bundle, by design) can create an account and then trigger a
+full FPL ingestion repeatedly -- hammering the FPL API and writing
+thousands of rows. FIRST ACTION: check whether signup is open in the
+dashboard; that determines whether this is urgent or merely wrong.
+Fix is small: revoke from authenticated, add is_admin() inside the
+wrapper. Do NOT break pg_cron (it calls private.refresh_fpl, unaffected).
+
+### LIVE HOLE 2 — netlify/functions/trigger-workflow.ts is unauthenticated
+CONFIRMED. Holds GITHUB_ACTIONS_TOKEN server-side and will trigger any
+of three workflows for any anonymous caller. The file's own header
+argues this is acceptable because blast radius is bounded to three
+known-safe re-derivation workflows.
+
+That argument is half right and should not be left standing: it's true
+nothing can be corrupted or escalated, but it ignores COST and
+AVAILABILITY -- unlimited anonymous GitHub Actions minutes, and
+concurrent refreshes racing each other. Minimum fix is a Supabase JWT +
+is_admin check (the frontend already has a session when these buttons
+render) plus bounded-integer input validation and rate limiting. The
+header comment must be rewritten at the same time; leaving a stale
+rationale in the file is how the next person concludes it's fine.
+
+### Confirmed still open, lower urgency
+  - 4 RLS-disabled tables WITH anon+authenticated SELECT:
+    fpl_hindsight_optimal_squad, fpl_fixture_bonus_montecarlo_v1,
+    fixture_actual_lineup_players, fixture_actual_team_lineups.
+    Verified: these are read by public pages, so the fix is enable RLS +
+    explicit public-read policy, NOT hiding them.
+  - 2 RLS-disabled tables with NO grants (fpl_player_return_assumptions,
+    team_strength_forward_adjustments) -- harmless today, tidy later.
+  - get_data_integrity_report has NO pinned search_path and is
+    anon-callable; it also exposes operational internals. Pin the path;
+    consider restricting to admin.
+  - handle_new_auth_user is EXECUTE to PUBLIC. It's a trigger helper and
+    should be callable by nobody.
+  - npm audit: 12 vulns (1 critical, 7 high, 4 moderate) reproduced
+    today. react-router-dom ^7.18.0, vitest ^2.1.9 both behind.
+  - No supabase/ or migrations/ directory in the repo at all: ~335
+    production migrations and 5 Edge Functions exist with ZERO version
+    control. This is the biggest RELIABILITY gap (not security): there is
+    currently no way to rebuild this database from the repo.
+
+### Judgement on sequencing
+Do the two live holes as their own small commits BEFORE any games or
+finance work. Everything else in that audit is real but not urgent, and
+the Phase 3 migration-baseline work is the one worth doing early because
+it gets harder every week.
+
+---
+
+## PRODUCT: GAMES LAYER (Save Our Club et al) — ASSESSED, NOT STARTED
+Full brief retained separately. Position taken 2026-09-20:
+
+  - Beat the Shark is the only one that reuses the existing model
+    directly (fixtures + stored 1X2 from lambda/rho + get_model_accuracy).
+    It is also the cheapest and the best fit for the "model transparency"
+    story. Do it first, after the security holes.
+  - Save Our Club should be prototyped as a SELF-CONTAINED FRONTEND with
+    a local deterministic state machine and ~6 hard-coded events. No DB,
+    no auth, no tables. The open question is whether the loop is FUN and
+    that is answerable in a day of frontend work. Explicitly do NOT
+    design its schema first.
+  - Save Our Club must NOT reuse Dixon-Coles. Wrong model for the job:
+    DC is calibrated on real PL-to-League-Two teams and needs real
+    ratings; the game needs a cheap seeded scoreline generator from two
+    fictional strength numbers. Reuse the PRESENTATION (vidiprinter) and
+    the seeded-RNG discipline, not the model.
+  - Today's 10 and Ask FixtureShark both depend on data/model quality
+    being high enough to generate or answer from. They come after, not
+    before, the core data work.
+  - NO schema decisions needed now. app_users + Supabase auth already
+    exist, so a future games account has a path; adding a user_id column
+    to a game table later is trivial. Resist building a gamification
+    platform.
+
+---
+
+## PRODUCT: FOOTBALL FINANCE PILLAR — ASSESSED, NOT STARTED
+Full brief retained separately. Position taken 2026-09-20:
+
+  - This is the most VALUABLE of the new ideas for SEO (evergreen,
+    genuinely scarce, strong internal linking to existing club pages)
+    and also by far the most EXPENSIVE, because the hard part is not
+    schema, it is normalisation and provenance across clubs with
+    different year ends, entity structures and filing detail.
+  - It belongs in the existing architecture. Club identity should hang
+    off the existing canonical teams table via a SEPARATE club-entity
+    mapping (one club can have several Companies House entities over
+    time, and a holding company is not the same legal entity as the
+    playing club). Do not put company numbers on teams.
+  - Recommended shape when it starts: HYBRID, not pure EAV and not a
+    wide table. A narrow fact table keyed on (entity, financial_year,
+    metric) with provenance columns, plus a derived/published view. A
+    wide table will break on the first club that reports a line item
+    nobody else does; pure EAV makes every page query painful.
+  - Provenance is the thing that must exist FROM THE FIRST ROW:
+    source_type (filed/official/reported/estimate), source_url,
+    document_id, filing_date, currency, units, restates_id, confidence.
+    Retrofitting provenance onto a populated finance table is the one
+    genuinely painful change here.
+  - Proof of concept should be SMALLER than the brief suggests: ~6 clubs
+    across divisions (not all 20 PL), 5 years, ~15 variables, done by
+    HAND first. Manual entry of 6x5 clubs answers "can these even be
+    compared?" before any Companies House ingestion is written.
+  - Do not start this before launch/SEO/data-quality work is done.
+
+---
+
 ## Cleanup
 
 - `admin_bootstrap_emails` still contains the owner's address. Harmless
