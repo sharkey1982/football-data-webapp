@@ -10,6 +10,19 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### FPL rollover: three tables still have single-column keys
+fpl_teams, fpl_gameweeks and fpl_fixtures conflict on fpl_team_id /
+fpl_event_id / fpl_fixture_id alone. At the 2027/28 rollover, FPL reuses
+those ids, so refresh_fpl's upserts will DO UPDATE this season's rows IN
+PLACE — the exact corruption already fixed for fpl_players.
+
+Found while reading refresh_fpl in full for the consolidation job. Zero
+impact today; catastrophic at pre-season. Needs composite
+(id, season_id) keys, with the same backup-first, FK-aware approach used
+for fpl_players. Must happen before August 2027.
+
+
+
 ### Drop the pre-key-change backups when ready
 backup_fpl_players_20260919, backup_fpl_player_snapshots_20260919,
 backup_fpl_player_gameweeks_20260919,
@@ -217,6 +230,35 @@ download — both loaded on any data-fetching page before — but it's no
 longer parallelised or skippable. Revisit if load time matters.
 
 ---
+
+## Resolved this session
+
+### refresh_fpl consolidation — DONE, and it found an outage
+The job was to decide whether to fold three triggers into the function.
+Reading the function in full for the first time found two things worse
+than the triggers:
+
+1. THERE WERE TWO FUNCTIONS. pg_cron runs private.refresh_fpl(). Every
+   fix for two days — the composite-key ON CONFLICT, tonight's season_id
+   work — went to public.refresh_fpl(), which NOTHING calls. My "verified
+   by running it" tests ran the orphan. The real pipeline was down from
+   2026-09-19 18:17 to 2026-09-20 00:51, two failed runs, zero trace in
+   fpl_ingestion_runs (the handler's status write is rolled back by the
+   re-raise). public.refresh_fpl() is now a one-line wrapper around the
+   private body, so the divergence can't recur.
+
+2. The slug NOT NULL constraint added to player_identity broke the
+   sync_player_identity trigger's INSERT for every refresh after it. It
+   now generates a slug using the same rule as the backfill.
+
+Decision on the triggers: season_id moved INTO the function (it's the
+function's job to say which season it ingests, and three tables had no
+handling at all). fpl_code and player_identity STAY as triggers by
+design — any insert path should maintain identity.
+
+get_data_integrity_report() gained two checks that would have caught
+this: refresh freshness (>9h = FAIL) and cron-logged failures in the
+last 48h. It currently shows the outage red, correctly.
 
 ## Known, accepted
 
