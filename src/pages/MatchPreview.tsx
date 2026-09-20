@@ -1,6 +1,6 @@
 import { trackEvent } from '../lib/analytics';
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   getLeagues,
   getLatestFitRun,
@@ -19,6 +19,7 @@ import {
   getUpcomingFixtureForPairing,
 } from '../lib/api';
 import { calculateDixonColes, calculateDixonColesFromExpectedGoals, type DixonColesResult } from '../lib/dixonColes';
+import { derivedMarkets } from '../lib/matchPageApi';
 import type { ModelFitRun } from '../types/database';
 import { ComparisonCard, StreakBadges } from '../components/ComparisonCard';
 import { HeadToHeadSummary } from '../components/HeadToHeadSummary';
@@ -33,11 +34,14 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 type LeagueOption = { league_id: number; code: string; name: string };
 type Tab = 'overview' | 'home' | 'away' | 'prediction';
 
+// Prediction FIRST, and the default. This page sits under Football >
+// Predict: the forecast is what a visitor came for, and the
+// head-to-head record is context for it rather than the headline.
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'prediction', label: 'Prediction' },
+  { id: 'overview', label: 'Head to Head' },
   { id: 'home', label: 'Home Team' },
   { id: 'away', label: 'Away Team' },
-  { id: 'prediction', label: 'Prediction' },
 ];
 
 export default function MatchPreview() {
@@ -65,7 +69,7 @@ export default function MatchPreview() {
   const [homeTeamId, setHomeTeamId] = useState<number | null>(urlHomeId);
   const [awayTeamId, setAwayTeamId] = useState<number | null>(urlAwayId);
 
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [activeTab, setActiveTab] = useState<Tab>('prediction');
 
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<{
@@ -520,6 +524,49 @@ export default function MatchPreview() {
                       {previewData.dixonColes.expectedAwayGoals.toFixed(2)}
                     </span>
                   </div>
+
+                  {/* The outcome markets, read off the SAME grid below.
+                      Nobody works 1X2 out of 49 cells by eye, and these
+                      are the numbers people actually want. */}
+                  {(() => {
+                    const dc = previewData.dixonColes!;
+                    const m = derivedMarkets(dc);
+                    const outcomes: [string, number][] = [
+                      [`${homeTeamName} win`, dc.homeWinPct],
+                      ['Draw', dc.drawPct],
+                      [`${awayTeamName} win`, dc.awayWinPct],
+                    ];
+                    return (
+                      <div className="mb-4 space-y-3">
+                        <dl className="grid grid-cols-3 gap-2">
+                          {outcomes.map(([label, pct]) => (
+                            <div key={label} className="border border-chalk-300 rounded-lg bg-chalk-100 p-2 text-center">
+                              <dt className="text-[0.65rem] text-ink-500 truncate">{label}</dt>
+                              <dd className="font-display text-xl text-ink-900">{pct.toFixed(1)}%</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <dl className="grid grid-cols-3 gap-2">
+                          {([
+                            ['Over 2.5', m.overTwoFive],
+                            ['Under 2.5', m.underTwoFive],
+                            ['Both score', m.bothScore],
+                          ] as [string, number][]).map(([label, pct]) => (
+                            <div key={label} className="border border-chalk-300 rounded-lg bg-white p-2 text-center">
+                              <dt className="text-[0.65rem] text-ink-500">{label}</dt>
+                              <dd className="font-mono text-sm text-ink-900">{pct.toFixed(1)}%</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <p className="text-xs text-ink-500">
+                          All six come from the score grid below, so they can&rsquo;t disagree with it.{' '}
+                          <Link to="/football/model-accuracy" className="text-pitch-800 underline underline-offset-2">
+                            How accurate has this been?
+                          </Link>
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <ScoreProbabilityGrid
                     result={previewData.dixonColes}
                     homeTeamName={homeTeamName}
