@@ -48,6 +48,9 @@ import {
   type SetPieceHierarchyType,
   type SetPieceHierarchyRow,
   getTacticalRoleWorklist,
+  getTeamDefaultFormation,
+  saveTeamFormation,
+  FORMATION_OPTIONS,
   type TacticalWorklistRow,
 } from '../../lib/tacticalRoleAdminApi';
 import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tacticalRoleFormationHelper';
@@ -148,6 +151,12 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   const [projectedMinutes, setProjectedMinutes] = useState<Map<number, number>>(new Map());
   const [reviewDates, setReviewDates] = useState<Map<number, string>>(new Map());
   const [markingReviewed, setMarkingReviewed] = useState(false);
+  // The team's STORED default formation, and whether it's a manual
+  // override. Read from team_tactical_defaults directly rather than from
+  // teamFormation above, which comes from the consensus view and so
+  // already has overrides and fallbacks resolved together.
+  const [storedFormation, setStoredFormation] = useState<{ formation: string | null; isManual: boolean } | null>(null);
+  const [savingFormation, setSavingFormation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,6 +321,45 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       setSaveError(getErrorMessage(e, `Failed to save the status for ${row.web_name}`));
     } finally {
       setSavingId(null);
+    }
+  }
+
+  // Only the admin route needs the stored value -- the public page shows
+  // the resolved formation from the consensus view and can't edit it.
+  useEffect(() => {
+    if (!isAdmin || selectedTeamId === null || displayMode !== 'pitch') {
+      setStoredFormation(null);
+      return;
+    }
+    let cancelled = false;
+    getTeamDefaultFormation(selectedTeamId)
+      .then((f) => {
+        if (!cancelled) setStoredFormation(f);
+      })
+      .catch(() => {
+        if (!cancelled) setStoredFormation(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, selectedTeamId, displayMode]);
+
+  async function handleFormationChange(newFormation: string) {
+    if (selectedTeamId === null) return;
+    setSavingFormation(true);
+    setSaveError(null);
+    try {
+      await saveTeamFormation(selectedTeamId, newFormation);
+      setStoredFormation({ formation: newFormation, isManual: true });
+      // The pitch reads teamFormation (the consensus view), so refresh it
+      // rather than assuming the save landed -- this is what proves the
+      // override actually reached the view, not just the table.
+      setTeamFormation(await getTeamFormation(selectedTeamId));
+      markSaved(-1 * selectedTeamId);
+    } catch (e) {
+      setSaveError(getErrorMessage(e, 'Failed to save the formation'));
+    } finally {
+      setSavingFormation(false);
     }
   }
 
@@ -746,9 +794,40 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                   </div>
                 )}
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                  <h2 className="text-sm font-medium text-ink-700">
-                    {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
-                  </h2>
+                  {isAdmin ? (
+                    <label className="flex items-center gap-2 text-sm font-medium text-ink-700">
+                      Formation
+                      <select
+                        aria-label="Formation"
+                        value={teamFormation ?? ''}
+                        disabled={savingFormation}
+                        onChange={(e) => handleFormationChange(e.target.value)}
+                        className="text-sm border border-chalk-300 rounded px-2 py-1 font-mono disabled:opacity-50"
+                      >
+                        {/* The stored value may predate this list (it's
+                            scraped), so include it rather than silently
+                            showing the wrong shape as selected. */}
+                        {teamFormation && !FORMATION_OPTIONS.includes(teamFormation as typeof FORMATION_OPTIONS[number]) && (
+                          <option value={teamFormation}>{teamFormation}</option>
+                        )}
+                        {FORMATION_OPTIONS.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                      {savingFormation && <span className="text-xs text-ink-500">saving&hellip;</span>}
+                      {!savingFormation && storedFormation?.isManual && (
+                        <span className="text-[10px] font-mono uppercase text-amber-700" title="Set manually here, overriding the scraped lineup consensus">
+                          manual
+                        </span>
+                      )}
+                    </label>
+                  ) : (
+                    <h2 className="text-sm font-medium text-ink-700">
+                      {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
+                    </h2>
+                  )}
                   <div className="flex rounded-md border border-chalk-300 overflow-hidden">
                     {DEPTH_RANK_OPTIONS.map((n) => (
                       <button

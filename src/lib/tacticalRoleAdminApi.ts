@@ -98,6 +98,41 @@ export async function getTeamFormation(teamId: number): Promise<string | null> {
   return (data as any)?.formation ?? null;
 }
 
+/** The formation options offered in the admin picker. Deliberately a
+ * fixed list rather than whatever happens to be in the data: these are
+ * the shapes formation_slot_geometry can actually lay out on a pitch, so
+ * offering anything else would save fine and then render nothing. */
+export const FORMATION_OPTIONS = ['4-4-2', '4-3-3', '4-2-3-1', '3-4-3', '3-5-2', '5-3-2', '5-4-1', '4-5-1', '4-1-4-1', '3-4-2-1'] as const;
+
+/** A team's CURRENT stored default formation, straight from
+ * team_tactical_defaults -- not from the consensus view, which resolves
+ * overrides and fallbacks together. The editor needs to show what is
+ * stored so a save is a change to a known value. */
+export async function getTeamDefaultFormation(teamId: number, seasonId = 13): Promise<{ formation: string | null; isManual: boolean }> {
+  const { data, error } = await supabase
+    .from('team_tactical_defaults')
+    .select('formation, source_name')
+    .eq('team_id', teamId)
+    .eq('season_id', seasonId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as { formation?: string; source_name?: string } | null;
+  return { formation: row?.formation ?? null, isManual: row?.source_name === 'manual' };
+}
+
+/** Sets a team's formation as a deliberate manual override.
+ *
+ * source_name='manual' is not cosmetic: fixture_team_tactical_consensus
+ * gives manual rows precedence over the scraped per-fixture lineup
+ * consensus, where a non-manual default is only a fallback. So this is
+ * what makes the edit actually reach the pitch and the projections. */
+export async function saveTeamFormation(teamId: number, formation: string, seasonId = 13): Promise<void> {
+  const { error } = await supabase
+    .from('team_tactical_defaults')
+    .upsert({ season_id: seasonId, team_id: teamId, formation, source_name: 'manual', confidence: 1, updated_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
+  if (error) throw error;
+}
+
 export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // team_player_tactical_defaults has no foreign key to fpl_players at all
   // (confirmed directly -- information_schema returns zero FK constraints

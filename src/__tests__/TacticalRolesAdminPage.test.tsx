@@ -39,6 +39,8 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     reorderSetPieceTaker: vi.fn(),
     addSetPieceTaker: vi.fn(),
     removeSetPieceTaker: vi.fn(),
+    getTeamDefaultFormation: vi.fn(),
+    saveTeamFormation: vi.fn(),
   };
 });
 
@@ -78,6 +80,8 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
     // Same reasoning as above: the worklist panel loads on mount.
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);
+    mockedApi.getTeamDefaultFormation.mockResolvedValue({ formation: '4-3-3', isManual: false });
+    mockedApi.saveTeamFormation.mockResolvedValue(undefined);
   });
 
   it('defaults to Needs Review, showing only generic-role players, and lets a role be corrected', async () => {
@@ -412,6 +416,41 @@ describe('TacticalRolesAdminPage', () => {
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
     await waitFor(() => expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0));
     expect(document.querySelectorAll('button[title^="Raya"]').length).toBe(0);
+  });
+
+  it('lets an admin change a team\u2019s formation, and re-reads the resolved formation afterwards', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Raya', element_type: 1, tactical_role: 'GK', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    // getTeamFormation is called twice: once on entering pitch mode, then
+    // again after the save. The second value proves the page re-reads the
+    // CONSENSUS VIEW rather than trusting that the write landed -- the
+    // view resolves overrides and fallbacks, so the stored value and the
+    // rendered one are not the same thing.
+    mockedApi.getTeamFormation.mockResolvedValueOnce('4-3-3').mockResolvedValueOnce('3-5-2');
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <TacticalRolesAdminPage adminMode />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+
+    const formationSelect = await screen.findByRole('combobox', { name: 'Formation' });
+    await waitFor(() => expect(formationSelect).toHaveValue('4-3-3'));
+
+    await user.selectOptions(formationSelect, '3-5-2');
+
+    // Saved as a MANUAL override -- that's what gives it precedence over
+    // the scraped consensus in fixture_team_tactical_consensus.
+    await waitFor(() => expect(mockedApi.saveTeamFormation).toHaveBeenCalledWith(1, '3-5-2'));
+    // And the re-read value is what ends up displayed.
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Formation' })).toHaveValue('3-5-2'));
   });
 
   it('needs-review teams are collapsible, individually and all at once', async () => {
