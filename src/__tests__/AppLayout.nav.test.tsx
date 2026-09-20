@@ -212,4 +212,19 @@ describe('AppLayout main nav', () => {
     expect(screen.getAllByText('Football').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Fantasy').length).toBeGreaterThan(0);
   });
+
+  it('always leaves a way in to sign in, even with the Admin menu hidden', async () => {
+    // Hiding the Admin menu removed the only /login link on the site --
+    // it lived in the gate notice on admin pages, which the nav no
+    // longer reaches. A signed-out visitor must still have a door.
+    mockedAuth.useAuthOptional.mockReturnValue(null);
+    renderAt('/');
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+  });
+
+  it('drops the sign-in link once an admin is signed in', async () => {
+    mockedAuth.useAuthOptional.mockReturnValue({ isAdmin: true });
+    renderAt('/');
+    expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
+  });
 });

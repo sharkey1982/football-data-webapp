@@ -297,7 +297,16 @@ export default function AppLayout() {
       <footer className="border-t border-chalk-300 py-6">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">
           <span>Data sourced from football-data.co.uk &middot; England, 2014/15&ndash;2025/26</span>
-        </div>
+          {/* Hiding the Admin menu from visitors removed the ONLY route
+              to /login -- the sign-in link lived in the gate notice on
+              admin pages, which are no longer reachable from the nav.
+              A discreet footer link keeps the door without advertising
+              the section, and disappears once signed in. */}
+          {!isAdmin && (
+            <NavLink to="/login" className="text-ink-500 hover:text-ink-900 underline underline-offset-2">
+              Sign in
+            </NavLink>
+          )}</div>
       </footer>
     </div>
   );
