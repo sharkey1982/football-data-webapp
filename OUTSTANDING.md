@@ -69,6 +69,30 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### 1X2 not visible — needs revisiting
+Added to the `projections` variant of GameweekBrowser, which renders at
+/football/projections ONLY. The same component at /fixtures uses the
+other variant and shows no model output at all, by design.
+
+So if it isn't showing, check which of those two pages is being looked
+at before assuming the code is wrong. If it IS missing on
+/football/projections, the likely cause is `rhoFor` returning null for
+those fixtures -- the markets only render when a rho is resolvable, and
+they fall back to "xG est." when it isn't.
+
+Also still missing entirely: 1X2 on the fixture LIST rows outside
+projections mode, and anywhere in Football > Discover.
+
+### Renames
+  - "What's Changed" (/fpl/whats-changed) -> Newsroom
+  - "The Trading Floor" (/fpl/price-risk) -> "Trading Floor", or
+    "Bullpit"? Chris undecided. Worth noting the page is about price-rise
+    RISK, so a name suggesting pressure/heat fits better than one
+    suggesting trading activity.
+Both are label-only changes in journey.ts plus routeMeta titles; the
+routes themselves should NOT change, since /fpl/whats-changed is already
+in the sitemap and prerendered.
+
 ### PlayerScoutPage still carries dead slug-handling code
 /fpl/player-scout/:slug now renders PlayerRecordPage, so the slug branch
 inside PlayerScoutPage (useParams, getPlayerBySlug, the `selected` state
