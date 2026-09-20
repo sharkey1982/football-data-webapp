@@ -55,16 +55,61 @@ export default function SeasonXiPage() {
     getXiSeasons()
       .then((list) => {
         setSeasons(list);
-        setSeasonId((cur) => cur ?? list[0]?.season_id ?? null);
+        // Left null here: the effect below defaults to the season in
+        // progress once the rolling XI has solved, falling back to the
+        // most recent completed season if it can't.
+        setSeasonId((cur) => cur ?? null);
       })
       .catch(() => setSeasons([]));
   }, []);
 
+  // The season in progress is just another option in the selector. Its
+  // XI is SOLVED rather than stored -- the answer moves every gameweek --
+  // but it renders through exactly the same layout, so the page reads
+  // the same whichever season is chosen.
+  const CURRENT_SEASON_ID = 13;
+  const allSeasons: XiSeason[] =
+    rolling && rolling !== 'loading'
+      ? [
+          {
+            season_id: CURRENT_SEASON_ID,
+            slug: '2026-27',
+            label: '2627',
+            points: rolling.points,
+            cost: rolling.cost,
+          },
+          ...seasons,
+        ]
+      : seasons;
+
+  useEffect(() => {
+    if (seasonId != null) return;
+    if (rolling && rolling !== 'loading') setSeasonId(CURRENT_SEASON_ID);
+    else if (seasons.length > 0) setSeasonId(seasons[0].season_id);
+  }, [seasonId, rolling, seasons]);
+
   useEffect(() => {
     if (seasonId == null) return;
+    if (seasonId === CURRENT_SEASON_ID) {
+      if (rolling && rolling !== 'loading') {
+        setXi(
+          rolling.players.map((p) => ({
+            season_id: CURRENT_SEASON_ID,
+            fpl_code: p.fpl_code,
+            web_name: p.web_name,
+            team_name: p.team_name,
+            element_type: p.element_type,
+            start_cost: p.august_cost,
+            total_points: p.total_points,
+          }))
+        );
+      }
+      getSeasonValueLeaders(CURRENT_SEASON_ID).then(setValue).catch(() => setValue([]));
+      return;
+    }
     getSeasonBestXi(seasonId).then(setXi).catch(() => setXi([]));
     getSeasonValueLeaders(seasonId).then(setValue).catch(() => setValue([]));
-  }, [seasonId]);
+  }, [seasonId, rolling]);
 
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (xi.length === 0) {
@@ -95,95 +140,19 @@ export default function SeasonXiPage() {
         </p>
       </header>
 
-      {/* The season in progress, kept separate from the completed ones.
-          Different question: those are settled, this one moves every
-          week and is hindsight applied live rather than a finished
-          answer. */}
-      {rolling && rolling !== 'loading' && (
-        <section className="border border-chalk-300 rounded-lg bg-white p-4">
-          <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">
-            This season so far &mdash; the XI you&rsquo;d wish you&rsquo;d picked
-          </h2>
-          <p className="text-ink-700 text-sm mt-1 max-w-prose">
-            <strong>{rolling.points}</strong> points for <strong>&pound;{(rolling.cost / 10).toFixed(1)}m</strong> in a{' '}
-            {rolling.formation}, at August prices. This one moves: it&rsquo;s the best eleven available on today&rsquo;s
-            results, not a settled answer.
-          </p>
-          <div className="overflow-x-auto mt-3">
-            <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
-              <thead className="bg-chalk-200 text-ink-500">
-                <tr>
-                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
-                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Club</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Aug price</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Now</th>
-                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...rolling.players]
-                  .sort((a, b) => a.element_type - b.element_type || b.total_points - a.total_points)
-                  .map((p, i) => (
-                    <tr key={p.fpl_code} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                      <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
-                        {p.web_name} <span className="text-ink-500">{POS_LABEL[p.element_type]}</span>
-                      </th>
-                      <td className="px-3 py-1.5 text-xs text-ink-700">{p.team_name ?? '\u2014'}</td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
-                        &pound;{(p.august_cost / 10).toFixed(1)}m
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">
-                        &pound;{(p.now_cost / 10).toFixed(1)}m
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">
-                        {p.total_points}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-ink-500 text-xs mt-2 max-w-prose">
-            What this is NOT: the XI the model would have picked in August. That would be a genuine accuracy record, but
-            no projections were stored before this season started &mdash; the earliest is 14 September &mdash; so it
-            can&rsquo;t be reconstructed. It becomes possible from next August.
-          </p>
-        </section>
-      )}
-
-      {seasons.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {seasons.map((s2) => (
-            <button
-              key={s2.season_id}
-              type="button"
-              onClick={() => setSeasonId(s2.season_id)}
-              className={[
-                'text-sm rounded px-3 py-1.5 border transition-colors',
-                s2.season_id === seasonId
-                  ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
-                  : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
-              ].join(' ')}
-            >
-              {seasonName(s2.slug)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {seasons.length > 1 && (
+      {allSeasons.length > 1 && (
         <section className="border border-chalk-300 rounded-lg bg-white p-4">
           <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">The perfect XI barely changes price</h2>
           <p className="text-ink-700 text-sm mt-1 max-w-prose">
-            Across {seasons.length} seasons the best possible eleven has cost between{' '}
-            <strong>&pound;{(Math.min(...seasons.map((s2) => s2.cost)) / 10).toFixed(1)}m</strong> and{' '}
-            <strong>&pound;{(Math.max(...seasons.map((s2) => s2.cost)) / 10).toFixed(1)}m</strong>, and scored between{' '}
-            {Math.min(...seasons.map((s2) => s2.points)).toLocaleString()} and{' '}
-            {Math.max(...seasons.map((s2) => s2.points)).toLocaleString()} points. The ceiling is remarkably steady.
+            Across {allSeasons.length} seasons the best possible eleven has cost between{' '}
+            <strong>&pound;{(Math.min(...allSeasons.map((s2) => s2.cost)) / 10).toFixed(1)}m</strong> and{' '}
+            <strong>&pound;{(Math.max(...allSeasons.map((s2) => s2.cost)) / 10).toFixed(1)}m</strong>, and scored between{' '}
+            {Math.min(...allSeasons.map((s2) => s2.points)).toLocaleString()} and{' '}
+            {Math.max(...allSeasons.map((s2) => s2.points)).toLocaleString()} points. The ceiling is remarkably steady.
           </p>
           <div className="space-y-1.5 mt-3">
-            {seasons.map((s2) => {
-              const mx = Math.max(...seasons.map((z) => z.points));
+            {allSeasons.map((s2) => {
+              const mx = Math.max(...allSeasons.map((z) => z.points));
               return (
                 <div key={s2.season_id} className="flex items-center gap-3">
                   <span className="w-16 shrink-0 font-mono text-xs text-ink-700">{seasonName(s2.slug)}</span>
@@ -201,15 +170,25 @@ export default function SeasonXiPage() {
         </section>
       )}
 
-      <section className="border border-chalk-300 rounded-lg bg-white p-4">
-        <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Why August prices matter</h2>
-        <p className="text-ink-700 text-sm mt-1 max-w-prose">
-          Every price here is what the player cost at the start of the season, not what he ended up worth. Gabriel
-          finished at &pound;7.3m, but you&rsquo;d have paid <strong>&pound;6.0m</strong> &mdash; the higher price was
-          created by the 209 points he then scored. Valuing a hindsight squad at closing prices lets you buy a player
-          with money his own success generated, which is the one thing a real manager cannot do.
-        </p>
-      </section>
+      {allSeasons.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {allSeasons.map((s2) => (
+            <button
+              key={s2.season_id}
+              type="button"
+              onClick={() => setSeasonId(s2.season_id)}
+              className={[
+                'text-sm rounded px-3 py-1.5 border transition-colors',
+                s2.season_id === seasonId
+                  ? 'bg-pitch-800 text-chalk-100 border-pitch-800'
+                  : 'border-chalk-300 text-ink-700 hover:bg-chalk-200',
+              ].join(' ')}
+            >
+              {seasonName(s2.slug)}
+            </button>
+          ))}
+        </div>
+      )}
 
       <section>
         <div className="relative rounded-lg bg-pitch-800 border-2 border-pitch-600 aspect-[3/4] sm:aspect-[4/3] max-w-2xl overflow-hidden">
@@ -272,6 +251,15 @@ export default function SeasonXiPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="border border-chalk-300 rounded-lg bg-white p-4">
+        <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Why August prices matter</h2>
+        <p className="text-ink-700 text-sm mt-1 max-w-prose">
+          Every price here is what the player cost at the start of that season, not what they ended up worth. A player
+          who returns heavily gets more expensive because of it &mdash; so valuing a hindsight squad at closing prices
+          lets it spend money its own success generated, which is the one thing a real manager cannot do.
+        </p>
       </section>
 
       {value.length > 0 && (

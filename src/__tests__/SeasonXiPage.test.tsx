@@ -28,7 +28,10 @@ describe('SeasonXiPage', () => {
     // hindsight squad spend money his own 209 points created -- the one
     // thing a real manager can't do.
     await waitFor(() => expect(screen.getAllByText(/£6\.0m/).length).toBeGreaterThan(0));
-    expect(screen.getByText(/created by the 209 points/)).toBeInTheDocument();
+// The explainer is no longer tied to one season's player, since the
+    // page now covers the season in progress too. What must survive is
+    // the REASON August prices are used.
+    expect(screen.getByText(/spend money its own success generated/)).toBeInTheDocument();
   });
 
   it('totals points and cost across the XI', async () => {
