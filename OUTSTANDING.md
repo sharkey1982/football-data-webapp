@@ -59,6 +59,71 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Football Discover — win % and over/under goals never added
+Discussed but never built. The model side has this: derivedMarkets() in
+matchPageApi turns a Dixon-Coles score grid into over/under 2.5 and BTTS
+probabilities, and Results Projections (Football > Predict) shows them.
+
+Discover has no equivalent for what ACTUALLY happened. There's no
+historical over-2.5 rate, BTTS rate or home/draw/away split anywhere —
+by league, by season, by club, or head-to-head.
+
+Worth having because it's the natural counterpart to the projections,
+and the archive already holds ~31,000 matches across five divisions and
+a decade, so the answers are a GROUP BY away. It would also give the
+market-efficiency page something to sit beside: overround by division is
+already there, and actual outcome rates would make it readable.
+
+Scope to decide: which cuts matter (league/season certainly; club and
+head-to-head probably), and whether it's a page of its own or folded
+into League Insights.
+
+### Set-and-Forget XI — 2026/27 needs TWO views, not one
+Currently only the hindsight XI exists, and only for completed seasons.
+2026/27 should carry two distinct things, because they answer different
+questions and must not be conflated:
+
+  1. MODEL VIEW AT START OF SEASON — the XI the model would have picked
+     in August from its own projections, with no knowledge of what
+     followed. This is a real accuracy record: it can be scored against
+     what actually happened, and it accumulates rather than needing a
+     backfill.
+
+  2. ROLLING 2026/27 TEAM — the best XI available on today's actuals,
+     updated as the season runs. Hindsight, but live.
+
+These are genuinely different techniques, not two renderings of one
+thing. The existing page solves neither: it solves completed-season
+hindsight at August prices. Note the model view needs projections that
+existed BEFORE the season — check what's actually stored, since
+pre-kickoff projections currently only go back to gameweek 5.
+
+### Optimiser — include/exclude specific players
+Need to pin players in (I already own Haaland, build around him) and
+lock players out (injured, or I refuse to own him). Currently it solves
+unconstrained within budget and formation rules.
+
+Mechanically straightforward: both are constraints on the same solve —
+forced-in players consume budget and a squad slot before optimisation,
+forced-out are filtered from the pool.
+
+### Optimiser — is it safe to make end-user facing?
+Open question Chris raised, and worth answering BEFORE building
+include/exclude, since that makes the page far more inviting to hammer.
+
+What needs establishing:
+  - how expensive is a solve, and is it done in Postgres or the client?
+    (get_fpl_optimizer_* functions are anon-executable today)
+  - does an unauthenticated user get unlimited solves? There is no rate
+    limiting anywhere in this app.
+  - does include/exclude widen the search space enough to change the
+    cost profile?
+  - if limits are needed, what form: per-session, per-IP, or gated
+    behind the eventual account layer?
+
+This is the first feature where a visitor can make the database do real
+work on demand. Everything else is a read of precomputed data.
+
 ### Set-piece corners — RESOLVED (sides now derived from taker order)
 The source never distinguished sides: it gave one ordered list of corner
 takers per club and the importer wrote it to BOTH corner_left and
