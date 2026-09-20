@@ -5,7 +5,8 @@ const p = (over: Partial<ScoutListPlayer>): ScoutListPlayer => ({
   fpl_code: 1, slug: 'x', fpl_player_id: 1, web_name: 'Player', full_name: 'A Player',
   team_name: 'Club', team_id: 1, element_type: 3, now_cost: 50, total_points: 0,
   minutes: 0, goals_scored: 0, assists: 0, clean_sheets: 0, bonus: 0,
-  selected_by_percent: 0, points_per_million: 0, seasons_played: 1, ...over,
+  selected_by_percent: 0, points_per_million: 0, seasons_played: 1,
+  price_pressure: null, price_direction: null, ...over,
 });
 
 describe('scout sorting', () => {

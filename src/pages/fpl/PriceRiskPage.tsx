@@ -12,7 +12,11 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getPriceChangeRisk, type PriceRisk } from '../../lib/priceRiskApi';
 
-function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' }) {
+// ONE table, sorted by pressure regardless of direction, because the
+// question is "who is under most pressure" -- which two separate tables
+// can't answer: the top faller might outrank every riser, and split
+// tables hide that.
+function RiskTable({ rows }: { rows: PriceRisk[] }) {
   if (rows.length === 0) return <p className="text-ink-500 text-sm">Nobody under meaningful pressure.</p>;
   return (
     <div className="overflow-x-auto">
@@ -20,6 +24,7 @@ function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' })
         <thead className="bg-chalk-200 text-ink-500">
           <tr>
             <th scope="col" className="text-left font-medium text-xs px-3 py-2">Player</th>
+            <th scope="col" className="text-left font-medium text-xs px-3 py-2">Way</th>
             <th scope="col" className="text-left font-medium text-xs px-3 py-2">Team</th>
             <th scope="col" className="text-right font-medium text-xs px-3 py-2">Price</th>
             <th scope="col" className="text-right font-medium text-xs px-3 py-2">Owned</th>
@@ -40,6 +45,17 @@ function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' })
                 )}
                 <span className="text-ink-500"> {r.position_label}</span>
               </th>
+              <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                <span
+                  className={
+                    r.direction === 'rise'
+                      ? 'text-pitch-800 font-medium'
+                      : 'text-loss-700 font-medium'
+                  }
+                >
+                  {r.direction === 'rise' ? '\u2191 rise' : '\u2193 fall'}
+                </span>
+              </td>
               <td className="px-3 py-1.5 text-xs text-ink-700">{r.team_name ?? '\u2014'}</td>
               <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">&pound;{r.price.toFixed(1)}m</td>
               <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.ownership.toFixed(1)}%</td>
@@ -50,7 +66,7 @@ function RiskTable({ rows, kind }: { rows: PriceRisk[]; kind: 'rise' | 'fall' })
               <td
                 className={[
                   'px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium',
-                  kind === 'rise' ? 'text-pitch-800' : 'text-loss-700',
+                  r.direction === 'rise' ? 'text-pitch-800' : 'text-loss-700',
                 ].join(' ')}
               >
                 {Math.abs(r.pressure).toFixed(1)}
@@ -87,13 +103,15 @@ export default function PriceRiskPage() {
   }, []);
 
 
-  const { risers, fallers } = useMemo(() => {
+  const visible = useMemo(() => {
     const r = rows ?? [];
-    return {
-      risers: r.filter((x) => x.direction === 'rise').slice(0, 15),
-      fallers: r.filter((x) => x.direction === 'fall').slice(0, 15),
-    };
-  }, [rows]);
+    return r
+      .filter((x) => show === 'both' || x.direction === show)
+      // Sorted on ABSOLUTE pressure, so the most urgent case leads
+      // whichever direction it's heading.
+      .sort((a, b) => Math.abs(b.pressure) - Math.abs(a.pressure))
+      .slice(0, 25);
+  }, [rows, show]);
 
   if (rows === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (rows.length === 0) {
@@ -164,27 +182,18 @@ export default function PriceRiskPage() {
         </p>
       </section>
 
-      {show !== 'fall' && (
-      <section className="border-l-4 border-pitch-700 bg-pitch-50/40 rounded-r-lg pl-3 py-2">
-        <h2 className="font-display uppercase tracking-wide text-lg text-pitch-800">
-          &uarr; Under pressure to rise
+      <section>
+        <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">
+          Under most pressure
         </h2>
+        <p className="text-ink-700 text-sm mt-1 max-w-prose">
+          Ranked by pressure whichever way it points, so the most urgent case is first whether it&rsquo;s about to rise
+          or fall.
+        </p>
         <div className="mt-2">
-          <RiskTable rows={risers} kind="rise" />
+          <RiskTable rows={visible} />
         </div>
       </section>
-      )}
-
-      {show !== 'rise' && (
-      <section className="border-l-4 border-loss-700 bg-loss-700/5 rounded-r-lg pl-3 py-2">
-        <h2 className="font-display uppercase tracking-wide text-lg text-loss-700">
-          &darr; Under pressure to fall
-        </h2>
-        <div className="mt-2">
-          <RiskTable rows={fallers} kind="fall" />
-        </div>
-      </section>
-      )}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/fpl/market" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

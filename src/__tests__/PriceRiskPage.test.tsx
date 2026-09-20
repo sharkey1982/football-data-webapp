@@ -47,16 +47,24 @@ describe('PriceRiskPage', () => {
     expect(screen.getByText(/no figure here is a prediction/)).toBeInTheDocument();
   });
 
-  it('separates risers from fallers rather than mixing directions', async () => {
+  it('ranks by pressure across BOTH directions, so the most urgent leads', async () => {
+    // Two separate tables couldn't answer "who is under most pressure":
+    // the top faller might outrank every riser, and splitting them hides
+    // that. One table, sorted on absolute pressure.
     mocked.getPriceChangeRisk.mockResolvedValue([
-      row({ fpl_player_id: 3, web_name: 'Riser', slug: 'riser', direction: 'rise', net_transfers: 5000 }),
-      row({ fpl_player_id: 4, web_name: 'Faller', slug: 'faller', direction: 'fall', net_transfers: -5000, pressure: -4 }),
+      row({ fpl_player_id: 1, web_name: 'SmallRiser', slug: 'a', pressure: 2, direction: 'rise' }),
+      row({ fpl_player_id: 2, web_name: 'BigFaller', slug: 'b', pressure: -9, direction: 'fall' }),
+      row({ fpl_player_id: 3, web_name: 'MidRiser', slug: 'c', pressure: 5, direction: 'rise' }),
     ]);
+
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByRole('heading', { name: /Under pressure to rise/ })).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: /Under pressure to fall/ })).toBeInTheDocument();
-    expect(screen.getByText('Riser')).toBeInTheDocument();
-    expect(screen.getByText('Faller')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('BigFaller')).toBeInTheDocument());
+
+    const names = screen.getAllByRole('row').slice(1).map((r) => r.textContent ?? '');
+    // The faller leads despite every other row being a riser.
+    expect(names[0]).toContain('BigFaller');
+    expect(names[1]).toContain('MidRiser');
+    expect(names[2]).toContain('SmallRiser');
   });
 
   it('filters by direction, which is the one thing that actually changes the view', async () => {

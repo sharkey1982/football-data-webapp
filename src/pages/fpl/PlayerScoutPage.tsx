@@ -322,6 +322,18 @@ export default function PlayerScoutPage() {
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{p.minutes}</td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.points_per_million ?? '\u2014'}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums whitespace-nowrap">
+                          {/* Null means no notable pressure, which is not
+                              the same as zero -- so it reads as a dash
+                              rather than 0.0. */}
+                          {p.price_pressure == null ? (
+                            <span className="text-ink-500">&ndash;</span>
+                          ) : (
+                            <span className={p.price_direction === 'rise' ? 'text-pitch-800' : 'text-loss-700'}>
+                              {p.price_direction === 'rise' ? '\u2191' : '\u2193'} {p.price_pressure}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.goals_scored}</td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{p.assists}</td>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">{p.total_points}</td>

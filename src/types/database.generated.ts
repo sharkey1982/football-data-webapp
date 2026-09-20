@@ -6944,6 +6944,8 @@ export type Database = {
           minutes: number
           now_cost: number
           points_per_million: number
+          price_direction: string
+          price_pressure: number
           seasons_played: number
           selected_by_percent: number
           slug: string

@@ -135,6 +135,7 @@ export const SCOUT_SORT_COLUMNS = [
   { key: 'now_cost', label: 'Price' },
   { key: 'minutes', label: 'Mins' },
   { key: 'points_per_million', label: 'Per £m' },
+  { key: 'price_pressure', label: 'Pressure' },
   { key: 'goals_scored', label: 'Goals' },
   { key: 'assists', label: 'Assists' },
   { key: 'web_name', label: 'Player' },
@@ -222,6 +223,10 @@ export type ScoutListPlayer = {
   selected_by_percent: number | null;
   points_per_million: number | null;
   seasons_played: number;
+  /** Absolute transfer pressure from Bullpit. Null means nothing
+   * notable -- which is different from zero. */
+  price_pressure: number | null;
+  price_direction: 'rise' | 'fall' | null;
 };
 
 export type ScoutFilters = {
@@ -257,6 +262,8 @@ export async function listScoutPlayers(f: ScoutFilters = {}): Promise<ScoutListP
     now_cost: r.now_cost == null ? null : Number(r.now_cost),
     selected_by_percent: r.selected_by_percent == null ? null : Number(r.selected_by_percent),
     points_per_million: r.points_per_million == null ? null : Number(r.points_per_million),
+    price_pressure: r.price_pressure == null ? null : Number(r.price_pressure),
+    price_direction: (r.price_direction ?? null) as 'rise' | 'fall' | null,
   }));
 }
 
