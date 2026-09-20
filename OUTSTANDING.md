@@ -95,36 +95,37 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
-### Tactical Roles page — five refinements (GK noise already fixed)
+### Tactical Roles page — five refinements (GK noise already fixed) — DONE
 DONE: goalkeepers no longer appear in the worklist. It listed everyone
 whose role came from the positional fallback, which is a real gap for a
 defender or midfielder but the CORRECT answer for a keeper — the
 position IS the role. 410 rows became 362; 48 items of pure noise gone
 from a list whose whole value is showing what needs attention.
 
-STILL TO DO, in rough order of value:
+1. DONE — save confirmation. Per-row "\u2713 saved" tick (self-clears
+   after 4s) plus a page-level amber "Not live yet" banner counting
+   unapplied edits, linking to Team Strength Admin to run the refresh.
+   Was previously untested by hand only; now covered
+   (TacticalRolesAdminPage.test.tsx). Worth knowing for future tests
+   here: the tick only shows in "Everyone" scope, because saving flips
+   source_name to 'manual', which removes the row from the default
+   "Needs Review" list the instant it saves — hiding the very
+   confirmation you're trying to observe.
 
-1. CHANGES SAVE SILENTLY ON DROPDOWN CHANGE. There's no save button and
-   no confirmation, so it's impossible to tell whether an edit took.
-   Either add an explicit save, or keep auto-save and show a clear
-   per-row "saved" state. The second is less work and fewer clicks, but
-   ONLY if the feedback is unmistakable — silent success is
-   indistinguishable from silent failure, which is what it looks like
-   now.
+2. DONE (same commit as #1) — the "Not live yet" banner names the job
+   and links straight to it.
 
-2. EDITS NEED A JOB RUN TO TAKE EFFECT, and nothing says so. A changed
-   role doesn't reach projections until the relevant refresh runs. The
-   page should say which job, and link straight to the button that runs
-   it — pairing with the "one admin jobs page" item recorded elsewhere.
-   Without this, a correct edit looks like it did nothing.
+3. DONE — the by-team needs-review list is collapsible per team, plus a
+   page-level Collapse all / Expand all. Defaults to expanded (matching
+   prior behaviour, and so a row jumped to from the worklist is never
+   hidden behind a closed team).
 
-3. Collapsible "needs review" list — 362 rows is a lot to scroll past
-   to reach the editor.
+4. DONE, same feature as #3 — collapsing is per-team in that same list.
 
-4. Collapsible teams in the editor, same reason.
+5. DONE — "Worth reviewing first" worklist now has its own team filter
+   (separate from the by-team editor's existing team filter).
 
-5. Team-level filter on the needs-review flag, so the worklist can be
-   narrowed to the club being worked on rather than scanned whole.
+Shipped in commit 83d8bba. 209 -> 212 tests, tsc clean, build clean.
 
 ### Managers' Dugout — formation contribution matrix
 Wanted: positions down the first column, the top 3-4 formations across
@@ -146,12 +147,20 @@ Done: Admin menu hidden from non-admins, "Adjust Team Ratings" renamed
 "Team Strength Admin", footer Data Health link removed, Team Strength
 workflow buttons already moved behind the admin gate.
 
+SWEEP DONE: grepped every page (refresh/trigger/run job/rebuild/recompute,
+plus supabase.rpc/invoke calls) for backend-job-trigger buttons. The only
+three that exist anywhere in the app are in TeamStrengthPage.tsx (refresh
+FPL projections, re-run position sim, re-run bonus sim) — already
+admin-gated from the prior session. Nothing else needs moving.
+
 Still to do:
-  - sweep EVERY page for backend-job trigger buttons and move them into
-    the admin section. Team Strength was fixed; others have not been
-    checked one by one.
-  - consider a single "Run jobs" admin page rather than buttons scattered
-    across whichever page happens to relate
+  - consider a single "Run jobs" admin page rather than the three buttons
+    living inside TeamStrengthPage (which is otherwise a team-ratings
+    page, not a jobs page). This is a genuine new feature/refactor, not
+    a move — deliberately not started this session so it could be done
+    and verified properly rather than half-finished. If built, also
+    repoint the Tactical Roles "Not live yet" banner link from
+    /admin/team-ratings to the new page.
   - Source Data reported missing. The route and the nav entry both exist
     (/source-data, in the Admin menu) — most likely it was invisible
     because the Admin menu showed for everyone and is now gated, or the
