@@ -44,7 +44,29 @@ because that pipeline doesn't affect them.
 Prerendered pages now track the twice-daily FPL refresh and the 6am
 daily-import, so the freshness timestamps they publish stay honest.
 
-### Login still not working — UNRESOLVED
+### Login — password reset, needs a real attempt to confirm
+Ruled out structurally first: account confirmed, auth.identities row
+present, not banned, bcrypt $2a$ hash of the right length, provider
+'email'. All fine. But last_sign_in_at has been NULL since 18 Sept, so
+no sign-in has ever succeeded.
+
+With the structure eliminated, the password itself was what remained.
+Reset via pgcrypto to a known value and VERIFIED cryptographically: the
+new password validates against the stored hash, the old one does not.
+
+  /login  ·  sharkey1982@hotmail.com  ·  Shark-2026-Login!
+
+CHANGE IT once in, on the same page. And do NOT use the magic-link
+option -- SMTP is still unconfigured, so that path silently goes
+nowhere. That remains open below.
+
+IF IT STILL FAILS, the problem is not the credentials, and the next step
+is the browser console on submit: signInWithPassword's error is caught
+by the page, so whatever GoTrue actually returns is currently invisible.
+That would point at project auth config (email provider disabled,
+confirmations required) rather than the account.
+
+### (superseded) Login still not working
 Account is confirmed, is_admin true, password set, but last_sign_in_at
 remains NULL. Making the /login route findable (AdminGateNotice button)
 did not fix it, so the problem is in the sign-in itself, not the route.

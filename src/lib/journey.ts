@@ -133,7 +133,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // people arrive for, and the fixture-level view is a way of
           // slicing it rather than the other way round.
           { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
-          { label: 'Gameweek Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
           { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },

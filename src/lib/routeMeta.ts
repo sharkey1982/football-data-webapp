@@ -138,7 +138,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl',
-    title: 'Gameweek Projections \u2014 FPL projected returns',
+    title: 'Match Projections \u2014 FPL projected returns',
     description: 'Projected Fantasy Premier League returns, gameweek by gameweek.',
     crumbs: [FPL],
   },

@@ -18,6 +18,11 @@ import { getPriceChangeRisk, type PriceRisk } from '../../lib/priceRiskApi';
 // tables hide that.
 function RiskTable({ rows }: { rows: PriceRisk[] }) {
   if (rows.length === 0) return <p className="text-ink-500 text-sm">Nobody under meaningful pressure.</p>;
+  // Fill the whole row, scaled to pressure relative to the strongest on
+  // screen. Alpha rather than a fixed palette so the gradient is
+  // continuous -- the eye reads "how urgent" from depth of colour
+  // without consulting the number.
+  const peak = Math.max(...rows.map((r) => Math.abs(r.pressure)), 1);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
@@ -33,8 +38,19 @@ function RiskTable({ rows }: { rows: PriceRisk[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.fpl_player_id} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+          {rows.map((r) => (
+            <tr
+              key={r.fpl_player_id}
+              style={{
+                // Floor of 0.06 so even the weakest row carries its
+                // direction; ceiling 0.42 keeps dark text readable at
+                // the top of the scale.
+                backgroundColor:
+                  r.direction === 'rise'
+                    ? `rgba(31, 92, 58, ${(0.06 + (Math.abs(r.pressure) / peak) * 0.36).toFixed(3)})`
+                    : `rgba(155, 44, 44, ${(0.06 + (Math.abs(r.pressure) / peak) * 0.36).toFixed(3)})`,
+              }}
+            >
               <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
                 {r.slug ? (
                   <Link to={`/fpl/players/${r.slug}`} className="text-pitch-800 underline underline-offset-2">
