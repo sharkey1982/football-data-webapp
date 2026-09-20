@@ -22,6 +22,7 @@
 // ============================================================================
 
 import { AdminGateNotice } from '../../components/AdminGateNotice';
+import { useAuthOptional } from '../../lib/auth';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -60,7 +61,17 @@ type DisplayMode = 'table' | 'pitch';
 type ScopeMode = 'needs_review' | 'worth_reviewing' | 'everyone';
 type TableSort = 'position' | 'depth';
 
-export default function TacticalRolesAdminPage() {
+export default function TacticalRolesAdminPage({ adminMode = false }: { adminMode?: boolean } = {}) {
+  // Same two-route shape TeamStrengthPage already uses: one component,
+  // mounted publicly as "Starting Lineups" (/football/lineups, read-only,
+  // pitch-first -- the predicted XI is the thing a visitor came for) and
+  // again at /fpl/tactical-roles with adminMode for the editing pass.
+  // Editing requires BOTH the admin route and an admin session, so a
+  // signed-in admin on the public page still sees the public page --
+  // otherwise the two nav entries lead to visibly identical screens,
+  // which is exactly the confusion the Team Strength split fixed.
+  const signedInAdmin = useAuthOptional()?.isAdmin ?? false;
+  const isAdmin = adminMode && signedInAdmin;
   // Was a standalone "Worth reviewing first" panel (its own list of
   // names, separate from the Table/Pitch team views below). Replaced on
   // request with a third scope option -- "Worth Reviewing" -- that
@@ -95,8 +106,11 @@ export default function TacticalRolesAdminPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('table');
-  const [scopeMode, setScopeMode] = useState<ScopeMode>('needs_review');
+  // Public page opens on the pitch showing the full XI: the predicted
+  // lineup is what a visitor came for. The admin page opens on the table
+  // filtered to what still needs a role, which is the editing workflow.
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(adminMode ? 'table' : 'pitch');
+  const [scopeMode, setScopeMode] = useState<ScopeMode>(adminMode ? 'needs_review' : 'everyone');
   const [positionFilter, setPositionFilter] = useState<FplElementType | 'all'>('all');
   const [depthFilter, setDepthFilter] = useState<number | 'all'>('all');
   const [tableSort, setTableSort] = useState<TableSort>('position');
@@ -385,6 +399,20 @@ export default function TacticalRolesAdminPage() {
   }
 
   function RoleSelect({ row }: { row: TacticalRoleRow }) {
+    // Read-only rendering rather than a disabled select: a greyed-out
+    // dropdown on a public page implies "sign in and you could change
+    // this", which isn't true for a visitor and isn't what the page is
+    // for. Plain text says what the role IS, which is the public point.
+    if (!isAdmin) {
+      return (
+        <span
+          className={['text-xs font-mono', row.source_name === 'fpl_position_fallback' ? 'text-ink-400 italic' : 'text-ink-900'].join(' ')}
+          title={row.source_name === 'fpl_position_fallback' ? 'Position-based placeholder, not a confirmed role' : undefined}
+        >
+          {row.tactical_role}
+        </span>
+      );
+    }
     return (
       <select
         value={row.tactical_role}
@@ -405,6 +433,14 @@ export default function TacticalRolesAdminPage() {
   }
 
   function DepthRankSelect({ row }: { row: TacticalRoleRow }) {
+    if (!isAdmin) {
+      const n = row.depth_rank;
+      return (
+        <span className="text-xs font-mono text-ink-700">
+          {n === null ? '\u2014' : n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`}
+        </span>
+      );
+    }
     return (
       <select
         value={row.depth_rank ?? ''}
@@ -430,6 +466,21 @@ export default function TacticalRolesAdminPage() {
 
   function StatusBadge({ row }: { row: TacticalRoleRow }) {
     const label = row.status === 'i' ? 'INJ' : row.status === 'd' ? 'DBT' : row.status === 's' ? 'SUS' : row.status === 'a' ? 'OK' : '\u2014';
+    if (!isAdmin) {
+      return (
+        <span
+          title={row.news ?? undefined}
+          className={[
+            'text-[10px] font-mono font-semibold rounded px-1 py-0.5 border',
+            row.status && row.status !== 'a'
+              ? 'text-loss-700 bg-loss-600/10 border-loss-600/40'
+              : 'text-ink-400 border-transparent',
+          ].join(' ')}
+        >
+          {label}
+        </span>
+      );
+    }
     return (
       <select
         value={row.status_is_manual ? row.status ?? '' : ''}
@@ -457,7 +508,7 @@ export default function TacticalRolesAdminPage() {
 
   return (
     <div className="space-y-4">
-      <AdminGateNotice />
+      {adminMode && <AdminGateNotice />}
 
       {/* A saved role does NOT reach projections until the refresh runs.
           Without saying so, a correct edit looks identical to one that
@@ -477,10 +528,13 @@ export default function TacticalRolesAdminPage() {
         </div>
       )}
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Tactical Roles</h1>
+        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">
+          {adminMode ? 'Tactical Roles' : 'Starting Lineups'}
+        </h1>
         <p className="text-sm text-ink-500 mt-1">
-          Each player&rsquo;s default tactical role and starting pecking order &mdash; used whenever no specific predicted lineup
-          is available yet. Rows flagged &ldquo;generic&rdquo; only have a position-based placeholder, not a real role.
+          {adminMode
+            ? 'Each player\u2019s default tactical role and starting pecking order \u2014 used whenever no specific predicted lineup is available yet. Rows flagged \u201cgeneric\u201d only have a position-based placeholder, not a real role.'
+            : 'Who the model expects each club to start, and in which role \u2014 the lineup behind every player projection on the site. Shown by depth, so 2nd and 3rd choice are visible too, with injuries and suspensions already accounted for.'}
         </p>
       </div>
 
@@ -508,6 +562,10 @@ export default function TacticalRolesAdminPage() {
               </button>
             </div>
 
+            {/* "Needs Review"/"Worth Reviewing" describe the editorial
+                backlog, not the football. A visitor wants the lineup, so
+                the public page shows everyone and doesn't offer these. */}
+            {adminMode && (
             <div className="flex rounded-md border border-chalk-300 overflow-hidden">
               <button
                 type="button"
@@ -532,6 +590,7 @@ export default function TacticalRolesAdminPage() {
                 Everyone
               </button>
             </div>
+            )}
 
             {displayMode === 'pitch' && (
               <select
@@ -666,21 +725,26 @@ export default function TacticalRolesAdminPage() {
           {displayMode === 'pitch' && selectedTeamId !== null && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
-                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                  <span className="text-xs text-ink-500">
-                    {reviewDates.has(selectedTeamId)
-                      ? `Last reviewed ${new Date(reviewDates.get(selectedTeamId)!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                      : 'Not yet reviewed'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleMarkReviewed}
-                    disabled={markingReviewed}
-                    className="px-2.5 py-1 text-xs font-medium rounded-md border border-chalk-300 bg-white text-ink-700 hover:bg-chalk-100 disabled:opacity-50"
-                  >
-                    {markingReviewed ? 'Saving\u2026' : 'Mark reviewed'}
-                  </button>
-                </div>
+                {/* "Last reviewed" is an editorial-process fact, not a
+                    football one -- it tells an admin whether this club's
+                    pass has been done, and means nothing to a visitor. */}
+                {isAdmin && (
+                  <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                    <span className="text-xs text-ink-500">
+                      {reviewDates.has(selectedTeamId)
+                        ? `Last reviewed ${new Date(reviewDates.get(selectedTeamId)!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : 'Not yet reviewed'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleMarkReviewed}
+                      disabled={markingReviewed}
+                      className="px-2.5 py-1 text-xs font-medium rounded-md border border-chalk-300 bg-white text-ink-700 hover:bg-chalk-100 disabled:opacity-50"
+                    >
+                      {markingReviewed ? 'Saving\u2026' : 'Mark reviewed'}
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <h2 className="text-sm font-medium text-ink-700">
                     {teamFormation ? `Formation: ${teamFormation}` : 'Formation not available'}
@@ -800,19 +864,23 @@ export default function TacticalRolesAdminPage() {
                             <li key={r.set_piece_hierarchy_id} className="flex items-center gap-1 text-xs">
                               <span className="w-4 text-ink-500 font-mono">{r.rank}</span>
                               <span className="flex-1 truncate text-ink-900">{r.web_name}</span>
-                              <button type="button" disabled={i === 0} onClick={() => handleReorderSetPiece(r, type, 'up')} title="Move up" className="px-1 text-ink-500 hover:text-ink-900 disabled:opacity-20">
-                                &uarr;
-                              </button>
-                              <button type="button" disabled={i === list.length - 1} onClick={() => handleReorderSetPiece(r, type, 'down')} title="Move down" className="px-1 text-ink-500 hover:text-ink-900 disabled:opacity-20">
-                                &darr;
-                              </button>
-                              <button type="button" onClick={() => handleRemoveSetPiece(r)} title="Remove" className="px-1 text-loss-700 hover:text-loss-900">
-                                &times;
-                              </button>
+                              {isAdmin && (
+                                <>
+                                  <button type="button" disabled={i === 0} onClick={() => handleReorderSetPiece(r, type, 'up')} title="Move up" className="px-1 text-ink-500 hover:text-ink-900 disabled:opacity-20">
+                                    &uarr;
+                                  </button>
+                                  <button type="button" disabled={i === list.length - 1} onClick={() => handleReorderSetPiece(r, type, 'down')} title="Move down" className="px-1 text-ink-500 hover:text-ink-900 disabled:opacity-20">
+                                    &darr;
+                                  </button>
+                                  <button type="button" onClick={() => handleRemoveSetPiece(r)} title="Remove" className="px-1 text-loss-700 hover:text-loss-900">
+                                    &times;
+                                  </button>
+                                </>
+                              )}
                             </li>
                           ))}
                         </ul>
-                        {addingToType === type ? (
+                        {!isAdmin ? null : addingToType === type ? (
                           <div className="flex items-center gap-1 mt-1.5">
                             <select value={addPlayerId} onChange={(e) => setAddPlayerId(e.target.value)} className="flex-1 text-xs border border-chalk-300 rounded px-1 py-0.5">
                               <option value="">Select player&hellip;</option>
@@ -846,7 +914,9 @@ export default function TacticalRolesAdminPage() {
                   })}
                 </div>
                 <p className="text-xs text-ink-500 mt-2">
-                  Feeds the penalty/direct free-kick goal-share allocation directly. Changes need &ldquo;Refresh FPL projections&rdquo; (Team Strength page) run afterward to show up in points.
+                  {!isAdmin
+                    ? 'Penalty, free-kick and corner duty as the model currently has it \u2014 it feeds the goal-share allocation behind each player\u2019s projection.'
+                    : 'Feeds the penalty/direct free-kick goal-share allocation directly. Changes need \u201cRefresh FPL projections\u201d (Team Strength page) run afterward to show up in points.'}
                 </p>
               </div>
             </div>

@@ -113,6 +113,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/lineups',
+    title: 'Starting lineups \u2014 predicted XI by club',
+    description:
+      'The XI the model expects each club to start, by tactical role and depth, with injuries and suspensions accounted for.',
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/team-strength',
     title: 'Team strength ratings',
     description: "Every club's attack and defence rating as expected goals, with projected against actual points.",

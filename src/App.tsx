@@ -405,10 +405,18 @@ export default function App() {
             }
           />
           <Route
-            path="fpl/tactical-roles"
+            path="football/lineups"
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TacticalRolesAdminPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/tactical-roles"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TacticalRolesAdminPage adminMode />
               </Suspense>
             }
           />

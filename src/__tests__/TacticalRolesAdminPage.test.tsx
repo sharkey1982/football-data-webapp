@@ -7,6 +7,14 @@ import TacticalRolesAdminPage from '../pages/fpl/TacticalRolesAdminPage';
 import * as adminApi from '../lib/tacticalRoleAdminApi';
 import * as seasonApi from '../lib/fplSeasonApi';
 
+// These tests exercise the EDITING page, which needs both adminMode (the
+// route) and an admin session. Without the session the same component
+// renders its public read-only "Starting Lineups" view instead, where
+// none of the dropdowns below exist.
+vi.mock('../lib/auth', () => ({
+  useAuthOptional: () => ({ isAdmin: true, session: { user: { email: 'admin@example.com' } }, loading: false }),
+}));
+
 vi.mock('../lib/fplSeasonApi', async () => {
   const actual = await vi.importActual<typeof seasonApi>('../lib/fplSeasonApi');
   return { ...actual, getDefaultMatchweek: vi.fn() };
@@ -82,7 +90,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
     mockedApi.saveTacticalRoleCorrection.mockResolvedValue(undefined);
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
 
     await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
     // Ødegaard already has a real role assigned -- hidden under the
@@ -119,7 +127,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
     const user = userEvent.setup();
@@ -165,7 +173,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
     await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
     expect(screen.getByText('Wissa')).toBeInTheDocument();
 
@@ -188,7 +196,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     // Switch scope to "Everyone" so the manually-set Saliba row is visible.
@@ -209,7 +217,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
@@ -241,7 +249,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map([[1, 87.5], [2, 90]]));
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
@@ -285,7 +293,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.addSetPieceTaker.mockResolvedValue(undefined);
     mockedApi.removeSetPieceTaker.mockResolvedValue(undefined);
 
-    render(<TacticalRolesAdminPage />);
+    render(<TacticalRolesAdminPage adminMode />);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Everyone' }));
@@ -327,7 +335,7 @@ describe('TacticalRolesAdminPage', () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <TacticalRolesAdminPage />
+        <TacticalRolesAdminPage adminMode />
       </MemoryRouter>
     );
 
@@ -387,7 +395,7 @@ describe('TacticalRolesAdminPage', () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <TacticalRolesAdminPage />
+        <TacticalRolesAdminPage adminMode />
       </MemoryRouter>
     );
 
@@ -421,7 +429,7 @@ describe('TacticalRolesAdminPage', () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <TacticalRolesAdminPage />
+        <TacticalRolesAdminPage adminMode />
       </MemoryRouter>
     );
 
