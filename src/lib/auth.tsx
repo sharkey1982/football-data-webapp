@@ -83,11 +83,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!cancelled) setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    // Deliberately NOT an async callback that awaits supabase calls
+    // directly -- confirmed live as the cause of the app hanging forever
+    // on "Checking session..." after a token refresh (e.g. reopening the
+    // app after it's been idle). Supabase's own docs warn about this:
+    // onAuthStateChange fires while an internal session lock is held
+    // during the refresh, and calling the client again from inside the
+    // callback (resolveAdmin's rpc('is_admin')) tries to acquire that
+    // same lock and deadlocks -- getSession() at initial mount doesn't
+    // have this problem, only this listener does. Confirmed against the
+    // Supabase auth/rest logs: is_admin succeeded fine on initial load,
+    // then a later token refresh (200 OK) had no follow-up is_admin call
+    // at all -- it never even reached the server, meaning the client
+    // never got past the await. Fixed by deferring the supabase call to
+    // the next tick (setTimeout 0), exactly as Supabase's docs recommend.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       if (cancelled) return;
-      setSession(s);
-      await resolveAdmin(s);
-      setLoading(false);
+      setTimeout(() => {
+        if (cancelled) return;
+        setSession(s);
+        resolveAdmin(s).then(() => {
+          if (!cancelled) setLoading(false);
+        });
+      }, 0);
     });
 
     return () => {
