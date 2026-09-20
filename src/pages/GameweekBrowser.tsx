@@ -134,8 +134,11 @@ function FixtureScoreCell({
     // Derived from the same score grid as the scoreline, so the numbers
     // on a row cannot disagree with each other.
     const rho = rhoFor?.(f) ?? null;
-    const markets =
-      rho != null ? derivedMarkets(buildModelFromLambdas(f.predicted_home_goals, f.predicted_away_goals, rho)) : null;
+    // Build the grid ONCE and read both the 1X2 split and the derived
+    // markets off it, so the outcome percentages and the over/BTTS
+    // numbers on a row are guaranteed to come from the same model.
+    const model = rho != null ? buildModelFromLambdas(f.predicted_home_goals, f.predicted_away_goals, rho) : null;
+    const markets = model ? derivedMarkets(model) : null;
     return (
       <div
         className="flex flex-col items-center"
@@ -144,10 +147,20 @@ function FixtureScoreCell({
         <span className="text-ink-500 text-xs font-mono text-center italic">
           {f.predicted_home_goals.toFixed(1)}&ndash;{f.predicted_away_goals.toFixed(1)}
         </span>
-        {markets ? (
-          <span className="text-[9px] text-ink-400 font-mono mt-0.5 whitespace-nowrap">
-            O2.5 {Math.round(markets.overTwoFive)}% &middot; BTTS {Math.round(markets.bothScore)}%
-          </span>
+        {model && markets ? (
+          <>
+            {/* Win/draw/away is the question most people arrive with, so
+                it sits above the derived markets rather than being a
+                click away on Head to Heads. */}
+            <span className="text-[9px] font-mono mt-0.5 whitespace-nowrap">
+              <span className="text-pitch-800">{Math.round(model.homeWinPct)}%</span>
+              <span className="text-ink-400"> / {Math.round(model.drawPct)}% / </span>
+              <span className="text-pitch-800">{Math.round(model.awayWinPct)}%</span>
+            </span>
+            <span className="text-[9px] text-ink-400 font-mono whitespace-nowrap">
+              O2.5 {Math.round(markets.overTwoFive)}% &middot; BTTS {Math.round(markets.bothScore)}%
+            </span>
+          </>
         ) : (
           <span className="text-[8px] text-ink-400 uppercase tracking-wide mt-0.5">xG est.</span>
         )}
@@ -718,6 +731,15 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             <p className="text-sm text-ink-500 mt-1 max-w-prose">
               Predicted scorelines for fixtures still to be played, from the Dixon-Coles model. Matches already played
               show the real result instead &mdash; the same browser, looking forward.
+            </p>
+          )}
+          {isProjections && (
+            <p className="text-xs text-ink-500 mt-1 max-w-prose">
+              Under each scoreline: <strong>home / draw / away</strong> win chance, then over 2.5 goals and both teams to
+              score. All four come from the same score grid as the scoreline, so they can&rsquo;t disagree with it.{' '}
+              <Link to="/football/model-accuracy" className="text-pitch-800 underline underline-offset-2">
+                How accurate have these been?
+              </Link>
             </p>
           )}
           {lastRefresh && (

@@ -69,6 +69,15 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Trading Floor — filters do nothing, and rise/fall colours unclear
+Two separate problems on /fpl/price-risk:
+  1. The filter controls have no effect on the table. Either they're not
+     wired to the query/derived state at all, or they are and the
+     predicate is wrong -- needs checking, not guessing.
+  2. Rising and falling price risk aren't visually distinct enough. A
+     price rise and a price fall are opposite events and should not be
+     read from the number alone.
+
 ### Model accuracy — FIRST RESULTS, and they are not flattering
 get_model_accuracy(), get_model_accuracy_summary() and
 get_model_calibration() now score every fixture whose prediction was
