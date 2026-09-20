@@ -107,6 +107,37 @@ Mechanically straightforward: both are constraints on the same solve —
 forced-in players consume budget and a squad slot before optimisation,
 forced-out are filtered from the pool.
 
+### Optimiser — admin scenario runs, stored alongside the default
+Rather than exposing include/exclude to everyone, let the ADMIN run
+named scenarios ("without Haaland", "Salah forced in") and store each
+output next to the default optimiser result.
+
+This is the better first move for three reasons. It answers the
+end-user question by deferring it — no anonymous visitor triggers a
+solve. It makes scenarios comparable over time instead of vanishing
+when the page reloads. And a stored scenario is publishable: the
+interesting part isn't the optimiser, it's "here's what the model says
+if you refuse to own the most-owned player in the game".
+
+Needs: a table keyed on (season, gameweek range, scenario name) holding
+the forced-in/out sets and the resulting squad, plus an admin UI to
+define and run one. The solve itself already exists.
+
+### Optimiser — Chief Scout as a stored rival to the model
+The Chief Scout foundation already exists: fixtures carry
+raw_predicted_* (model prediction WITHOUT overrides) alongside the
+adjusted values, and get_scout_vs_model() scores both on played
+fixtures. It has never had anything to score because raw predictions
+only exist going forward.
+
+Extend the same idea to squads: a Chief Scout account whose picks are
+STORED as a rival to the optimiser, scored the same way. That gives the
+human-versus-model comparison a second front, and unlike match
+predictions it produces a weekly number people care about.
+
+Depends on the scenario storage above — a Chief Scout squad is the same
+shape as a stored scenario, just authored rather than solved.
+
 ### Optimiser — is it safe to make end-user facing?
 Open question Chris raised, and worth answering BEFORE building
 include/exclude, since that makes the page far more inviting to hammer.
