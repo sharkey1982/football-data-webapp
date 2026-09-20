@@ -1304,10 +1304,30 @@ rationale in the file is how the next person concludes it's fine.
     should be callable by nobody.
   - npm audit: 12 vulns (1 critical, 7 high, 4 moderate) reproduced
     today. react-router-dom ^7.18.0, vitest ^2.1.9 both behind.
-  - No supabase/ or migrations/ directory in the repo at all: ~335
-    production migrations and 5 Edge Functions exist with ZERO version
-    control. This is the biggest RELIABILITY gap (not security): there is
-    currently no way to rebuild this database from the repo.
+  - Change control: PARTLY FIXED 2026-09-20. supabase/ now exists with 4
+    of 5 Edge Function sources recovered byte-for-byte from the live
+    deployment, config.toml, and a README covering deploy/rollback and
+    the exact CLI commands for the rest. STILL MISSING, and both need
+    the CLI locally (supabase.com is outside the agent sandbox's allowed
+    egress): (a) fpl-optimize-squad source -- `supabase functions
+    download fpl-optimize-squad`; (b) the schema baseline itself --
+    `supabase db dump` for public AND private schemas, committed, then
+    `supabase migration repair --status applied`. Until (b) exists there
+    is still no way to rebuild this database from the repo.
+
+  - EDGE FUNCTION AUTH, newly confirmed from the recovered source: all 5
+    are verify_jwt=false and the four ingest/backfill ones use the
+    service-role key with NO auth of their own. Any anonymous caller can
+    make the server scrape third-party sites and write rows. Cost/abuse
+    rather than data integrity (idempotent upserts), but real.
+      * ingest-football-results is a STUB -- it inserts a junk
+        result_ingestion_runs row on every call and returns
+        {status:'test'}. Nothing calls it. DELETE it rather than secure
+        it; it is currently a public write endpoint doing nothing useful.
+      * the three real ones are machine-called, so they want a shared
+        webhook secret, not a JWT.
+      * fpl-optimize-squad is meant to be public: input limits, rate
+        limiting and caching, not auth.
 
 ### Judgement on sequencing
 Do the two live holes as their own small commits BEFORE any games or

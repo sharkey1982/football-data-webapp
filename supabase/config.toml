@@ -1,0 +1,16 @@
+# Minimal Supabase CLI config, enough to link and deploy functions.
+# Deliberately NOT a full local-dev config: this project has ~335
+# migrations that predate version control, so `supabase start` will not
+# reproduce production yet (see README.md in this directory).
+project_id = "ppzfmpbnojyjeblelsuz"
+
+[functions.ingest-football-results]
+verify_jwt = false
+[functions.ingest-cup-data]
+verify_jwt = false
+[functions.backfill-football-raw]
+verify_jwt = false
+[functions.backfill-cup-raw]
+verify_jwt = false
+[functions.fpl-optimize-squad]
+verify_jwt = false
