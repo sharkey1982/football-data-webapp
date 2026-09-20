@@ -95,6 +95,37 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### Tactical Roles page — five refinements (GK noise already fixed)
+DONE: goalkeepers no longer appear in the worklist. It listed everyone
+whose role came from the positional fallback, which is a real gap for a
+defender or midfielder but the CORRECT answer for a keeper — the
+position IS the role. 410 rows became 362; 48 items of pure noise gone
+from a list whose whole value is showing what needs attention.
+
+STILL TO DO, in rough order of value:
+
+1. CHANGES SAVE SILENTLY ON DROPDOWN CHANGE. There's no save button and
+   no confirmation, so it's impossible to tell whether an edit took.
+   Either add an explicit save, or keep auto-save and show a clear
+   per-row "saved" state. The second is less work and fewer clicks, but
+   ONLY if the feedback is unmistakable — silent success is
+   indistinguishable from silent failure, which is what it looks like
+   now.
+
+2. EDITS NEED A JOB RUN TO TAKE EFFECT, and nothing says so. A changed
+   role doesn't reach projections until the relevant refresh runs. The
+   page should say which job, and link straight to the button that runs
+   it — pairing with the "one admin jobs page" item recorded elsewhere.
+   Without this, a correct edit looks like it did nothing.
+
+3. Collapsible "needs review" list — 362 rows is a lot to scroll past
+   to reach the editor.
+
+4. Collapsible teams in the editor, same reason.
+
+5. Team-level filter on the needs-review flag, so the worklist can be
+   narrowed to the club being worked on rather than scanned whole.
+
 ### Managers' Dugout — formation contribution matrix
 Wanted: positions down the first column, the top 3-4 formations across
 as columns, and filterable cells showing goals / assists / goals+assists
