@@ -401,6 +401,41 @@ describe('TacticalRolesAdminPage', () => {
     expect(screen.getByText('Not live yet')).toBeInTheDocument();
   }, 10000);
 
+  it('the "Worth reviewing first" panel itself is collapsible', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 99, web_name: 'Gakpo', team_id: 2, team_name: 'Liverpool' }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 2, team_name: 'Liverpool' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTacticalRoleWorklist.mockResolvedValue([
+      {
+        team_id: 2, team_name: 'Liverpool', fpl_player_id: 99, web_name: 'Gakpo',
+        slug: 'gakpo', position_label: 'MID', assigned_role: null, confidence: null,
+        minutes: 400, ownership: 12.8, total_points: 29, priority: 'starter' as const,
+      },
+    ]);
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <TacticalRolesAdminPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('Worth reviewing first')).toBeInTheDocument());
+    const worklistSection = screen.getByText('Worth reviewing first').closest('section')!;
+    // Expanded by default.
+    expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument();
+
+    await user.click(within(worklistSection).getByRole('button', { name: /Worth reviewing first/ }));
+    await waitFor(() => expect(within(worklistSection).queryByText('Gakpo')).not.toBeInTheDocument());
+    // The row count stays visible in the collapsed header.
+    expect(within(worklistSection).getByText('(1)')).toBeInTheDocument();
+
+    await user.click(within(worklistSection).getByRole('button', { name: /Worth reviewing first/ }));
+    await waitFor(() => expect(within(worklistSection).getByText('Gakpo')).toBeInTheDocument());
+  });
+
   it('needs-review teams are collapsible, individually and all at once', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 1, web_name: 'Martinelli', team_id: 1, team_name: 'Arsenal' }),

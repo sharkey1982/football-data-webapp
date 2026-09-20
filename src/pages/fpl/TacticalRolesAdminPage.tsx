@@ -66,6 +66,11 @@ export default function TacticalRolesAdminPage() {
   // Narrows the "Worth reviewing first" worklist to one club -- separate
   // from reviewTeamFilter below, which scopes the by-team editor list.
   const [worklistTeamFilter, setWorklistTeamFilter] = useState<number | 'all'>('all');
+  // Whether the "Worth reviewing first" panel itself is expanded. Starts
+  // open (matching prior behaviour), collapsible because the unfiltered
+  // list can run to ~57 rows -- separate from collapsing individual
+  // teams further down in the by-team needs-review list.
+  const [worklistExpanded, setWorklistExpanded] = useState(true);
   // Which teams are COLLAPSED in the by-team "needs review" list. Starts
   // empty (everything expanded, matching prior behaviour) -- a team is
   // collapsed only once a person chooses to, or via "Collapse all". A
@@ -478,7 +483,16 @@ export default function TacticalRolesAdminPage() {
         return (
           <section className="border border-amber-500 rounded-lg bg-white p-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth reviewing first</h2>
+              <button
+                type="button"
+                onClick={() => setWorklistExpanded((v) => !v)}
+                aria-expanded={worklistExpanded}
+                className="flex items-center gap-1.5 hover:opacity-80"
+              >
+                <span className="text-ink-500 text-xs">{worklistExpanded ? '\u25be' : '\u25b8'}</span>
+                <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">Worth reviewing first</h2>
+                <span className="text-xs text-ink-500 font-mono">({needed.length})</span>
+              </button>
               <label className="flex items-center gap-1.5 text-xs text-ink-700">
                 Team
                 <select
@@ -504,6 +518,7 @@ export default function TacticalRolesAdminPage() {
                 `The other ${worklist.length - needed.length} have under 90 minutes all season, and a role assigned
               to someone who never plays changes no projection.`}
             </p>
+            {worklistExpanded && (
             <div className="overflow-x-auto mt-3">
               <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
                 <thead className="bg-chalk-200 text-ink-500">
@@ -555,9 +570,12 @@ export default function TacticalRolesAdminPage() {
                 </tbody>
               </table>
             </div>
+            )}
+            {worklistExpanded && (
             <p className="text-ink-500 text-xs mt-2 max-w-prose">
               Ordered by minutes, so the pass can stop at any point and whatever&rsquo;s left is the least consequential.
             </p>
+            )}
           </section>
         );
       })()}
