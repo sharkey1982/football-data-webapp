@@ -98,6 +98,7 @@ GAME=/path/to/copy.html node games/beat-the-shark/test/checks.cjs
 |---|---|
 | Event text, headlines, press conferences, calls | `content.js` |
 | How strong clubs are, what formations do, how hard consequences land | `config.js` |
+| The squad's sixteen players and the transfer market's player types | `engine.js` (`ARCHETYPES`), `content.js` (`TARGET_TYPES`) |
 | Match simulation, scoring, the league | `engine.js` |
 | What happens on matchday | `matchday.js` |
 | Screens, the order of the season, the ending | `ui.js` |
