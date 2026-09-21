@@ -96,7 +96,7 @@ async function main() {
     return;
   }
 
-  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument } = await import(ENTRY);
+  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument, projectionDetail, PROJECTION_DETAIL_COLUMNS } = await import(ENTRY);
   const shell = readFileSync(SHELL, 'utf8');
 
   // ---- Static routes: correct head tags per page --------------------
@@ -317,7 +317,7 @@ async function main() {
     `fpl_players?select=fpl_player_id,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
   );
   const projections = await queryAll(
-    `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
+    `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version,${PROJECTION_DETAIL_COLUMNS}&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
   );
   const actuals = await queryAll(
     `fpl_player_gameweeks?select=fpl_fixture_id,fpl_player_id,total_points&season_id=eq.${SEASON_ID}`
@@ -371,6 +371,7 @@ async function main() {
           actual_points: actual ?? null,
           generated_at: proj?.generated_at ?? null,
           model_version: proj?.model_version ?? null,
+          ...projectionDetail(proj),
         };
       });
 

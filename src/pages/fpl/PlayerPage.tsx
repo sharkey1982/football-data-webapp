@@ -29,6 +29,8 @@ import {
 } from '../../lib/fplPlayerPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import PlayerCareerRecord from '../../components/fpl/PlayerCareerRecord';
+import PlayerSummaryPanel from '../../components/fpl/PlayerSummaryPanel';
+import PlayerPointsBreakdown from '../../components/fpl/PlayerPointsBreakdown';
 import { getPlayerCareer, type PlayerSeason } from '../../lib/playerScoutApi';
 
 function formatTimestamp(iso: string): string {
@@ -163,6 +165,8 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
         )}
       </header>
 
+      <PlayerSummaryPanel profile={profile} season={season} />
+
       {upcoming.length > 0 && (
         <section>
           <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Projected points</h2>
@@ -172,6 +176,8 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
           </p>
         </section>
       )}
+
+      <PlayerPointsBreakdown season={season} />
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Gameweek by gameweek</h2>
