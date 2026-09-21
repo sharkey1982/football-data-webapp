@@ -405,7 +405,7 @@ export default function App() {
             }
           />
           <Route
-            path="football/lineups"
+            path="fpl/line-ups"
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TacticalRolesAdminPage />

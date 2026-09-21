@@ -1,52 +1,39 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Landing from '../pages/Landing';
-import * as landingApi from '../lib/landingApi';
-
-vi.mock('../lib/landingApi', async () => {
-  const actual = await vi.importActual<typeof landingApi>('../lib/landingApi');
-  return { ...actual, getLandingTrivia: vi.fn() };
-});
-
-const mockedApi = landingApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('Landing page', () => {
-  it('asks what the visitor is here to do, and offers Football and Fantasy Premier League as the two themes', async () => {
-    mockedApi.getLandingTrivia.mockResolvedValue([
-      {
-        question: 'Which scoreline shows up more than any other in Premier League history?',
-        options: ['1\u20131', '1\u20130', '2\u20131'],
-        correctIndex: 0,
-        explanation: '1\u20131 \u2014 10.8% of every match in the archive, just ahead of 1\u20130 at 8.9%.',
-      },
-    ]);
-
+  it('offers Football and Fantasy Premier League as the two themes', () => {
     render(
       <MemoryRouter>
         <Landing />
       </MemoryRouter>
     );
-
     expect(screen.getByText('Pick your side.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Football/ })).toHaveAttribute('href', '/football');
     expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
-
-    await waitFor(() => expect(screen.getByText(/shows up more than any other in Premier League history/)).toBeInTheDocument());
   });
 
-  it('shows no trivia section at all if the trivia fetch fails or returns nothing -- the two theme buttons are the only thing that must always work', async () => {
-    mockedApi.getLandingTrivia.mockResolvedValue([]);
-
+  it('links to Beat the Shark at its proxied address, with the trailing slash', () => {
     render(
       <MemoryRouter>
         <Landing />
       </MemoryRouter>
     );
+    // The exact href matters: the game lives on its own site behind a
+    // proxy, and without the trailing slash its scripts resolve to the
+    // wrong folder.
+    expect(screen.getByRole('link', { name: /Beat the Shark/ })).toHaveAttribute('href', '/play/beat-the-shark/');
+  });
 
-    await waitFor(() => expect(mockedApi.getLandingTrivia).toHaveBeenCalled());
+  it('no longer shows the trivia game, which now lives on the Football and Fantasy hubs', () => {
+    render(
+      <MemoryRouter>
+        <Landing />
+      </MemoryRouter>
+    );
     expect(screen.queryByText('Guess it')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Football/ })).toBeInTheDocument();
   });
 });

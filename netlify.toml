@@ -86,6 +86,17 @@
     Cache-Control = "public, max-age=31536000, immutable"
 
 # ----------------------------------------------------------------------------
+# Starting Lineups moved from Football to Fantasy (/fpl/line-ups). The old
+# address has no pre-built page any more, so without this any existing link
+# or search result would 404. Different paths, so no trailing-slash loop.
+# ----------------------------------------------------------------------------
+[[redirects]]
+  from = "/football/lineups"
+  to = "/fpl/line-ups"
+  status = 301
+  force = true
+
+# ----------------------------------------------------------------------------
 # /play/beat-the-shark/ -> the separately deployed game.
 #
 # Status 200 makes this a PROXY rather than a redirect: the visitor stays on

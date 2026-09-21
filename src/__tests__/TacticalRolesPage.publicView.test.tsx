@@ -2,7 +2,7 @@
 // src/__tests__/TacticalRolesPage.publicView.test.tsx
 //
 // The PUBLIC half of TacticalRolesAdminPage: mounted without adminMode at
-// /football/lineups as "Starting Lineups".
+// /fpl/line-ups as "Starting Lineups".
 //
 // Separate file rather than more cases in the admin test, because the two
 // need opposite auth mocks and vi.mock is per-module, not per-test. Same

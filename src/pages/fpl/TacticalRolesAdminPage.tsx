@@ -66,7 +66,7 @@ type TableSort = 'position' | 'depth';
 
 export default function TacticalRolesAdminPage({ adminMode = false }: { adminMode?: boolean } = {}) {
   // Same two-route shape TeamStrengthPage already uses: one component,
-  // mounted publicly as "Starting Lineups" (/football/lineups, read-only,
+  // mounted publicly as "Starting Lineups" (/fpl/line-ups, read-only,
   // pitch-first -- the predicted XI is the thing a visitor came for) and
   // again at /fpl/tactical-roles with adminMode for the editing pass.
   // Editing requires BOTH the admin route and an admin session, so a

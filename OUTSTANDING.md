@@ -94,7 +94,27 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
-### Predicted Line-ups — needs a REAL public page, not a link to the admin one
+### Predicted Line-ups — DONE: the public page already existed, now moved to Fantasy
+Resolved 2026-09-21 by relocating an EXISTING page, not building a new one.
+
+The spec below describes a page that had already been built: the public,
+read-only "Starting Lineups" view at /football/lineups (commit ef12af1).
+It is the Tactical Roles component mounted WITHOUT adminMode, and it meets
+the spec point for point -- club selector and pitch; formation stated, not
+editable; depth switchable for 1st/2nd choice; set-piece duty; the "role
+not yet confirmed" marker; and no review filters, no mark-reviewed, no
+editing (all pinned by TacticalRolesPage.publicView.test.tsx).
+
+Now:
+  - lives at /fpl/line-ups, under Fantasy > Predict beside the projections
+  - /football/lineups 301-redirects there (netlify.toml)
+  - the admin Tactical Roles page is unchanged and stays in Admin
+
+DO NOT build a second public line-ups page. Extend this one if the spec
+below asks for anything it lacks.
+
+#### Original spec (kept for reference)
+
 Attempted by adding the admin Tactical Roles page to Fantasy > Predict.
 That was wrong and has been reverted: it duplicated the page rather than
 moving it, and exposed review filters, "mark reviewed" and formation

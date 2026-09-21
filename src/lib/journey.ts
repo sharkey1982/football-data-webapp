@@ -87,7 +87,6 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Results Projections', to: '/football/projections', blurb: 'Predicted scorelines for every upcoming fixture.' },
           { label: 'Head to Heads', to: '/preview', blurb: 'Pick any two teams for a full head-to-head and prediction.' },
-          { label: 'Starting Lineups', to: '/football/lineups', blurb: 'The XI the model expects each club to start, by role and depth.' },
           { label: 'Model Accuracy', to: '/football/model-accuracy', blurb: 'How the predictions have actually performed \u2014 calibration, hit rate and the baselines.' },
           { label: 'Team Strength', to: '/team-strength', blurb: 'Every club\u2019s attack and defence rating, with projected against actual.' },
         ],
@@ -135,6 +134,11 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // slicing it rather than the other way round.
           { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          // Line-ups sit with the projections because they ARE an input to
+          // them: who starts, in what role, decides the minutes each
+          // projection assumes. This is the read-only public page -- the
+          // admin editing page (Tactical Roles) stays in Admin.
+          { label: 'Starting Lineups', to: '/fpl/line-ups', blurb: 'The XI the model expects each club to start, by role and depth.' },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
           { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
