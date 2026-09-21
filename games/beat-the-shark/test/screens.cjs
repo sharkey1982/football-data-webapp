@@ -259,7 +259,8 @@ run(`LEVEL="intermediate"`);
 // 20. THE NEW OPENING SEQUENCE (Chris): mission; the league on zero; your
 // team's key numbers; the opening match v the weakest club with them-v-you.
 run(`SEED="SOC-S07";LEVEL="beginner";chooseRole()`);
-ok("opening: 'Your mission: Win the league!', and Manager / Owner side by side", /Your mission:<br>Win the league!/.test(app())&&/grid-template-columns:1fr 1fr/.test(app())&&/data-r="manager"/.test(app())&&/data-r="owner"/.test(app()));
+ok("opening: 'Your mission: Win the league!', and Manager / Owner side by side", /Your mission:<br>Win the league!/.test(app())&&/grid-template-columns:1fr 1fr/.test(app())&&/data-r="manager"/.test(app()));
+ok("the Owner is greyed out for now: shown, 'Coming soon', not selectable", /The Owner/.test(app())&&!/data-r="owner"/.test(app())&&(app().match(/Coming soon/g)||[]).length===3);
 run(`ROLE=ROLES.manager;boot()`);
 ok("then the league, every club on zero, and Begin", /THE LEAGUE/.test(app())&&/class="tbl"/.test(app())&&!/<td class="n">[1-9]\d*<\/td><\/tr>/.test(app())&&/>Begin</.test(app()));
 els.go.onclick();
@@ -331,7 +332,7 @@ ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n
 // 23. THE BEGINNER SEASON (agreed 2026-09-21)
 run(`SEED="BG-1";chooseRole()`);
 ok("levels: Beginner only for now -- Intermediate and Advanced marked 'Coming soon' and not selectable",
-  /data-level="beginner"/.test(app())&&!/data-level="intermediate"/.test(app())&&!/data-level="guru"/.test(app())&&(app().match(/Coming soon/g)||[]).length===2);
+  /data-level="beginner"/.test(app())&&!/data-level="intermediate"/.test(app())&&!/data-level="guru"/.test(app())&&(app().match(/Coming soon/g)||[]).length===3); // + the owner
 run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();
 ok("neutral venues: no home or away anywhere, and no home advantage in the model",
   !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
