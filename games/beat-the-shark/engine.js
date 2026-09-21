@@ -81,6 +81,13 @@ let FIXTURES=[],TABLE={},PREDICT={};
 function buildFixtures(){
   const teams=[CLUB].concat(RIVALS.map(r=>r.n)),n=teams.length,rounds=[],arr=teams.slice();
   for(let r=0;r<n-1;r++){const wk=[];for(let i=0;i<n/2;i++)wk.push([arr[i],arr[n-1-i]]);rounds.push(wk);arr.splice(1,0,arr.pop())}
+  /* The OPENING MATCH is against the weakest club (Chris): move the round
+     holding that fixture -- at home if the first half has it at home -- to
+     Gameweek 1. Moving whole rounds keeps the schedule valid. */
+  const weakest=RIVALS.slice().sort((a,b)=>a.str-b.str)[0].n;
+  const holds=(wk,home)=>wk.some(([h,a])=>home?h===CLUB&&a===weakest:a===CLUB&&h===weakest);
+  let r=rounds.findIndex(wk=>holds(wk,true));if(r<0)r=rounds.findIndex(wk=>holds(wk,false));
+  if(r>0)[rounds[0],rounds[r]]=[rounds[r],rounds[0]];
   FIXTURES=rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
 }
 /* A rival's strength can move mid-season through luck events (an injury to

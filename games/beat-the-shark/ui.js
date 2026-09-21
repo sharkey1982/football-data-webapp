@@ -33,9 +33,11 @@ function showPending(){
    fixture heat map, the first team sheet). Derived afresh each season from
    the untouched base order, so switching level can't leave it scrambled. */
 const PLAN_BASE=PLAN.slice();
-function planFor(level){
+function planFor(level,role){
   const p=PLAN_BASE.slice();
-  if(level==="beginner"){const i=p.indexOf("presser");if(i>0){p.splice(i,1);p.unshift("presser")}}
+  // The manager's season starts with the opening match (Chris); everything
+  // else keeps its order after it.
+  if(role==="manager"){const i=p.indexOf("match");if(i>0){p.splice(i,1);p.unshift("match")}}
   return p;
 }
 function step(){
@@ -45,7 +47,7 @@ function step(){
   if(b==="end")return renderEnding();
   if(b==="special1"){
     if(ROLE.id==="owner")return renderWindow("summer",next);
-    if(ROLE.id==="manager")return renderSpec(preseasonSpec(),"JULY · PRE-SEASON",next);
+    if(ROLE.id==="manager")return renderSpec(preseasonSpec(),"A BID ARRIVES",next);
     return renderSpec(playerSummerSpec(),"JULY · YOUR SUMMER",next);
   }
   if(b==="special2"){
@@ -226,9 +228,9 @@ function renderHeatmap(){
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">PRE-SEASON · FIXTURE HEAT MAP</div>
-    <h1>Your first five fixtures</h1>
+    <h1>Your next five fixtures</h1>
     <p class="lede">Green is good for you. <b>H</b> means at home, where sides score about 19% more.</p>
-    ${fixtureHeatHTML(0,5)}
+    ${fixtureHeatHTML(S.mw,5)}
     ${why(`<div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage is real, and measurable</b>
       FixtureShark's real model finds that home sides score about <b>19% more goals</b> (a home-advantage parameter of 0.175
       in its latest fit). This game uses the same number. Over your season it is worth about
@@ -547,48 +549,71 @@ function chooseRole(){
   document.getElementById('hTwo').innerHTML="";document.getElementById('hTrend').textContent="";
   document.getElementById('hSeason').innerHTML="";
   const sel='border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)';
-  document.getElementById('app').innerHTML=`<div class="card">
-    <h1>Beat the Shark</h1>
-    <p class="lede">Win the league. The Shark predicts 3rd.</p>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:12px 0">
+  document.getElementById('app').innerHTML=`<div class="card hero">
+    <div class="hero-kicker">BEAT THE SHARK</div>
+    <div class="mission">Your mission:<br>Win the league!</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:16px 0 8px">
       ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" aria-pressed="${k===LEVEL}"
         style="margin:0;padding:9px 6px;text-align:center;${k===LEVEL?sel:''}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`).join('')}
     </div>
-    ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="choice" data-r="${r.id}">
-      <span class="t">${r.name}</span><span class="d">${r.tag}</span></button>`).join('')}</div>`;
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
+      ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="choice primary" data-r="${r.id}" style="margin:0;height:100%">
+        <span class="t">${r.name}</span><span class="d">${r.tag}</span></button>`).join('')}
+    </div></div>`;
   document.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>{LEVEL=b.dataset.level;chooseRole()});
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ROLE=ROLES[b.dataset.r];boot()});
+}
+/* THE OPENING SEQUENCE (Chris): the league, all on zero; your team's key
+   numbers; then straight into the opening match against the weakest club. */
+function renderLeagueIntro(){
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card hero">
+    <div class="hero-kicker">THE LEAGUE</div>
+    <div class="mission">Six clubs. Ten games.<br>One title.</div>
+    <div style="margin:14px 0;text-align:left">${tableRowsHTML(null)}</div>
+    <button class="choice primary" id="go"><span class="t">Begin</span></button></div>`;
+  document.getElementById('go').onclick=renderTeamIntro;
+}
+/* Rank of Your Team among all six clubs on a measure (1 = best). */
+function clubRank(valueOf,higherIsBetter){
+  const clubs=[CLUB].concat(RIVALS.map(r=>r.n));
+  const v=clubs.map(n=>({n,v:valueOf(n)})).sort((a,b)=>higherIsBetter?b.v-a.v:a.v-b.v);
+  return v.findIndex(x=>x.n===CLUB)+1;
+}
+function renderTeamIntro(){
+  const R=ratingsNow(0),mine=R[CLUB],cs=n=>Math.exp(-R[n].xga);
+  const quality=n=>n===CLUB?S.squad:RIVALS.find(r=>r.n===n).str;
+  const health=Math.round(xiStats().fit);
+  const[h,a]=myFixture(0),opp=h===CLUB?a:h;
+  const small=(label,big,sub)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div></div>`;
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card hero">
+    <div class="hero-kicker">YOUR TEAM</div>
+    <div class="bigstats">
+      <div><div class="bigstat">${ord(sharkPos())}</div><div class="biglabel">Expected finish</div></div>
+      <div><div class="bigstat${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div><div class="biglabel">In the bank</div></div>
+    </div>
+    <div class="kpis" style="text-align:left">
+      ${small("Goals for",ord(clubRank(n=>R[n].xgf,true)),`${mine.xgf.toFixed(1)} a game`)}
+      ${small("Clean sheets",ord(clubRank(cs,true)),`${Math.round(cs(CLUB)*100)}% of games`)}
+      ${small("Team health",`${health}%`,health>=85?"fit and ready":health>=70?"a few knocks":"struggling")}
+      ${small("Squad quality",ord(clubRank(quality,true)),"of six")}
+    </div>
+    <button class="choice primary" id="go"><span class="t">First match: ${opp}</span><span class="d">${h===CLUB?"At home":"Away"}</span></button></div>`;
+  document.getElementById('go').onclick=()=>{cursor=0;step()};
 }
 function boot(){
   pickRivals();
   R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
   S=newState();cursor=0;pendingReveal=null;
-  PLAN.splice(0,PLAN.length,...planFor(LEVEL));
+  PLAN.splice(0,PLAN.length,...planFor(LEVEL,ROLE.id));
   // The squad's strength must be worked out BEFORE the Shark predicts: the
   // other way round, the prediction used the wrong squad and said 1st.
   buildFixtures();TABLE=blankTable();recalcSquadRating();PREDICT=monteCarlo();
   myPos();
   S.proj0=projectionNow();S.kpi=[];kpiRecord();
   paintHeader();
-  const pr=S.proj0[CLUB];
-  document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">${ROLE.name.toUpperCase()} · ${CLUB} · JULY</div>
-    <h1>Win the league</h1>
-    <p class="lede">The Shark predicts ${ord(sharkPos())}.</p>
-    ${(()=>{
-      // Get to the first decision fast: the mission and the target, then Begin.
-      // The rest is one tap away -- visible by default only for the Data guru.
-      const detail=`<div class="shark"><div><b>The model's projection, as the squad stands</b>
-      Before any decisions: <b>${ord(Math.round(pr.avg))}</b>, relegated in <b>${pr.rel}%</b> of simulated seasons, about
-      ${pr.pts.toFixed(1)} points. The gap between that and the target is what good decisions are worth.</div></div>
-      ${kpiHTML()}
-      <h2>Your squad</h2>${squadHTML()}
-      <h2>The model's projection</h2>${predictedTableHTML()}`;
-      return LEVELS[LEVEL].guru?detail:why(detail,"Your squad and the model's projection");
-    })()}
-    <button class="choice primary" id="go" style="margin-top:11px"><span class="t">Begin</span>
-      <span class="d">${ROLE.id==="owner"?"The summer window is open":ROLE.id==="manager"?"Pre-season starts Monday":"Six weeks of summer"}</span></button></div>`;
-  document.getElementById('go').onclick=()=>{cursor=0;step()};
+  renderLeagueIntro();
 }
 document.getElementById('foot').innerHTML="FixtureShark · Beat the Shark · fictional clubs, players, papers and pundits";
 chooseRole();
