@@ -1,12 +1,13 @@
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { act } from '@testing-library/react';
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FinanceComparePage from '../pages/FinanceComparePage';
 import { groupFinanceByTeam, normalisePeriod } from '../lib/financeApi';
 import {
-  buildComparison, debtTakeaway, growthTakeaway, resultTakeaway, smallClubIds, wageRatio, wageTakeaway,
+  buildComparison, debtTakeaway, financialYears, forYear, growthTakeaway, raceFrame, raceMax, resultTakeaway, smallClubIds, wageRatio, wageTakeaway,
 } from '../lib/financeCompare';
 
 afterEach(cleanup);
@@ -111,5 +112,63 @@ describe('the comparison page', () => {
   it('renders no broken text anywhere -- including accessibility labels', () => {
     const html = renderToString(<MemoryRouter><FinanceComparePage initialData={clubs()} /></MemoryRouter>);
     for (const bad of [/undefined/, /NaN/, /\[object/, /\bnull\b/, /Infinity/]) expect(html).not.toMatch(bad);
+  });
+});
+
+describe('by year', () => {
+  it('lists financial years newest first, and picks each club\u2019s period for a year', () => {
+    const cs = clubs();
+    expect(financialYears(cs)).toEqual(['2025', '2020', '2019']);
+    const { view, missing } = forYear(cs, '2020');
+    expect(view.map((c) => c.team.display_name)).toEqual(['Liverpool', 'Manchester City', 'Everton', 'Aston Villa']);
+    expect(missing).toEqual(['Southend']);
+  });
+
+  it('the year filter drives the charts and table, and names clubs with no accounts that year', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Include smaller clubs/ }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Year' }), { target: { value: '2020' } });
+    expect(screen.getByText('No FY2020 accounts on file: Southend.')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: /Latest filed figures/ });
+    expect(within(table).getAllByText(/FY2020/).length).toBe(4);
+    expect(within(table).queryByText(/FY2025/)).toBeNull();
+  });
+});
+
+describe('the year-by-year timelapse', () => {
+  it('ranks clubs within a year on a scale fixed across all years', () => {
+    const cs = clubs().filter((c) => c.team.team_id !== 5);
+    expect(raceFrame(cs, 'revenue_total', '2020').map((r) => r.club.team.display_name)).toEqual(['Liverpool', 'Manchester City', 'Everton', 'Aston Villa']);
+    expect(raceFrame(cs, 'revenue_total', '2025').map((r) => r.club.team.display_name)).toEqual(['Liverpool', 'Manchester City', 'Aston Villa', 'Everton']);
+    expect(raceMax(cs, 'revenue_total')).toBe(702.7 * M);
+  });
+
+  it('leaves undisclosed values out of a frame rather than showing zero', () => {
+    const cs = clubs();
+    expect(raceFrame(cs, 'borrowings', '2025').map((r) => r.club.team.display_name)).not.toContain('Manchester City');
+  });
+
+  it('plays through the years: Aston Villa overtake Everton', () => {
+    vi.useFakeTimers();
+    renderPage();
+    const race = () => screen.getByRole('list', { name: /Revenue by club, FY/ });
+    // With Southend hidden the years are FY2020 and FY2025; the slider's first stop is FY2020.
+    fireEvent.change(screen.getByRole('slider', { name: 'Year' }), { target: { value: '0' } });
+    expect(race()).toHaveAccessibleName('Revenue by club, FY2020');
+    const top = (name: string) => Number((within(race()).getByText(name).closest('[role="listitem"]') as HTMLElement).style.top.replace('px', ''));
+    expect(top('Everton')).toBeLessThan(top('Aston Villa'));
+    fireEvent.click(screen.getByRole('button', { name: /^Play/ }));
+    act(() => { vi.advanceTimersByTime(1400); });
+    expect(race()).toHaveAccessibleName('Revenue by club, FY2025');
+    expect(top('Aston Villa')).toBeLessThan(top('Everton'));
+    vi.useRealTimers();
+  });
+
+  it('switches measure, and respects reduced motion', () => {
+    renderPage();
+    // (the table also has a "Wages" column button; the timelapse's has aria-pressed)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Wages' }).find((b) => b.hasAttribute('aria-pressed'))!);
+    const race = screen.getByRole('list', { name: /Wages by club, FY2025/ });
+    expect((race.querySelector('[role="listitem"]') as HTMLElement).className).toMatch(/motion-reduce:transition-none/);
   });
 });

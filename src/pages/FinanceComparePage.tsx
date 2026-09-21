@@ -12,18 +12,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import BarRace from '../components/finance/BarRace';
 import { getAllClubFinance } from '../lib/financeApi';
 import { fyLabel, formatMoneyShort } from '../lib/financeFormat';
 import {
-  buildComparison, debtTakeaway, growthTakeaway, money, resultTakeaway, revenueGrowth, smallClubIds, wageRatio, wageTakeaway,
+  buildComparison, debtTakeaway, financialYears, forYear, growthTakeaway, money, resultTakeaway, smallClubIds, wageRatio, wageTakeaway,
   type ComparisonClub,
 } from '../lib/financeCompare';
 
 const nd = <span className="text-ink-500">n/d</span>;
 const m = (v: number | null) => (v == null ? nd : formatMoneyShort(v));
 const pct = (v: number | null) => (v == null ? nd : `${Math.round(v * 100)}%`);
-/** Plain text for labels (never an element): "n/d" when not disclosed. */
-const mText = (v: number | null) => (v == null ? 'n/d' : formatMoneyShort(v));
 
 function Section({ title, takeaway, children }: { title: string; takeaway: string | null; children: React.ReactNode }) {
   return (
@@ -52,6 +51,7 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
   const [error, setError] = useState(false);
   const [includeSmall, setIncludeSmall] = useState(false);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: 'revenue', dir: -1 });
+  const [year, setYear] = useState('latest');
 
   useEffect(() => {
     if (initialData) return;
@@ -69,7 +69,10 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
   });
 
   const small = useMemo(() => smallClubIds(all ?? []), [all]);
-  const clubs = useMemo(() => (all ?? []).filter((c) => includeSmall || !small.has(c.team.team_id)), [all, includeSmall, small]);
+  // base: every club in view (smaller clubs on request); clubs: each one's
+  // period for the chosen year -- every chart, takeaway and the table follow it.
+  const base = useMemo(() => (all ?? []).filter((c) => includeSmall || !small.has(c.team.team_id)), [all, includeSmall, small]);
+  const { view: clubs, missing } = useMemo(() => forYear(base, year), [base, year]);
 
   if (error) return <p className="text-ink-700">The accounts could not be loaded just now. Please try again shortly.</p>;
   if (!all) return <p className="text-ink-500">Loading accounts&hellip;</p>;
@@ -104,7 +107,14 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
     <div className="space-y-5">
       <header className="space-y-2">
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">Club finances compared</h1>
-        <p className="text-sm text-ink-700">Latest filed year for each club. Click a club for its full accounts.</p>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          Year
+          <select value={year} onChange={(e) => setYear(e.target.value)} className="border border-ink-500/30 rounded px-2 py-1 text-sm">
+            <option value="latest">Latest</option>
+            {financialYears(all).map((y) => <option key={y} value={y}>FY{y}</option>)}
+          </select>
+        </label>
+        {missing.length > 0 && <p className="text-xs text-ink-500">No FY{year} accounts on file: {missing.join(', ')}.</p>}
         {small.size > 0 && (
           <label className="flex items-center gap-2 text-sm text-ink-700">
             <input type="checkbox" checked={includeSmall} onChange={(e) => setIncludeSmall(e.target.checked)} />
@@ -176,31 +186,8 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
         <p className="text-xs text-ink-500"><span className="text-loss-600">■</span> borrowings &nbsp;<span className="text-pitch-700">■</span> cash</p>
       </Section>
 
-      <Section title="Revenue over time" takeaway={growthTakeaway(clubs)}>
-        <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3" aria-label="Revenue by year for each club">
-          {clubs.map((c) => {
-            const pts = c.periods.map((p) => money(p, 'revenue_total'));
-            const vals = pts.filter((v): v is number => v != null), mx = Math.max(...vals, 1);
-            const g = revenueGrowth(c);
-            const path = pts.map((v, i) => (v == null ? null : `${(i / Math.max(1, pts.length - 1)) * 100},${30 - (v / mx) * 28}`)).filter(Boolean).join(' ');
-            return (
-              <li key={c.team.team_id} className="rounded border border-ink-500/15 p-2">
-                <Link to={`/football/teams/${c.team.slug}/finances`} className="text-sm text-ink-900 hover:text-pitch-800">{c.team.display_name}</Link>
-                <svg viewBox="0 0 100 32" className="w-full h-8" role="img" aria-label={`${c.team.display_name} revenue: ${c.periods.map((p) => `${fyLabel(p.period_end)} ${mText(money(p, 'revenue_total'))}`).join(', ')}`}>
-                  <polyline points={path} fill="none" className="stroke-pitch-700" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                </svg>
-                {g && (
-                  <p className="font-mono text-[11px] text-ink-700">
-                    {formatMoneyShort(g.from)} → {formatMoneyShort(g.to)}{' '}
-                    <span className={g.change >= 0 ? 'text-pitch-800' : 'text-loss-600'}>{g.change >= 0 ? '+' : ''}{Math.round(g.change * 100)}%</span>
-                    {g.crossesNonComparable ? ' †' : ''}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        {clubs.some((c) => revenueGrowth(c)?.crossesNonComparable) && <p className="text-xs text-ink-500">† includes a year not directly comparable.</p>}
+      <Section title="Year by year" takeaway={growthTakeaway(base)}>
+        <BarRace clubs={base} />
       </Section>
 
       <section aria-labelledby="all-h" className="space-y-2">
