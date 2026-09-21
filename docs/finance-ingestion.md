@@ -67,9 +67,15 @@ until metric-level restatement lineage is implemented.
 
 ## Migration reconciliation
 
-The finance foundation currently exists in production, but it is absent from
-both the repository's migration files and Supabase migration history. Do not run
-a newly reconstructed foundation DDL against production. The next schema task
-must generate and review a reconciliation migration from the live catalog,
-including constraints, grants, RLS policies and `security_invoker` view options,
-then record it without recreating live objects.
+The catalog-derived finance baseline is stored in
+`supabase/migrations/20260921101758_finance_schema_baseline.sql` and recorded in
+production migration history under the same version. It includes all eight
+tables, constraints, indexes, RLS policies, three `security_invoker` views and
+the 18-row metric dictionary.
+
+The baseline is safe against the existing production objects and can bootstrap
+the finance subsystem after the prerequisite `teams` and `seasons` tables have
+been created. Browser roles receive `SELECT` only on the reviewed public
+objects; raw ingestion tables remain private. Run
+`supabase/tests/finance_schema_contract.sql` after future finance DDL changes to
+detect contract or privilege drift.
