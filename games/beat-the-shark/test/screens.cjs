@@ -96,11 +96,16 @@ ok("end of season reports set-piece share and out-of-position goals in FPL point
 // 7. a decision says what it did to the next result
 run(`S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
 els.ch.children[0].onclick();
-// Consequence tags (Chris: "a mess of numbers"): simple by default...
-ok("a decision shows its effect as tags: Team, Attack, and the win chance", /class="tag up">Team ▲▲▲/.test(app())&&/class="tag up">Attack ▲/.test(app())&&/Win chance [\s\S]+?→/.test(app()));
-ok("...with the exact figures folded under The numbers, and no xGF by default", /<summary>The numbers<\/summary>/.test(app())&&!/xGF/.test(app().replace(/<details[\s\S]*?<\/details>/g,'')));
+// Consequences: CASH ONLY (Chris: fans and board were pointless; cash and
+// league position are what matter). No next-match line below Advanced.
+delete els.ch; // a fresh choice area: the harness keeps old buttons between tests
+run(`LEVEL="intermediate";S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Spend and lift them",d:"",fx:{cash:-40,squad:30,fans:5,board:-4},out:"Done."}]},"TEST",()=>{})`);
+els.ch.children[0].onclick();
+ok("a decision shows only its cash effect -- no team, fans or board tags", /class="tag down">Cash −£\d+k/.test(app())&&!/>Team |>Fans |>Board /.test(app()), (app().match(/<div class="delta">[\s\S]*?<\/div>/)||["no delta"])[0]);
+ok("...and no next-match line below Advanced", !/Next match/.test(app())&&!/Win chance/.test(app()));
 // ...and the Data guru still gets the site's measures.
-run(`LEVEL="guru";S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
+delete els.ch;
+run(`LEVEL="guru";S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`); // Advanced
 els.ch.children[0].onclick();
 ok("the Data guru still sees xGF, clean sheet and win chance", /xGF [\s\S]+?→[\s\S]+?clean sheet [\s\S]+?→/.test(app())&&/Morale \+/.test(app()));
 run(`LEVEL="intermediate"`);
@@ -256,5 +261,22 @@ const weakest=run("RIVALS.slice().sort((a,b)=>a.str-b.str)[0].n");
 ok("...and the first match is against the weakest club", ti.includes(`First match: ${weakest}`));
 els.go.onclick();
 ok("the first match shows their stats against yours, then the shape question", /<th class="n">You<\/th>/.test(app())&&app().includes(weakest)&&/Goals for \(a game\)/.test(app())&&/Go for it|Pick your shape|One place/.test(app()));
+// 21. Chris's page-by-page feedback (2026-09-21)
+run(`SEED="SOC-S07";LEVEL="beginner";ROLE=ROLES.manager;boot()`);
+ok("page 2: the league as predicted finishing positions, Your Team where the Shark puts it",
+  /PREDICTED FINISH/.test(app())&&(app().match(/<tr class="me"><td class="n">(\d)<\/td>/)||[])[1]===String(run("sharkPos()")));
+els.go.onclick();els.go.onclick(); // your team, then the first match
+const p4=app();
+ok("page 4: Kick off sits right under the choice, the pitch below it, and no bench",
+  p4.indexOf('id="kick"')<p4.indexOf('<!--SQ-->')&&p4.indexOf('data-bc=')<p4.indexOf('id="kick"')&&!/class="benchh"/.test(p4));
+els.kick.onclick();drain();
+els.toTable.onclick();
+ok("page 6: the position at the top updates once your result is in", /\d(st|nd|rd|th)<span class="sub">POSITION/.test(els.hScore.innerHTML));
+els.toOthers.onclick();
+ok("page 7: a plain headline -- never 'No change for you'", !/No change for you/.test(app())&&/<h1>(Up to |Down to )?\d(st|nd|rd|th)\.<\/h1>/.test(app()));
+ok("page 8: the second match comes straight after the first", run("PLAN.slice(0,2).join()")==="match,live");
+ok("page 8: ...against the strongest club", (()=>{const[h,a]=run("myFixture(1)");const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");return h===st||a===st})());
+run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
+ok("page 8: ...with a half-time decision about a player change", /Make a change\?/.test(els.htBox.innerHTML)&&/Bring on .+ for /.test(els.htBox.innerHTML));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);
