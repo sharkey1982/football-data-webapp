@@ -1527,6 +1527,20 @@ production npm vulnerabilities; 278 tests; no stale Newsroom/Transfer
 Window names; upcoming projections fresh. Not yet checked: phone layout of
 the finance pages and In the papers (needs a human eye).
 
+## SANITY CHECK 2026-09-21 — nightly prediction refresh (FIXED)
+
+The Daily Premier League Import failed 19–21 Sep at "Refresh fixture
+predictions": service_role could not read team_home_away_adjustment_v1 and
+team_strength_manual_override, which backfill_fixture_predictions() (security
+invoker) needs. Future-fixture predictions went unrefreshed from the 18th.
+Fixed by migration 20260921132413 (exactly those two grants, found by
+iterating as service_role in a rolled-back transaction). WATCH: service_role
+still lacks SELECT on 27 other public objects (a past re-grant appears to have
+covered anon/authenticated only). None is needed by a current job; if a
+pipeline starts failing with "permission denied", this is the likely cause.
+Also noted: the 07:00 UTC FPL projections run hadn't appeared by 13:40 UTC on
+21 Sep (GitHub scheduled runs can be delayed or dropped) -- watch.
+
 ## PRODUCT: TRIVIA — BACKLOG (from Chris, 2026-09-21)
 
 **Where it lives:** questions are built in `src/lib/landingApi.ts` (one

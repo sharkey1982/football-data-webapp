@@ -7544,6 +7544,7 @@ GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_home_away_adj
 GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_home_away_adjustment_experimental_v1 TO authenticated;
 GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_home_away_adjustment_experimental_v1 TO service_role;
 REVOKE ALL ON TABLE public.team_home_away_adjustment_v1 FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.team_home_away_adjustment_v1 TO service_role; -- migration 20260921132413
 GRANT MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public.team_home_away_adjustment_v1 TO anon;
 GRANT MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public.team_home_away_adjustment_v1 TO authenticated;
 GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_home_away_adjustment_v1 TO service_role;
@@ -7570,6 +7571,7 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_strength_forward_adjustments TO anon;
 GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_strength_forward_adjustments TO authenticated;
 REVOKE ALL ON TABLE public.team_strength_manual_override FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.team_strength_manual_override TO service_role; -- migration 20260921132413
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.team_strength_manual_override TO authenticated;
 GRANT MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public.team_strength_manual_override TO anon;
 GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE public.team_strength_manual_override TO service_role;
