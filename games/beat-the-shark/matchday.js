@@ -271,10 +271,17 @@ function beginnerDecision(opp,home){
   const shape=f=>{const v=FORMATIONS[f];return v.att-v.def>=2?"attacking":v.def-v.att>=2?"defensive":"balanced"};
   const build={
     formation(){
-      const best=bestShapeFor(opp,home),others=Object.keys(FORMATIONS).filter(f=>f!==best);
-      const alt=shape(best)==="attacking"?others.sort((a,b)=>FORMATIONS[b].def-FORMATIONS[a].def)[0]
-        :others.sort((a,b)=>FORMATIONS[b].att-FORMATIONS[a].att)[0];
-      return{options:[best,alt].map(f=>({title:f,sub:`A more ${shape(f)} shape`,set(){S.formation=f;S.manualXI=null}}))};
+      // Read the opponent (Chris): attack a side that scores little but
+      // defends only OK; stay compact against a dangerous attack.
+      const R=ratingsNow(0),clubs=Object.keys(R),avg=k=>clubs.reduce((a,c)=>a+R[c][k],0)/clubs.length;
+      const att=R[opp].xgf>avg("xgf")+.15?"a dangerous attack":R[opp].xgf<avg("xgf")-.15?"a weak attack":"an average attack";
+      const def=R[opp].xga<avg("xga")-.15?"a solid defence":R[opp].xga>avg("xga")+.15?"a leaky defence":"an OK defence";
+      const fs=Object.keys(FORMATIONS);
+      const bold=fs.slice().sort((a,b)=>(FORMATIONS[b].att-FORMATIONS[b].def)-(FORMATIONS[a].att-FORMATIONS[a].def))[0];
+      const safe=fs.slice().sort((a,b)=>(FORMATIONS[b].def-FORMATIONS[b].att)-(FORMATIONS[a].def-FORMATIONS[a].att))[0];
+      return{scout:`${opp}: ${att}, ${def}.`,options:[
+        {title:`Go for it (${bold})`,sub:"More goals for you, more at the other end",set(){S.formation=bold;S.manualXI=null}},
+        {title:`Stay compact (${safe})`,sub:"Harder to break down, fewer chances",set(){S.formation=safe;S.manualXI=null}}]};
     },
     selection(){
       S.manualXI=null;const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
@@ -326,10 +333,10 @@ function renderBeginnerSheet(done){
       <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
       <h1>${home?`${opp}, at home`:`Away at ${opp}`}</h1>
       <h2 style="margin-top:6px">${title}</h2>
-      <p class="small">${idea}</p>
+      <p class="small">${dec.scout||idea}</p>
       ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
         style="${i===chosen?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub} · <b>win chance ${o.p.w}%</b></span></button>`).join('')}
+        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span></button>`).join('')}
       ${squadHTML({})}
       <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button></div>`;
     document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{chosen=+b.dataset.bc;dec.options[chosen].set();draw()});
@@ -489,9 +496,14 @@ function renderMatch(done,quick){
     add("HT","Half time","ft",sc());
     /* The owner used to get a half-time "decision" (concourse or boardroom)
        that changed nothing that mattered. He now watches, like an owner. */
-    if(quick||ROLE.id==="owner"){add("46'","— second half —","");return half(46,92,finish)}
+    const second=()=>{add("46'","— second half —","");half(46,92,finish)};
+    if(ROLE.id==="owner")return second();
     // A decision is never skipped: stop skipping here, and resume at the chosen speed.
-    if(ROLE.id==="manager"){skipping=false;return tacticalHalfTime(mine,theirs,oFm,()=>{add("46'","— second half —","");half(46,92,finish)})}
+    // Weeks with no pre-match decision get ONE simple half-time choice: a sub.
+    if(ROLE.id==="manager"&&quick){skipping=false;return subHalfTime(second)}
+    // Beginners made their pre-match decision; no half-time one on top.
+    if(ROLE.id==="manager"&&LEVEL==="beginner")return second();
+    if(ROLE.id==="manager"){skipping=false;return tacticalHalfTime(mine,theirs,oFm,second)}
     const losing=mine<theirs,level=mine===theirs;
     const spec=ROLE.id==="player"
       ?{title:losing?"You are losing. Forty-five minutes left.":level?"Level at the break.":"You are ahead.",
@@ -516,6 +528,7 @@ function renderMatch(done,quick){
     award(TABLE,hT,aT,hg,ag);
     const{fx,res}=resolveMine(hg,ag,home);
     S.matchAtt=0;S.matchDef=0;
+    if(S._subXI){S.manualXI=null;S._subXI=false} // a half-time sub is for this match only
     // Full time WAITS for the player (Chris: the game, the other games and
     // the table shouldn't all happen on one page, on a timer). Next: the table.
     const pb=document.getElementById('paceBox');
@@ -609,6 +622,28 @@ function pickGoal(){
 }
 /* kept for callers that only need the player */
 function pickScorer(){const g=pickGoal();return g?g.p:null}
+/* HALF TIME, SIMPLY: bring on a fresh player for a tiring one, or leave it.
+   For weeks played without a pre-match decision. No question if nobody is
+   tiring. The change is for this match only. */
+function subHalfTime(resume){
+  const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
+  let pair=null;
+  for(const x of xi){const s=S.squadList[x.i];if(!s||s.fit>=80)continue;
+    for(const b of available()){const j=S.squadList.indexOf(b);
+      if(inXI.has(j)||b.pos!==s.pos||b.fit<s.fit+10)continue;
+      if(!pair||s.fit<pair.s.fit)pair={si:x.i,bi:j,s,b}}}
+  if(!pair)return resume();
+  const box=document.getElementById('htBox');
+  box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">HALF TIME</div>
+    <h2>Make a change?</h2>
+    <button class="choice" id="subYes"><span class="t">Bring on ${pair.b.nm} for ${pair.s.nm}</span><span class="d">${pair.s.nm} is tiring</span></button>
+    <button class="choice" id="subNo"><span class="t">Leave it</span><span class="d">Same eleven</span></button></div>`;
+  document.getElementById('subYes').onclick=()=>{
+    const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===pair.si);
+    if(k>=0){x[k].i=pair.bi;S.manualXI=x;S.manualFm=S.formation;S._subXI=true}
+    box.innerHTML="";resume()};
+  document.getElementById('subNo').onclick=()=>{box.innerHTML="";resume()};
+}
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');
   let fm=S.formation,subs=[],oop=null;
