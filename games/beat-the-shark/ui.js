@@ -28,6 +28,16 @@ function showPending(){
     <button class="choice primary" id="pn" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
   paintHeader();document.getElementById('pn').onclick=step;
 }
+/* EASY DECISIONS FIRST for Beginners (Chris): a story decision -- the press
+   conference -- comes before the data-heavy ones (pre-season planning, the
+   fixture heat map, the first team sheet). Derived afresh each season from
+   the untouched base order, so switching level can't leave it scrambled. */
+const PLAN_BASE=PLAN.slice();
+function planFor(level){
+  const p=PLAN_BASE.slice();
+  if(level==="beginner"){const i=p.indexOf("presser");if(i>0){p.splice(i,1);p.unshift("presser")}}
+  return p;
+}
 function step(){
   if(!S.alive)return renderEnding();
   if(cursor>=PLAN.length)return renderEnding();
@@ -265,6 +275,16 @@ function kpiHTML(){
     ${tile("Defence · xGA/game",cur.xga.toFixed(2),`${arrow(cur.xga-prev.xga,true,v=>v.toFixed(2))} · actual ${t.p?(t.ga/n).toFixed(1):"—"} · CS ${CLEAN[CLUB]||0}`,spark(k.map(x=>x.xga),true))}
   </div>
   <div style="font-size:10.5px;color:var(--mute);margin:-4px 0 10px">Sparklines: the season so far · arrows: since last gameweek · green is better for you</div>`;
+}
+/* One line after each week's results: the full four-tile dashboard now
+   appears only on the key screens (pre-season, halfway, the ending), rather
+   than after all ten gameweeks -- it had become the biggest repetition. */
+function kpiLineHTML(){
+  if(!S.kpi||!S.kpi.length)return "";
+  const cur=S.kpi[S.kpi.length-1],gap=cur.pts-cur.par;
+  return `<div class="outcome" style="margin-top:10px">Points v the Shark: <b>${cur.pts}</b>
+    <span style="color:${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--mute)'}">(${gap>=0?'+':''}${gap.toFixed(1)} v target pace)</span>
+    · projected <b>${ord(cur.proj)}</b></div>`;
 }
 function nextWinChance(){
   if(!S||S.mw>=MW)return null;
@@ -553,6 +573,7 @@ function boot(){
   pickRivals();
   R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
   S=newState();cursor=0;pendingReveal=null;
+  PLAN.splice(0,PLAN.length,...planFor(LEVEL));
   buildFixtures();TABLE=blankTable();PREDICT=monteCarlo();
   recalcSquadRating();myPos();
   S.proj0=projectionNow();S.kpi=[];kpiRecord();

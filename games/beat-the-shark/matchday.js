@@ -429,72 +429,63 @@ function renderMatch(done,quick){
     award(TABLE,hT,aT,hg,ag);
     const{fx,res}=resolveMine(hg,ag,home);
     S.matchAtt=0;S.matchDef=0;
-    const pb=document.getElementById('paceBox');if(pb)pb.innerHTML="";
-    setTimeout(()=>renderElsewhere({wk,fx,res,mine,theirs,opp,home,startPos,final},done),skipping?300:(quick?600:900));
+    // Full time WAITS for the player (Chris: the game, the other games and
+    // the table shouldn't all happen on one page, on a timer). Next: the table.
+    const pb=document.getElementById('paceBox');
+    if(pb)pb.innerHTML=`<button class="choice primary" id="toTable" style="margin-top:10px"><span class="t">See the league table</span>
+      <span class="d">${home?`${CLUB} ${mine}–${theirs} ${opp}`:`${opp} ${theirs}–${mine} ${CLUB}`}</span></button>`;
+    const tt=document.getElementById('toTable');
+    if(tt)tt.onclick=()=>renderTableAfterMatch({wk,fx,res,mine,theirs,opp,home,startPos,final},done);
   }
 }
-/* THE 3PM KICK-OFFS. Your game was the early one. The table is shown AS IT
-   STANDS -- your result in, everyone else still to play -- then their
-   results arrive one by one and the table re-sorts under you. Fixtures that
-   involve a club within three points of you are flagged, because those are
-   the ones you would actually be watching. */
-function renderElsewhere(info,done){
-  const{wk,fx,res,mine,theirs,opp,home,startPos,final}=info;
-  const others=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB)
-    .map(([h,a])=>{const[hg,ag]=simScore(strOf(h),strOf(a));return{h,a,hg,ag}});
-  const posMap=()=>{const m={};standings(TABLE).forEach((r,i)=>m[r.n]=i+1);return m};
-  const near=n=>Math.abs(TABLE[n].pts-TABLE[CLUB].pts)<=3;
+/* AFTER THE MATCH -- two calm screens, no timers (Chris's playtest: the
+   game, the other games and the table all on one page, running on a timer,
+   was too fast to follow).
+   1. THE TABLE: your result is in, everyone else still to play.
+   2. THE OTHER RESULTS: all at once, and what they did to the table --
+      arrows for every move since your result went in. */
+function renderTableAfterMatch(info,done){
+  const{wk,fx,res,mine,theirs,opp,home,final}=info;
   const d=apply(fx,true);myPos();paintHeader();
-  const kickOffPos=posOf(CLUB);
+  const left=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB).length;
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE 3PM KICK-OFFS</div>
-    <h1>${res==='w'?"Job done.":res==='d'?"A point on the board.":"Beaten."} Now it's up to everyone else.</h1>
+    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE TABLE</div>
+    <h1>${res==='w'?"Job done.":res==='d'?"A point on the board.":"Beaten."}</h1>
     <div class="res mine" style="font-size:15px;padding:10px">
       <span><b>${CLUB}</b> ${mine}–${theirs} ${opp} <small style="color:var(--mute)">(${home?"H":"A"})</small></span></div>
     <div class="delta" style="margin:6px 0 8px">${d}</div>
-    <p class="small">You played the early kick-off. ${others.length} ${others.length===1?"game is":"games are"} still to play at 3pm${
-      others.some(o=>near(o.h)||near(o.a))?" — and the ones marked ★ involve a club within three points of you":""}.</p>
-    <div id="scPace">${others.length?paceControlsHTML("Show all results"):""}</div>
-    <div id="scFeed"></div>
-    <div id="scTable"><div class="datechip" style="margin:8px 0 5px">AS IT STANDS AT 3PM · ${others.length} STILL TO PLAY</div>${tableRowsHTML(null)}</div>
-    <div id="scEnd"></div></div>`;
-  const feed=document.getElementById('scFeed');
-  // Results arrive at reading pace, above the table; the table itself is
-  // redrawn ONCE, at the end, with arrows for every move since 3pm. It used
-  // to re-sort after every result, every 1.5s -- impossible to follow.
-  const at3pm=posMap();
-  let i=0,skipping=false,pending=null;
-  wirePaceControls(document.getElementById('scPace'),()=>{skipping=true;if(pending){clearTimeout(pending);pending=null;nextResult()}});
-  function nextResult(){
-    if(i>=others.length)return finish();
-    const r=others[i++];
-    const star=near(r.h)||near(r.a);
-    award(TABLE,r.h,r.a,r.hg,r.ag);myPos();
-    const el=document.createElement('div');el.className='res';el.style.marginTop='6px';
-    el.innerHTML=`<span>${star?"★ ":""}<b>FULL TIME</b> · ${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span>`;
-    feed.appendChild(el);
-    const left=others.length-i;
-    const chip=document.querySelector('#scTable .datechip');
-    if(chip&&left)chip.textContent=`AS IT STANDS AT 3PM · ${left} STILL TO PLAY`;
-    paintHeader();
-    if(skipping)return nextResult();
-    pending=setTimeout(()=>{pending=null;nextResult()},PACE.resultMs*speedFactor());
-  }
-  pending=setTimeout(()=>{pending=null;nextResult()},others.length?Math.min(1200,PACE.resultMs*speedFactor()*0.5):0);
-  function finish(){
-    S.mw++;myPos();paintHeader();
-    kpiRecord();
-    const sp=document.getElementById('scPace');if(sp)sp.innerHTML="";
-    document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:8px 0 5px">FULL TIME · ALL GAMES DONE · ARROWS SHOW MOVES SINCE 3PM</div>${tableRowsHTML(at3pm)}`;
-    const endPos=posOf(CLUB),moved=kickOffPos-endPos;
-    const line=final
-      ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
-      :`${moved>0?`Up ${moved} from where the 3pm games found you`:moved<0?`Down ${-moved} from where the 3pm games found you`:"Everyone else's results left you where you were"} — ${ord(endPos)} of six.`;
-    document.getElementById('scEnd').innerHTML=`<div class="outcome" style="margin-top:10px;font-size:15px"><b>${line}</b></div>
-      ${kpiHTML()}
-      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
-    document.getElementById('mn').onclick=done;
-  }
+    <div class="datechip" style="margin:8px 0 5px">AS IT STANDS · ${left} ${left===1?"GAME":"GAMES"} STILL TO PLAY</div>
+    ${tableRowsHTML(null)}
+    <button class="choice primary" id="toOthers" style="margin-top:11px"><span class="t">${left?"The other results":"Continue"}</span>
+      <span class="d">${left?"And what they do to the table":""}</span></button></div>`;
+  document.getElementById('toOthers').onclick=()=>renderElsewhere(info,done);
+}
+function renderElsewhere(info,done){
+  const{wk,final}=info;
+  const posMap=()=>{const m={};standings(TABLE).forEach((r,i)=>m[r.n]=i+1);return m};
+  const before=posMap(),myBefore=posOf(CLUB);
+  const others=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB)
+    .map(([h,a])=>{const[hg,ag]=simScore(strOf(h),strOf(a));return{h,a,hg,ag}});
+  // Flag games involving a club within three points of you, BEFORE they count.
+  const near=n=>Math.abs(TABLE[n].pts-TABLE[CLUB].pts)<=3;
+  const flagged=others.map(r=>near(r.h)||near(r.a));
+  for(const r of others)award(TABLE,r.h,r.a,r.hg,r.ag);
+  S.mw++;myPos();paintHeader();
+  kpiRecord();
+  const endPos=posOf(CLUB),moved=myBefore-endPos;
+  const line=final
+    ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
+    :`${moved>0?`Up ${moved}`:moved<0?`Down ${-moved}`:"No change for you"} — ${ord(endPos)} of six.`;
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE OTHER RESULTS</div>
+    <h1>${line}</h1>
+    ${others.map((r,i)=>`<div class="res" style="margin-top:6px"><span>${flagged[i]?"★ ":""}${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span></div>`).join('')}
+    ${flagged.some(Boolean)?`<p class="small" style="margin-top:6px">★ involves a club within three points of you.</p>`:""}
+    <div class="datechip" style="margin:10px 0 5px">WHAT THAT DID TO THE TABLE · ARROWS SHOW EVERY MOVE</div>
+    ${tableRowsHTML(before)}
+    ${kpiLineHTML()}
+    <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button></div>`;
+  document.getElementById('mn').onclick=done;
 }
 /* WHO SCORES, AND HOW. About a quarter of goals come from set pieces: the
    taker scores penalties and free kicks wherever he plays, and corners are
