@@ -51,7 +51,43 @@ export type PlayerPageGameweek = {
    * this row, not the page-render time. */
   generated_at: string | null;
   model_version: string | null;
+  /** Where the projected points come from (null when there is no projection). */
+  breakdown?: ProjectionBreakdown | null;
+  start_probability?: number | null;
+  tactical_role?: string | null;
 };
+
+// ---- Where the points come from -------------------------------------------
+// fpl_player_projections holds each projection's expected points by source.
+// The mapping lives HERE ONCE and is re-exported through the SSR entry, so
+// the browser and static generation cannot drift apart.
+export const BREAKDOWN_PARTS = [
+  { key: 'xpts_appearance', label: 'Appearance' },
+  { key: 'xpts_goals', label: 'Goals' },
+  { key: 'xpts_assists', label: 'Assists' },
+  { key: 'xpts_clean_sheet', label: 'Clean sheet' },
+  { key: 'xpts_goals_conceded', label: 'Goals conceded' },
+  { key: 'xpts_saves', label: 'Saves' },
+  { key: 'xpts_defensive_contribution', label: 'Defensive contribution' },
+  { key: 'xpts_penalties', label: 'Penalties' },
+  { key: 'xpts_bonus', label: 'Bonus' },
+  { key: 'xpts_cards_own_goals', label: 'Cards & own goals' },
+] as const;
+export type BreakdownKey = (typeof BREAKDOWN_PARTS)[number]['key'];
+export type ProjectionBreakdown = Record<BreakdownKey, number>;
+/** Extra columns to select alongside expected_fpl_points. */
+export const PROJECTION_DETAIL_COLUMNS = [...BREAKDOWN_PARTS.map((p) => p.key), 'start_probability', 'tactical_role'].join(',');
+
+export function projectionDetail(proj: Record<string, unknown> | null | undefined): Pick<PlayerPageGameweek, 'breakdown' | 'start_probability' | 'tactical_role'> {
+  if (!proj || proj.expected_fpl_points == null) return { breakdown: null, start_probability: null, tactical_role: null };
+  const breakdown = {} as ProjectionBreakdown;
+  for (const p of BREAKDOWN_PARTS) breakdown[p.key] = proj[p.key] == null ? 0 : Number(proj[p.key]);
+  return {
+    breakdown,
+    start_probability: proj.start_probability == null ? null : Number(proj.start_probability),
+    tactical_role: (proj.tactical_role as string | null) ?? null,
+  };
+}
 
 const POSITION_LABELS: Record<number, string> = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
 
@@ -107,7 +143,10 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
 
   const { data: projRows, error: projError } = await supabase
     .from('fpl_player_projections')
-    .select('fixture_id, expected_fpl_points, expected_minutes, generated_at, model_version')
+    // A string LITERAL: supabase-js type-checks .select() and cannot parse a
+    // template. Must include every PROJECTION_DETAIL_COLUMNS entry -- a test
+    // (playerPageDetail.test.ts) guards that.
+    .select('fixture_id, expected_fpl_points, expected_minutes, generated_at, model_version, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_goals_conceded, xpts_saves, xpts_defensive_contribution, xpts_penalties, xpts_bonus, xpts_cards_own_goals, start_probability, tactical_role')
     .eq('fpl_player_id', fplPlayerId)
     .eq('model_version', MODEL_VERSION)
     .in('fixture_id', fixtureIds);
@@ -169,6 +208,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
       actual_points: actualByFixture.get(f.fixture_id) ?? null,
       generated_at: proj?.generated_at ?? null,
       model_version: proj?.model_version ?? null,
+      ...projectionDetail(proj),
     };
   });
 }
@@ -183,4 +223,45 @@ export async function getAllPlayerSlugs(): Promise<string[]> {
     .not('slug', 'is', null);
   if (error) throw error;
   return (data ?? []).map((r) => r.slug);
+}
+
+
+// ---- Context for the summary panel ----------------------------------------
+// Four independent sources, each allowed to fail on its own (a secondary
+// panel must never break the page). Every match is by fpl_player_id except
+// set pieces, which are stored by name and club -- matched on BOTH.
+
+export type PlayerContext = {
+  priceRisk: { direction: string; pressure: number; net_transfers: number } | null;
+  market: { ownership_now: number; ownership_change: number; price_change: number; from_date: string } | null;
+  setPieces: { type: string; rank: number }[] | null;
+  fitness: { status: string; chance_next_round: number | null; news: string | null; return_date: string | null } | null;
+};
+
+async function quietly<T>(fn: () => Promise<T>): Promise<T | null> {
+  try { return await fn(); } catch { return null; }
+}
+
+export async function getPlayerContext(p: { fpl_player_id: number; web_name: string; canonical_team_id: number | null }): Promise<PlayerContext> {
+  const [risk, movers, takers, injuries] = await Promise.all([
+    quietly(async () => (await supabase.rpc('get_price_change_risk', { p_season_id: PL_SEASON_ID })).data ?? []),
+    quietly(async () => (await supabase.rpc('get_fpl_market_movers', { p_days: 7 })).data ?? []),
+    quietly(async () => (await supabase.rpc('get_set_piece_takers', { p_season_id: PL_SEASON_ID })).data ?? []),
+    quietly(async () => (await supabase.rpc('get_injury_report', { p_season_id: PL_SEASON_ID })).data ?? []),
+  ]);
+  const r = (risk as any[] | null)?.find((x) => Number(x.fpl_player_id) === p.fpl_player_id);
+  const m = (movers as any[] | null)?.find((x) => Number(x.fpl_player_id) === p.fpl_player_id);
+  const i = (injuries as any[] | null)?.find((x) => Number(x.fpl_player_id) === p.fpl_player_id);
+  return {
+    priceRisk: r ? { direction: r.direction, pressure: Number(r.pressure), net_transfers: Number(r.net_transfers) } : risk ? { direction: 'none', pressure: 0, net_transfers: 0 } : null,
+    market: m ? { ownership_now: Number(m.ownership_now), ownership_change: Number(m.ownership_change), price_change: Number(m.price_change), from_date: m.from_date } : null,
+    setPieces: takers
+      ? (takers as any[])
+          .filter((t) => t.team_id === p.canonical_team_id && t.player_name === p.web_name)
+          .map((t) => ({ type: String(t.set_piece_type), rank: Number(t.rank) }))
+          .sort((a, b) => a.rank - b.rank)
+      : null,
+    fitness: i ? { status: i.status, chance_next_round: i.chance_next_round == null ? null : Number(i.chance_next_round), news: i.news ?? null, return_date: i.return_date ?? null }
+      : injuries ? { status: 'a', chance_next_round: null, news: null, return_date: null } : null,
+  };
 }

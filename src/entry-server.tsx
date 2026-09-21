@@ -231,6 +231,9 @@ export { STATIC_ROUTES };
 // and normalise rows with exactly the code the browser uses (one bulk query
 // per view for every club) -- see scripts/lib/financeStatic.mjs.
 export * as finance from './lib/financeApi';
+// The player page's projection breakdown, so static generation maps it with
+// the same code as the browser.
+export { projectionDetail, PROJECTION_DETAIL_COLUMNS } from './lib/fplPlayerPageApi';
 
 export function renderTeamFinancePage(slug: string, data: ClubFinanceData): RenderedPage {
   const path = `/football/teams/${slug}/finances`;
