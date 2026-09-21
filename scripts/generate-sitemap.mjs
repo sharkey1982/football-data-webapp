@@ -23,6 +23,7 @@
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -87,9 +88,10 @@ function urlEntry(loc, lastmod) {
 
 async function main() {
   let staticPaths = [];
+  let mod = null;
   try {
     const entry = join(process.cwd(), 'dist-ssr', 'entry-server.js');
-    const mod = await import(entry);
+    mod = await import(entry);
     staticPaths = (mod.STATIC_ROUTES ?? []).map((r) => r.path);
   } catch (err) {
     // A sitemap with only entity pages beats no sitemap, so this
@@ -163,13 +165,32 @@ async function main() {
   );
   for (const f of fixtures ?? []) entries.push(urlEntry(`/football/matches/${f.slug}`, f.predicted_at));
 
+  // Club finance pages: every team with published accounts (not only the
+  // Premier League), lastmod = its latest filing date. Same bulk module as
+  // static generation, so the sitemap and the pages cannot disagree.
+  let financeCount = 0;
+  if (mod) {
+    try {
+      const bulk = await fetchFinanceBulk(query);
+      if (bulk) {
+        const site = buildFinanceSite(bulk, mod);
+        for (const s of site.sitemap) entries.push(urlEntry(s.path, s.lastmod));
+        financeCount = site.sitemap.length;
+        const latest = site.sitemap.map((s) => s.lastmod).filter(Boolean).sort().pop() ?? null;
+        if (!staticPaths.includes('/finance')) entries.push(urlEntry('/finance', latest));
+      }
+    } catch (err) {
+      console.error('Sitemap: finance pages skipped --', err?.message ?? err);
+    }
+  }
+
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, xml, 'utf8');
   console.log(
     `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ${gameweekCount} gameweek, ${scoutCount} scout, ` +
-      `${(teams ?? []).length} team(s), ${(players ?? []).length} player(s), ${(fixtures ?? []).length} match(es).`
+      `${(teams ?? []).length} team(s), ${(players ?? []).length} player(s), ${(fixtures ?? []).length} match(es), ${financeCount} club finance page(s).`
   );
 }
 
