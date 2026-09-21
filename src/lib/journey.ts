@@ -154,3 +154,24 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
 export function stagePath(theme: JourneyTheme, stage: JourneyStage): string {
   return `${theme.hubPath}/${stage.key}`;
 }
+
+/** Every page in the header menu, in menu order (Football, then Fantasy). */
+export function menuOrder(): string[] {
+  return Object.values(THEMES).flatMap((t) => t.stages.flatMap((s) => s.links.map((l) => l.to)));
+}
+
+/** Pages reached from a question but not themselves in the menu. */
+const MENU_ALIASES: [string, string][] = [['/football/matches/', '/fixtures']];
+
+/** A path's position in the menu: exact, via an alias, or the longest menu
+ *  path it sits under (e.g. /fpl/team-of-the-week/gw5). Unknown: last. */
+export function menuIndex(path: string, order: string[] = menuOrder()): number {
+  const clean = path.split(/[?#]/)[0];
+  const alias = MENU_ALIASES.find(([from]) => clean.startsWith(from));
+  const target = alias ? alias[1] : clean;
+  const exact = order.indexOf(target);
+  if (exact >= 0) return exact;
+  let best = -1, len = 0;
+  order.forEach((p, i) => { if (p !== '/' && (target === p || target.startsWith(p + '/')) && p.length > len) { best = i; len = p.length; } });
+  return best >= 0 ? best : Number.MAX_SAFE_INTEGER;
+}
