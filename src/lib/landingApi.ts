@@ -28,6 +28,19 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+// Each page's own data function, so a quiz answer always matches the page
+// its link opens (Trivia v3: one question per page, picked for its most
+// interesting fact).
+import { getCrossLeagueSummary } from './crossLeagueApi';
+import { getMarketEfficiency } from './marketApi';
+import { getModelAccuracySummary } from './modelAccuracyApi';
+import { getCompletedGameweeks, getTeamOfTheWeek } from './teamOfWeekApi';
+import { getActualValueTable } from './valueApi';
+import { getInjuryReport } from './injuryApi';
+import { getFplScoringRules } from './fplScoringRulesApi';
+import { getHindsightOptimalSquad } from './fplOptimizerApi';
+import { getFantasyFixtureDifficulty } from './modelApi';
+import { getGameweekDigest } from './digestApi';
 
 const PL_LEAGUE_ID = 1;
 const PL_SEASON_ID = 13;
@@ -113,7 +126,7 @@ export async function getMostCommonScorelineTrivia(): Promise<TriviaFact | null>
   const win = tiedWithFirst(rows.map((r) => r.occurrences));
   const top = rows[0];
   return {
-    question: 'Which scoreline shows up more than any other in Premier League history?',
+    question: 'Which scoreline has come up most often in the Premier League?',
     ...shuffleFact(labels, win, details),
     explanation: `${joined(win.map((i) => labels[i]))} \u2014 ${formatPercent(top.occurrences, top.total_matches)} of every match in the archive.`,
     link: { to: '/results-data', label: 'Explore every result' },
@@ -173,7 +186,7 @@ export async function getBiggestWinMarginTrivia(): Promise<TriviaFact | null> {
   const sorted = rows.map((r) => ({ r, margin: Math.abs(r.full_time_home_goals - r.full_time_away_goals) })).sort((a, b) => b.margin - a.margin).slice(0, 4);
   const win = tiedWithFirst(sorted.map((x) => x.margin));
   return {
-    question: 'Somebody got thumped by a bigger margin than anyone else this season. Who?',
+    question: 'Which Premier League match this season had the biggest winning margin?',
     ...shuffleFact(sorted.map((x) => fixtureLabel(x.r)), win, sorted.map((x) => `${x.r.full_time_home_goals}\u2013${x.r.full_time_away_goals} \u00b7 ${x.margin}-goal margin`)),
     explanation: `${win.map((i) => scoreLabel(sorted[i].r)).join('; ')} \u2014 a ${sorted[0].margin}-goal margin.`,
     link: { to: '/results-data', label: 'Explore every result' },
@@ -188,7 +201,7 @@ export async function getBestDefenceTrivia(): Promise<TriviaFact | null> {
   const xga = rows.map((r) => Number(r.goals_against_per_game));
   const win = tiedWithFirst(xga);
   return {
-    question: 'Which Premier League team does the model rate as the toughest to score against?',
+    question: 'Which Premier League team does FixtureShark\u2019s model rate the hardest to score against?',
     ...shuffleFact(rows.map((r) => r.canonical_name), win, xga.map((v) => `expected to concede ${v.toFixed(2)} a game`)),
     explanation: `${joined(win.map((i) => rows[i].canonical_name))} \u2014 the model expects just ${xga[0].toFixed(2)} goals against a game against a neutral opponent.`,
     link: { to: '/team-strength', label: 'See every team\u2019s strength' },
@@ -313,9 +326,10 @@ export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> 
   if (rows.length === 0) return null;
   const win = tiedWithFirst(rows.map((r) => r.total_points));
   return {
-    question: 'Forget the projections \u2014 who\u2019s actually scored the most Fantasy points so far this season?',
+    question: 'Forget the projections: who has actually scored the most FPL points this season?',
     ...shuffleFact(rows.map((r) => r.web_name), win, rows.map((r) => `${r.total_points} points so far`)),
     explanation: `${joined(win.map((i) => rows[i].web_name))} \u2014 ${rows[0].total_points} points so far.`,
+    link: { to: '/fpl/player-scout', label: 'Scout any player' },
   };
 }
 
@@ -338,18 +352,7 @@ export async function getPriceRiskTrivia(): Promise<TriviaFact | null> {
   };
 }
 
-/** Set-piece duties change slowly, so this question would go stale: it
- * appears on alternate weeks only (even ISO weeks). */
-export function isSetPieceWeek(now = new Date()): boolean {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const week = Math.ceil(((d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
-  return week % 2 === 0;
-}
-
 export async function getSetPieceTrivia(): Promise<TriviaFact | null> {
-  if (!isSetPieceWeek()) return null;
   const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: PL_SEASON_ID });
   if (error) throw error;
   const rows = ((data ?? []) as { player_name: string; team_name: string; index_score: number; duties: number }[]).slice(0, 4);
@@ -367,6 +370,193 @@ export async function getSetPieceTrivia(): Promise<TriviaFact | null> {
   };
 }
 
+
+// ---------------------------------------------------------------------
+// Trivia v3: one question per page, each built from that page's own data
+// function and its most interesting fact, linking to the page.
+// ---------------------------------------------------------------------
+
+const DIVISION_NAME: Record<string, string> = { E0: 'Premier League', E1: 'Championship', E2: 'League One', E3: 'League Two', EC: 'National League' };
+
+/** League Insights: this season's goals per game by division. The answer
+ * surprises most people -- the National League outscores the top flight. */
+export async function getLeagueGoalsTrivia(): Promise<TriviaFact | null> {
+  const rows = await getCrossLeagueSummary();
+  if (!rows.length) return null;
+  const season = rows.map((r) => r.season_label).sort().pop()!;
+  const cur = rows.filter((r) => r.season_label === season).sort((a, b) => Number(b.goals_per_game) - Number(a.goals_per_game));
+  if (cur.length < 2) return null;
+  const gpg = cur.map((r) => Number(r.goals_per_game));
+  const win = tiedWithFirst(gpg);
+  const name = (r: (typeof cur)[number]) => DIVISION_NAME[r.league_code] ?? r.league_name;
+  const pl = cur.find((r) => r.league_code === 'E0');
+  return {
+    question: 'This season, which division is averaging the most goals a game?',
+    ...shuffleFact(cur.map(name), win, gpg.map((g) => `${g.toFixed(2)} goals a game`)),
+    explanation: `${joined(win.map((i) => name(cur[i])))} \u2014 ${gpg[0].toFixed(2)} a game${pl && !win.includes(cur.indexOf(pl)) ? `, ahead of the Premier League\u2019s ${Number(pl.goals_per_game).toFixed(2)}` : ''}.`,
+    link: { to: '/football/leagues-compared', label: 'Compare every division' },
+  };
+}
+
+/** Market Efficiency: what backing every favourite actually returns. */
+export async function getFavouritesTrivia(): Promise<TriviaFact | null> {
+  const rows = (await getMarketEfficiency(true)).filter((r) => r.league_code === 'E0');
+  if (!rows.length) return null;
+  const r = rows.sort((a, b) => b.matches - a.matches)[0];
+  const roi = Number(r.roi_favourite); // already a percentage
+  const options = ['Lose more than 5%', 'Lose up to 5%', 'Win up to 5%', 'Win more than 5%'];
+  const bucket = roi < -5 ? 0 : roi < 0 ? 1 : roi <= 5 ? 2 : 3;
+  const verb = roi < 0 ? 'lose' : 'win';
+  return {
+    question: 'Back every Premier League favourite at average closing odds. What happens to your money?',
+    options,
+    correct: [bucket],
+    explanation: `You\u2019d ${verb} ${Math.abs(roi).toFixed(1)}% of everything you staked, across ${r.matches.toLocaleString('en-GB')} matches. Backing every outsider instead: ${Number(r.roi_outsider) < 0 ? 'lose' : 'win'} ${Math.abs(Number(r.roi_outsider)).toFixed(1)}%.`,
+    link: { to: '/football/market-efficiency', label: 'See how efficient the market is' },
+  };
+}
+
+/** Model Accuracy: the headline hit rate -- told honestly, including that
+ * "always back the home team" gets almost as many results right. */
+export async function getModelHitRateTrivia(): Promise<TriviaFact | null> {
+  const m = await getModelAccuracySummary();
+  if (!m || !m.fixtures) return null;
+  const hit = Number(m.hit_rate);
+  const options = ['About 30%', 'About 40%', 'About 50%', 'About 60%'];
+  const bucket = Math.min(3, Math.max(0, Math.round(hit / 10) - 3));
+  return {
+    question: 'How often does FixtureShark\u2019s model call the result (home win, draw or away win) correctly?',
+    options,
+    correct: [bucket],
+    explanation: `${hit.toFixed(0)}% \u2014 ${m.correct} of ${m.fixtures} matches. Always backing the home team would have scored ${Number(m.always_home_hit_rate).toFixed(0)}%, but the model\u2019s probabilities are better calibrated than guesswork (a Brier score of ${Number(m.model_brier).toFixed(3)} against ${Number(m.uniform_brier).toFixed(3)} \u2014 lower is better). Football is hard to call.`,
+    link: { to: '/football/model-accuracy', label: 'See how the model is doing' },
+  };
+}
+
+/** Team of the Week: the latest completed gameweek's top scorer. */
+export async function getTeamOfWeekTrivia(): Promise<TriviaFact | null> {
+  const gws = await getCompletedGameweeks();
+  if (!gws.length) return null;
+  const gw = Math.max(...gws.map((g) => g.fpl_event_id));
+  const players = (await getTeamOfTheWeek(gw)).slice().sort((a, b) => b.points - a.points).slice(0, 4);
+  if (players.length < 2) return null;
+  const win = tiedWithFirst(players.map((p) => p.points));
+  const haul = (p: (typeof players)[number]) => [p.goals && `${p.goals} goal${p.goals > 1 ? 's' : ''}`, p.assists && `${p.assists} assist${p.assists > 1 ? 's' : ''}`, p.clean_sheets && 'clean sheet', p.bonus && `${p.bonus} bonus`].filter(Boolean).join(', ');
+  return {
+    question: `Gameweek ${gw} is done: who scored the most FPL points?`,
+    ...shuffleFact(players.map((p) => p.web_name), win, players.map((p) => `${p.points} pts${haul(p) ? ` \u00b7 ${haul(p)}` : ''}`)),
+    explanation: `${joined(win.map((i) => `${players[i].web_name}${players[i].team_name ? ` (${players[i].team_name})` : ''}`))} \u2014 ${players[0].points} points in Gameweek ${gw}.`,
+    link: { to: `/fpl/team-of-the-week/gw${gw}`, label: `See the Gameweek ${gw} Team of the Week` },
+  };
+}
+
+/** Bargain Basement: most points per £1m. */
+export async function getValueTrivia(): Promise<TriviaFact | null> {
+  const rows = (await getActualValueTable()).slice().sort((a, b) => b.points_per_million - a.points_per_million).slice(0, 4);
+  if (rows.length < 2) return null;
+  const win = tiedWithFirst(rows.map((r) => Number(r.points_per_million)));
+  return {
+    question: 'Who has earned the most FPL points per \u00a31m of price this season?',
+    ...shuffleFact(rows.map((r) => r.web_name), win, rows.map((r) => `\u00a3${Number(r.price).toFixed(1)}m \u00b7 ${r.total_points} pts \u00b7 ${Number(r.points_per_million).toFixed(1)} per \u00a31m`)),
+    explanation: `${joined(win.map((i) => `${rows[i].web_name}${rows[i].team_name ? ` (${rows[i].team_name})` : ''}`))} \u2014 ${Number(rows[0].points_per_million).toFixed(1)} points for every \u00a31m.`,
+    link: { to: '/fpl/value', label: 'Find more bargains' },
+  };
+}
+
+/** Physio Room: the club with most players injured, doubtful or suspended. */
+export async function getInjuryListTrivia(): Promise<TriviaFact | null> {
+  const counts = new Map<string, number>();
+  for (const r of await getInjuryReport()) if (r.team_name) counts.set(r.team_name, (counts.get(r.team_name) ?? 0) + 1);
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 4);
+  if (top.length < 2) return null;
+  const win = tiedWithFirst(top.map(([, n]) => n));
+  return {
+    question: 'Which Premier League club has the most players injured, doubtful or suspended right now?',
+    ...shuffleFact(top.map(([t]) => t), win, top.map(([, n]) => `${n} players`)),
+    explanation: `${joined(win.map((i) => top[i][0]))} \u2014 ${top[0][1]} players on the list.`,
+    link: { to: '/fpl/injuries', label: 'See the Physio Room' },
+  };
+}
+
+/** Fixture Heat Map: the next five gameweeks' expected goals, per team. */
+export async function getFixtureRunTrivia(): Promise<TriviaFact | null> {
+  const gw = await upcomingGameweek();
+  if (!gw) return null;
+  const last = gw.matchweek + 4;
+  const data = await getFantasyFixtureDifficulty(PL_LEAGUE_ID, PL_SEASON_ID);
+  const totals = data.teams
+    .map((t) => ({ name: t.team_name, xg: t.fixtures.filter((f) => f.matchweek != null && f.matchweek >= gw.matchweek && f.matchweek <= last).reduce((s, f) => s + Number(f.expected_goals_for), 0) }))
+    .filter((t) => t.xg > 0)
+    .sort((a, b) => b.xg - a.xg)
+    .slice(0, 4);
+  if (totals.length < 2) return null;
+  const win = tiedWithFirst(totals.map((t) => Number(t.xg.toFixed(2))));
+  return {
+    question: `Gameweeks ${gw.matchweek}\u2013${last}: whose fixtures promise the most goals?`,
+    ...shuffleFact(totals.map((t) => t.name), win, totals.map((t) => `${t.xg.toFixed(1)} expected goals`)),
+    explanation: `${joined(win.map((i) => totals[i].name))} \u2014 ${totals[0].xg.toFixed(1)} expected goals across Gameweeks ${gw.matchweek}\u2013${last}.`,
+    link: { to: '/fantasy', label: 'See the Fixture Heat Map' },
+  };
+}
+
+/** Scoring Rules: a goal is worth different amounts by position. */
+export async function getScoringRuleTrivia(): Promise<TriviaFact | null> {
+  const rules = (await getFplScoringRules()).filter((r) => r.rule_code === 'goal' && r.player_position);
+  const byPos = new Map(rules.map((r) => [r.player_position!, r.points]));
+  const def = byPos.get('DEF');
+  if (def == null || byPos.size < 4) return null;
+  const order: ['GK' | 'DEF' | 'MID' | 'FWD', string][] = [['GK', 'a goalkeeper'], ['DEF', 'a defender'], ['MID', 'a midfielder'], ['FWD', 'a forward']];
+  const labels = order.map(([p]) => `${byPos.get(p)} points`);
+  return {
+    question: 'How many FPL points does a defender get for scoring a goal?',
+    ...shuffleFact(labels, [1], order.map(([, who]) => `what ${who} gets`)),
+    explanation: `${def} points \u2014 a goal is worth more the further back the scorer plays.`,
+    link: { to: '/fpl/scoring-rules', label: 'See every scoring rule' },
+  };
+}
+
+/** Squad of the Season: the perfect hindsight squad's points. */
+export async function getHindsightSquadTrivia(): Promise<TriviaFact | null> {
+  const h = await getHindsightOptimalSquad();
+  if (!h || !h.objective_points) return null;
+  const pts = Number(h.objective_points);
+  const base = Math.round(pts / 50) * 50;
+  const values = [base - 160, base - 80, base, base + 80].filter((v) => v > 0);
+  return {
+    question: 'With perfect hindsight, how many points would the best possible squad have scored so far this season?',
+    options: values.map((v) => `About ${v}`),
+    correct: [values.indexOf(base)],
+    explanation: `${pts.toFixed(0)} points \u2014 the highest total any legal squad could have reached, chosen knowing every result.`,
+    link: { to: '/fpl/optimal-squad-so-far', label: 'See the Squad of the Season' },
+  };
+}
+
+/** In the papers: the biggest ownership climb this gameweek. */
+export async function getOwnershipSurgeTrivia(): Promise<TriviaFact | null> {
+  const entries = (await getGameweekDigest(PL_SEASON_ID)).filter((e) => e.change_type === 'ownership');
+  if (!entries.length) return null;
+  const gw = entries[0].gameweek;
+  const pct = (v: string | null) => (v == null ? NaN : Number(String(v).replace('%', '')));
+  const byPlayer = new Map<number, { name: string; team: string | null; first: string; from: number; last: string; to: number }>();
+  for (const e of entries) {
+    const cur = byPlayer.get(e.fpl_player_id);
+    const from = pct(e.old_value), to = pct(e.new_value);
+    if (!cur) byPlayer.set(e.fpl_player_id, { name: e.web_name, team: e.team_name, first: e.event_date, from, last: e.event_date, to });
+    else {
+      if (e.event_date < cur.first) { cur.first = e.event_date; cur.from = from; }
+      if (e.event_date > cur.last) { cur.last = e.event_date; cur.to = to; }
+    }
+  }
+  const risers = [...byPlayer.values()].filter((p) => p.to > p.from).map((p) => ({ ...p, gain: p.to - p.from })).sort((a, b) => b.gain - a.gain).slice(0, 4);
+  if (risers.length < 2) return null;
+  const win = tiedWithFirst(risers.map((r) => Number(r.gain.toFixed(1))));
+  return {
+    question: `Gameweek ${gw} so far: whose ownership has climbed the most?`,
+    ...shuffleFact(risers.map((r) => r.name), win, risers.map((r) => `${r.from.toFixed(1)}% \u2192 ${r.to.toFixed(1)}%`)),
+    explanation: `${joined(win.map((i) => `${risers[i].name}${risers[i].team ? ` (${risers[i].team})` : ''}`))} \u2014 up ${risers[0].gain.toFixed(1)} points of ownership this gameweek.`,
+    link: { to: '/fpl/in-the-papers', label: 'Read In the papers' },
+  };
+}
 
 // ---------------------------------------------------------------------
 // Historic trivia. The season-scoped facts below ("biggest thumping this
@@ -412,7 +602,7 @@ export async function getStrictestRefereeTrivia(): Promise<TriviaFact | null> {
   if (rows.length < 2) return null;
   const win = tiedWithFirst(rows.map((r) => Number(r.red_cards)));
   return {
-    question: 'Which referee has sent off more players than any other in this archive?',
+    question: 'Which referee has shown the most red cards in our archive?',
     ...shuffleFact(rows.map((r) => r.referee), win, rows.map((r) => `${r.red_cards} red cards in ${r.matches} matches`)),
     explanation: `${joined(win.map((i) => rows[i].referee))} \u2014 ${rows[0].red_cards} red cards across ${rows[0].matches} matches.`,
   };
@@ -424,7 +614,7 @@ export async function getAllTimeScorersTrivia(): Promise<TriviaFact | null> {
   if (rows.length < 2) return null;
   const win = tiedWithFirst(rows.map((r) => Number(r.goals)));
   return {
-    question: 'Across every English division in this archive, which club has scored the most goals?',
+    question: 'Across all five divisions in our archive, which club has scored the most goals?',
     ...shuffleFact(rows.map((r) => r.display_name), win, rows.map((r) => `${Number(r.goals).toLocaleString('en-GB')} goals`)),
     explanation: `${joined(win.map((i) => rows[i].display_name))} \u2014 ${Number(rows[0].goals).toLocaleString('en-GB')} goals.`,
     link: { to: '/teams', label: 'Explore any club' },
@@ -456,28 +646,39 @@ export async function getLandingTrivia(): Promise<TriviaFact[]> {
   return results.filter((f): f is TriviaFact => f !== null);
 }
 
-/** Football hub. Leads with the upcoming gameweek's projection question so
- * the quiz refreshes itself every week. */
+/** Football hub: one question per Football page, leading with the
+ * upcoming gameweek's so the quiz refreshes itself every week. */
 export async function getFootballTrivia(): Promise<TriviaFact[]> {
   const results = await Promise.all([
-    safely(getClosestMatchTrivia),
-    safely(getComebackTrivia),
-    safely(getAllTimeScorersTrivia),
+    safely(getClosestMatchTrivia),        // Fixtures & Results (match page)
+    safely(getLeagueGoalsTrivia),         // League Insights
+    safely(getModelHitRateTrivia),        // Model Accuracy
+    safely(getFavouritesTrivia),          // Market Efficiency
+    safely(getBestDefenceTrivia),         // Team Strength
+    safely(getComebackTrivia),            // Raw Data
+    safely(getAllTimeScorersTrivia),      // Your Team
+    safely(getMostCommonScorelineTrivia), // Raw Data
+    safely(getBiggestWinMarginTrivia),    // Raw Data
     safely(getStrictestRefereeTrivia),
-    safely(getMostCommonScorelineTrivia),
-    safely(getBestDefenceTrivia),
   ]);
   return results.filter((f): f is TriviaFact => f !== null);
 }
 
-/** Fantasy hub. Leads with the upcoming gameweek's projection question. */
+/** Fantasy hub: one question per Fantasy page, leading with the upcoming
+ * gameweek's projections. */
 export async function getFplTrivia(): Promise<TriviaFact[]> {
   const results = await Promise.all([
-    safely(getTopFplPickTrivia),
-    safely(getPriceRiskTrivia),
-    safely(getTopActualFplScorerTrivia),
-    safely(getSetPieceTrivia),
-    safely(getClosestMatchTrivia),
+    safely(getTopFplPickTrivia),        // Player Projections
+    safely(getFixtureRunTrivia),        // Fixture Heat Map
+    safely(getPriceRiskTrivia),         // Bullpit
+    safely(getOwnershipSurgeTrivia),    // In the papers
+    safely(getTeamOfWeekTrivia),        // Team of the Week
+    safely(getValueTrivia),             // Bargain Basement
+    safely(getInjuryListTrivia),        // Physio Room
+    safely(getSetPieceTrivia),          // Set-Piece Takers
+    safely(getHindsightSquadTrivia),    // Squad of the Season
+    safely(getTopActualFplScorerTrivia),// Player Scout
+    safely(getScoringRuleTrivia),       // Scoring Rules
   ]);
   return results.filter((f): f is TriviaFact => f !== null);
 }

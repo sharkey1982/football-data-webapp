@@ -19,7 +19,8 @@ vi.mock('../lib/supabase', () => ({
 }));
 
 import {
-  upcomingGameweek, tiedWithFirst, isSetPieceWeek,
+  upcomingGameweek, tiedWithFirst,
+  getLeagueGoalsTrivia, getModelHitRateTrivia, getScoringRuleTrivia, getInjuryListTrivia,
   getComebackTrivia, getPriceRiskTrivia, getSetPieceTrivia, getTopFplPickTrivia, getMostCommonScorelineTrivia,
 } from '../lib/landingApi';
 
@@ -108,23 +109,62 @@ describe('questions that send people around the site', () => {
     expect(f.link?.to).toBe('/fpl/price-risk');
   });
 
-  it('set pieces: a three-way tie makes all three correct -- and it only appears on alternate weeks', async () => {
+  it('set pieces: a three-way tie makes all three correct -- and it appears every week', async () => {
     rpcs.get_set_piece_index = [
       { player_name: 'B.Fernandes', team_name: 'Manchester United', index_score: 47.4, duties: 3 },
       { player_name: 'Szoboszlai', team_name: 'Liverpool', index_score: 47.4, duties: 3 },
       { player_name: 'Gro\u00df', team_name: 'Brighton', index_score: 47.4, duties: 3 },
       { player_name: 'Saka', team_name: 'Arsenal', index_score: 40.8, duties: 3 },
     ];
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-21T12:00:00Z')); // ISO week 39: odd
-    expect(isSetPieceWeek()).toBe(false);
-    expect(await getSetPieceTrivia()).toBeNull();
-    vi.setSystemTime(new Date('2026-09-28T12:00:00Z')); // ISO week 40: even
-    expect(isSetPieceWeek()).toBe(true);
     const f = (await getSetPieceTrivia())!;
-    vi.useRealTimers();
     expect(correctLabels(f)).toEqual(['B.Fernandes', 'Gro\u00df', 'Szoboszlai']);
     expect(f.explanation).toMatch(/^Joint top/);
     expect(f.link?.to).toBe('/fpl/set-pieces');
+  });
+});
+
+describe('one question per page, from that page\u2019s own data', () => {
+  it('League Insights: the surprising answer -- the National League outscores the Premier League this season', async () => {
+    rpcs.get_cross_league_summary = [
+      { league_code: 'E0', league_name: 'Premier League', season_label: '2526', goals_per_game: 2.75 },
+      { league_code: 'EC', league_name: 'National League', season_label: '2526', goals_per_game: 2.92 },
+      { league_code: 'E1', league_name: 'Championship', season_label: '2526', goals_per_game: 2.61 },
+      { league_code: 'EC', league_name: 'National League', season_label: '2324', goals_per_game: 3.5 }, // older season: ignored
+    ];
+    const f = (await getLeagueGoalsTrivia())!;
+    expect(correctLabels(f)).toEqual(['National League']);
+    expect(f.optionDetails![f.options.indexOf('Premier League')]).toBe('2.75 goals a game');
+    expect(f.explanation).toMatch(/ahead of the Premier League\u2019s 2\.75/);
+    expect(f.link?.to).toBe('/football/leagues-compared');
+  });
+
+  it('Model Accuracy: buckets the hit rate and tells the honest story about backing the home team', async () => {
+    rpcs.get_model_accuracy_summary = [{ fixtures: 166, correct: 68, hit_rate: 41.0, always_home_hit_rate: 41.6, model_brier: 0.6614, uniform_brier: 0.6667, mean_p_actual: 35.6 }];
+    const f = (await getModelHitRateTrivia())!;
+    expect(correctLabels(f)).toEqual(['About 40%']);
+    expect(f.explanation).toMatch(/68 of 166/);
+    expect(f.explanation).toMatch(/Always backing the home team would have scored 42%/);
+    expect(f.link?.to).toBe('/football/model-accuracy');
+  });
+
+  it('Scoring Rules: a defender\u2019s goal, with every other position\u2019s value revealed', async () => {
+    tables.fpl_scoring_rules = [
+      { rule_id: 1, rule_code: 'goal', player_position: 'GK', points: 10, threshold: null, notes: null },
+      { rule_id: 2, rule_code: 'goal', player_position: 'DEF', points: 6, threshold: null, notes: null },
+      { rule_id: 3, rule_code: 'goal', player_position: 'MID', points: 5, threshold: null, notes: null },
+      { rule_id: 4, rule_code: 'goal', player_position: 'FWD', points: 4, threshold: null, notes: null },
+    ];
+    const f = (await getScoringRuleTrivia())!;
+    expect(correctLabels(f)).toEqual(['6 points']);
+    expect(f.optionDetails![f.options.indexOf('10 points')]).toBe('what a goalkeeper gets');
+  });
+
+  it('Physio Room: counts players per club, and ties all count', async () => {
+    rpcs.get_injury_report = [
+      ...Array(3).fill({ team_name: 'Hull' }), ...Array(3).fill({ team_name: 'Coventry' }), ...Array(2).fill({ team_name: 'Brighton' }),
+    ].map((r, i) => ({ ...r, fpl_player_id: i, web_name: `P${i}`, status: 'i' }));
+    const f = (await getInjuryListTrivia())!;
+    expect(correctLabels(f)).toEqual(['Coventry', 'Hull']);
+    expect(f.link?.to).toBe('/fpl/injuries');
   });
 });
