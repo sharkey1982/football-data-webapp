@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
+import { getDefaultMatchweek, getGameweekInPlay } from '../../lib/fplSeasonApi';
 import { getPlayerGameweekPointsRange, getTeamFixtureGoals, type PlayerGameweekPoints, type TeamFixtureGoals } from '../../lib/fplPlayerTableApi';
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
@@ -121,6 +121,11 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
 
 export default function PlayerProjectionsTablePage() {
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
+  // The gameweek in play, if any -- the range filter offers to leave it out.
+  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
+  useEffect(() => {
+    getGameweekInPlay().then(setInPlay).catch(() => setInPlay(null));
+  }, []);
   const [fromMatchweek, setFromMatchweek] = useState<number | null>(null);
   const [toMatchweek, setToMatchweek] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('by_gameweek');
@@ -280,6 +285,7 @@ export default function PlayerProjectionsTablePage() {
 
       <div className="bg-white border border-chalk-300 rounded-lg p-3">
         <GameweekRangeFilter
+          inPlay={inPlay}
           defaultGw={defaultGw}
           fromGw={fromMatchweek}
           toGw={toMatchweek}
@@ -422,7 +428,10 @@ export default function PlayerProjectionsTablePage() {
                         {c.label} {sortIndicator(c.key)}
                       </th>
                     ))}
-                  <th className="px-3 py-2 text-right cursor-pointer whitespace-nowrap" onClick={() => handleSort('total')}>
+                  {/* Total is PINNED to the right edge: with a column per gameweek it
+                      used to sit off-screen on a phone -- the most important number,
+                      easy to miss. */}
+                  <th className="px-3 py-2 text-right cursor-pointer whitespace-nowrap sticky right-0 bg-chalk-100 shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]" onClick={() => handleSort('total')}>
                     Total {sortIndicator('total')}
                   </th>
                 </tr>
@@ -472,7 +481,7 @@ export default function PlayerProjectionsTablePage() {
                           {r.contribution[c.key].toFixed(2)}
                         </td>
                       ))}
-                    <td className="px-3 py-1.5 text-right font-mono text-sm font-semibold text-pitch-800">{r.total.toFixed(1)}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-sm font-semibold text-pitch-800 sticky right-0 bg-white shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]">{r.total.toFixed(1)}</td>
                   </tr>
                 ))}
                 {sorted.length === 0 && (

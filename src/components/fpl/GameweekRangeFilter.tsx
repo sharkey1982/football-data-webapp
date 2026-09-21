@@ -44,6 +44,11 @@ export default function GameweekRangeFilter({
    * next ten?") pass their own rather than showing options that don't
    * apply. */
   presets = DEFAULT_PRESETS,
+  /** The gameweek currently in play (some matches played, some not), if
+   * any. When it is the default gameweek, a tick box lets people include
+   * or exclude it; excluded (the default), every preset counts from the
+   * next FULL gameweek instead. Omit on pages where it doesn't apply. */
+  inPlay = null,
 }: {
   defaultGw: number | null;
   fromGw: number | null;
@@ -52,8 +57,13 @@ export default function GameweekRangeFilter({
   maxRangeSpan?: number;
   initialPreset?: GameweekRangePreset;
   presets?: GameweekRangePreset[];
+  inPlay?: { gw: number; played: number; total: number } | null;
 }) {
   const [preset, setPreset] = useState<GameweekRangePreset>(initialPreset);
+  const [includeInPlay, setIncludeInPlay] = useState(false);
+  const inPlayApplies = inPlay != null && defaultGw != null && inPlay.gw === defaultGw;
+  // The gameweek every preset counts from.
+  const baseGw = defaultGw === null ? null : inPlayApplies && !includeInPlay ? defaultGw + 1 : defaultGw;
 
   useEffect(() => {
     if (defaultGw === null) return;
@@ -63,11 +73,12 @@ export default function GameweekRangeFilter({
     // effect itself must not fire again just because fromGw/toGw changed
     // as a RESULT of applying a preset, or picking "This GW" would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultGw]);
+  }, [defaultGw, inPlayApplies]);
 
-  function applyPreset(p: GameweekRangePreset) {
+  function applyPreset(p: GameweekRangePreset, base: number | null = baseGw) {
     setPreset(p);
-    if (defaultGw === null) return;
+    if (base === null) return;
+    const defaultGw = base; // presets count from the base gameweek
     if (p === 'this') onChange(defaultGw, defaultGw);
     // "Next GW" is the single following week, not a range starting now --
     // the question is "who should I own for next week", which a range
@@ -104,6 +115,25 @@ export default function GameweekRangeFilter({
         </div>
       </div>
 
+      {inPlayApplies && (
+        <label className="flex items-center gap-2 text-xs text-ink-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeInPlay}
+            onChange={(e) => {
+              const inc = e.target.checked;
+              setIncludeInPlay(inc);
+              // Re-apply the current preset from the new base (custom keeps its numbers).
+              applyPreset(preset, inc ? defaultGw : (defaultGw as number) + 1);
+            }}
+            className="rounded border-chalk-300"
+          />
+          <span>
+            Include Gameweek {inPlay!.gw}{' '}
+            <span className="text-ink-500">(in progress: {inPlay!.played} of {inPlay!.total} matches played)</span>
+          </span>
+        </label>
+      )}
       <div className="flex flex-wrap items-end gap-4">
         <div>
           <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="from-gw">
