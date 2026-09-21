@@ -1,0 +1,22 @@
+-- ============================================================================
+-- Nightly prediction refresh: restore service_role's read access (found by
+-- the 2026-09-21 sanity check).
+--
+-- The Daily Premier League Import failed on 19, 20 and 21 September at
+-- "Refresh fixture predictions": backfill_fixture_predictions() runs with
+-- the CALLER's rights (security invoker), the workflow calls it as
+-- service_role, and service_role could not read two objects it uses:
+--   permission denied for view team_home_away_adjustment_v1
+--   permission denied for table team_strength_manual_override
+-- (Row-level security doesn't apply to service_role, but ordinary GRANTs
+-- do.) So future-fixture predictions have not been refreshed since the 18th.
+--
+-- Found by running the function as service_role in a rolled-back
+-- transaction, granting each refused object and retrying until it
+-- succeeded: exactly these two, then 1,807 fixtures updated. Deliberately
+-- the minimum. service_role lacks SELECT on 27 other objects too (a past
+-- re-grant appears to have covered anon/authenticated only); none is needed
+-- by a current job, and the pattern is recorded in OUTSTANDING.md.
+-- ============================================================================
+grant select on public.team_home_away_adjustment_v1 to service_role;
+grant select on public.team_strength_manual_override to service_role;
