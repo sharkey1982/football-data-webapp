@@ -45,3 +45,9 @@ jobs:
       # luck, the January budget, keepers, and decision win-chance lines.
       - name: Screens
         run: node games/beat-the-shark/test/screens.cjs
+
+      # The game as a player meets it: every level and role through whole
+      # seasons, screen by screen, via the game's own start-up. Added after the
+      # pre-season screen said "the Shark predicts 1st" while the opening said 3rd.
+      - name: Full walkthrough
+        run: node games/beat-the-shark/test/walkthrough.cjs

@@ -564,8 +564,10 @@ function boot(){
   R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
   S=newState();cursor=0;pendingReveal=null;
   PLAN.splice(0,PLAN.length,...planFor(LEVEL));
-  buildFixtures();TABLE=blankTable();PREDICT=monteCarlo();
-  recalcSquadRating();myPos();
+  // The squad's strength must be worked out BEFORE the Shark predicts: the
+  // other way round, the prediction used the wrong squad and said 1st.
+  buildFixtures();TABLE=blankTable();recalcSquadRating();PREDICT=monteCarlo();
+  myPos();
   S.proj0=projectionNow();S.kpi=[];kpiRecord();
   paintHeader();
   const pr=S.proj0[CLUB];
