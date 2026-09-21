@@ -137,7 +137,10 @@ console.log('\n2. STABILITY — full seasons play without crashing');
 /* ---------------------------------------------------------------- 3 ---- */
 console.log('\n3. BALANCE — the design targets still hold');
 {
+  /* The Shark predicts from a fresh pre-season squad with no decisions
+     made -- the same thing the game does at the start of every season. */
   G.setSeed('BAL'); G.pickRivals(); G.buildFixtures(); G.setTable(G.blankTable());
+  G.setRole(G.ROLES.manager); G.setS(G.newState()); G.recalcSquadRating();
   const P = G.monteCarlo(4000); G.setPredict(P);
   const pred = Math.round(P['Your Team'].avg);
   const fav = Object.values(P).reduce((a, b) => (b.title > a.title ? b : a));

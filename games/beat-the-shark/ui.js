@@ -5,8 +5,11 @@
 /* --- runner --------------------------------------------------------------- */
 /* Ten matchweeks, every one of them watched: five as your own match with a
    half-time decision, five as a live classified check across all fixtures. */
-const PLAN=["special1","heatmap","presser","match","live","physio","match","papers","event","live","podcast",
-            "match","special2","stats","event","live","physio","match","call","live","event","match","papers","event","live","end"];
+/* Three "luck" beats: things that happen TO the season, for and against
+   you and your rivals -- added after playtesting asked for more spread in
+   where Your Team finishes, and for chance alongside decisions. */
+const PLAN=["special1","heatmap","presser","match","live","luck","physio","match","papers","event","live","podcast",
+            "match","special2","stats","luck","event","live","physio","match","call","live","luck","event","match","papers","event","live","end"];
 let cursor=0,pendingReveal=null,RECENT=new Set(),RECENT_Q=[];
 function remember(s){RECENT.add(s);RECENT_Q.push(s);if(RECENT_Q.length>18)RECENT.delete(RECENT_Q.shift())}
 function drawEvent(){let best=null;
@@ -34,12 +37,17 @@ function step(){
   }
   if(b==="special2"){
     if(ROLE.id==="owner")return renderWindow("january",next);
-    if(ROLE.id==="manager")return renderSpec(winterSpec(),"DECEMBER · THE WINTER BREAK",next);
+    /* The manager never had a window, which mattered once squad balance
+       started deciding seasons: a lopsided squad could not be fixed.
+       He gets January on a budget the owner sets, then the winter break. */
+    if(ROLE.id==="manager"){S.janBudget=Math.min(Math.max(S.cash,0),160);
+      return renderWindow("january",()=>renderSpec(winterSpec(),"DECEMBER · THE WINTER BREAK",next))}
     return renderSpec(playerWinterSpec(),"DECEMBER · MIDWINTER",next);
   }
   if(b==="match")return renderMatch(next);
   if(b==="round")return renderRoundup();
   if(b==="live")return renderLiveWeek();
+  if(b==="luck")return renderLuck();
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
   if(b==="physio")return renderPhysio();
@@ -206,21 +214,38 @@ function renderHeatmap(){
     <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Get on with it</span></button></div>`;
   document.getElementById('nx').onclick=next;
 }
+function nextWinChance(){
+  if(!S||S.mw>=MW)return null;
+  const[h,a]=myFixture(S.mw),home=h===CLUB,opp=home?a:h;
+  return{opp,home,w:winProb(opp,home).w};
+}
+function renderLuck(){
+  const L=drawLuck();
+  if(!L){cursor++;return step()}
+  const fx=L.apply()||"";
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">${L.good===1?"A STROKE OF LUCK":L.good===0?"ROUGH LUCK":"ELSEWHERE IN THE LEAGUE"}</div>
+    <h1>${L.title}</h1><p class="lede">${L.lede}</p>
+    <div class="outcome">${L.text}</div><div class="delta">${fx}</div>
+    <button class="choice primary" id="nx" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
+  document.getElementById('nx').onclick=next;
+}
 function renderStats(){
   paintHeader();
   const log=S.seasonLog,gf=log.reduce((a,x)=>a+x.gf,0),ga=log.reduce((a,x)=>a+x.ga,0),cs=log.reduce((a,x)=>a+x.cs,0);
   const maxg=Math.max(2,...log.map(x=>Math.max(x.gf,x.ga)));
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">MATCHWEEK ${S.mw} · THE NUMBERS</div>
+    <div class="datechip">GAMEWEEK ${S.mw} · THE NUMBERS</div>
     <h1>Where the season actually is</h1>
     <p class="lede">${gf} scored, ${ga} conceded, ${cs} clean ${cs===1?"sheet":"sheets"} in ${log.length}.</p>
     <div style="display:flex;gap:3px;align-items:flex-end;height:64px;margin:10px 0 4px">
-      ${log.map(x=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px" title="MW${x.mw}: ${x.gf}-${x.ga}">
+      ${log.map(x=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px" title="GW${x.mw}: ${x.gf}-${x.ga}">
         <div style="height:${(x.gf/maxg)*28}px;background:var(--good);border-radius:2px 2px 0 0;min-height:2px"></div>
         <div style="height:${(x.ga/maxg)*28}px;background:var(--bad);border-radius:0 0 2px 2px;min-height:2px"></div></div>`).join('')}
     </div>
     <div style="font-size:11px;color:var(--mute);margin-bottom:12px">
-      <span style="color:var(--good)">■</span> scored · <span style="color:var(--bad)">■</span> conceded, by matchweek</div>
+      <span style="color:var(--good)">■</span> scored · <span style="color:var(--bad)">■</span> conceded, by gameweek</div>
     <h2>Team Strength now</h2>${strengthTableHTML()}
     <h2 style="margin-top:14px">The last five</h2>${fixtureHeatHTML(5,5)}
     <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Continue</span></button></div>`;
@@ -273,12 +298,20 @@ function renderSpec(spec,chip,after){
     b.onclick=()=>{
       if(c.ask){pendingReveal=c.reveal();return renderSpec(spec,chip,after)}
       pendingReveal=null;if(c.after)c.after();
+      const wBefore=nextWinChance();
       const d=c.fx?apply(c.fx,true):'';
       if(c.delayed)later(2,c.delayed,c.delayedText);
+      /* Attack and defence numbers moved, but did it matter? Say so in the
+         one number anybody understands: the chance of winning next time. */
+      recalcSquadRating();
+      const wAfter=nextWinChance();
+      const winLine=wBefore&&wAfter&&Math.abs(wAfter.w-wBefore.w)>=1
+        ?`<div class="later" style="border-left-color:${wAfter.w>wBefore.w?'var(--good)':'var(--bad)'}"><b>Next match</b>
+           Win chance ${wAfter.home?"at home to":"away at"} ${wAfter.opp}: ${wBefore.w}% → <b>${wAfter.w}%</b></div>`:"";
       recalcSquadRating();paintHeader();
       const outTxt=c.out&&c.out.length>120?c.out.split(/(?<=[.!?])\s+(?=[A-Z"“])/)[0]:c.out;
       document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">${chip}</div>
-        <h2>${spec.title}</h2>${outTxt?`<div class="outcome">${outTxt}</div>`:''}${d?`<div class="delta">${d}</div>`:''}
+        <h2>${spec.title}</h2>${outTxt?`<div class="outcome">${outTxt}</div>`:''}${d?`<div class="delta">${d}</div>`:''}${winLine}
         <button class="choice primary" id="nx" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
       document.getElementById('nx').onclick=after;
     };box.appendChild(b);
@@ -293,61 +326,9 @@ function tableRowsHTML(prevPos){
   return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th><th></th></tr></thead><tbody>
   ${st.map((r,i)=>{const was=prevPos?prevPos[r.n]:i+1,mv=was-(i+1);
     return `<tr class="${r.n===CLUB?'me':''} ${i>=N-2?'rel':''}" style="${mv?'background:color-mix(in srgb,var(--amber) 10%,transparent)':''}">
-      <td class="n">${i+1}</td><td>${r.n}</td><td class="n">${r.p}</td><td class="n">${r.gd>0?'+':''}${r.gd}</td><td class="n">${r.pts}</td>
+      <td class="n">${i+1}</td><td>${r.n}${youTag(r.n)}</td><td class="n">${r.p}</td><td class="n">${r.gd>0?'+':''}${r.gd}</td><td class="n">${r.pts}</td>
       <td style="font-family:var(--mono);font-size:11px;color:${mv>0?'var(--good)':mv<0?'var(--bad)':'var(--mute)'};width:26px">
         ${mv>0?'▲'+mv:mv<0?'▼'+Math.abs(mv):''}</td></tr>`}).join('')}</tbody></table>`;
-}
-function renderSportsCentre(){
-  const wk=S.mw,final=wk===MW-1,fx=FIXTURES[wk];
-  const mine=fx.find(([h,a])=>h===CLUB||a===CLUB),others=fx.filter(f=>f!==mine);
-  const[mh,ma]=playFixture(mine[0],mine[1],true);
-  const otherRes=others.map(([h,a])=>{const[hg,ag]=simScore(strOf(h),strOf(a));return{h,a,hg,ag}});
-  const posMap=()=>{const m={};standings(TABLE).forEach((r,i)=>m[r.n]=i+1);return m};
-  paintHeader();
-  document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY":"THE RUN-IN"} · SPORTS CENTRE</div>
-    <h1>${final?"Final day":"Every point counts now"}</h1>
-    <p class="lede">${final?"Everything is decided in the next hour.":"You are in a race, and so are they."}</p>
-    <div id="scMine"></div><div id="scTable"></div><div id="scFeed"></div><div id="scEnd"></div></div>`;
-  const feed=document.getElementById('scFeed');
-  /* 1. your result */
-  setTimeout(()=>{
-    const before=posMap();
-    award(TABLE,mine[0],mine[1],mh,ma);
-    const home=mine[0]===CLUB,{fx:myFx,res}=resolveMine(mh,ma,home);
-    myPos();
-    document.getElementById('scMine').innerHTML=`<div class="res mine" style="font-size:15px;padding:10px">
-      <span><b>FULL TIME</b> · ${mine[0]} v ${mine[1]}</span><span class="sc">${mh}–${ma}</span></div>
-      <div class="outcome" style="margin-top:8px">${res==='w'?"You have done your part.":res==='d'?"A point. Now it depends on everyone else.":"Beaten. Now you need help."}</div>`;
-    document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:10px 0 5px">AS IT STANDS · OTHER MATCHES STILL PLAYING</div>${tableRowsHTML(before)}`;
-    paintHeader();
-    S._myFx=myFx;S._res=res;
-    /* 2. everyone else, one at a time */
-    let i=0;
-    (function nextResult(){
-      if(i>=otherRes.length)return finishSC();
-      const r=otherRes[i++],prev=posMap();
-      setTimeout(()=>{
-        award(TABLE,r.h,r.a,r.hg,r.ag);myPos();
-        const d=document.createElement('div');d.className='res';d.style.marginTop='6px';
-        d.innerHTML=`<span><b>FULL TIME</b> · ${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span>`;
-        feed.appendChild(d);
-        document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:10px 0 5px">${i<otherRes.length?"AS IT STANDS · ":""}${i<otherRes.length?(otherRes.length-i)+" STILL PLAYING":"FINAL TABLE THIS WEEK"}</div>${tableRowsHTML(prev)}`;
-        paintHeader();nextResult();
-      },1700);
-    })();
-  },900);
-  function finishSC(){
-    S.mw++;const d=apply(S._myFx,true);myPos();paintHeader();
-    const st=standings(TABLE),me=S.pos;
-    const verdict=final
-      ?(me===1?"Champions.":me>=st.length-1?"Relegated.":`${ord(me)}, and safe.`)
-      :(me===1?"Top of the table.":me>=st.length-1?"In the drop zone.":`${ord(me)} of six.`);
-    document.getElementById('scEnd').innerHTML=`<div class="outcome" style="margin-top:10px;font-size:16px"><b>${verdict}</b></div>
-      <div class="delta">${d}</div>
-      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
-    document.getElementById('mn').onclick=next;
-  }
 }
 /* The favourite usually wins. Usually. Saying so out loud, against what
    actually happened, is the whole educational point of the Monte Carlo. */

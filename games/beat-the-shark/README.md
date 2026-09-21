@@ -69,6 +69,7 @@ folder.
 | Integrity | Every event in every role renders with no `undefined`, `NaN` or `[object` text, and none throws |
 | Stability | 540 full seasons complete without a crash, under best, worst and no-decision play |
 | Balance | The design targets below still hold |
+| Screens (`test/screens.cjs`) | Whole matches played through the real screens: Your Team on the left, the 3pm results, team sheet and half time, heat map wording, luck, the manager's January budget, keepers, and each decision's win-chance line |
 
 **Balance targets**, set from 2,500-season runs:
 

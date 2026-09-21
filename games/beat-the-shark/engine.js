@@ -83,7 +83,14 @@ function buildFixtures(){
   for(let r=0;r<n-1;r++){const wk=[];for(let i=0;i<n/2;i++)wk.push([arr[i],arr[n-1-i]]);rounds.push(wk);arr.splice(1,0,arr.pop())}
   FIXTURES=rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
 }
-const strOf=n=>n===CLUB?null:RIVALS.find(r=>r.n===n).str;
+/* A rival's strength can move mid-season through luck events (an injury to
+   their star, a new signing), stored per season in S.rivalMod. Guarded
+   because the pre-season model runs before a season state exists. */
+const strOf=n=>{if(n===CLUB)return null;
+  const live=typeof S!=="undefined"&&S;
+  return RIVALS.find(r=>r.n===n).str+((live&&S.rivalMod&&S.rivalMod[n])||0)
+    /* the hidden season swing -- invisible to the Shark's own simulation */
+    +((live&&!S._mc&&S.swing&&S.swing[n])||0)};
 function oppFormation(n){
   /* Rivals pick shapes that suit their strength, with some variety. */
   const st=strOf(n);
@@ -99,7 +106,12 @@ function clubRates(opp,home,scale,oppFm){
   const def=base+(S.defMod||0)+f.def+(S.matchDef||0)+bD;
   const os=strOf(opp),oAtt=os+of.att,oDef=os+of.def,h=home?5:-5;
   const k=scale||1.25;
-  return[Math.max(.08,k*Math.pow(1.5,(att+h-oDef)/20)),Math.max(.08,k*Math.pow(1.5,(oAtt-def-h)/20))];
+  /* Divisor lowered 20 -> 16 after playtesting: decisions that raised
+     attack and defence were not showing up in results enough. A steeper
+     response makes every lever count for more -- and widens where Your Team
+     can finish, which was also asked for. Rival-v-rival games keep the
+     gentler curve in simScore. */
+  return[Math.max(.08,k*Math.pow(1.5,(att+h-oDef)/CLUB_SENS)),Math.max(.08,k*Math.pow(1.5,(oAtt-def-h)/CLUB_SENS))];
 }
 const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
 /* One entry point for any fixture, so your club always uses the split
@@ -107,7 +119,13 @@ const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1}
 function playFixture(h,a,credit){
   if(h!==CLUB&&a!==CLUB)return simScore(strOf(h),strOf(a));
   const home=h===CLUB,opp=home?a:h;
-  const[m,t]=clubRates(opp,home,1.25,oppFormation(opp));
+  let[m,t]=clubRates(opp,home,1.25,oppFormation(opp));
+  /* Red cards, at the same odds as the vidiprinter (see drawReds). A red
+     lands on average around the hour, so over a whole match it is worth
+     roughly half its full effect. */
+  const hot=currentXI().some(s=>S.squadList[s.i].nm==="Hot Head");
+  if(rng()<RED_THEM){t*=.86;m*=1.12}
+  if(rng()<(hot?RED_US_HOTHEAD:RED_US)){m*=.86;t*=1.12}
   const mg=Math.min(5,pois(m)),tg=Math.min(5,pois(t));
   /* credit=true where no vidiprinter names the scorers. The classified
      check names them itself, so it must NOT pass this -- or every goal
@@ -130,13 +148,59 @@ function award(t,h,a,hg,ag){t[h].p++;t[a].p++;t[h].gf+=hg;t[h].ga+=ag;t[a].gf+=a
   if(hg===0&&CLEAN[a]!=null)CLEAN[a]++;}
 function standings(t){return Object.entries(t).map(([n,v])=>({n,...v,gd:v.gf-v.ga}))
   .sort((x,y)=>y.pts-x.pts||y.gd-x.gd||y.gf-x.gf||x.n.localeCompare(y.n))}
+/* THE SHARK'S PREDICTION. It simulates the season thousands of times using
+   the SAME match engine the game plays -- your actual squad, formation
+   balance and red-card odds -- but with no decisions made. That is what
+   makes the score mean "what your decisions were worth": the prediction is
+   the no-decision baseline, by construction rather than by tuning.
+   (It used to simulate Your Team as a fixed rating of 52 on a gentler curve,
+   so every change to the real engine silently moved the baseline.)
+   Rates are cached per opponent, venue and shape, because the pre-season
+   state does not change during the simulation. Before a season exists --
+   the opening screen -- it falls back to the fixed rating. */
 function monteCarlo(runs=4000){
+  /* blankTable() resets -- and award() fills -- the FORM and CLEAN records,
+     which are shared with the real season. Without saving and restoring
+     them, the real game began with the form and clean sheets of the last
+     simulated season (60 results and 21 clean sheets, measured). */
+  const savedForm=FORM,savedClean=CLEAN;
   const saved=R.s,counts={};[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>counts[n]={sum:0,bot2:0,top:0});
+  const live=typeof S!=="undefined"&&S&&S.squadList&&typeof ROLE!=="undefined"&&ROLE;
+  const cache={};
+  const clubGame=(h,a)=>{
+    const home=h===CLUB,opp=home?a:h,fm=oppFormation(opp),key=opp+"|"+home+"|"+fm;
+    const[m0,t0]=cache[key]||(cache[key]=clubRates(opp,home,1.25,fm));
+    let m=m0,t=t0;
+    if(rng()<RED_THEM){t*=.86;m*=1.12}
+    if(rng()<RED_US_BASE){m*=.86;t*=1.12}
+    const mg=Math.min(5,pois(m)),tg=Math.min(5,pois(t));
+    return home?[mg,tg]:[tg,mg];
+  };
+  const hot=live&&currentXI().some(x=>S.squadList[x.i].nm==="Hot Head");
+  const RED_US_BASE=hot?RED_US_HOTHEAD:RED_US;
+  /* A season is not played at August freshness. The Shark assumes a normal
+     season's wear: squad fatigue and player condition at their season-long
+     averages for a side that simply plays its fixtures, measured from this
+     engine (fatigue ~35, condition ~76 across GW1-10). Without this it
+     predicted from the fresh pre-season squad and was systematically
+     optimistic, so doing nothing scored well below the 50 it should. */
+  let restore=null;
+  if(live)S._mc=true;
+  if(live){
+    const fits=S.squadList.map(p=>p.fit),fat=S.fatigue;
+    S.squadList.forEach(p=>{p.fit=Math.min(p.fit,SEASON_WEAR.condition)});S.fatigue=SEASON_WEAR.fatigue;
+    restore=()=>{S.squadList.forEach((p,i)=>{p.fit=fits[i]});S.fatigue=fat};
+  }
   for(let i=0;i<runs;i++){const t=blankTable();
-    FIXTURES.forEach(wk=>wk.forEach(([h,a])=>{const hs=h===CLUB?52:strOf(h),as=a===CLUB?52:strOf(a);
-      const[hg,ag]=simScore(hs,as);award(t,h,a,hg,ag)}));
+    FIXTURES.forEach(wk=>wk.forEach(([h,a])=>{
+      const[hg,ag]=(live&&(h===CLUB||a===CLUB))?clubGame(h,a)
+        :simScore(h===CLUB?52:strOf(h),a===CLUB?52:strOf(a));
+      award(t,h,a,hg,ag)}));
     standings(t).forEach((row,idx)=>{counts[row.n].sum+=idx+1;if(idx>=4)counts[row.n].bot2++;if(idx===0)counts[row.n].top++})}
-  R.s=saved;const out={};for(const[n,c]of Object.entries(counts))out[n]={avg:c.sum/runs,rel:Math.round(c.bot2/runs*100),title:Math.round(c.top/runs*100)};
+  if(restore)restore();
+  if(live)S._mc=false;
+  R.s=saved;FORM=savedForm;CLEAN=savedClean;
+  const out={};for(const[n,c]of Object.entries(counts))out[n]={avg:c.sum/runs,rel:Math.round(c.bot2/runs*100),title:Math.round(c.top/runs*100)};
   return out;
 }
 
@@ -154,8 +218,8 @@ function monteCarlo(runs=4000){
    PLAY get tired -- so rotation, not just quality, decides a season.
    =========================================================================== */
 const ARCHETYPES=[
-  {pos:"GK",nm:"Safe Hands",          rt:56,fit:90,att:0,def:2, dev:0,   inj:.6, line:"never spectacular, never wrong"},
-  {pos:"GK",nm:"Error-Prone Keeper",  rt:49,fit:95,att:0,def:-1,dev:.3,  inj:.8, line:"brilliant saves, baffling mistakes"},
+  {pos:"GK",nm:"Safe Hands",          rt:56,fit:90,att:0,def:2, dev:0,   inj:.15, line:"never spectacular, never wrong"},
+  {pos:"GK",nm:"Error-Prone Keeper",  rt:49,fit:95,att:0,def:-1,dev:.3,  inj:.15, line:"brilliant saves, baffling mistakes"},
   {pos:"DF",nm:"Captain Grit",        rt:55,fit:78,att:0,def:3, dev:-.4, inj:1.3,line:"thirty-four, organises everyone"},
   {pos:"DF",nm:"Aerial Giant",        rt:53,fit:88,att:1,def:2, dev:0,   inj:.9, line:"wins every header, loses every race"},
   {pos:"DF",nm:"Ball-Playing Defender",rt:52,fit:88,att:2,def:-1,dev:.1, inj:1,  line:"lovely on the ball, nervy off it"},
@@ -225,14 +289,17 @@ function xiStats(){
   let q=0,fit=0,att=0,def=0;
   for(const s of xi){const p=S.squadList[s.i],oop=p.pos!==s.slot;
     q+=effRating(p,s.slot);fit+=p.fit;
-    att+=oop?p.att*.5:p.att;def+=oop?p.def*.5-1:p.def}
+    att+=oop?p.att*.5:p.att;def+=oop?p.def*.5-1:p.def;
+    /* An outfield player in goal is not a small inefficiency -- it is a
+       defensive crisis, and it must feel like one in the results. */
+    if(s.slot==="GK"&&p.pos!=="GK")def-=12}
   const n=xi.length;
   /* Fewer than eleven fit players is punished directly. */
   return{q:q/n-(11-n)*3,fit:fit/n,att,def,xi};
 }
 /* How far the XI's attacking and defensive lean has moved from the side
    you started the season with. Feeds attack and defence separately. */
-function balanceAdj(){const x=xiStats();return[(x.att-(S.attBase||0))*.8,(x.def-(S.defBase||0))*.8]}
+function balanceAdj(){const x=xiStats();return[(x.att-(S.attBase||0))*BAL_WEIGHT,(x.def-(S.defBase||0))*BAL_WEIGHT]}
 function squadHTML(opts){
   opts=opts||{};
   const xi=currentXI(),inXI=new Set(xi.map(s=>s.i));
@@ -269,7 +336,8 @@ function newState(){
     form:62,fitness:88,interest:40,mw:0,pos:6,formArr:[],lastRes:null,alive:true,
     pending:[],flags:{},squadList:sq,meIdx,manualXI:null,manualFm:null,
     matchBoost:0,lastScore:null,ticketLevel:0,signings:0,seasonLog:[],physioLevel:0,
-    formation:"4-4-2",attMod:0,defMod:0,matchAtt:0,matchDef:0,bonuses:[]};
+    formation:"4-4-2",attMod:0,defMod:0,matchAtt:0,matchDef:0,bonuses:[],rivalMod:{},
+    swing:Object.fromEntries([CLUB].concat(RIVALS.map(r=>r.n)).map(n=>[n,rnd(-SEASON_SWING,SEASON_SWING)]))};
 }
 /* S.squad is now a READOUT of the XI's quality, recomputed freely. What
    events change is MORALE -- a separate number that persists. They used to
@@ -284,11 +352,16 @@ function myStrength(){
   const x=xiStats();
   let b=x.q+(x.fit-86)*.16-(S.fatigue-40)*.12+(S.fans-50)*.04+((S.morale==null?50:S.morale)-50)*.12;
   if(ROLE.id==="player")b+=(S.form-62)*.12+(S.fitness-86)*.05;
+  /* your own hidden season swing, again invisible to the Shark */
+  if(!S._mc&&S.swing)b+=S.swing[CLUB]||0;
   return b+(S.matchBoost||0);
 }
+/* Your Team is marked the same way in every table, so it can be found at a
+   glance whatever else is on screen. */
+const youTag=n=>n===CLUB?' <span class="you">YOU</span>':'';
 function tableHTML(){const st=standings(TABLE),N=st.length;
   return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
-  ${st.map((r,i)=>`<tr class="${r.n===CLUB?'me':''} ${i>=N-2?'rel':''}"><td class="n">${i+1}</td><td>${r.n}</td>
+  ${st.map((r,i)=>`<tr class="${r.n===CLUB?'me':''} ${i>=N-2?'rel':''}"><td class="n">${i+1}</td><td>${r.n}${youTag(r.n)}</td>
   <td class="n">${r.p}</td><td class="n">${r.gd>0?'+':''}${r.gd}</td><td class="n">${r.pts}</td></tr>`).join('')}</tbody></table>
   <div style="font-size:11px;color:var(--mute);margin-top:4px">The FixtureShark League · bottom two relegated</div>`}
 function myPos(){S.pos=standings(TABLE).findIndex(r=>r.n===CLUB)+1;return S.pos}
@@ -302,7 +375,7 @@ function predictedTableHTML(){
     .sort((a,b)=>a.avg-b.avg);
   return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">Title</th><th class="n">Down</th></tr></thead><tbody>
   ${rows.map((r,i)=>{const rv=RIVALS.find(x=>x.n===r.n);return `<tr class="${r.n===CLUB?'me':''} ${i>=rows.length-2?'rel':''}"><td class="n">${i+1}</td>
-    <td>${r.n}${rv?`<div style="font-size:11px;color:var(--mute);font-weight:400">${rv.d}</div>`:`<div style="font-size:11px;color:var(--mute);font-weight:400">that is up to you</div>`}</td>
+    <td>${r.n}${youTag(r.n)}${rv?`<div style="font-size:11px;color:var(--mute);font-weight:400">${rv.d}</div>`:`<div style="font-size:11px;color:var(--mute);font-weight:400">that is up to you</div>`}</td>
     <td class="n">${PREDICT[r.n].title}%</td><td class="n">${r.rel}%</td></tr>`}).join('')}</tbody></table>
   <div style="font-size:11px;color:var(--mute);margin-top:4px">FixtureShark pre-season model · 4,000 simulated seasons · nothing played yet</div>`;
 }
@@ -356,7 +429,7 @@ function paintHeader(){
   const left=MW-S.mw;
   let note=S.mw===0?"Pre-season · nothing played":left===0?"Season over":left<=2?`${left} to play — the run-in`:S.mw===5?"Halfway":`${left} matches left`;
   document.getElementById('hSeason').innerHTML=
-   `<div class="lbl"><span>MATCHWEEK ${S.mw} / ${MW} · ${note.toUpperCase()}</span>
+   `<div class="lbl"><span>GAMEWEEK ${S.mw} / ${MW} · ${note.toUpperCase()}</span>
      <span>${ROLE.id==="owner"?"CASH "+fmtMoney(S.cash):S.formArr.length?"FORM "+S.formArr.slice(-5).map(f=>f.toUpperCase()).join(" "):""}</span></div>
     <div class="track"><i style="width:${(S.mw/MW)*100}%"></i></div>`;
   S.lastScore=total;

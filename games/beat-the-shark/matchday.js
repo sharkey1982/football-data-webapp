@@ -11,7 +11,13 @@ function resolveMine(hg,ag,home){
   if(mg>tg){res='w';fx={fans:7,board:7,cash:rnd(16,30)}}
   else if(mg===tg){res='d';fx={fans:1,board:1,cash:rnd(10,19)}}
   else{res='l';fx={fans:-7,board:-6,cash:rnd(8,15)}}
-  S.formArr.push(res);S.lastRes=res;S.fatigue=clamp(S.fatigue+rnd(5,9));S.matchBoost=0;
+  S.formArr.push(res);S.lastRes=res;S.matchBoost=0;
+  /* Squad fatigue now RECOVERS between matches, settling around the mid-40s
+     unless decisions push it. It used to climb 5-9 every match with nothing
+     bringing it down (22 -> 85 over a season, measured), which double-counted
+     tiredness once every player had his own condition -- a side that simply
+     played its fixtures lost 12 strength points by May. */
+  S.fatigue=clamp(S.fatigue+rnd(2,5)-Math.max(0,(S.fatigue-30)*.25));
   S.seasonLog.push({mw:S.mw+1,gf:mg,ga:tg,cs:tg===0?1:0});
   /* Only the players who PLAYED tire and risk injury; the bench recovers.
      That is what makes rotation a real decision rather than a readout.
@@ -49,7 +55,7 @@ function strengthTableHTML(){
     .sort((a,b)=>(b.att-b.def)-(a.att-a.def));
   return `<table class="tbl"><thead><tr><th>Club</th><th class="n">Attack</th><th class="n">Defence</th>
     <th class="n">GF</th><th class="n">GA</th><th class="n">CS</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr class="${r.n===CLUB?'me':''}"><td>${r.n}</td>
+    ${rows.map(r=>`<tr class="${r.n===CLUB?'me':''}"><td>${r.n}${youTag(r.n)}</td>
       <td class="n">${r.att.toFixed(2)}</td><td class="n">${r.def.toFixed(2)}</td>
       <td class="n">${r.t.gf}</td><td class="n">${r.t.ga}</td><td class="n">${CLEAN[r.n]||0}</td></tr>`).join('')}
     </tbody></table>
@@ -57,28 +63,38 @@ function strengthTableHTML(){
 }
 /* Fixture heat map: every remaining match rated by opponent strength and
    venue. Exactly the thing the site does, shown here as a row of squares. */
-function heatColour(d){
-  return d<=1.5?"#2d6b48":d<=2.5?"#5d8f4e":d<=3.5?"#c9901a":d<=4.5?"#c26a2a":"#a8322b";
-}
-/* Five at a time in a fixed five-column grid. Ten tiles in a flex-wrap
-   row broke on mobile into eight-then-two; five columns cannot wrap. */
+/* FIXTURE HEAT MAP, in the site's own language: GW numbers, a three-letter
+   opponent code with H or A (the site shows "CHI - H"), a whole-number FDR
+   from 1 (easiest) to 5 (hardest), and the site's legend wording. The game
+   used to say "MW" and show a raw decimal, which nobody could read. */
+function heatColour(d){return["#2d6b48","#5d8f4e","#c9901a","#c26a2a","#a8322b"][clamp(d,1,5)-1]}
+function oppCode(n){return n.replace(/[^A-Za-z]/g,"").slice(0,3).toUpperCase()}
 function fixtureHeatHTML(fromWk,count){
   const cells=[],to=Math.min(MW,fromWk+(count||5));
   for(let wk=fromWk;wk<to;wk++){
     const f=FIXTURES[wk].find(([h,a])=>h===CLUB||a===CLUB);
     const home=f[0]===CLUB,opp=home?f[1]:f[0];
     const gap=strOf(opp)-myStrength()+(home?-4:4);
-    const d=clamp(3+gap/6,1,5);
-    cells.push({wk:wk+1,opp,home,d});
+    cells.push({wk:wk+1,opp,home,d:Math.round(clamp(3+gap/6,1,5))});
   }
-  return `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0 4px">
-    ${cells.map(c=>`<div title="${c.opp}" style="min-width:0;overflow:hidden;background:${heatColour(c.d)};
-      color:#f6f4ea;border-radius:6px;padding:6px 4px;text-align:center">
-      <div style="font-family:var(--mono);font-size:9px;opacity:.85">MW${c.wk}</div>
-      <div style="font-family:var(--disp);font-size:13px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.opp.split(" ")[0]}</div>
-      <div style="font-family:var(--mono);font-size:9px;opacity:.85">${c.home?"H":"A"} · ${c.d.toFixed(1)}</div></div>`).join('')}
+  if(!cells.length)return "";
+  const easy=cells.filter(c=>c.d<=2).length,hard=cells.filter(c=>c.d>=4).length;
+  const worst=cells.reduce((a,c)=>c.d>a.d?c:a),best=cells.reduce((a,c)=>c.d<a.d?c:a);
+  const say=`${easy} ${easy===1?"looks":"look"} kind, ${hard} ${hard===1?"looks":"look"} hard. `+
+    `Toughest: GW${worst.wk}, ${worst.home?"home to":"away at"} ${worst.opp}. `+
+    `Kindest: GW${best.wk}, ${best.home?"home to":"away at"} ${best.opp}.`;
+  return `<div style="display:grid;grid-template-columns:repeat(${cells.length},1fr);gap:4px;margin:6px 0 4px">
+    ${cells.map(c=>`<div title="GW${c.wk}: ${CLUB} ${c.home?"vs":"@"} ${c.opp} — FDR ${c.d}"
+      style="min-width:0;background:${heatColour(c.d)};color:#f6f4ea;border-radius:6px;padding:7px 3px;text-align:center">
+      <div style="font-family:var(--mono);font-size:10px;opacity:.9">GW${c.wk}</div>
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;margin-top:2px">${oppCode(c.opp)} - ${c.home?"H":"A"}</div>
+      <div style="font-family:var(--mono);font-size:9.5px;opacity:.85;margin-top:2px">FDR ${c.d}</div></div>`).join('')}
   </div>
-  <div style="font-size:11px;color:var(--mute)">Fixture difficulty 1 (easiest) to 5 (hardest), from Team Strength and venue</div>`;
+  <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mute);margin:4px 0 6px">
+    <span>Easiest fixtures (FDR)</span>
+    <span style="flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#2d6b48,#5d8f4e,#c9901a,#c26a2a,#a8322b)"></span>
+    <span>Hardest fixtures (FDR)</span></div>
+  <p class="small" style="margin:0">${say}</p>`;
 }
 function posOf(n){return standings(TABLE).findIndex(r=>r.n===n)+1}
 function formPips(n){const f=(FORM[n]||[]).slice(-5);
@@ -139,80 +155,10 @@ function inRace(){
   const bottom=me>=3&&TABLE[CLUB].pts-safe<=3;
   return top||bottom;
 }
-function renderLiveWeek(){
-  if(S.mw===MW-1||inRace())return renderSportsCentre();
-  const wk=S.mw, fx=FIXTURES[wk];
-  const games=fx.map(([h,a])=>{
-    const[hg,ag]=playFixture(h,a);
-    const mins=n=>{const r=[];for(let i=0;i<n;i++)r.push(rnd(3,90));return r.sort((x,y)=>x-y)};
-    const scorers=(t)=>{if(t!==CLUB)return t.toUpperCase();const p=pickScorer();if(p)p.goals=(p.goals||0)+1;return p?p.nm.toUpperCase():"TRIALIST"};
-    const ev=[];
-    mins(hg).forEach(m=>ev.push({m,team:h,who:scorers(h)}));
-    mins(ag).forEach(m=>ev.push({m,team:a,who:scorers(a)}));
-    return{h,a,hg,ag,ev,ch:0,ca:0,mine:h===CLUB||a===CLUB};
-  });
-  const all=[];
-  games.forEach((g,gi)=>g.ev.forEach(e=>all.push({...e,gi})));
-  all.sort((x,y)=>x.m-y.m);
-  paintHeader();
-  const final=wk===MW-1;
-  document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ALL KICKING OFF TOGETHER":"SATURDAY, 3PM · CLASSIFIED CHECK"}</div>
-    <h1>${final?"Everything at once":"Around the grounds"}</h1>
-    ${final?`<p class="lede">Three matches, one kick-off, and nothing decided until all of them finish.</p>`:''}
-    <div id="board"></div>
-    <div class="vp" style="margin-top:10px;min-height:120px"><div id="tick"></div></div>
-    <button class="skip" id="skipB">skip to full time</button></div>`;
-  const board=document.getElementById('board'),tick=document.getElementById('tick');
-  function drawBoard(){
-    board.innerHTML=games.map(g=>{
-      const ph=posOf(g.h),pa=posOf(g.a),any=TABLE[CLUB].p>0;
-      return `<div class="res ${g.mine?'mine':''}">
-        <span>${any?`<span style="color:var(--mute);font-family:var(--mono);font-size:11px">${ph}</span> `:""}${g.h}
-          v ${g.a}${any?` <span style="color:var(--mute);font-family:var(--mono);font-size:11px">${pa}</span>`:""}</span>
-        <span class="sc">${g.ch}–${g.ca}</span></div>`}).join('');
-  }
-  drawBoard();
-  let i=0,stopped=false;
-  const add=(m,t,cls)=>{const d=document.createElement('div');d.className='ln'+(cls?' '+cls:'');
-    d.innerHTML=`<span class="min">${m}</span><span class="tx">${t}</span>`;tick.appendChild(d)};
-  function finishAll(){
-    if(stopped)return;stopped=true;
-    games.forEach(g=>{g.ch=g.hg;g.ca=g.ag});drawBoard();
-    add("FT","All full time","ft");
-    let myFx=null,myRes=null;
-    games.forEach(g=>{
-      award(TABLE,g.h,g.a,g.hg,g.ag);
-      if(g.mine){const home=g.h===CLUB;const r=resolveMine(g.hg,g.ag,home);myFx=r.fx;myRes=r.res}
-    });
-    S.mw++;const d=apply(myFx,true);myPos();
-    setTimeout(()=>{
-      const el=document.createElement('div');el.className='card';
-      const mid=S.mw===5,run=S.mw===8;
-      el.innerHTML=`<div class="outcome">${myRes==='w'?"A win. The place feels like a football club again.":myRes==='d'?"A point. Not nothing.":"Beaten. The phone-in will be unpleasant."}</div>
-        <div class="delta">${d}</div>
-        ${mid?`<p class="lede" style="margin-top:10px">Halfway. ${ord(S.pos)} of six.</p>`:''}
-        ${run?`<p class="lede" style="margin-top:10px">Three left. Whatever you are going to do, do it now.</p>`:''}
-        <div style="margin-top:10px">${tableHTML()}</div>
-        <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">Continue</span></button>`;
-      document.getElementById('app').appendChild(el);paintHeader();
-      document.getElementById('mn').onclick=next;
-    },650);
-  }
-  function stepEv(){
-    if(stopped)return;
-    if(i>=all.length)return setTimeout(finishAll,700);
-    const e=all[i++],g=games[e.gi];
-    if(e.team===g.h)g.ch++;else g.ca++;
-    drawBoard();
-    const mineGoal=g.mine&&e.team===CLUB;
-    const againstMe=g.mine&&e.team!==CLUB;
-    add(e.m+"'",`${g.h} ${g.ch}–${g.ca} ${g.a}   ${e.who}`,mineGoal?'goal':againstMe?'against':'');
-    setTimeout(stepEv,760+Math.random()*300);
-  }
-  document.getElementById('skipB').onclick=()=>{if(!stopped){tick.innerHTML='';add("","(skipped)","");finishAll()}};
-  setTimeout(stepEv,700);
-}
+/* Every "live" week is now your own match, quickly, followed by the 3pm
+   results -- the old classified check streamed all three fixtures at once,
+   which was hard to follow. */
+function renderLiveWeek(){return renderMatch(next,true)}
 function renderRoundup(){
   const wk=S.mw,[h,a]=myFixture(wk),home=h===CLUB;
   const[hg,ag]=playFixture(h,a);
@@ -221,7 +167,7 @@ function renderRoundup(){
   const d=apply(fx,true);myPos();paintHeader();
   const mid=S.mw===5,run=S.mw===8;
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">MATCHWEEK ${S.mw} OF ${MW} · RESULTS</div>
+    <div class="datechip">GAMEWEEK ${S.mw} OF ${MW} · RESULTS</div>
     <h1>${mid?"Halfway":run?"The run-in begins":"Saturday's results"}</h1>
     ${mid?`<p class="lede">Five played, five to go. ${ord(S.pos)} of six.</p>`:''}
     ${run?`<p class="lede">Three matches left. Whatever you are going to do, do it now.</p>`:''}
@@ -246,7 +192,7 @@ function renderTeamSheet(done){
     const x=xiStats(),[bA,bD]=balanceAdj();
     const lean=v=>`<span style="color:${v>0.4?'var(--good)':v<-0.4?'var(--bad)':'var(--mute)'}">${v>0?'+':''}${v.toFixed(1)}</span>`;
     document.getElementById('app').innerHTML=`<div class="card">
-      <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
+      <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
       <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
       <p class="small">They are lining up <b>${S.pendingOppFm}</b>. ${mgr?"Pick your shape and your eleven.":"The manager has picked the side."}</p>
       ${mgr?`<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0 10px">
@@ -274,46 +220,72 @@ function renderTeamSheet(done){
   }
   draw();
 }
-function renderMatch(done){
-  if(!S._sheetShown){S._sheetShown=true;return renderTeamSheet(()=>renderMatch(done))}
+/* RED CARDS -- luck, not decisions. Drawn at kickoff for either side. A red
+   before half time changes the second half; the Hot Head in your XI makes
+   your own far likelier. The same odds are used in the quick simulation
+   (playFixture), so the balance checks measure the game as it is played. */
+function drawReds(){
+  const hot=currentXI().some(s=>S.squadList[s.i].nm==="Hot Head");
+  const r=[];
+  if(rng()<RED_THEM)r.push({m:rnd(15,85),us:0});
+  if(rng()<(hot?RED_US_HOTHEAD:RED_US)){
+    const xi=currentXI().filter(s=>s.slot!=="GK").map(s=>S.squadList[s.i]);
+    const who=hot?"Hot Head":(pick(xi)||{nm:"a defender"}).nm;
+    r.push({m:rnd(15,85),us:1,who});
+  }
+  return r;
+}
+/* YOUR MATCH. Your Team is always on the left and the score is always
+   yours first -- it used to follow home/away convention, which made your
+   own result hard to follow. quick=true is the lighter version: no team
+   sheet, no half-time call, a faster vidiprinter. */
+function renderMatch(done,quick){
+  if(!quick&&!S._sheetShown){S._sheetShown=true;return renderTeamSheet(()=>renderMatch(done,false))}
   S._sheetShown=false;
-  const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
+  const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT,final=wk===MW-1;
   const oFm=S.pendingOppFm||oppFormation(opp);S.pendingOppFm=null;S.nextOppFm=oFm;
-  S.matchBoost=0;S.matchAtt=0;S.matchDef=0;S.subsUsed=0;
+  S.matchBoost=0;S.matchAtt=0;S.matchDef=0;
+  const startPos=TABLE[CLUB].p?posOf(CLUB):null;
+  const reds=drawReds();
   paintHeader();
-  const fmLine=(mine)=>`<span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${mine?S.formation:oFm}</span>`;
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · SATURDAY, 3PM</div>
+    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE EARLY KICK-OFF</div>
     <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
-    ${opponentPanel(opp,home)}
+    ${quick?"":opponentPanel(opp,home)}
     <div class="vp"><div class="teams">
-      <span>${hT.toUpperCase()}<br>${fmLine(home)}</span>
-      <span style="text-align:right">${aT.toUpperCase()}<br>${fmLine(!home)}</span></div><div id="vpl"></div></div>
+      <span>${CLUB.toUpperCase()} <small style="opacity:.7">(${home?"H":"A"})</small><br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${S.formation}</span></span>
+      <span style="text-align:right">${opp.toUpperCase()}<br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${oFm}</span></span></div>
+      <div id="vpl"></div></div>
     <div id="htBox"></div></div>`;
-  const lines=document.getElementById('vpl');let h=0,a=0;
+  const lines=document.getElementById('vpl');let mine=0,theirs=0;
   const add=(m,t,cls,sc2)=>{const d=document.createElement('div');d.className='ln'+(cls?' '+cls:'');
     d.innerHTML=`<span class="min">${m}</span><span class="tx">${t}</span>${sc2?`<span class="sc">${sc2}</span>`:''}`;lines.appendChild(d)};
-  const sc=()=>`${h}–${a}`;
+  const sc=()=>`${mine}–${theirs}`;
+  const tick=quick?430:780;
   function half(from,to,cb){
-    const[mr,tr]=clubRates(opp,home,.62,oFm);
+    let[mr,tr]=clubRates(opp,home,.62,oFm);
+    /* a first-half red card shapes the second half */
+    for(const r of reds)if(from>45&&r.m<=45){if(r.us){mr*=.72;tr*=1.25}else{tr*=.72;mr*=1.25}}
     const mg=Math.min(3,pois(mr)),tg=Math.min(3,pois(tr)),ev=[];
     const mins=n=>{const r=[];for(let i=0;i<n;i++)r.push(rnd(from,to));return r.sort((x,y)=>x-y)};
     for(const m of mins(mg))ev.push({m,mine:1,p:pickScorer()});
     for(const m of mins(tg))ev.push({m,mine:0});
+    for(const r of reds)if(r.m>=from&&r.m<=to)ev.push({m:r.m,red:r});
     if(rng()<.4)ev.push({m:rnd(from,to),card:1});
     ev.sort((x,y)=>x.m-y.m);let i=0;
-    (function go(){if(i>=ev.length)return setTimeout(cb,460);const e=ev[i++];
+    (function go(){if(i>=ev.length)return setTimeout(cb,quick?260:460);const e=ev[i++];
       if(e.card)add(e.m+"'","Yellow card","");
-      else if(e.mine){home?h++:a++;if(e.p)e.p.goals=(e.p.goals||0)+1;
+      else if(e.red)add(e.m+"'",e.red.us?`RED CARD — ${e.red.who.toUpperCase()} (YOURS)`:`RED CARD — ${opp.toUpperCase()}`,e.red.us?"against":"goal");
+      else if(e.mine){mine++;if(e.p)e.p.goals=(e.p.goals||0)+1;
         add(e.m+"'",(e.p?e.p.nm:"TRIALIST").toUpperCase(),"goal",sc())}
-      else{home?a++:h++;add(e.m+"'",opp.toUpperCase()+" GOAL","against",sc())}
-      setTimeout(go,780+Math.random()*260)})();
+      else{theirs++;add(e.m+"'",opp.toUpperCase()+" GOAL","against",sc())}
+      setTimeout(go,tick+Math.random()*(quick?120:260))})();
   }
   half(4,45,()=>{
     add("HT","Half time","ft",sc());
-    const mg=home?h:a,tg=home?a:h;
-    if(ROLE.id==="manager")return tacticalHalfTime(mg,tg,oFm,()=>{add("46'","— second half —","");half(46,92,finish)});
-    const losing=mg<tg,level=mg===tg;
+    if(quick){add("46'","— second half —","");return half(46,92,finish)}
+    if(ROLE.id==="manager")return tacticalHalfTime(mine,theirs,oFm,()=>{add("46'","— second half —","");half(46,92,finish)});
+    const losing=mine<theirs,level=mine===theirs;
     const spec=ROLE.id==="player"
       ?{title:losing?"You are losing. Forty-five minutes left.":level?"Level at the break.":"You are ahead.",
         choices:[{t:"Play safe, keep the rating up",d:"Protect the body",fx:{form:-1},att:-2,def:1},
@@ -333,20 +305,61 @@ function renderMatch(done){
   });
   function finish(){
     add("FT","Full time","ft",sc());
-    award(TABLE,hT,aT,h,a);
-    const others=[];
-    FIXTURES[wk].forEach(([x,y])=>{if(x===CLUB||y===CLUB)return;const[xg,yg]=simScore(strOf(x),strOf(y));award(TABLE,x,y,xg,yg);others.push({h:x,a:y,hg:xg,ag:yg})});
-    const{fx,res}=resolveMine(h,a,home);S.mw++;const d=apply(fx,true);myPos();
+    const hg=home?mine:theirs,ag=home?theirs:mine;
+    award(TABLE,hT,aT,hg,ag);
+    const{fx,res}=resolveMine(hg,ag,home);
     S.matchAtt=0;S.matchDef=0;
-    setTimeout(()=>{const el=document.createElement('div');el.className='card';
-      el.innerHTML=`<div class="outcome">${res==='w'?"A win. The place feels like a football club again.":res==='d'?"A point. Not nothing.":"Beaten. The phone-in will be unpleasant."}</div>
-        <div class="delta">${d}</div>
-        <div style="font-size:12px;color:var(--mute);margin:10px 0 6px">Elsewhere</div>
-        ${others.map(o=>`<div class="res"><span>${o.h} v ${o.a}</span><span class="sc">${o.hg}–${o.ag}</span></div>`).join('')}
-        <div style="margin-top:10px">${tableHTML()}</div>
-        <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">Continue</span></button>`;
-      document.getElementById('app').appendChild(el);paintHeader();
-      document.getElementById('mn').onclick=done},600);
+    setTimeout(()=>renderElsewhere({wk,fx,res,mine,theirs,opp,home,startPos,final},done),quick?600:900);
+  }
+}
+/* THE 3PM KICK-OFFS. Your game was the early one. The table is shown AS IT
+   STANDS -- your result in, everyone else still to play -- then their
+   results arrive one by one and the table re-sorts under you. Fixtures that
+   involve a club within three points of you are flagged, because those are
+   the ones you would actually be watching. */
+function renderElsewhere(info,done){
+  const{wk,fx,res,mine,theirs,opp,home,startPos,final}=info;
+  const others=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB)
+    .map(([h,a])=>{const[hg,ag]=simScore(strOf(h),strOf(a));return{h,a,hg,ag}});
+  const posMap=()=>{const m={};standings(TABLE).forEach((r,i)=>m[r.n]=i+1);return m};
+  const near=n=>Math.abs(TABLE[n].pts-TABLE[CLUB].pts)<=3;
+  const d=apply(fx,true);myPos();paintHeader();
+  const kickOffPos=posOf(CLUB);
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE 3PM KICK-OFFS</div>
+    <h1>${res==='w'?"Job done.":res==='d'?"A point on the board.":"Beaten."} Now it's up to everyone else.</h1>
+    <div class="res mine" style="font-size:15px;padding:10px">
+      <span><b>${CLUB}</b> ${mine}–${theirs} ${opp} <small style="color:var(--mute)">(${home?"H":"A"})</small></span></div>
+    <div class="delta" style="margin:6px 0 8px">${d}</div>
+    <p class="small">You played the early kick-off. ${others.length} ${others.length===1?"game is":"games are"} still to play at 3pm${
+      others.some(o=>near(o.h)||near(o.a))?" — and the ones marked ★ involve a club within three points of you":""}.</p>
+    <div id="scTable"><div class="datechip" style="margin:8px 0 5px">AS IT STANDS · ${others.length} STILL TO PLAY</div>${tableRowsHTML(null)}</div>
+    <div id="scFeed"></div><div id="scEnd"></div></div>`;
+  const feed=document.getElementById('scFeed');
+  let i=0;
+  (function nextResult(){
+    if(i>=others.length)return finish();
+    const r=others[i++],prev=posMap();
+    setTimeout(()=>{
+      const star=near(r.h)||near(r.a);
+      award(TABLE,r.h,r.a,r.hg,r.ag);myPos();
+      const el=document.createElement('div');el.className='res';el.style.marginTop='6px';
+      el.innerHTML=`<span>${star?"★ ":""}<b>FULL TIME</b> · ${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span>`;
+      feed.appendChild(el);
+      const left=others.length-i;
+      document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:8px 0 5px">${left?`AS IT STANDS · ${left} STILL TO PLAY`:"FULL TIME · ALL GAMES DONE"}</div>${tableRowsHTML(prev)}`;
+      paintHeader();nextResult();
+    },1500);
+  })();
+  function finish(){
+    S.mw++;myPos();paintHeader();
+    const endPos=posOf(CLUB),moved=kickOffPos-endPos;
+    const line=final
+      ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
+      :`${moved>0?`Up ${moved} from where the 3pm games found you`:moved<0?`Down ${-moved} from where the 3pm games found you`:"Everyone else's results left you where you were"} — ${ord(endPos)} of six.`;
+    document.getElementById('scEnd').innerHTML=`<div class="outcome" style="margin-top:10px;font-size:15px"><b>${line}</b></div>
+      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
+    document.getElementById('mn').onclick=done;
   }
 }
 /* Who scores. A player on a goal bonus shoots more, so he is likelier to be

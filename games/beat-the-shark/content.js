@@ -44,6 +44,9 @@ function deltaChip(now,then){
   const col=d>0?"var(--good)":d<0?"var(--bad)":"var(--mute)";
   return `<span style="font-family:var(--mono);font-size:12px;color:${col}">${now} → ${then} (${d>0?'+':''}${d})</span>`;
 }
+/* What can be spent right now. The owner spends the club's cash; the
+   manager spends only the budget the owner gave him for January. */
+function spendable(){return S.janBudget!=null&&ROLE.id==="manager"?Math.min(S.janBudget,S.cash):S.cash}
 function renderWindow(which,after){
   const targets=S.flags["tw_"+which]||(S.flags["tw_"+which]=makeTargets(3));
   function draw(){
@@ -55,6 +58,7 @@ function renderWindow(which,after){
       <p class="lede">${which==="summer"
         ? "Six weeks to change the squad you inherited. You have "+fmtMoney(S.cash)+" and a wage bill of "+fmtMoney(S.wages)+" a week."
         : "Halfway, "+ord(S.pos)+" of six, and one last chance to change the shape of the season."}</p>
+      ${ROLE.id==="manager"?`<div class="outcome">The owner has given you <b>${fmtMoney(spendable())}</b> to spend this window.</div>`:""}
       <div class="shark"><div><b>FixtureShark</b>${sharkRate(S)} Every fee below is what the model says they are worth, give or take.</div></div>
       <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:11px">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -71,8 +75,8 @@ function renderWindow(which,after){
           ${((t.rt-38)/Math.max(1,t.fee/100))>2.6?' <span style="color:var(--good)">— the model likes this one</span>':
             ((t.rt-38)/Math.max(1,t.fee/100))<1.4?' <span style="color:var(--bad)">— overpriced on the model</span>':''}</div>
         <div class="quip">${t.quip}</div>
-        ${t.bought?"":`<button class="choice" style="margin:8px 0 0" data-buy="${i}" ${S.cash<t.fee?"disabled":""}>
-          <span class="t">${S.cash<t.fee?"Cannot afford him":"Sign him"} · ${deltaChip(S.squad,ratingWith(t,null))}</span>
+        ${t.bought?"":`<button class="choice" style="margin:8px 0 0" data-buy="${i}" ${spendable()<t.fee?"disabled":""}>
+          <span class="t">${spendable()<t.fee?"Over budget":"Sign him"} · ${deltaChip(S.squad,ratingWith(t,null))}</span>
           <span class="d">${fmtMoney(t.fee)} now, ${fmtMoney(t.wage)} a week after · cash would be ${fmtMoney(S.cash-t.fee)}</span></button>`}
       </div>`).join('')}
       <h2 style="margin-top:14px">Your squad</h2>
@@ -86,7 +90,7 @@ function renderWindow(which,after){
       <button class="choice primary" id="close" style="margin-top:12px"><span class="t">Close the window</span>
         <span class="d">${which==="summer"?"Get the season started":"Back to the run-in"}</span></button></div>`;
     document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
-      const t=targets[+b.dataset.buy];if(S.cash<t.fee)return;
+      const t=targets[+b.dataset.buy];if(spendable()<t.fee)return;if(S.janBudget!=null&&ROLE.id==="manager")S.janBudget-=t.fee;
       S.cash-=t.fee;S.wages+=t.wage;t.bought=true;S.signings++;
       S.squadList.push(Object.assign({},t,{bought:undefined,quip:undefined,gone:false,out:0,goals:0}));
       recalcSquadRating();S.fans=clamp(S.fans+4);draw();
@@ -721,4 +725,64 @@ function podcastSpec(){
     :[[a.n,bad?"Three defeats and the same problem each time. That is coaching, not luck.":"He has got more out of that group than anyone had a right to expect."],
       [b.n,bad?"The dressing room is still with him, and when that goes it goes overnight.":"Give him money in January and they finish in the top half."]];
   return{lines,shark:`${pick(PUNDITS).n}: "The FixtureShark numbers have them ${Math.abs(Math.round(PREDICT[CLUB].avg-S.pos))} ${Math.abs(Math.round(PREDICT[CLUB].avg-S.pos))===1?"place":"places"} ${S.pos<PREDICT[CLUB].avg?"above":"below"} where the model had them. That is not nothing."`};
+}
+
+/* ===========================================================================
+   LUCK. Things that happen TO the season rather than decisions within it --
+   for you and against you, and to your rivals. They exist for two reasons
+   raised in playtesting: Your Team's finishing position needed more spread,
+   and a season with only decisions in it feels too controllable. Rival luck
+   matters as much as your own: a strong club losing its striker reshapes
+   the whole table. Every effect is real and stated.
+   =========================================================================== */
+function drawLuck(){
+  const outfield=alive().filter(p=>p.pos!=="GK"&&!p.out);
+  const rival=pick(RIVALS);
+  const pool=[
+    /* ---- for you ---- */
+    ()=>({good:1,title:"A cup draw nobody expected",
+      lede:"An away tie at a Premier League club, live on television.",
+      text:"You lose 4–0, and nobody cares. The TV money clears three weeks of wages.",
+      apply:()=>apply({cash:rnd(50,80),fans:6})}),
+    ()=>{const p=pick(outfield.filter(x=>x.dev>0))||pick(outfield);return{good:1,title:`${p.nm} has found another gear`,
+      lede:"Nobody can quite explain it, including him.",
+      text:`${p.nm}'s quality jumps. Training has become something to watch.`,
+      apply:()=>{p.rt+=4;p.rtf=(p.rtf||p.rt)+4;recalcSquadRating();return `<span class="up">${p.nm} quality +4</span>`}}},
+    ()=>({good:1,title:"A local firm adds a bonus to the sponsorship",
+      lede:"Their managing director has started coming to games.",
+      text:"An unexpected top-up, paid immediately.",
+      apply:()=>apply({cash:rnd(30,50)})}),
+    ()=>({good:1,title:"The whole squad came back from the break sharp",
+      lede:"The physio calls it the best-conditioned group he has had.",
+      text:"Everyone's condition is up.",
+      apply:()=>apply({condition:10,squad:3})}),
+    /* ---- against you ---- */
+    ()=>({good:0,title:"A sickness bug has gone through the dressing room",
+      lede:"Eleven players, one Tuesday, very few toilets.",
+      text:"Everyone's condition drops.",
+      apply:()=>apply({condition:-12,squad:-2})}),
+    ()=>{const p=pick(outfield);if(!p)return null;return{good:0,title:`${p.nm} is injured in training`,
+      lede:"An innocuous challenge in a five-a-side.",
+      text:`${p.nm} is out for two weeks.`,
+      apply:()=>{p.out=2;recalcSquadRating();return `<span class="down">${p.nm} out for 2 weeks</span>`}}},
+    ()=>({good:0,title:"A burst pipe has flooded the changing rooms",
+      lede:"The insurance excess is not small.",
+      text:"The repair comes straight out of the account.",
+      apply:()=>apply({cash:-rnd(30,55)})}),
+    ()=>({good:0,title:"A refereeing decision is still being talked about",
+      lede:"The replays are unambiguous. The table is not changed by replays.",
+      text:"The dressing room feels it was robbed, and plays like it.",
+      apply:()=>apply({squad:-5})}),
+    /* ---- your rivals ---- */
+    ()=>{const d=-rnd(4,7);return{good:null,title:`${rival.n} have lost their best player`,
+      lede:"A cruciate ligament, and the rest of the season.",
+      text:`${rival.n} are weaker for the rest of the season. Good news, unless you needed them to beat someone.`,
+      apply:()=>{S.rivalMod[rival.n]=(S.rivalMod[rival.n]||0)+d;return `<span class="up">${rival.n} strength ${d}</span>`}}},
+    ()=>{const d=rnd(3,6);return{good:null,title:`${rival.n} have made a signing`,
+      lede:"Out of nowhere, and he looks good.",
+      text:`${rival.n} are stronger for the rest of the season.`,
+      apply:()=>{S.rivalMod[rival.n]=(S.rivalMod[rival.n]||0)+d;return `<span class="down">${rival.n} strength +${d}</span>`}}}
+  ];
+  let out=null;for(let t=0;t<8&&!out;t++)out=pick(pool)();
+  return out;
 }

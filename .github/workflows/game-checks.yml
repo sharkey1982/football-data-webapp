@@ -40,3 +40,8 @@ jobs:
       # No npm install: the checks use only Node's standard library.
       - name: Integrity, stability and balance
         run: node games/beat-the-shark/test/checks.cjs
+      # Plays whole matches through the real screens: Your Team on the left,
+      # the 3pm results, the team sheet and half time, heat map wording,
+      # luck, the January budget, keepers, and decision win-chance lines.
+      - name: Screens
+        run: node games/beat-the-shark/test/screens.cjs
