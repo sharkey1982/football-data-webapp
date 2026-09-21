@@ -28,9 +28,9 @@ const vp=app();
 ok("vidiprinter: Your Team on the LEFT", /<div class="teams">\s*<span>YOUR TEAM/.test(vp));
 drain();
 // A week with no pre-match decision gets one simple half-time choice: a sub.
-if(/Make a change\?/.test((els.htBox&&els.htBox.innerHTML)||"")){
-  ok("a quick week with no pre-match decision offers a half-time sub (or Leave it)", /Bring on .+ for /.test(els.htBox.innerHTML)&&/Leave it/.test(els.htBox.innerHTML));
-  els.subNo.onclick();drain();
+if(/is tiring/.test((els.htBox&&els.htBox.innerHTML)||"")){
+  ok("a quick week with no pre-match decision offers the half-time dilemma: keep him on, or bring someone on", /Keep .+ on/.test(els.htBox.innerHTML)&&/Bring on /.test(els.htBox.innerHTML));
+  els.subYes.onclick();drain();
 }
 // After the whistle: three calm screens, no timers (Chris's playtest).
 ok("full time WAITS for the player -- no automatic jump to the results", /See the league table/.test(els.paceBox.innerHTML)&&q.length===0);
@@ -41,15 +41,19 @@ ok("result line puts Your Team first", /<b>Your Team<\/b> \d+–\d+/.test(el));
 ok("Your Team tagged YOU in the table", /class="you">YOU/.test(el));
 ok("the gameweek is not over until the other results are in", run("S.mw")===0, "S.mw="+run("S.mw"));
 els.toOthers.onclick();
-const el2=app();
-ok("then the other results, all at once, and the table now", /THE OTHER RESULTS/.test(el2)&&/THE TABLE NOW/.test(el2));
-ok("no timers after the whistle -- nothing runs on its own", q.length===0);
+ok("then the 3pm kick-offs, live: a clock, a scoreboard per game, your position as it stands", /THE 3PM KICK-OFFS/.test(app())&&/id="clock"/.test(app())&&/As it stands: \d/.test(app()));
+drain();
+// (the live screen updates its parts in place: read them directly)
+const el2=app()+els.lend.innerHTML;
+ok("...and at full time: the clock shows FT, real scores, the table now, and it waits for Continue",
+  els.clock.textContent==="FT"&&/Full time\./.test(els.flash.textContent)&&/\d–\d/.test(els.boards.innerHTML)&&/THE TABLE NOW/.test(els.lend.innerHTML)&&/>Continue</.test(els.lend.innerHTML)&&q.length===0);
 ok("gameweek advanced after all results", run("S.mw")===1, "S.mw="+run("S.mw"));
 ok("no broken text on match screens", !bad(vp)&&!bad(el)&&!bad(el2));
-// 2. full match: team sheet first, then kick off
-run(`renderMatch(()=>{},false)`);
+// 2. full match: team sheet first, then kick off (a normal week: Gameweek 3 --
+// Gameweek 2 has the keep-or-sub dilemma instead of the tactical call)
+run(`S.mw=2;S._sheetShown=false;renderMatch(()=>{},false)`);
 const sheet=app();
-ok("full match opens on the team sheet", /TEAM SHEET/.test(sheet)&&/class="pitch2"/.test(sheet));
+ok("full match opens on the team sheet (billed as the 12:30 kick-off)", /12:30 KICK-OFF/.test(sheet)&&/class="pitch2"/.test(sheet));
 ok("team sheet names the opponent's formation", /They are lining up <b>\d-\d-\d<\/b>/.test(sheet));
 els.kick.onclick();drain();
 ok("manager's match pauses at half time for the tactical call", /HALF TIME/.test(els.htBox.innerHTML)&&!!(els.goSecond&&els.goSecond.onclick));
@@ -243,9 +247,11 @@ run(`LEVEL="intermediate";SPEED=null`);
 // 19. money with football consequences, shown plainly
 run(`LEVEL="beginner";ROLE=ROLES.manager;boot();S.cash=-50;const before=alive().length;globalThis.__before=before;
   renderElsewhere({wk:0,final:false},()=>{})`);
-ok("in the red at the end of a gameweek, the bank forces a sale -- and the results screen says so", /The bank forced a sale/.test(app())&&run("alive().length")===run("__before")-1);
+drain(); // the 3pm kick-offs run live; money is settled at full time
+ok("in the red at the end of a gameweek, the bank forces a sale -- and the results screen says so", /The bank forced a sale/.test(els.lend.innerHTML)&&run("alive().length")===run("__before")-1);
 run(`boot();S.cash=-400;S.deducted=false;const p0=TABLE[CLUB].pts;globalThis.__p0=p0;renderElsewhere({wk:0,final:false},()=>{})`);
-ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(app())&&run("S.deducted")===true);
+drain();
+ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(els.lend.innerHTML)&&run("S.deducted")===true);
 run(`LEVEL="intermediate"`);
 // 20. THE NEW OPENING SEQUENCE (Chris): mission; the league on zero; your
 // team's key numbers; the opening match v the weakest club with them-v-you.
@@ -272,11 +278,48 @@ ok("page 4: Kick off sits right under the choice, the pitch below it, and no ben
 els.kick.onclick();drain();
 els.toTable.onclick();
 ok("page 6: the position at the top updates once your result is in", /\d(st|nd|rd|th)<span class="sub">POSITION/.test(els.hScore.innerHTML));
-els.toOthers.onclick();
-ok("page 7: a plain headline -- never 'No change for you'", !/No change for you/.test(app())&&/<h1>(Up to |Down to )?\d(st|nd|rd|th)\.<\/h1>/.test(app()));
-ok("page 8: the second match comes straight after the first", run("PLAN.slice(0,2).join()")==="match,live");
+els.toOthers.onclick();drain();
+ok("page 7: a plain headline at full time -- never 'No change for you'", !/No change for you/.test(els.asit.textContent)&&/^(Up to |Down to )?\d(st|nd|rd|th)\.$/.test(els.asit.textContent), els.asit.textContent);
+ok("page 8: the second match comes straight after the first -- a full match, with the shape choice", run("PLAN.slice(0,2).join()")==="match,match");
 ok("page 8: ...against the strongest club", (()=>{const[h,a]=run("myFixture(1)");const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");return h===st||a===st})());
 run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
-ok("page 8: ...with a half-time decision about a player change", /Make a change\?/.test(els.htBox.innerHTML)&&/Bring on .+ for /.test(els.htBox.innerHTML));
+ok("page 8: ...with a half-time decision about a player change", /is tiring/.test(els.htBox.innerHTML)&&/Keep .+ on/.test(els.htBox.innerHTML)&&/Bring on /.test(els.htBox.innerHTML));
+// 22. MATCH DAY (Chris, 2026-09-21)
+{ // a fresh season on every visit: load the engine twice, compare the starting seeds
+  const src=fs.readFileSync('engine.js','utf8');
+  const seedOf=()=>{const c=vm.createContext({Math,document:doc,setTimeout:()=>{},console,JSON,Object,Array,String,Number,Date,Map,Set,location:{hash:"",pathname:"/"}});
+    for(const f of srcs.slice(0,srcs.indexOf('engine.js')+1))new vm.Script(fs.readFileSync(f,'utf8')).runInContext(c);return vm.runInContext('SEED',c)};
+  const a=seedOf(),b=seedOf();
+  ok("a fresh season on every visit (no fixed seed replaying the same 6-0)", a!==b&&/^SOC-/.test(a)&&!/SOC-S01/.test(src), `${a} / ${b}`);
+}
+// Gameweek 2, the hard game: summary -> team sheet -> the half-time dilemma
+function toGW2HalfTime(seed){
+  delete els.htBox;
+  run(`SEED="${seed}";LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=1;cursor=1;S._summaryShown=false;S._sheetShown=false;step()`);
+  const summary=app();
+  els.go.onclick();
+  const sheet=app();
+  els.kick.onclick();drain();
+  return{summary,sheet,ht:(els.htBox&&els.htBox.innerHTML)||""};
+}
+const g2=toGW2HalfTime("MD-1");
+ok("before every game: a match-day summary -- position, cash, team health, expected goals, clean sheets",
+  /MATCHDAY 2 OF 10/.test(g2.summary)&&/Position/.test(g2.summary)&&/In the bank/.test(g2.summary)&&/Team health/.test(g2.summary)&&/Expected goals/.test(g2.summary)&&/Clean sheets/.test(g2.summary));
+const strongest=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");
+ok("then the preview: them v you against the strongest club, with the shape choice", g2.sheet.includes(strongest)&&/<th class="n">You<\/th>/.test(g2.sheet)&&/Stay compact/.test(g2.sheet));
+ok("at half time: the dilemma, with health and goal-threat bars for this half and next game",
+  /is tiring/.test(g2.ht)&&/GOAL THREAT, 2ND HALF/.test(g2.ht)&&/GOAL THREAT, NEXT GAME/.test(g2.ht)&&/% health/.test(g2.ht)&&/Injured for the next game/.test(g2.ht));
+const xg=[...g2.ht.matchAll(/(\d+\.\d) xG/g)].map(m=>+m[1]); // keep: now, next; sub: now, next
+// STRICT: a tie means the preview isn't seeing the substitution (it once didn't).
+ok("the trade-off is real: keeping him gives MORE threat now and LESS next game", xg.length===4&&xg[0]>xg[2]&&xg[1]<xg[3], xg.join(" / "));
+const star=(g2.ht.match(/<h2>(.+?) is tiring<\/h2>/)||[])[1];
+els.subNo.onclick();drain(); // keep him on
+ok("keep him on: he breaks down, out for the next game", run(`S.squadList.find(p=>p.nm===${JSON.stringify(star)}).out`)===1&&!run(`currentXI().some(x=>S.squadList[x.i].nm===${JSON.stringify(star)})`));
+const g2b=toGW2HalfTime("MD-1");
+els.subYes.onclick();drain(); // bring the fresher man on
+ok("bring on the fresher man: the star is fit for the next game", run(`S.squadList.find(p=>p.nm===${JSON.stringify(star)}).out`)===0&&!run("S.manualXI"));
+// a quick week: the preview, then kick off
+run(`SEED="MD-1";LEVEL="beginner";ROLE=ROLES.manager;boot();const i=PLAN.indexOf("live");cursor=i;S.mw=2;S._summaryShown=true;step()`);
+ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n">You<\/th>/.test(app())&&/id="kick"/.test(app())&&/12:30 KICK-OFF/.test(app()));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

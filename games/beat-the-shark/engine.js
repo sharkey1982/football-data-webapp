@@ -26,7 +26,10 @@ const clamp=(v,lo=0,hi=100)=>Math.max(lo,Math.min(hi,v));
 const fmtMoney=v=>(v<0?"-£":"£")+Math.abs(Math.round(v))+"k";
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
 const estRange=(v,e)=>`${fmtMoney(Math.round(v*(1-e)))}–${fmtMoney(Math.round(v*(1+e)))}`;
-let SEED="SOC-S01";
+/* A fresh season on every visit (Chris: "I win the first game 6-0 every
+   time" -- a fixed seed replayed the same match for the same choices).
+   "Same season, different decisions" at the end still replays on purpose. */
+let SEED="SOC-"+Math.random().toString(36).slice(2,7).toUpperCase();
 
 /* ---------------------------------------------------------------------------
    NAMES

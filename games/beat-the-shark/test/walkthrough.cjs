@@ -63,7 +63,8 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
     settle();scan(`${lvl}/${role} ${plan[i]}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML+(els.ch?els.ch.children.map(c=>c.innerHTML||'').join(' '):''));
     // take the first choice on decision screens, so outcome screens are checked too
     if(els.ch&&els.ch.children.length&&typeof els.ch.children[0].onclick==='function'){try{els.ch.children[0].onclick();settle();scan(`${lvl}/${role} ${plan[i]} (outcome)`,els.app.innerHTML)}catch(e){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} choice: ${e.message}`)}}
-    for(const b of ['kick','subNo','goSecond','toTable','toOthers']){const e=els[b];if(!e||typeof e.onclick!=='function')continue;
+    // go: the match-day summary (from GW2) -> team sheet or quick preview; then the match.
+    for(const b of ['go','kick','subNo','goSecond','toTable','toOthers','mn']){const e=els[b];if(!e||typeof e.onclick!=='function')continue;
       try{e.onclick();settle();scan(`${lvl}/${role} ${plan[i]} → ${b}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML)}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} → ${b}: ${x.message}`)};els[b]=undefined}
   }
   try{run('S.mw=MW;renderEnding()');scan(`${lvl}/${role} ending`,els.app.innerHTML)}catch(e){crashes.push(`${lvl}/${role}/${seed} ending: ${e.message}`)}
