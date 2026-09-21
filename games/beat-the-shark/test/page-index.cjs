@@ -34,8 +34,15 @@ const NAME={special1:'A bid arrives — keep or sell your best player',heatmap:'
   crisis:'Cash crisis — sell a striker or a defender',physio:'The physio room',papers:'The Sunday papers',event:'A story decision',podcast:'The podcast clip',
   special2:'January window, then the winter break',stats:'Halfway: the numbers',luck:'A stroke of luck (or not)',call:'A phone call'};
 for(const b of plan){
-  if(b==='match'){gw++;add(`Gameweek ${gw} — team sheet: them v you, one decision, Kick off, the pitch`);add(`Gameweek ${gw} — the match (commentary; no half-time decision)`);add(`Gameweek ${gw} — the table`);add(`Gameweek ${gw} — the other results and the table now`)}
-  else if(b==='live'){gw++;add(gw===2?`Gameweek 2 — v the strongest club; half-time: make a change?`:`Gameweek ${gw} — the match (commentary; half-time sub if someone's tiring)`);add(`Gameweek ${gw} — the table`);add(`Gameweek ${gw} — the other results and the table now`)}
+  if(b==='match'||b==='live'){
+    gw++;
+    if(gw>1)add(`Gameweek ${gw} — match-day summary: position, cash, team health, expected goals, clean sheets`);
+    if(b==='match')add(`Gameweek ${gw} — preview: them v you, ${gw===2?'the shape choice (compact is right v the strongest club)':'one decision'}, Kick off, the pitch`);
+    else add(`Gameweek ${gw} — preview: them v you, Kick off`);
+    add(`Gameweek ${gw} — your 12:30 kick-off${gw===1?' (opening day)':''}: commentary${gw===2?'; half time: keep your tiring star, or bring on a fresher player':b==='live'?"; half-time dilemma if someone's tiring":''}`);
+    add(`Gameweek ${gw} — the table`);
+    add(`Gameweek ${gw} — the 3pm kick-offs, live; then the table now`);
+  }
   else if(b==='end')add('The end — champions or your position; the final table');
   else add(NAME[b]||b);
 }

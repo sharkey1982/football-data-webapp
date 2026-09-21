@@ -41,7 +41,11 @@ function planFor(level,role){
     const i=p.indexOf("match");if(i>0){p.splice(i,1);p.unshift("match")}
     // ...and straight on to the second (Chris): a harder side, with a
     // half-time decision about a player change.
-    const j=p.indexOf("live");if(j>1){p.splice(j,1);p.splice(1,0,"live")}
+    // Gameweek 2 is a full match too (Chris): the shape choice against the
+    // strongest side, then the half-time dilemma. A later full match becomes
+    // a quick week, so the season keeps five of each.
+    const j=p.indexOf("live");if(j>1){p.splice(j,1);p.splice(1,0,"match")}
+    const k=p.indexOf("match",2);if(k>0)p[k]="live";
   }
   return p;
 }
@@ -63,6 +67,13 @@ function step(){
     if(ROLE.id==="manager"){S.janBudget=Math.min(Math.max(S.cash,0),160);
       return renderWindow("january",()=>renderSpec(winterSpec(),"DECEMBER · THE WINTER BREAK",next))}
     return renderSpec(playerWinterSpec(),"DECEMBER · MIDWINTER",next);
+  }
+  if((b==="match"||b==="live")&&ROLE.id==="manager"){
+    // Before every game (Chris): the match-day summary (from Gameweek 2 --
+    // Gameweek 1 has the Your Team page), then the preview.
+    if(S.mw>0&&!S._summaryShown){S._summaryShown=true;return renderMatchdaySummary(step)}
+    S._summaryShown=false;
+    if(b==="live")return renderQuickPreview();
   }
   if(b==="match")return renderMatch(next);
   if(b==="round")return renderRoundup();
@@ -588,6 +599,38 @@ function clubRank(valueOf,higherIsBetter){
   const clubs=[CLUB].concat(RIVALS.map(r=>r.n));
   const v=clubs.map(n=>({n,v:valueOf(n)})).sort((a,b)=>higherIsBetter?b.v-a.v:a.v-b.v);
   return v.findIndex(x=>x.n===CLUB)+1;
+}
+/* Before every game: where you stand, and the side you're sending out. */
+function renderMatchdaySummary(then){
+  const R=ratingsNow(S.mw),mine=R[CLUB],health=Math.round(xiStats().fit);
+  const[h,a]=myFixture(S.mw),opp=h===CLUB?a:h;
+  const small=(label,big,sub)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div></div>`;
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card hero">
+    <div class="hero-kicker">MATCHDAY ${S.mw+1} OF ${MW}</div>
+    <div class="bigstats">
+      <div><div class="bigstat">${ord(S.pos)}</div><div class="biglabel">Position</div></div>
+      <div><div class="bigstat${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div><div class="biglabel">In the bank</div></div>
+    </div>
+    <div class="kpis" style="text-align:left">
+      ${small("Team health",`${health}%`,health>=85?"fit and ready":health>=70?"a few knocks":"struggling")}
+      ${small("Expected goals",mine.xgf.toFixed(1),"a game")}
+      ${small("Clean sheets",`${Math.round(Math.exp(-mine.xga)*100)}%`,"of games")}
+      ${small("Next",opp,h===CLUB?"at home":"away")}
+    </div>
+    <button class="choice primary" id="go"><span class="t">Team news: ${opp}</span></button></div>`;
+  document.getElementById('go').onclick=then;
+}
+/* A week with no pre-match decision: them v you, then kick off. */
+function renderQuickPreview(){
+  const[h,a]=myFixture(S.mw),home=h===CLUB,opp=home?a:h;
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">${kickoffChip(S.mw)}</div>
+    <h1>${home?`${opp}, at home`:`Away at ${opp}`}</h1>
+    ${oppCompareHTML(opp)}
+    <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button></div>`;
+  document.getElementById('kick').onclick=()=>renderMatch(next,true);
 }
 function renderTeamIntro(){
   const R=ratingsNow(0),mine=R[CLUB],cs=n=>Math.exp(-R[n].xga);
