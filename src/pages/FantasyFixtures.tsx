@@ -342,7 +342,7 @@ export default function FantasyFixtures() {
             toGw={toGw}
             onChange={(f, t) => { setFromGw(f); setToGw(t); }}
             initialPreset="next10"
-            presets={['this', 'next3', 'next5', 'next10', 'custom']}
+            presets={['this', 'next', 'next10', 'custom']}
           />
         </div>
       </div>

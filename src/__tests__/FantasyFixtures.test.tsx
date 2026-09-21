@@ -85,6 +85,10 @@ describe('FantasyFixtures page', () => {
     render(<FantasyFixtures />);
 
     await waitFor(() => expect(screen.getByText('GW5')).toBeInTheDocument());
+    // Same gameweek presets as Optimal Squad and Player Projections.
+    for (const name of ['This GW', 'Next GW', 'Next 10 GWs', 'Custom']) expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Next 5 GWs' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next 3 GWs' })).toBeNull();
 
     // Arsenal has the easier attacking fixture (higher xGF) and should rank first.
     const teamCells = screen.getAllByTestId('team-row-name');
