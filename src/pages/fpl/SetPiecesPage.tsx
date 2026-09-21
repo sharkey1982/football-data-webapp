@@ -377,8 +377,8 @@ export default function SetPiecesPage() {
         <Link to="/fpl/start/discover" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
           More to discover
         </Link>
-        <Link to="/fpl/market" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
-          The FPL market
+        <Link to="/fpl/in-the-papers" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+          In the papers
         </Link>
       </nav>
     </article>

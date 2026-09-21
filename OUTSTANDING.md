@@ -1461,6 +1461,49 @@ Full brief retained separately. Position taken 2026-09-20:
 
 ---
 
+## PRODUCT: TRIVIA — BACKLOG (from Chris, 2026-09-21)
+
+**Where it lives:** questions are built in `src/lib/landingApi.ts` (one
+`get…Trivia()` function per question, typed `TriviaFact`), and shown by
+`src/components/TriviaCarousel.tsx` on the Football hub and theme hubs. No
+database table — each question queries live data when the carousel loads.
+
+1. **The comeback question is poor** (`getComebackTrivia`, ~line 326). It
+   asks which of several 3–0 half-time comebacks happened *in the Premier
+   League* — guessable without any knowledge, because people know which
+   clubs are in the Premier League. Suggested: "Which of these teams came
+   back from 3–0 down at half time to win?" with **every option correct**,
+   and the reveal telling each club's story.
+2. **Reveal the other options too.** After answering, show the data for
+   every option, not just the right one — e.g. the most-common-scoreline
+   question should show the percentage for each scoreline offered.
+3. **Always one question on the latest gameweek's projections**, so the
+   quiz refreshes itself weekly. It must **name the gameweek explicitly**
+   ("Gameweek 5 projections…") — gameweeks are often midway through and
+   "this week" is ambiguous across the site.
+4. **Use the quiz to send people around the site.** Each reveal links to
+   the page that holds the answer. Ideas:
+   - "Whose price is most at risk of changing today?" → Bullpit
+     (`/fpl/price-risk`)
+   - "Which teams' next five gameweeks are easier than average?" → Fixture
+     heat map (may lack data for this yet — check first)
+   - "Who has the highest expected contribution from set pieces?" → Set
+     piece takers (`/fpl/set-pieces`) — note this changes slowly, so it
+     would go stale; rotate it rather than show it weekly
+
+## Minor findings (2026-09-21)
+
+- **"Sep" vs "Sept".** `Intl` date formatting with `en-GB` now spells
+  September "Sept" in recent engines (Node, Chrome) and "Sep" in others.
+  Public pages are unaffected — the shared `src/lib/formatDate.ts` uses
+  fixed tables (and now has `formatShortDay`). Two admin pages
+  (`TacticalRolesAdminPage.tsx`, `DataHealth.tsx`) still use
+  `month: 'short'`; harmless, but inconsistent.
+- **Merge order: `src/types/database.generated.ts`.** Both the finance PR
+  (#3) and the In-the-papers PR regenerate it from the live database.
+  Whichever merges second needs its copy regenerated (or the other side
+  taken) — both come from the same live schema, so either is correct.
+
 ## Cleanup
 
 - `admin_bootstrap_emails` still contains the owner's address. Harmless

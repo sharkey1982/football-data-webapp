@@ -6994,6 +6994,10 @@ export type Database = {
           under_2_5: number
         }[]
       }
+      fpl_gameweek_for_date: {
+        Args: { p_date: string; p_season_id: number }
+        Returns: number
+      }
       get_actual_value_table: {
         Args: { p_season_id?: number }
         Returns: {
@@ -7096,6 +7100,15 @@ export type Database = {
           status: string
         }[]
       }
+      get_digest_gameweeks: {
+        Args: { p_season_id?: number }
+        Returns: {
+          days: number
+          first_date: string
+          gameweek: number
+          last_date: string
+        }[]
+      }
       get_fpl_default_matchweek: {
         Args: { p_league_id: number; p_season_id: number }
         Returns: number
@@ -7185,6 +7198,23 @@ export type Database = {
           matchweeks_covered: number
           max_generated_at: string
           row_count: number
+        }[]
+      }
+      get_gameweek_digest: {
+        Args: { p_gameweek?: number; p_season_id?: number }
+        Returns: {
+          change_type: string
+          detail: string
+          event_date: string
+          fpl_player_id: number
+          gameweek: number
+          new_value: string
+          old_value: string
+          ownership: number
+          position_label: string
+          slug: string
+          team_name: string
+          web_name: string
         }[]
       }
       get_injury_report: {

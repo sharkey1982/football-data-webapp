@@ -52,3 +52,15 @@ export function formatRefreshDate(isoTimestamp: string): string {
   if (Number.isNaN(date.getTime())) return isoTimestamp;
   return `${date.getUTCDate()} ${MONTH_ABBREV[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
+
+/** "Sat 19 Sep" from a plain date. Fixed tables rather than Intl: en-GB now
+ *  gives "Sept" in some engines (recent ICU, incl. Node and Chrome) and "Sep"
+ *  in others, so the same date read differently depending on the browser.
+ *  Parsed as UTC, so no timezone can shift the day. */
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function formatShortDay(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return `${DAYS[day]} ${d} ${MONTHS[m - 1]}`;
+}
