@@ -1,0 +1,42 @@
+# ============================================================================
+# .github/workflows/game-checks.yml
+#
+# Runs the Beat the Shark integrity, stability and balance checks on every
+# push or pull request that touches the game -- and only then. The analytics
+# site has nothing to do with this workflow, and vice versa.
+#
+# The checks play ~3,000 simulated seasons of the real game code and take
+# about five seconds. See games/beat-the-shark/README.md.
+# ============================================================================
+name: Game checks
+
+on:
+  push:
+    paths:
+      - "games/beat-the-shark/**"
+      - ".github/workflows/game-checks.yml"
+  pull_request:
+    paths:
+      - "games/beat-the-shark/**"
+      - ".github/workflows/game-checks.yml"
+
+# Read-only: this workflow only runs checks, it never writes anything.
+permissions:
+  contents: read
+
+concurrency:
+  group: game-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No npm install: the checks use only Node's standard library.
+      - name: Integrity, stability and balance
+        run: node games/beat-the-shark/test/checks.cjs

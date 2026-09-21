@@ -33,6 +33,15 @@
   command = "npm run build && npm run build:ssr && npm run static && npm run sitemap"
   publish = "dist"
 
+  # Skip the analytics build when a push ONLY touches the game or docs.
+  # The game deploys as its own Netlify site (games/beat-the-shark), so a
+  # game change has no reason to run the full build, SSR and static
+  # generation here. Exit 0 = skip. Any git error (e.g. no cached commit on
+  # a first build) exits non-zero and the build proceeds -- it fails safe,
+  # which matters: a broken deploy pipeline here once took the site down
+  # for over an hour.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)games' ':(exclude)docs'"
+
 [functions]
   directory = "netlify/functions"
 
@@ -70,3 +79,21 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# ----------------------------------------------------------------------------
+# /play -> the separately deployed game.
+#
+# Status 200 makes this a PROXY rather than a redirect: the visitor stays on
+# this domain (/play/beat-the-shark) while the game is served from its own
+# Netlify site. Good for the brand and for search, and the two deploys stay
+# independent.
+#
+# DISABLED until the game site exists. To enable: create the game's Netlify
+# site (see games/beat-the-shark/README.md), then uncomment this block and
+# replace GAME-SITE-NAME with its Netlify subdomain.
+# ----------------------------------------------------------------------------
+# [[redirects]]
+#   from = "/play/beat-the-shark/*"
+#   to = "https://GAME-SITE-NAME.netlify.app/:splat"
+#   status = 200
+#   force = true
