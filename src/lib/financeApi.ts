@@ -271,3 +271,16 @@ export async function getFinanceIndex(): Promise<FinanceIndexEntry[]> {
   if (tErr) throw tErr;
   return buildFinanceIndex(groupFinanceByTeam((teams ?? []) as FinanceTeam[], periods, [], [], []).values());
 }
+
+/** Every club's published periods, for the comparison page. Two queries in
+ *  total (periods, then the teams they reference), however many clubs. */
+export async function getAllClubFinance(): Promise<ClubFinanceData[]> {
+  const { data: rows, error } = await supabase.from('finance_published_periods').select('*');
+  if (error) throw error;
+  const periods = (rows ?? []).map((r) => normalisePeriod(r as Record<string, unknown>));
+  const ids = [...new Set(periods.map((p) => p.team_id))];
+  if (!ids.length) return [];
+  const { data: teams, error: tErr } = await supabase.from('teams').select('team_id, slug, display_name').in('team_id', ids);
+  if (tErr) throw tErr;
+  return [...groupFinanceByTeam((teams ?? []) as FinanceTeam[], periods, [], [], []).values()];
+}

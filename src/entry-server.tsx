@@ -33,6 +33,8 @@ import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
 import TeamFinancePage from './pages/football/TeamFinancePage';
 import FinanceIndexPage from './pages/FinanceIndexPage';
+import FinanceComparePage from './pages/FinanceComparePage';
+import { buildComparison } from './lib/financeCompare';
 import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
@@ -268,6 +270,24 @@ export function renderTeamFinancePage(slug: string, data: ClubFinanceData): Rend
         { name: 'Finances', path },
       ]),
     ],
+  };
+}
+
+export function renderFinanceComparePage(clubs: ClubFinanceData[]): RenderedPage {
+  const path = '/finance/compare';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/finance/compare" element={<FinanceComparePage initialData={buildComparison(clubs)} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `Club finances compared \u2014 revenue, wages, debt | ${BRAND_NAME}`,
+    description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from filings at Companies House.',
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Club finances', path: '/finance' }, { name: 'Compare clubs', path }])],
   };
 }
 

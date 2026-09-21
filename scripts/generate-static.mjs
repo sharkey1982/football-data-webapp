@@ -220,6 +220,13 @@ async function main() {
       }
     }
     try {
+      const page = entry.renderFinanceComparePage(site.clubs);
+      mkdirSync(join(DIST, 'finance', 'compare'), { recursive: true });
+      writeFileSync(join(DIST, 'finance', 'compare', 'index.html'), buildDocument(shell, page), 'utf8');
+    } catch (err) {
+      console.error(`Static: failed /finance/compare: ${err?.message ?? err}`);
+    }
+    try {
       const page = entry.renderFinanceIndexPage(site.index);
       mkdirSync(join(DIST, 'finance'), { recursive: true });
       writeFileSync(join(DIST, 'finance', 'index.html'), buildDocument(shell, page), 'utf8');
