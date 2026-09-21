@@ -109,20 +109,18 @@ function renderWindow(which,after){
 }
 
 /* ================== PRE-SEASON & WINTER BREAK (manager) =================== */
-function preseasonSpec(){return{
-  title:"Pre-season is yours to plan",
-  lede:"Four weeks, no matches that matter, and a squad that spent the summer doing very little.",
-  choices:[
-    {t:"A week in Portugal",d:"Proper facilities, and it costs",fx:{cash:-55,condition:9,squad:3,fans:2},
-      out:"Sun, grass and two sessions a day. They come back looking like athletes."},
-    {t:"Running up the sand dunes",d:"Free, traditional, hated",fx:{condition:12,fatigue:-8,squad:-2},
-      delayed:{squad:-3},delayedText:"Two players are still talking about the dunes in October, and not fondly.",
-      out:"Old-fashioned, brutal, and it works on the lungs if not the mood."},
-    {t:"A tournament in Ireland",d:"Competitive minutes and a small fee",fx:{cash:18,condition:5,squad:2,fatigue:4},
-      out:"Three games in five days and a trophy nobody has heard of, which they win."},
-    {t:"Keep it light",d:"Protect the bodies",fx:{condition:4,fatigue:-12},
-      delayed:{condition:-6},delayedText:"The light pre-season has shown. They are blowing after an hour.",
-      out:"Ball work, five-a-sides, home by one."}]};
+/* PRE-SEASON (Chris: the venue question was rubbish). A real dilemma that
+   ties into the money rules: an offer for your best player. */
+function preseasonSpec(){
+  const p=alive().filter(x=>!x.gone).sort((a,b)=>b.rt-a.rt)[0];
+  const fee=Math.round((p.rt-38)*16);
+  return{
+    title:`An offer for ${p.nm}`,
+    lede:`A bigger club wants your best player and will pay ${fmtMoney(fee)}.`,
+    choices:[
+      {t:`Keep ${p.nm}`,d:"Your best player stays",fx:{squad:2},out:`${p.nm} stays. The dressing room notices.`},
+      {t:`Sell for ${fmtMoney(fee)}`,d:"Money in the bank, a weaker team",fx:{cash:fee,squad:-2},
+        after(){p.gone=true;recalcSquadRating()},out:`${p.nm} is gone. The money is in the bank.`}]};
 }
 function winterSpec(){return{
   title:"The winter break",

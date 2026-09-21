@@ -27,6 +27,11 @@ run(`renderMatch(()=>{globalThis.__done=1},true)`);
 const vp=app();
 ok("vidiprinter: Your Team on the LEFT", /<div class="teams">\s*<span>YOUR TEAM/.test(vp));
 drain();
+// A week with no pre-match decision gets one simple half-time choice: a sub.
+if(/Make a change\?/.test((els.htBox&&els.htBox.innerHTML)||"")){
+  ok("a quick week with no pre-match decision offers a half-time sub (or Leave it)", /Bring on .+ for /.test(els.htBox.innerHTML)&&/Leave it/.test(els.htBox.innerHTML));
+  els.subNo.onclick();drain();
+}
 // After the whistle: three calm screens, no timers (Chris's playtest).
 ok("full time WAITS for the player -- no automatic jump to the results", /See the league table/.test(els.paceBox.innerHTML)&&q.length===0);
 els.toTable.onclick();
@@ -113,7 +118,7 @@ run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw
 ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
-ok("ending compares FINISHING POSITION with the Shark's", /YOU FINISHED/.test(app())&&/\d(st|nd|rd|th)/.test(app())&&/The Shark said|LEVEL WITH THE SHARK|CHAMPIONS/.test(app()));
+ok("the ending: CHAMPIONS or your position, the Shark's prediction, and the table -- no score", /CHAMPIONS|\d(ST|ND|RD|TH)/.test(app())&&/The Shark predicted \d/.test(app())&&/class="tbl"/.test(app())&&!/\/100/.test(app()));
 // 14. home advantage, made visible
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
@@ -132,7 +137,7 @@ ok("Team Strength shows xPts and projected points, ordered by them", /<th class=
 const sq=run("squadHTML({})");
 ok("players show quality (Q) and condition (%) explicitly, with a legend", /<b>Q\d+<\/b> · <span[^>]*>\d+%<\/span>/.test(sq)&&/quality · <b>%<\/b> condition/.test(sq));
 run(`paintHeader()`);
-ok("header shows the Shark's predicted position and yours", /The Shark says/.test(els.hTwo.innerHTML)&&/\d(st|nd|rd|th)/.test(els.hTwo.innerHTML));
+ok("the header shows league position and cash, and nothing else", /POSITION/.test(els.hScore.innerHTML)&&/Cash/.test(els.hTwo.innerHTML)&&!/Shark|SCORE|pts/.test((els.hScore.innerHTML+els.hTwo.innerHTML).replace(/<[^>]+>/g," "))); // visible text only (the cash box's CSS class is "pts")
 ok("the manager can see the club's cash (money now has football consequences)", run("ROLE.id")!=="manager"||/Cash/.test(els.hTwo.innerHTML));
 // 16. levels: progressive disclosure for beginners, everything for the rest
 const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
@@ -143,8 +148,9 @@ const kinds=[];
 for(let n=0;n<5;n++){
   const h=sheetAt("beginner",n);
   kinds.push(run(`beginnerDecision(...(()=>{const[hT,aT]=myFixture(S.mw);return[hT===CLUB?aT:hT,hT===CLUB]})()).kind`));
-  ok(`beginner match ${n+1}: exactly two options, each with a win chance, and no complex controls`,
-    bc(h)===2&&(h.match(/win chance \d+%/g)||[]).length===2&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+  ok(`beginner match ${n+1}: exactly two options, no win percentages, no complex controls`,
+    bc(h)===2&&!/win chance/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+  if(kinds[n]==="formation")ok(`beginner match ${n+1}: the shape choice reads the opponent (their attack and defence)`, /(attack)[\s\S]*(defence)/.test(h)&&/Go for it/.test(h)&&/Stay compact/.test(h));
 }
 ok("a beginner's season opens on shape and still meets selection, set pieces and out of position (or falls back to shape)",
   kinds[0]==="formation"&&["selection","formation"].includes(kinds[1])&&kinds[2]==="setpieces"&&["oop","formation"].includes(kinds[3]), kinds.join(" → "));
@@ -153,7 +159,7 @@ sheetAt("beginner",0);
 const fmBefore=run("S.formation");
 run(`document.querySelectorAll=()=>[]`); // the harness can't click; apply the option directly, as the button does
 run(`(()=>{const[hT,aT]=myFixture(S.mw);const d=beginnerDecision(hT===CLUB?aT:hT,hT===CLUB);d.options[1].set();globalThis.__alt=d.options[1].title})()`);
-ok("picking the other shape really changes the formation", run("S.formation")===run("__alt")&&run("S.formation")!==fmBefore);
+ok("picking the other shape really changes the formation", run("S.formation")===String(run("__alt")).match(/\(([^)]+)\)/)[1]&&run("S.formation")!==fmBefore);
 ok("intermediate has every lever from the first match, no 'new' banner", (()=>{const h=sheetAt("intermediate",0);return /data-xi=/.test(h)&&/data-sp=/.test(h)&&!/New this match/.test(h)})());
 ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
 // a beginner cannot play someone out of position before it unlocks
@@ -194,7 +200,7 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // ~575 -> 258 words; pre-season 360 -> 56; a beginner's 4th team sheet 457
 // -> 274; season reading time ~22 -> ~15 min. Target: ~7 min of reading (+
 // ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
-const BUDGET={screen:210,beginnerTeamSheet:210,opening:200,preseason:70,minutes:16}; // now counting choice text too (it was missed before)
+const BUDGET={screen:205,beginnerTeamSheet:200,opening:180,preseason:55,minutes:12.5}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);

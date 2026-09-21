@@ -697,20 +697,11 @@ function drainPending(){const d=S.pending.filter(p=>p.at<=cursor);S.pending=S.pe
 function paintHeader(){
   if(!S)return;myPos();
   const {pred,par,pts,diff,total}=scoreParts();
-  document.getElementById('hScore').innerHTML=`${total}<span class="sub">SCORE</span>`;
-  const played=S.mw>0,d1=Math.round(diff*10)/10;
-  document.getElementById('hTwo').innerHTML=
-   `<div class="two"><div class="k">The Shark says</div><div class="v">${ord(sharkPos())}</div>
-      <div class="pts">where a well-run club finishes</div></div>
-    <div class="two"><div class="k">You</div><div class="v">${played?ord(S.pos):"—"}</div>
-      <div class="pts" style="color:${!played?'inherit':projectedPlace(CLUB)<sharkPos()?'#9ce0b9':projectedPlace(CLUB)>sharkPos()?'#f0a89f':'inherit'}">
-        ${!played?"nothing played":`projected ${ord(projectedPlace(CLUB))} · ${pts} pts`}</div></div>
-    ${ROLE.id==="owner"||ROLE.id==="manager"?`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
-      <div class="pts">${S.cash<0?"in the red — the bank will force a sale":"stay out of the red"}</div></div>`:""}`;
-  const tr=document.getElementById('hTrend');
-  if(S.lastScore==null){tr.className="trend fl";tr.textContent="—"}
-  else{const d=total-S.lastScore;tr.className="trend "+(d>0?"up":d<0?"dn":"fl");
-    tr.textContent=(d>0?"▲ +"+d:d<0?"▼ "+Math.abs(d):"— ")}
+  // The top of the screen: league position and cash. Nothing else (Chris).
+  document.getElementById('hScore').innerHTML=`${S.mw?ord(S.pos):"—"}<span class="sub">POSITION</span>`;
+  document.getElementById('hTwo').innerHTML=`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
+      <div class="pts">${S.cash<0?"in the red: the bank will sell a player":""}</div></div>`;
+  const tr=document.getElementById('hTrend');tr.className="trend fl";tr.textContent="";
   const left=MW-S.mw;
   let note=S.mw===0?"Pre-season · nothing played":left===0?"Season over":left<=2?`${left} to play — the run-in`:S.mw===5?"Halfway":`${left} matches left`;
   document.getElementById('hSeason').innerHTML=

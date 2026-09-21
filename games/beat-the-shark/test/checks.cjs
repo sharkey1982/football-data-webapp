@@ -160,7 +160,9 @@ console.log('\n1c. POSITION SCORING + MONEY CONSEQUENCES');
   check('careless manager rarely beats it (<= 15%)', careless.beat <= 15, `${careless.beat.toFixed(0)}%`);
   check('worst decisions almost never beat it (<= 5%)', worst.beat <= 5, `${worst.beat.toFixed(0)}%`);
   check('money matters: a careful (money-aware) manager almost never faces a forced sale (<= 5%)', good.sale <= 5, `${good.sale.toFixed(0)}% of seasons`);
-  check('money matters: reckless spending brings forced sales (worst >= 50% of seasons, random >= 5%)', worst.sale >= 50 && rand.sale >= 5, `worst ${worst.sale.toFixed(0)}%, random ${rand.sale.toFixed(0)}%`);
+  // The "worst" style no longer overspends -- the pre-season offer lets it SELL
+  // its best player, which fills the bank -- so reckless = random clicking.
+  check('money matters: reckless spending brings forced sales (random >= 5% of seasons)', rand.sale >= 5, `random ${rand.sale.toFixed(0)}%, worst ${worst.sale.toFixed(0)}%`);
 }
 
 /* ---------------------------------------------------------------- 2 ---- */
@@ -191,7 +193,9 @@ console.log('\n3. BALANCE — the design targets still hold');
 
   /* The favourite should USUALLY win the title, but not always. That gap is
      the probability lesson. At ~48% it was a coin flip and taught nothing. */
-  check('favourite wins the title 65–88% of simulated seasons', fav.title >= 65 && fav.title <= 88, `${fav.title}%`);
+  // Recalibrated 2026-09-21 for Chris's new aim -- WIN THE LEAGUE, from a predicted 3rd
+  // that is close to the top (top two clubs 70/62, were 78/64).
+  check('favourite wins the title 50–75% of simulated seasons', fav.title >= 50 && fav.title <= 75, `${fav.title}%`);
 
   const N = 700;
   const sharkPts = P['Your Team'].pts;
@@ -208,11 +212,9 @@ console.log('\n3. BALANCE — the design targets still hold');
   const mBest = run('manager', 'best'), mNone = run('manager', 'none'), mExp = run('manager', 'expert'), oBest = run('owner', 'best');
 
   /* A well-played manager wins the league roughly 10-15% of the time. */
-  // 5-13% (was 6-13%): recalibrated 2026-09-21 when cash gained football
-  // consequences. A competent manager now keeps money in hand (the simulator's
-  // "best" keeps a GBP60k buffer), so spends less on upgrades; titles came out
-  // at ~5.4% -- about one season in eighteen. A deliberate design change.
-  check('well-played manager wins the title 5–13%', mBest.title >= 5 && mBest.title <= 13, `${mBest.title.toFixed(1)}%`);
+  // Recalibrated 2026-09-21 for Chris's new aim -- WIN THE LEAGUE, from a predicted 3rd
+  // that is close to the top (top two clubs 70/62, were 78/64).
+  check('well-played manager wins the title 10–22%', mBest.title >= 10 && mBest.title <= 22, `${mBest.title.toFixed(1)}%`);
 
   /* THE DIFFICULTY SETTING (SHARK_UPLIFT). A competent manager should beat
      the Shark about 6 times in 10 -- beatable but earned -- and a careless
@@ -235,8 +237,10 @@ console.log('\n3. BALANCE — the design targets still hold');
     for (let i = 1; i <= M; i++) if (season(`RARE-${pol}-${i}`, 'manager', pol) === 1) t++;
     return (t / M) * 100; };
   const tNone = titleRate('none'), tRand = titleRate('random');
-  check('careless manager wins the league very rarely (≤1.2%)', tNone <= 1.2, `${tNone.toFixed(2)}% — about 1 season in ${tNone ? Math.round(100 / tNone) : '∞'}`);
-  check('random-clicking manager wins the league very rarely (≤1.8%)', tRand <= 1.8, `${tRand.toFixed(2)}%`);
+  // Recalibrated 2026-09-21 for Chris's new aim -- WIN THE LEAGUE, from a predicted 3rd
+  // that is close to the top (top two clubs 70/62, were 78/64).
+  check('careless manager wins the league rarely (≤4%)', tNone <= 4, `${tNone.toFixed(2)}% — about 1 season in ${tNone ? Math.round(100 / tNone) : '∞'}`);
+  check('random-clicking manager wins the league rarely (≤4%)', tRand <= 4, `${tRand.toFixed(2)}%`);
 
   /* The manager is meant to be the most powerful chair. */
   check('manager is the most influential role', mBest.beat > oBest.beat, `manager ${mBest.beat.toFixed(0)}% vs owner ${oBest.beat.toFixed(0)}% beat the Shark`);

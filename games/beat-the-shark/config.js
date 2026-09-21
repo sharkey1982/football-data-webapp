@@ -100,11 +100,11 @@ const SITE="https://footballdatashark.netlify.app";
    word of explanation. Names are nods only -- no real person or company is
    portrayed or given lines.
    Two names per tier, drawn by season, so a new season is a new league
-   without diluting this one. The top tier is fixed: Chief Scout United are
+   without diluting this one. The top tier is fixed: Shark Scout United are
    always the benchmark. */
 const TIERS=[
-  {str:78,names:[["Chief Scout United","recruit entirely on the model"]]},
-  {str:64,names:[["Billy's Beane United","run on a Moneyball budget"],["Moneyball Athletic","buy what the market undervalues"]]},
+  {str:70,names:[["Shark Scout United","recruit entirely on the Shark's model"]]},
+  {str:62,names:[["Billy's Beane United","run on a Moneyball budget"],["Moneyball Athletic","buy what the market undervalues"]]},
   {str:52,names:[["Star Lizard","a syndicate that prices every match"],["Expected Goals Wanderers","trust the xG, eventually"]]},
   {str:44,names:[["Gut Feeling Town","sign whoever looked good on Saturday"],["Old School Rovers","do it the way it has always been done"]]},
   {str:35,names:[["No Stats FC","have never opened a spreadsheet"],["Whim FC","decide everything on the day"]]}
