@@ -2,6 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>
+/* Trailing-slash guard. MUST stay first in <head>, before anything loads.
+   The game loads its scripts by relative path ("config.js"). Served through
+   the main site's proxy at /play/beat-the-shark WITHOUT a trailing slash,
+   those resolve to /play/config.js -- which does not exist -- and the page
+   loads blank. This adds the slash before any script is requested.
+   It cannot be done as a Netlify redirect: Netlify ignores trailing slashes
+   when matching, so such a rule loops forever (it did). At the game site's
+   own root the path is "/", which already ends in a slash, so it does
+   nothing there. */
+(function(){var p=location.pathname;
+  if(p.length>1&&p.charAt(p.length-1)!=="/"&&!/\.[a-z0-9]+$/i.test(p))
+    location.replace(p+"/"+location.search+location.hash);})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Beat the Shark — FixtureShark</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
