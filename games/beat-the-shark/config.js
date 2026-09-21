@@ -65,11 +65,11 @@ const HOME_MULT=1.19;
    until then the game uses competent defaults, so nobody is penalised for
    not having every lever yet. */
 const LEVELS={
-  beginner:{name:"Beginner",blurb:"One new idea per match. The game handles the rest until then.",
+  beginner:{name:"Beginner",
     unlock:{formation:0,rotation:1,setpieces:2,oop:3}},
-  intermediate:{name:"Intermediate",blurb:"Every lever from the first match, with explanations.",
+  intermediate:{name:"Intermediate",
     unlock:{formation:0,rotation:0,setpieces:0,oop:0}},
-  guru:{name:"Data guru",blurb:"Every lever and every number, no hand-holding.",
+  guru:{name:"Advanced",
     unlock:{formation:0,rotation:0,setpieces:0,oop:0},guru:true}
 };
 let LEVEL="beginner";

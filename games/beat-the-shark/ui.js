@@ -273,8 +273,7 @@ function kpiHTML(){
     ${tile("Points v the Shark",`${cur.pts} pts`,`<span style="color:${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--mute)'}">${gap>=0?'+':''}${gap.toFixed(1)} v target pace</span>`,spark(k.map(x=>x.pts-x.par),false))}
     ${tile("Attack · xGF/game",cur.xgf.toFixed(2),`${arrow(cur.xgf-prev.xgf,false,v=>v.toFixed(2))} · actual ${t.p?(t.gf/n).toFixed(1):"—"}`,spark(k.map(x=>x.xgf),false))}
     ${tile("Defence · xGA/game",cur.xga.toFixed(2),`${arrow(cur.xga-prev.xga,true,v=>v.toFixed(2))} · actual ${t.p?(t.ga/n).toFixed(1):"—"} · CS ${CLEAN[CLUB]||0}`,spark(k.map(x=>x.xga),true))}
-  </div>
-  <div style="font-size:10.5px;color:var(--mute);margin:-4px 0 10px">Sparklines: the season so far · arrows: since last gameweek · green is better for you</div>`;
+  </div>`;
 }
 /* One line after each week's results: the full four-tile dashboard now
    appears only on the key screens (pre-season, halfway, the ending), rather
@@ -544,27 +543,19 @@ function chooseRole(){
   pickRivals();
   R.s=hashSeed(SEED+"|preview");
   buildFixtures();TABLE=blankTable();
-  document.getElementById('hScore').innerHTML=`—<span class="sub">SCORE</span>`;
+  document.getElementById('hScore').innerHTML=`—<span class="sub">POSITION</span>`;
   document.getElementById('hTwo').innerHTML="";document.getElementById('hTrend').textContent="";
   document.getElementById('hSeason').innerHTML="";
+  const sel='border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)';
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">FIXTURESHARK · A SEASON IN TEN MINUTES</div>
     <h1>Beat the Shark</h1>
-    <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
-    <p class="small"><b>Win the league.</b> The Shark predicts you'll finish 3rd.</p>
-    <div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">YOUR LEVEL</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px">
-      ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" style="margin:0;padding:8px 6px;text-align:center;
-        ${k===LEVEL?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t" style="font-size:13.5px">${v.name}</span><span class="d" style="font-size:11px">${v.blurb}</span></button>`).join('')}
+    <p class="lede">Win the league. The Shark predicts 3rd.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:12px 0">
+      ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" aria-pressed="${k===LEVEL}"
+        style="margin:0;padding:9px 6px;text-align:center;${k===LEVEL?sel:''}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`).join('')}
     </div>
-    <p class="small" style="margin-bottom:12px">Every level plays against the same Shark, so scores compare fairly. Levels change how much you meet at once, not how hard it is.</p>
-    ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="opt" data-r="${r.id}"
-      ${r.id==="manager"?'style="border-color:var(--amber)"':''}><div class="tag">${r.tag}${r.id==="manager"?" · most influence over results":r.id==="player"?" · hardest":""}</div><h3>${r.name}</h3>
-      <p>${r.blurb}</p><div class="mis"><b>Your levers:</b> ${r.id==="owner"?"two transfer windows, the stadium, ticket prices, sponsors and creditors."
-        :r.id==="manager"?"pre-season, training, tactics, selection, discipline and a winter break."
-        :"your body, your mouth, your agent and your summer."}</div></button>`).join('')}
-    <div class="seed">seed ${SEED}</div></div>`;
+    ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="choice" data-r="${r.id}">
+      <span class="t">${r.name}</span><span class="d">${r.tag}</span></button>`).join('')}</div>`;
   document.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>{LEVEL=b.dataset.level;chooseRole()});
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ROLE=ROLES[b.dataset.r];boot()});
 }
@@ -580,9 +571,8 @@ function boot(){
   const pr=S.proj0[CLUB];
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">${ROLE.name.toUpperCase()} · ${CLUB} · JULY</div>
-    <h1>${ROLE.mission}</h1><p class="lede">${ROLE.missionLong}</p>
-    <div class="shark"><div><b>The Shark's target</b>
-      The Shark predicts <b>${ord(sharkPos())}</b>. Win the league.</div></div>
+    <h1>Win the league</h1>
+    <p class="lede">The Shark predicts ${ord(sharkPos())}.</p>
     ${(()=>{
       // Get to the first decision fast: the mission and the target, then Begin.
       // The rest is one tap away -- visible by default only for the Data guru.
