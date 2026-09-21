@@ -33,6 +33,10 @@ const SEASON_WEAR={fatigue:35,condition:76};
    what makes a season genuinely uncertain rather than a rerun. */
 const SEASON_SWING=10;
 
+/* How much the set-piece taker's skill and the XI's aerial threat add to
+   attacking lean. */
+const SP_WEIGHT=.8,AER_WEIGHT=.35;
+
 /* The main FixtureShark site. Links from the game always use this ABSOLUTE
    address, because the game is reachable two ways -- proxied at
    /play/beat-the-shark/ on the main domain, and directly on its own Netlify

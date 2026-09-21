@@ -206,7 +206,7 @@ function renderHeatmap(){
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">PRE-SEASON · FIXTURE HEAT MAP</div>
     <h1>The season, laid out</h1>
-    <p class="lede">The first five, rated by opponent strength and venue.</p>
+    <p class="lede">Your first five fixtures: how many you should score, how likely you are to keep a clean sheet, and the odds.</p>
     ${fixtureHeatHTML(0,5)}
     <h2 style="margin-top:14px">Team Strength</h2>
     <p class="small">Attack and defence in expected goals. Results come from this; the table is what it looks like afterwards.</p>
@@ -348,6 +348,26 @@ function probabilityLesson(){
    site: they have just watched the model predict, simulate and be beaten
    (or not). Each link says which part of the game it is the real version of.
    Absolute URLs -- see SITE in config.js. */
+/* The season's two lessons, measured on what actually happened: how many
+   goals came from set pieces, and what out-of-position players scored --
+   priced in FPL points, because that is where the idea pays off for real. */
+function seasonLessons(){
+  const tot=S.seasonLog.reduce((a,x)=>a+x.gf,0);
+  const sp=alive().reduce((a,p)=>a+(p.spGoals||0),0);
+  const FPL={DF:6,MF:5,FW:4};
+  const adv=alive().filter(p=>(p.goalsAdv||0)>0);
+  const lines=[];
+  if(tot)lines.push(`<b>${sp}</b> of your <b>${tot}</b> goals came from set pieces (${Math.round(sp/tot*100)}%).`);
+  for(const p of adv){
+    const pts=p.goalsAdv*FPL[p.pos];
+    lines.push(`<b>${p.nm}</b>, a registered ${p.pos==="DF"?"defender":"midfielder"}, scored <b>${p.goalsAdv}</b>
+      playing further forward (▲). In FPL those are worth ${FPL[p.pos]} each — <b>${pts} points</b> — because he keeps his
+      registered position's scoring wherever he plays.`);
+  }
+  if(!lines.length)return "";
+  return `<div class="tip" style="margin-top:12px"><b>Out of position and set pieces, this season</b>${lines.map(l=>`<div style="margin-top:4px">${l}</div>`).join('')}
+    <div style="margin-top:6px">See who is doing it for real on <a href="${SITE}/fpl/line-ups">Starting Lineups</a>.</div></div>`;
+}
 function realThingLinks(){
   const L=[
     ["/team-strength","Team Strength","the attack and defence ratings you just played against, for every real club"],
@@ -410,6 +430,7 @@ function renderEnding(){
     ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
       ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
     ${probabilityLesson()}
+    ${seasonLessons()}
     ${realThingLinks()}
     <div style="margin-top:12px">${tableHTML()}</div>
     <button class="choice primary" id="again" style="margin-top:11px"><span class="t">Same season, different decisions</span><span class="d">Identical seed — beat your own score</span></button>

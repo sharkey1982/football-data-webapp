@@ -29,9 +29,13 @@ function resolveMine(hg,ag,home){
     if(p.gone)return;
     p.rtf=(p.rtf==null?p.rt:p.rtf)+(p.dev||0);
     p.rt=clamp(Math.round(p.rtf),30,85);
-    if(p.out){p.out--;if(!p.out)p.fit=clamp(p.fit+18);return}   /* recovering */
-    if(!played.has(i)){p.fit=clamp(p.fit+rnd(4,8));return}     /* rested */
-    p.fit=clamp(p.fit-rnd(3,8)*(p.inj>1.2?1.3:1),25,100);
+    if(p.sharp==null)p.sharp=90;
+    if(p.out){p.out--;p.sharp=clamp(p.sharp-10);if(!p.out)p.fit=clamp(p.fit+18);return}   /* recovering, losing sharpness */
+    /* Rested: condition comes back, sharpness slips. One or two weeks off
+       costs nothing; any longer and he is rusty (see RUST_LINE). */
+    if(!played.has(i)){p.fit=clamp(p.fit+rnd(4,8));p.sharp=clamp(p.sharp-7);return}
+    p.sharp=clamp(p.sharp+8);
+    p.fit=clamp(Math.round(p.fit-rnd(3,8)*(p.inj>1.2?1.3:1)),25,100);   /* whole numbers: it is displayed */
     /* The lower the condition, the likelier the match breaks him -- and
        some players break more easily than others. */
     const risk=(p.fit<55?.26:p.fit<70?.12:.04)*(p.inj||1);
@@ -45,14 +49,19 @@ function resolveMine(hg,ag,home){
    they sat or what the model made of the tie. */
 /* Team Strength, in the site's own currency: an attack rating and a defence
    rating expressed as expected goals per match, not an opaque 0-100 score. */
-function teamAtt(n){const st=n===CLUB?myStrength()+(S.attMod||0)+FORMATIONS[S.formation||"4-4-2"].att+balanceAdj()[0]:strOf(n);
+function teamAtt(n){return modelView(()=>teamAtt_(n))}
+function teamAtt_(n){const st=n===CLUB?myStrength()+(S.attMod||0)+FORMATIONS[S.formation||"4-4-2"].att+balanceAdj()[0]:strOf(n);
   return Math.max(.35,0.95+(st-52)/26)}
-function teamDef(n){const st=n===CLUB?myStrength()+(S.defMod||0)+FORMATIONS[S.formation||"4-4-2"].def+balanceAdj()[1]:strOf(n);
+function teamDef(n){return modelView(()=>teamDef_(n))}
+function teamDef_(n){const st=n===CLUB?myStrength()+(S.defMod||0)+FORMATIONS[S.formation||"4-4-2"].def+balanceAdj()[1]:strOf(n);
   return Math.max(.35,1.55-(st-52)/26)}
 function strengthTableHTML(){
   const rows=[CLUB].concat(RIVALS.map(r=>r.n))
     .map(n=>({n,att:teamAtt(n),def:teamDef(n),t:TABLE[n]}))
-    .sort((a,b)=>(b.att-b.def)-(a.att-a.def));
+    /* Ordered by the Shark's predicted finish, never by raw strength: a
+       strength-sorted list reads like a league position, and it disagreed
+       with the prediction in 31 of 40 seasons tested. */
+    .sort((a,b)=>(typeof PREDICT!=="undefined"&&PREDICT[a.n]&&PREDICT[b.n])?PREDICT[a.n].avg-PREDICT[b.n].avg:(b.att-b.def)-(a.att-a.def));
   return `<table class="tbl"><thead><tr><th>Club</th><th class="n">Attack</th><th class="n">Defence</th>
     <th class="n">GF</th><th class="n">GA</th><th class="n">CS</th></tr></thead><tbody>
     ${rows.map(r=>`<tr class="${r.n===CLUB?'me':''}"><td>${r.n}${youTag(r.n)}</td>
@@ -67,49 +76,53 @@ function strengthTableHTML(){
    opponent code with H or A (the site shows "CHI - H"), a whole-number FDR
    from 1 (easiest) to 5 (hardest), and the site's legend wording. The game
    used to say "MW" and show a raw decimal, which nobody could read. */
-function heatColour(d){return["#2d6b48","#5d8f4e","#c9901a","#c26a2a","#a8322b"][clamp(d,1,5)-1]}
 function oppCode(n){return n.replace(/[^A-Za-z]/g,"").slice(0,3).toUpperCase()}
+/* THE HEAT MAP, as two views, like the site's: GOALS FOR (xGF -- how many
+   you should score) and CLEAN SHEET CHANCE (how likely you are to keep one),
+   with the 1X2 odds underneath. Same labels and formats as the site's
+   Fixture Heat Map: xGF to one decimal, clean sheet chance as a percentage,
+   "Most goals expected" / "Highest clean sheet chance". The single FDR
+   number it replaced blended both into one figure nobody could read. */
+function heatScale(v,lo,hi){const t=clamp((v-lo)/(hi-lo),0,1);
+  return["#a8322b","#c26a2a","#c9901a","#5d8f4e","#2d6b48"][Math.min(4,Math.floor(t*5))]}
 function fixtureHeatHTML(fromWk,count){
   const cells=[],to=Math.min(MW,fromWk+(count||5));
   for(let wk=fromWk;wk<to;wk++){
-    const f=FIXTURES[wk].find(([h,a])=>h===CLUB||a===CLUB);
-    const home=f[0]===CLUB,opp=home?f[1]:f[0];
-    const gap=strOf(opp)-myStrength()+(home?-4:4);
-    cells.push({wk:wk+1,opp,home,d:Math.round(clamp(3+gap/6,1,5))});
+    const f=FIXTURES[wk].find(([h,a])=>h===CLUB||a===CLUB),home=f[0]===CLUB,opp=home?f[1]:f[0];
+    cells.push({wk:wk+1,opp,home,...matchProbs(opp,home)});
   }
   if(!cells.length)return "";
-  const easy=cells.filter(c=>c.d<=2).length,hard=cells.filter(c=>c.d>=4).length;
-  const worst=cells.reduce((a,c)=>c.d>a.d?c:a),best=cells.reduce((a,c)=>c.d<a.d?c:a);
-  const say=`${easy} ${easy===1?"looks":"look"} kind, ${hard} ${hard===1?"looks":"look"} hard. `+
-    `Toughest: GW${worst.wk}, ${worst.home?"home to":"away at"} ${worst.opp}. `+
-    `Kindest: GW${best.wk}, ${best.home?"home to":"away at"} ${best.opp}.`;
-  return `<div style="display:grid;grid-template-columns:repeat(${cells.length},1fr);gap:4px;margin:6px 0 4px">
-    ${cells.map(c=>`<div title="GW${c.wk}: ${CLUB} ${c.home?"vs":"@"} ${c.opp} — FDR ${c.d}"
-      style="min-width:0;background:${heatColour(c.d)};color:#f6f4ea;border-radius:6px;padding:7px 3px;text-align:center">
-      <div style="font-family:var(--mono);font-size:10px;opacity:.9">GW${c.wk}</div>
-      <div style="font-family:var(--mono);font-size:14px;font-weight:600;margin-top:2px">${oppCode(c.opp)} - ${c.home?"H":"A"}</div>
-      <div style="font-family:var(--mono);font-size:9.5px;opacity:.85;margin-top:2px">FDR ${c.d}</div></div>`).join('')}
-  </div>
-  <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mute);margin:4px 0 6px">
-    <span>Easiest fixtures (FDR)</span>
-    <span style="flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#2d6b48,#5d8f4e,#c9901a,#c26a2a,#a8322b)"></span>
-    <span>Hardest fixtures (FDR)</span></div>
-  <p class="small" style="margin:0">${say}</p>`;
+  const cols=`display:grid;grid-template-columns:74px repeat(${cells.length},1fr);gap:3px;align-items:stretch`;
+  const lab=t=>`<div style="font-size:10.5px;color:var(--ink2);display:flex;align-items:center;line-height:1.15">${t}</div>`;
+  const cell=(bg,top,sub)=>`<div style="background:${bg};color:#f6f4ea;border-radius:5px;padding:6px 2px;text-align:center;min-width:0">
+      <div style="font-family:var(--mono);font-size:13px;font-weight:600">${top}</div>${sub?`<div style="font-size:9px;opacity:.85">${sub}</div>`:''}</div>`;
+  const bestG=cells.reduce((a,c)=>c.xgf>a.xgf?c:a),bestCS=cells.reduce((a,c)=>c.cs>a.cs?c:a),worst=cells.reduce((a,c)=>c.w<a.w?c:a);
+  return `<div style="${cols};margin:6px 0 3px">
+      <div></div>${cells.map(c=>`<div style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--mute)">GW${c.wk}<br>
+        <b style="color:var(--ink);font-size:11.5px">${oppCode(c.opp)} - ${c.home?"H":"A"}</b></div>`).join('')}
+    </div>
+    <div style="${cols};margin-bottom:3px">${lab("Goals for<br><small style='color:var(--mute)'>xGF</small>")}
+      ${cells.map(c=>cell(heatScale(c.xgf,.6,2.2),c.xgf.toFixed(1))).join('')}</div>
+    <div style="${cols};margin-bottom:3px">${lab("Clean sheet<br><small style='color:var(--mute)'>chance</small>")}
+      ${cells.map(c=>cell(heatScale(c.cs,.08,.45),Math.round(c.cs*100)+"%")).join('')}</div>
+    <div style="${cols};margin-bottom:6px">${lab("1X2<br><small style='color:var(--mute)'>win · draw · loss</small>")}
+      ${cells.map(c=>`<div style="background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:4px 1px;text-align:center;font-family:var(--mono);font-size:10px;line-height:1.35">
+        <span style="color:var(--good);font-weight:600">${c.w}</span><br>${c.d}<br><span style="color:var(--bad)">${c.l}</span></div>`).join('')}</div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mute);margin:2px 0 6px">
+      <span>Fewest goals expected · Lowest clean sheet chance</span>
+      <span style="flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#a8322b,#c26a2a,#c9901a,#5d8f4e,#2d6b48)"></span>
+      <span>Most goals expected · Highest clean sheet chance</span></div>
+    <p class="small" style="margin:0">Most goals expected: GW${bestG.wk} ${bestG.home?"home to":"away at"} ${bestG.opp} (${bestG.xgf.toFixed(1)} xGF).
+      Best clean sheet chance: GW${bestCS.wk} (${Math.round(bestCS.cs*100)}%).
+      Hardest to win: GW${worst.wk} ${worst.home?"home to":"away at"} ${worst.opp} (${worst.w}% win).</p>`;
 }
 function posOf(n){return standings(TABLE).findIndex(r=>r.n===n)+1}
 function formPips(n){const f=(FORM[n]||[]).slice(-5);
   return f.length?`<span class="form">${f.map(x=>`<i class="${x}"></i>`).join('')}</span>`:'<span style="color:var(--mute)">—</span>'}
-function winProb(oppName,home){
-  const saved=R.s;let w=0,d=0;
-  const fm=S.nextOppFm||"4-4-2";
-  for(let i=0;i<500;i++){
-    const[m,t]=clubRates(oppName,home,1.25,fm);
-    const mg=Math.min(5,pois(m)),tg=Math.min(5,pois(t));
-    if(mg>tg)w++;else if(mg===tg)d++;
-  }
-  R.s=saved;
-  return{w:Math.round(w/5),d:Math.round(d/5),l:Math.round((500-w-d)/5)};
-}
+/* Model odds for your next match -- exact Poisson, in the model's view.
+   It used to run 500 random simulations, so the same fixture could show
+   slightly different odds on different screens. */
+function winProb(opp,home){const p=matchProbs(opp,home);return{w:p.w,d:p.d,l:p.l}}
 function opponentPanel(opp,home){
   const myP=posOf(CLUB),oP=posOf(opp),t=TABLE[opp],mt=TABLE[CLUB];
   const oStr=strOf(opp),gap=Math.round(myStrength()-oStr);
@@ -182,6 +195,44 @@ function renderRoundup(){
    against is what you play against (re-rolling it at kickoff would also
    shift the seeded random sequence). The manager picks the formation and
    the XI; other roles see the manager's choice. */
+/* What the team sheet teaches, beneath the pitch:
+   - the next three fixtures, so resting a key player for an easy game is a
+     decision you can actually plan;
+   - who takes the set pieces, and why it matters;
+   - when anyone is playing out of position, what that means -- including the
+     Fantasy angle, and a link to the site's own Starting Lineups. */
+function sheetLessons(wk,mgr){
+  const next=[];for(let w=wk;w<Math.min(MW,wk+3);w++){const f=myFixture(w),h=f[0]===CLUB,o=h?f[1]:f[0];next.push({w:w+1,o,h,p:matchProbs(o,h)})}
+  const word=w=>w>=48?"Easier":w<=28?"Hard":"Even";
+  const strip=`<div class="strip">${next.map((n,k)=>`<div style="background:${heatScale(n.p.w,15,65)}">
+      <b>${k===0?"THIS WEEK":"GW"+n.w}</b>${oppCode(n.o)} - ${n.h?"H":"A"}<br>${n.p.w}% win · ${word(n.p.w)}</div>`).join('')}</div>`;
+  const xi=currentXI(),tk=setPieceTaker(xi);
+  const cands=xi.filter(s=>s.slot!=="GK").map(s=>({p:S.squadList[s.i],i:s.i})).sort((a,b)=>(b.p.sp||0)-(a.p.sp||0)).slice(0,4);
+  const adv=xi.map(s=>({p:S.squadList[s.i],s})).filter(x=>roleSignal(x.p,x.s.slot)==="advanced");
+  const posWord={DF:"defender",MF:"midfielder",FW:"forward"};
+  const oopTip=adv.length
+    ?`<div class="tip"><b>▲ Out of position — and why it can be smart</b>
+       ${adv.map(x=>`<b style="display:inline;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">${x.p.nm}</b> is a ${posWord[x.p.pos]} playing ${x.s.slot==="MF"?"midfield":"up front"}`).join("; ")}.
+       He still defends like a ${posWord[adv[0].p.pos]}, so your defensive shape holds — a defensive move —
+       while he gets the chances of the role he is playing. That is the sweet spot in Fantasy: an out-of-position
+       player keeps his registered position's points (a defender scores 6 for a goal and 4 for a clean sheet)
+       while playing further forward. The site's <a href="${SITE}/fpl/line-ups">Starting Lineups</a> marks these players ▲ too.</div>`
+    :mgr?`<div class="tip" style="border-left-color:var(--line);background:var(--panel2)"><b>Try it</b>
+       A defender moved into midfield keeps your defensive shape <i>and</i> gets more chances to score.
+       Tap a midfielder on the pitch, then a defender on the bench.</div>`:"";
+  return `<div class="tip" style="border-left-color:var(--amber);background:var(--panel2)"><b>Rest and rotation</b>
+      Rest tired or key players in the easier weeks so they are fresh for the hard ones — but leave a player out
+      for more than two weeks and he goes <span style="color:#7cb9e8">rusty</span>.${strip}</div>
+    <div class="tip" style="border-left-color:var(--amber);background:var(--panel2)"><b>Set pieces</b>
+      About a quarter of goals at this level come from set pieces. The taker scores penalties and free kicks
+      wherever he plays, and your best in the air score from corners — defenders included. It is why set-piece
+      duty is one of the biggest inputs to the site's FPL projections.
+      ${mgr?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${cands.map(c=>`<button class="choice" data-sp="${c.i}"
+        style="margin:0;padding:5px 8px;width:auto;flex:1;min-width:120px;${c.p===tk?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+        <span class="t" style="font-size:12.5px">${c.p===tk?"✓ ":""}${c.p.nm}</span><span class="d">set pieces ${c.p.sp||0}/3</span></button>`).join('')}</div>`
+      :`<div style="margin-top:4px">Taker: <b>${tk?tk.nm:"—"}</b></div>`}</div>
+    ${oopTip}`;
+}
 function renderTeamSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
@@ -203,6 +254,7 @@ function renderTeamSheet(done){
       <div class="xibar">XI quality <b>${Math.round(x.q)}</b> · condition <b>${Math.round(x.fit)}</b>
         · attack lean ${lean(bA)} · defence lean ${lean(bD)}</div>
       ${squadHTML({pick:mgr,sel})}
+      ${sheetLessons(wk,mgr)}
       ${mgr?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>
         <span class="d">Let the game choose the strongest available side for this shape</span></button>`:''}
       <button class="choice primary" id="kick" style="margin-top:6px"><span class="t">Kick off</span></button></div>`;
@@ -215,6 +267,7 @@ function renderTeamSheet(done){
         const k=xi.findIndex(s=>s.i===sel);if(k<0)return;
         xi[k].i=j;S.manualXI=xi;S.manualFm=S.formation;sel=null;draw()});
       document.getElementById('bestXI').onclick=()=>{S.manualXI=null;sel=null;draw()};
+      document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{S.spTaker=+b.dataset.sp;draw()});
     }
     document.getElementById('kick').onclick=done;
   }
@@ -268,7 +321,7 @@ function renderMatch(done,quick){
     for(const r of reds)if(from>45&&r.m<=45){if(r.us){mr*=.72;tr*=1.25}else{tr*=.72;mr*=1.25}}
     const mg=Math.min(3,pois(mr)),tg=Math.min(3,pois(tr)),ev=[];
     const mins=n=>{const r=[];for(let i=0;i<n;i++)r.push(rnd(from,to));return r.sort((x,y)=>x-y)};
-    for(const m of mins(mg))ev.push({m,mine:1,p:pickScorer()});
+    for(const m of mins(mg))ev.push({m,mine:1,g:pickGoal()});
     for(const m of mins(tg))ev.push({m,mine:0});
     for(const r of reds)if(r.m>=from&&r.m<=to)ev.push({m:r.m,red:r});
     if(rng()<.4)ev.push({m:rnd(from,to),card:1});
@@ -276,8 +329,9 @@ function renderMatch(done,quick){
     (function go(){if(i>=ev.length)return setTimeout(cb,quick?260:460);const e=ev[i++];
       if(e.card)add(e.m+"'","Yellow card","");
       else if(e.red)add(e.m+"'",e.red.us?`RED CARD — ${e.red.who.toUpperCase()} (YOURS)`:`RED CARD — ${opp.toUpperCase()}`,e.red.us?"against":"goal");
-      else if(e.mine){mine++;if(e.p)e.p.goals=(e.p.goals||0)+1;
-        add(e.m+"'",(e.p?e.p.nm:"TRIALIST").toUpperCase(),"goal",sc())}
+      else if(e.mine){mine++;
+        add(e.m+"'",(e.g?e.g.p.nm:"TRIALIST").toUpperCase()+(e.g&&e.g.how?` <small style="opacity:.75">(${e.g.how})</small>`:"")
+          +(e.g&&roleSignal(e.g.p,e.g.slot)==="advanced"?` <small style="color:var(--good)">▲</small>`:""),"goal",sc())}
       else{theirs++;add(e.m+"'",opp.toUpperCase()+" GOAL","against",sc())}
       setTimeout(go,tick+Math.random()*(quick?120:260))})();
   }
@@ -362,24 +416,36 @@ function renderElsewhere(info,done){
     document.getElementById('mn').onclick=done;
   }
 }
-/* Who scores. A player on a goal bonus shoots more, so he is likelier to be
-   the name on the vidiprinter -- the bonus has a visible consequence. */
-function pickScorer(){
-  /* Scorers come from the XI actually on the pitch, weighted by where they
-     are playing and how attacking they are. A player on a goal bonus shoots
-     more, so he is likelier to be the name on the vidiprinter. */
-  const pool=currentXI().filter(s=>s.slot!=="GK").map(s=>({p:S.squadList[s.i],slot:s.slot}));
-  if(!pool.length)return null;
-  const w=pool.map(({p,slot})=>{let x=(slot==="FW"?3:slot==="MF"?2:1)*(1+Math.max(0,p.att)*.25);
-    if(S.bonuses.some(b=>b.type==="goals"&&b.nm===p.nm))x*=2.2;return x});
-  let r=rng()*w.reduce((a,b)=>a+b,0);
-  for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i].p}
-  return pool[pool.length-1].p;
+/* WHO SCORES, AND HOW. About a quarter of goals come from set pieces: the
+   taker scores penalties and free kicks wherever he plays, and corners are
+   headed in by the XI's aerial threats -- defenders included. Open-play
+   goals are weighted by the SLOT a player is in, so a defender playing
+   further forward gets a forward's chances: out of position is how a
+   defender's goal record improves. Each goal is recorded against the
+   player, including whether it came from an advanced role or a set piece,
+   because the end of season reports both. */
+const SP_SHARE=.26;
+function pickGoal(){
+  const xi=currentXI().filter(s=>s.slot!=="GK");
+  if(!xi.length)return null;
+  const P=xi.map(s=>({p:S.squadList[s.i],slot:s.slot}));
+  const weighted=(arr,w)=>{let r=rng()*arr.reduce((a,x)=>a+w(x),0);for(const x of arr){r-=w(x);if(r<=0)return x}return arr[arr.length-1]};
+  let pick,how="";
+  if(rng()<SP_SHARE){
+    const tk=setPieceTaker();
+    if(tk&&rng()<.4){pick=P.find(x=>x.p===tk)||P[0];how=rng()<.5?"pen":"free kick"}
+    else{pick=weighted(P,x=>.3+(x.p.aer||0));how="header from a corner"}
+  }else{
+    pick=weighted(P,({p,slot})=>{let x=(slot==="FW"?3:slot==="MF"?2:1)*(1+Math.max(0,p.att)*.25);
+      if(S.bonuses.some(b=>b.type==="goals"&&b.nm===p.nm))x*=2.2;return x});
+  }
+  const p=pick.p;p.goals=(p.goals||0)+1;
+  if(roleSignal(p,pick.slot)==="advanced")p.goalsAdv=(p.goalsAdv||0)+1;
+  if(how)p.spGoals=(p.spGoals||0)+1;
+  return{p,how,slot:pick.slot};
 }
-/* THE MANAGER'S HALF TIME: a real tactical panel, not a tone of voice.
-   Pick a shape, make substitutions, push someone out of position, then
-   send them back out. Every option states what it does to attack and
-   defence, because that is the trade being made. */
+/* kept for callers that only need the player */
+function pickScorer(){const g=pickGoal();return g?g.p:null}
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');
   let fm=S.formation,subs=[],oop=null;
@@ -389,7 +455,10 @@ function tacticalHalfTime(mg,tg,oFm,resume){
     const f=FORMATIONS[fm],fb=FORMATIONS[S.formation];
     let at=f.att-fb.att,de=f.def-fb.def;
     at+=subs.length*2;de+=subs.length*1;
-    if(oop){at+=5;de-=5}
+    /* Out of position, both ways round -- and both are defenders moving
+       FORWARD, which keeps defensive shape. Protecting a lead: a defender
+       into midfield. Chasing a game: a defender up front as a target man. */
+    if(oop){if(mg>tg){de+=3}else{at+=4;de-=1}}
     return{at,de};
   }
   function draw(){
@@ -410,11 +479,12 @@ function tacticalHalfTime(mg,tg,oFm,resume){
           ${subs.includes(p.nm)?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
           <span class="t" style="font-size:14px">${subs.includes(p.nm)?"✓ ":""}Take off ${p.nm}</span>
           <span class="d">${p.pos}, condition ${p.fit} · +2 attack, +1 defence</span></button>`).join('')}`:''}
-      ${defenders.length&&mg<=tg?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">OUT OF POSITION</div>
+      ${defenders.length?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">OUT OF POSITION ▲</div>
         <button class="choice" data-oop="1" style="margin:0 0 5px;padding:8px 11px;
           ${oop?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-          <span class="t" style="font-size:14px">${oop?"✓ ":""}Push ${defenders[0].nm} up front</span>
-          <span class="d">Centre-back as a target man · +5 attack, −5 defence</span></button>`:''}
+          <span class="t" style="font-size:14px">${oop?"✓ ":""}${mg>tg?`Move ${defenders[0].nm} into midfield`:`Push ${defenders[0].nm} up front`}</span>
+          <span class="d">${mg>tg?"A defender in midfield protects a lead: he still defends like a defender · defence +3"
+            :"A defender as target man: he wins headers and still presses like a defender · attack +4, defence −1"}</span></button>`:''}
       <div style="margin-top:10px;padding:8px 11px;border-radius:8px;background:var(--panel2);font-family:var(--mono);font-size:12.5px">
         Second-half change: <span style="color:${e.at>=0?'var(--good)':'var(--bad)'}">attack ${e.at>0?'+':''}${e.at}</span>
         · <span style="color:${e.de>=0?'var(--good)':'var(--bad)'}">defence ${e.de>0?'+':''}${e.de}</span></div>
@@ -435,7 +505,7 @@ function tacticalHalfTime(mg,tg,oFm,resume){
       S.fatigue=clamp(S.fatigue-subs.length*2);
       const bits=[fm!==was?`Switched from ${was} to ${fm}`:`Stayed in ${fm}`];
       if(subs.length)bits.push(`${subs.length} ${subs.length===1?"change":"changes"}: ${subs.join(", ")} off`);
-      if(oop)bits.push(`${defenders[0].nm} pushed up front`);
+      if(oop)bits.push(mg>tg?`${defenders[0].nm} into midfield to protect the lead`:`${defenders[0].nm} pushed up front`);
       box.innerHTML=`<div style="margin-top:10px" class="outcome">${bits.join(". ")}.</div>`;
       resume();
     };

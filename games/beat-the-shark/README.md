@@ -124,6 +124,19 @@ effects from the club's current state. Turning the simplest of them into
 pure data would remove code from the writing entirely. Not worth it yet; the
 split already isolates the writing from the engine.
 
+## What the game teaches, and where it lives
+
+Each mechanic is built to teach something the site measures for real, using
+the site's own visual language.
+
+| Idea | In the game | On the site |
+|---|---|---|
+| Out of position | A defender moved forward keeps defending (a defensive move) and gets that role's chances; green ring, ▲. End of season prices his goals in FPL points. `OOP` in engine.js | Starting Lineups marks advanced roles ▲ |
+| Set pieces | ~26% of goals; the taker scores pens and free kicks wherever he plays, aerial players score from corners. `SP_SHARE`, `SP_WEIGHT` | Set-piece duty in FPL projections; P1 FK1 C1 labels |
+| Rest and rotation | Resting restores condition; more than two weeks out and a player goes rusty. `RUST_LINE` | Condition, minutes and rotation risk |
+| Probability | The Shark predicts; the favourite usually, not always, wins | Model Accuracy |
+| Fixture difficulty | Goals-for (xGF) and clean-sheet views with 1X2 odds | Fixture Heat Map |
+
 ## Design rules
 
 - **Deterministic and seeded.** Same seed, same season. No `Math.random()`

@@ -130,7 +130,7 @@ function playFixture(h,a,credit){
   /* credit=true where no vidiprinter names the scorers. The classified
      check names them itself, so it must NOT pass this -- or every goal
      there would be counted twice against a goal bonus. */
-  if(credit)for(let i=0;i<mg;i++){const p=pickScorer();if(p)p.goals=(p.goals||0)+1}
+  if(credit)for(let i=0;i<mg;i++)pickGoal();
   return home?[mg,tg]:[tg,mg];
 }
 function simScore(hs,as){
@@ -158,13 +158,33 @@ function standings(t){return Object.entries(t).map(([n,v])=>({n,...v,gd:v.gf-v.g
    Rates are cached per opponent, venue and shape, because the pre-season
    state does not change during the simulation. Before a season exists --
    the opening screen -- it falls back to the fixed rating. */
+function modelView(fn){
+  if(typeof S==="undefined"||!S)return fn();
+  const was=S._mc;S._mc=true;try{return fn()}finally{S._mc=was}
+}
+/* The shape each rival usually plays -- a fixed expectation for displays,
+   where the actual match shape is drawn at kickoff. */
+function typicalShape(n){const st=RIVALS.find(r=>r.n===n).str;return st>=60?"4-3-3":st<=44?"5-3-2":"4-4-2"}
+/* Exact Poisson probabilities for Your Team against an opponent: xGF, xGA,
+   clean sheet chance and 1X2. Computed, not simulated -- so the same
+   question always gets the same answer on every screen. */
+function matchProbs(opp,home){
+  return modelView(()=>{
+    const[m,t]=clubRates(opp,home,1.25,typicalShape(opp));
+    const pm=[],pt=[];let a=Math.exp(-m),b=Math.exp(-t);
+    for(let k=0;k<=12;k++){pm.push(a);pt.push(b);a*=m/(k+1);b*=t/(k+1)}
+    let w=0,d=0;for(let i=0;i<=12;i++)for(let j=0;j<=12;j++){const p=pm[i]*pt[j];if(i>j)w+=p;else if(i===j)d+=p}
+    const W=Math.round(w*100),D=Math.round(d*100);
+    return{xgf:m,xga:t,cs:Math.exp(-t),w:W,d:D,l:100-W-D};
+  });
+}
 function monteCarlo(runs=4000){
   /* blankTable() resets -- and award() fills -- the FORM and CLEAN records,
      which are shared with the real season. Without saving and restoring
      them, the real game began with the form and clean sheets of the last
      simulated season (60 results and 21 clean sheets, measured). */
   const savedForm=FORM,savedClean=CLEAN;
-  const saved=R.s,counts={};[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>counts[n]={sum:0,bot2:0,top:0});
+  const saved=R.s,counts={};R.s=hashSeed(SEED+"|shark");[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>counts[n]={sum:0,bot2:0,top:0});
   const live=typeof S!=="undefined"&&S&&S.squadList&&typeof ROLE!=="undefined"&&ROLE;
   const cache={};
   const clubGame=(h,a)=>{
@@ -218,36 +238,80 @@ function monteCarlo(runs=4000){
    PLAY get tired -- so rotation, not just quality, decides a season.
    =========================================================================== */
 const ARCHETYPES=[
-  {pos:"GK",nm:"Safe Hands",          rt:56,fit:90,att:0,def:2, dev:0,   inj:.15, line:"never spectacular, never wrong"},
-  {pos:"GK",nm:"Error-Prone Keeper",  rt:49,fit:95,att:0,def:-1,dev:.3,  inj:.15, line:"brilliant saves, baffling mistakes"},
-  {pos:"DF",nm:"Captain Grit",        rt:55,fit:78,att:0,def:3, dev:-.4, inj:1.3,line:"thirty-four, organises everyone"},
-  {pos:"DF",nm:"Aerial Giant",        rt:53,fit:88,att:1,def:2, dev:0,   inj:.9, line:"wins every header, loses every race"},
-  {pos:"DF",nm:"Ball-Playing Defender",rt:52,fit:88,att:2,def:-1,dev:.1, inj:1,  line:"lovely on the ball, nervy off it"},
-  {pos:"DF",nm:"Journeyman Defender", rt:49,fit:92,att:0,def:1, dev:0,   inj:.6, line:"seventh club, never injured"},
-  {pos:"DF",nm:"Young Full-Back",     rt:45,fit:96,att:1,def:0, dev:.8,  inj:.9, line:"raw, quick, better every week"},
-  {pos:"MF",nm:"Playmaker",           rt:56,fit:84,att:3,def:-2,dev:0,   inj:1,  line:"sees passes nobody else does"},
-  {pos:"MF",nm:"Engine Room",         rt:54,fit:94,att:1,def:2, dev:0,   inj:.7, line:"runs all day, never tires"},
-  {pos:"MF",nm:"Hot Head",            rt:53,fit:88,att:1,def:1, dev:0,   inj:1,  line:"brilliant, and one tackle from a red"},
-  {pos:"MF",nm:"Set-Piece Specialist",rt:49,fit:88,att:2,def:0, dev:0,   inj:.9, line:"worth a goal a month from dead balls"},
-  {pos:"MF",nm:"Loan Kid",            rt:46,fit:96,att:1,def:0, dev:1.0, inj:.9, line:"on loan from a big club, improving fast"},
-  {pos:"FW",nm:"Old Superstar",       rt:62,fit:72,att:4,def:-1,dev:-.6, inj:1.8,line:"used to be brilliant; still is, for an hour"},
-  {pos:"FW",nm:"Greedy but Quick",    rt:55,fit:90,att:3,def:-1,dev:0,   inj:1,  line:"shoots from everywhere, passes to nobody"},
-  {pos:"FW",nm:"Fox in the Box",      rt:53,fit:88,att:2,def:0, dev:0,   inj:.9, line:"does nothing except score"},
-  {pos:"FW",nm:"Young Potential",     rt:45,fit:97,att:1,def:0, dev:1.2, inj:.8, line:"the academy's best hope in years"}
+  {pos:"GK",nm:"Safe Hands",          rt:56,fit:90,att:0,def:2, dev:0,   inj:.15, sp:0,aer:0,line:"never spectacular, never wrong"},
+  {pos:"GK",nm:"Error-Prone Keeper",  rt:49,fit:95,att:0,def:-1,dev:.3,  inj:.15, sp:0,aer:0,line:"brilliant saves, baffling mistakes"},
+  {pos:"DF",nm:"Captain Grit",        rt:55,fit:78,att:0,def:3, dev:-.4, inj:1.3,sp:1,aer:2,line:"thirty-four, organises everyone"},
+  {pos:"DF",nm:"Aerial Giant",        rt:53,fit:88,att:1,def:2, dev:0,   inj:.9, sp:0,aer:3,line:"wins every header, loses every race"},
+  {pos:"DF",nm:"Ball-Playing Defender",rt:52,fit:88,att:2,def:-1,dev:.1, inj:1,  sp:1,aer:1,line:"lovely on the ball, nervy off it"},
+  {pos:"DF",nm:"Journeyman Defender", rt:49,fit:92,att:0,def:1, dev:0,   inj:.6, sp:0,aer:1,line:"seventh club, never injured"},
+  {pos:"DF",nm:"Young Full-Back",     rt:45,fit:96,att:1,def:0, dev:.8,  inj:.9, sp:0,aer:0,line:"raw, quick, better every week"},
+  {pos:"MF",nm:"Playmaker",           rt:56,fit:84,att:3,def:-2,dev:0,   inj:1,  sp:2,aer:0,line:"sees passes nobody else does"},
+  {pos:"MF",nm:"Engine Room",         rt:54,fit:94,att:1,def:2, dev:0,   inj:.7, sp:1,aer:1,line:"runs all day, never tires"},
+  {pos:"MF",nm:"Hot Head",            rt:53,fit:88,att:1,def:1, dev:0,   inj:1,  sp:1,aer:1,line:"brilliant, and one tackle from a red"},
+  {pos:"MF",nm:"Set-Piece Specialist",rt:49,fit:88,att:2,def:0, dev:0,   inj:.9, sp:3,aer:1,line:"worth a goal a month from dead balls"},
+  {pos:"MF",nm:"Loan Kid",            rt:46,fit:96,att:1,def:0, dev:1.0, inj:.9, sp:1,aer:0,line:"on loan from a big club, improving fast"},
+  {pos:"FW",nm:"Old Superstar",       rt:62,fit:72,att:4,def:-1,dev:-.6, inj:1.8,sp:2,aer:1,line:"used to be brilliant; still is, for an hour"},
+  {pos:"FW",nm:"Greedy but Quick",    rt:55,fit:90,att:3,def:-1,dev:0,   inj:1,  sp:1,aer:0,line:"shoots from everywhere, passes to nobody"},
+  {pos:"FW",nm:"Fox in the Box",      rt:53,fit:88,att:2,def:0, dev:0,   inj:.9, sp:1,aer:2,line:"does nothing except score"},
+  {pos:"FW",nm:"Young Potential",     rt:45,fit:97,att:1,def:0, dev:1.2, inj:.8, sp:0,aer:1,line:"the academy's best hope in years"}
 ];
 /* Out of position: an outfield player in the wrong line loses a little;
    anyone swapping to or from goalkeeper loses a great deal. */
 const OOP_PENALTY=7,GK_OOP_PENALTY=18;
+/* ---------------------------------------------------------------------------
+   OUT OF POSITION, and what it is FOR.
+   A player's registered position is where he is listed (G/D/M/F, as in FPL).
+   His SLOT is where he plays. Moving a player FORWARD is not simply a worse
+   version of him: a defender in midfield still defends like a defender, so
+   the team keeps its defensive shape -- which makes it a DEFENSIVE move that
+   also hands a defender a midfielder's chances in front of goal. That is
+   exactly why "out of position" players are prized in Fantasy: they keep
+   their registered position's points (a defender scores 6 a goal and 4 for a
+   clean sheet) while playing further forward. The site's Starting Lineups
+   marks them the same way this game does: green ring, up arrow.
+   Moving a player BACKWARDS is the opposite: a forward cannot defend.
+   Each entry: quality lost, and how his attacking/defensive lean carries.
+   --------------------------------------------------------------------------- */
+const LINE_ORDER={GK:0,DF:1,MF:2,FW:3};
+const OOP={
+  "DF>MF":{pen:3,att:1, def:1, keepDef:1},   /* defensive midfielder: holds the shape */
+  "DF>FW":{pen:6,att:1, def:0, keepDef:.8},  /* target man who defends from the front */
+  "MF>FW":{pen:3,att:1, def:0, keepDef:.7},
+  "MF>DF":{pen:4,att:-1,def:0, keepDef:.7},
+  "FW>MF":{pen:3,att:0, def:-1,keepDef:.6},
+  "FW>DF":{pen:8,att:-1,def:-2,keepDef:.4}
+};
+function oopInfo(p,slot){return p.pos===slot?null:(OOP[p.pos+">"+slot]||null)}
+function roleSignal(p,slot){if(p.pos===slot||p.pos==="GK"||slot==="GK")return "";
+  return LINE_ORDER[slot]>LINE_ORDER[p.pos]?"advanced":"deeper"}
+/* SHARPNESS. Resting restores condition, but a player left out too long
+   gets rusty. Above RUST_LINE there is no cost; below it, quality drops. */
+const RUST_LINE=75,RUST_COST=.16;
+function rust(p){return Math.max(0,(RUST_LINE-(p.sharp==null?90:p.sharp)))*RUST_COST}
 function makeSquad(){
   return ARCHETYPES.map(a=>{const rt=a.rt+rnd(-2,2);
-    return Object.assign({},a,{rt,rtf:rt,fit:clamp(a.fit+rnd(-4,3)),gone:false,out:0,goals:0})});
+    return Object.assign({},a,{rt,rtf:rt,fit:clamp(a.fit+rnd(-4,3)),sharp:90,gone:false,out:0,goals:0,goalsAdv:0,spGoals:0})});
 }
 function pips(v,max,cls){let h="";for(let i=0;i<5;i++)h+=`<i class="${v>=(i+1)*(max/5)?cls:''}"></i>`;return `<div class="pips">${h}</div>`}
 function lineShape(fm){const[d,m,f]=fm.split("-").map(Number);return{GK:1,DF:d,MF:m,FW:f}}
 function effRating(p,slot){
-  if(p.pos===slot)return p.rt;
-  return p.rt-((p.pos==="GK"||slot==="GK")?GK_OOP_PENALTY:OOP_PENALTY);
+  const r=p.rt-rust(p);
+  if(p.pos===slot)return r;
+  if(p.pos==="GK"||slot==="GK")return r-GK_OOP_PENALTY;
+  const o=oopInfo(p,slot);return r-(o?o.pen:OOP_PENALTY);
 }
+/* SET PIECES. The taker is the XI's best set-piece skill unless the manager
+   names one. He takes penalties and free kicks wherever he plays; corners
+   are won in the air, so aerial players -- defenders included -- score from
+   them. Around a quarter of goals at this level come this way. */
+function setPieceTaker(xi){
+  xi=xi||currentXI();
+  const cand=xi.filter(s=>s.slot!=="GK").map(s=>S.squadList[s.i]);
+  if(S.spTaker!=null){const p=S.squadList[S.spTaker];if(p&&cand.includes(p))return p}
+  return cand.slice().sort((a,b)=>(b.sp||0)-(a.sp||0)||b.rt-a.rt)[0]||null;
+}
+function aerialThreat(xi){return(xi||currentXI()).filter(s=>s.slot!=="GK")
+  .map(s=>S.squadList[s.i].aer||0).sort((a,b)=>b-a).slice(0,3).reduce((a,b)=>a+b,0)}
 /* The best XI the formation allows from AVAILABLE players, rated with a
    little weight on condition. Where a line runs short -- injuries, sales --
    it borrows the best remaining outfield player and plays him out of
@@ -255,7 +319,7 @@ function effRating(p,slot){
 function autoXI(){
   const shape=lineShape(S.formation||"4-4-2");
   const pool=S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone&&!x.p.out);
-  const val=x=>x.p.rt*(0.7+0.3*x.p.fit/100);
+  const val=x=>(x.p.rt-rust(x.p))*(0.7+0.3*x.p.fit/100);
   const used=new Set(),xi=[];
   for(const slot of ["GK","DF","MF","FW"]){
     const cands=pool.filter(x=>x.p.pos===slot).sort((a,b)=>val(b)-val(a));
@@ -287,37 +351,78 @@ function xiStats(){
   const xi=currentXI();
   if(!xi.length)return{q:40,fit:70,att:0,def:0,xi};
   let q=0,fit=0,att=0,def=0;
-  for(const s of xi){const p=S.squadList[s.i],oop=p.pos!==s.slot;
+  for(const s of xi){const p=S.squadList[s.i],o=oopInfo(p,s.slot);
     q+=effRating(p,s.slot);fit+=p.fit;
-    att+=oop?p.att*.5:p.att;def+=oop?p.def*.5-1:p.def;
+    if(!o||p.pos==="GK"||s.slot==="GK"){att+=o?p.att*.5:p.att;def+=o?p.def*.5-1:p.def}
+    else{att+=p.att*.5+o.att;def+=p.def*o.keepDef+o.def}
     /* An outfield player in goal is not a small inefficiency -- it is a
        defensive crisis, and it must feel like one in the results. */
     if(s.slot==="GK"&&p.pos!=="GK")def-=12}
   const n=xi.length;
+  /* Set pieces feed attack: the taker's skill and the XI's aerial threat. */
+  const tk=setPieceTaker(xi);
+  att+=(tk?(tk.sp||0):0)*SP_WEIGHT+aerialThreat(xi)*AER_WEIGHT;
   /* Fewer than eleven fit players is punished directly. */
   return{q:q/n-(11-n)*3,fit:fit/n,att,def,xi};
 }
 /* How far the XI's attacking and defensive lean has moved from the side
    you started the season with. Feeds attack and defence separately. */
 function balanceAdj(){const x=xiStats();return[(x.att-(S.attBase||0))*BAL_WEIGHT,(x.def-(S.defBase||0))*BAL_WEIGHT]}
+/* THE PITCH, drawn the way the site's Starting Lineups draws it: a marked
+   pitch, players placed by tactical role (LB, LCB, CM, CF...), each a circle
+   showing his REGISTERED position letter (G/D/M/F, as in FPL), ringed green
+   with a ▲ when he plays a more advanced role than his position and red
+   with a ▼ when deeper -- the site's own signals -- plus set-piece duties
+   in the site's P1 FK1 C1 format. Keeping the visual language identical is
+   deliberate: a player who learns it here can read the real page. */
+const ROLE_NAMES={GK:{1:["GK"]},DF:{3:["LCB","CB","RCB"],4:["LB","LCB","RCB","RB"],5:["LWB","LCB","CB","RCB","RWB"]},
+  MF:{3:["LCM","CM","RCM"],4:["LM","LCM","RCM","RM"],5:["LM","LCM","CM","RCM","RM"]},
+  FW:{1:["CF"],2:["CF","CF"],3:["LW","CF","RW"]}};
+const ROW_TOP={GK:89,DF:70,MF:46,FW:17};
+const ACROSS={1:[50],2:[36,64],3:[22,50,78],4:[12,37,63,88],5:[10,30,50,70,90]};
+const POS_LETTER={GK:"G",DF:"D",MF:"M",FW:"F"};
+function pitchSlots(xi){
+  const out=[];
+  for(const line of ["GK","DF","MF","FW"]){
+    const row=xi.filter(s=>s.slot===line),n=row.length;
+    row.forEach((s,k)=>out.push({...s,top:ROW_TOP[line],left:(ACROSS[n]||ACROSS[4])[k]??50,
+      role:((ROLE_NAMES[line]||{})[n]||[])[k]||line}));
+  }
+  return out;
+}
 function squadHTML(opts){
   opts=opts||{};
-  const xi=currentXI(),inXI=new Set(xi.map(s=>s.i));
+  const xi=currentXI(),inXI=new Set(xi.map(s=>s.i)),tk=setPieceTaker(xi);
   const condCol=f=>f<60?'var(--bad)':f<78?'var(--amber)':'var(--good)';
-  const chip=s=>{const p=S.squadList[s.i],oop=p.pos!==s.slot,sel=opts.sel===s.i;
-    return `<button type="button" class="chip${oop?' oop':''}${s.i===S.meIdx?' me':''}${sel?' sel':''}" ${opts.pick?`data-xi="${s.i}"`:'disabled'}>
-      <span class="cn">${p.nm}</span>
-      <span class="cs">${oop?`<b>${p.pos} as ${s.slot}</b> · `:''}${p.rt}
-        <i class="cb"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></span></button>`};
+  const marker=s=>{const p=S.squadList[s.i],sig=roleSignal(p,s.slot),sel=opts.sel===s.i;
+    const flag=(p.sharp!=null&&p.sharp<RUST_LINE)?"Rusty":p.fit<62?"Tired":"";
+    return `<button type="button" class="pm${sel?' sel':''}${s.i===S.meIdx?' me':''}" style="top:${s.top}%;left:${s.left}%"
+        ${opts.pick?`data-xi="${s.i}"`:'disabled'} title="${p.nm} — ${p.line}">
+      <span class="dot ${sig}">${POS_LETTER[p.pos]}</span>
+      <span class="pn">${p.nm}</span>
+      <span class="pq">${p.rt} · <i class="cb2"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></span>
+      <span class="pr">${s.role}${sig==="advanced"?'<b class="up">▲</b>':sig==="deeper"?'<b class="dn">▼</b>':''}</span>
+      ${p===tk?'<span class="psp">P1 FK1 C1</span>':''}
+      ${flag?`<span class="pf">${flag}</span>`:''}
+    </button>`};
   const bench=S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone&&!inXI.has(x.i));
   return `<!--SQ--><div class="pitchbox">
-    <div class="pitch">${["FW","MF","DF","GK"].map(r=>
-      `<div class="prow">${xi.filter(s=>s.slot===r).map(chip).join('')}</div>`).join('')}</div>
-    <div class="benchh">Bench${opts.pick?' — tap a starter, then a bench player, to swap':''}</div>
+    <div class="pitch2">
+      <i class="ln-half"></i><i class="ln-circle"></i><i class="ln-box top"></i><i class="ln-box bot"></i>
+      ${pitchSlots(xi).map(marker).join('')}
+    </div>
+    <div class="plegend">
+      <span><i class="dot advanced sm"></i> Advanced role (▲)</span>
+      <span><i class="dot deeper sm"></i> Deeper role (▼)</span>
+      <span><b style="color:var(--amber)">P1 FK1 C1</b> set-piece duties</span>
+      <span><b style="color:#7cb9e8">Rusty</b> rested too long</span>
+    </div>
+    <div class="benchh">Bench${opts.pick?' — tap a player on the pitch, then one here, to swap':''}</div>
     <div class="bench">${bench.map(({p,i})=>
       `<button type="button" class="bp${p.out?' out':''}${i===S.meIdx?' me':''}" ${opts.pick&&!p.out?`data-bench="${i}"`:'disabled'}>
         <span class="bpos">${p.pos}</span>
-        <span class="bn">${p.nm}<small>${p.out?`<b style="color:var(--bad)">OUT ${p.out} ${p.out===1?"week":"weeks"}</b> · `:''}${p.line}</small></span>
+        <span class="bn">${p.nm}<small>${p.out?`<b style="color:var(--bad)">OUT ${p.out} ${p.out===1?"week":"weeks"}</b> · `:
+          (p.sharp!=null&&p.sharp<RUST_LINE)?'<b style="color:#7cb9e8">Rusty</b> · ':''}${p.line}</small></span>
         <span class="bq">${p.rt}</span>
         <i class="cb"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></button>`).join('')}</div>
   </div><!--/SQ-->`;
@@ -328,7 +433,10 @@ const alive=()=>S.squadList.filter(p=>!p.gone);
 const available=()=>S.squadList.filter(p=>!p.gone&&!p.out);
 const me=()=>S.squadList[S.meIdx]||alive()[0];
 function newState(){
+  const keep=R.s;R.s=hashSeed(SEED+"|squad");
   const sq=makeSquad();
+  const swing=Object.fromEntries([CLUB].concat(RIVALS.map(r=>r.n)).map(n=>[n,rnd(-SEASON_SWING,SEASON_SWING)]));
+  R.s=keep;
   /* As the star player you are the best FORWARD who is not in decline --
      the player events are written for someone in his prime. */
   const meIdx=ROLE.id==="player"?sq.reduce((b,p,i)=>(p.pos==="FW"&&p.dev>=0&&(b<0||p.rt>sq[b].rt))?i:b,-1):-1;
@@ -337,7 +445,7 @@ function newState(){
     pending:[],flags:{},squadList:sq,meIdx,manualXI:null,manualFm:null,
     matchBoost:0,lastScore:null,ticketLevel:0,signings:0,seasonLog:[],physioLevel:0,
     formation:"4-4-2",attMod:0,defMod:0,matchAtt:0,matchDef:0,bonuses:[],rivalMod:{},
-    swing:Object.fromEntries([CLUB].concat(RIVALS.map(r=>r.n)).map(n=>[n,rnd(-SEASON_SWING,SEASON_SWING)]))};
+    swing};
 }
 /* S.squad is now a READOUT of the XI's quality, recomputed freely. What
    events change is MORALE -- a separate number that persists. They used to

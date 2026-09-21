@@ -37,7 +37,7 @@ ok("no broken text on match screens", !bad(vp)&&!bad(el));
 // 2. full match: team sheet first, then kick off
 run(`renderMatch(()=>{},false)`);
 const sheet=app();
-ok("full match opens on the team sheet", /TEAM SHEET/.test(sheet)&&/class="pitch"/.test(sheet));
+ok("full match opens on the team sheet", /TEAM SHEET/.test(sheet)&&/class="pitch2"/.test(sheet));
 ok("team sheet names the opponent's formation", /They are lining up <b>\d-\d-\d<\/b>/.test(sheet));
 els.kick.onclick();drain();
 ok("manager's match pauses at half time for the tactical call", /HALF TIME/.test(els.htBox.innerHTML)&&!!(els.goSecond&&els.goSecond.onclick));
@@ -45,9 +45,11 @@ els.goSecond.onclick();drain();
 ok("full match plays through to 3pm results after half time", /THE 3PM KICK-OFFS/.test(app()));
 // 3. heat map in site language
 const hm=run("fixtureHeatHTML(2,5)");
-ok("heat map uses GW, H/A codes and FDR", /GW\d/.test(hm)&&/[A-Z]{3} - [HA]/.test(hm)&&/FDR \d/.test(hm)&&!/MW/.test(hm));
-ok("heat map has the site's legend wording", /Easiest fixtures \(FDR\)/.test(hm)&&/Hardest fixtures \(FDR\)/.test(hm));
-ok("heat map has a plain-English summary", /Toughest: GW\d+/.test(hm));
+ok("heat map: GW, H/A codes, and no MW", /GW\d/.test(hm)&&/[A-Z]{3} - [HA]/.test(hm)&&!/MW/.test(hm));
+ok("heat map shows goals for (xGF) and clean sheet chance as separate rows", /Goals for/.test(hm)&&/xGF/.test(hm)&&/Clean sheet/.test(hm)&&/\d+%/.test(hm));
+ok("heat map shows 1X2 odds underneath", /1X2/.test(hm));
+ok("heat map uses the site's legend wording", /Most goals expected/.test(hm)&&/Highest clean sheet chance/.test(hm));
+ok("heat map has a plain-English summary", /Most goals expected: GW\d+/.test(hm));
 // 4. luck
 let luckBad=0;for(let i=0;i<60;i++){run("renderLuck()");if(bad(app())||!/A STROKE OF LUCK|ROUGH LUCK|ELSEWHERE IN THE LEAGUE/.test(app()))luckBad++}
 ok("luck screens render cleanly (60 draws)", luckBad===0, luckBad+" bad");
@@ -59,6 +61,26 @@ run(`S=newState();recalcSquadRating();S.squadList.filter(p=>p.pos==="GK").forEac
 const d0=run("(()=>{const x=xiStats();return x.def})()");
 run(`S=newState();recalcSquadRating();`);const d1=run("xiStats().def");
 ok("no keeper = heavy defensive penalty", d1-d0>=10, `defence lean ${d1} with a keeper, ${d0} without`);
+// 8. the pitch mirrors the site, and the team sheet teaches
+run(`S=newState();TABLE=blankTable();recalcSquadRating();S.formation="4-4-2";S.pendingOppFm=null;S.manualXI=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
+let ts=app();
+ok("pitch shows 11 role-placed markers with position letters", (ts.match(/class="pm/g)||[]).length===11&&/<span class="dot [a-z]*">[GDMF]<\/span>/.test(ts));
+ok("pitch uses the site's role names", /\bLCB\b/.test(ts)&&/\bCF\b/.test(ts));
+ok("pitch shows set-piece duties in the site's format", /P1 FK1 C1/.test(ts));
+ok("pitch legend matches the site", /Advanced role \(▲\)/.test(ts)&&/Deeper role \(▼\)/.test(ts));
+ok("team sheet plans rest with the next three fixtures", /Rest and rotation/.test(ts)&&/THIS WEEK/.test(ts));
+ok("team sheet explains set pieces", /quarter of goals/.test(ts));
+// put a defender into midfield and the out-of-position lesson appears
+run(`(()=>{const xi=currentXI().map(s=>({...s}));const k=xi.findIndex(s=>s.slot==="MF");
+  const d=S.squadList.findIndex((p,i)=>p.pos==="DF"&&!xi.some(s=>s.i===i));xi[k].i=d;S.manualXI=xi;S.manualFm=S.formation;
+  S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})})()`);
+ts=app();
+ok("a defender in midfield gets the green ▲ ring", /class="dot advanced">D</.test(ts));
+ok("…and the lesson explains it, with the FPL angle and a link", /Out of position — and why it can be smart/.test(ts)&&/6 for a goal and 4 for a clean sheet/.test(ts)&&/fpl\/line-ups/.test(ts));
+// 9. the season's lessons are reported at the end
+run(`S.seasonLog=[{gf:10}];S.squadList.find(p=>p.pos==="DF").goalsAdv=2;S.squadList.find(p=>p.pos==="MF").spGoals=3;`);
+const sl=run("seasonLessons()");
+ok("end of season reports set-piece share and out-of-position goals in FPL points", /3<\/b> of your <b>10<\/b> goals came from set pieces/.test(sl)&&/12 points/.test(sl));
 // 7. a decision says what it did to the next result
 run(`S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
 els.ch.children[0].onclick();

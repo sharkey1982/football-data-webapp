@@ -105,7 +105,7 @@ console.log('\n1. INTEGRITY — every event renders cleanly');
         for (const opts of [{}, { pick: true, sel: 0 }]) {
           try {
             const html = G.squadHTML(opts); pitches++;
-            const starters = (html.match(/class="chip/g) || []).length;
+            const starters = (html.match(/class="pm/g) || []).length;
             /* Eleven -- or everyone available, if injuries leave fewer. */
             const want = Math.min(11, S.squadList.filter((p) => !p.gone && !p.out).length);
             if (/undefined|NaN|\[object/.test(html)) pitchBad = pitchBad || `${role}/${fm}: bad text`;
