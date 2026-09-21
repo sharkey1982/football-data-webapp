@@ -355,8 +355,18 @@ function tighten(html){
     return `<p${attrs}>${first}</p>`;
   });
 }
+/* Beginners: each option's description as a short phrase (the first clause,
+   at most ~9 words); the full text sits under "More about these options".
+   Decision screens were the heaviest reading in a Beginner's season. */
+function briefChoice(d){
+  const t=String(d||"").replace(/<[^>]+>/g,"").trim();
+  const first=t.split(/ · |[.;:!?]\s| — /)[0].trim().replace(/[.,;:]$/,"");
+  const w=first.split(/\s+/);
+  return w.length>9?w.slice(0,9).join(" ")+"…":first;
+}
 function renderSpec(spec,chip,after){
-  if(!spec.keepFull)spec=Object.assign({},spec,{body:tighten(spec.body)});
+  const beginner=LEVEL==="beginner";
+  if(!spec.keepFull||beginner)spec=Object.assign({},spec,{body:tighten(spec.body)});
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">${chip}</div><h1>${spec.title}</h1>
@@ -366,7 +376,7 @@ function renderSpec(spec,chip,after){
   const box=document.getElementById('ch');
   spec.choices.forEach(c=>{
     const b=document.createElement('button');b.className='choice';
-    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${c.d}</span>`:''}`;
+    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${beginner?briefChoice(c.d):c.d}</span>`:''}`;
     b.onclick=()=>{
       if(c.ask){pendingReveal=c.reveal();return renderSpec(spec,chip,after)}
       pendingReveal=null;if(c.after)c.after();
@@ -397,6 +407,12 @@ function renderSpec(spec,chip,after){
       document.getElementById('nx').onclick=after;
     };box.appendChild(b);
   });
+  // The full descriptions, one tap away, for anyone who wants them.
+  if(beginner&&spec.choices.some(c=>c.d&&briefChoice(c.d)!==String(c.d).replace(/<[^>]+>/g,"").trim())){
+    const more=document.createElement('div');
+    more.innerHTML=why(spec.choices.filter(c=>c.d).map(c=>`<p class="small"><b>${c.t}</b> — ${c.d}</p>`).join(''),"More about these options");
+    box.appendChild(more);
+  }
 }
 /* THE SPORTS CENTRE. Your match finishes first; the table is shown AS IT
    STANDS, with everyone else still to play; then their results come in one

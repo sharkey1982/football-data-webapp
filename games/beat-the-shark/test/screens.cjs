@@ -193,7 +193,7 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // ~575 -> 258 words; pre-season 360 -> 56; a beginner's 4th team sheet 457
 // -> 274; season reading time ~22 -> ~15 min. Target: ~7 min of reading (+
 // ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
-const BUDGET={screen:270,beginnerTeamSheet:285,opening:200,preseason:70,minutes:15.5};
+const BUDGET={screen:210,beginnerTeamSheet:210,opening:200,preseason:70,minutes:16}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);
@@ -203,9 +203,14 @@ ok(`reading budget: a beginner's team sheet <= ${BUDGET.beginnerTeamSheet} words
 {
   const plan=run('PLAN');let total=0,worst=0,worstAt='',secs=0;
   for(let i=0;i<plan.length;i++){
+    delete els.ch; // a fresh choice area per screen, as a real browser creates
     try{run(`cursor=${i};S.mw=Math.min(MW-1,${Math.floor(i/3)});S.pendingOppFm=null;S._sheetShown=false;step()`)}catch(e){continue}
     const settle=()=>{for(let k=0;k<400&&q.length;k++){try{q.shift()()}catch(e){}}};
-    const count=()=>{const h=app(),w=words(h);total+=w;secs+=readSecs(h);if(w>worst){worst=w;worstAt=plan[i]}};
+    // Include the choice buttons: decision screens add them to #ch, a separate
+    // element the harness doesn't fold into the page's HTML.
+    // (Only when THIS screen has a choice area: the harness keeps old
+    // elements between screens, so stale buttons would otherwise count.)
+    const count=()=>{const a=app(),h=a+(/id="ch"/.test(a)&&els.ch?els.ch.children.map(c=>c.innerHTML||'').join(' '):''),w=words(h);total+=w;secs+=readSecs(h);if(w>worst){worst=w;worstAt=plan[i]}};
     settle();count();
     // A match is several screens now: follow it through and count each one
     // (a full match's commentary page once, after the second half).
