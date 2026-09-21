@@ -482,6 +482,523 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_filings: {
+        Row: {
+          created_at: string
+          document_format: string | null
+          document_id: string | null
+          document_sha256: string | null
+          extraction_status: string
+          filing_date: string
+          filing_id: number
+          filing_reference: string | null
+          ingestion_run_id: number | null
+          is_consolidated: boolean | null
+          period_end: string
+          period_months: number
+          period_start: string
+          raw_fact_count: number
+          reporting_entity_id: number
+          retrieval_method: string | null
+          retrieval_notes: string | null
+          retrieved_at: string
+          source: string
+          source_url: string
+          supersedes_filing_id: number | null
+          validation_status: string
+        }
+        Insert: {
+          created_at?: string
+          document_format?: string | null
+          document_id?: string | null
+          document_sha256?: string | null
+          extraction_status?: string
+          filing_date: string
+          filing_id?: never
+          filing_reference?: string | null
+          ingestion_run_id?: number | null
+          is_consolidated?: boolean | null
+          period_end: string
+          period_months: number
+          period_start: string
+          raw_fact_count?: number
+          reporting_entity_id: number
+          retrieval_method?: string | null
+          retrieval_notes?: string | null
+          retrieved_at?: string
+          source?: string
+          source_url: string
+          supersedes_filing_id?: number | null
+          validation_status?: string
+        }
+        Update: {
+          created_at?: string
+          document_format?: string | null
+          document_id?: string | null
+          document_sha256?: string | null
+          extraction_status?: string
+          filing_date?: string
+          filing_id?: never
+          filing_reference?: string | null
+          ingestion_run_id?: number | null
+          is_consolidated?: boolean | null
+          period_end?: string
+          period_months?: number
+          period_start?: string
+          raw_fact_count?: number
+          reporting_entity_id?: number
+          retrieval_method?: string | null
+          retrieval_notes?: string | null
+          retrieved_at?: string
+          source?: string
+          source_url?: string
+          supersedes_filing_id?: number | null
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_filings_ingestion_run_id_fkey"
+            columns: ["ingestion_run_id"]
+            isOneToOne: false
+            referencedRelation: "finance_ingestion_runs"
+            referencedColumns: ["ingestion_run_id"]
+          },
+          {
+            foreignKeyName: "finance_filings_reporting_entity_id_fkey"
+            columns: ["reporting_entity_id"]
+            isOneToOne: false
+            referencedRelation: "finance_reporting_entities"
+            referencedColumns: ["reporting_entity_id"]
+          },
+          {
+            foreignKeyName: "finance_filings_supersedes_filing_id_fkey"
+            columns: ["supersedes_filing_id"]
+            isOneToOne: false
+            referencedRelation: "finance_filings"
+            referencedColumns: ["filing_id"]
+          },
+        ]
+      }
+      finance_ingestion_runs: {
+        Row: {
+          completed_at: string | null
+          details: Json
+          error_count: number
+          facts_extracted: number
+          facts_mapped: number
+          filings_discovered: number
+          filings_processed: number
+          ingestion_run_id: number
+          source: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          details?: Json
+          error_count?: number
+          facts_extracted?: number
+          facts_mapped?: number
+          filings_discovered?: number
+          filings_processed?: number
+          ingestion_run_id?: never
+          source?: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          details?: Json
+          error_count?: number
+          facts_extracted?: number
+          facts_mapped?: number
+          filings_discovered?: number
+          filings_processed?: number
+          ingestion_run_id?: never
+          source?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      finance_metric_dictionary: {
+        Row: {
+          created_at: string
+          definition: string
+          display_name: string
+          expected_sign: string | null
+          metric_key: string
+          metric_type: string
+          statement_type: string | null
+          value_kind: string
+        }
+        Insert: {
+          created_at?: string
+          definition: string
+          display_name: string
+          expected_sign?: string | null
+          metric_key: string
+          metric_type: string
+          statement_type?: string | null
+          value_kind?: string
+        }
+        Update: {
+          created_at?: string
+          definition?: string
+          display_name?: string
+          expected_sign?: string | null
+          metric_key?: string
+          metric_type?: string
+          statement_type?: string | null
+          value_kind?: string
+        }
+        Relationships: []
+      }
+      finance_metric_mappings: {
+        Row: {
+          context_rules: Json
+          created_at: string
+          is_active: boolean
+          mapping_id: number
+          mapping_version: number
+          metric_key: string
+          notes: string | null
+          source: string
+          xbrl_concept: string
+        }
+        Insert: {
+          context_rules?: Json
+          created_at?: string
+          is_active?: boolean
+          mapping_id?: never
+          mapping_version?: number
+          metric_key: string
+          notes?: string | null
+          source?: string
+          xbrl_concept: string
+        }
+        Update: {
+          context_rules?: Json
+          created_at?: string
+          is_active?: boolean
+          mapping_id?: never
+          mapping_version?: number
+          metric_key?: string
+          notes?: string | null
+          source?: string
+          xbrl_concept?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_metric_mappings_metric_key_fkey"
+            columns: ["metric_key"]
+            isOneToOne: false
+            referencedRelation: "finance_metric_dictionary"
+            referencedColumns: ["metric_key"]
+          },
+        ]
+      }
+      finance_metric_values: {
+        Row: {
+          created_at: string
+          currency: string | null
+          document_id: string | null
+          filing_reference: string | null
+          financial_id: number
+          mapping_version: number | null
+          metric_key: string
+          metric_value_id: number
+          original_unit: string | null
+          original_value: string | null
+          original_xbrl_concept: string | null
+          raw_fact_id: number | null
+          source_url: string | null
+          unit_scale: number | null
+          validation_notes: string | null
+          validation_status: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          document_id?: string | null
+          filing_reference?: string | null
+          financial_id: number
+          mapping_version?: number | null
+          metric_key: string
+          metric_value_id?: never
+          original_unit?: string | null
+          original_value?: string | null
+          original_xbrl_concept?: string | null
+          raw_fact_id?: number | null
+          source_url?: string | null
+          unit_scale?: number | null
+          validation_notes?: string | null
+          validation_status?: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          document_id?: string | null
+          filing_reference?: string | null
+          financial_id?: number
+          mapping_version?: number | null
+          metric_key?: string
+          metric_value_id?: never
+          original_unit?: string | null
+          original_value?: string | null
+          original_xbrl_concept?: string | null
+          raw_fact_id?: number | null
+          source_url?: string | null
+          unit_scale?: number | null
+          validation_notes?: string | null
+          validation_status?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_metric_values_financial_id_fkey"
+            columns: ["financial_id"]
+            isOneToOne: false
+            referencedRelation: "finance_periods"
+            referencedColumns: ["financial_id"]
+          },
+          {
+            foreignKeyName: "finance_metric_values_metric_key_fkey"
+            columns: ["metric_key"]
+            isOneToOne: false
+            referencedRelation: "finance_metric_dictionary"
+            referencedColumns: ["metric_key"]
+          },
+          {
+            foreignKeyName: "finance_metric_values_raw_fact_id_fkey"
+            columns: ["raw_fact_id"]
+            isOneToOne: false
+            referencedRelation: "finance_raw_facts"
+            referencedColumns: ["raw_fact_id"]
+          },
+        ]
+      }
+      finance_periods: {
+        Row: {
+          company_number: string
+          created_at: string
+          currency: string
+          filing_date: string
+          filing_id: number
+          financial_id: number
+          is_comparable: boolean
+          is_consolidated: boolean | null
+          is_current_version: boolean
+          is_latest: boolean
+          period_end: string
+          period_months: number
+          period_start: string
+          published_at: string | null
+          reporting_entity: string
+          season_id: number | null
+          season_mapping_confidence: string | null
+          season_mapping_method: string | null
+          source_url: string
+          supersedes_financial_id: number | null
+          team_id: number
+          unit_scale: number
+          updated_at: string
+          validation_status: string
+        }
+        Insert: {
+          company_number: string
+          created_at?: string
+          currency?: string
+          filing_date: string
+          filing_id: number
+          financial_id?: never
+          is_comparable?: boolean
+          is_consolidated?: boolean | null
+          is_current_version?: boolean
+          is_latest?: boolean
+          period_end: string
+          period_months: number
+          period_start: string
+          published_at?: string | null
+          reporting_entity: string
+          season_id?: number | null
+          season_mapping_confidence?: string | null
+          season_mapping_method?: string | null
+          source_url: string
+          supersedes_financial_id?: number | null
+          team_id: number
+          unit_scale?: number
+          updated_at?: string
+          validation_status?: string
+        }
+        Update: {
+          company_number?: string
+          created_at?: string
+          currency?: string
+          filing_date?: string
+          filing_id?: number
+          financial_id?: never
+          is_comparable?: boolean
+          is_consolidated?: boolean | null
+          is_current_version?: boolean
+          is_latest?: boolean
+          period_end?: string
+          period_months?: number
+          period_start?: string
+          published_at?: string | null
+          reporting_entity?: string
+          season_id?: number | null
+          season_mapping_confidence?: string | null
+          season_mapping_method?: string | null
+          source_url?: string
+          supersedes_financial_id?: number | null
+          team_id?: number
+          unit_scale?: number
+          updated_at?: string
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_periods_filing_id_fkey"
+            columns: ["filing_id"]
+            isOneToOne: false
+            referencedRelation: "finance_filings"
+            referencedColumns: ["filing_id"]
+          },
+          {
+            foreignKeyName: "finance_periods_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
+            foreignKeyName: "finance_periods_supersedes_financial_id_fkey"
+            columns: ["supersedes_financial_id"]
+            isOneToOne: false
+            referencedRelation: "finance_periods"
+            referencedColumns: ["financial_id"]
+          },
+          {
+            foreignKeyName: "finance_periods_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      finance_raw_facts: {
+        Row: {
+          context_ref: string | null
+          created_at: string
+          currency: string | null
+          dimensions: Json
+          filing_id: number
+          instant_date: string | null
+          numeric_value: number | null
+          original_unit: string | null
+          original_value: string | null
+          period_end: string | null
+          period_start: string | null
+          raw_fact_id: number
+          source_locator: string | null
+          unit_scale: number | null
+          xbrl_concept: string
+        }
+        Insert: {
+          context_ref?: string | null
+          created_at?: string
+          currency?: string | null
+          dimensions?: Json
+          filing_id: number
+          instant_date?: string | null
+          numeric_value?: number | null
+          original_unit?: string | null
+          original_value?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          raw_fact_id?: never
+          source_locator?: string | null
+          unit_scale?: number | null
+          xbrl_concept: string
+        }
+        Update: {
+          context_ref?: string | null
+          created_at?: string
+          currency?: string | null
+          dimensions?: Json
+          filing_id?: number
+          instant_date?: string | null
+          numeric_value?: number | null
+          original_unit?: string | null
+          original_value?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          raw_fact_id?: never
+          source_locator?: string | null
+          unit_scale?: number | null
+          xbrl_concept?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_raw_facts_filing_id_fkey"
+            columns: ["filing_id"]
+            isOneToOne: false
+            referencedRelation: "finance_filings"
+            referencedColumns: ["filing_id"]
+          },
+        ]
+      }
+      finance_reporting_entities: {
+        Row: {
+          company_number: string
+          created_at: string
+          effective_from: string | null
+          effective_to: string | null
+          is_preferred: boolean
+          relationship_type: string
+          reporting_entity: string
+          reporting_entity_id: number
+          source_url: string | null
+          team_id: number
+        }
+        Insert: {
+          company_number: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          is_preferred?: boolean
+          relationship_type?: string
+          reporting_entity: string
+          reporting_entity_id?: never
+          source_url?: string | null
+          team_id: number
+        }
+        Update: {
+          company_number?: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          is_preferred?: boolean
+          relationship_type?: string
+          reporting_entity?: string
+          reporting_entity_id?: never
+          source_url?: string | null
+          team_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_reporting_entities_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       fixture_actual_lineup_players: {
         Row: {
           captured_at: string
@@ -5376,6 +5893,108 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_derived_metrics: {
+        Row: {
+          calculation_version: number | null
+          definition: string | null
+          metric_key: string | null
+          period_end: string | null
+          team_id: number | null
+          value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_periods_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      finance_published_periods: {
+        Row: {
+          average_employees: number | null
+          borrowings: number | null
+          cash: number | null
+          company_number: string | null
+          currency: string | null
+          filing_date: string | null
+          is_comparable: boolean | null
+          is_consolidated: boolean | null
+          is_latest: boolean | null
+          net_assets: number | null
+          operating_profit: number | null
+          period_end: string | null
+          period_months: number | null
+          period_start: string | null
+          player_amortisation: number | null
+          player_impairment: number | null
+          profit_after_tax: number | null
+          profit_before_tax: number | null
+          profit_on_player_disposals: number | null
+          reporting_entity: string | null
+          revenue_broadcast: number | null
+          revenue_commercial: number | null
+          revenue_matchday: number | null
+          revenue_other: number | null
+          revenue_total: number | null
+          season_id: number | null
+          source_url: string | null
+          staff_costs: number | null
+          team_id: number | null
+          total_assets: number | null
+          total_liabilities: number | null
+          unit_scale: number | null
+          validation_status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_periods_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
+            foreignKeyName: "finance_periods_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
+      finance_published_provenance: {
+        Row: {
+          document_id: string | null
+          filing_reference: string | null
+          mapping_version: number | null
+          metric_key: string | null
+          original_unit: string | null
+          original_value: string | null
+          original_xbrl_concept: string | null
+          period_end: string | null
+          source_url: string | null
+          team_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_metric_values_metric_key_fkey"
+            columns: ["metric_key"]
+            isOneToOne: false
+            referencedRelation: "finance_metric_dictionary"
+            referencedColumns: ["metric_key"]
+          },
+          {
+            foreignKeyName: "finance_periods_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       fixture_player_expected_minutes: {
         Row: {
           availability_probability: number | null
@@ -6345,6 +6964,12 @@ export type Database = {
         Returns: number
       }
       backfill_match_odds: { Args: never; Returns: number }
+      check_auth_user_token_nulls: {
+        Args: never
+        Returns: {
+          bad_rows: number
+        }[]
+      }
       check_fpl_history_integrity: {
         Args: { p_season_id: number }
         Returns: {
@@ -6368,6 +6993,10 @@ export type Database = {
           over_2_5: number
           under_2_5: number
         }[]
+      }
+      fpl_gameweek_for_date: {
+        Args: { p_date: string; p_season_id: number }
+        Returns: number
       }
       get_actual_value_table: {
         Args: { p_season_id?: number }
@@ -6471,6 +7100,15 @@ export type Database = {
           status: string
         }[]
       }
+      get_digest_gameweeks: {
+        Args: { p_season_id?: number }
+        Returns: {
+          days: number
+          first_date: string
+          gameweek: number
+          last_date: string
+        }[]
+      }
       get_fpl_default_matchweek: {
         Args: { p_league_id: number; p_season_id: number }
         Returns: number
@@ -6560,6 +7198,23 @@ export type Database = {
           matchweeks_covered: number
           max_generated_at: string
           row_count: number
+        }[]
+      }
+      get_gameweek_digest: {
+        Args: { p_gameweek?: number; p_season_id?: number }
+        Returns: {
+          change_type: string
+          detail: string
+          event_date: string
+          fpl_player_id: number
+          gameweek: number
+          new_value: string
+          old_value: string
+          ownership: number
+          position_label: string
+          slug: string
+          team_name: string
+          web_name: string
         }[]
       }
       get_injury_report: {

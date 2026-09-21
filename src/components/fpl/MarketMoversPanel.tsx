@@ -1,17 +1,14 @@
 // ============================================================================
-// src/pages/fpl/FplMarketPage.tsx
+// src/components/fpl/MarketMoversPanel.tsx
 //
-// What FPL managers are actually doing: price moves, ownership swings,
-// transfers and availability news.
-//
-// Factual throughout -- no projections, no recommendations. This is the
-// Discover counterpart to the Predict pages, and the distinction is the
-// point: what IS, not what the model thinks will be.
+// The transfer window: price risers and fallers, ownership swings and
+// availability news over the last seven days. Formerly the whole of the
+// /fpl/market page; now the lower half of "In the papers", beneath the
+// gameweek's headlines. Factual throughout -- no projections.
 // ============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getFplMarketMovers, type FplMover } from '../../lib/fplMarketApi';
 
 type Tab = 'risers' | 'fallers' | 'owned' | 'news';
@@ -54,16 +51,10 @@ function MoverRow({ m, metric }: { m: FplMover; metric: 'price' | 'ownership' })
   );
 }
 
-export default function FplMarketPage() {
+export default function MarketMoversPanel() {
   const [movers, setMovers] = useState<FplMover[] | null>(null);
   const [tab, setTab] = useState<Tab>('risers');
 
-  useDocumentHead({
-    title: 'Transfer Window \u2014 FPL price and ownership moves',
-    description:
-      'Fantasy Premier League price risers and fallers, ownership swings, transfers and availability news, updated daily.',
-    path: '/fpl/market',
-  });
 
   useEffect(() => {
     getFplMarketMovers(7)
@@ -89,7 +80,7 @@ export default function FplMarketPage() {
   if (movers.length === 0) {
     return (
       <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">FPL market</h1>
+        <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">The transfer window</h2>
         <p className="text-ink-700 mt-2">No snapshot data is available yet.</p>
       </div>
     );
@@ -100,15 +91,14 @@ export default function FplMarketPage() {
   const active = TABS.find((t) => t.key === tab)!;
 
   return (
-    <article className="space-y-6">
+    <section aria-labelledby="market-h" className="space-y-4">
       <header>
-        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Transfer Window</h1>
-        <p className="text-ink-700 mt-2 max-w-prose">
-          What managers are actually doing &mdash; prices, ownership and transfers, captured daily from the official game.
-          No projections here, just the facts.
+        <h2 id="market-h" className="font-display uppercase tracking-wide text-xl text-ink-900">The transfer window</h2>
+        <p className="text-ink-700 mt-1 max-w-prose text-sm">
+          The longer view: what managers have been doing over the last seven days &mdash; prices, ownership and
+          availability, captured daily from the official game.
         </p>
-        <p className="text-xs text-ink-500 font-mono mt-2">
+        <p className="text-xs text-ink-500 font-mono mt-1">
           Movement measured from <time dateTime={window_.from_date}>{window_.from_date}</time> to{' '}
           <time dateTime={window_.to_date}>{window_.to_date}</time>
         </p>
@@ -176,14 +166,6 @@ export default function FplMarketPage() {
         </div>
       )}
 
-      <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-        <Link to="/fpl/start/discover" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
-          More to discover
-        </Link>
-        <Link to="/fpl/player-points" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
-          Player projections
-        </Link>
-      </nav>
-    </article>
+    </section>
   );
 }

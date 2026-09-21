@@ -4,7 +4,7 @@
 // Who's under pressure to rise or fall tonight.
 //
 // Predict, not Discover: this is a claim about what will happen, unlike
-// the Transfer Window's record of what managers have already done.
+// "In the papers"' record of what managers have already done.
 // ============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
@@ -212,7 +212,7 @@ export default function PriceRiskPage() {
       </section>
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-        <Link to="/fpl/market" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+        <Link to="/fpl/in-the-papers" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
           What managers have already done
         </Link>
         <Link to="/fpl/start/predict" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

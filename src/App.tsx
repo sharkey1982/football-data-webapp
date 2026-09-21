@@ -1,6 +1,6 @@
 import { AuthProvider } from './lib/auth';
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 
 // Every page is lazy-loaded rather than bundled into one upfront chunk --
@@ -12,6 +12,7 @@ import AppLayout from './components/AppLayout';
 // mobile. AppLayout itself (the nav shell) stays a normal, eager import --
 // it's needed immediately on every route, so lazy-loading it would only
 // add a round trip with no benefit.
+const InThePapersPage = lazy(() => import('./pages/fpl/InThePapersPage'));
 const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
 const GameweekBrowser = lazy(() => import('./pages/GameweekBrowser'));
@@ -24,9 +25,7 @@ const TeamPage = lazy(() => import('./pages/football/TeamPage'));
 const StagePage = lazy(() => import('./pages/StagePage'));
 const CrossLeaguePage = lazy(() => import('./pages/football/CrossLeaguePage'));
 const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
-const FplMarketPage = lazy(() => import('./pages/fpl/FplMarketPage'));
 const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
-const DigestPage = lazy(() => import('./pages/fpl/DigestPage'));
 const SeasonXiPage = lazy(() => import('./pages/fpl/SeasonXiPage'));
 const PlayerScoutPage = lazy(() => import('./pages/fpl/PlayerScoutPage'));
 const PlayerRecordPage = lazy(() => import('./pages/fpl/PlayerRecordPage'));
@@ -332,14 +331,17 @@ export default function App() {
               </Suspense>
             }
           />
+          {/* In the papers: the Newsroom and the Transfer Window merged. The
+              old addresses redirect (also 301s in netlify.toml). */}
           <Route
-            path="fpl/whats-changed"
+            path="fpl/in-the-papers"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <DigestPage />
+                <InThePapersPage />
               </Suspense>
             }
           />
+          <Route path="fpl/whats-changed" element={<Navigate to="/fpl/in-the-papers" replace />} />
           <Route
             path="fpl/price-risk"
             element={
@@ -348,14 +350,7 @@ export default function App() {
               </Suspense>
             }
           />
-          <Route
-            path="fpl/market"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <FplMarketPage />
-              </Suspense>
-            }
-          />
+          <Route path="fpl/market" element={<Navigate to="/fpl/in-the-papers" replace />} />
           <Route
             path="fpl/players/:slug"
             element={

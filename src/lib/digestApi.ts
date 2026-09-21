@@ -67,3 +67,37 @@ export const CHANGE_ORDER: DigestChangeType[] = ['availability', 'price_rise', '
 export function notable(entries: DigestEntry[], minOwnership = 5): DigestEntry[] {
   return entries.filter((e) => e.change_type === 'availability' || e.ownership >= minOwnership);
 }
+
+// ---- A whole gameweek's news ----------------------------------------------
+// get_daily_digest only compares the latest snapshot with the one before, so
+// yesterday's news vanished every morning. These read the same changes for
+// every day of a gameweek, dated, so "In the papers" can keep the news for the
+// full gameweek and filter by gameweek. A day belongs to the latest gameweek
+// whose deadline fell on an EARLIER date (UK): news seen on deadline day counts
+// towards the gameweek before it.
+
+export type GameweekDigestEntry = DigestEntry & { gameweek: number; event_date: string };
+export type DigestGameweek = { gameweek: number; first_date: string; last_date: string; days: number };
+
+/** Gameweeks that have news, most recent first. */
+export async function getDigestGameweeks(seasonId = 13): Promise<DigestGameweek[]> {
+  const { data, error } = await supabase.rpc('get_digest_gameweeks', { p_season_id: seasonId });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ gameweek: Number(r.gameweek), first_date: r.first_date, last_date: r.last_date, days: Number(r.days) }));
+}
+
+/** Every change in a gameweek (the latest gameweek with news if omitted). */
+export async function getGameweekDigest(seasonId = 13, gameweek?: number): Promise<GameweekDigestEntry[]> {
+  const { data, error } = await supabase.rpc('get_gameweek_digest', { p_season_id: seasonId, ...(gameweek != null ? { p_gameweek: gameweek } : {}) });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    ...r,
+    change_type: r.change_type as DigestChangeType,
+    ownership: Number(r.ownership ?? 0),
+    gameweek: Number(r.gameweek),
+    event_date: r.event_date,
+    // kept for DigestEntry compatibility: a gameweek entry is a single day
+    from_date: r.event_date,
+    to_date: r.event_date,
+  })) as GameweekDigestEntry[];
+}

@@ -96,6 +96,20 @@
   status = 301
   force = true
 
+# The Newsroom and the Transfer Window merged into "In the papers". Both old
+# addresses lose their pre-built pages, so they 301 to the new one.
+[[redirects]]
+  from = "/fpl/whats-changed"
+  to = "/fpl/in-the-papers"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/fpl/market"
+  to = "/fpl/in-the-papers"
+  status = 301
+  force = true
+
 # ----------------------------------------------------------------------------
 # /play/beat-the-shark/ -> the separately deployed game.
 #
