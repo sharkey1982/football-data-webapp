@@ -524,12 +524,20 @@ function chooseRole(){
     <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
     <p class="small">Before a ball is kicked, FixtureShark sets a target: the points a <b>well-run</b> club with your squad would take.
       Your job is to beat it. £850k of debt, a fortnight's cash.</p>
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">YOUR LEVEL</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px">
+      ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" style="margin:0;padding:8px 6px;text-align:center;
+        ${k===LEVEL?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+        <span class="t" style="font-size:13.5px">${v.name}</span><span class="d" style="font-size:11px">${v.blurb}</span></button>`).join('')}
+    </div>
+    <p class="small" style="margin-bottom:12px">Every level plays against the same Shark, so scores compare fairly. Levels change how much you meet at once, not how hard it is.</p>
     ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="opt" data-r="${r.id}"
       ${r.id==="manager"?'style="border-color:var(--amber)"':''}><div class="tag">${r.tag}${r.id==="manager"?" · most influence over results":r.id==="player"?" · hardest":""}</div><h3>${r.name}</h3>
       <p>${r.blurb}</p><div class="mis"><b>Your levers:</b> ${r.id==="owner"?"two transfer windows, the stadium, ticket prices, sponsors and creditors."
         :r.id==="manager"?"pre-season, training, tactics, selection, discipline and a winter break."
         :"your body, your mouth, your agent and your summer."}</div></button>`).join('')}
     <div class="seed">seed ${SEED}</div></div>`;
+  document.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>{LEVEL=b.dataset.level;chooseRole()});
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ROLE=ROLES[b.dataset.r];boot()});
 }
 function boot(){

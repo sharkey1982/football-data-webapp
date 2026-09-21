@@ -21,7 +21,7 @@ const app=()=>els.app.innerHTML;
 const bad=h=>/undefined|NaN|\[object/.test(h);
 let fails=0;const ok=(name,cond,info)=>{console.log(`${cond?"PASS":"FAIL"}  ${name}${info?"  ("+info+")":""}`);if(!cond)fails++};
 
-run(`SEED="SCR";ROLE=ROLES.manager;pickRivals();S=newState();buildFixtures();TABLE=blankTable();PREDICT=monteCarlo(300);recalcSquadRating();cursor=0;`);
+run(`LEVEL="intermediate";SEED="SCR";ROLE=ROLES.manager;pickRivals();S=newState();buildFixtures();TABLE=blankTable();PREDICT=monteCarlo(300);recalcSquadRating();cursor=0;`);
 // 1. quick match -> 3pm kick-offs
 run(`renderMatch(()=>{globalThis.__done=1},true)`);
 const vp=app();
@@ -119,5 +119,19 @@ const sq=run("squadHTML({})");
 ok("players show quality (Q) and condition (%) explicitly, with a legend", /<b>Q\d+<\/b> · <span[^>]*>\d+%<\/span>/.test(sq)&&/quality · <b>%<\/b> condition/.test(sq));
 run(`paintHeader()`);
 ok("header calls the Shark's number a target, in points", /The Shark's target/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
+// 16. levels: progressive disclosure for beginners, everything for the rest
+const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
+let b0=sheetAt("beginner",0);
+ok("beginner, first match: formations only, flagged as new", /New this match · Formations/.test(b0)&&/data-fm=/.test(b0)&&!/data-xi=/.test(b0)&&!/data-sp=/.test(b0));
+let b1=sheetAt("beginner",1);
+ok("beginner, second match: rotation unlocks, flagged as new", /New this match · Rest and rotation/.test(b1)&&/data-xi=/.test(b1)&&!/data-sp=/.test(b1));
+ok("beginner, third match: set pieces unlock", /New this match · Set pieces/.test(sheetAt("beginner",2))&&/data-sp=/.test(app()));
+ok("beginner, fourth match: out of position unlocks", /New this match · Out of position/.test(sheetAt("beginner",3)));
+ok("intermediate has every lever from the first match, no 'new' banner", (()=>{const h=sheetAt("intermediate",0);return /data-xi=/.test(h)&&/data-sp=/.test(h)&&!/New this match/.test(h)})());
+ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
+// a beginner cannot play someone out of position before it unlocks
+sheetAt("beginner",1);ok("beginner: out of position locked in match 2, open from match 4", run(`can("oop")`)===false&&(sheetAt("beginner",3),run(`can("oop")`)===true));
+ok("the opening screen offers the three levels", (()=>{run("chooseRole()");const h=app();return /data-level="beginner"/.test(h)&&/data-level="guru"/.test(h)&&/same Shark/.test(h)})());
+run(`LEVEL="intermediate"`);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

@@ -56,6 +56,24 @@ const SHARK_UPLIFT=3.5;
    about 1.29x -- stronger than the real thing, and differently shaped. */
 const HOME_MULT=1.19;
 
+/* LEVELS: how much of the game you meet at once -- NOT how hard it is. The
+   Shark's target is identical at every level, so scores stay comparable and
+   the model never changes depending on who is playing.
+   unlock = how many full matches must have been played before a lever
+   appears. Beginner meets one new idea per full match (progressive
+   disclosure: novices learn interacting ideas far better one at a time);
+   until then the game uses competent defaults, so nobody is penalised for
+   not having every lever yet. */
+const LEVELS={
+  beginner:{name:"Beginner",blurb:"One new idea per match. The game handles the rest until then.",
+    unlock:{formation:0,rotation:1,setpieces:2,oop:3}},
+  intermediate:{name:"Intermediate",blurb:"Every lever from the first match, with explanations.",
+    unlock:{formation:0,rotation:0,setpieces:0,oop:0}},
+  guru:{name:"Data guru",blurb:"Every lever and every number, no hand-holding.",
+    unlock:{formation:0,rotation:0,setpieces:0,oop:0},guru:true}
+};
+let LEVEL="beginner";
+
 /* The main FixtureShark site. Links from the game always use this ABSOLUTE
    address, because the game is reachable two ways -- proxied at
    /play/beat-the-shark/ on the main domain, and directly on its own Netlify

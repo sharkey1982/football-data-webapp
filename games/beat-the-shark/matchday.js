@@ -222,27 +222,40 @@ function sheetLessons(wk,mgr){
        while he gets the chances of the role he is playing. That is the sweet spot in Fantasy: an out-of-position
        player keeps his registered position's points (a defender scores 6 for a goal and 4 for a clean sheet)
        while playing further forward. The site's <a href="${SITE}/fpl/line-ups">Starting Lineups</a> marks these players ▲ too.</div>`
-    :mgr?`<div class="tip" style="border-left-color:var(--line);background:var(--panel2)"><b>Try it</b>
+    :mgr&&can("oop")?`<div class="tip" style="border-left-color:var(--line);background:var(--panel2)"><b>Try it</b>
        A defender moved into midfield keeps your defensive shape <i>and</i> gets more chances to score.
        Tap a midfielder on the pitch, then a defender on the bench.</div>`:"";
-  return `<div class="tip" style="border-left-color:var(--amber);background:var(--panel2)"><b>Rest and rotation</b>
+  if(!tips())return `${strip}${mgr&&can("setpieces")?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0">${cands.map(c=>`<button class="choice" data-sp="${c.i}"
+        style="margin:0;padding:5px 8px;width:auto;flex:1;min-width:120px;${c.p===tk?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+        <span class="t" style="font-size:12.5px">${c.p===tk?"✓ ":""}${c.p.nm}</span><span class="d">set pieces ${c.p.sp||0}/3</span></button>`).join('')}</div>`:""}`;
+  return `${can("rotation")||!mgr?`<div class="tip" style="border-left-color:var(--amber);background:var(--panel2)"><b>Rest and rotation</b>
       Rest tired or key players in the easier weeks so they are fresh for the hard ones — but leave a player out
-      for more than two weeks and he goes <span style="color:#7cb9e8">rusty</span>.${strip}</div>
+      for more than two weeks and he goes <span style="color:#7cb9e8">rusty</span>.${strip}</div>`:""}
     <div class="tip" style="border-left-color:var(--amber);background:var(--panel2)"><b>Set pieces</b>
       About a quarter of goals at this level come from set pieces. The taker scores penalties and free kicks
       wherever he plays, and your best in the air score from corners — defenders included. It is why set-piece
       duty is one of the biggest inputs to the site's FPL projections.
-      ${mgr?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${cands.map(c=>`<button class="choice" data-sp="${c.i}"
+      ${mgr&&can("setpieces")?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${cands.map(c=>`<button class="choice" data-sp="${c.i}"
         style="margin:0;padding:5px 8px;width:auto;flex:1;min-width:120px;${c.p===tk?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
         <span class="t" style="font-size:12.5px">${c.p===tk?"✓ ":""}${c.p.nm}</span><span class="d">set pieces ${c.p.sp||0}/3</span></button>`).join('')}</div>`
       :`<div style="margin-top:4px">Taker: <b>${tk?tk.nm:"—"}</b></div>`}</div>
     ${oopTip}`;
 }
+/* What is unlocked right now, and what is new this match. */
+function can(f){return ROLE.id!=="manager"||(S.fullMatches||0)>=LEVELS[LEVEL].unlock[f]}
+function tips(){return!LEVELS[LEVEL].guru}
+const NEW_IDEA={
+  formation:["Formations","Each shape trades attack for defence. Pick one that suits this opponent — the numbers below move as you do."],
+  rotation:["Rest and rotation","You can now pick your own XI. Tap a player on the pitch, then one on the bench. Rest tired players in the easier weeks — but more than two weeks out and they go rusty."],
+  setpieces:["Set pieces","About a quarter of goals come from set pieces. You now choose who takes them."],
+  oop:["Out of position","You can now play someone out of position. A defender moved into midfield still defends like a defender — and gets a midfielder's chances."]};
+function newThisMatch(){if(ROLE.id!=="manager"||LEVEL!=="beginner")return null;
+  const n=S.fullMatches||0;return Object.keys(NEW_IDEA).find(f=>LEVELS.beginner.unlock[f]===n)||null}
 function renderTeamSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
   const mgr=ROLE.id==="manager";
-  let sel=null;
+  let sel=null,flash="";
   function draw(){
     recalcSquadRating();paintHeader();
     const x=xiStats(),[bA,bD]=balanceAdj();
@@ -250,8 +263,10 @@ function renderTeamSheet(done){
     document.getElementById('app').innerHTML=`<div class="card">
       <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
       <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
-      <p class="small">They are lining up <b>${S.pendingOppFm}</b>. ${mgr?"Pick your shape and your eleven.":"The manager has picked the side."}</p>
-      ${mgr?`<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0 10px">
+      <p class="small">They are lining up <b>${S.pendingOppFm}</b>. ${mgr?(can("rotation")?"Pick your shape and your eleven.":"Pick your shape; the game picks your best eleven for it."):"The manager has picked the side."}</p>
+      ${(()=>{const f=newThisMatch();return f?`<div class="tip" style="border-left-color:var(--amber)"><b>New this match · ${NEW_IDEA[f][0]}</b>${NEW_IDEA[f][1]}</div>`:""})()}
+      ${flash?`<div class="outcome" style="border-left-color:var(--amber)">${flash}</div>`:""}
+      ${mgr&&can("formation")?`<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0 10px">
         ${Object.entries(FORMATIONS).map(([k,v])=>`<button class="choice" data-fm="${k}" style="margin:0;padding:7px 2px;text-align:center;
           ${k===S.formation?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
           <span class="t" style="font-size:13px">${k}</span><span class="d" style="font-size:10px">${v.att>0?'+':''}${v.att}/${v.def>0?'+':''}${v.def}</span></button>`).join('')}
@@ -267,9 +282,9 @@ function renderTeamSheet(done){
           :`You are away: that costs <b>${q.w-p.w} points of win chance</b>. The same game at home would be
             ${q.w}% to win, with ${q.xgf.toFixed(2)} xGF instead of ${p.xgf.toFixed(2)}.`}
           Home sides score about 19% more — the same edge FixtureShark's real model measures.</div>`})()}`})()}
-      ${squadHTML({pick:mgr,sel})}
+      ${squadHTML({pick:mgr&&can("rotation"),sel})}
       ${sheetLessons(wk,mgr)}
-      ${mgr?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>
+      ${mgr&&can("rotation")?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>
         <span class="d">Let the game choose the strongest available side for this shape</span></button>`:''}
       <button class="choice primary" id="kick" style="margin-top:6px"><span class="t">Kick off</span></button></div>`;
     if(mgr){
@@ -279,11 +294,13 @@ function renderTeamSheet(done){
         if(sel==null)return;
         const j=+b.dataset.bench,xi=currentXI().map(s=>({...s}));
         const k=xi.findIndex(s=>s.i===sel);if(k<0)return;
-        xi[k].i=j;S.manualXI=xi;S.manualFm=S.formation;sel=null;draw()});
-      document.getElementById('bestXI').onclick=()=>{S.manualXI=null;sel=null;draw()};
+        /* before out-of-position is unlocked, swaps are like for like */
+        if(!can("oop")&&S.squadList[j].pos!==xi[k].slot){flash=`${S.squadList[j].nm} is a ${S.squadList[j].pos} — playing out of position unlocks in a later match.`;sel=null;return draw()}
+        flash="";xi[k].i=j;S.manualXI=xi;S.manualFm=S.formation;sel=null;draw()});
+      const bx=document.getElementById('bestXI');if(bx)bx.onclick=()=>{S.manualXI=null;sel=null;flash="";draw()};
       document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{S.spTaker=+b.dataset.sp;draw()});
     }
-    document.getElementById('kick').onclick=done;
+    document.getElementById('kick').onclick=()=>{S.fullMatches=(S.fullMatches||0)+1;done()};
   }
   draw();
 }
@@ -467,8 +484,8 @@ function pickScorer(){const g=pickGoal();return g?g.p:null}
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');
   let fm=S.formation,subs=[],oop=null;
-  const tired=currentXI().map(s=>S.squadList[s.i]).filter(p=>p.fit<72).sort((a,b)=>a.fit-b.fit).slice(0,3);
-  const defenders=available().filter(p=>p.pos==="DF");
+  const tired=can("rotation")?currentXI().map(s=>S.squadList[s.i]).filter(p=>p.fit<72).sort((a,b)=>a.fit-b.fit).slice(0,3):[];
+  const defenders=can("oop")?available().filter(p=>p.pos==="DF"):[];
   function effect(){
     const f=FORMATIONS[fm],fb=FORMATIONS[S.formation];
     let at=f.att-fb.att,de=f.def-fb.def;
