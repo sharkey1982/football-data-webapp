@@ -14,7 +14,7 @@ const DELAY_AMP=2.4,NOISE=.26;
 /* How steeply Your Team's results respond to a strength gap (lower =
    steeper), and how much the XI's attacking/defensive lean counts. Both
    raised after playtesting found decisions were not moving results enough. */
-const CLUB_SENS=16,BAL_WEIGHT=1.1;
+const CLUB_SENS=14,BAL_WEIGHT=1.1;
 
 /* Red cards: chance per match of one for the opposition, for you, and for
    you when the Hot Head is in your XI. */
@@ -34,7 +34,7 @@ const SEASON_WEAR={fatigue:35,condition:76};
    under-performs for reasons nobody controls. Symmetric, so it biases no
    one -- but the Shark's prediction cannot see it, which is the point: it is
    what makes a season genuinely uncertain rather than a rerun. */
-const SEASON_SWING=10;
+const SEASON_SWING=5;
 
 /* How much the set-piece taker's skill and the XI's aerial threat add to
    attacking lean. */
@@ -46,7 +46,15 @@ const SP_WEIGHT=.8,AER_WEIGHT=.35;
    competent manager beats the Shark about 6 times in 10 and a careless one
    2-3 times in 10 -- beatable, but earned, and a model worth respecting.
    Measured by test/checks.cjs; re-measure if the decision effects change. */
-const SHARK_UPLIFT=2.5;
+const SHARK_UPLIFT=3.5;
+
+/* HOME ADVANTAGE, taken from FixtureShark's real Dixon-Coles model (fit run
+   92: home_advantage 0.175, so the home side scores exp(0.175) = 1.19x the
+   goals). Applied the way that model applies it: the HOME side's expected
+   goals are multiplied, and nothing is taken off the away side. The game
+   previously used its own symmetric +/-5 strength points, which came out at
+   about 1.29x -- stronger than the real thing, and differently shaped. */
+const HOME_MULT=1.19;
 
 /* The main FixtureShark site. Links from the game always use this ABSOLUTE
    address, because the game is reachable two ways -- proxied at
@@ -65,7 +73,7 @@ const SITE="https://footballdatashark.netlify.app";
    without diluting this one. The top tier is fixed: Chief Scout United are
    always the benchmark. */
 const TIERS=[
-  {str:76,names:[["Chief Scout United","recruit entirely on the model"]]},
+  {str:78,names:[["Chief Scout United","recruit entirely on the model"]]},
   {str:64,names:[["Billy's Beane United","run on a Moneyball budget"],["Moneyball Athletic","buy what the market undervalues"]]},
   {str:52,names:[["Star Lizard","a syndicate that prices every match"],["Expected Goals Wanderers","trust the xG, eventually"]]},
   {str:44,names:[["Gut Feeling Town","sign whoever looked good on Saturday"],["Old School Rovers","do it the way it has always been done"]]},

@@ -147,7 +147,7 @@ console.log('\n3. BALANCE — the design targets still hold');
 
   /* The favourite should USUALLY win the title, but not always. That gap is
      the probability lesson. At ~48% it was a coin flip and taught nothing. */
-  check('favourite wins the title 65–85% of simulated seasons', fav.title >= 65 && fav.title <= 85, `${fav.title}%`);
+  check('favourite wins the title 65–88% of simulated seasons', fav.title >= 65 && fav.title <= 88, `${fav.title}%`);
 
   const N = 700;
   const sharkPts = P['Your Team'].pts;
@@ -164,14 +164,14 @@ console.log('\n3. BALANCE — the design targets still hold');
   const mBest = run('manager', 'best'), mNone = run('manager', 'none'), mExp = run('manager', 'expert'), oBest = run('owner', 'best');
 
   /* A well-played manager wins the league roughly 10-15% of the time. */
-  check('well-played manager wins the title 7–18%', mBest.title >= 7 && mBest.title <= 18, `${mBest.title.toFixed(1)}%`);
+  check('well-played manager wins the title 6–13%', mBest.title >= 6 && mBest.title <= 13, `${mBest.title.toFixed(1)}%`);
 
   /* THE DIFFICULTY SETTING (SHARK_UPLIFT). A competent manager should beat
      the Shark about 6 times in 10 -- beatable but earned -- and a careless
      one only 2-3 times in 10. If this drifts, the Shark has become either
      naive or unbeatable. */
-  check('competent manager beats the Shark 50–72% of seasons', mBest.beat >= 50 && mBest.beat <= 72, `${mBest.beat.toFixed(0)}%`);
-  check('careless manager beats the Shark only 12–40% of seasons', mNone.beat >= 12 && mNone.beat <= 40, `${mNone.beat.toFixed(0)}%`);
+  check('competent manager beats the Shark 50–70% of seasons', mBest.beat >= 50 && mBest.beat <= 70, `${mBest.beat.toFixed(0)}%`);
+  check('careless manager beats the Shark only 8–22% of seasons', mNone.beat >= 8 && mNone.beat <= 22, `${mNone.beat.toFixed(0)}%`);
 
   /* Using every team-sheet lever should help, but not break the game: an
      expert who hand-picks lineups and out-of-position players must not be
@@ -179,6 +179,16 @@ console.log('\n3. BALANCE — the design targets still hold');
      when the game became too easy. */
   check('expert lineup play helps without breaking the game (within +12 of competent)',
     mExp.beat >= mBest.beat - 3 && mExp.beat <= mBest.beat + 12, `expert ${mExp.beat.toFixed(0)}% vs competent ${mBest.beat.toFixed(0)}%`);
+
+  /* Winning the league WITHOUT making the right decisions must be very
+     remote. Rare events need a big sample, so this one runs 1,500 seasons
+     each for a manager who decides nothing and one who clicks at random. */
+  const titleRate = (pol) => { let t = 0; const M = 1500;
+    for (let i = 1; i <= M; i++) if (season(`RARE-${pol}-${i}`, 'manager', pol) === 1) t++;
+    return (t / M) * 100; };
+  const tNone = titleRate('none'), tRand = titleRate('random');
+  check('careless manager wins the league very rarely (≤1.2%)', tNone <= 1.2, `${tNone.toFixed(2)}% — about 1 season in ${tNone ? Math.round(100 / tNone) : '∞'}`);
+  check('random-clicking manager wins the league very rarely (≤1.8%)', tRand <= 1.8, `${tRand.toFixed(2)}%`);
 
   /* The manager is meant to be the most powerful chair. */
   check('manager is the most influential role', mBest.beat > oBest.beat, `manager ${mBest.beat.toFixed(0)}% vs owner ${oBest.beat.toFixed(0)}% beat the Shark`);

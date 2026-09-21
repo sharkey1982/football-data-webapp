@@ -104,14 +104,15 @@ function clubRates(opp,home,scale,oppFm){
   const[bA,bD]=balanceAdj();
   const att=base+(S.attMod||0)+f.att+(S.matchAtt||0)+bA;
   const def=base+(S.defMod||0)+f.def+(S.matchDef||0)+bD;
-  const os=strOf(opp),oAtt=os+of.att,oDef=os+of.def,h=home?5:-5;
+  const os=strOf(opp),oAtt=os+of.att,oDef=os+of.def;
   const k=scale||1.25;
   /* Divisor lowered 20 -> 16 after playtesting: decisions that raised
      attack and defence were not showing up in results enough. A steeper
      response makes every lever count for more -- and widens where Your Team
      can finish, which was also asked for. Rival-v-rival games keep the
      gentler curve in simScore. */
-  return[Math.max(.08,k*Math.pow(1.5,(att+h-oDef)/CLUB_SENS)),Math.max(.08,k*Math.pow(1.5,(oAtt-def-h)/CLUB_SENS))];
+  return[Math.max(.08,k*Math.pow(1.5,(att-oDef)/CLUB_SENS)*(home?HOME_MULT:1)),
+         Math.max(.08,k*Math.pow(1.5,(oAtt-def)/CLUB_SENS)*(home?1:HOME_MULT))];
 }
 const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
 /* One entry point for any fixture, so your club always uses the split
@@ -134,7 +135,8 @@ function playFixture(h,a,credit){
   return home?[mg,tg]:[tg,mg];
 }
 function simScore(hs,as){
-  const hx=Math.max(.2,1.25*Math.pow(1.5,(hs+5-as)/20)),ax=Math.max(.2,1.25*Math.pow(1.5,(as-hs-5)/20));
+  /* home advantage as the real model applies it: see HOME_MULT */
+  const hx=Math.max(.2,1.25*Math.pow(1.5,(hs-as)/20)*HOME_MULT),ax=Math.max(.2,1.25*Math.pow(1.5,(as-hs)/20));
   const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
   return[Math.min(5,pois(hx)),Math.min(5,pois(ax))];
 }
@@ -187,6 +189,13 @@ function bestShapeFor(opp,home){
   for(const f of Object.keys(FORMATIONS)){S.formation=f;S.manualXI=null;const p=matchProbs(opp,home);if(p.xgf-p.xga>bv){bv=p.xgf-p.xga;best=f}}
   S.formation=was;S.manualXI=wasXI;return best;
 }
+/* Expected league points from a fixture, in the model's view. */
+function expPts(opp,home){const p=matchProbs(opp,home);return(3*p.w+p.d)/100}
+/* What home advantage is worth this season: for each home fixture, the
+   expected points at home minus what the same game would give away. */
+function homeValue(){let v=0;
+  for(let wk=0;wk<MW;wk++){const[h,a]=myFixture(wk);if(h===CLUB)v+=expPts(a,true)-expPts(a,false)}
+  return v}
 function monteCarlo(runs=4000){
   /* blankTable() resets -- and award() fills -- the FORM and CLEAN records,
      which are shared with the real season. Without saving and restoring

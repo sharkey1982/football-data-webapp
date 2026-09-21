@@ -28,7 +28,7 @@ global.setTimeout=()=>{};
 const G=eval(src+`;({ROLES,SHAPES,FORMATIONS,PLAN,MW,newState,buildFixtures,blankTable,monteCarlo,recalcSquadRating,pickRivals,
   playFixture,simScore,strOf,award,standings,resolveMine,apply,later,drainPending,myStrength,clubRates,
   presserSpec,callSpec,physioSpec,preseasonSpec,winterSpec,playerSummerSpec,playerWinterSpec,makeTargets,drawEvent,
-  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,
+  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,
   setSeed:v=>{SEED=v},setRole:r=>{ROLE=r},setS:x=>{S=x},getS:()=>S,setTable:t=>{TABLE=t},T:()=>TABLE,
   setPredict:p=>{PREDICT=p},setCursor:v=>{cursor=v},getR:()=>R.s,setR:v=>{R.s=v},
   resetRecent:()=>{RECENT=new Set();RECENT_Q=[]},getRivals:()=>RIVALS,getRoleId:()=>ROLE.id,
@@ -52,6 +52,9 @@ function choose(spec,policy){
   if(!real.length)return null;
   if(policy==="none")return null;
   if(policy==="expert")policy="best";
+  /* RANDOM: the casual player, clicking without thinking. Chooses by the
+     seeded RNG so a season is still reproducible. */
+  if(policy==="random"){const r=(spec.choices||[]).filter(c=>!c.ask);return r.length?r[Math.floor(G.rng()*r.length)]:null}
   let best=null,bv=policy==="best"?-1e9:1e9;
   real.forEach(c=>{const v=evalChoice(c);if(policy==="best"?v>bv:v<bv){bv=v;best=c}});
   return best;
@@ -117,7 +120,9 @@ function expertTeamSheet(opp,home){
 function playWeek(policy,credit){
   const S=G.getS(),wk=S.mw,T=G.T();
   const fx=G.myFixture(wk),home=fx[0]==="Your Team",opp=home?fx[1]:fx[0];
-  if(G.getRoleId()==="manager"){if(policy==="expert")expertTeamSheet(opp,home);else setFormation(opp,home,policy)}
+  if(G.getRoleId()==="manager"){if(policy==="expert")expertTeamSheet(opp,home);
+    else if(policy==="random"){const f=Object.keys(G.FORMATIONS);G.getS().formation=f[Math.floor(G.rng()*f.length)]}
+    else setFormation(opp,home,policy)}
   else G.getS().formation=G.bestShapeFor(opp,home);
   const[hg,ag]=G.playFixture(fx[0],fx[1],true);
   G.award(T,fx[0],fx[1],hg,ag);

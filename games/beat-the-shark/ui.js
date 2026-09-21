@@ -211,6 +211,11 @@ function renderHeatmap(){
     <div class="datechip">PRE-SEASON · FIXTURE HEAT MAP</div>
     <h1>The season, laid out</h1>
     <p class="lede">Your first five fixtures: how many you should score, how likely you are to keep a clean sheet, and the odds.</p>
+    <div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage is real, and measurable</b>
+      FixtureShark's real model finds that home sides score about <b>19% more goals</b> (a home-advantage parameter of 0.175
+      in its latest fit). This game uses the same number. Over your season it is worth about
+      <b>${homeValue().toFixed(1)} points</b> — which is why the H and A on every fixture matter.
+      <a href="${SITE}/football/model-accuracy" style="color:var(--pitch2)">How the real model performs</a></div>
     ${fixtureHeatHTML(0,5)}
     <h2 style="margin-top:14px">Team Strength</h2>
     <p class="small">Attack and defence in expected goals. Results come from this; the table is what it looks like afterwards.</p>
@@ -359,6 +364,14 @@ function probabilityLesson(){
 /* The season's two lessons, measured on what actually happened: how many
    goals came from set pieces, and what out-of-position players scored --
    priced in FPL points, because that is where the idea pays off for real. */
+function homeAwayLine(){
+  const L=S.seasonLog,pts=x=>x.gf>x.ga?3:x.gf===x.ga?1:0;
+  const H=L.filter(x=>x.home),A=L.filter(x=>!x.home);if(!H.length||!A.length)return "";
+  const rec=a=>`W${a.filter(x=>x.gf>x.ga).length} D${a.filter(x=>x.gf===x.ga).length} L${a.filter(x=>x.gf<x.ga).length}`;
+  const hp=H.reduce((a,x)=>a+pts(x),0),ap=A.reduce((a,x)=>a+pts(x),0);
+  return `<div style="margin-top:4px"><b>Home</b> ${rec(H)} — ${hp} points. <b>Away</b> ${rec(A)} — ${ap} points.
+    The model valued home advantage at about ${homeValue().toFixed(1)} points to a club like yours this season.</div>`;
+}
 function seasonLessons(){
   const tot=S.seasonLog.reduce((a,x)=>a+x.gf,0);
   const sp=alive().reduce((a,p)=>a+(p.spGoals||0),0);
@@ -372,8 +385,9 @@ function seasonLessons(){
       playing further forward (▲). In FPL those are worth ${FPL[p.pos]} each — <b>${pts} points</b> — because he keeps his
       registered position's scoring wherever he plays.`);
   }
-  if(!lines.length)return "";
-  return `<div class="tip" style="margin-top:12px"><b>Out of position and set pieces, this season</b>${lines.map(l=>`<div style="margin-top:4px">${l}</div>`).join('')}
+  const ha=homeAwayLine();
+  if(!lines.length&&!ha)return "";
+  return `<div class="tip" style="margin-top:12px"><b>Home and away, out of position and set pieces</b>${ha}${lines.map(l=>`<div style="margin-top:4px">${l}</div>`).join('')}
     <div style="margin-top:6px">See who is doing it for real on <a href="${SITE}/fpl/line-ups">Starting Lineups</a>.</div></div>`;
 }
 function realThingLinks(){

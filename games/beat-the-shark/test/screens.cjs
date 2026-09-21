@@ -100,5 +100,13 @@ ok("team sheet shows this match's xGF, clean sheet and win chance", /This match,
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
 ok("ending compares points with the Shark", /THE SHARK SAID/.test(app())&&/YOU TOOK/.test(app())&&/pts/.test(app()));
+// 14. home advantage, made visible
+run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
+ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
+run(`renderHeatmap()`);
+ok("pre-season explains home advantage from the real model", /19% more goals/.test(app())&&/0\.175/.test(app())&&/points/.test(app()));
+ok("heat map compares expected points home and away", /Home games:<\/b> [\d.]+ expected points each/.test(run("fixtureHeatHTML(0,10)")));
+run(`S.seasonLog=[{gf:2,ga:0,home:true},{gf:0,ga:1,home:false},{gf:1,ga:1,home:false}];`);
+ok("end of season reports home and away records", /<b>Home<\/b> W1 D0 L0 — 3 points/.test(run("seasonLessons()")));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

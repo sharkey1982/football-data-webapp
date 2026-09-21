@@ -18,7 +18,7 @@ function resolveMine(hg,ag,home){
      tiredness once every player had his own condition -- a side that simply
      played its fixtures lost 12 strength points by May. */
   S.fatigue=clamp(S.fatigue+rnd(2,5)-Math.max(0,(S.fatigue-30)*.25));
-  S.seasonLog.push({mw:S.mw+1,gf:mg,ga:tg,cs:tg===0?1:0});
+  S.seasonLog.push({mw:S.mw+1,gf:mg,ga:tg,cs:tg===0?1:0,home});
   /* Only the players who PLAYED tire and risk injury; the bench recovers.
      That is what makes rotation a real decision rather than a readout.
      Every player also drifts by his trajectory: the young improve through
@@ -114,7 +114,10 @@ function fixtureHeatHTML(fromWk,count){
       <span>Most goals expected · Highest clean sheet chance</span></div>
     <p class="small" style="margin:0">Most goals expected: GW${bestG.wk} ${bestG.home?"home to":"away at"} ${bestG.opp} (${bestG.xgf.toFixed(1)} xGF).
       Best clean sheet chance: GW${bestCS.wk} (${Math.round(bestCS.cs*100)}%).
-      Hardest to win: GW${worst.wk} ${worst.home?"home to":"away at"} ${worst.opp} (${worst.w}% win).</p>`;
+      Hardest to win: GW${worst.wk} ${worst.home?"home to":"away at"} ${worst.opp} (${worst.w}% win).
+      ${(()=>{const H=cells.filter(c=>c.home),A=cells.filter(c=>!c.home),ep=c=>(3*c.w+c.d)/100;
+        return H.length&&A.length?`<br><b>Home games:</b> ${(H.reduce((a,c)=>a+ep(c),0)/H.length).toFixed(1)} expected points each.
+          <b>Away:</b> ${(A.reduce((a,c)=>a+ep(c),0)/A.length).toFixed(1)}.`:""})()}</p>`;
 }
 function posOf(n){return standings(TABLE).findIndex(r=>r.n===n)+1}
 function formPips(n){const f=(FORM[n]||[]).slice(-5);
@@ -255,7 +258,13 @@ function renderTeamSheet(done){
         · attack lean ${lean(bA)} · defence lean ${lean(bD)}</div>
       ${(()=>{const p=matchProbs(opp,home);return `<div class="xibar" style="border-color:var(--amber)">
         <b>This match, as the model sees it:</b> xGF <b>${p.xgf.toFixed(2)}</b> · clean sheet <b>${Math.round(p.cs*100)}%</b>
-        · win <b>${p.w}%</b> <span style="color:var(--mute)">— changes as you pick the side</span></div>`})()}
+        · win <b>${p.w}%</b> <span style="color:var(--mute)">— changes as you pick the side</span></div>
+        ${(()=>{const q=matchProbs(opp,!home);return `<div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage</b>
+          ${home?`You are at home: that is worth <b>${p.w-q.w} points of win chance</b>. The same game away would be
+            ${q.w}% to win, with ${q.xgf.toFixed(2)} xGF instead of ${p.xgf.toFixed(2)}.`
+          :`You are away: that costs <b>${q.w-p.w} points of win chance</b>. The same game at home would be
+            ${q.w}% to win, with ${q.xgf.toFixed(2)} xGF instead of ${p.xgf.toFixed(2)}.`}
+          Home sides score about 19% more — the same edge FixtureShark's real model measures.</div>`})()}`})()}
       ${squadHTML({pick:mgr,sel})}
       ${sheetLessons(wk,mgr)}
       ${mgr?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>

@@ -135,17 +135,26 @@ for finishing the season in the red. The manager is not scored on cash.
 Points, not position, because a predicted position only changes when you jump
 a whole place, so beating it was often luck; every decision moves points.
 
-**Difficulty is a deliberate setting**, `SHARK_UPLIFT` in config.js, chosen so:
+**Difficulty is a deliberate setting.** The levers, all in config.js:
+`SHARK_UPLIFT` (how competent the Shark assumes you are), `CLUB_SENS` (how
+steeply results respond to strength — steeper widens the gap between good and
+bad decisions), `SEASON_SWING` (hidden luck per season) and the top clubs'
+strengths in `TIERS`. Tuned together so that:
 
-| Player | Beats the Shark |
-|---|---|
-| Competent manager | about 6 in 10 seasons |
-| Careless manager | 2–3 in 10 |
-| Expert using every team-sheet lever | only slightly more than competent |
+| Player | Beats the Shark | Wins the league |
+|---|---|---|
+| Competent manager | about 6 in 10 | about 1 in 10 |
+| Careless (decides nothing) | about 1 in 6 | about 1 in 190 |
+| Clicks at random | — | about 1 in 100 |
+| Worst decisions | rarely | never |
+| Expert using every team-sheet lever | about the same as competent | — |
 
-The balance checks enforce all three, including an *expert* simulated player
-who hand-picks lineups and out-of-position players — added after the game
-became too easy through levers the old checks could not see.
+The balance checks enforce these, including the rare careless-title case
+(run over 1,500 seasons, since rare events need large samples).
+
+**Home advantage comes from the real model**: `HOME_MULT` is exp(0.175) =
+1.19, FixtureShark's Dixon-Coles fit, applied the same way (the home side's
+goals are multiplied; nothing is taken off the away side).
 
 **Luck is kept rare and, where possible, turned into decisions.** Red cards
 are about once a season; there is one luck event, mid-season. The other slots
