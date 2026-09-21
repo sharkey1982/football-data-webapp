@@ -10,10 +10,11 @@
 import { useMemo, useState } from 'react';
 import { buildRoleGrid, ROLES, type FormationSlot, type RoleMetric } from '../../lib/formationApi';
 
+// Open play only: set pieces excluded (Chris).
 const METRICS: { key: RoleMetric; label: string; word: string }[] = [
-  { key: 'goals', label: 'Goals', word: 'goals' },
-  { key: 'assists', label: 'Assists', word: 'assists' },
-  { key: 'ga', label: 'Goals + assists', word: 'goals and assists' },
+  { key: 'goals', label: 'Goals', word: 'open-play goals' },
+  { key: 'assists', label: 'Assists', word: 'open-play assists' },
+  { key: 'ga', label: 'Goals + assists', word: 'open-play goals and assists' },
 ];
 
 // pale chalk (none) -> pitch green (the biggest share on the grid)
@@ -92,8 +93,10 @@ export default function FormationRoleGrid({ slots, geometry, names }: {
         </table>
       </div>
       <p className="text-xs text-ink-500">
-        Share of each formation&rsquo;s {word}, by role. Formations used in at least 50 matches. Each column adds up to 100%.
-        &mdash; means the formation has no player in that role.
+        Share of each formation&rsquo;s {word}, by role &mdash; set pieces excluded. Formations used in at least 50 matches.
+        Each column adds up to 100%. &mdash; means the formation has no player in that role.
+        {grid.clamped > 0 && <> Open-play assists are assists minus set-piece assists; in {grid.clamped} {grid.clamped === 1 ? 'position' : 'positions'} the
+        source records more set-piece assists than assists, so those count as zero.</>}
       </p>
     </section>
   );
