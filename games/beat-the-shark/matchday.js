@@ -323,6 +323,23 @@ function drawReds(){
    yours first -- it used to follow home/away convention, which made your
    own result hard to follow. quick=true is the lighter version: no team
    sheet, no half-time call, a faster vidiprinter. */
+/* Speed and skip controls, shown while commentary or results are running.
+   The speed is one session-wide setting (SPEED in config.js). */
+function paceControlsHTML(skipLabel){
+  return `<div class="pace" role="group" aria-label="Playback speed" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:8px 0">
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--mute)">SPEED</span>
+    ${["slow","normal","fast"].map(k=>`<button class="choice" data-speed="${k}" aria-pressed="${speedName()===k}"
+      style="margin:0;padding:4px 9px;width:auto;font-size:12px;${speedName()===k?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}
+    <button class="choice" data-skip="1" style="margin:0 0 0 auto;padding:4px 9px;width:auto;font-size:12px">${skipLabel} ⏭</button>
+  </div>`;
+}
+function wirePaceControls(root,onSkip){
+  root.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{
+    SPEED=b.dataset.speed;
+    root.querySelectorAll('[data-speed]').forEach(x=>{const on=x.dataset.speed===SPEED;x.setAttribute('aria-pressed',on);
+      x.style.borderColor=on?'var(--amber)':'';x.style.background=on?'color-mix(in srgb,var(--amber) 14%,transparent)':''})});
+  const sk=root.querySelector('[data-skip]');if(sk)sk.onclick=onSkip;
+}
 function renderMatch(done,quick){
   if(!quick&&!S._sheetShown){S._sheetShown=true;return renderTeamSheet(()=>renderMatch(done,false))}
   S._sheetShown=false;
@@ -340,12 +357,17 @@ function renderMatch(done,quick){
       <span>${CLUB.toUpperCase()} <small style="opacity:.7">(${home?"H":"A"})</small><br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${S.formation}</span></span>
       <span style="text-align:right">${opp.toUpperCase()}<br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${oFm}</span></span></div>
       <div id="vpl"></div></div>
+    <div id="paceBox">${paceControlsHTML("Skip to full time")}</div>
     <div id="htBox"></div></div>`;
   const lines=document.getElementById('vpl');let mine=0,theirs=0;
   const add=(m,t,cls,sc2)=>{const d=document.createElement('div');d.className='ln'+(cls?' '+cls:'');
     d.innerHTML=`<span class="min">${m}</span><span class="tx">${t}</span>${sc2?`<span class="sc">${sc2}</span>`:''}`;lines.appendChild(d)};
   const sc=()=>`${mine}–${theirs}`;
-  const tick=quick?430:780;
+  // Read afresh for every line, so a speed change takes effect at once.
+  // Skipping runs straight on -- but stops at the half-time decision.
+  let skipping=false;
+  const lineDelay=()=>skipping?0:((quick?PACE.quickCommentaryMs:PACE.commentaryMs)*speedFactor()*(0.9+Math.random()*0.2));
+  wirePaceControls(document.getElementById('paceBox'),()=>{skipping=true});
   function half(from,to,cb){
     let[mr,tr]=clubRates(opp,home,.62,oFm);
     /* a first-half red card shapes the second half */
@@ -357,21 +379,22 @@ function renderMatch(done,quick){
     for(const r of reds)if(r.m>=from&&r.m<=to)ev.push({m:r.m,red:r});
     if(rng()<.4)ev.push({m:rnd(from,to),card:1});
     ev.sort((x,y)=>x.m-y.m);let i=0;
-    (function go(){if(i>=ev.length)return setTimeout(cb,quick?260:460);const e=ev[i++];
+    (function go(){if(i>=ev.length)return setTimeout(cb,skipping?0:(quick?260:460));const e=ev[i++];
       if(e.card)add(e.m+"'","Yellow card","");
       else if(e.red)add(e.m+"'",e.red.us?`RED CARD — ${e.red.who.toUpperCase()} (YOURS)`:`RED CARD — ${opp.toUpperCase()}`,e.red.us?"against":"goal");
       else if(e.mine){mine++;
         add(e.m+"'",(e.g?e.g.p.nm:"TRIALIST").toUpperCase()+(e.g&&e.g.how?` <small style="opacity:.75">(${e.g.how})</small>`:"")
           +(e.g&&roleSignal(e.g.p,e.g.slot)==="advanced"?` <small style="color:var(--good)">▲</small>`:""),"goal",sc())}
       else{theirs++;add(e.m+"'",opp.toUpperCase()+" GOAL","against",sc())}
-      setTimeout(go,tick+Math.random()*(quick?120:260))})();
+      setTimeout(go,lineDelay())})();
   }
   half(4,45,()=>{
     add("HT","Half time","ft",sc());
     /* The owner used to get a half-time "decision" (concourse or boardroom)
        that changed nothing that mattered. He now watches, like an owner. */
     if(quick||ROLE.id==="owner"){add("46'","— second half —","");return half(46,92,finish)}
-    if(ROLE.id==="manager")return tacticalHalfTime(mine,theirs,oFm,()=>{add("46'","— second half —","");half(46,92,finish)});
+    // A decision is never skipped: stop skipping here, and resume at the chosen speed.
+    if(ROLE.id==="manager"){skipping=false;return tacticalHalfTime(mine,theirs,oFm,()=>{add("46'","— second half —","");half(46,92,finish)})}
     const losing=mine<theirs,level=mine===theirs;
     const spec=ROLE.id==="player"
       ?{title:losing?"You are losing. Forty-five minutes left.":level?"Level at the break.":"You are ahead.",
@@ -396,7 +419,8 @@ function renderMatch(done,quick){
     award(TABLE,hT,aT,hg,ag);
     const{fx,res}=resolveMine(hg,ag,home);
     S.matchAtt=0;S.matchDef=0;
-    setTimeout(()=>renderElsewhere({wk,fx,res,mine,theirs,opp,home,startPos,final},done),quick?600:900);
+    const pb=document.getElementById('paceBox');if(pb)pb.innerHTML="";
+    setTimeout(()=>renderElsewhere({wk,fx,res,mine,theirs,opp,home,startPos,final},done),skipping?300:(quick?600:900));
   }
 }
 /* THE 3PM KICK-OFFS. Your game was the early one. The table is shown AS IT
@@ -420,27 +444,38 @@ function renderElsewhere(info,done){
     <div class="delta" style="margin:6px 0 8px">${d}</div>
     <p class="small">You played the early kick-off. ${others.length} ${others.length===1?"game is":"games are"} still to play at 3pm${
       others.some(o=>near(o.h)||near(o.a))?" — and the ones marked ★ involve a club within three points of you":""}.</p>
-    <div id="scTable"><div class="datechip" style="margin:8px 0 5px">AS IT STANDS · ${others.length} STILL TO PLAY</div>${tableRowsHTML(null)}</div>
-    <div id="scFeed"></div><div id="scEnd"></div></div>`;
+    <div id="scPace">${others.length?paceControlsHTML("Show all results"):""}</div>
+    <div id="scFeed"></div>
+    <div id="scTable"><div class="datechip" style="margin:8px 0 5px">AS IT STANDS AT 3PM · ${others.length} STILL TO PLAY</div>${tableRowsHTML(null)}</div>
+    <div id="scEnd"></div></div>`;
   const feed=document.getElementById('scFeed');
-  let i=0;
-  (function nextResult(){
+  // Results arrive at reading pace, above the table; the table itself is
+  // redrawn ONCE, at the end, with arrows for every move since 3pm. It used
+  // to re-sort after every result, every 1.5s -- impossible to follow.
+  const at3pm=posMap();
+  let i=0,skipping=false,pending=null;
+  wirePaceControls(document.getElementById('scPace'),()=>{skipping=true;if(pending){clearTimeout(pending);pending=null;nextResult()}});
+  function nextResult(){
     if(i>=others.length)return finish();
-    const r=others[i++],prev=posMap();
-    setTimeout(()=>{
-      const star=near(r.h)||near(r.a);
-      award(TABLE,r.h,r.a,r.hg,r.ag);myPos();
-      const el=document.createElement('div');el.className='res';el.style.marginTop='6px';
-      el.innerHTML=`<span>${star?"★ ":""}<b>FULL TIME</b> · ${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span>`;
-      feed.appendChild(el);
-      const left=others.length-i;
-      document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:8px 0 5px">${left?`AS IT STANDS · ${left} STILL TO PLAY`:"FULL TIME · ALL GAMES DONE"}</div>${tableRowsHTML(prev)}`;
-      paintHeader();nextResult();
-    },1500);
-  })();
+    const r=others[i++];
+    const star=near(r.h)||near(r.a);
+    award(TABLE,r.h,r.a,r.hg,r.ag);myPos();
+    const el=document.createElement('div');el.className='res';el.style.marginTop='6px';
+    el.innerHTML=`<span>${star?"★ ":""}<b>FULL TIME</b> · ${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span>`;
+    feed.appendChild(el);
+    const left=others.length-i;
+    const chip=document.querySelector('#scTable .datechip');
+    if(chip&&left)chip.textContent=`AS IT STANDS AT 3PM · ${left} STILL TO PLAY`;
+    paintHeader();
+    if(skipping)return nextResult();
+    pending=setTimeout(()=>{pending=null;nextResult()},PACE.resultMs*speedFactor());
+  }
+  pending=setTimeout(()=>{pending=null;nextResult()},others.length?Math.min(1200,PACE.resultMs*speedFactor()*0.5):0);
   function finish(){
     S.mw++;myPos();paintHeader();
     kpiRecord();
+    const sp=document.getElementById('scPace');if(sp)sp.innerHTML="";
+    document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:8px 0 5px">FULL TIME · ALL GAMES DONE · ARROWS SHOW MOVES SINCE 3PM</div>${tableRowsHTML(at3pm)}`;
     const endPos=posOf(CLUB),moved=kickOffPos-endPos;
     const line=final
       ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)

@@ -11,9 +11,9 @@ const srcs=[...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m=>m[1]);
 const els={};
 function mk(id){const e={id,_h:"",children:[],onclick:null,style:{},dataset:{},className:"",classList:{add(){}},
   set innerHTML(v){this._h=v;this.children=[]},get innerHTML(){return this._h+this.children.map(c=>c.innerHTML).join("")},
-  appendChild(c){this.children.push(c)},querySelectorAll(){return[]}};return e}
-const doc={getElementById:id=>els[id]||(els[id]=mk(id)),querySelectorAll:()=>[],createElement:()=>mk("")};
-const q=[];const ctx=vm.createContext({document:doc,setTimeout:f=>q.push(f),Math,JSON,Object,Array,String,Number,Date,Map,Set,console,location:{hash:"",pathname:"/"}});
+  appendChild(c){this.children.push(c)},querySelectorAll(){return[]},querySelector(){return null},setAttribute(){}};return e}
+const doc={getElementById:id=>els[id]||(els[id]=mk(id)),querySelectorAll:()=>[],querySelector:()=>null,createElement:()=>mk("")};
+const q=[];const ctx=vm.createContext({document:doc,setTimeout:f=>q.push(f),clearTimeout:()=>{},Math,JSON,Object,Array,String,Number,Date,Map,Set,console,location:{hash:"",pathname:"/"}});
 const drain=()=>{let n=0;while(q.length&&n++<5000)q.shift()()};
 for(const s of srcs)new vm.Script(fs.readFileSync(s,'utf8'),{filename:s}).runInContext(ctx);
 const run=c=>vm.runInContext(c,ctx);
@@ -133,5 +133,53 @@ ok("data guru has every lever but not the long explanations", (()=>{const h=shee
 sheetAt("beginner",1);ok("beginner: out of position locked in match 2, open from match 4", run(`can("oop")`)===false&&(sheetAt("beginner",3),run(`can("oop")`)===true));
 ok("the opening screen offers the three levels", (()=>{run("chooseRole()");const h=app();return /data-level="beginner"/.test(h)&&/data-level="guru"/.test(h)&&/same Shark/.test(h)})());
 run(`LEVEL="intermediate"`);
+// 17. PACING (Chris's playtest: "too fast to follow")
+run(`LEVEL="beginner";SPEED=null`);
+ok("beginners start on slow; commentary gives at least 2s a line (reading pace)", run(`speedName()`)==="slow"&&run(`PACE.commentaryMs*speedFactor()`)>=2000);
+run(`LEVEL="intermediate";SPEED=null`);
+ok("other levels start on normal, still slower than the old 0.8s a line", run(`speedName()`)==="normal"&&run(`PACE.commentaryMs*speedFactor()`)>=1500);
+run(`SPEED="fast"`);
+ok("the player's speed choice overrides the level default", run(`speedName()`)==="fast");
+run(`SPEED=null;LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=0;S.pendingOppFm=null;S._sheetShown=true;renderMatch(()=>{},false)`); // past the team sheet, into the commentary
+ok("live commentary shows speed controls and Skip to full time", /data-speed="slow"/.test(app())&&/Skip to full time/.test(app()));
+// the 3pm results: the table stays put until every result is in, then redraws once with arrows
+q.length=0;delete els.scTable; // a fresh element: the harness keeps elements between tests
+run(`renderElsewhere({wk:0,fx:{},res:'w',mine:1,theirs:0,opp:RIVALS[0].n,home:true,startPos:null,final:false},()=>{})`);
+// (The harness doesn't parse HTML, so the initial table is checked in the
+// page markup, and "not re-sorted" is checked as: the table element is not
+// written AT ALL until every result is in.)
+ok("3pm results offer speed controls and Show all results", /Show all results/.test(app()));
+ok("before the results, the table is labelled as it stood at 3pm", /AS IT STANDS AT 3PM/.test(app()));
+if(q.length)q.shift()(); // the first result arrives
+ok("after a result arrives, the table has NOT been touched (it used to re-sort every 1.5s)", !els.scTable || els.scTable.innerHTML==="");
+for(let k=0;k<20&&q.length;k++)q.shift()();
+ok("when all results are in, the table redraws once, with moves since 3pm", /ARROWS SHOW MOVES SINCE 3PM/.test(els.scTable.innerHTML));
+
+// 18. READING BUDGET -- a ratchet. Measured 2026-09-21: a beginner's season
+// is ~4,900 words (~19 min of reading) for a game billed as "a season in
+// five minutes". These caps stop any screen, or the season, growing from
+// here; lower them as screens are trimmed toward the chosen target.
+const text=h=>h.replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').replace(/\s+/g,' ').trim();
+const words=h=>text(h).split(' ').filter(w=>/[A-Za-z0-9]/.test(w)).length;
+// season: 5,527 measured with commentary run to the end and the new pace
+// controls included (the earlier ~4,900 estimate stopped mid-commentary).
+const BUDGET={screen:600,beginnerTeamSheet:470,opening:200,preseason:370,season:5550};
+run(`LEVEL="beginner";SPEED=null;chooseRole()`);
+ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
+run(`ROLE=ROLES.manager;boot()`);
+ok(`reading budget: pre-season <= ${BUDGET.preseason} words`, words(app())<=BUDGET.preseason, `${words(app())} words`);
+run(`S.fullMatches=3;S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
+ok(`reading budget: a beginner's team sheet <= ${BUDGET.beginnerTeamSheet} words`, words(app())<=BUDGET.beginnerTeamSheet, `${words(app())} words`);
+{
+  const plan=run('PLAN');let total=0,worst=0,worstAt='';
+  for(let i=0;i<plan.length;i++){
+    try{run(`cursor=${i};S.mw=Math.min(MW-1,${Math.floor(i/3)});S.pendingOppFm=null;S._sheetShown=false;step()`)}catch(e){continue}
+    for(let k=0;k<400&&q.length;k++){try{q.shift()()}catch(e){}}
+    const w=words(app());total+=w;if(w>worst){worst=w;worstAt=plan[i]}
+  }
+  ok(`reading budget: no screen over ${BUDGET.screen} words`, worst<=BUDGET.screen, `largest ${worst} (${worstAt})`);
+  ok(`reading budget: a beginner's whole season <= ${BUDGET.season} words`, total<=BUDGET.season, `${total} words, ~${Math.round(total/250)} min at 250 wpm`);
+}
+run(`LEVEL="intermediate";SPEED=null`);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);
