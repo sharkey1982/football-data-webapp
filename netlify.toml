@@ -81,19 +81,27 @@
     Cache-Control = "public, max-age=31536000, immutable"
 
 # ----------------------------------------------------------------------------
-# /play -> the separately deployed game.
+# /play/beat-the-shark -> the separately deployed game.
 #
-# Status 200 makes this a PROXY rather than a redirect: the visitor stays on
-# this domain (/play/beat-the-shark) while the game is served from its own
-# Netlify site. Good for the brand and for search, and the two deploys stay
-# independent.
+# Status 200 makes the second rule a PROXY rather than a redirect: the
+# visitor stays on this domain while the game is served from its own Netlify
+# site (fixtureshark-beat-the-shark), so the two deploys stay independent.
 #
-# DISABLED until the game site exists. To enable: create the game's Netlify
-# site (see games/beat-the-shark/README.md), then uncomment this block and
-# replace GAME-SITE-NAME with its Netlify subdomain.
+# The first rule is not optional. The game loads its scripts by RELATIVE
+# path ("config.js"). At /play/beat-the-shark/ those resolve to
+# /play/beat-the-shark/config.js and get proxied correctly -- but without
+# the trailing slash they resolve to /play/config.js, which exists nowhere,
+# and the page loads blank. So the bare path is redirected to the slashed
+# one first.
 # ----------------------------------------------------------------------------
-# [[redirects]]
-#   from = "/play/beat-the-shark/*"
-#   to = "https://GAME-SITE-NAME.netlify.app/:splat"
-#   status = 200
-#   force = true
+[[redirects]]
+  from = "/play/beat-the-shark"
+  to = "/play/beat-the-shark/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/play/beat-the-shark/*"
+  to = "https://fixtureshark-beat-the-shark.netlify.app/:splat"
+  status = 200
+  force = true

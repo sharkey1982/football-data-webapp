@@ -30,27 +30,28 @@ check fails with a clear message if the order is ever wrong.
 
 ## One-time setup
 
-### 1. Create the game's Netlify site
+### Already done
 
-In the Netlify dashboard: **Add new site → Import an existing project →
-GitHub → `sharkey1982/football-data-webapp`**, then set:
+- **Netlify site created:** `fixtureshark-beat-the-shark`
+  (site ID `680e9cff-077d-4ae4-a71e-2d06419b6f2a`).
+- **Proxy switched on** in the root `netlify.toml`, including a redirect
+  that adds the trailing slash — without it the game's relative script paths
+  resolve to `/play/config.js` and the page loads blank.
 
-| Setting | Value |
-|---|---|
-| Base directory | `games/beat-the-shark` |
-| Build command | *(leave empty)* |
-| Publish directory | `games/beat-the-shark` |
+### The one remaining step: link the site to GitHub
 
-It will only redeploy when this folder changes (see the `ignore` rule in
-`netlify.toml`).
+This has to be done in the Netlify dashboard, because it authorises
+Netlify's GitHub app — no API or agent can do it on your behalf.
 
-### 2. Switch on the `/play` proxy
+1. Open <https://app.netlify.com/projects/fixtureshark-beat-the-shark>.
+2. **Site configuration → Build & deploy → Link repository.**
+3. Choose GitHub → `sharkey1982/football-data-webapp`, branch `main`.
+4. Set **Base directory** to `games/beat-the-shark`, leave the build command
+   empty, and set **Publish directory** to `games/beat-the-shark`.
 
-In the **root** `netlify.toml`, uncomment the `[[redirects]]` block at the
-bottom and replace `GAME-SITE-NAME` with the new site's Netlify subdomain.
-The game then appears at `/play/beat-the-shark/` on the main site.
-
----
+The first deploy then runs, and every later push that touches this folder
+redeploys it automatically. The game appears at `/play/beat-the-shark/` on
+the main site.
 
 ## Testing
 
