@@ -119,6 +119,29 @@ console.log('\n1. INTEGRITY — every event renders cleanly');
   check('no event throws while being built', threw === 0, `${threw} of ${rendered}`);
 }
 
+/* ---------------------------------------------------------------- 1b --- */
+/* ONE CONSISTENT VIEW. This inconsistency surfaced twice in playtesting --
+   a club shown stronger but projected lower. Every table is now ordered by
+   points won plus expected points for the games left; this plays seasons to
+   three points and confirms no table can contradict its own columns. */
+console.log('\n1b. CONSISTENCY — tables never contradict their own numbers');
+{
+  let bad = 0, n = 0;
+  for (let k = 1; k <= 30; k++) {
+    G.setSeed('CONS' + k); G.pickRivals(); G.buildFixtures(); G.setTable(G.blankTable());
+    G.setRole(G.ROLES.manager); const S = G.newState(); G.setS(S); G.recalcSquadRating();
+    const teams = ['Your Team', ...G.getRivals().map((r) => r.n)];
+    const test = () => { const RL = G.ratingsNow(S.mw), E = G.expectedFinal(RL), o = G.projOrder(teams, null, RL);
+      for (let i = 0; i < o.length - 1; i++) { n++; if (E[o[i + 1]] > E[o[i]] + 1e-9) bad++; } };
+    const play = (w) => { const f = G.myFixture(w); const [hg, ag] = G.playFixture(f[0], f[1], true); G.award(G.T(), f[0], f[1], hg, ag);
+      G.otherFixtures(w).forEach(([h, a]) => { const [x, y] = G.simScore(G.strOf(h), G.strOf(a)); G.award(G.T(), h, a, x, y); });
+      G.resolveMine(hg, ag, f[0] === 'Your Team'); S.mw++; };
+    test(); for (let w = 0; w < 5; w++) play(w); const L = G.drawLuck(); if (L) L.apply(); test();
+    for (let w = 5; w < 8; w++) play(w); test();
+  }
+  check('no table lists a club above one with more projected points', bad === 0, `${bad} of ${n} pairs, pre-season / halfway / GW8`);
+}
+
 /* ---------------------------------------------------------------- 2 ---- */
 console.log('\n2. STABILITY — full seasons play without crashing');
 {

@@ -99,7 +99,7 @@ run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw
 ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
-ok("ending compares points with the Shark", /THE SHARK SAID/.test(app())&&/YOU TOOK/.test(app())&&/pts/.test(app()));
+ok("ending compares points with the Shark's target", /THE SHARK'S TARGET/.test(app())&&/YOU TOOK/.test(app())&&/pts/.test(app()));
 // 14. home advantage, made visible
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
@@ -108,5 +108,16 @@ ok("pre-season explains home advantage from the real model", /19% more goals/.te
 ok("heat map compares expected points home and away", /Home games:<\/b> [\d.]+ expected points each/.test(run("fixtureHeatHTML(0,10)")));
 run(`S.seasonLog=[{gf:2,ga:0,home:true},{gf:0,ga:1,home:false},{gf:1,ga:1,home:false}];`);
 ok("end of season reports home and away records", /<b>Home<\/b> W1 D0 L0 — 3 points/.test(run("seasonLessons()")));
+// 15. one consistent view: dashboard, table, labelled players
+run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.kpi=[];kpiRecord();S.mw=1;TABLE[CLUB].p=1;TABLE[CLUB].pts=3;kpiRecord();`);
+const kp=run("kpiHTML()");
+ok("dashboard shows position, points v Shark, attack xGF and defence xGA", /League position/.test(kp)&&/Points v the Shark/.test(kp)&&/Attack · xGF\/game/.test(kp)&&/Defence · xGA\/game/.test(kp));
+ok("dashboard draws a sparkline for each of the four", (kp.match(/<polyline/g)||[]).length===4);
+const st=run("strengthTableHTML()");
+ok("Team Strength shows xPts and projected points, ordered by them", /<th class="n">xPts<\/th>/.test(st)&&/<th class="n">Proj<\/th>/.test(st));
+const sq=run("squadHTML({})");
+ok("players show quality (Q) and condition (%) explicitly, with a legend", /<b>Q\d+<\/b> · <span[^>]*>\d+%<\/span>/.test(sq)&&/quality · <b>%<\/b> condition/.test(sq));
+run(`paintHeader()`);
+ok("header calls the Shark's number a target, in points", /The Shark's target/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

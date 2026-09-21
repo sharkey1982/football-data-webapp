@@ -241,6 +241,13 @@
   .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:6px 0 8px}
   .strip div{border-radius:6px;padding:5px 4px;text-align:center;font-size:11px;color:#f6f4ea}
   .strip b{display:block;font-family:var(--mono);font-size:10px;opacity:.85}
+  /* ---- the season dashboard ---- */
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:10px 0}
+  @media (min-width:520px){.kpis{grid-template-columns:repeat(4,1fr)}}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 9px 6px;min-width:0}
+  .kpi .kl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+  .kpi .kb{font-family:var(--disp);font-size:24px;font-weight:700;line-height:1.1}
+  .kpi .ks{font-size:11px;color:var(--ink2);margin-bottom:3px;min-height:15px}
 </style>
 </head>
 <body>

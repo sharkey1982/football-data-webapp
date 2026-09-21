@@ -707,9 +707,9 @@ function papersSpec(){
   const heads=res==='w'?[["FINS UP","A first win in six, and for ninety minutes the place believed again."],["TIDE TURNS","Three points that change little and feel like everything."]]
     :res==='l'?[["SINKING","The same mistakes again, in front of people who have run out of patience."],["DEEP WATER","The table does not lie, and it is getting late to argue with it."]]
     :[["TREADING WATER","A point that suits nobody and settles nothing."],["STALEMATE","Ninety minutes that will be forgotten by Tuesday."]];
-  const h=pick(heads),pr=PREDICT[CLUB];
-  const shark=pick([`FixtureShark's model now gives ${CLUB} a ${clamp(Math.round(100-pr.rel-(S.pos-3)*8),4,94)}% chance of staying up.`,
-    `FixtureShark rated this squad ${S.squad} before a ball was kicked and predicted ${ord(Math.round(pr.avg))}.`,
+  const h=pick(heads),pr=projectionNow()[CLUB];
+  const shark=pick([`FixtureShark's model now gives ${CLUB} a ${100-pr.rel}% chance of staying up.`,
+    `FixtureShark's model now projects ${CLUB} to finish ${ord(Math.round(pr.avg))}.`,
     `According to FixtureShark, only one club in this division gets less for its wage bill.`]);
   return{paper,h,shark};
 }
@@ -724,7 +724,8 @@ function podcastSpec(){
       [b.n,bad?"Relegation costs more than any player they have sold. That is the bit that gets forgotten.":"It is the boring things, paid on time, that keep clubs alive."]]
     :[[a.n,bad?"Three defeats and the same problem each time. That is coaching, not luck.":"He has got more out of that group than anyone had a right to expect."],
       [b.n,bad?"The dressing room is still with him, and when that goes it goes overnight.":"Give him money in January and they finish in the top half."]];
-  return{lines,shark:`${pick(PUNDITS).n}: "The FixtureShark numbers have them ${Math.abs(Math.round(PREDICT[CLUB].avg-S.pos))} ${Math.abs(Math.round(PREDICT[CLUB].avg-S.pos))===1?"place":"places"} ${S.pos<PREDICT[CLUB].avg?"above":"below"} where the model had them. That is not nothing."`};
+  const gap=Math.round((TABLE[CLUB].pts-sharkPts()*S.mw/MW)*10)/10;
+  return{lines,shark:`${pick(PUNDITS).n}: "They are ${Math.abs(gap)} ${Math.abs(gap)===1?"point":"points"} ${gap>=0?"ahead of":"behind"} where FixtureShark said a well-run club would be by now. That is not nothing."`};
 }
 
 /* ===========================================================================

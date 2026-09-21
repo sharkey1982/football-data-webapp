@@ -196,6 +196,83 @@ function expPts(opp,home){const p=matchProbs(opp,home);return(3*p.w+p.d)/100}
 function homeValue(){let v=0;
   for(let wk=0;wk<MW;wk++){const[h,a]=myFixture(wk);if(h===CLUB)v+=expPts(a,true)-expPts(a,false)}
   return v}
+/* ===========================================================================
+   THE MODEL'S VIEW, NOW -- one set of numbers behind every table.
+   ratingsNow()     each club's attack (xGF per game) and defence (xGA per
+                    game) across its fixtures against this league, as things
+                    stand. Your Team is rated AS YOU ARE RUNNING IT.
+   projectionNow()  where the model expects everyone to finish, from the
+                    current table plus those same ratings for the games left.
+   Because the projection is built from the ratings, a club can never be
+   shown stronger but projected lower -- which happened in 1 in 5 pairs by
+   halfway when the table was ordered by a frozen pre-season prediction.
+   The Shark's TARGET is separate: points a well-run club would take, fixed
+   pre-season, and never shown as a league position.
+   =========================================================================== */
+function fixtureRates(h,a){
+  return modelView(()=>{
+    if(h!==CLUB&&a!==CLUB){const hs=strOf(h),as=strOf(a);
+      return[Math.max(.2,1.25*Math.pow(1.5,(hs-as)/20)*HOME_MULT),Math.max(.2,1.25*Math.pow(1.5,(as-hs)/20))]}
+    const home=h===CLUB,opp=home?a:h,[m,t]=clubRates(opp,home,1.25,typicalShape(opp));
+    return home?[m,t]:[t,m];
+  });
+}
+/* Exact Poisson win/draw chances from two expected-goals figures. */
+function probsFromRates(x,y){
+  const px=[],py=[];let a=Math.exp(-x),b=Math.exp(-y);
+  for(let k=0;k<=12;k++){px.push(a);py.push(b);a*=x/(k+1);b*=y/(k+1)}
+  let w=0,d=0;for(let i=0;i<=12;i++)for(let j=0;j<=12;j++){const p=px[i]*py[j];if(i>j)w+=p;else if(i===j)d+=p}
+  return{w,d,l:Math.max(0,1-w-d)};
+}
+/* xPts -- expected points per game -- is the HEADLINE strength figure,
+   because it is what the projection is built on. Goal difference alone can
+   rank clubs differently from points: a tight, low-scoring side draws more
+   and can out-point a slightly "stronger" open one. Ranking by xGF minus xGA
+   produced that apparent contradiction in 2 of 300 pairs; xPts cannot. */
+/* from = the first gameweek to include. 0 rates a club over its whole
+   season (its quality, independent of the schedule); S.mw rates only the
+   games still to play (its run-in), which is what the projection uses. */
+function ratingsNow(from){
+  const teams=[CLUB].concat(RIVALS.map(r=>r.n)),r={};teams.forEach(n=>r[n]={f:0,a:0,p:0,k:0});
+  const wks=FIXTURES.slice(from&&from<MW?from:0);
+  for(const wk of wks)for(const[h,a]of wk){const[x,y]=fixtureRates(h,a),q=probsFromRates(x,y);
+    r[h].f+=x;r[h].a+=y;r[h].p+=3*q.w+q.d;r[h].k++;r[a].f+=y;r[a].a+=x;r[a].p+=3*q.l+q.d;r[a].k++}
+  const out={};for(const n of teams)out[n]={xgf:r[n].f/r[n].k,xga:r[n].a/r[n].k,xpts:r[n].p/r[n].k};
+  return out;
+}
+function projectionNow(runs=1500){
+  const saved=R.s;R.s=hashSeed(SEED+"|proj|"+S.mw);
+  const teams=[CLUB].concat(RIVALS.map(r=>r.n)),acc={};teams.forEach(n=>acc[n]={sum:0,top:0,bot:0,pts:0});
+  const left=[];for(let wk=S.mw;wk<MW;wk++)for(const[h,a]of FIXTURES[wk])left.push([h,a,...fixtureRates(h,a)]);
+  for(let i=0;i<runs;i++){
+    const t={};teams.forEach(n=>t[n]={pts:TABLE[n].pts,gd:TABLE[n].gf-TABLE[n].ga,gf:TABLE[n].gf});
+    for(const[h,a,x,y]of left){const hg=pois(x),ag=pois(y);
+      t[h].gf+=hg;t[a].gf+=ag;t[h].gd+=hg-ag;t[a].gd+=ag-hg;
+      if(hg>ag)t[h].pts+=3;else if(ag>hg)t[a].pts+=3;else{t[h].pts++;t[a].pts++}}
+    teams.slice().sort((p,q)=>t[q].pts-t[p].pts||t[q].gd-t[p].gd||t[q].gf-t[p].gf||p.localeCompare(q))
+      .forEach((n,idx)=>{acc[n].sum+=idx+1;acc[n].pts+=t[n].pts;if(idx===0)acc[n].top++;if(idx>=teams.length-2)acc[n].bot++});
+  }
+  R.s=saved;
+  const out={};for(const n of teams)out[n]={avg:acc[n].sum/runs,pts:acc[n].pts/runs,title:Math.round(acc[n].top/runs*100),rel:Math.round(acc[n].bot/runs*100)};
+  return out;
+}
+/* THE PROJECTED TABLE: points won so far plus expected points for the games
+   left, in that order. Exact arithmetic on the columns shown beside it, so
+   the order can never contradict them -- ordering by average simulated
+   finishing position disagreed with expected points now and then, because a
+   volatile club and a steady one can share expected points but not average
+   position. The simulation is still used for what it is good at: title and
+   relegation chances. */
+function expectedFinal(RL){
+  RL=RL||ratingsNow(S.mw);const left=MW-S.mw,out={};
+  for(const n of [CLUB].concat(RIVALS.map(r=>r.n)))out[n]=TABLE[n].pts+RL[n].xpts*left;
+  return out;
+}
+function projOrder(teams,P,RL){
+  const E=expectedFinal(RL);
+  return teams.slice().sort((a,b)=>E[b]-E[a]||(TABLE[b].gf-TABLE[b].ga)-(TABLE[a].gf-TABLE[a].ga)||a.localeCompare(b));
+}
+function projectedPlace(n){return projOrder([CLUB].concat(RIVALS.map(r=>r.n)),null,ratingsNow(S.mw)).indexOf(n)+1}
 function monteCarlo(runs=4000){
   /* blankTable() resets -- and award() fills -- the FORM and CLEAN records,
      which are shared with the real season. Without saving and restoring
@@ -426,7 +503,7 @@ function squadHTML(opts){
         ${opts.pick?`data-xi="${s.i}"`:'disabled'} title="${p.nm} — ${p.line}">
       <span class="dot ${sig}">${POS_LETTER[p.pos]}</span>
       <span class="pn">${p.nm}</span>
-      <span class="pq">${p.rt} · <i class="cb2"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></span>
+      <span class="pq"><b>Q${p.rt}</b> · <span style="color:${condCol(p.fit)}">${p.fit}%</span></span>
       <span class="pr">${s.role}${sig==="advanced"?'<b class="up">▲</b>':sig==="deeper"?'<b class="dn">▼</b>':''}</span>
       ${p===tk?'<span class="psp">P1 FK1 C1</span>':''}
       ${flag?`<span class="pf">${flag}</span>`:''}
@@ -442,15 +519,17 @@ function squadHTML(opts){
       <span><i class="dot deeper sm"></i> Deeper role (▼)</span>
       <span><b style="color:var(--amber)">P1 FK1 C1</b> set-piece duties</span>
       <span><b style="color:#7cb9e8">Rusty</b> rested too long</span>
+      <span><b>Q</b> quality · <b>%</b> condition (fitness)</span>
     </div>
-    <div class="benchh">Bench${opts.pick?' — tap a player on the pitch, then one here, to swap':''}</div>
+    <div class="benchh">Bench${opts.pick?' — tap a player on the pitch, then one here, to swap':''}
+      <span style="float:right;text-transform:none;letter-spacing:0">Quality · Condition</span></div>
     <div class="bench">${bench.map(({p,i})=>
       `<button type="button" class="bp${p.out?' out':''}${i===S.meIdx?' me':''}" ${opts.pick&&!p.out?`data-bench="${i}"`:'disabled'}>
         <span class="bpos">${p.pos}</span>
         <span class="bn">${p.nm}<small>${p.out?`<b style="color:var(--bad)">OUT ${p.out} ${p.out===1?"week":"weeks"}</b> · `:
           (p.sharp!=null&&p.sharp<RUST_LINE)?'<b style="color:#7cb9e8">Rusty</b> · ':''}${p.line}</small></span>
-        <span class="bq">${p.rt}</span>
-        <i class="cb"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></button>`).join('')}</div>
+        <span class="bq">Q${p.rt}</span>
+        <span class="bq" style="color:${condCol(p.fit)};min-width:38px;text-align:right">${p.fit}%</span></button>`).join('')}</div>
   </div><!--/SQ-->`;
 }
 const alive=()=>S.squadList.filter(p=>!p.gone);
@@ -503,15 +582,15 @@ function myPos(){S.pos=standings(TABLE).findIndex(r=>r.n===CLUB)+1;return S.pos}
    reads as though the season has already gone badly. Show FixtureShark's
    PREDICTED table instead, which is both accurate and the thing the site
    actually does. */
-function predictedPos(){return Math.round(PREDICT[CLUB].avg)}
+function predictedPos(){return Math.round(projectionNow()[CLUB].avg)}
 function predictedTableHTML(){
-  const rows=[CLUB].concat(RIVALS.map(r=>r.n)).map(n=>({n,avg:PREDICT[n].avg,rel:PREDICT[n].rel}))
-    .sort((a,b)=>a.avg-b.avg);
+  const P=projectionNow(),R=ratingsNow();
+  const rows=projOrder([CLUB].concat(RIVALS.map(r=>r.n)),P,R).map(n=>({n,...P[n]}));
   return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">Title</th><th class="n">Down</th></tr></thead><tbody>
   ${rows.map((r,i)=>{const rv=RIVALS.find(x=>x.n===r.n);return `<tr class="${r.n===CLUB?'me':''} ${i>=rows.length-2?'rel':''}"><td class="n">${i+1}</td>
-    <td>${r.n}${youTag(r.n)}${rv?`<div style="font-size:11px;color:var(--mute);font-weight:400">${rv.d}</div>`:`<div style="font-size:11px;color:var(--mute);font-weight:400">that is up to you</div>`}</td>
-    <td class="n">${PREDICT[r.n].title}%</td><td class="n">${r.rel}%</td></tr>`}).join('')}</tbody></table>
-  <div style="font-size:11px;color:var(--mute);margin-top:4px">FixtureShark pre-season model · 4,000 simulated seasons · nothing played yet</div>`;
+    <td>${r.n}${youTag(r.n)}${rv?`<div style="font-size:11px;color:var(--mute);font-weight:400">${rv.d}</div>`:`<div style="font-size:11px;color:var(--mute);font-weight:400">as the squad stands — the rest is up to you</div>`}</td>
+    <td class="n">${r.title}%</td><td class="n">${r.rel}%</td></tr>`}).join('')}</tbody></table>
+  <div style="font-size:11px;color:var(--mute);margin-top:4px">The model's projection before a ball is kicked · the same ratings as Team Strength</div>`;
 }
 
 /* --- THE SCORE: you against the Shark ------------------------------------
@@ -568,8 +647,8 @@ function paintHeader(){
   document.getElementById('hScore').innerHTML=`${total}<span class="sub">SCORE</span>`;
   const played=S.mw>0,d1=Math.round(diff*10)/10;
   document.getElementById('hTwo').innerHTML=
-   `<div class="two"><div class="k">The Shark says</div><div class="v">${pred.toFixed(1)} pts</div>
-      <div class="pts">${played?`${par.toFixed(1)} expected by now`:`about ${ord(sharkPos())}`}</div></div>
+   `<div class="two"><div class="k">The Shark's target</div><div class="v">${pred.toFixed(1)} pts</div>
+      <div class="pts">${played?`${par.toFixed(1)} expected by now`:"target for the season"}</div></div>
     <div class="two"><div class="k">You have</div><div class="v">${played?pts+" pts":"—"}</div>
       <div class="pts" style="color:${!played?'inherit':d1>0?'#9ce0b9':d1<0?'#f0a89f':'inherit'}">
         ${!played?"nothing played":d1>0?`${d1} ahead of the Shark`:d1<0?`${Math.abs(d1)} behind the Shark`:"level with the Shark"} · ${played?ord(S.pos):""}</div></div>

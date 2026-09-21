@@ -223,6 +223,42 @@ function renderHeatmap(){
     <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Get on with it</span></button></div>`;
   document.getElementById('nx').onclick=next;
 }
+/* ===========================================================================
+   THE SEASON DASHBOARD: one consistent view, the same everywhere it appears.
+   Position (and where the model projects you), points against the Shark's
+   pace, attack (xGF per game) and defence (xGA per game) -- the same
+   ratings as Team Strength -- each with a sparkline of the season so far
+   and an arrow against the last gameweek. Green means better for you:
+   for defence and position that means LOWER numbers.
+   =========================================================================== */
+function kpiRecord(){
+  if(!S.kpi)S.kpi=[];
+  const r=ratingsNow(0)[CLUB],t=TABLE[CLUB];
+  S.kpi.push({gw:S.mw,pos:t.p?posOf(CLUB):null,proj:projectedPlace(CLUB),projPts:expectedFinal()[CLUB],pts:t.pts,par:sharkPts()*S.mw/MW,xgf:r.xgf,xga:r.xga});
+}
+function spark(vals,lowerIsBetter){
+  const v=vals.filter(x=>x!=null&&isFinite(x)),W=84,H=22;
+  if(v.length<2)return `<svg width="${W}" height="${H}"></svg>`;
+  const lo=Math.min(...v),hi=Math.max(...v),span=(hi-lo)||1;
+  const pts=v.map((x,i)=>[2+i/(v.length-1)*(W-4),lowerIsBetter?2+(x-lo)/span*(H-4):H-2-(x-lo)/span*(H-4)]);
+  const good=lowerIsBetter?v[v.length-1]<=v[0]:v[v.length-1]>=v[0],col=good?"#34d399":"#dc5a4f",[lx,ly]=pts[pts.length-1];
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block"><polyline fill="none" stroke="${col}" stroke-width="1.7" stroke-linejoin="round" points="${pts.map(p=>p.map(n=>n.toFixed(1)).join(",")).join(" ")}"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.2" fill="${col}"/></svg>`;
+}
+function kpiHTML(){
+  if(!S.kpi||!S.kpi.length)return "";
+  const k=S.kpi,cur=k[k.length-1],prev=k.length>1?k[k.length-2]:k[0],base=k[0];
+  const arrow=(d,lowerIsBetter,fmt)=>{if(Math.abs(d)<.005)return `<span style="color:var(--mute)">—</span>`;
+    const good=lowerIsBetter?d<0:d>0;return `<span style="color:${good?'var(--good)':'var(--bad)'}">${d>0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`};
+  const t=TABLE[CLUB],n=Math.max(1,t.p),gap=cur.pts-cur.par;
+  const tile=(label,big,sub,svg)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div>${svg}</div>`;
+  return `<div class="kpis">
+    ${tile("League position",cur.pos?ord(cur.pos):"—",`projected ${ord(cur.proj)} · ${cur.projPts.toFixed(1)} pts ${arrow(cur.projPts-prev.projPts,false,v=>v.toFixed(1))}`,spark(k.map(x=>x.projPts),false))}
+    ${tile("Points v the Shark",`${cur.pts} pts`,`<span style="color:${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--mute)'}">${gap>=0?'+':''}${gap.toFixed(1)} v target pace</span>`,spark(k.map(x=>x.pts-x.par),false))}
+    ${tile("Attack · xGF/game",cur.xgf.toFixed(2),`${arrow(cur.xgf-prev.xgf,false,v=>v.toFixed(2))} · actual ${t.p?(t.gf/n).toFixed(1):"—"}`,spark(k.map(x=>x.xgf),false))}
+    ${tile("Defence · xGA/game",cur.xga.toFixed(2),`${arrow(cur.xga-prev.xga,true,v=>v.toFixed(2))} · actual ${t.p?(t.ga/n).toFixed(1):"—"} · CS ${CLEAN[CLUB]||0}`,spark(k.map(x=>x.xga),true))}
+  </div>
+  <div style="font-size:10.5px;color:var(--mute);margin:-4px 0 10px">Sparklines: the season so far · arrows: since last gameweek · green is better for you</div>`;
+}
 function nextWinChance(){
   if(!S||S.mw>=MW)return null;
   const[h,a]=myFixture(S.mw),home=h===CLUB,opp=home?a:h;
@@ -247,6 +283,7 @@ function renderStats(){
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">GAMEWEEK ${S.mw} · THE NUMBERS</div>
     <h1>Where the season actually is</h1>
+    ${kpiHTML()}
     <p class="lede">${gf} scored, ${ga} conceded, ${cs} clean ${cs===1?"sheet":"sheets"} in ${log.length}.</p>
     <div style="display:flex;gap:3px;align-items:flex-end;height:64px;margin:10px 0 4px">
       ${log.map(x=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px" title="GW${x.mw}: ${x.gf}-${x.ga}">
@@ -346,11 +383,12 @@ function tableRowsHTML(prevPos){
 /* The favourite usually wins. Usually. Saying so out loud, against what
    actually happened, is the whole educational point of the Monte Carlo. */
 function probabilityLesson(){
-  const fav=RIVALS.slice().sort((a,b)=>PREDICT[b.n].title-PREDICT[a.n].title)[0];
-  const odds=PREDICT[fav.n].title;
+  const P0=S.proj0||PREDICT;
+  const fav=RIVALS.slice().sort((a,b)=>P0[b.n].title-P0[a.n].title)[0];
+  const odds=P0[fav.n].title;
   const champ=standings(TABLE)[0].n;
   const held=champ===fav.n;
-  const cOdds=PREDICT[champ]?PREDICT[champ].title:0;
+  const cOdds=P0[champ]?P0[champ].title:0;
   return `<div class="shark" style="margin-top:12px"><div><b>How often the favourite wins</b>
     ${fav.n} were given a <b>${odds}%</b> chance of the title.
     ${held?`They won it. That is the usual outcome, and it is still not a certainty — replay this season and roughly one time in ${Math.max(2,Math.round(100/(100-odds)))} they do not.`
@@ -439,15 +477,16 @@ function renderEnding(){
       color:${total>=65?'var(--good)':total>=40?'var(--amber)':'var(--bad)'}">${total}<span style="font-size:20px;color:var(--mute)">/100</span></div>
     <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:4px 0 10px;text-align:center">
       <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px">
-        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">THE SHARK SAID</div>
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">THE SHARK'S TARGET</div>
         <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${pred.pts.toFixed(1)} pts</div>
-        <div style="font-size:11px;color:var(--mute)">about ${ord(predPos)}</div></div>
+        <div style="font-size:11px;color:var(--mute)">a well-run club's target</div></div>
       <div style="font-family:var(--disp);font-size:22px;color:var(--mute)">v</div>
       <div style="background:var(--panel2);border:1.5px solid ${beat>0?'var(--good)':beat<0?'var(--bad)':'var(--line)'};border-radius:9px;padding:9px">
         <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">YOU TOOK</div>
         <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${pts} pts</div>
         <div style="font-size:11px;color:var(--mute)">${ord(S.pos)}</div></div>
     </div>
+    ${kpiHTML()}
     ${red?`<div class="outcome" style="border-left-color:var(--bad)">You finished ${fmtMoney(S.cash)} in the red. That cost you ${Math.round(red)} points of score — an owner answers for the money as well as the football.</div>`:""}
     <p class="small">The Shark predicts the points a <b>well-run</b> club with your squad would take — sensible
       formations, sensible decisions. Matching it scores 50; each point better is worth 5, each point worse costs 5,
@@ -475,8 +514,7 @@ function chooseRole(){
      nothing has yet produced. */
   pickRivals();
   R.s=hashSeed(SEED+"|preview");
-  buildFixtures();TABLE=blankTable();PREDICT=monteCarlo(2000);
-  const pp=Math.round(PREDICT[CLUB].avg),prel=PREDICT[CLUB].rel;
+  buildFixtures();TABLE=blankTable();
   document.getElementById('hScore').innerHTML=`—<span class="sub">SCORE</span>`;
   document.getElementById('hTwo').innerHTML="";document.getElementById('hTrend').textContent="";
   document.getElementById('hSeason').innerHTML="";
@@ -484,8 +522,8 @@ function chooseRole(){
     <div class="datechip">FIXTURESHARK · A SEASON IN FIVE MINUTES</div>
     <h1>Beat the Shark</h1>
     <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
-    <p class="small">FixtureShark predict <strong>${ord(pp)} of six</strong>, relegated in <strong>${prel}%</strong> of 2,000 simulated seasons. £850k of debt, a fortnight's cash.</p>
-    <p class="small"><strong>The Shark has predicted where you finish. Your job is to prove it wrong.</strong></p>
+    <p class="small">Before a ball is kicked, FixtureShark sets a target: the points a <b>well-run</b> club with your squad would take.
+      Your job is to beat it. £850k of debt, a fortnight's cash.</p>
     ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="opt" data-r="${r.id}"
       ${r.id==="manager"?'style="border-color:var(--amber)"':''}><div class="tag">${r.tag}${r.id==="manager"?" · most influence over results":r.id==="player"?" · hardest":""}</div><h3>${r.name}</h3>
       <p>${r.blurb}</p><div class="mis"><b>Your levers:</b> ${r.id==="owner"?"two transfer windows, the stadium, ticket prices, sponsors and creditors."
@@ -499,17 +537,21 @@ function boot(){
   R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
   S=newState();cursor=0;pendingReveal=null;
   buildFixtures();TABLE=blankTable();PREDICT=monteCarlo();
-  recalcSquadRating();myPos();paintHeader();
-  const pr=PREDICT[CLUB];
+  recalcSquadRating();myPos();
+  S.proj0=projectionNow();S.kpi=[];kpiRecord();
+  paintHeader();
+  const pr=S.proj0[CLUB];
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">${ROLE.name.toUpperCase()} · ${CLUB} · JULY</div>
     <h1>${ROLE.mission}</h1><p class="lede">${ROLE.missionLong}</p>
-    <div class="shark"><div><b>FixtureShark pre-season model</b>${sharkRate(S)}
-      Nothing has been played. Simulating the season 4,000 times, the model has ${CLUB} finishing
-      <b>${ord(Math.round(pr.avg))}</b> on average and relegated in <b>${pr.rel}%</b> of them —
-      a projection built on the squad you are left with, not on results. ${RIVALS.map(r=>`${r.n} ${ord(Math.round(PREDICT[r.n].avg))}`).join(" · ")}</div></div>
+    <div class="shark"><div><b>The Shark's target</b>
+      A well-run club with this squad would take <b>${sharkPts().toFixed(1)} points</b>. Beat that.</div></div>
+    <div class="shark"><div><b>The model's projection, as the squad stands</b>
+      Before any decisions: <b>${ord(Math.round(pr.avg))}</b>, relegated in <b>${pr.rel}%</b> of simulated seasons, about
+      ${pr.pts.toFixed(1)} points. The gap between that and the target is what good decisions are worth.</div></div>
+    ${kpiHTML()}
     <h2>Your squad</h2>${squadHTML()}
-    <h2>Predicted table</h2>${predictedTableHTML()}
+    <h2>The model's projection</h2>${predictedTableHTML()}
     <button class="choice primary" id="go" style="margin-top:11px"><span class="t">Begin</span>
       <span class="d">${ROLE.id==="owner"?"The summer window is open":ROLE.id==="manager"?"Pre-season starts Monday":"Six weeks of summer"}</span></button></div>`;
   document.getElementById('go').onclick=()=>{cursor=0;step()};

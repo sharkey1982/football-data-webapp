@@ -49,26 +49,28 @@ function resolveMine(hg,ag,home){
    they sat or what the model made of the tie. */
 /* Team Strength, in the site's own currency: an attack rating and a defence
    rating expressed as expected goals per match, not an opaque 0-100 score. */
-function teamAtt(n){return modelView(()=>teamAtt_(n))}
-function teamAtt_(n){const st=n===CLUB?myStrength()+(S.attMod||0)+FORMATIONS[S.formation||"4-4-2"].att+balanceAdj()[0]:strOf(n);
-  return Math.max(.35,0.95+(st-52)/26)}
-function teamDef(n){return modelView(()=>teamDef_(n))}
-function teamDef_(n){const st=n===CLUB?myStrength()+(S.defMod||0)+FORMATIONS[S.formation||"4-4-2"].def+balanceAdj()[1]:strOf(n);
-  return Math.max(.35,1.55-(st-52)/26)}
+/* Team Strength IS the model's rating: xGF and xGA per game against this
+   league (ratingsNow). There used to be a second formula here, separate from
+   the numbers behind every odds figure -- two definitions of strength is how
+   screens came to contradict each other. */
+function teamAtt(n){return ratingsNow()[n].xgf}
+function teamDef(n){return ratingsNow()[n].xga}
 function strengthTableHTML(){
-  const rows=[CLUB].concat(RIVALS.map(r=>r.n))
-    .map(n=>({n,att:teamAtt(n),def:teamDef(n),t:TABLE[n]}))
-    /* Ordered by the Shark's predicted finish, never by raw strength: a
-       strength-sorted list reads like a league position, and it disagreed
-       with the prediction in 31 of 40 seasons tested. */
-    .sort((a,b)=>(typeof PREDICT!=="undefined"&&PREDICT[a.n]&&PREDICT[b.n])?PREDICT[a.n].avg-PREDICT[b.n].avg:(b.att-b.def)-(a.att-a.def));
-  return `<table class="tbl"><thead><tr><th>Club</th><th class="n">Attack</th><th class="n">Defence</th>
+  /* xGF and xGA rate each club over its whole season (its quality); xPts
+     rates the games LEFT (its run-in), which is what the projection adds
+     to points already won -- so the order and the xPts column agree. */
+  const R=ratingsNow(0),RL=ratingsNow(S.mw),P=projectionNow();
+  const rows=projOrder([CLUB].concat(RIVALS.map(r=>r.n)),P,RL).map(n=>({n,...R[n],xpts:RL[n].xpts,p:P[n],t:TABLE[n]}));
+  const E=expectedFinal(RL);
+  return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">Pts</th><th class="n">xPts</th><th class="n">Proj</th><th class="n">xGF</th><th class="n">xGA</th>
     <th class="n">GF</th><th class="n">GA</th><th class="n">CS</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr class="${r.n===CLUB?'me':''}"><td>${r.n}${youTag(r.n)}</td>
-      <td class="n">${r.att.toFixed(2)}</td><td class="n">${r.def.toFixed(2)}</td>
+    ${rows.map((r,i)=>`<tr class="${r.n===CLUB?'me':''}"><td class="n">${i+1}</td><td>${r.n}${youTag(r.n)}</td><td class="n">${r.t.pts}</td><td class="n">${r.xpts.toFixed(2)}</td><td class="n"><b>${E[r.n].toFixed(1)}</b></td>
+      <td class="n">${r.xgf.toFixed(2)}</td><td class="n">${r.xga.toFixed(2)}</td>
       <td class="n">${r.t.gf}</td><td class="n">${r.t.ga}</td><td class="n">${CLEAN[r.n]||0}</td></tr>`).join('')}
     </tbody></table>
-  <div style="font-size:11px;color:var(--mute);margin-top:4px">Attack and defence as expected goals per match · CS = clean sheets</div>`;
+  <div style="font-size:11px;color:var(--mute);margin-top:4px">Ordered by <b>Proj</b>, the projected final points: points won plus
+    xPts (expected points per game) × games left. xGF and xGA rate each club over the whole season ·
+    Your Team rated as you are running it · CS = clean sheets</div>`;
 }
 /* Fixture heat map: every remaining match rated by opponent strength and
    venue. Exactly the thing the site does, shown here as a row of squares. */
@@ -421,11 +423,13 @@ function renderElsewhere(info,done){
   })();
   function finish(){
     S.mw++;myPos();paintHeader();
+    kpiRecord();
     const endPos=posOf(CLUB),moved=kickOffPos-endPos;
     const line=final
       ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
       :`${moved>0?`Up ${moved} from where the 3pm games found you`:moved<0?`Down ${-moved} from where the 3pm games found you`:"Everyone else's results left you where you were"} — ${ord(endPos)} of six.`;
     document.getElementById('scEnd').innerHTML=`<div class="outcome" style="margin-top:10px;font-size:15px"><b>${line}</b></div>
+      ${kpiHTML()}
       <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
     document.getElementById('mn').onclick=done;
   }
