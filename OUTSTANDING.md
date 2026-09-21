@@ -1467,10 +1467,12 @@ Read-only sweep after a heavy day of changes (game, finance, In the papers,
 two AIs editing the same repo and database). Ranked:
 
 1. **HIGH — the repo cannot rebuild the database.** 342 migrations are
-   recorded in production; 3 exist as files (finance baseline, gameweek
-   digest x2) plus today's admin-only fix. OPEN. Fix: `supabase db dump`
-   (needs the DB password — Chris), or a catalogue-derived baseline built
-   like the finance one.
+   recorded in production; only today's exist as files. IN PROGRESS:
+   .github/workflows/schema-snapshot.yml dumps the public schema (with
+   policies and grants) to supabase/schema/public.sql weekly and on demand.
+   WAITING ON CHRIS: add the SUPABASE_DB_URL secret (Session pooler string)
+   and run it once — Claude's token cannot write secrets (HTTP 403) and has
+   no database password.
 2. **MEDIUM — admin diagnostics callable anonymously.** FIXED
    (migration 20260921120115): get_public_read_audit and
    get_data_integrity_report now admin/service-role only via wrappers over
@@ -1481,8 +1483,13 @@ two AIs editing the same repo and database). Ranked:
 3. **MEDIUM — 16 publicly readable SECURITY DEFINER views** (advisor
    ERROR). Traced through view chains and row filters: nothing leaks today,
    every table reached is fully public. Fragile if a table is made private
-   later. OPEN: switch to security_invoker one view at a time, testing each
-   as anon.
+   later. FIXED for 15 (migration 20260921120732), trialled first in a
+   rolled-back transaction: identical row counts as anon and as a signed-in
+   admin. EXCEPTION kept: team_home_away_adjustment_v1 stays definer -- it is
+   the public face of a private experimental view (switching it broke it in
+   the trial). The advisor will keep listing that one. Also noted:
+   fpl_full_season_projection_health_v1 (signed-in/service only) is still
+   definer -- not public, lower priority.
 4. **LOW — check_auth_user_token_nulls callable by any signed-in user.**
    FIXED in the same migration as 2.
 5. **LOW — FPL pipeline timeouts** (fixtures 51 and 55 on the 20 Sep 21:06
