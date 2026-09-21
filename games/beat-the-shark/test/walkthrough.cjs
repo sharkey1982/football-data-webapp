@@ -47,10 +47,13 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
       const openClaim=(txt(els.app.innerHTML).match(/The Shark predicts (\w+)/)||[])[1];
       run(`ROLE=ROLES.${role};boot()`);scan(`${lvl}/${role} pre-season`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML);
       // ACROSS PAGES: what the opening promises, what pre-season shows, and what the model says must agree.
-      const preClaim=(txt(els.app.innerHTML).match(/The Shark predicts (\w+)/)||[])[1],model=run('ord(sharkPos())');
+      // The prediction is shown on the Your Team page (after the league page).
+      if(els.go&&typeof els.go.onclick==='function'&&/THE LEAGUE/.test(els.app.innerHTML)){els.go.onclick();scan(`${lvl}/${role} your team`,els.app.innerHTML)}
+      const preClaim=(txt(els.app.innerHTML).match(/(\d+(?:st|nd|rd|th)) Expected finish/)||[])[1],model=run('ord(sharkPos())');
       // The design: the Shark predicts 3rd (Chris). Close to the top, but 3rd.
       if(model!=="3rd")problems.push(`${lvl}/${role}/${seed}: the Shark predicts ${model}, not 3rd`);
-      if(openClaim&&preClaim&&(openClaim!==preClaim||preClaim!==model))problems.push(`${lvl}/${role}/${seed}: opening says ${openClaim}, pre-season says ${preClaim}, model says ${model}`);}
+      if(!preClaim)problems.push(`${lvl}/${role}/${seed}: the Your Team page shows no expected finish`);
+      if((openClaim&&openClaim!==preClaim)||(preClaim&&preClaim!==model))problems.push(`${lvl}/${role}/${seed}: opening says ${openClaim}, pre-season says ${preClaim}, model says ${model}`);}
   catch(e){crashes.push(`${lvl}/${role}/${seed} start: ${e.message}`);continue}
   const plan=run('PLAN');
   for(let i=0;i<plan.length;i++){

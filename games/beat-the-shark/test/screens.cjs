@@ -177,9 +177,10 @@ run(`SPEED=null;LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=0;S.pendingOppFm
 ok("live commentary shows speed controls and Skip to full time", /data-speed="slow"/.test(app())&&/Skip to full time/.test(app()));
 // 17b. Beginners: an easy story decision before the data-heavy ones
 run(`LEVEL="beginner";ROLE=ROLES.manager;boot()`);
-ok("Beginner season opens with the press conference (a story decision)", run(`PLAN[0]`)==="presser");
-run(`LEVEL="intermediate";ROLE=ROLES.manager;boot()`);
-ok("other levels keep the original order", run(`PLAN[0]`)==="special1");
+ok("the manager's season opens with the first match (after the league and your-team pages)", run(`PLAN[0]`)==="match");
+run(`LEVEL="intermediate";ROLE=ROLES.owner;boot()`);
+ok("the owner keeps the original order (the summer window first)", run(`PLAN[0]`)==="special1");
+run(`ROLE=ROLES.manager`);
 // 18. READING BUDGET -- a ratchet. Measured 2026-09-21: a beginner's season
 // is ~4,900 words (~19 min of reading) for a game billed as "a season in
 // five minutes". These caps stop any screen, or the season, growing from
@@ -200,7 +201,9 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // ~575 -> 258 words; pre-season 360 -> 56; a beginner's 4th team sheet 457
 // -> 274; season reading time ~22 -> ~15 min. Target: ~7 min of reading (+
 // ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
-const BUDGET={screen:205,beginnerTeamSheet:200,opening:40,preseason:55,minutes:12}; // now counting choice text too (it was missed before)
+// screen/team sheet +25 (2026-09-21): the them-v-you table on the team
+// sheet, requested by Chris -- a small table, glanced at.
+const BUDGET={screen:230,beginnerTeamSheet:225,opening:40,preseason:55,minutes:12}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);
@@ -239,5 +242,19 @@ ok("in the red at the end of a gameweek, the bank forces a sale -- and the resul
 run(`boot();S.cash=-400;S.deducted=false;const p0=TABLE[CLUB].pts;globalThis.__p0=p0;renderElsewhere({wk:0,final:false},()=>{})`);
 ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(app())&&run("S.deducted")===true);
 run(`LEVEL="intermediate"`);
+// 20. THE NEW OPENING SEQUENCE (Chris): mission; the league on zero; your
+// team's key numbers; the opening match v the weakest club with them-v-you.
+run(`SEED="SOC-S07";LEVEL="beginner";chooseRole()`);
+ok("opening: 'Your mission: Win the league!', and Manager / Owner side by side", /Your mission:<br>Win the league!/.test(app())&&/grid-template-columns:1fr 1fr/.test(app())&&/data-r="manager"/.test(app())&&/data-r="owner"/.test(app()));
+run(`ROLE=ROLES.manager;boot()`);
+ok("then the league, every club on zero, and Begin", /THE LEAGUE/.test(app())&&/class="tbl"/.test(app())&&!/<td class="n">[1-9]\d*<\/td><\/tr>/.test(app())&&/>Begin</.test(app()));
+els.go.onclick();
+const ti=app();
+ok("then your team: expected finish and bank balance, big", new RegExp(`<div class="bigstat">${run("ord(sharkPos())")}</div>`).test(ti)&&ti.includes(run("fmtMoney(S.cash)"))&&/Expected finish/.test(ti)&&/In the bank/.test(ti));
+ok("...and, smaller, goals-for and clean-sheet ranks, team health and squad quality", /Goals for/.test(ti)&&/Clean sheets/.test(ti)&&/Team health/.test(ti)&&/Squad quality/.test(ti));
+const weakest=run("RIVALS.slice().sort((a,b)=>a.str-b.str)[0].n");
+ok("...and the first match is against the weakest club", ti.includes(`First match: ${weakest}`));
+els.go.onclick();
+ok("the first match shows their stats against yours, then the shape question", /<th class="n">You<\/th>/.test(app())&&app().includes(weakest)&&/Goals for \(a game\)/.test(app())&&/Go for it|Pick your shape|One place/.test(app()));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

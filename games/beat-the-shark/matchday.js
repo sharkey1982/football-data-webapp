@@ -321,6 +321,20 @@ function beginnerDecision(opp,home){
   recalcSquadRating();
   return{kind,...dec};
 }
+/* Them v you, before the shape question: the same model numbers as
+   everywhere else, better figure on each row highlighted. */
+function oppCompareHTML(opp){
+  const R=ratingsNow(0),cs=n=>Math.exp(-R[n].xga),q=n=>n===CLUB?S.squad:strOf(n);
+  const rows=[
+    ["Goals for (a game)",R[opp].xgf,R[CLUB].xgf,v=>v.toFixed(1),true],
+    ["Goals against (a game)",R[opp].xga,R[CLUB].xga,v=>v.toFixed(1),false],
+    ["Clean sheets",cs(opp),cs(CLUB),v=>Math.round(v*100)+"%",true],
+    ["Squad quality",q(opp),q(CLUB),v=>Math.round(v),true]];
+  const cell=(v,other,fmt,hi)=>{const better=hi?v>other+1e-9:v<other-1e-9;
+    return `<td class="n" style="${better?'color:var(--good);font-weight:700':''}">${fmt(v)}</td>`};
+  return `<table class="tbl" style="margin:8px 0"><thead><tr><th></th><th class="n">${opp}</th><th class="n">You</th></tr></thead><tbody>
+    ${rows.map(([l,t,y,f,hi])=>`<tr><td>${l}</td>${cell(t,y,f,hi)}${cell(y,t,f,hi)}</tr>`).join('')}</tbody></table>`;
+}
 function renderBeginnerSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
@@ -332,6 +346,7 @@ function renderBeginnerSheet(done){
     document.getElementById('app').innerHTML=`<div class="card">
       <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
       <h1>${home?`${opp}, at home`:`Away at ${opp}`}</h1>
+      ${oppCompareHTML(opp)}
       <h2 style="margin-top:6px">${title}</h2>
       <p class="small">${dec.scout||idea}</p>
       ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
@@ -357,6 +372,7 @@ function renderTeamSheet(done){
     document.getElementById('app').innerHTML=`<div class="card">
       <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
       <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
+      ${oppCompareHTML(opp)}
       <p class="small">They are lining up <b>${S.pendingOppFm}</b>. ${mgr?(can("rotation")?"Pick your shape and your eleven.":"Pick your shape; the game picks your best eleven for it."):"The manager has picked the side."}</p>
       ${(()=>{const f=newThisMatch();return f?`<div class="tip" style="border-left-color:var(--amber)"><b>New this match · ${NEW_IDEA[f][0]}</b>${NEW_IDEA[f][1]}</div>`:""})()}
       ${flash?`<div class="outcome" style="border-left-color:var(--amber)">${flash}</div>`:""}
