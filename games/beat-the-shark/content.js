@@ -55,6 +55,25 @@ function spendable(){return S.janBudget!=null&&ROLE.id==="manager"?Math.min(S.ja
 // wages), so transfer prices are a third of the ten-game season's.
 const priceScale=()=>NEUTRAL?1/3:1;
 function saleFee(p){return Math.round((p.rt-38)*13*priceScale())}
+/* THE WINDOW, SIMPLY (Chris): a choice between two players for your weakest
+   position -- a better one who costs more, or a cheaper one -- with the fee,
+   the wages, the cash left and the change in squad quality for each. */
+function signingSpec(){
+  const xi=currentXI().map(x=>({p:S.squadList[x.i],slot:x.slot})).filter(x=>x.p&&x.p.pos!=="GK");
+  const weak=xi.sort((a,b)=>a.p.rt-b.p.rt)[0],pos=weak.p.pos;
+  const names=pos==="FW"?["Late Bloomer","Loan Ranger"]:pos==="MF"?["Metronome","Bargain Bin"]:["Stopper","Free Transfer"];
+  const mk=(nm,rt,feeX,wage)=>({pos,nm,rt,rtf:rt,fee:Math.round((rt-40)*feeX*priceScale()),wage,fit:94,out:0,goals:0,gone:false,att:weak.p.att,def:weak.p.def,line:"new signing",quirk:""});
+  const A=mk(names[0],weak.p.rt+9,13,14),B=mk(names[1],weak.p.rt+4,6,6);
+  // to one decimal: rounded to whole numbers, both signings showed the same change
+  const quality=t=>{const was=S.squadList.length;S.squadList.push(t);recalcSquadRating();const q=xiStats().q;S.squadList.length=was;recalcSquadRating();return q.toFixed(1)};
+  const nowQ=xiStats().q.toFixed(1);
+  const opt=t=>({t:`Sign ${t.nm} (${pos}, Q${t.rt})`,
+    d:`${fmtMoney(t.fee)} now · wages +${fmtMoney(t.wage)} a week · ${fmtMoney(S.cash-t.fee)} left · squad quality ${nowQ} → ${quality(t)}`,
+    fx:{cash:-t.fee},after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));recalcSquadRating()},
+    out:`${t.nm} signs. ${S.cash-t.fee<0?"You're in the red: the bank will be in touch.":""}`});
+  return{title:"Freshen up the squad",lede:`Two ${pos==="FW"?"strikers":pos==="MF"?"midfielders":"defenders"} are available. ${fmtMoney(S.cash)} in the bank; wages are the bigger cost.`,
+    choices:[opt(A),opt(B)]};
+}
 function knockSpec(){
   const xi=currentXI().map(x=>S.squadList[x.i]).filter(p=>p&&p.pos!=="GK");
   const p=xi.sort((a,b)=>b.rt-a.rt)[0];const i=S.squadList.indexOf(p);

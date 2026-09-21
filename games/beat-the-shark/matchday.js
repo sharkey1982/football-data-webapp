@@ -266,7 +266,8 @@ function newThisMatch(){if(ROLE.id!=="manager"||LEVEL!=="beginner")return null;
 // lesson now lives in its half-time dilemma.
 const BEGINNER_DECISION_ORDER=["formation","formation","setpieces","selection","formation"];
 // ...and one half-time decision every game, alternating.
-const BEGINNER_HT=["shape","sub","shape","sub","shape"];
+// Gameweek 1 has NO half-time decision (Chris: the first game should be simple).
+const BEGINNER_HT=[null,"sub","shape","sub","shape"];
 const BEGINNER_IDEA={
   formation:["Pick your shape","Each shape trades attack for defence. Pick the one that suits this opponent."],
   selection:["One place in the side","The better player, or the fresher one? Tired players play worse and get injured more."],
@@ -344,6 +345,16 @@ function oppCompareHTML(opp){
   return `<table class="tbl" style="margin:8px 0"><thead><tr><th></th><th class="n">${opp}</th><th class="n">You</th></tr></thead><tbody>
     ${rows.map(([l,t,y,f,hi])=>`<tr><td>${l}</td>${cell(t,y,f,hi)}${cell(y,t,f,hi)}</tr>`).join('')}</tbody></table>`;
 }
+/* What an option does to THIS match, next to the other option: your
+   expected goals and theirs (Chris: show the decision's impact, as the
+   half-time cards do). Goals, not win % -- Chris found win % unhelpful. */
+function impactHTML(o,other){
+  const arrow=(v,w,goodUp)=>{const d=v-w;if(Math.abs(d)<.05)return"";const good=goodUp?d>0:d<0;
+    return ` <span style="color:${good?'var(--good)':'var(--bad)'}">${d>0?'\u25b2':'\u25bc'}</span>`};
+  return `<span style="display:flex;gap:14px;margin-top:6px;font-family:var(--mono);font-size:12px">
+    <span>You ${o.p.xgf.toFixed(1)} xG${arrow(o.p.xgf,other.p.xgf,true)}</span>
+    <span>Them ${o.p.xga.toFixed(1)} xG${arrow(o.p.xga,other.p.xga,false)}</span></span>`;
+}
 function renderBeginnerSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
@@ -360,7 +371,8 @@ function renderBeginnerSheet(done){
       <p class="small">${dec.scout||idea}</p>
       ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
         style="${i===chosen?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span></button>`).join('')}
+        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span>
+        ${impactHTML(o,dec.options[1-i])}</button>`).join('')}
       <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button>
       ${squadHTML({noBench:true})}</div>`;
     document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{chosen=+b.dataset.bc;dec.options[chosen].set();draw()});
@@ -526,7 +538,8 @@ function renderMatch(done,quick){
     // A decision is never skipped: stop skipping here, and resume at the chosen speed.
     // Weeks with no pre-match decision get ONE simple half-time choice: a sub.
     if(ROLE.id==="manager"&&LEVEL==="beginner"){skipping=false;
-      return BEGINNER_HT[Math.min(S.mw,BEGINNER_HT.length-1)]==="sub"?subHalfTime(second,true):shapeHalfTime(second,mine,theirs)}
+      const ht=BEGINNER_HT[Math.min(S.mw,BEGINNER_HT.length-1)];
+      return !ht?second():ht==="sub"?subHalfTime(second,true):shapeHalfTime(second,mine,theirs)}
     if(ROLE.id==="manager"&&(quick||S.mw===1)){skipping=false;return subHalfTime(second)}
     // Beginners made their pre-match decision; no half-time one on top.
     if(ROLE.id==="manager"&&LEVEL==="beginner")return second();

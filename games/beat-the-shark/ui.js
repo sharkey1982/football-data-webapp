@@ -90,7 +90,7 @@ function step(){
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
   if(b==="knock")return renderSpec(knockSpec(),"THE PHYSIO ROOM",next);
-  if(b==="window"){S.janBudget=null;return renderWindow("freshen",next)}
+  if(b==="window")return renderSpec(Object.assign(signingSpec(),{keepFull:true,fullChoices:true}),"AFTER GAMEWEEK 3 · TRANSFER WINDOW",next);
   if(b==="bank")return renderSpec(bankSpec(),"THE BANK HAS CALLED",next);
   if(b==="physio")return renderPhysio();
   if(b==="presser")return renderSpec(presserSpec(),"FRIDAY · PRESS CONFERENCE",next);
@@ -403,7 +403,8 @@ function renderSpec(spec,chip,after){
   const box=document.getElementById('ch');
   spec.choices.forEach(c=>{
     const b=document.createElement('button');b.className='choice';
-    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${beginner?briefChoice(c.d):c.d}</span>`:''}`;
+    // (fullChoices: a decision whose numbers ARE the choice -- shown in full)
+    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${beginner&&!spec.fullChoices?briefChoice(c.d):c.d}</span>`:''}`;
     b.onclick=()=>{
       if(c.ask){pendingReveal=c.reveal();return renderSpec(spec,chip,after)}
       pendingReveal=null;if(c.after)c.after();
@@ -435,7 +436,7 @@ function renderSpec(spec,chip,after){
     };box.appendChild(b);
   });
   // The full descriptions, one tap away, for anyone who wants them.
-  if(beginner&&spec.choices.some(c=>c.d&&briefChoice(c.d)!==String(c.d).replace(/<[^>]+>/g,"").trim())){
+  if(beginner&&!spec.fullChoices&&spec.choices.some(c=>c.d&&briefChoice(c.d)!==String(c.d).replace(/<[^>]+>/g,"").trim())){
     const more=document.createElement('div');
     more.innerHTML=why(spec.choices.filter(c=>c.d).map(c=>`<p class="small"><b>${c.t}</b> — ${c.d}</p>`).join(''),"More about these options");
     box.appendChild(more);

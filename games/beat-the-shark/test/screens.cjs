@@ -121,7 +121,8 @@ ok("cash crisis shows xGF and clean sheets for each option", /Keep both/.test(cr
 ok("cash crisis puts the heat map beside the decision", /Goals for/.test(cr)&&/Clean sheet/.test(cr));
 // 11. the owner's header shows cash; the score is in points
 run(`paintHeader()`);
-ok("owner's header shows cash and the Shark's points", /Cash/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
+// (this once "passed" by matching the CSS class "pts", not visible text)
+ok("the header shows cash, big", /Cash/.test(els.hTwo.innerHTML)&&/class="v cashv/.test(els.hTwo.innerHTML));
 // 12. the team sheet shows this match's numbers live
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
@@ -276,9 +277,9 @@ els.go.onclick();els.go.onclick(); // your team, then the first match
 const p4=app();
 ok("page 4: Kick off sits right under the choice, the pitch below it, and no bench",
   p4.indexOf('id="kick"')<p4.indexOf('<!--SQ-->')&&p4.indexOf('data-bc=')<p4.indexOf('id="kick"')&&!/class="benchh"/.test(p4));
+delete els.htBox;delete els.toTable; // fresh: the harness keeps elements between tests (a stale box once faked a pass here)
 els.kick.onclick();drain();
-ok("every Beginner game has a half-time decision -- Gameweek 1: push on or hold", /Push on or hold\?/.test(els.htBox.innerHTML));
-els.htHold.onclick();drain();
+ok("Gameweek 1 has NO half-time decision: straight through to full time", !(els.htBox&&els.htBox.innerHTML)&&!!(els.toTable&&els.toTable.onclick));
 els.toTable.onclick();
 ok("page 6: the position at the top updates once your result is in", /\d(st|nd|rd|th)<span class="sub">POSITION/.test(els.hScore.innerHTML));
 els.toOthers.onclick();drain();
@@ -355,5 +356,24 @@ ok("one sale price per player, the same every time it's asked", run(`saleFee(S.s
 // the bank
 delete els.ch;run(`renderSpec(bankSpec(),"T",()=>{})`);
 ok("the bank's call: sell a named player at his one price, or ride it out", /The bank has called/.test(app())&&/Sell .+ for £\d+k/.test(els.ch.children[0].innerHTML)&&/Ride it out/.test(els.ch.children[1].innerHTML));
+// 24. Chris's feedback on the Beginner build (2026-09-21)
+run(`SEED="FB-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.cash=100;S._cashSeen=100;S._cashDelta=0;paintHeader()`);
+run(`S.cash=77;paintHeader()`);
+ok("cash at the top: big, with its latest change in red", /£77k/.test(els.hTwo.innerHTML)&&/class="cashd down">▼ −£23k/.test(els.hTwo.innerHTML));
+run(`paintHeader()`);
+ok("...and the change stays visible until cash moves again", /▼ −£23k/.test(els.hTwo.innerHTML));
+run(`S.cash=90;paintHeader()`);
+ok("...then shows the next change, in green when it's up", /class="cashd up">▲ \+£13k/.test(els.hTwo.innerHTML));
+// pre-match decisions show their impact on this match
+els.go.onclick();els.go.onclick();
+ok("pre-match options show their impact: your xG and theirs for this match, compared with the other option",
+  (app().match(/You \d\.\d xG/g)||[]).length===2&&(app().match(/Them \d\.\d xG/g)||[]).length===2&&/[▲▼]/.test(app())&&!/win chance/i.test(app()));
+// the window: a simple choice between two players
+delete els.ch;run(`S.cash=97;renderSpec(Object.assign(signingSpec(),{keepFull:true,fullChoices:true}),"T",()=>{})`);
+const opts=els.ch.children.map(c=>c.innerHTML.replace(/<[^>]+>/g,' '));
+const num=(t,re)=>+((t.match(re)||[])[1]);
+ok("the window: exactly two players, each with fee, wages, cash left and squad quality", opts.length===2&&opts.every(t=>/£\d+k now/.test(t)&&/wages \+£\d+k a week/.test(t)&&/£-?\d+k left/.test(t)&&/squad quality [\d.]+ → [\d.]+/.test(t)));
+ok("...one better, one with the cash advantage",
+  num(opts[0],/→ ([\d.]+)/)>num(opts[1],/→ ([\d.]+)/)&&num(opts[1],/£(-?\d+)k left/)>num(opts[0],/£(-?\d+)k left/), opts.map(t=>t.replace(/\s+/g,' ').trim()).join(' | '));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

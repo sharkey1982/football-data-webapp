@@ -723,8 +723,15 @@ function paintHeader(){
   const {pred,par,pts,diff,total}=scoreParts();
   // The top of the screen: league position and cash. Nothing else (Chris).
   document.getElementById('hScore').innerHTML=`${TABLE[CLUB].p?ord(S.pos):"—"}<span class="sub">POSITION</span>`;
-  document.getElementById('hTwo').innerHTML=`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
-      <div class="pts">${S.cash<0?"in the red: the bank will sell a player":""}</div></div>`;
+  // Cash: big, with its LATEST change in green or red (Chris). The change
+  // persists until cash moves again, so a wage bill or a fee stays visible.
+  if(S._cashSeen==null)S._cashSeen=S.cash;
+  if(S.cash!==S._cashSeen){S._cashDelta=S.cash-S._cashSeen;S._cashSeen=S.cash}
+  const dl=S._cashDelta||0;
+  document.getElementById('hTwo').innerHTML=`<div class="two cash"><div class="k">Cash</div>
+      <div class="v cashv${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
+      ${dl?`<div class="cashd ${dl>0?'up':'down'}">${dl>0?'\u25b2 +':'\u25bc \u2212'}${fmtMoney(Math.abs(dl))}</div>`:''}
+      ${S.cash<0?`<div class="pts">in the red: the bank will sell a player</div>`:''}</div>`;
   const tr=document.getElementById('hTrend');tr.className="trend fl";tr.textContent="";
   const left=MW-S.mw;
   let note=S.mw===0?"Pre-season · nothing played":left===0?"Season over":left<=2?`${left} to play — the run-in`:S.mw===5?"Halfway":`${left} matches left`;
