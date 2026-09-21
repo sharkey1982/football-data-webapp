@@ -11,6 +11,12 @@ const makeBuilder = (rows: unknown[]) => {
   b.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) => resolve({ data: rows, error: null });
   return b;
 };
+vi.mock('../lib/modelApi', async () => {
+  const actual = await vi.importActual<typeof import('../lib/modelApi')>('../lib/modelApi');
+  return { ...actual, getTeamStrengthSummary: vi.fn(async () => strength) };
+});
+let strength: { rows: { canonical_name: string; defence_strength: number }[] } = { rows: [] };
+
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: (t: string) => makeBuilder(tables[t] ?? []),
@@ -21,7 +27,7 @@ vi.mock('../lib/supabase', () => ({
 import {
   upcomingGameweek, tiedWithFirst,
   getLeagueGoalsTrivia, getModelHitRateTrivia, getScoringRuleTrivia, getInjuryListTrivia,
-  getComebackTrivia, getPriceRiskTrivia, getSetPieceTrivia, getTopFplPickTrivia, getMostCommonScorelineTrivia,
+  getPriceRiskTrivia, getCleanSheetTrivia, getSetPieceTrivia, getTopFplPickTrivia, getMostCommonScorelineTrivia,
 } from '../lib/landingApi';
 
 beforeEach(() => {
@@ -61,22 +67,6 @@ describe('ties', () => {
     expect(tiedWithFirst([47.4, 47.4, 47.4, 40.8])).toEqual([0, 1, 2]);
     expect(tiedWithFirst([5, 4, 4])).toEqual([0]);
     expect(tiedWithFirst([])).toEqual([]);
-  });
-});
-
-describe('the comeback question', () => {
-  it('has every option correct, each with its own story, and no Premier League giveaway', async () => {
-    rpcs.get_biggest_comebacks = [
-      { home: 'Leicester', away: 'Southampton', ht_home: 3, ht_away: 0, ft_home: 3, ft_away: 4, league_code: 'E1', match_date: '2026-02-10', deficit: 3 },
-      { home: 'Bournemouth', away: 'Luton', ht_home: 0, ht_away: 3, ft_home: 4, ft_away: 3, league_code: 'E0', match_date: '2024-03-13', deficit: 3 },
-    ];
-    const f = (await getComebackTrivia())!;
-    expect(f.question).not.toMatch(/Premier League/);
-    expect(f.correct).toHaveLength(f.options.length);
-    expect(correctLabels(f)).toEqual(['Bournemouth', 'Southampton']);
-    const story = (club: string) => f.optionDetails![f.options.indexOf(club)];
-    expect(story('Southampton')).toBe('0\u20133 down at Leicester, won 4\u20133 \u00b7 Championship, Feb 2026');
-    expect(story('Bournemouth')).toBe('0\u20133 down at home to Luton, won 4\u20133 \u00b7 Premier League, Mar 2024');
   });
 });
 
@@ -166,5 +156,28 @@ describe('one question per page, from that page\u2019s own data', () => {
     const f = (await getInjuryListTrivia())!;
     expect(correctLabels(f)).toEqual(['Coventry', 'Hull']);
     expect(f.link?.to).toBe('/fpl/injuries');
+  });
+});
+
+describe('Team Strength: the clean-sheet question', () => {
+  it('uses the best defence, derives the chance from the page\u2019s goals-against figure, and links to Team Strength', async () => {
+    // goals against = exp(-defence_strength); P(clean sheet) = exp(-goals against)
+    strength = { rows: [
+      { canonical_name: 'Chelsea', defence_strength: 0.1 },
+      { canonical_name: 'Arsenal', defence_strength: 0.25 }, // GA 0.78 -> CS 46%
+    ] } as never;
+    const f = (await getCleanSheetTrivia())!;
+    expect(f.question).toMatch(/expect Arsenal to keep a clean sheet/);
+    expect(correctLabels(f)).toEqual(['About 50%']);
+    expect(f.explanation).toMatch(/^About 46%/);
+    expect(f.explanation).toMatch(/0\.78 goals a game/);
+    expect(f.link.to).toBe('/team-strength');
+  });
+});
+
+describe('every question leads somewhere', () => {
+  it('the hubs only contain questions with a link (also enforced by the type)', async () => {
+    const { getFootballTrivia, getFplTrivia } = await import('../lib/landingApi');
+    for (const f of [...(await getFootballTrivia()), ...(await getFplTrivia())]) expect(f.link?.to).toMatch(/^\//);
   });
 });

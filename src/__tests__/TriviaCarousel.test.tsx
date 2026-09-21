@@ -1,5 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { recordVisit, _resetVisitedPages } from '../lib/visitedPages';
 import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -8,8 +9,8 @@ import type { TriviaFact } from '../lib/landingApi';
 
 const facts: TriviaFact[] = [
   { question: 'Q1?', options: ['A', 'B', 'C'], correct: [1], explanation: 'B was right.', optionDetails: ['A: 10%', 'B: 30%', 'C: 20%'], link: { to: '/results-data', label: 'Explore every result' } },
-  { question: 'Q2?', options: ['D', 'E', 'F'], correct: [0], explanation: 'D was right.' },
-  { question: 'Q3?', options: ['G', 'H', 'I'], correct: [2], explanation: 'I was right.' },
+  { question: 'Q2?', options: ['D', 'E', 'F'], correct: [0], explanation: 'D was right.', link: { to: '/table', label: 'Table' } },
+  { question: 'Q3?', options: ['G', 'H', 'I'], correct: [2], explanation: 'I was right.', link: { to: '/fpl/value', label: 'Value' } },
 ];
 
 // The carousel renders router Links (to the page holding each answer).
@@ -24,6 +25,15 @@ function render(ui: React.ReactElement) {
 // timers internally.
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
+  _resetVisitedPages();
+});
+
+// The carousel now shuffles (unvisited pages first, random within). These
+// tests pin Math.random so Fisher-Yates keeps the given order and they can
+// test everything else; the ordering itself is tested at the end.
+beforeEach(() => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.9999);
 });
 
 describe('TriviaCarousel', () => {
@@ -100,7 +110,7 @@ describe('TriviaCarousel', () => {
   });
 
   it('with a genuine tie, every tied option is correct and picking any of them counts as right', () => {
-    const tie: TriviaFact[] = [{ question: 'Tie?', options: ['X', 'Y', 'Z'], correct: [0, 2], explanation: 'X and Z tie.' }];
+    const tie: TriviaFact[] = [{ question: 'Tie?', options: ['X', 'Y', 'Z'], correct: [0, 2], explanation: 'X and Z tie.', link: { to: '/a', label: 'A' } }];
     render(<TriviaCarousel facts={tie} />);
     fireEvent.click(screen.getByRole('button', { name: /^Z/ }));
     expect(screen.getByText('Right')).toBeInTheDocument();
@@ -110,7 +120,7 @@ describe('TriviaCarousel', () => {
   });
 
   it('when every option is correct, says so', () => {
-    const all: TriviaFact[] = [{ question: 'All?', options: ['P', 'Q'], correct: [0, 1], explanation: 'All of them.' }];
+    const all: TriviaFact[] = [{ question: 'All?', options: ['P', 'Q'], correct: [0, 1], explanation: 'All of them.', link: { to: '/b', label: 'B' } }];
     render(<TriviaCarousel facts={all} />);
     fireEvent.click(screen.getByRole('button', { name: /^Q/ }));
     expect(screen.getByText(/so was every other option/)).toBeInTheDocument();
@@ -140,5 +150,11 @@ describe('TriviaCarousel', () => {
   it('renders nothing at all with zero facts, rather than an empty shell', () => {
     const { container } = render(<TriviaCarousel facts={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('leads with questions about pages not yet visited this session', () => {
+    recordVisit('/results-data'); // Q1's page
+    render(<TriviaCarousel facts={facts} />);
+    expect(screen.getByText('Q2?')).toBeInTheDocument(); // an unvisited page's question comes first
   });
 });

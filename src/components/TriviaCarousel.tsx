@@ -18,10 +18,15 @@
 // ============================================================================
 
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { TriviaFact } from '../lib/landingApi';
+import { getVisitedPages, orderForDiscovery } from '../lib/visitedPages';
 
-export function TriviaCarousel({ facts }: { facts: TriviaFact[] }) {
+// Trivia v3: a subtle NAVIGATION tool. One question per page; each load
+// shows them in a random order, questions about pages this browser hasn't
+// visited yet first -- so it keeps pointing people somewhere new.
+export function TriviaCarousel({ facts: incoming }: { facts: TriviaFact[] }) {
+  const facts = useMemo(() => orderForDiscovery(incoming, getVisitedPages()), [incoming]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
 
