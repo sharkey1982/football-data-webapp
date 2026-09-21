@@ -1492,10 +1492,20 @@ two AIs editing the same repo and database). Ranked:
    definer -- not public, lower priority.
 4. **LOW — check_auth_user_token_nulls callable by any signed-in user.**
    FIXED in the same migration as 2.
-5. **LOW — FPL pipeline timeouts** (fixtures 51 and 55 on the 20 Sep 21:06
-   run). Retries succeeded; all 22 upcoming fixtures refreshed. The Data
-   Health report shows "fpl refresh failures (48h) = FAIL" and "gameweek
-   history reconciles = WARN" — investigate both.
+5. **LOW — pipeline health. INVESTIGATED, no fix needed.**
+   - "fpl refresh failures (48h) = FAIL": cron job fpl-refresh-6-hourly
+     failed at 19 Sep 18:17 and 20 Sep 00:17 UTC with "no unique or
+     exclusion constraint matching the ON CONFLICT specification" on insert
+     into fpl_players — during the 19–20 Sep table work (backups taken
+     then). Every run since (6 in a row) succeeded. Self-clears once the
+     failures age out of the 48h window. Cron failures never reach
+     fpl_ingestion_runs, which is why only the health check saw them.
+   - Timeouts on fixtures 51/55 (20 Sep 21:06 GitHub run): retries
+     succeeded, all 22 upcoming fixtures refreshed. WATCH: if they recur,
+     optimise the refresh query (a function-level statement_timeout would
+     not help — the timeout applies to the outer REST call).
+   - "gameweek history reconciles = WARN": 1 player in 2024–25. Historical;
+     low priority.
 6. **LOW — leaked-password protection off.** Dashboard toggle — Chris.
 7. **HOUSEKEEPING** — 61 functions without a pinned search_path; unaccent
    in public; ~160 lint warnings (101 no-explicit-any, 38
