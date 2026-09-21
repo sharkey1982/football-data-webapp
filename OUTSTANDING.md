@@ -1461,6 +1461,47 @@ Full brief retained separately. Position taken 2026-09-20:
 
 ---
 
+## AUDIT 2026-09-21 — findings and status
+
+Read-only sweep after a heavy day of changes (game, finance, In the papers,
+two AIs editing the same repo and database). Ranked:
+
+1. **HIGH — the repo cannot rebuild the database.** 342 migrations are
+   recorded in production; 3 exist as files (finance baseline, gameweek
+   digest x2) plus today's admin-only fix. OPEN. Fix: `supabase db dump`
+   (needs the DB password — Chris), or a catalogue-derived baseline built
+   like the finance one.
+2. **MEDIUM — admin diagnostics callable anonymously.** FIXED
+   (migration 20260921120115): get_public_read_audit and
+   get_data_integrity_report now admin/service-role only via wrappers over
+   renamed _impl originals. Tested as anon (no execute), non-admin
+   (42501 "admin only") and admin (all three work, Data Health unaffected).
+   The advisor still lists the wrappers as "callable by signed-in users" —
+   expected: it sees the grant, not the admin check inside. Accepted.
+3. **MEDIUM — 16 publicly readable SECURITY DEFINER views** (advisor
+   ERROR). Traced through view chains and row filters: nothing leaks today,
+   every table reached is fully public. Fragile if a table is made private
+   later. OPEN: switch to security_invoker one view at a time, testing each
+   as anon.
+4. **LOW — check_auth_user_token_nulls callable by any signed-in user.**
+   FIXED in the same migration as 2.
+5. **LOW — FPL pipeline timeouts** (fixtures 51 and 55 on the 20 Sep 21:06
+   run). Retries succeeded; all 22 upcoming fixtures refreshed. The Data
+   Health report shows "fpl refresh failures (48h) = FAIL" and "gameweek
+   history reconciles = WARN" — investigate both.
+6. **LOW — leaked-password protection off.** Dashboard toggle — Chris.
+7. **HOUSEKEEPING** — 61 functions without a pinned search_path; unaccent
+   in public; ~160 lint warnings (101 no-explicit-any, 38
+   set-state-in-effect); 2 unused eslint-disable comments.
+8. **PROCESS** — PRs for anything touching the database or shared files;
+   every migration saved as a file under its RECORDED version (the MCP
+   records its own timestamp — rename the file to match).
+
+Confirmed clean: private finance and gameweek tables still private; 0
+production npm vulnerabilities; 278 tests; no stale Newsroom/Transfer
+Window names; upcoming projections fresh. Not yet checked: phone layout of
+the finance pages and In the papers (needs a human eye).
+
 ## PRODUCT: TRIVIA — BACKLOG (from Chris, 2026-09-21)
 
 **Where it lives:** questions are built in `src/lib/landingApi.ts` (one
