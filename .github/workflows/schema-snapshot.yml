@@ -1,0 +1,96 @@
+# ============================================================================
+# Database schema snapshot (audit 2026-09-21, finding 1).
+#
+# Production has 342 recorded migrations but the repo held only a handful as
+# files, so the repository could not rebuild the database. This workflow
+# dumps the live `public` schema -- tables, views, functions, triggers, RLS
+# policies AND grants -- to supabase/schema/public.sql and commits it when it
+# changes. Weekly and on demand.
+#
+# A SNAPSHOT, not a migration: it records what the database IS, so it can be
+# rebuilt or diffed. It is not replayed as part of the migration history.
+#
+# Needs one secret, SUPABASE_DB_URL: the SESSION POOLER connection string
+# from the Supabase dashboard (Connect -> Session pooler), with the password
+# filled in. The pooler matters -- the direct connection is IPv6-only and
+# GitHub's runners are IPv4.
+#
+# Choices:
+# - pg_dump 17 to match the server (a mismatched pg_dump refuses to run).
+# - Privileges ARE kept: who may read or call what is exactly the part that
+#   was hard to reconstruct during the security review.
+# - pg_dump 17.6+ writes \restrict/\unrestrict lines with a random key each
+#   run; they are stripped so an unchanged schema produces no commit.
+# - Commits carry [skip netlify]: a schema file needs no site rebuild.
+# ============================================================================
+name: Database schema snapshot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * 1'   # Mondays 03:30 UTC
+
+permissions:
+  contents: write
+
+concurrency:
+  group: schema-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secret is set
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL is not set -- add the Session pooler connection string as a repository secret."
+            exit 1
+          fi
+
+      - name: Install pg_dump 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Dump the public schema
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          mkdir -p supabase/schema
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" --schema-only --schema=public --no-comments \
+            | grep -v -E '^\\(restrict|unrestrict) ' \
+            | grep -v -E '^-- Dumped (from|by) ' \
+            > supabase/schema/public.sql
+          echo "Objects captured:"
+          echo "  tables:    $(grep -c '^CREATE TABLE' supabase/schema/public.sql)"
+          echo "  views:     $(grep -c '^CREATE VIEW' supabase/schema/public.sql)"
+          echo "  functions: $(grep -c '^CREATE FUNCTION' supabase/schema/public.sql)"
+          echo "  policies:  $(grep -c '^CREATE POLICY' supabase/schema/public.sql)"
+          echo "  grants:    $(grep -c '^GRANT' supabase/schema/public.sql)"
+          # A near-empty dump means a failed connection, not an empty schema.
+          if [ "$(grep -c '^CREATE TABLE' supabase/schema/public.sql)" -lt 20 ]; then
+            echo "::error::Dump looks incomplete -- refusing to commit it."
+            exit 1
+          fi
+
+      - name: Commit if the schema changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/schema/public.sql
+          if git diff --cached --quiet; then
+            echo "Schema unchanged -- nothing to commit."
+          else
+            git commit -m "Schema snapshot $(date -u +%Y-%m-%d) [skip netlify]"
+            git push
+          fi
