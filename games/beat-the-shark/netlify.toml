@@ -1,0 +1,36 @@
+# ============================================================================
+# games/beat-the-shark/netlify.toml
+#
+# The game deploys as its OWN Netlify site, separate from the analytics
+# site, so the two can never break each other: a game change never goes
+# through the analytics build (TypeScript, 232 tests, SSR, static
+# generation), and an analytics change can never take the game down.
+#
+# Netlify site settings for this to work (set once, in the dashboard):
+#   Base directory:     games/beat-the-shark
+#   Build command:      (leave empty -- see below)
+#   Publish directory:  games/beat-the-shark
+#
+# The main site then proxies /play/* to this site, so the public URL stays
+# on the FixtureShark domain. See ../../netlify.toml.
+# ============================================================================
+
+[build]
+  # No build step. The game is static files -- it deploys in seconds.
+  publish = "."
+  command = "echo 'Static game: no build step'"
+
+  # Only redeploy when THIS folder changed. Netlify runs this from the base
+  # directory, so "." means games/beat-the-shark. Exit 0 = skip the build.
+  # On any git error (e.g. the very first deploy, with no cached commit) it
+  # exits non-zero and the build proceeds, so it fails safe.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+# The HTML must never be cached stale. The game is a single file, so a
+# cached copy would be a cached copy of the entire game.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

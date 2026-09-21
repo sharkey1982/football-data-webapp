@@ -1,0 +1,1991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beat the Shark — FixtureShark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+    --bg:#eceadf;--panel:#fffdf8;--panel2:#f6f3e9;--ink:#122a1c;--ink2:#47574b;--mute:#8b9a8e;--line:#dcd7c6;
+    --pitch:#173a26;--pitch2:#2d6b48;--amber:#c9901a;--red:#a8322b;--blue:#2b5877;--good:#2d6b48;--bad:#a8322b;
+    --onPitch:#f6f4ea;--paper:#f4f1e4;--paperink:#1a1a17;
+    --disp:"Barlow Condensed",Impact,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+    --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0d120e;--panel:#161d17;--panel2:#1c241d;--ink:#e9e5d7;--ink2:#b4bfb5;--mute:#7c8a7e;--line:#2a332a;
+    --pitch:#245c3c;--pitch2:#43976a;--amber:#e3b03c;--red:#d96a61;--blue:#6fa3c9;--good:#43976a;--bad:#d96a61;
+    --onPitch:#f2efe4;--paper:#e8e4d6;--paperink:#16160f;}}
+  :root[data-theme="dark"]{--bg:#0d120e;--panel:#161d17;--panel2:#1c241d;--ink:#e9e5d7;--ink2:#b4bfb5;--mute:#7c8a7e;
+    --line:#2a332a;--pitch:#245c3c;--pitch2:#43976a;--amber:#e3b03c;--red:#d96a61;--blue:#6fa3c9;--good:#43976a;--bad:#d96a61;
+    --onPitch:#f2efe4;--paper:#e8e4d6;--paperink:#16160f;}
+  *,*::before,*::after{box-sizing:inherit}
+  html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+  body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:560px;margin:0 auto;padding:0 13px 34px}
+  header{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;
+    background:linear-gradient(180deg,var(--pitch),color-mix(in srgb,var(--pitch) 84%,black));
+    color:var(--onPitch);margin:0 -13px 11px;padding:9px 13px 10px;border-bottom:3px solid var(--amber)}
+  .hmain{display:flex;align-items:center;gap:11px}
+  .bigscore{font-family:var(--disp);font-size:40px;font-weight:700;line-height:.95;min-width:56px}
+  .bigscore .sub{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;opacity:.7;font-weight:400;margin-top:3px}
+  .twos{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1}
+  .two{background:rgba(255,255,255,.11);border-radius:7px;padding:5px 8px 6px}
+  .two .k{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;opacity:.74}
+  .two .v{font-family:var(--mono);font-size:15px;font-weight:600;line-height:1.2}
+  .two .v.neg{color:#ffb3ab}
+  .two .pts{font-family:var(--mono);font-size:9px;opacity:.7}
+  .trend{font-family:var(--mono);font-size:12px;padding:1px 6px;border-radius:4px;white-space:nowrap}
+  .trend.up{background:rgba(127,211,162,.22);color:#9ce0b9}
+  .trend.dn{background:rgba(224,138,128,.22);color:#f0a89f}
+  .trend.fl{background:rgba(255,255,255,.12);opacity:.8}
+  .season{margin-top:9px}
+  .season .lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;opacity:.82;margin-bottom:3px}
+  .track{height:5px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}
+  .track i{display:block;height:100%;background:var(--amber);transition:width .4s ease}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px;margin-bottom:11px}
+  .datechip{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);font-weight:600}
+  h1{font-family:var(--disp);font-weight:700;font-size:26px;line-height:1.1;margin:6px 0 9px}
+  h2{font-family:var(--disp);font-weight:700;font-size:20px;margin:0 0 9px}
+  p{margin:0 0 10px;color:var(--ink2)}p.lede{color:var(--ink);font-size:16.5px}.small{font-size:13px}
+  button{font:inherit;cursor:pointer}
+  .choice{display:block;width:100%;text-align:left;background:var(--panel2);color:var(--ink);
+    border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:8px;transition:.12s}
+  .choice:hover{border-color:var(--pitch2);background:var(--panel)}
+  .choice:disabled{opacity:.42;cursor:not-allowed}
+  .choice .t{font-weight:600;font-size:15px;display:block;color:var(--ink)}
+  .choice .d{font-size:12.5px;color:var(--mute);margin-top:2px;display:block}
+  .choice.primary{background:var(--pitch);border-color:var(--pitch);color:var(--onPitch)}
+  .choice.primary .t{color:var(--onPitch)}.choice.primary .d{color:rgba(246,244,234,.78)}
+  .outcome{border-left:3px solid var(--pitch2);background:color-mix(in srgb,var(--pitch2) 9%,transparent);
+    padding:9px 11px;border-radius:0 6px 6px 0;margin:0 0 10px;font-size:14.5px;color:var(--ink)}
+  .delta{font-family:var(--mono);font-size:12px;margin-top:7px;display:flex;flex-wrap:wrap;gap:4px 11px}
+  .up{color:var(--good)}.down{color:var(--bad)}
+  .est{font-family:var(--mono);font-size:11.5px;color:var(--mute)}
+  /* squad rows with quality + condition */
+  .sq{display:flex;flex-direction:column;gap:5px;margin:4px 0 11px}
+  .pl{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13.5px}
+  .pl.me{outline:1.5px solid var(--amber)}
+  .pl.gone{opacity:.38;text-decoration:line-through}
+  .pl .pos{font-family:var(--mono);font-size:10px;color:var(--onPitch);background:var(--pitch2);border-radius:3px;padding:1px 5px;flex:none}
+  .pl .nm{flex:1;font-weight:500;min-width:0}
+  .pl .nm small{display:block;font-size:11px;color:var(--mute);font-weight:400}
+  .pl .stat{text-align:right;flex:none;width:56px}
+  .pl .stat .lb{font-family:var(--mono);font-size:8px;letter-spacing:.07em;color:var(--mute);text-transform:uppercase}
+  .pl .stat .vv{font-family:var(--mono);font-size:13px;font-weight:600}
+  .pips{display:flex;gap:2px;justify-content:flex-end;margin-top:2px}
+  .pips i{width:6px;height:6px;border-radius:1px;background:var(--line);display:block}
+  .pips i.on{background:var(--pitch2)}
+  .pips i.hot{background:var(--amber)}
+  .pips i.bad{background:var(--bad)}
+  .market{border:1px solid var(--line);border-radius:9px;padding:10px 11px;margin-bottom:8px;background:var(--panel2)}
+  .market .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .market .nm{font-weight:600}
+  .market .fee{font-family:var(--mono);font-weight:600}
+  .market .meta{font-size:12.5px;color:var(--mute);margin-top:2px}
+  .market .quip{font-size:13px;color:var(--ink2);margin-top:6px;font-style:italic}
+  .paper{background:var(--paper);color:var(--paperink);border-radius:9px;padding:14px 15px;margin-bottom:10px;border:1px solid rgba(0,0,0,.12)}
+  .paper .masthead{font-family:var(--disp);font-size:15px;letter-spacing:.12em;text-transform:uppercase;
+    border-bottom:2px solid var(--paperink);padding-bottom:4px;margin-bottom:8px;display:flex;justify-content:space-between}
+  .paper .hl{font-family:var(--disp);font-size:28px;line-height:1.02;font-weight:700;margin:0 0 6px;text-transform:uppercase}
+  .paper .standfirst{font-size:13.5px;color:#3a3a32;margin:0}
+  .paper .byline{font-family:var(--mono);font-size:10px;color:#5a5a50;margin-top:7px}
+  .pod{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:13px;margin-bottom:10px}
+  .pod .show{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
+  .quote{display:flex;gap:9px;margin-bottom:9px}
+  .quote .who{font-family:var(--mono);font-size:10.5px;color:var(--mute);width:54px;flex:none;padding-top:2px;text-align:right}
+  .quote .said{flex:1;font-size:14px;color:var(--ink);font-style:italic}
+  .shark{display:flex;gap:9px;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--amber);
+    border-radius:0 8px 8px 0;padding:9px 11px;margin:0 0 11px;font-size:13.5px;color:var(--ink2)}
+  .shark b{color:var(--ink);font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:2px}
+  .beat{text-align:center;color:var(--mute);font-family:var(--mono);font-size:11px;letter-spacing:.14em;margin:12px 0;opacity:.75}
+  .vp{font-family:var(--mono);font-size:13.5px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px;min-height:160px}
+  .vp .teams{display:flex;justify-content:space-between;font-weight:600;font-size:13.5px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .ln{display:flex;gap:9px;padding:3px 0;animation:fade .25s}
+  .ln .min{width:36px;color:var(--mute);flex:none}.ln .tx{flex:1}.ln .sc{font-weight:600}
+  .ln.goal .tx{color:var(--pitch2);font-weight:600}.ln.against .tx{color:var(--bad)}
+  .ln.ft{margin-top:6px;padding-top:7px;border-top:1px solid var(--line);font-weight:600;color:var(--ink)}
+  @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1}}
+  .res{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding:6px 8px;border-radius:7px;background:var(--panel2);margin-bottom:5px}
+  .res.mine{outline:1.5px solid var(--amber)}
+  .res .sc{font-family:var(--mono);font-weight:600;flex:none}
+  .tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .tbl th{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);text-align:left;padding:4px 3px;border-bottom:1px solid var(--line)}
+  .tbl td{padding:5px 3px;border-bottom:1px solid var(--line)}
+  .tbl td.n,.tbl th.n{text-align:right;font-family:var(--mono)}
+  .tbl tr.me td{background:color-mix(in srgb,var(--amber) 16%,transparent);font-weight:600}
+  .tbl tr.rel td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+  .tbl tr:last-child td{border-bottom:0}
+  .verdict{font-family:var(--disp);font-size:32px;font-weight:700;line-height:1.05;margin:2px 0 6px}
+  .verdict.ok{color:var(--good)}.verdict.fail{color:var(--bad)}
+  .brk{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .brk .bk{font-size:13.5px;width:120px;flex:none;color:var(--ink2)}
+  .brk .bb{flex:1;height:10px;border-radius:5px;background:var(--line);overflow:hidden}
+  .brk .bb i{display:block;height:100%;background:var(--pitch2)}
+  .brk .bv{font-family:var(--mono);font-size:12.5px;width:52px;text-align:right;flex:none}
+  .opt{border:1.5px solid var(--line);border-radius:10px;padding:12px 13px;margin-bottom:8px;background:var(--panel2);width:100%;text-align:left;color:var(--ink)}
+  .opt .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
+  .opt h3{font-family:var(--disp);font-size:21px;margin:3px 0 4px;font-weight:700}
+  .opt p{margin:0;font-size:13.5px}
+  .opt .mis{font-size:12.5px;color:var(--ink);margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+  .opt .mis b{color:var(--amber)}
+  .seed{font-family:var(--mono);font-size:10.5px;color:var(--mute);text-align:center;margin-top:14px}
+  .foot{font-size:11.5px;color:var(--mute);text-align:center;margin-top:12px;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="hmain">
+      <div class="bigscore" id="hScore">—<span class="sub">SCORE</span></div>
+      <div class="twos" id="hTwo"></div>
+      <div class="trend fl" id="hTrend"></div>
+    </div>
+    <div class="season" id="hSeason"></div>
+  </header>
+  <main id="app"></main>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+/* ===========================================================================
+   SAVE OUR CLUB v7
+
+   Scoring is now TWO THINGS ONLY: cash in the bank, and where you finish.
+   Fifty points each. Everything else in the simulation -- squad quality,
+   fitness, morale, supporters, the board -- still exists and still matters,
+   but only because it moves those two numbers. That is the whole point: the
+   levers are many, the scoreboard is simple.
+
+   Also new:
+   - Squad list shows QUALITY and CONDITION as numbers and pips.
+   - OWNER gets two transfer windows: pre-season and January.
+   - MANAGER gets a pre-season programme and a winter break.
+   - STAR PLAYER gets a summer and a midwinter of his own, on and off the
+     pitch, where the bad decisions are the interesting ones.
+   =========================================================================== */
+const R={s:0,next(){let a=this.s|=0;a=this.s=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
+function hashSeed(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+const rng=()=>R.next(),rnd=(a,b)=>a+Math.floor(rng()*(b-a+1)),pick=a=>a[Math.floor(rng()*a.length)];
+const shuffle=a=>{const r=a.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[r[i],r[j]]=[r[j],r[i]]}return r};
+const clamp=(v,lo=0,hi=100)=>Math.max(lo,Math.min(hi,v));
+const fmtMoney=v=>(v<0?"-£":"£")+Math.abs(Math.round(v))+"k";
+function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
+const estRange=(v,e)=>`${fmtMoney(Math.round(v*(1-e)))}–${fmtMoney(Math.round(v*(1+e)))}`;
+const DELAY_AMP=2.4,NOISE=.26;
+let SEED="SOC-S01";
+
+/* ---------------------------------------------------------------------------
+   NAMES
+   Your club is "Your Team" -- memorable, and the name of a page on the site.
+   Rivals are affectionate puns on real clubs; players are puns on historical
+   figures and a few long-retired legends. They are parody names attached to
+   invented characters: no event anywhere mirrors a real person's history.
+   The shark theme lives in the world around the football instead -- the
+   papers, the podcast, the stadium, the league.
+   ------------------------------------------------------------------------- */
+const CLUB="Your Team";
+const STADIUM="the Shark Tank";
+/* THE LEAGUE AS A LESSON. Every club is named for how it makes decisions,
+   and its strength follows from that: the more a club uses evidence, the
+   better it does. Reading the table teaches the site's premise without a
+   word of explanation. Names are nods only -- no real person or company is
+   portrayed or given lines.
+   Two names per tier, drawn by season, so a new season is a new league
+   without diluting this one. The top tier is fixed: Chief Scout United are
+   always the benchmark. */
+const TIERS=[
+  {str:72,names:[["Chief Scout United","recruit entirely on the model"]]},
+  {str:60,names:[["Billy's Beane United","run on a Moneyball budget"],["Moneyball Athletic","buy what the market undervalues"]]},
+  {str:52,names:[["Star Lizard","a syndicate that prices every match"],["Expected Goals Wanderers","trust the xG, eventually"]]},
+  {str:44,names:[["Gut Feeling Town","sign whoever looked good on Saturday"],["Old School Rovers","do it the way it has always been done"]]},
+  {str:35,names:[["No Stats FC","have never opened a spreadsheet"],["Whim FC","decide everything on the day"]]}
+];
+const RIVAL_STR=TIERS.map(t=>t.str);
+let RIVALS=[];
+function pickRivals(){
+  R.s=hashSeed(SEED+"|rivals");
+  RIVALS=TIERS.map(t=>{const[n,d]=pick(t.names);return{n,d,str:t.str}});
+}
+const SURNAMES=["Dean Holloway","Kyle Mottram","Reece Tanner","Jordan Ashby","Lewis Pritchard","Callum Fenwick",
+  "Tom Ellery","Sam Oduya","Ryan Keogh","Jamie Whitlock","Ollie Barnes","Kieran Doyle","Aaron Slade","Luke Harrop",
+  "Danny Marsh","Connor Fell","Tariq Hussain","Kofi Mensah","Nathan Oyelaran","Ben Castle","Liam Rourke","Joe Pritchett"];
+const PAPERS=["THE DAILY FIN","THE GREAT WHITE PAGES","THE SUNDAY SHOAL","THE FINANCIAL FINS"];
+const PUNDITS=[{n:"BRUCE",d:"a former centre-half with forty caps and no patience"},
+  {n:"FLINT",d:"promoted twice, relegated three times, has seen everything"},
+  {n:"OKORO",d:"the analyst, who quotes numbers at people"}];
+const PODCAST="THE DEEP END";
+const sharkRate=S=>`FixtureShark rate this squad <b>${S.squad}</b> — ${S.squad>62?"top-two material":S.squad>50?"mid-table on paper":"bottom-two on paper"}.`;
+
+/* --- roles: same scoreboard, different levers ----------------------------- */
+const ROLES={
+owner:{id:"owner",name:"The Owner",tag:"You sign the cheques",
+  blurb:"The club is yours, and so are the debts. Two transfer windows, a stadium and a chequebook. You do not pick the team.",
+  mission:"BEAT THE SHARK",
+  missionLong:"FixtureShark have predicted where you finish. Finish higher. Cash is not scored — it is what you spend to prove the model wrong.",
+  pool:["kebab","mascot","wedding","barfly","scout","ticketprice","stadiumuse","creditor","rivalshark","director","tannoy","prawn","sharkdeal","bonus","bonus"]},
+manager:{id:"manager",name:"The Manager",tag:"You pick the team",
+  blurb:"Selection, training, the dressing room, and a pre-season you actually get to plan. You can ask the owner for money. Asking is all you can do.",
+  mission:"BEAT THE SHARK",
+  missionLong:"FixtureShark have predicted where you finish. Finish higher. Your shape, your selection and your half-time calls are the biggest levers in the game.",
+  pool:["psychic","kitcolour","bus","tiktok","training","tactics","youth","discipline","medical","askowner","hisjob","mindgames","sharkscout"]},
+player:{id:"player",name:"The Star Player",tag:"You are the asset",
+  blurb:"You are the one being sold, chased and blamed. Everything you do on and off the pitch lands on someone else's balance sheet.",
+  mission:"BEAT THE SHARK",
+  missionLong:"FixtureShark have predicted where your club finishes. Drag it higher. You have less control than anyone — which makes beating the model harder.",
+  pool:["selfpens","selfcontract","selfrole","selfdeadline","selfsponsor","selfextras","selfinjury","selfcaptain"]}
+};
+let ROLE=null,S=null;
+
+/* --- season --------------------------------------------------------------- */
+const MW=10;
+let FIXTURES=[],TABLE={},PREDICT={};
+function buildFixtures(){
+  const teams=[CLUB].concat(RIVALS.map(r=>r.n)),n=teams.length,rounds=[],arr=teams.slice();
+  for(let r=0;r<n-1;r++){const wk=[];for(let i=0;i<n/2;i++)wk.push([arr[i],arr[n-1-i]]);rounds.push(wk);arr.splice(1,0,arr.pop())}
+  FIXTURES=rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
+}
+const strOf=n=>n===CLUB?null:RIVALS.find(r=>r.n===n).str;
+/* FORMATIONS. Each trades attack for defence in strength points. This is
+   what lets a formation change, a goal bonus or a striker pushed up front
+   pull the two in opposite directions -- which a single strength number
+   could never express. */
+const FORMATIONS={
+  "4-4-2":{att:0,def:0,d:"Balanced"},
+  "4-3-3":{att:8,def:-7,d:"Front three, thin in midfield"},
+  "3-5-2":{att:4,def:-3,d:"Wing-backs, crowded middle"},
+  "4-5-1":{att:-5,def:7,d:"Compact, one up top"},
+  "5-3-2":{att:-8,def:10,d:"Five at the back"}
+};
+function oppFormation(n){
+  /* Rivals pick shapes that suit their strength, with some variety. */
+  const st=strOf(n);
+  return st>=60?pick(["4-3-3","4-3-3","3-5-2"]):st<=44?pick(["5-3-2","4-5-1","5-3-2"]):pick(Object.keys(FORMATIONS));
+}
+/* Your club's goal rates against an opponent, with attack and defence
+   modified independently by formation, bonuses and in-match changes. */
+function clubRates(opp,home,scale,oppFm){
+  const base=myStrength();
+  const f=FORMATIONS[S.formation||"4-4-2"],of=FORMATIONS[oppFm||"4-4-2"];
+  const att=base+(S.attMod||0)+f.att+(S.matchAtt||0);
+  const def=base+(S.defMod||0)+f.def+(S.matchDef||0);
+  const os=strOf(opp),oAtt=os+of.att,oDef=os+of.def,h=home?5:-5;
+  const k=scale||1.25;
+  return[Math.max(.08,k*Math.pow(1.5,(att+h-oDef)/20)),Math.max(.08,k*Math.pow(1.5,(oAtt-def-h)/20))];
+}
+const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
+/* One entry point for any fixture, so your club always uses the split
+   engine and rivals use the simple one. */
+function playFixture(h,a,credit){
+  if(h!==CLUB&&a!==CLUB)return simScore(strOf(h),strOf(a));
+  const home=h===CLUB,opp=home?a:h;
+  const[m,t]=clubRates(opp,home,1.25,oppFormation(opp));
+  const mg=Math.min(5,pois(m)),tg=Math.min(5,pois(t));
+  /* credit=true where no vidiprinter names the scorers. The classified
+     check names them itself, so it must NOT pass this -- or every goal
+     there would be counted twice against a goal bonus. */
+  if(credit)for(let i=0;i<mg;i++){const p=pickScorer();if(p)p.goals=(p.goals||0)+1}
+  return home?[mg,tg]:[tg,mg];
+}
+function simScore(hs,as){
+  const hx=Math.max(.2,1.25*Math.pow(1.5,(hs+5-as)/20)),ax=Math.max(.2,1.25*Math.pow(1.5,(as-hs-5)/20));
+  const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
+  return[Math.min(5,pois(hx)),Math.min(5,pois(ax))];
+}
+let FORM={},CLEAN={};
+function blankTable(){const t={};FORM={};CLEAN={};[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>{t[n]={p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0};FORM[n]=[];CLEAN[n]=0});return t}
+function award(t,h,a,hg,ag){t[h].p++;t[a].p++;t[h].gf+=hg;t[h].ga+=ag;t[a].gf+=ag;t[a].ga+=hg;
+  if(hg>ag){t[h].w++;t[h].pts+=3;t[a].l++}else if(hg<ag){t[a].w++;t[a].pts+=3;t[h].l++}else{t[h].d++;t[a].d++;t[h].pts++;t[a].pts++}
+  if(FORM[h]){FORM[h].push(hg>ag?'w':hg<ag?'d':'d');FORM[h][FORM[h].length-1]=hg>ag?'w':hg===ag?'d':'l'}
+  if(FORM[a]){FORM[a].push(ag>hg?'w':ag===hg?'d':'l')}
+  if(ag===0&&CLEAN[h]!=null)CLEAN[h]++;
+  if(hg===0&&CLEAN[a]!=null)CLEAN[a]++;}
+function standings(t){return Object.entries(t).map(([n,v])=>({n,...v,gd:v.gf-v.ga}))
+  .sort((x,y)=>y.pts-x.pts||y.gd-x.gd||y.gf-x.gf||x.n.localeCompare(y.n))}
+function monteCarlo(runs=4000){
+  const saved=R.s,counts={};[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>counts[n]={sum:0,bot2:0,top:0});
+  for(let i=0;i<runs;i++){const t=blankTable();
+    FIXTURES.forEach(wk=>wk.forEach(([h,a])=>{const hs=h===CLUB?52:strOf(h),as=a===CLUB?52:strOf(a);
+      const[hg,ag]=simScore(hs,as);award(t,h,a,hg,ag)}));
+    standings(t).forEach((row,idx)=>{counts[row.n].sum+=idx+1;if(idx>=4)counts[row.n].bot2++;if(idx===0)counts[row.n].top++})}
+  R.s=saved;const out={};for(const[n,c]of Object.entries(counts))out[n]={avg:c.sum/runs,rel:Math.round(c.bot2/runs*100),title:Math.round(c.top/runs*100)};
+  return out;
+}
+
+/* --- squad ---------------------------------------------------------------- */
+const QUIRKS=["never passes left","unplayable in the rain","allergic to tracking back","captain material, eventually",
+  "hasn't scored since March","best trainer at the club","argues with everyone","thirty-four and knows it",
+  "quick, and nothing else","the fans adore him"];
+function makeSquad(){
+  const nm=shuffle(SURNAMES).slice(0,8),base=[56,54,50,58,46,71,49,44],pos=["GK","DF","DF","MF","MF","FW","FW","DF"];
+  const q=shuffle(QUIRKS);
+  return nm.map((n,i)=>({pos:pos[i],nm:n,rt:base[i],fit:rnd(74,98),gone:false,out:0,quirk:q[i%q.length]}));
+}
+function pips(v,max,cls){let h="";for(let i=0;i<5;i++)h+=`<i class="${v>=(i+1)*(max/5)?cls:''}"></i>`;return `<div class="pips">${h}</div>`}
+function squadHTML(opts){
+  return `<!--SQ--><div class="sq">${S.squadList.map((p,i)=>
+   `<div class="pl ${p.gone?'gone':''} ${i===S.meIdx?'me':''}" ${p.out?'style="opacity:.62"':''}>
+      <span class="pos">${p.pos}</span>
+      <span class="nm">${p.nm}${i===S.meIdx?' <span style="color:var(--amber);font-size:11px">you</span>':''}
+        ${p.out?`<span style="color:var(--bad);font-size:11px">OUT ${p.out} ${p.out===1?"week":"weeks"}</span>`:''}
+        <small>${p.quirk}</small></span>
+      <span class="stat"><span class="lb">Quality</span><span class="vv">${p.gone?'—':p.rt}</span>${p.gone?'':pips(p.rt,100,'on')}</span>
+      <span class="stat"><span class="lb">Condition</span><span class="vv" style="color:${p.fit<60?'var(--bad)':p.fit<78?'var(--amber)':'var(--good)'}">${p.gone?'—':p.fit}</span>
+        ${p.gone?'':pips(p.fit,100,p.fit<60?'bad':p.fit<78?'hot':'on')}</span>
+    </div>`).join('')}</div><!--/SQ-->`;
+}
+const alive=()=>S.squadList.filter(p=>!p.gone);
+/* AVAILABLE is not the same as at the club. The Physio Room is where the
+   difference lives, and it is the difference that decides Saturdays. */
+const available=()=>S.squadList.filter(p=>!p.gone&&!p.out);
+const me=()=>S.squadList[S.meIdx]||alive()[0];
+function newState(){
+  const sq=makeSquad();
+  return{club:CLUB,cash:120,debt:850,wages:41,squad:52,fans:55,board:50,fatigue:22,
+    form:62,fitness:88,interest:40,mw:0,pos:6,formArr:[],lastRes:null,alive:true,
+    pending:[],flags:{},squadList:sq,meIdx:ROLE.id==="player"?sq.reduce((b,p,i)=>p.rt>sq[b].rt?i:b,0):-1,
+    matchBoost:0,lastScore:null,ticketLevel:0,signings:0,seasonLog:[],physioLevel:0,
+    formation:"4-4-2",attMod:0,defMod:0,matchAtt:0,matchDef:0,bonuses:[],
+    departed:shuffle(SURNAMES.filter(n=>!sq.some(p=>p.nm===n))).slice(0,6)
+      .map(n=>({nm:n,rt:rnd(58,74),to:pick(["a League One side","a rival","free agency","retirement","abroad","a National League club"])}))};
+}
+function recalcSquadRating(){
+  const a=alive();if(!a.length)return;
+  S.squad=clamp(Math.round(a.reduce((x,p)=>x+p.rt,0)/a.length + (S.board-50)*.05));
+}
+function myStrength(){const a=available().length?available():alive();
+  const fit=a.length?a.reduce((x,p)=>x+p.fit,0)/a.length:80;
+  const rs=a.map(p=>p.rt),avail=rs.length?rs.reduce((x,y)=>x+y,0)/rs.length:S.squad;
+  let b=avail+(fit-86)*.16-(S.fatigue-40)*.12+(S.fans-50)*.04;
+  if(ROLE.id==="player")b+=(S.form-62)*.12+(S.fitness-86)*.05;
+  return b+(S.matchBoost||0)}
+function tableHTML(){const st=standings(TABLE),N=st.length;
+  return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
+  ${st.map((r,i)=>`<tr class="${r.n===CLUB?'me':''} ${i>=N-2?'rel':''}"><td class="n">${i+1}</td><td>${r.n}</td>
+  <td class="n">${r.p}</td><td class="n">${r.gd>0?'+':''}${r.gd}</td><td class="n">${r.pts}</td></tr>`).join('')}</tbody></table>
+  <div style="font-size:11px;color:var(--mute);margin-top:4px">The FixtureShark League · bottom two relegated</div>`}
+function myPos(){S.pos=standings(TABLE).findIndex(r=>r.n===CLUB)+1;return S.pos}
+/* Pre-season there are no results, so the league table is meaningless and
+   reads as though the season has already gone badly. Show FixtureShark's
+   PREDICTED table instead, which is both accurate and the thing the site
+   actually does. */
+function predictedPos(){return Math.round(PREDICT[CLUB].avg)}
+function predictedTableHTML(){
+  const rows=[CLUB].concat(RIVALS.map(r=>r.n)).map(n=>({n,avg:PREDICT[n].avg,rel:PREDICT[n].rel}))
+    .sort((a,b)=>a.avg-b.avg);
+  return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">Title</th><th class="n">Down</th></tr></thead><tbody>
+  ${rows.map((r,i)=>{const rv=RIVALS.find(x=>x.n===r.n);return `<tr class="${r.n===CLUB?'me':''} ${i>=rows.length-2?'rel':''}"><td class="n">${i+1}</td>
+    <td>${r.n}${rv?`<div style="font-size:11px;color:var(--mute);font-weight:400">${rv.d}</div>`:`<div style="font-size:11px;color:var(--mute);font-weight:400">that is up to you</div>`}</td>
+    <td class="n">${PREDICT[r.n].title}%</td><td class="n">${r.rel}%</td></tr>`}).join('')}</tbody></table>
+  <div style="font-size:11px;color:var(--mute);margin-top:4px">FixtureShark pre-season model · 4,000 simulated seasons · nothing played yet</div>`;
+}
+
+/* --- THE SCORE: you against the Shark ------------------------------------
+   The Shark's number is its pre-season prediction -- effectively what
+   happens if a club makes no decisions at all. Matching it scores 50. Each
+   place better is +15, each place worse -15, and winning the league adds 15.
+   So the score is literally "how much better than the model were you". */
+function sharkPos(){return Math.round(PREDICT[CLUB].avg)}
+function scoreParts(){
+  const pred=sharkPos(),diff=pred-S.pos;
+  let total=50+diff*15+(S.pos===1?15:0);
+  if(!S.alive)total*=.3;
+  return{pred,diff,total:Math.round(clamp(total,0,100))};
+}
+function apply(fx,noisy){const out=[];
+  for(const[k,v0]of Object.entries(fx||{})){if(!v0)continue;
+    const v=noisy?Math.round(v0*(1+(rng()*2-1)*NOISE)):v0,M=x=>fmtMoney(Math.abs(x)).replace('-','');
+    if(k==='cash'){S.cash+=v;out.push([`Cash ${v>0?'+':'−'}${M(v)}`,v>0])}
+    else if(k==='debt'){S.debt+=v;out.push([`Debt ${v>0?'+':'−'}${M(v)}`,v<0])}
+    else if(k==='wages'){S.wages+=v;out.push([`Wages ${v>0?'+':'−'}${M(v)}/w`,v<0])}
+    else if(k==='squad'){S.squad=clamp(S.squad+v);out.push([`Squad ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='fans'){S.fans=clamp(S.fans+v);out.push([`Fans ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='board'){S.board=clamp(S.board+v);out.push([`Board ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='fatigue'){S.fatigue=clamp(S.fatigue+v);out.push([`Fatigue ${v>0?'+':''}${v}`,v<0])}
+    else if(k==='form'){S.form=clamp(S.form+v);out.push([`Form ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='fitness'){S.fitness=clamp(S.fitness+v);out.push([`Fitness ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='interest'){S.interest=clamp(S.interest+v);out.push([`Interest ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='condition'){S.squadList.forEach(p=>{if(!p.gone)p.fit=clamp(p.fit+v)});out.push([`Condition ${v>0?'+':''}${v} all`,v>0])}}
+  return out.map(([t,g])=>`<span class="${g?'up':'down'}">${t}</span>`).join('')}
+function later(n,fx,text){if(!fx)return;const a={};for(const[k,v]of Object.entries(fx))a[k]=Math.round(v*DELAY_AMP);
+  S.pending.push({at:cursor+n,fx:a,text})}
+function drainPending(){const d=S.pending.filter(p=>p.at<=cursor);S.pending=S.pending.filter(p=>p.at>cursor);return d}
+
+function paintHeader(){
+  if(!S)return;myPos();
+  const {pred,diff,total}=scoreParts();
+  document.getElementById('hScore').innerHTML=`${total}<span class="sub">SCORE</span>`;
+  const played=S.mw>0;
+  document.getElementById('hTwo').innerHTML=
+   `<div class="two"><div class="k">The Shark says</div><div class="v">${ord(pred)}</div>
+      <div class="pts">pre-season prediction</div></div>
+    <div class="two"><div class="k">You are</div><div class="v">${played?ord(S.pos):"—"}</div>
+      <div class="pts" style="color:${!played?'inherit':diff>0?'#9ce0b9':diff<0?'#f0a89f':'inherit'}">
+        ${!played?"nothing played":diff>0?`beating it by ${diff}`:diff<0?`${Math.abs(diff)} behind it`:"level with it"}</div></div>`;
+  const tr=document.getElementById('hTrend');
+  if(S.lastScore==null){tr.className="trend fl";tr.textContent="—"}
+  else{const d=total-S.lastScore;tr.className="trend "+(d>0?"up":d<0?"dn":"fl");
+    tr.textContent=(d>0?"▲ +"+d:d<0?"▼ "+Math.abs(d):"— ")}
+  const left=MW-S.mw;
+  let note=S.mw===0?"Pre-season · nothing played":left===0?"Season over":left<=2?`${left} to play — the run-in`:S.mw===5?"Halfway":`${left} matches left`;
+  document.getElementById('hSeason').innerHTML=
+   `<div class="lbl"><span>MATCHWEEK ${S.mw} / ${MW} · ${note.toUpperCase()}</span>
+     <span>${ROLE.id==="owner"?"CASH "+fmtMoney(S.cash):S.formArr.length?"FORM "+S.formArr.slice(-5).map(f=>f.toUpperCase()).join(" "):""}</span></div>
+    <div class="track"><i style="width:${(S.mw/MW)*100}%"></i></div>`;
+  S.lastScore=total;
+}
+
+/* ====================== TRANSFER WINDOW (owner) =========================== */
+const TARGET_QUIPS=[
+ "Scored twenty in this division two years ago, then discovered nightclubs.",
+ "His agent has sent the same email eleven times. The highlights reel is four minutes of one game.",
+ "Released by a Championship club in February. Nobody will say why, which is either a bargain or a warning.",
+ "Thirty-three, knees like a deckchair, and still the best finisher you will see at this level.",
+ "Six foot seven. That is the entire scouting report, and it is enough in League Two.",
+ "Played in Iceland last season. FixtureShark rate the league; nobody else has heard of it."];
+function makeTargets(n){
+  const names=shuffle(SURNAMES.filter(x=>!S.squadList.some(p=>p.nm===x)));
+  const q=shuffle(TARGET_QUIPS);
+  return Array.from({length:n},(_,i)=>{
+    const rt=rnd(48,74),fee=Math.round((rt-40)*rnd(9,18)),wage=Math.round((rt-40)*rnd(.4,.9)+3);
+    return{nm:names[i],pos:pick(["GK","DF","MF","FW"]),rt,fee,wage,fit:rnd(80,97),quip:q[i],bought:false};
+  });
+}
+/* What the squad rating WOULD be after a change. The window used to show fees
+   and ratings and leave you to do the arithmetic; this states the consequence
+   of each move in the one number the simulation actually uses. */
+function ratingWith(extraRt,dropIdx){
+  const rs=S.squadList.filter((p,i)=>!p.gone&&i!==dropIdx).map(p=>p.rt);
+  if(extraRt!=null)rs.push(extraRt);
+  if(!rs.length)return 0;
+  return clamp(Math.round(rs.reduce((a,b)=>a+b,0)/rs.length+(S.board-50)*.05));
+}
+function deltaChip(now,then){
+  const d=then-now;
+  const col=d>0?"var(--good)":d<0?"var(--bad)":"var(--mute)";
+  return `<span style="font-family:var(--mono);font-size:12px;color:${col}">${now} → ${then} (${d>0?'+':''}${d})</span>`;
+}
+function renderWindow(which,after){
+  const targets=S.flags["tw_"+which]||(S.flags["tw_"+which]=makeTargets(3));
+  function draw(){
+    paintHeader();
+    const canSell=alive().length>5;
+    document.getElementById('app').innerHTML=`<div class="card">
+      <div class="datechip">${which==="summer"?"AUGUST · TRANSFER WINDOW":"JANUARY · TRANSFER WINDOW"}</div>
+      <h1>${which==="summer"?"The window is open":"The January window"}</h1>
+      <p class="lede">${which==="summer"
+        ? "Six weeks to change the squad you inherited. You have "+fmtMoney(S.cash)+" and a wage bill of "+fmtMoney(S.wages)+" a week."
+        : "Halfway, "+ord(S.pos)+" of six, and one last chance to change the shape of the season."}</p>
+      <div class="shark"><div><b>FixtureShark</b>${sharkRate(S)} Every fee below is what the model says they are worth, give or take.</div></div>
+      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:11px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute)">Squad quality</span>
+          <span style="font-family:var(--disp);font-size:28px;font-weight:700;line-height:1">${S.squad}</span></div>
+        <div style="font-size:12.5px;color:var(--ink2);margin-top:2px">The number that drives results. Each move shows what it becomes.</div></div>
+      <h2>Available</h2>
+      ${targets.map((t,i)=>`<div class="market">
+        <div class="top"><span class="nm">${t.pos} ${t.nm}</span><span class="fee">${t.bought?"SIGNED":fmtMoney(t.fee)}</span></div>
+        <div class="meta">Quality ${t.rt} · wants ${fmtMoney(t.wage)}/wk · condition ${t.fit}</div>
+        <div class="meta" style="color:var(--ink2)">Value for money:
+          <b>${((t.rt-38)/Math.max(1,t.fee/100)).toFixed(2)}</b> quality per £100k ·
+          <b>${((t.rt-38)/Math.max(1,t.wage)).toFixed(1)}</b> per £1k of wages
+          ${((t.rt-38)/Math.max(1,t.fee/100))>2.6?' <span style="color:var(--good)">— the model likes this one</span>':
+            ((t.rt-38)/Math.max(1,t.fee/100))<1.4?' <span style="color:var(--bad)">— overpriced on the model</span>':''}</div>
+        <div class="quip">${t.quip}</div>
+        ${t.bought?"":`<button class="choice" style="margin:8px 0 0" data-buy="${i}" ${S.cash<t.fee?"disabled":""}>
+          <span class="t">${S.cash<t.fee?"Cannot afford him":"Sign him"} · ${deltaChip(S.squad,ratingWith(t.rt,null))}</span>
+          <span class="d">${fmtMoney(t.fee)} now, ${fmtMoney(t.wage)} a week after · cash would be ${fmtMoney(S.cash-t.fee)}</span></button>`}
+      </div>`).join('')}
+      <h2 style="margin-top:14px">Your squad</h2>
+      <p class="small">Selling raises cash and lowers quality.</p>
+      ${S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone).sort((a,b)=>b.p.rt-a.p.rt).map(({p,i})=>`<div class="market">
+        <div class="top"><span class="nm">${p.pos} ${p.nm}</span><span class="fee">${fmtMoney(Math.round((p.rt-38)*rnd(10,16)))}</span></div>
+        <div class="meta">Quality ${p.rt} · condition ${p.fit}${p.out?` · <span style="color:var(--bad)">out ${p.out}w</span>`:''} · ${p.quirk}</div>
+        <button class="choice" style="margin:8px 0 0" data-sell="${i}" ${canSell?"":"disabled"}>
+          <span class="t">${canSell?"Accept an offer":"Squad too small to sell"}</span>
+          <span class="d">Cash now, quality gone</span></button></div>`).join('')}
+      <button class="choice primary" id="close" style="margin-top:12px"><span class="t">Close the window</span>
+        <span class="d">${which==="summer"?"Get the season started":"Back to the run-in"}</span></button></div>`;
+    document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
+      const t=targets[+b.dataset.buy];if(S.cash<t.fee)return;
+      S.cash-=t.fee;S.wages+=t.wage;t.bought=true;S.signings++;
+      S.squadList.push({pos:t.pos,nm:t.nm,rt:t.rt,fit:t.fit,gone:false,quirk:"new, and being watched"});
+      recalcSquadRating();S.fans=clamp(S.fans+4);draw();
+    });
+    document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{
+      const p=S.squadList[+b.dataset.sell];
+      S.cash+=Math.round((p.rt-38)*rnd(10,16));S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));
+      p.gone=true;recalcSquadRating();S.fans=clamp(S.fans-(p.rt>60?11:4));draw();
+    });
+    document.getElementById('close').onclick=()=>{recalcSquadRating();after()};
+  }
+  draw();
+}
+
+/* ================== PRE-SEASON & WINTER BREAK (manager) =================== */
+function preseasonSpec(){return{
+  title:"Pre-season is yours to plan",
+  lede:"Four weeks, no matches that matter, and a squad that spent the summer doing very little.",
+  choices:[
+    {t:"A week in Portugal",d:"Proper facilities, and it costs",fx:{cash:-55,condition:9,squad:3,fans:2},
+      out:"Sun, grass and two sessions a day. They come back looking like athletes."},
+    {t:"Running up the sand dunes",d:"Free, traditional, hated",fx:{condition:12,fatigue:-8,squad:-2},
+      delayed:{squad:-3},delayedText:"Two players are still talking about the dunes in October, and not fondly.",
+      out:"Old-fashioned, brutal, and it works on the lungs if not the mood."},
+    {t:"A tournament in Ireland",d:"Competitive minutes and a small fee",fx:{cash:18,condition:5,squad:2,fatigue:4},
+      out:"Three games in five days and a trophy nobody has heard of, which they win."},
+    {t:"Keep it light",d:"Protect the bodies",fx:{condition:4,fatigue:-12},
+      delayed:{condition:-6},delayedText:"The light pre-season has shown. They are blowing after an hour.",
+      out:"Ball work, five-a-sides, home by one."}]};
+}
+function winterSpec(){return{
+  title:"The winter break",
+  lede:`Ten days with no match. ${ord(S.pos)} of six, and the squad is at ${S.fatigue}% fatigue.`,
+  choices:[
+    {t:"Warm-weather camp in Spain",d:"Reset the legs, spend the money",fx:{cash:-48,condition:14,fatigue:-16,squad:3},
+      out:"Ten days of sun. They return looking like a different side."},
+    {t:"The Christmas party",d:"Morale up. Judgement down.",fx:{squad:9,fans:2,condition:-5},
+      delayed:rng()<.55?{fans:-9,squad:-4}:null,
+      delayedText:"A photograph from the Christmas party has surfaced. The chairman has seen it. Everyone has seen it.",
+      out:"Fancy dress, a karaoke machine, and a group chat that will not survive contact with the press."},
+    {t:"Train straight through",d:"No break, no nonsense",fx:{squad:-5,fatigue:6,condition:3,board:4},
+      out:"Boxing Day off, and nothing else. They notice everyone else is in Marbella."},
+    {t:"Give them ten days off",d:"Trust them",fx:{fatigue:-20,condition:8,squad:4},
+      delayed:{condition:-7},delayedText:"Three players have come back heavier than they left.",
+      out:"Go home. See your families. Be back on the fourth."}]};
+}
+/* =================== SUMMER & MIDWINTER (star player) ===================== */
+function playerSummerSpec(){return{
+  title:"Your summer",
+  lede:"Six weeks, a small amount of money and a phone that will not stop.",
+  choices:[
+    {t:"Train privately every day",d:"Unglamorous, effective",fx:{fitness:14,form:6,interest:4},
+      out:"A running coach, a gym in an industrial unit, nobody watching. You have never felt better."},
+    {t:"Dubai with the lads",d:"Two weeks, no photographs, allegedly",fx:{form:-5,fitness:-8,fans:2},
+      delayed:{fans:-7,form:-3},delayedText:"A video of you at four in the morning in Dubai has done the rounds. You look magnificent and unemployable.",
+      out:"You have a wonderful time and come back a yard slower."},
+    {t:"A summer at the family caravan",d:"Cheap, quiet, restful",fx:{fitness:8,form:2,fans:4},
+      out:"Rain, a leaking awning, and the best sleep you have had in a year."},
+    {t:"Open a coffee shop with your brother",d:"A business for after football",fx:{cash:0,form:-3,fitness:-2,interest:-3},
+      delayed:{form:-4},delayedText:"The coffee shop is haemorrhaging money and you are doing the Tuesday shifts yourself.",
+      out:"Forty grand of your own money and a lot of opinions about oat milk."}]};
+}
+function playerWinterSpec(){return{
+  title:"Midwinter",
+  lede:`Your form is ${Math.round(S.form)} and the transfer window is open. Everything you do now is watched.`,
+  choices:[
+    {t:"Say nothing and play",d:"Boring is a strategy",fx:{form:7,fans:6},out:"Head down. Two goals in three games."},
+    {t:"Let your agent brief a newspaper",d:"Engineer the move",fx:{interest:16,fans:-13,form:-3},
+      delayed:{fans:-8},delayedText:"The briefing was traced back to your agent, and the supporters' forum has your name in a thread title.",
+      out:"A back-page story about your 'frustration'. You did not use that word. He did."},
+    {t:"Visit the children's hospital, no cameras",d:"Nobody will know",fx:{fans:5,form:3},
+      delayed:{fans:9},delayedText:"A nurse mentioned your visits on local radio. You had told nobody, and that is precisely why it has landed.",
+      out:"Two hours on a Tuesday. You go back the following week."},
+    {t:"Get sent off arguing on the touchline",d:"You have had enough",fx:{form:-8,squad:-4,fans:-5,board:-4},
+      out:"Second yellow for dissent, in a game you were winning. The long walk is longer than it looks on television."}]};
+}
+
+/* ============================ ROLE EVENT POOLS ============================ */
+const SHAPES={
+/* ---- OWNER: memorable ones ---- */
+kebab(){const amt=rnd(70,150);
+  return{sig:"kebab",title:`A kebab shop wants to name the stand`,
+    lede:`${fmtMoney(amt)} a season for "The Golden Skewer Stand, in association with Aydin's".`,
+    body:`<p>Aydin has had a season ticket since 1994 and has never missed an away game. His signage is, in his own words, "very yellow".</p>`,
+    choices:[{t:"Take the money",d:fmtMoney(amt)+" a season",fx:{cash:amt,fans:6},
+        out:`It is extremely yellow. The away end sing about it within a fortnight, which Aydin frames and hangs above the grill.`},
+      {t:"Take it, but negotiate the sign down",d:"Smaller money, smaller sign",fx:{cash:Math.round(amt*.65),fans:2},
+        out:`A tasteful sign, a smaller cheque, and a slightly hurt kebab shop owner.`},
+      {t:"Hold out for a corporate sponsor",d:"There isn't one",fx:{board:-3,fans:-5},
+        delayed:{cash:-20},delayedText:`No corporate sponsor came. The stand is unnamed and Aydin now sponsors ${RIVALS[1].n}.`,
+        out:`You tell Aydin you are exploring other options. He is very gracious about it, which makes it worse.`}]}},
+mascot(){return{sig:"mascot",title:"The mascot has been sent off",
+  lede:"Finny the Shark was dismissed for an altercation with a linesman. There is footage, and it is on national news.",
+  body:`<p>Inside the costume is Dennis, sixty-one, a volunteer of nineteen years' standing. The FA want a response by Friday.</p>`,
+  choices:[{t:"Sack Finny",d:"Decisive, and brutal",fx:{board:5,fans:-14},
+      delayed:{fans:-6},delayedText:"There is a banner at the next home game. It says FREE DENNIS, and it is enormous.",
+      out:"Dennis hands in the head in a Tesco bag. Nobody feels good about it."},
+    {t:"Back him publicly",d:"He is a club institution",fx:{fans:16,board:-7},
+      out:`You tell the press that Finny "saw something the officials did not" and refuse all follow-ups. The clip does four million views.`},
+    {t:"Quietly reassign him to the club shop",d:"No statement, no drama",fx:{fans:2,board:2},
+      out:"Dennis now runs the till on matchdays, and is significantly better at it."}]}},
+wedding(){return{sig:"wedding",title:"There is a wedding on the pitch",
+  lede:"The previous owner sold summer bookings to raise cash. One of them is next Saturday. You have a match next Saturday.",
+  choices:[{t:"Honour the booking, play elsewhere",d:"Rent a ground, keep the peace",fx:{cash:-40,fans:-6,squad:-3},
+      out:"You play a 'home' game eleven miles away in front of 400 people, while somebody called Nadine gets married on your centre circle."},
+    {t:"Cancel the wedding, refund double",d:"Expensive and correct",fx:{cash:-65,fans:4,board:-2},
+      out:"Nadine is furious, then gracious, then invites the squad to the evening do. Four of them go."},
+    {t:"Both. Wedding at noon, kick-off at three",d:"What could go wrong",fx:{cash:25,squad:-6,fans:8},
+      delayed:{squad:-4},delayedText:"The pitch never recovered from the marquee pegs. It is playing like a car park.",
+      out:"Confetti in the six-yard box at kick-off. The referee is, remarkably, fine with it."}]}},
+barfly(){const r=pick(RIVALS).n,v=rnd(240,620);
+  return{sig:"barfly",title:`The owner of ${r} has found you at the bar`,
+    lede:`He has had three pints and would like to buy your best player. ${fmtMoney(v)}, he says, cash, tonight.`,
+    body:`<p>He is serious, in the way that men who own football clubs are serious at eleven o'clock at night.</p>`,
+    choices:[{t:"Shake on it",d:fmtMoney(v)+", to your direct rival",fx:{cash:v,squad:-10,fans:-15,board:3},
+        after(){const b=alive().sort((x,y)=>y.rt-x.rt)[0];if(b)b.gone=true;recalcSquadRating()},
+        out:`You shake on it at the bar and regret it by the car park. He does pay, though, which is more than the last one did.`},
+      {t:"Tell him to put it in writing on Monday",d:"Sober terms, or none",fx:{board:4},
+        delayed:{cash:Math.round(v*.8)},delayedText:`${r} did put it in writing, and paid a little less than the bar price. You still sold him.`,
+        out:"He calls you a coward, warmly, and buys you a drink."},
+      {t:"Refuse, loudly",d:"Not to them, not ever",fx:{fans:13,board:-5},
+        out:`Somebody films it. By morning you are a folk hero at ${STADIUM} and a punchline everywhere else.`}]}},
+scout(){return{sig:"scout",title:"Your chief scout is ninety-one",
+  lede:"Ron has been at the club since 1968 and has not driven since 2011. He watches games on a portable television.",
+  body:`<div class="shark"><div><b>FixtureShark</b>Of the last eleven players Ron recommended, the model rated two. Those two were excellent.</div></div>`,
+  choices:[{t:"Retire him with a testimonial",d:"Dignity, and a data service instead",fx:{cash:-22,squad:5,fans:-4},
+      out:"A packed lounge, a carriage clock and a genuinely moving speech. Then you buy a subscription."},
+    {t:"Keep him, add the data alongside",d:"Both",fx:{cash:-14,squad:3,fans:3},
+      out:"Ron and a laptop. He calls it 'the machine' and disagrees with it constantly, sometimes correctly."},
+    {t:"Leave it exactly as it is",d:"He has earned it",fx:{fans:5,board:-3},
+      delayed:{squad:-5},delayedText:"Ron's two January recommendations cannot get in the side. He is the first to admit it.",
+      out:"Ron soldiers on. So does the recruitment."}]}},
+director(){return{sig:"director",title:"A director wants to buy in",
+  lede:`${fmtMoney(300)} for twenty per cent, from a man who describes himself as "a disruptor".`,
+  body:`<p>He has made his money in vape distribution and has already drawn a rebrand on a napkin. The shark has sunglasses on it.</p>`,
+  choices:[{t:"Take the money",d:fmtMoney(300)+", and the napkin",fx:{cash:300,fans:-7,board:6},
+      delayed:{fans:-5},delayedText:"The disruptor has given an interview about 'legacy fans'. It went about as well as you would expect.",
+      out:"The money clears. The napkin, mercifully, does not."},
+    {t:"Take the money, refuse the rebrand",d:"Written into the deal",fx:{cash:270,board:4,fans:2},
+      out:"Clause 14 protects the badge. He signs it, visibly wounded."},
+    {t:"Decline",d:"Not at that price",fx:{fans:6,board:-6},out:"He buys a padel centre instead and seems happier."}]}},
+ticketprice(){return{sig:`tix|${S.ticketLevel}`,title:"Season ticket prices are set this month",
+  lede:"Nobody has raised them since the relegation before last.",
+  choices:[{t:"Increase by 10%",d:"More per head, fewer heads",fx:{cash:70,fans:-11},after(){S.ticketLevel++},
+      out:"Announced on a Friday afternoon, which fools nobody."},
+    {t:"Freeze them",d:"Safe, and it says something",fx:{fans:4,board:1},out:"A freeze, and a statement about the cost of living."},
+    {t:"Cut by 15% and fill the ground",d:"Less per head, more noise",fx:{cash:-40,fans:14},
+      delayed:{cash:55},delayedText:"The cheaper tickets worked. Attendance is up by a third and the bars are busy.",
+      after(){S.ticketLevel--},out:"The cheapest seats in the division."}]}},
+stadiumuse(){return{sig:"stad",title:"The stadium sits empty six days a week",
+  lede:"There are offers, and none of them are football.",
+  choices:[{t:"Host a concert",d:"Good money, ruined pitch",fx:{cash:130,fans:-4},delayed:{squad:-5},
+      delayedText:"The pitch has not recovered from the concert. It is playing like a ploughed field.",out:"Two nights in June, sold out."},
+    {t:"Conferences and weddings",d:"Steady, unglamorous",fx:{cash:45,wages:3},delayed:{cash:40},
+      delayedText:"The events business is ticking over nicely.",out:"Mostly weddings."},
+    {t:"Keep it for football",d:"Protect the pitch",fx:{squad:3,fans:3},out:"The pitch stays immaculate and the account stays empty."}]}},
+creditor(){const c=pick([["HMRC","a winding-up petition"],["the bank","calling in the facility"],["the council","pulling the safety certificate"]]),
+    amt=[60,140,280][rnd(0,2)];
+  return{sig:`cred|${c[0]}|${amt}`,title:`${c[0]} want ${fmtMoney(amt)}`,lede:`Fail to pay and they are threatening ${c[1]}.`,
+    choices:[{t:"Pay in full",d:fmtMoney(amt),fx:{cash:-amt,board:4},out:"Paid."},
+      {t:"Negotiate terms",d:"A third now, a surcharge on the rest",fx:{cash:-Math.round(amt*.35),debt:Math.round(amt*.75),board:-2},
+        delayed:{cash:-Math.round(amt*.2)},delayedText:`The ${c[0]} instalment came out of the account.`,out:"Spread over six months."},
+      {t:"Ignore it",d:"Buys weeks, costs more",fx:{debt:Math.round(amt*1.15),board:-6},
+        delayed:{cash:-Math.round(amt*.3),board:-6},delayedText:`${c[0]} escalated, and the board heard about it from someone else.`,out:"You let it slide."}]}},
+rivalshark(){const r=pick(RIVALS.slice(0,2)).n;
+  return{sig:`rival|${r}`,title:`${r} have signed a player you looked at`,lede:"For a third of what you were quoted.",
+    body:`<div class="shark"><div><b>FixtureShark</b>Their recruitment staff run every target through the value model. Yours works from a hunch and a DVD.</div></div>`,
+    choices:[{t:"Subscribe to the data",d:"A small cost, better signings",fx:{cash:-18,squad:4,board:3},out:"You start buying on numbers rather than nostalgia."},
+      {t:"Trust your scouts",d:"Thirty years of instinct",fx:{board:-3},delayed:{squad:-4},
+        delayedText:"Two of this season's signings cannot get in the side. Both were flagged as poor value.",out:"Loyalty over evidence."}]}},
+/* ---- MANAGER ---- */
+psychic(){return{sig:"psychic",title:"The chairman has hired a psychic",
+  lede:"She has been given a seat in the directors' box and an opinion on team selection.",
+  body:`<p>Her name is Marguerite. She has told the chairman that the number nine has "a heavy aura", and the chairman has repeated this to you twice.</p>`,
+  choices:[{t:"Humour her",d:"Nod, then ignore it",fx:{board:5,squad:-2},
+      out:"You thank Marguerite for her insight and pick the team you were always going to pick."},
+    {t:"Refuse to have her near the squad",d:"A line in the sand",fx:{board:-9,squad:6,fans:4},
+      out:"A short, memorable conversation in the car park. She tells you your aura is 'stubborn', which is fair."},
+    {t:"Let the players meet her",d:"See what happens",fx:{squad:rng()<.5?7:-7,fans:3},
+      delayed:{squad:-3},delayedText:"Two players now refuse to play without their 'cleansed' shinpads. One of them is the captain.",
+      out:"Forty minutes in the canteen. Three of them are converts by lunchtime."}]}},
+kitcolour(){return{sig:"kit",title:"The kit has arrived in the wrong colour",
+  lede:"Two hundred shirts, and they are pink. Not a heritage pink. A very confident pink.",
+  choices:[{t:"Wear them",d:"Own it completely",fx:{fans:9,squad:-3,cash:20},
+      delayed:{fans:7},delayedText:"The pink shirt has sold out twice. The club shop has never had a season like it.",
+      out:"You put out a photograph of the captain in it, captioned only with a shark emoji. It goes everywhere."},
+    {t:"Send them back",d:"Six weeks in last year's kit",fx:{cash:-15,fans:-4},out:"Last season's shirts, washed grey, until mid-October."},
+    {t:"Blame the supplier publicly",d:"Not your fault",fx:{board:2,fans:-3,cash:10},out:"A statement. The supplier replies with a statement. Nobody wins a statement."}]}},
+bus(){return{sig:"bus",title:"The team bus has died on the A38",
+  lede:"Kick-off is in two hours and you are forty miles away on a hard shoulder.",
+  choices:[{t:"Taxis, immediately",d:"Expensive, and they arrive",fx:{cash:-14,fatigue:4,squad:-2},
+      out:"Six taxis, one of which contains the goalkeeper and all of the kit. They arrive twenty minutes before kick-off."},
+    {t:"Ask the opposition for help",d:"Swallow the pride",fx:{fans:-2,squad:2,board:-2},
+      delayed:{fans:5},delayedText:"The story of the rival club sending their own bus has gone national, and everyone comes out of it well.",
+      out:"Their chairman sends their bus. It is nicer than yours, and everybody notices."},
+    {t:"Request a postponement",d:"Fixture congestion later",fx:{fatigue:-6},delayed:{fatigue:11,squad:-3},
+      delayedText:"The rearranged match means three games in seven days. The legs have gone.",out:"Granted, grudgingly."}]}},
+tiktok(){const p=pick(alive()).nm;
+  return{sig:`tiktok|${p}`,title:`${p} has posted a video from the treatment room`,
+    lede:"It is very funny. It also shows the physio's whiteboard, which lists every injury at the club.",
+    choices:[{t:"Make him take it down and fine him",d:"By the book",fx:{squad:-5,board:5,fans:-2},out:"Deleted within the hour, screenshotted within ten minutes."},
+      {t:"Let it stand",d:"They are young, it is 2026",fx:{squad:5,fans:7},
+        delayed:{squad:-4},delayedText:"Saturday's opponents targeted two players whose injuries were on that whiteboard.",out:"Four hundred thousand views by Thursday."},
+      {t:"Put him in charge of the club account",d:"Turn it into an asset",fx:{fans:11,squad:3,cash:8},
+        out:"He is genuinely good at it. The club account gains more followers in a month than in six years."}]}},
+training(){return{sig:`train|${S.fatigue>55?"tired":"fresh"}`,title:"How hard do you train them this week?",
+  lede:`Fatigue is at ${S.fatigue}%. There is a match on Saturday and another on Tuesday.`,
+  choices:[{t:"Full intensity",d:"Sharper, and likelier to break",fx:{squad:4,fatigue:9,condition:-4},
+      delayed:{squad:-6},delayedText:"Two hamstrings have gone. Both were flagged by the physio.",out:"Double sessions."},
+    {t:"Recovery week",d:"Fresher legs, blunter edge",fx:{fatigue:-18,squad:-2,condition:8},out:"Pool, bikes and video."},
+    {t:"Split the squad",d:"Starters rest, fringe players work",fx:{fatigue:-9,squad:1,board:1,condition:3},out:"Two groups, two plans."}]}},
+tactics(){return{sig:`tac|${S.pos}`,title:"They have worked you out",
+  lede:"Three opponents in a row have set up the same way, and it keeps working.",
+  body:`<div class="shark"><div><b>FixtureShark</b>The model has you conceding from the same channel in four of the last five. Your next opponent can see it too.</div></div>`,
+  choices:[{t:"Change the system",d:"New shape, unfamiliar roles",fx:{squad:-3,fatigue:4},delayed:{squad:8},
+      delayedText:"The new shape has clicked. They look like a different side.",out:"Two weeks of ugly training."},
+    {t:"Do it better, not differently",d:"Back what you know",fx:{squad:2,board:2},delayed:{squad:-5},
+      delayedText:"Same problem, fifth match running. Now it is a story.",out:"Drill it harder."},
+    {t:"Ask the owner for a specialist",d:"Not your money",fx:{board:-2,squad:3},out:"A left-sided defender arrives on loan."}]}},
+youth(){const y=pick(SURNAMES);
+  return{sig:`yth|${y}`,title:"The kid is ready. Probably.",lede:`${y}, seventeen, has been unplayable in training.`,
+    choices:[{t:"Start him",d:"Sink or swim",fx:{squad:2,fans:8},delayed:rng()<.5?{squad:5,fans:6}:{squad:-5,fans:-4},
+        delayedText:rng()<.5?`${y} has been the best thing about the last month.`:`${y} was overwhelmed and has lost his confidence.`,out:"He starts on Saturday."},
+      {t:"Twenty minutes off the bench",d:"Ease him in",fx:{squad:1,fans:3},out:"A gentle introduction."},
+      {t:"Loan him out",d:"Men's football elsewhere",fx:{squad:-1,cash:6},out:"Off to a non-league side until March."}]}},
+discipline(){const p=pick(alive()).nm;
+  return{sig:`disc|${p}`,title:`${p} was photographed out at two in the morning`,lede:"The match is on Saturday. The photograph is already everywhere.",
+    choices:[{t:"Drop him and say why",d:"Public standards",fx:{squad:-3,fans:7,board:5},out:"He watches from the stand."},
+      {t:"Deal with it privately",d:"Fine him, play him",fx:{squad:3,fans:-4},out:"A fine, and no comment."},
+      {t:"Defend him publicly",d:"Back your player",fx:{squad:6,fans:-6,board:-4},delayed:{board:-5},
+        delayedText:"Defending him has not aged well. He has been late twice since.",out:"You take the flak for him."}]}},
+medical(){const who=pick(alive()).nm,wk=pick([2,4,8]);
+  return{sig:`med|${who}|${wk}`,title:`${who} is out for ${wk} weeks`,lede:wk>=8?"That is most of what is left.":"Back before it matters, probably.",
+    body:squadHTML(),
+    choices:[{t:"Ask the owner for a loan signing",d:"Not your money to spend",fx:{squad:4,board:-2},out:"A short-term replacement arrives."},
+      {t:"Promote from the academy",d:"Free, and the supporters enjoy it",fx:{squad:-3,fans:7},out:"A seventeen-year-old gets a shirt."},
+      {t:"Cope",d:"Same eleven, more minutes",fx:{squad:-2,fatigue:8,condition:-5},delayed:{fatigue:6},
+        delayedText:"Covering the injury has run the rest of them into the ground.",out:"You make do."}]}},
+askowner(){return{sig:`ask|${S.mw}`,title:"You need money the owner will not spend",lede:"One loan signing would change the run-in.",
+  choices:[{t:"Ask privately",d:"Protects the relationship",fx:{board:2,squad:2},out:"He agrees to a loan. Less than you wanted."},
+    {t:"Ask publicly, through the press",d:"Pressure works, and it burns",fx:{fans:9,board:-6,squad:2},delayed:{board:-12},
+      delayedText:"The owner has not forgotten being asked for money on television.",out:"The supporters back you loudly."},
+    {t:"Make do",d:"Work with what you have",fx:{board:6,squad:-2,fatigue:5},out:"The same eleven play every week."}]}},
+/* ---- STAR PLAYER: risk, reward and numbers, not morality ----
+   Note on design: these used to be moral dilemmas (visit the hospital, be
+   loyal). They read well and played flat, because there was no calculation
+   to make. Every one below now states the odds, the stake and the payoff,
+   and FixtureShark supplies the projection you are betting against. */
+selfpens(){
+  const other=pick(alive().filter(p=>p.nm!==me().nm))||{nm:"the captain"};
+  const mine=rnd(72,88),his=rnd(74,92),pens=rnd(3,6);
+  return{sig:`pens|${mine}`,title:"Penalty duty is up for grabs",
+    lede:`${other.nm} has taken them for three years.`,
+    body:`<div class="shark"><div><b>FixtureShark spot-kick model</b>
+      You convert at <b>${mine}%</b> across your career, ${other.nm} at <b>${his}%</b>.
+      The model expects <b>${pens} penalties</b> in the remaining fixtures — worth roughly
+      <b>${(pens*mine/100).toFixed(1)} goals</b> to you, or <b>${(pens*his/100).toFixed(1)}</b> to him.</div></div>`,
+    choices:[
+      {t:"Take them",d:`+${(pens*mine/100).toFixed(1)} expected goals, and a teammate who stops speaking to you`,
+        fx:{form:7,interest:6,squad:-6},delayed:{squad:-3},
+        delayedText:`${other.nm} has not passed to you in three matches. The data says so, and so does everyone watching.`,
+        out:`You take the ball. The first one goes in off the underside of the bar.`},
+      {t:"Leave them with him",d:`He is ${his>mine?"the better taker on the numbers":"marginally worse, but it is his"}`,
+        fx:{squad:6,fans:3,form:-2},out:`You hand it over. He scores two within a month, and nobody forgets who let him.`},
+      {t:"Ask for them only when you are level or behind",d:"Share the risk, keep the upside",
+        fx:{form:3,squad:1,interest:2},out:`A sensible split that annoys precisely nobody, which at this club is an achievement.`}]}},
+selfcontract(){
+  const app=rnd(3,7),goal=rnd(8,18),projApp=rnd(24,32),projGoals=rnd(7,16);
+  return{sig:`contract|${goal}`,title:"Your new contract: how do you want paying?",
+    lede:"Same basic wage. The bonus structure is yours to choose.",
+    body:`<div class="shark"><div><b>FixtureShark projection</b>
+      The model expects you to make <b>${projApp} appearances</b> and score <b>${projGoals} goals</b> this season.
+      Appearance money would pay <b>${fmtMoney(app*projApp)}</b>; goal money would pay <b>${fmtMoney(goal*projGoals)}</b>.
+      It also rates your injury risk as <b>${S.fitness<80?"elevated":"normal"}</b>.</div></div>`,
+    choices:[
+      {t:`${fmtMoney(app)} per appearance`,d:`Safe. Projected ${fmtMoney(app*projApp)} if you stay fit`,
+        fx:{form:2},delayed:{form:2},delayedText:"The appearance money is ticking over. Dull, and it has cleared your overdraft.",
+        out:`Signed. You will be paid for turning up, which you intend to do a lot of.`},
+      {t:`${fmtMoney(goal)} per goal`,d:`Volatile. Projected ${fmtMoney(goal*projGoals)}, and nothing in a barren run`,
+        fx:{form:5,interest:4},delayed:rng()<.5?{form:6,interest:5}:{form:-6},
+        delayedText:rng()<.5?"The goal bonus has focused you. Five in six, and the scouts have noticed.":"Four games without a goal and you are shooting from everywhere. It shows.",
+        out:`Signed. Every shot now has a number attached to it.`},
+      {t:"Split it, and add a relegation clause",d:"Less upside, and you are protected if the club goes down",
+        fx:{form:3,squad:3,fans:-2},out:`Your agent calls it prudent. The chairman calls it pessimistic. Both are right.`}]}},
+selfrole(){
+  const xg=(rnd(30,55)/100).toFixed(2),xa=(rnd(18,40)/100).toFixed(2);
+  return{sig:`role|${xg}`,title:"The manager wants to move you into the ten",
+    lede:"Off the front instead of leading the line.",
+    body:`<div class="shark"><div><b>FixtureShark role model</b>
+      As a nine you average <b>${xg} expected goals</b> per ninety and <b>${xa} expected assists</b>.
+      In the division above, the model has <b>eleven</b> clubs wanting a nine and <b>four</b> wanting a ten —
+      but the tens who move go for <b>thirty per cent more</b>.</div></div>`,
+    choices:[
+      {t:"Stay as the nine",d:"More goals, a bigger market, less football",fx:{form:5,interest:5},
+        out:`You stay on the shoulder. Simpler, and it is what the scouts came to watch.`},
+      {t:"Move into the ten",d:"Fewer goals, more of the game, a smaller but richer market",
+        fx:{form:-3,interest:8,squad:4},delayed:{form:7},
+        delayedText:"The ten has clicked. You are touching the ball twice as often and the assists are arriving.",
+        out:`A month of looking lost, and then it starts to make sense.`},
+      {t:"Refuse and say why",d:"Protect your numbers",fx:{form:2,squad:-5,board:-3},
+        out:`You tell him the goals are your currency. He does not disagree, which is somehow worse.`}]}},
+selfdeadline(){
+  const a={n:"a Championship side",fee:rnd(900,1600),mins:rnd(900,1500),w:rnd(28,42)};
+  const b={n:"a League One title chaser",fee:rnd(400,800),mins:rnd(2200,2900),w:rnd(14,22)};
+  return{sig:`deadline|${a.fee}`,title:"Deadline day: two offers, one afternoon",
+    lede:"Both want an answer by eleven o'clock tonight.",
+    body:`<div class="shark"><div><b>FixtureShark minutes projection</b>
+      ${a.n}: fee <b>${fmtMoney(a.fee)}</b>, wages <b>${fmtMoney(a.w)}/wk</b>, projected
+      <b>${a.mins} minutes</b> — the model has you as a squad player.<br>
+      ${b.n}: fee <b>${fmtMoney(b.fee)}</b>, wages <b>${fmtMoney(b.w)}/wk</b>, projected
+      <b>${b.mins} minutes</b> — first choice, and promotion would take you up anyway.</div></div>`,
+    choices:[
+      {t:`Take the money and the bench`,d:`${fmtMoney(a.fee)} to your club, ${a.mins} projected minutes`,
+        fx:{interest:14,fans:-6},after(){S.cash+=a.fee;const m=me();if(m)m.gone=true;recalcSquadRating()},
+        out:`The big fee lands in your club's account on deadline day. You will be watching a lot of football from a padded seat.`},
+      {t:`Take the football`,d:`${fmtMoney(b.fee)} to your club, ${b.mins} projected minutes`,
+        fx:{interest:8,fans:2},after(){S.cash+=b.fee;const m=me();if(m)m.gone=true;recalcSquadRating()},
+        out:`Less money for everyone, and you will play every week. The model likes it more than your agent does.`},
+      {t:"Stay and run your contract down",d:"Nothing now, a free transfer in summer",
+        fx:{fans:14,squad:6,form:4,interest:-6},
+        delayed:{interest:10},delayedText:"Staying has worked. You are playing every week and three clubs have been watching.",
+        out:`Your club gets nothing, which the supporters will forgive because you stayed.`}]}},
+selfsponsor(){
+  const flat=rnd(30,60),per=rnd(4,9),projG=rnd(7,16);
+  return{sig:`spon|${per}`,title:"A sportswear brand wants you",
+    lede:"Two structures on the table.",
+    body:`<div class="shark"><div><b>FixtureShark</b>The model projects <b>${projG} goals</b> this season,
+      which would pay <b>${fmtMoney(per*projG)}</b> on the performance deal against <b>${fmtMoney(flat)}</b> flat.</div></div>`,
+    choices:[
+      {t:`${fmtMoney(flat)} flat`,d:"Guaranteed, whatever happens",fx:{form:1},out:`Signed. Boring money is still money.`},
+      {t:`${fmtMoney(per)} per goal`,d:`Projected ${fmtMoney(per*projG)}, nothing if the goals dry up`,
+        fx:{form:3,interest:2},delayed:rng()<.45?{form:-5}:{form:4},
+        delayedText:rng()<.45?"Chasing the bonus has made you greedy in front of goal.":"The bonus has sharpened you.",
+        out:`Every finish now has a price on it.`},
+      {t:"Turn it down and stay unsponsored",d:"No obligations, no photoshoots",fx:{form:4,fitness:3},
+        out:`Your agent is baffled. Your Tuesdays are your own.`}]}},
+selfextras(){
+  const risk=S.fitness<78?38:18;
+  return{sig:`extras|${risk}`,title:"Extra finishing sessions, or recovery?",
+    lede:`You are at ${Math.round(S.fitness)}% fitness with three matches in eight days.`,
+    body:`<div class="shark"><div><b>FixtureShark load model</b>
+      At your current load, extra sessions carry roughly a <b>${risk}%</b> soft-tissue risk over the next fortnight,
+      against an expected <b>+6 form</b> if you get through them clean.</div></div>`,
+    choices:[
+      {t:"Stay out after training every day",d:`+6 form, ${risk}% chance of a fortnight out`,
+        fx:{form:6,fitness:-7},delayed:rng()*100<risk?{fitness:-22,form:-10}:null,
+        delayedText:"The extra sessions caught up with you. A calf, and a fortnight in the gym.",
+        out:`Two hundred finishes a week, alone, in the dark.`},
+      {t:"Recovery only",d:"No gain, no risk",fx:{fitness:11,form:-2},out:`Ice baths and bikes. Dull, and you are fit on Saturday.`},
+      {t:"Alternate the two",d:"Half the gain, half the risk",fx:{form:3,fitness:2},out:`A compromise your physio can live with.`}]}},
+selfinjury(){
+  const risk=S.fitness<72?45:28,wk=pick([3,6]);
+  return{sig:`inj|${risk}`,title:"Your hamstring is not right",
+    lede:`Fitness ${Math.round(S.fitness)}%. There are scouts at Saturday's match.`,
+    body:`<div class="shark"><div><b>FixtureShark medical model</b>
+      Playing carries a <b>${risk}%</b> chance of a genuine tear, which would cost about
+      <b>${wk} weeks</b> and, on the model, roughly <b>${(wk*1.4).toFixed(0)} points</b> of interest from suitors.</div></div>`,
+    choices:[
+      {t:"Play",d:`${risk}% chance of ${wk} weeks out, and the scouts see you`,
+        fx:{form:5,interest:5,squad:3},delayed:rng()*100<risk?{fitness:-24,form:-12,interest:-10}:null,
+        delayedText:`The hamstring went properly. ${wk} weeks, and the scouts have moved on to somebody else.`,
+        out:`You play, and you get through it. Whether it holds is a different question.`},
+      {t:"Sit it out",d:"No risk, no shop window",fx:{fitness:18,interest:-4,fans:-3},
+        out:`You watch from the stand. The phone-in questions your commitment, as it always does.`},
+      {t:"Play the first half only",d:`Roughly half the risk, half the exposure`,
+        fx:{form:2,interest:2,fitness:-4},delayed:rng()*100<risk/2?{fitness:-16,form:-6}:null,
+        delayedText:"Even forty-five minutes was too many. It has tightened again.",
+        out:`Forty-five minutes, then off, with the scouts still scribbling.`}]}},
+selfcaptain(){
+  return{sig:"cap",title:"The manager offers you the armband",
+    lede:"The current captain is thirty-four and has started twice since Christmas.",
+    body:`<div class="shark"><div><b>FixtureShark</b>Across the division, players who take the armband
+      average <b>+4 form</b> over the following ten matches, and <b>-2</b> in the fortnight after they take it.</div></div>`,
+    choices:[
+      {t:"Take it",d:"-2 now, +4 across the run-in",fx:{squad:5,fans:9,form:-2},delayed:{form:6},
+        delayedText:"The responsibility has settled you. Best on the pitch twice running.",out:`You take the armband.`},
+      {t:"Refuse, because it is his",d:"Dressing room over numbers",fx:{squad:8,fans:4},
+        out:`He hears about it and finds you afterwards. Neither of you mentions it again.`},
+      {t:"Take it, but call it temporary",d:"Half the effect, half the commitment",fx:{squad:2,fans:2,form:1},
+        out:`Nobody is quite sure who the captain is, which is its own kind of answer.`}]}},
+/* ---- HOMAGE EVENTS: the furniture of English football, invented fresh.
+   Deliberately NOT real people or their actual words -- these are new
+   scenes that rhyme with moments every supporter already knows. ---- */
+/* BONUS STRUCTURES. One player per turn, and the position decides what the
+   bonus actually does -- a goal bonus on a striker is a different decision
+   from a goal bonus on a centre-back. That is where the variety comes from.
+   Liabilities are settled at the end of the season, against real results. */
+bonus(){
+  /* Found by the season simulator: if injuries leave nobody AVAILABLE,
+     this used to dereference undefined and crash the page. Injured players
+     can still sign a bonus -- they are at the club, just not playing. */
+  const cands=alive().filter(p=>!S.bonuses.some(b=>b.nm===p.nm));
+  const p=pick(cands.length?cands:alive());
+  const G={FW:{at:5,de:-1,note:"a striker chasing goals is still mostly a striker"},
+           MF:{at:3,de:-3,note:"he will arrive late in the box, and leave gaps behind him"},
+           DF:{at:2,de:-5,note:"a centre-back chasing goals is a centre-back not defending"},
+           GK:{at:0,de:-2,note:"he will be up for every corner, which is a sentence nobody wants to write"}}[p.pos];
+  const rate=p.pos==="FW"?6:p.pos==="MF"?9:14;
+  return{sig:`bonus|${p.nm}|${p.pos}`,title:`${p.nm} wants a bonus`,
+    lede:`${p.pos==="FW"?"Your striker":p.pos==="MF"?"A midfielder":p.pos==="DF"?"A defender":"Your goalkeeper"}, quality ${p.rt}. Three structures on the table.`,
+    body:`<div class="shark"><div><b>FixtureShark</b>A goal bonus on a ${p.pos==="FW"?"forward":p.pos==="MF"?"midfielder":p.pos==="DF"?"defender":"goalkeeper"}:
+      ${G.note}. Finishing-position money lifts everyone a little, because it rewards the result rather than the individual.</div></div>`,
+    choices:[
+      {t:`${fmtMoney(rate)} per goal he scores`,d:`Attack +${G.at}, defence ${G.de} · paid at the end, per goal`,
+        fx:{},after(){S.attMod+=G.at;S.defMod+=G.de;S.bonuses.push({type:"goals",nm:p.nm,rate,from:p.goals||0})},
+        out:`Signed. Watch where he stands at the next corner.`},
+      {t:`${fmtMoney(60)} if you finish top three`,d:"Attack +2, defence +2 · paid only if it happens",
+        fx:{},after(){S.attMod+=2;S.defMod+=2;S.bonuses.push({type:"finish",nm:p.nm,amt:60})},
+        out:`A bonus for the result, not the scoresheet. He shrugs, and signs.`},
+      {t:`${fmtMoney(3)} per appearance`,d:"Attack +1, defence +1 · a small, certain cost",
+        fx:{},after(){S.attMod+=1;S.defMod+=1;S.bonuses.push({type:"apps",nm:p.nm,rate:3,from:S.played||0})},
+        out:`Paid for turning up. Unexciting, and he turns up.`},
+      {t:"No bonus",d:"Keep the money",fx:{board:2},out:`He takes it better than expected. His agent does not.`}]}},
+tannoy(){return{sig:"tannoy",title:"The stadium microphone is right there",
+  lede:"Half time, one down, and the ground has gone quiet enough to hear the pies being warmed.",
+  body:`<p>You have had two glasses of wine in the boardroom. The stadium announcer has stepped away from his desk. The microphone is, technically, unattended.</p>`,
+  choices:[
+    {t:"Pick it up and rouse them",d:"Unforgettable, one way or the other",fx:{fans:rng()<.6?17:-12,board:-6},
+      delayed:{cash:22},delayedText:"The clip of your half-time address has been viewed four million times. The club shop has sold out of everything.",
+      out:`You tell eight thousand people exactly what you think of the first half and invite them, at volume, to do something about it. The second half is the loudest forty-five minutes in nine years.`},
+    {t:"Have a quiet word with the announcer instead",d:"Let him say it properly",fx:{fans:4},
+      out:`He reads your words in a measured baritone. It is fine. Nobody will remember it.`},
+    {t:"Put it down and go back upstairs",d:"You are the owner, not the entertainment",fx:{board:5,fans:-2},
+      out:`You return to the boardroom and the sandwiches. Probably the correct decision.`}]}},
+prawn(){return{sig:"prawn",title:"Two hundred seats, two hundred arguments",
+  lede:"The corporate boxes are full and silent. The terrace behind the goal is half empty and deafening.",
+  body:`<p>Your commercial manager wants forty more hospitality seats. The supporters' trust have used the phrase "atmosphere" eleven times in one letter.</p>`,
+  choices:[
+    {t:"Build the hospitality",d:"Reliable money, quieter ground",fx:{cash:95,fans:-13},
+      delayed:{cash:35},delayedText:"The hospitality is sold out every week. It is the most profitable thing at the club and the least enjoyable.",
+      out:`Forty seats, a carvery and a view. They sell instantly and clap politely at throw-ins.`},
+    {t:"Expand the terrace and cut prices behind the goal",d:"Less per head, a ground that sounds like one",
+      fx:{cash:-35,fans:18},delayed:{cash:40},delayedText:"The singing end is full every week, and the bars behind it have never taken so much.",
+      out:`You put the cheapest tickets behind the goal and let the noise come back.`},
+    {t:"Both, on opposite sides",d:"Have it all ways",fx:{cash:40,fans:5,board:3},
+      out:`Prawn sandwiches on one side, a wall of noise on the other, and a ground at war with itself in the most English way possible.`}]}},
+sharkdeal(){return{sig:"sharkdeal",title:"FixtureShark want to put their name on your shirt",
+  lede:`${fmtMoney(140)} a season, and they will throw in their recruitment platform.`,
+  body:`<div class="shark"><div><b>The pitch from FixtureShark</b>
+    Their model has your squad at <b>${S.squad}</b> and your wage-to-points ratio as the second worst in the division.
+    They believe they can fix the second number without touching the first, and they would like the front of the shirt while they do it.</div></div>`,
+  choices:[
+    {t:"Sign the full deal",d:`${fmtMoney(140)} and the data platform`,fx:{cash:140,squad:3,board:4,fans:-2},
+      delayed:{squad:5},delayedText:"The recruitment platform has earned its keep. Two of the January signings are already the best value in the division.",
+      out:`Shirts to the printers, and a login for your head of recruitment.`},
+    {t:"Take the data, keep the shirt free",d:"Less money, and the badge stays clean",fx:{cash:40,squad:3,fans:5},
+      out:`A smaller deal. Your supporters' trust send a note of thanks, which is a first.`},
+    {t:"Turn it down",d:"You have always done it on instinct",fx:{fans:3,board:-4},
+      delayed:{squad:-4},delayedText:"Two rivals signed up instead, and both have recruited better than you this season.",
+      out:`You tell them you will stick with what you know.`}]}},
+hisjob(){const p=pick(alive()).nm,pun=PUNDITS[0];
+  return{sig:`hisjob|${p}`,title:`A pundit has taken your defender apart`,
+    lede:`On television, at length: "People keep telling me he is unlucky. He is a defender. Defending is the job."`,
+    body:`<p class="small">${pun.n} is ${pun.d}, and he said it three times in ninety seconds. ${p} has seen it. Everyone has seen it.</p>`,
+    choices:[
+      {t:"Agree with him publicly",d:"Brutal, and it might work",fx:{squad:-8,fans:6,board:4},
+        delayed:rng()<.5?{squad:9}:{squad:-6},
+        delayedText:rng()<.5?`${p} has not made a mistake since. He has also not spoken to you since.`:`${p}'s confidence has gone entirely. He asked not to be considered on Saturday.`,
+        out:`You are asked about it in the press conference and you do not defend him. The room notices.`},
+      {t:"Defend him in public, correct him in private",d:"The usual, and it usually works",fx:{squad:7,fans:-3},
+        out:`A wall of support on camera, and a very different forty minutes on Monday morning.`},
+      {t:"Put him in front of the cameras himself",d:"Let him answer it",fx:{squad:3,fans:8,board:-2},
+        delayed:{squad:4},delayedText:`${p} handled the interview better than anyone expected, and the dressing room has noticed who backed him.`,
+        out:`He is nervous, honest and rather good, and the pundit looks slightly silly for a week.`}]}},
+mindgames(){const r=pick(RIVALS).n;
+  return{sig:`mind|${r}`,title:`The ${r} manager has been talking about you`,
+    lede:`"They are a big club for this level. The pressure is all on them, not us."`,
+    body:`<p>It is nonsense — you are sixth in a six-team division — and it has been repeated on every bulletin since Thursday.</p>`,
+    choices:[
+      {t:"Fire it straight back",d:"Give them a headline",fx:{fans:9,squad:4,board:-3},
+        delayed:{squad:-4},delayedText:"The war of words has become the whole story. Your players are being asked about it instead of the football.",
+        out:`You point out, pleasantly, that his budget is three times yours. It leads the bulletins for two days.`},
+      {t:"Refuse to engage at all",d:"Bore it to death",fx:{board:5,fans:-3,squad:2},
+        out:`"I have not seen it." You have seen it. Everyone knows you have seen it.`},
+      {t:"Pin it on the dressing-room wall",d:"Use it inside, say nothing outside",fx:{squad:8,fans:2},
+        out:`No public response, and a printout above the kit skip where nobody can miss it.`}]}},
+sharkscout(){const opp=pick(RIVALS).n;
+  return{sig:`sharkscout|${opp}`,title:`The analyst has found something about ${opp}`,
+    lede:"Fourteen minutes of clips and one very clear pattern.",
+    body:`<div class="shark"><div><b>FixtureShark opposition report</b>
+      ${opp} press high for the opening twenty minutes and then drop off sharply — the model has them conceding
+      <b>61%</b> of their goals after the hour. Their left back has the worst duel success rate in the division.</div></div>`,
+    choices:[
+      {t:"Set up to survive twenty minutes, then go",d:"Trust the data, take the early pressure",
+        fx:{squad:6,fatigue:4},delayed:{squad:3},delayedText:"The plan worked almost exactly as the report said it would.",
+        out:`Deep, narrow and patient for twenty minutes, then at them. It is not pretty and it is very effective.`},
+      {t:"Attack that left back from the first whistle",d:"Target the weakness immediately",
+        fx:{squad:4,fatigue:6},out:`Everything down their left. He is substituted on the hour, visibly relieved.`},
+      {t:"Ignore it and play your way",d:"You have a plan already",fx:{squad:-2,board:-2},
+        out:`You leave the clips unwatched. Your assistant, who watched them twice, says nothing.`}]}}
+};
+/* --- media ---------------------------------------------------------------- */
+/* PRESS CONFERENCES, rewritten.
+   The old version offered three tones -- back the players, demand more, dead
+   bat -- attached to no actual situation, so nothing was at stake and no
+   choice was interesting. Each of these is now a SPECIFIC problem walking
+   into the room with you, with a concrete thing to win or lose. */
+const PRESSERS_CLUB=[
+{id:"leak",cond:()=>true,build(){
+  return{title:"Somebody has leaked the wage deferral letter",
+    lede:`A reporter slides a photocopy across the table. It is on club headed paper and it is real.`,
+    body:`<p>Nobody outside the building was supposed to know the players were asked to wait for their money. He wants to know who signed it, and he already knows the answer.</p>`,
+    choices:[
+      {t:"Confirm it and explain the cash position",d:"Total candour, in public, on the record",
+        fx:{fans:11,board:-9,cash:-8},delayed:{cash:-28},
+        delayedText:"Two sponsors cited 'uncertainty' when they declined to renew. The deferral story was in every one of those conversations.",
+        out:`You take them through the numbers line by line. It is the most honest twenty minutes the club has had in a decade, and it will cost you commercially.`},
+      {t:"Confirm it, refuse to discuss details",d:"Accurate, and gives them nothing to run with",
+        fx:{fans:3,board:2},out:`"The letter is genuine. It is a private matter between the club and its staff." Six more questions, six identical answers.`},
+      {t:"Deny it",d:"It is in his hand",fx:{fans:-16,board:-6},
+        delayed:{fans:-8,board:-6},delayedText:"The photocopy ran on the back page under the word DENIED, next to your quote. Nobody has forgotten it.",
+        out:`You say you do not recognise the document. He photographs your face saying it.`},
+      {t:"Ask him, on the record, who gave it to him",d:"Turn it around",fx:{fans:-4,board:6,squad:-5},
+        out:`The room goes quiet and then turns on you. You have made yourself the story and started a hunt inside your own club.`}]}}},
+{id:"guarantee",cond:()=>S.mw>=4,build(){
+  const left=MW-S.mw;
+  return{title:"\u201cCan you guarantee you will not go down?\u201d",
+    lede:`${ord(S.pos)} of six with ${left} to play, and he has asked it three times now.`,
+    body:`<p>It is a trap and everyone in the room knows it is a trap. There is no answer that survives contact with a bad afternoon.</p>`,
+    choices:[
+      {t:"Guarantee it",d:"A hostage to fortune, and they will love it today",
+        fx:{fans:14,squad:6,board:-7},delayed:S.pos>=4?{fans:-16,board:-8}:null,
+        delayedText:"The guarantee has been replayed on every bulletin since the last defeat. It follows you into every room.",
+        out:`"We will not be relegated. Write it down." They write it down.`},
+      {t:"Refuse to deal in guarantees",d:"Correct, and dull",fx:{board:4,fans:-3},
+        out:`"I do not think guarantees help anybody." He asks a fourth time. You say it again.`},
+      {t:"Turn it into a challenge to the supporters",d:"Ask them for something",
+        fx:{fans:9,squad:3},delayed:{cash:22},
+        delayedText:"The 'fill it every week' line worked. Attendances are up and so are the takings behind the goal.",
+        out:`"I will guarantee this: fill that ground every week and we will not go down. That is the deal."`}]}}},
+{id:"dropped",cond:()=>alive().length>3,build(){
+  const p=pick(alive()).nm;
+  return{title:`Why is ${p} not playing?`,
+    lede:`He has not started in a month and the supporters have noticed before the press did.`,
+    body:`<p>The honest answer is that he has been poor in training and worse on a Saturday. The useful answer might be something else entirely.</p>`,
+    choices:[
+      {t:"Tell the truth about his form",d:"Public, and it will get back to him",
+        fx:{fans:6,board:3,squad:-8},delayed:rng()<.5?{squad:8}:{squad:-6},
+        delayedText:rng()<.5?`${p} trained like a man possessed all week and scored on Saturday. Sometimes it works.`:`${p} has asked to leave in January. He has not spoken to you since the interview.`,
+        out:`"He has not earned the shirt." It is true, and saying it out loud changes something.`},
+      {t:"Invent a small injury for him",d:"Protects him, and it is a lie",
+        fx:{squad:6,fans:-2},delayed:{fans:-7,board:-4},
+        delayedText:"He was photographed training fully on the day he was supposedly injured. The 'knock' has become a running joke.",
+        out:`"A tight calf. Day by day." He is fit as a flea and you have just said otherwise on camera.`},
+      {t:"Say it is a selection decision and move on",d:"The oldest answer in football",fx:{board:2,squad:2,fans:-2},
+        out:`"Selection." Four more attempts, four more selections.`}]}}},
+{id:"rivalbid",cond:()=>true,build(){
+  const r=pick(RIVALS).n,best=alive().sort((a,b)=>b.rt-a.rt)[0]||{nm:"your best player"};
+  return{title:`${r} have bid for ${best.nm} and somebody has told the press`,
+    lede:`You were going to reject it quietly on Monday.`,
+    body:`<p>Now it is a story, and how you answer will set the price, the player's head and the supporters' mood for a fortnight.</p>`,
+    choices:[
+      {t:"He is not for sale at any price",d:"Strong, and it costs you leverage",
+        fx:{fans:13,board:-4},delayed:{cash:-18},
+        delayedText:`${r} withdrew entirely after the 'not for sale' line. There is no bid to negotiate against now.`,
+        out:`"Not for sale. Not to them, not to anyone, not in January." The away end will sing about it.`},
+      {t:"Everybody has a price",d:"Invites a bigger bid, unsettles him",
+        fx:{fans:-9,squad:-5},delayed:{cash:60},
+        delayedText:`${r} came back with a substantially improved offer after your 'everybody has a price' remark. Your agent friends call it accidental genius.`,
+        out:`You say it with a smile. The smile does not make it into the photograph.`},
+      {t:"Refuse to discuss another club's business",d:"Says nothing, gives nothing",fx:{board:5,fans:-2},
+        out:`"I am not talking about speculation." A short, professional, forgettable exchange.`}]}}},
+{id:"ticket",cond:()=>true,build(){
+  return{title:"A question about the price of a pie",
+    lede:`"Four pounds sixty for a pie. Five for a pint. Is that a club that respects its supporters?"`,
+    body:`<p>It is a small question standing in for a much larger one, and the man asking it has a season ticket in the family stand.</p>`,
+    choices:[
+      {t:"Cut the prices on the spot, live",d:"Popular, and it comes straight off the margin",
+        fx:{fans:15,cash:-30},delayed:{cash:18},
+        delayedText:"The cheaper kiosks are selling nearly double. It has very nearly paid for itself.",
+        out:`"From Saturday, three pounds. You have my word." The room actually applauds, which never happens.`},
+      {t:"Explain the catering contract",d:"True, boring, and nobody wants to hear it",fx:{fans:-5,board:3},
+        out:`You explain that the caterer sets the prices and takes the margin. It is entirely accurate and it satisfies nobody.`},
+      {t:"Point out what the pies cost at the clubs above you",d:"Deflect upwards",fx:{fans:2,board:1},
+        out:`"Go to ${RIVALS[0].n} and buy a pie. Then come back and ask me again." It gets a laugh and settles nothing.`}]}}}
+];
+const PRESSERS_PLAYER=[
+{id:"agentleak",cond:()=>true,build(){
+  return{title:"They have seen what your agent said",
+    lede:`"Your representative told this paper you are 'too good for this level'. Are you?"`,
+    body:`<div class="shark"><div><b>FixtureShark</b>The model has you as the highest-rated player in the division by a clear margin,
+      which makes the quote accurate and does not make it any easier to answer.</div></div>`,
+    choices:[
+      {t:"Disown the quote completely",d:"Protects the dressing room, annoys your agent",
+        fx:{fans:12,squad:7,interest:-6},out:`"He does not speak for me." Your phone rings before you are out of the building.`},
+      {t:"Stand by it",d:"Honest, and it will be read as contempt",
+        fx:{interest:12,fans:-14,squad:-6},delayed:{fans:-6},
+        delayedText:"The 'too good for this level' line was sung back at you, sarcastically, by your own supporters.",
+        out:`"He is not wrong." Two words, and a fortnight of consequences.`},
+      {t:"Turn it into praise for the club",d:"The professional escape",fx:{fans:6,squad:3,interest:-1},
+        out:`"What I said is that this club has been good to me." Not what he said. Close enough.`}]}}},
+{id:"penaltymiss",cond:()=>true,build(){
+  return{title:"You missed one on Saturday",
+    lede:`"You have missed two of your last four. Should somebody else be taking them?"`,
+    body:`<div class="shark"><div><b>FixtureShark</b>Two misses in four is well inside normal variance for a ${rnd(76,86)}% career taker.
+      The model says nothing has changed. The supporters are not reading the model.</div></div>`,
+    choices:[
+      {t:"Say the numbers are fine and you will take the next one",d:"Correct, and it sounds arrogant",
+        fx:{form:6,interest:4,fans:-5},out:`"I have scored eight of ten this season. I will take the next one." He writes down 'defiant'.`},
+      {t:"Offer them to somebody else",d:"Humble, and you lose the goals",
+        fx:{fans:8,squad:6,form:-5,interest:-5},out:`"If the manager wants somebody else on them, that is his call." He does want somebody else, now.`},
+      {t:"Blame the pitch",d:"Everyone can see the pitch",fx:{fans:-3,form:-2,squad:-2},
+        out:`The pitch is genuinely dreadful. It is still not why you missed.`}]}}}
+];
+function presserSpec(){
+  const pool=(ROLE.id==="player"?PRESSERS_PLAYER:PRESSERS_CLUB).filter(x=>!x.cond||x.cond());
+  const fresh=pool.filter(x=>!S.flags["pc_"+x.id]);
+  const chosen=pick(fresh.length?fresh:pool);
+  S.flags["pc_"+chosen.id]=1;
+  return chosen.build();
+}
+function papersSpec(){
+  const paper=pick(PAPERS),res=S.lastRes;
+  const heads=res==='w'?[["FINS UP","A first win in six, and for ninety minutes the place believed again."],["TIDE TURNS","Three points that change little and feel like everything."]]
+    :res==='l'?[["SINKING","The same mistakes again, in front of people who have run out of patience."],["DEEP WATER","The table does not lie, and it is getting late to argue with it."]]
+    :[["TREADING WATER","A point that suits nobody and settles nothing."],["STALEMATE","Ninety minutes that will be forgotten by Tuesday."]];
+  const h=pick(heads),pr=PREDICT[CLUB];
+  const shark=pick([`FixtureShark's model now gives ${CLUB} a ${clamp(Math.round(100-pr.rel-(S.pos-3)*8),4,94)}% chance of staying up.`,
+    `FixtureShark rated this squad ${S.squad} before a ball was kicked and predicted ${ord(Math.round(pr.avg))}.`,
+    `According to FixtureShark, only one club in this division gets less for its wage bill.`]);
+  return{paper,h,shark};
+}
+function podcastSpec(){
+  const a=pick(PUNDITS),b=pick(PUNDITS.filter(p=>p.n!==a.n));
+  const bad=S.pos>=5||S.formArr.slice(-3).filter(f=>f==='l').length>=2;
+  const lines=ROLE.id==="player"
+    ?[[a.n,bad?"He is the best player at that club by a distance, and that tells you about the club rather than him.":"Every time I watch him I like him more."],
+      [b.n,bad?"If he is still there in September, somebody has made a mistake.":"The question is whether he goes for the money or the football."]]
+    :ROLE.id==="owner"
+    ?[[a.n,bad?"You cannot cut your way out of this. Every sale makes the next result worse.":"Say what you like, the books are in better shape than they were."],
+      [b.n,bad?"Relegation costs more than any player they have sold. That is the bit that gets forgotten.":"It is the boring things, paid on time, that keep clubs alive."]]
+    :[[a.n,bad?"Three defeats and the same problem each time. That is coaching, not luck.":"He has got more out of that group than anyone had a right to expect."],
+      [b.n,bad?"The dressing room is still with him, and when that goes it goes overnight.":"Give him money in January and they finish in the top half."]];
+  return{lines,shark:`${pick(PUNDITS).n}: "The FixtureShark numbers have them ${Math.abs(Math.round(PREDICT[CLUB].avg-S.pos))} ${Math.abs(Math.round(PREDICT[CLUB].avg-S.pos))===1?"place":"places"} ${S.pos<PREDICT[CLUB].avg?"above":"below"} where the model had them. That is not nothing."`};
+}
+
+/* --- matchweeks ----------------------------------------------------------- */
+function playOthers(wk){const out=[];
+  FIXTURES[wk].forEach(([h,a])=>{if(h===CLUB||a===CLUB)return;
+    const[hg,ag]=simScore(strOf(h),strOf(a));award(TABLE,h,a,hg,ag);out.push({h,a,hg,ag})});return out}
+function myFixture(wk){return FIXTURES[wk].find(([h,a])=>h===CLUB||a===CLUB)}
+function resolveMine(hg,ag,home){
+  const mg=home?hg:ag,tg=home?ag:hg;let fx,res;
+  if(mg>tg){res='w';fx={fans:7,board:7,cash:rnd(16,30)}}
+  else if(mg===tg){res='d';fx={fans:1,board:1,cash:rnd(10,19)}}
+  else{res='l';fx={fans:-7,board:-6,cash:rnd(8,15)}}
+  S.formArr.push(res);S.lastRes=res;S.fatigue=clamp(S.fatigue+rnd(5,9));S.matchBoost=0;
+  S.seasonLog.push({mw:S.mw+1,gf:mg,ga:tg,cs:tg===0?1:0});
+  S.squadList.forEach(p=>{
+    if(p.gone)return;
+    if(p.out){p.out--;if(!p.out)p.fit=clamp(p.fit+18);return}   /* recovering */
+    p.fit=clamp(p.fit-rnd(3,8),25,100);
+    /* The lower the condition, the likelier the match breaks him. This is
+       what makes the Physio Room matter rather than being a readout. */
+    const risk=p.fit<55?.26:p.fit<70?.12:.04;
+    if(rng()<risk){p.out=rnd(1,3);p.fit=clamp(p.fit-10)}
+  });
+  if(ROLE.id==="player"){S.fitness=clamp(S.fitness-rnd(2,6));S.form=clamp(S.form+(mg>tg?5:mg===tg?0:-4))}
+  return{fx,res};
+}
+/* Who you are playing, and whether they are better than you. This was the
+   missing context: the vidiprinter named an opponent with no sense of where
+   they sat or what the model made of the tie. */
+/* Team Strength, in the site's own currency: an attack rating and a defence
+   rating expressed as expected goals per match, not an opaque 0-100 score. */
+function teamAtt(n){const st=n===CLUB?myStrength()+(S.attMod||0)+FORMATIONS[S.formation||"4-4-2"].att:strOf(n);
+  return Math.max(.35,0.95+(st-52)/26)}
+function teamDef(n){const st=n===CLUB?myStrength()+(S.defMod||0)+FORMATIONS[S.formation||"4-4-2"].def:strOf(n);
+  return Math.max(.35,1.55-(st-52)/26)}
+function strengthTableHTML(){
+  const rows=[CLUB].concat(RIVALS.map(r=>r.n))
+    .map(n=>({n,att:teamAtt(n),def:teamDef(n),t:TABLE[n]}))
+    .sort((a,b)=>(b.att-b.def)-(a.att-a.def));
+  return `<table class="tbl"><thead><tr><th>Club</th><th class="n">Attack</th><th class="n">Defence</th>
+    <th class="n">GF</th><th class="n">GA</th><th class="n">CS</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr class="${r.n===CLUB?'me':''}"><td>${r.n}</td>
+      <td class="n">${r.att.toFixed(2)}</td><td class="n">${r.def.toFixed(2)}</td>
+      <td class="n">${r.t.gf}</td><td class="n">${r.t.ga}</td><td class="n">${CLEAN[r.n]||0}</td></tr>`).join('')}
+    </tbody></table>
+  <div style="font-size:11px;color:var(--mute);margin-top:4px">Attack and defence as expected goals per match · CS = clean sheets</div>`;
+}
+/* Fixture heat map: every remaining match rated by opponent strength and
+   venue. Exactly the thing the site does, shown here as a row of squares. */
+function heatColour(d){
+  return d<=1.5?"#2d6b48":d<=2.5?"#5d8f4e":d<=3.5?"#c9901a":d<=4.5?"#c26a2a":"#a8322b";
+}
+/* Five at a time in a fixed five-column grid. Ten tiles in a flex-wrap
+   row broke on mobile into eight-then-two; five columns cannot wrap. */
+function fixtureHeatHTML(fromWk,count){
+  const cells=[],to=Math.min(MW,fromWk+(count||5));
+  for(let wk=fromWk;wk<to;wk++){
+    const f=FIXTURES[wk].find(([h,a])=>h===CLUB||a===CLUB);
+    const home=f[0]===CLUB,opp=home?f[1]:f[0];
+    const gap=strOf(opp)-myStrength()+(home?-4:4);
+    const d=clamp(3+gap/6,1,5);
+    cells.push({wk:wk+1,opp,home,d});
+  }
+  return `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0 4px">
+    ${cells.map(c=>`<div title="${c.opp}" style="min-width:0;overflow:hidden;background:${heatColour(c.d)};
+      color:#f6f4ea;border-radius:6px;padding:6px 4px;text-align:center">
+      <div style="font-family:var(--mono);font-size:9px;opacity:.85">MW${c.wk}</div>
+      <div style="font-family:var(--disp);font-size:13px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.opp.split(" ")[0]}</div>
+      <div style="font-family:var(--mono);font-size:9px;opacity:.85">${c.home?"H":"A"} · ${c.d.toFixed(1)}</div></div>`).join('')}
+  </div>
+  <div style="font-size:11px;color:var(--mute)">Fixture difficulty 1 (easiest) to 5 (hardest), from Team Strength and venue</div>`;
+}
+function posOf(n){return standings(TABLE).findIndex(r=>r.n===n)+1}
+function formPips(n){const f=(FORM[n]||[]).slice(-5);
+  return f.length?`<span class="form">${f.map(x=>`<i class="${x}"></i>`).join('')}</span>`:'<span style="color:var(--mute)">—</span>'}
+function winProb(oppName,home){
+  const saved=R.s;let w=0,d=0;
+  const fm=S.nextOppFm||"4-4-2";
+  for(let i=0;i<500;i++){
+    const[m,t]=clubRates(oppName,home,1.25,fm);
+    const mg=Math.min(5,pois(m)),tg=Math.min(5,pois(t));
+    if(mg>tg)w++;else if(mg===tg)d++;
+  }
+  R.s=saved;
+  return{w:Math.round(w/5),d:Math.round(d/5),l:Math.round((500-w-d)/5)};
+}
+function opponentPanel(opp,home){
+  const myP=posOf(CLUB),oP=posOf(opp),t=TABLE[opp],mt=TABLE[CLUB];
+  const oStr=strOf(opp),gap=Math.round(myStrength()-oStr);
+  const pr=winProb(opp,home);
+  const played=mt.p>0;
+  return `<div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:11px">
+    <div style="display:flex;gap:10px;align-items:stretch">
+      <div style="flex:1;text-align:center">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.09em;color:var(--mute);text-transform:uppercase">You${home?" (home)":""}</div>
+        <div style="font-family:var(--disp);font-size:22px;font-weight:700;line-height:1.1">${played?ord(myP):"—"}</div>
+        <div style="font-size:11.5px;color:var(--ink2)">${mt.pts} pts · rated ${Math.round(myStrength())}</div>
+        <div style="margin-top:3px">${formPips(CLUB)}</div>
+      </div>
+      <div style="width:1px;background:var(--line)"></div>
+      <div style="flex:1;text-align:center">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.09em;color:var(--mute);text-transform:uppercase">${opp}${home?"":" (home)"}</div>
+        <div style="font-family:var(--disp);font-size:22px;font-weight:700;line-height:1.1">${played?ord(oP):"—"}</div>
+        <div style="font-size:11.5px;color:var(--ink2)">${t.pts} pts · rated ${oStr}</div>
+        <div style="margin-top:3px">${formPips(opp)}</div>
+      </div>
+    </div>
+    <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink2)">
+      <b style="color:var(--ink)">Team Strength</b> — you ${teamAtt(CLUB).toFixed(2)} attack / ${teamDef(CLUB).toFixed(2)} defence,
+      them ${teamAtt(opp).toFixed(2)} / ${teamDef(opp).toFixed(2)} expected goals.
+      ${gap>4?"Well below you":gap>0?"Slightly below you":gap>-5?"Slightly above you":"Well above you"}. Model odds:
+      <span style="font-family:var(--mono);color:var(--good)">W ${pr.w}%</span> ·
+      <span style="font-family:var(--mono)">D ${pr.d}%</span> ·
+      <span style="font-family:var(--mono);color:var(--bad)">L ${pr.l}%</span>
+    </div></div>`;
+}
+/* CLASSIFIED CHECK: all three of the week's fixtures streamed together, in
+   minute order, the way a results service actually reads. The old roundup
+   printed final scores instantly, which threw away the one thing people
+   liked about the match screen -- watching it happen, including to the
+   clubs you are chasing. */
+/* Is this a week where the table genuinely matters? Title race or relegation
+   fight, in the run-in. The final day always counts. */
+function inRace(){
+  const st=standings(TABLE),me=st.findIndex(r=>r.n===CLUB),left=MW-S.mw;
+  if(left>4||!TABLE[CLUB].p)return false;
+  const top=st[0].pts-TABLE[CLUB].pts<=3&&me<=2;
+  const safe=st[3]?st[3].pts:0;
+  const bottom=me>=3&&TABLE[CLUB].pts-safe<=3;
+  return top||bottom;
+}
+function renderLiveWeek(){
+  if(S.mw===MW-1||inRace())return renderSportsCentre();
+  const wk=S.mw, fx=FIXTURES[wk];
+  const games=fx.map(([h,a])=>{
+    const[hg,ag]=playFixture(h,a);
+    const mins=n=>{const r=[];for(let i=0;i<n;i++)r.push(rnd(3,90));return r.sort((x,y)=>x-y)};
+    const scorers=(t)=>{if(t!==CLUB)return t.toUpperCase();const p=pickScorer();if(p)p.goals=(p.goals||0)+1;return p?p.nm.toUpperCase():"TRIALIST"};
+    const ev=[];
+    mins(hg).forEach(m=>ev.push({m,team:h,who:scorers(h)}));
+    mins(ag).forEach(m=>ev.push({m,team:a,who:scorers(a)}));
+    return{h,a,hg,ag,ev,ch:0,ca:0,mine:h===CLUB||a===CLUB};
+  });
+  const all=[];
+  games.forEach((g,gi)=>g.ev.forEach(e=>all.push({...e,gi})));
+  all.sort((x,y)=>x.m-y.m);
+  paintHeader();
+  const final=wk===MW-1;
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ALL KICKING OFF TOGETHER":"SATURDAY, 3PM · CLASSIFIED CHECK"}</div>
+    <h1>${final?"Everything at once":"Around the grounds"}</h1>
+    ${final?`<p class="lede">Three matches, one kick-off, and nothing decided until all of them finish.</p>`:''}
+    <div id="board"></div>
+    <div class="vp" style="margin-top:10px;min-height:120px"><div id="tick"></div></div>
+    <button class="skip" id="skipB">skip to full time</button></div>`;
+  const board=document.getElementById('board'),tick=document.getElementById('tick');
+  function drawBoard(){
+    board.innerHTML=games.map(g=>{
+      const ph=posOf(g.h),pa=posOf(g.a),any=TABLE[CLUB].p>0;
+      return `<div class="res ${g.mine?'mine':''}">
+        <span>${any?`<span style="color:var(--mute);font-family:var(--mono);font-size:11px">${ph}</span> `:""}${g.h}
+          v ${g.a}${any?` <span style="color:var(--mute);font-family:var(--mono);font-size:11px">${pa}</span>`:""}</span>
+        <span class="sc">${g.ch}–${g.ca}</span></div>`}).join('');
+  }
+  drawBoard();
+  let i=0,stopped=false;
+  const add=(m,t,cls)=>{const d=document.createElement('div');d.className='ln'+(cls?' '+cls:'');
+    d.innerHTML=`<span class="min">${m}</span><span class="tx">${t}</span>`;tick.appendChild(d)};
+  function finishAll(){
+    if(stopped)return;stopped=true;
+    games.forEach(g=>{g.ch=g.hg;g.ca=g.ag});drawBoard();
+    add("FT","All full time","ft");
+    let myFx=null,myRes=null;
+    games.forEach(g=>{
+      award(TABLE,g.h,g.a,g.hg,g.ag);
+      if(g.mine){const home=g.h===CLUB;const r=resolveMine(g.hg,g.ag,home);myFx=r.fx;myRes=r.res}
+    });
+    S.mw++;const d=apply(myFx,true);myPos();
+    setTimeout(()=>{
+      const el=document.createElement('div');el.className='card';
+      const mid=S.mw===5,run=S.mw===8;
+      el.innerHTML=`<div class="outcome">${myRes==='w'?"A win. The place feels like a football club again.":myRes==='d'?"A point. Not nothing.":"Beaten. The phone-in will be unpleasant."}</div>
+        <div class="delta">${d}</div>
+        ${mid?`<p class="lede" style="margin-top:10px">Halfway. ${ord(S.pos)} of six.</p>`:''}
+        ${run?`<p class="lede" style="margin-top:10px">Three left. Whatever you are going to do, do it now.</p>`:''}
+        <div style="margin-top:10px">${tableHTML()}</div>
+        <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">Continue</span></button>`;
+      document.getElementById('app').appendChild(el);paintHeader();
+      document.getElementById('mn').onclick=next;
+    },650);
+  }
+  function stepEv(){
+    if(stopped)return;
+    if(i>=all.length)return setTimeout(finishAll,700);
+    const e=all[i++],g=games[e.gi];
+    if(e.team===g.h)g.ch++;else g.ca++;
+    drawBoard();
+    const mineGoal=g.mine&&e.team===CLUB;
+    const againstMe=g.mine&&e.team!==CLUB;
+    add(e.m+"'",`${g.h} ${g.ch}–${g.ca} ${g.a}   ${e.who}`,mineGoal?'goal':againstMe?'against':'');
+    setTimeout(stepEv,760+Math.random()*300);
+  }
+  document.getElementById('skipB').onclick=()=>{if(!stopped){tick.innerHTML='';add("","(skipped)","");finishAll()}};
+  setTimeout(stepEv,700);
+}
+function renderRoundup(){
+  const wk=S.mw,[h,a]=myFixture(wk),home=h===CLUB;
+  const[hg,ag]=playFixture(h,a);
+  award(TABLE,h,a,hg,ag);const others=playOthers(wk);
+  const{fx}=resolveMine(hg,ag,home);S.mw++;
+  const d=apply(fx,true);myPos();paintHeader();
+  const mid=S.mw===5,run=S.mw===8;
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">MATCHWEEK ${S.mw} OF ${MW} · RESULTS</div>
+    <h1>${mid?"Halfway":run?"The run-in begins":"Saturday's results"}</h1>
+    ${mid?`<p class="lede">Five played, five to go. ${ord(S.pos)} of six.</p>`:''}
+    ${run?`<p class="lede">Three matches left. Whatever you are going to do, do it now.</p>`:''}
+    <div class="res mine"><span>${h} v ${a}</span><span class="sc">${hg}–${ag}</span></div>
+    ${others.map(o=>`<div class="res"><span>${o.h} v ${o.a}</span><span class="sc">${o.hg}–${o.ag}</span></div>`).join('')}
+    <div class="delta" style="margin-bottom:10px">${d}</div>${tableHTML()}
+    <button class="choice primary" id="nx" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
+  document.getElementById('nx').onclick=next;
+}
+function renderMatch(done){
+  const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
+  const oFm=oppFormation(opp);S.nextOppFm=oFm;
+  S.matchBoost=0;S.matchAtt=0;S.matchDef=0;S.subsUsed=0;
+  paintHeader();
+  const fmLine=(mine)=>`<span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${mine?S.formation:oFm}</span>`;
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · SATURDAY, 3PM</div>
+    <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
+    ${opponentPanel(opp,home)}
+    <div class="vp"><div class="teams">
+      <span>${hT.toUpperCase()}<br>${fmLine(home)}</span>
+      <span style="text-align:right">${aT.toUpperCase()}<br>${fmLine(!home)}</span></div><div id="vpl"></div></div>
+    <div id="htBox"></div></div>`;
+  const lines=document.getElementById('vpl');let h=0,a=0;
+  const add=(m,t,cls,sc2)=>{const d=document.createElement('div');d.className='ln'+(cls?' '+cls:'');
+    d.innerHTML=`<span class="min">${m}</span><span class="tx">${t}</span>${sc2?`<span class="sc">${sc2}</span>`:''}`;lines.appendChild(d)};
+  const sc=()=>`${h}–${a}`;
+  function half(from,to,cb){
+    const[mr,tr]=clubRates(opp,home,.62,oFm);
+    const mg=Math.min(3,pois(mr)),tg=Math.min(3,pois(tr)),ev=[];
+    const mins=n=>{const r=[];for(let i=0;i<n;i++)r.push(rnd(from,to));return r.sort((x,y)=>x-y)};
+    for(const m of mins(mg))ev.push({m,mine:1,p:pickScorer()});
+    for(const m of mins(tg))ev.push({m,mine:0});
+    if(rng()<.4)ev.push({m:rnd(from,to),card:1});
+    ev.sort((x,y)=>x.m-y.m);let i=0;
+    (function go(){if(i>=ev.length)return setTimeout(cb,460);const e=ev[i++];
+      if(e.card)add(e.m+"'","Yellow card","");
+      else if(e.mine){home?h++:a++;if(e.p)e.p.goals=(e.p.goals||0)+1;
+        add(e.m+"'",(e.p?e.p.nm:"TRIALIST").toUpperCase(),"goal",sc())}
+      else{home?a++:h++;add(e.m+"'",opp.toUpperCase()+" GOAL","against",sc())}
+      setTimeout(go,780+Math.random()*260)})();
+  }
+  half(4,45,()=>{
+    add("HT","Half time","ft",sc());
+    const mg=home?h:a,tg=home?a:h;
+    if(ROLE.id==="manager")return tacticalHalfTime(mg,tg,oFm,()=>{add("46'","— second half —","");half(46,92,finish)});
+    const losing=mg<tg,level=mg===tg;
+    const spec=ROLE.id==="player"
+      ?{title:losing?"You are losing. Forty-five minutes left.":level?"Level at the break.":"You are ahead.",
+        choices:[{t:"Play safe, keep the rating up",d:"Protect the body",fx:{form:-1},att:-2,def:1},
+          {t:"Take it on yourself",d:"Shoot on sight",fx:{fitness:-6,form:3},att:4,def:-1}]}
+      :{title:"Half time in the directors' box",
+        choices:[{t:"Go down to the concourse",d:"Be seen among the supporters",fx:{fans:6}},
+          {t:"Work the room upstairs",d:"Sponsors and contacts",fx:{cash:18,fans:-2}},
+          {t:"Stay in your seat",d:"You are a fan too",fx:{fans:2}}]};
+    const box=document.getElementById('htBox');
+    box.innerHTML=`<div style="margin-top:12px"><div class="datechip">HALF TIME</div>
+      <h2 style="margin-top:5px">${spec.title}</h2><div id="htCh"></div></div>`;
+    spec.choices.forEach(c=>{const b=document.createElement('button');b.className='choice';
+      b.innerHTML=`<span class="t">${c.t}</span><span class="d">${c.d}</span>`;
+      b.onclick=()=>{box.innerHTML=`<div style="margin-top:10px" class="outcome">${c.t}.</div>`;
+        apply(c.fx,true);S.matchAtt=c.att||0;S.matchDef=c.def||0;add("46'","— second half —","");half(46,92,finish)};
+      document.getElementById('htCh').appendChild(b)});
+  });
+  function finish(){
+    add("FT","Full time","ft",sc());
+    award(TABLE,hT,aT,h,a);
+    const others=[];
+    FIXTURES[wk].forEach(([x,y])=>{if(x===CLUB||y===CLUB)return;const[xg,yg]=simScore(strOf(x),strOf(y));award(TABLE,x,y,xg,yg);others.push({h:x,a:y,hg:xg,ag:yg})});
+    const{fx,res}=resolveMine(h,a,home);S.mw++;const d=apply(fx,true);myPos();
+    S.matchAtt=0;S.matchDef=0;
+    setTimeout(()=>{const el=document.createElement('div');el.className='card';
+      el.innerHTML=`<div class="outcome">${res==='w'?"A win. The place feels like a football club again.":res==='d'?"A point. Not nothing.":"Beaten. The phone-in will be unpleasant."}</div>
+        <div class="delta">${d}</div>
+        <div style="font-size:12px;color:var(--mute);margin:10px 0 6px">Elsewhere</div>
+        ${others.map(o=>`<div class="res"><span>${o.h} v ${o.a}</span><span class="sc">${o.hg}–${o.ag}</span></div>`).join('')}
+        <div style="margin-top:10px">${tableHTML()}</div>
+        <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">Continue</span></button>`;
+      document.getElementById('app').appendChild(el);paintHeader();
+      document.getElementById('mn').onclick=done},600);
+  }
+}
+/* Who scores. A player on a goal bonus shoots more, so he is likelier to be
+   the name on the vidiprinter -- the bonus has a visible consequence. */
+function pickScorer(){
+  const pool=available().filter(p=>p.pos!=="GK");
+  if(!pool.length)return null;
+  const w=pool.map(p=>{let x=p.pos==="FW"?3:p.pos==="MF"?2:1;
+    if(S.bonuses.some(b=>b.type==="goals"&&b.nm===p.nm))x*=2.2;return x});
+  let r=rng()*w.reduce((a,b)=>a+b,0);
+  for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i]}
+  return pool[pool.length-1];
+}
+/* THE MANAGER'S HALF TIME: a real tactical panel, not a tone of voice.
+   Pick a shape, make substitutions, push someone out of position, then
+   send them back out. Every option states what it does to attack and
+   defence, because that is the trade being made. */
+function tacticalHalfTime(mg,tg,oFm,resume){
+  const box=document.getElementById('htBox');
+  let fm=S.formation,subs=[],oop=null;
+  const tired=available().filter(p=>p.fit<72).sort((a,b)=>a.fit-b.fit).slice(0,3);
+  const defenders=available().filter(p=>p.pos==="DF");
+  function effect(){
+    const f=FORMATIONS[fm],fb=FORMATIONS[S.formation];
+    let at=f.att-fb.att,de=f.def-fb.def;
+    at+=subs.length*2;de+=subs.length*1;
+    if(oop){at+=5;de-=5}
+    return{at,de};
+  }
+  function draw(){
+    const e=effect();
+    box.innerHTML=`<div style="margin-top:12px">
+      <div class="datechip">HALF TIME · ${mg}–${tg} · THEY ARE IN ${oFm}</div>
+      <h2 style="margin-top:5px">${mg<tg?"Losing. Change something.":mg===tg?"Level. Chase it or hold it?":"Ahead. Protect it or kill it?"}</h2>
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:8px 0 5px">FORMATION</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+        ${Object.entries(FORMATIONS).map(([k,v])=>`<button class="choice" data-fm="${k}" style="margin:0;padding:8px 2px;text-align:center;
+          ${k===fm?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+          <span class="t" style="font-size:13px">${k}</span>
+          <span class="d" style="font-size:10px">${v.att>0?'+':''}${v.att}/${v.def>0?'+':''}${v.def}</span></button>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--mute);margin-top:4px">${FORMATIONS[fm].d} · attack/defence</div>
+      ${tired.length?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">SUBSTITUTIONS · FRESH LEGS FOR TIRED ONES</div>
+        ${tired.map(p=>`<button class="choice" data-sub="${p.nm}" style="margin:0 0 5px;padding:8px 11px;
+          ${subs.includes(p.nm)?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+          <span class="t" style="font-size:14px">${subs.includes(p.nm)?"✓ ":""}Take off ${p.nm}</span>
+          <span class="d">${p.pos}, condition ${p.fit} · +2 attack, +1 defence</span></button>`).join('')}`:''}
+      ${defenders.length&&mg<=tg?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">OUT OF POSITION</div>
+        <button class="choice" data-oop="1" style="margin:0 0 5px;padding:8px 11px;
+          ${oop?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+          <span class="t" style="font-size:14px">${oop?"✓ ":""}Push ${defenders[0].nm} up front</span>
+          <span class="d">Centre-back as a target man · +5 attack, −5 defence</span></button>`:''}
+      <div style="margin-top:10px;padding:8px 11px;border-radius:8px;background:var(--panel2);font-family:var(--mono);font-size:12.5px">
+        Second-half change: <span style="color:${e.at>=0?'var(--good)':'var(--bad)'}">attack ${e.at>0?'+':''}${e.at}</span>
+        · <span style="color:${e.de>=0?'var(--good)':'var(--bad)'}">defence ${e.de>0?'+':''}${e.de}</span></div>
+      <button class="choice primary" id="goSecond" style="margin-top:9px"><span class="t">Send them back out</span></button></div>`;
+    box.querySelectorAll('[data-fm]').forEach(b=>b.onclick=()=>{fm=b.dataset.fm;draw()});
+    box.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{const n=b.dataset.sub;
+      subs=subs.includes(n)?subs.filter(x=>x!==n):(subs.length<3?subs.concat(n):subs);draw()});
+    box.querySelectorAll('[data-oop]').forEach(b=>b.onclick=()=>{oop=!oop;draw()});
+    document.getElementById('goSecond').onclick=()=>{
+      const e=effect(),was=S.formation;
+      /* The formation takes effect through S.formation, which clubRates
+         reads. matchAtt/matchDef carry ONLY the subs and out-of-position
+         parts -- otherwise the shape change would be counted twice. */
+      const fAt=FORMATIONS[fm].att-FORMATIONS[was].att,fDe=FORMATIONS[fm].def-FORMATIONS[was].def;
+      S.formation=fm;S.matchAtt=e.at-fAt;S.matchDef=e.de-fDe;
+      /* subs: fresh legs now, and the tired man recovers a little */
+      subs.forEach(n=>{const p=S.squadList.find(x=>x.nm===n);if(p)p.fit=clamp(p.fit+6)});
+      S.fatigue=clamp(S.fatigue-subs.length*2);
+      const bits=[fm!==was?`Switched from ${was} to ${fm}`:`Stayed in ${fm}`];
+      if(subs.length)bits.push(`${subs.length} ${subs.length===1?"change":"changes"}: ${subs.join(", ")} off`);
+      if(oop)bits.push(`${defenders[0].nm} pushed up front`);
+      box.innerHTML=`<div style="margin-top:10px" class="outcome">${bits.join(". ")}.</div>`;
+      resume();
+    };
+  }
+  draw();
+}
+/* --- runner --------------------------------------------------------------- */
+/* Ten matchweeks, every one of them watched: five as your own match with a
+   half-time decision, five as a live classified check across all fixtures. */
+const PLAN=["special1","heatmap","presser","match","live","physio","match","papers","event","live","podcast",
+            "match","special2","stats","event","live","physio","match","call","live","event","match","papers","event","live","end"];
+let cursor=0,pendingReveal=null,RECENT=new Set(),RECENT_Q=[];
+function remember(s){RECENT.add(s);RECENT_Q.push(s);if(RECENT_Q.length>18)RECENT.delete(RECENT_Q.shift())}
+function drawEvent(){let best=null;
+  for(let t=0;t<9;t++){const c=SHAPES[pick(ROLE.pool)]();if(!RECENT.has(c.sig)){best=c;break}best=c}
+  remember(best.sig);return best}
+function next(){cursor++;showPending()}
+function showPending(){
+  const due=drainPending();
+  if(!due.length)return step();
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">IT CATCHES UP</div>
+    ${due.map(p=>`<div class="outcome" style="border-left-color:var(--blue)">${p.text||"An earlier choice has caught up with you."}</div><div class="delta">${apply(p.fx)}</div>`).join('')}
+    <button class="choice primary" id="pn" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
+  paintHeader();document.getElementById('pn').onclick=step;
+}
+function step(){
+  if(!S.alive)return renderEnding();
+  if(cursor>=PLAN.length)return renderEnding();
+  const b=PLAN[cursor];
+  if(b==="end")return renderEnding();
+  if(b==="special1"){
+    if(ROLE.id==="owner")return renderWindow("summer",next);
+    if(ROLE.id==="manager")return renderSpec(preseasonSpec(),"JULY · PRE-SEASON",next);
+    return renderSpec(playerSummerSpec(),"JULY · YOUR SUMMER",next);
+  }
+  if(b==="special2"){
+    if(ROLE.id==="owner")return renderWindow("january",next);
+    if(ROLE.id==="manager")return renderSpec(winterSpec(),"DECEMBER · THE WINTER BREAK",next);
+    return renderSpec(playerWinterSpec(),"DECEMBER · MIDWINTER",next);
+  }
+  if(b==="match")return renderMatch(next);
+  if(b==="round")return renderRoundup();
+  if(b==="live")return renderLiveWeek();
+  if(b==="heatmap")return renderHeatmap();
+  if(b==="stats")return renderStats();
+  if(b==="physio")return renderPhysio();
+  if(b==="presser")return renderSpec(presserSpec(),"FRIDAY · PRESS CONFERENCE",next);
+  if(b==="papers")return renderPapers();
+  if(b==="podcast")return renderPodcast();
+  if(b==="call")return renderSpec(callSpec(),"TUESDAY NIGHT",next);
+  return renderSpec(drawEvent(),"THIS WEEK",next);
+}
+/* The late-night call, rewritten. It used to be "answer the phone or don't",
+   which is not a decision. Each of these has a named person wanting a
+   specific thing you can give or refuse. */
+const CALLS={
+owner:[
+ ()=>{const r=pick(RIVALS).n;return{title:`Half eleven, and it is the ${r} chairman`,
+   lede:`"Your goalkeeper. Sixty thousand, tomorrow morning, and I will not tell anyone it was cheap."`,
+   body:`<p>You are ${ord(posOf(CLUB))} and he is above you. Sixty thousand is roughly a fortnight of wages, and your goalkeeper is the only reason some of these scorelines are respectable.</p>`,
+   choices:[
+     {t:"Take the sixty",d:"A fortnight of breathing room",fx:{cash:60,squad:-7,fans:-9},
+       out:`Done at midnight, to a club above you, for the price of two weeks' wages. You will hear about this one.`},
+     {t:"Tell him a hundred and twenty",d:"He might just pay it",fx:{},
+       delayed:rng()<.45?{cash:120,squad:-7,fans:-9}:{board:2},
+       delayedText:rng()<.45?"He paid the hundred and twenty. Your goalkeeper left on Thursday and the money is in.":"He never called back. You still have your goalkeeper.",
+       out:`"Double it and we will talk in the morning." A long pause, then a laugh, then nothing.`},
+     {t:"Hang up",d:"Not at any price, not to them",fx:{fans:7,board:-3},
+       out:`You put the phone down mid-sentence. It is enormously satisfying and solves nothing.`}]}},
+ ()=>({title:"Half eleven, and it is the finance director",
+   lede:`"I have run Friday's payroll three times. It does not clear unless something changes tomorrow."`,
+   body:`<p>He is sixty-three, he has worked here for nineteen years, and this is the first time you have heard him sound frightened.</p>`,
+   choices:[
+     {t:"Authorise the overdraft extension tonight",d:"Solved, and expensive",fx:{cash:90,debt:130,board:-4},
+       out:`Signed by email at midnight at a rate you would not accept in daylight.`},
+     {t:"Tell him to delay the non-playing staff",d:"The people with least leverage",fx:{cash:40,fans:-8,board:-3},
+       delayed:{fans:-9},delayedText:"The story that the tea ladies were paid late while the squad was paid on time has done more damage than any result.",
+       out:`He goes very quiet and says, "Right. I will tell them." It is the worst moment of your week.`},
+     {t:"Ask him what he would do",d:"He has been here longer than you",fx:{board:8,cash:35,squad:2},
+       out:`He has a plan. He has had a plan for a fortnight and nobody has asked him for it.`}]}),
+ ()=>({title:"Half eleven, and it is a journalist",
+   lede:`"I am running a piece on the club's finances tomorrow. I wanted to give you the chance to comment."`,
+   body:`<p>He has the accounts, he has two sources inside the building, and he is being considerably more courteous than he needs to be.</p>`,
+   choices:[
+     {t:"Give him twenty minutes on the record",d:"Shape it, or be shaped by it",fx:{fans:9,board:-5},
+       delayed:{fans:6},delayedText:"The piece ran, and it was fair. Being the person who picked up the phone turned out to matter.",
+       out:`You talk him through it properly. He writes a better article than he was going to.`},
+     {t:"No comment",d:"Safe, and it reads as guilt",fx:{board:2,fans:-7},
+       out:`"No comment." He thanks you sincerely, which somehow makes it worse.`},
+     {t:"Threaten his accreditation",d:"A very bad idea at midnight",fx:{fans:-13,board:-6},
+       delayed:{fans:-8},delayedText:"The threat became a paragraph in the piece, and then a story in its own right.",
+       out:`You say something you will regret before breakfast.`}]})],
+manager:[
+ ()=>{const p=pick(alive()).nm;return{title:`Half eleven, and it is ${p}`,
+   lede:`"Gaffer. I am not in a good way. I do not want to play Saturday."`,
+   body:`<p>He is not injured. He has not said what it is. He has never rung you at night before.</p>`,
+   choices:[
+     {t:"Tell him to take as long as he needs",d:"The right call, and it costs you on Saturday",
+       fx:{squad:9,fans:-2},delayed:{squad:5},
+       delayedText:`${p} came back two weeks later and has been the best player at the club since. He has not forgotten who answered the phone.`,
+       out:`"Do not think about Saturday. Come in Monday, or do not. We will sort it."`},
+     {t:"Ask him to travel and decide there",d:"Half a commitment",fx:{squad:2},
+       out:`He agrees, flatly. You are not sure you have helped.`},
+     {t:"Tell him the team needs him",d:"True, and it is not what this call is about",
+       fx:{squad:-9,board:3},delayed:{squad:-6},
+       delayedText:`${p} played, was substituted at half time, and has not been the same since. You know exactly why.`,
+       out:`He says "Yeah. Okay, gaffer." and hangs up first.`}]}},
+ ()=>({title:"Half eleven, and it is the owner",
+   lede:`"I have been looking at the table. Talk me out of making a change."`,
+   body:`<p>He has had a drink. He does this. It has never before come with the word 'change'.</p>`,
+   choices:[
+     {t:"Fight your corner with the numbers",d:"Make the case",fx:{board:9,squad:-2},
+       out:`You take him through expected goals, injuries and the fixture list. He listens, grudgingly, and rings off calmer.`},
+     {t:"Tell him to do what he likes",d:"Call the bluff",fx:{board:-7,squad:6,fans:4},
+       delayed:{board:7},delayedText:"He respected the refusal to grovel more than he would have respected the grovelling.",
+       out:`"That is your decision to make, not mine to argue with." The silence lasts eight seconds.`},
+     {t:"Promise him a result on Saturday",d:"A promise you cannot keep",fx:{board:6,squad:-4},
+       delayed:{board:-12},delayedText:"The result did not come, and the promise was remembered word for word.",
+       out:`You hear yourself guaranteeing three points and cannot think of a way to stop.`}]})],
+player:[
+ ()=>({title:"Half eleven, and it is your agent",
+   lede:`"I can get you out in January. But I need you to be unhappy in public for about three weeks."`,
+   body:`<div class="shark"><div><b>FixtureShark</b>Players who agitate publicly move roughly <b>${rnd(55,70)}%</b> of the time,
+     at an average fee <b>${rnd(12,25)}% below</b> their model valuation. The club loses money; the player usually gets the move.</div></div>`,
+   choices:[
+     {t:"Do exactly what he says",d:"Likely move, smaller fee, ruined relationship",
+       fx:{interest:16,fans:-16,squad:-8},delayed:{fans:-8},
+       delayedText:"Three weeks of visible sulking worked. It also means there is a section of that ground that will boo you for the rest of your career.",
+       out:`You start with body language and work up to a cryptic post. It is transparent and it is effective.`},
+     {t:"Tell him to get you out without the theatre",d:"Harder, cleaner",fx:{interest:6,fans:3},
+       out:`"Do your job properly." He sighs the sigh of a man who will now have to do some work.`},
+     {t:"Sack him",d:"At half past eleven, on the phone",fx:{interest:-9,fans:8,form:4},
+       delayed:{interest:7},delayedText:"Your new agent is less famous and considerably better. Three clubs have made proper enquiries.",
+       out:`It is abrupt and it is the first decision in months that has felt like yours.`}]}),
+ ()=>({title:"Half eleven, and it is your father",
+   lede:`"I have read what they are saying about you. Do you want me to stop reading it?"`,
+   body:`<p>He has been to every match since you were eight. He does not usually ring after a game.</p>`,
+   choices:[
+     {t:"Talk it through with him properly",d:"An hour on the phone",fx:{form:6,fitness:2},
+       out:`You talk until half past midnight about nothing much. You sleep better than you have in a fortnight.`},
+     {t:"Tell him you are fine",d:"You are not fine",fx:{form:-3},
+       delayed:{form:-4},delayedText:"You have not rung him back. It has been sitting there for a fortnight.",
+       out:`"I am fine, Dad." He knows. He lets it go anyway.`},
+     {t:"Ask him to stop coming for a bit",d:"Protect him from it",fx:{form:-2,fans:2},
+       out:`He says of course, and you can hear precisely how much it costs him to say it.`}]})]
+};
+/* THE PHYSIO ROOM. Role-specific, because availability is a different
+   problem depending on which chair you sit in. */
+function physioSpec(){
+  const out=S.squadList.filter(p=>!p.gone&&p.out);
+  const fragile=available().filter(p=>p.fit<70).sort((a,b)=>a.fit-b.fit);
+  const body=`<div class="shark"><div><b>The Physio Room</b>
+      ${out.length?`<b>${out.length}</b> unavailable: ${out.map(p=>`${p.nm} (${p.out}w)`).join(", ")}. `:"Nobody is ruled out. "}
+      ${fragile.length?`<b>${fragile.length}</b> below 70% condition and carrying real risk: ${fragile.slice(0,3).map(p=>p.nm).join(", ")}.`
+        :"The squad is in decent order."}
+      Squad fatigue is <b>${S.fatigue}%</b>.</div></div>${squadHTML()}`;
+  if(ROLE.id==="owner")return{title:"The Physio Room is a cupboard with a bench in it",
+    lede:"Your physio is part-time and shares a car park with the ice machine that has not worked since March.",
+    body,
+    choices:[
+      {t:"Fund it properly",d:`${fmtMoney(70)} — full-time physio, working ice bath`,
+        fx:{cash:-70,condition:12,board:3},delayed:{condition:8},
+        delayedText:"The upgraded medical setup is showing. Two players who would have missed a month did not.",
+        after(){S.physioLevel++},out:`A full-time physio, a functioning ice bath, and a room that no longer smells of the ice machine.`},
+      {t:"Split the cost with the rugby club",d:`${fmtMoney(28)}, shared facility`,
+        fx:{cash:-28,condition:6},out:`Two clubs, one physio, a fixture list that occasionally collides.`},
+      {t:"Leave it",d:"The bench is fine",fx:{},delayed:{condition:-7},
+        delayedText:"Three soft-tissue injuries in a fortnight. The part-time physio saw every one of them coming.",
+        out:`It has lasted this long.`}]};
+  if(ROLE.id==="player")return{title:"You are in the Physio Room more than the gym",
+    lede:`Your own condition is ${Math.round(S.fitness)}%, and the table in there is always occupied.`,
+    body,
+    choices:[
+      {t:"Pay for your own specialist",d:"Out of your wages, and it works",fx:{fitness:16,form:3,fans:-1},
+        out:`Two sessions a week in a private clinic, paid for out of your own pocket. Nobody at the club asks how.`},
+      {t:"Do the club programme properly",d:"Free, slower, fine",fx:{fitness:9},out:`Every exercise, every day, for once.`},
+      {t:"Ignore it and play",d:"You feel alright",fx:{form:3,fitness:-6},
+        delayed:{fitness:-14,form:-6},delayedText:"The thing you ignored has become the thing you cannot ignore.",
+        out:`You feel alright. You have felt alright before.`}]};
+  return{title:"The Physio Room, Thursday morning",
+    lede:out.length?`${out.length} ruled out and a team to pick from what is left.`:"Everyone is available, which will not last.",
+    body,
+    choices:[
+      {t:"Rest everyone under 70%",d:"Availability later, weaker on Saturday",
+        fx:{squad:-4,condition:15,fatigue:-12},out:`Bikes and pool work for half the squad. Saturday will be thin.`},
+      {t:"Strap them up and play them",d:"Strongest side now, more breakages later",
+        fx:{squad:4,condition:-6,fatigue:5},delayed:{condition:-10},
+        delayedText:"Playing the walking wounded has cost you. Two of them are now genuinely unavailable.",
+        out:`Everyone who can walk, plays.`},
+      {t:"Ask the owner to fund the treatment properly",d:"Not your budget, and it is the actual fix",
+        fx:{board:-3,condition:9},after(){S.physioLevel++},
+        out:`He grumbles, and he signs it off, and the ice bath works by Tuesday.`}]};
+}
+function renderPhysio(){
+  renderSpec(Object.assign(physioSpec(),{keepFull:true}),"THURSDAY · THE PHYSIO ROOM",next);
+}
+function renderHeatmap(){
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">PRE-SEASON · FIXTURE HEAT MAP</div>
+    <h1>The season, laid out</h1>
+    <p class="lede">The first five, rated by opponent strength and venue.</p>
+    ${fixtureHeatHTML(0,5)}
+    <h2 style="margin-top:14px">Team Strength</h2>
+    <p class="small">Attack and defence in expected goals. Results come from this; the table is what it looks like afterwards.</p>
+    ${strengthTableHTML()}
+    <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Get on with it</span></button></div>`;
+  document.getElementById('nx').onclick=next;
+}
+function renderStats(){
+  paintHeader();
+  const log=S.seasonLog,gf=log.reduce((a,x)=>a+x.gf,0),ga=log.reduce((a,x)=>a+x.ga,0),cs=log.reduce((a,x)=>a+x.cs,0);
+  const maxg=Math.max(2,...log.map(x=>Math.max(x.gf,x.ga)));
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">MATCHWEEK ${S.mw} · THE NUMBERS</div>
+    <h1>Where the season actually is</h1>
+    <p class="lede">${gf} scored, ${ga} conceded, ${cs} clean ${cs===1?"sheet":"sheets"} in ${log.length}.</p>
+    <div style="display:flex;gap:3px;align-items:flex-end;height:64px;margin:10px 0 4px">
+      ${log.map(x=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px" title="MW${x.mw}: ${x.gf}-${x.ga}">
+        <div style="height:${(x.gf/maxg)*28}px;background:var(--good);border-radius:2px 2px 0 0;min-height:2px"></div>
+        <div style="height:${(x.ga/maxg)*28}px;background:var(--bad);border-radius:0 0 2px 2px;min-height:2px"></div></div>`).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--mute);margin-bottom:12px">
+      <span style="color:var(--good)">■</span> scored · <span style="color:var(--bad)">■</span> conceded, by matchweek</div>
+    <h2>Team Strength now</h2>${strengthTableHTML()}
+    <h2 style="margin-top:14px">The last five</h2>${fixtureHeatHTML(5,5)}
+    <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Continue</span></button></div>`;
+  document.getElementById('nx').onclick=next;
+}
+function callSpec(){
+  const pool=CALLS[ROLE.id]||CALLS.owner;
+  return pick(pool)();
+}
+function renderPapers(){
+  const{paper,h,shark}=papersSpec();paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">SUNDAY MORNING</div>
+    <div class="paper" style="margin-top:8px"><div class="masthead"><span>${paper}</span><span>60p</span></div>
+      <div class="hl">${h[0]}</div><p class="standfirst">${h[1]}</p><div class="byline">${shark}</div></div>
+    <div class="beat">· · ·</div>
+    <p class="small">${CLUB}: ${ord(S.pos)} of six, ${MW-S.mw} to play.</p>
+    <button class="choice primary" id="nx"><span class="t">Read on</span></button></div>`;
+  document.getElementById('nx').onclick=next;
+}
+function renderPodcast(){
+  const{lines,shark}=podcastSpec();paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">WEDNESDAY · SOMEONE SENDS YOU A CLIP</div>
+    <div class="pod" style="margin-top:8px"><div class="show">${PODCAST} — EPISODE 214</div>
+      ${lines.map(([w,s])=>`<div class="quote"><div class="who">${w}</div><div class="said">“${s}”</div></div>`).join('')}
+      <div class="quote"><div class="who">—</div><div class="said" style="font-style:normal;color:var(--ink2);font-size:13px">${shark}</div></div></div>
+
+    <button class="choice primary" id="nx"><span class="t">Continue</span></button></div>`;
+  document.getElementById('nx').onclick=next;
+}
+function tighten(html){
+  if(!html)return html;
+  html=html.replace(/<!--SQ-->[\s\S]*?<!--\/SQ-->/g,"");
+  return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g,(m,attrs,inner)=>{
+    const first=inner.split(/(?<=[.!?])\s+(?=[A-Z"“])/)[0];
+    return `<p${attrs}>${first}</p>`;
+  });
+}
+function renderSpec(spec,chip,after){
+  if(!spec.keepFull)spec=Object.assign({},spec,{body:tighten(spec.body)});
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">${chip}</div><h1>${spec.title}</h1>
+    ${spec.lede?`<p class="lede">${spec.lede}</p>`:''}
+    ${pendingReveal?`<div class="outcome" style="border-left-color:var(--amber)">${pendingReveal}</div>`:''}
+    ${spec.body||''}<div id="ch"></div></div>`;
+  const box=document.getElementById('ch');
+  spec.choices.forEach(c=>{
+    const b=document.createElement('button');b.className='choice';
+    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${c.d}</span>`:''}`;
+    b.onclick=()=>{
+      if(c.ask){pendingReveal=c.reveal();return renderSpec(spec,chip,after)}
+      pendingReveal=null;if(c.after)c.after();
+      const d=c.fx?apply(c.fx,true):'';
+      if(c.delayed)later(2,c.delayed,c.delayedText);
+      recalcSquadRating();paintHeader();
+      const outTxt=c.out&&c.out.length>120?c.out.split(/(?<=[.!?])\s+(?=[A-Z"“])/)[0]:c.out;
+      document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">${chip}</div>
+        <h2>${spec.title}</h2>${outTxt?`<div class="outcome">${outTxt}</div>`:''}${d?`<div class="delta">${d}</div>`:''}
+        <button class="choice primary" id="nx" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
+      document.getElementById('nx').onclick=after;
+    };box.appendChild(b);
+  });
+}
+/* THE SPORTS CENTRE. Your match finishes first; the table is shown AS IT
+   STANDS, with everyone else still to play; then their results come in one
+   at a time and the table re-sorts under you. This is the Saturday-teatime
+   feeling, and it only works because the other clubs are really playing. */
+function tableRowsHTML(prevPos){
+  const st=standings(TABLE),N=st.length;
+  return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th><th></th></tr></thead><tbody>
+  ${st.map((r,i)=>{const was=prevPos?prevPos[r.n]:i+1,mv=was-(i+1);
+    return `<tr class="${r.n===CLUB?'me':''} ${i>=N-2?'rel':''}" style="${mv?'background:color-mix(in srgb,var(--amber) 10%,transparent)':''}">
+      <td class="n">${i+1}</td><td>${r.n}</td><td class="n">${r.p}</td><td class="n">${r.gd>0?'+':''}${r.gd}</td><td class="n">${r.pts}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:${mv>0?'var(--good)':mv<0?'var(--bad)':'var(--mute)'};width:26px">
+        ${mv>0?'▲'+mv:mv<0?'▼'+Math.abs(mv):''}</td></tr>`}).join('')}</tbody></table>`;
+}
+function renderSportsCentre(){
+  const wk=S.mw,final=wk===MW-1,fx=FIXTURES[wk];
+  const mine=fx.find(([h,a])=>h===CLUB||a===CLUB),others=fx.filter(f=>f!==mine);
+  const[mh,ma]=playFixture(mine[0],mine[1],true);
+  const otherRes=others.map(([h,a])=>{const[hg,ag]=simScore(strOf(h),strOf(a));return{h,a,hg,ag}});
+  const posMap=()=>{const m={};standings(TABLE).forEach((r,i)=>m[r.n]=i+1);return m};
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY":"THE RUN-IN"} · SPORTS CENTRE</div>
+    <h1>${final?"Final day":"Every point counts now"}</h1>
+    <p class="lede">${final?"Everything is decided in the next hour.":"You are in a race, and so are they."}</p>
+    <div id="scMine"></div><div id="scTable"></div><div id="scFeed"></div><div id="scEnd"></div></div>`;
+  const feed=document.getElementById('scFeed');
+  /* 1. your result */
+  setTimeout(()=>{
+    const before=posMap();
+    award(TABLE,mine[0],mine[1],mh,ma);
+    const home=mine[0]===CLUB,{fx:myFx,res}=resolveMine(mh,ma,home);
+    myPos();
+    document.getElementById('scMine').innerHTML=`<div class="res mine" style="font-size:15px;padding:10px">
+      <span><b>FULL TIME</b> · ${mine[0]} v ${mine[1]}</span><span class="sc">${mh}–${ma}</span></div>
+      <div class="outcome" style="margin-top:8px">${res==='w'?"You have done your part.":res==='d'?"A point. Now it depends on everyone else.":"Beaten. Now you need help."}</div>`;
+    document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:10px 0 5px">AS IT STANDS · OTHER MATCHES STILL PLAYING</div>${tableRowsHTML(before)}`;
+    paintHeader();
+    S._myFx=myFx;S._res=res;
+    /* 2. everyone else, one at a time */
+    let i=0;
+    (function nextResult(){
+      if(i>=otherRes.length)return finishSC();
+      const r=otherRes[i++],prev=posMap();
+      setTimeout(()=>{
+        award(TABLE,r.h,r.a,r.hg,r.ag);myPos();
+        const d=document.createElement('div');d.className='res';d.style.marginTop='6px';
+        d.innerHTML=`<span><b>FULL TIME</b> · ${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span>`;
+        feed.appendChild(d);
+        document.getElementById('scTable').innerHTML=`<div class="datechip" style="margin:10px 0 5px">${i<otherRes.length?"AS IT STANDS · ":""}${i<otherRes.length?(otherRes.length-i)+" STILL PLAYING":"FINAL TABLE THIS WEEK"}</div>${tableRowsHTML(prev)}`;
+        paintHeader();nextResult();
+      },1700);
+    })();
+  },900);
+  function finishSC(){
+    S.mw++;const d=apply(S._myFx,true);myPos();paintHeader();
+    const st=standings(TABLE),me=S.pos;
+    const verdict=final
+      ?(me===1?"Champions.":me>=st.length-1?"Relegated.":`${ord(me)}, and safe.`)
+      :(me===1?"Top of the table.":me>=st.length-1?"In the drop zone.":`${ord(me)} of six.`);
+    document.getElementById('scEnd').innerHTML=`<div class="outcome" style="margin-top:10px;font-size:16px"><b>${verdict}</b></div>
+      <div class="delta">${d}</div>
+      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
+    document.getElementById('mn').onclick=next;
+  }
+}
+/* The favourite usually wins. Usually. Saying so out loud, against what
+   actually happened, is the whole educational point of the Monte Carlo. */
+function probabilityLesson(){
+  const fav=RIVALS.slice().sort((a,b)=>PREDICT[b.n].title-PREDICT[a.n].title)[0];
+  const odds=PREDICT[fav.n].title;
+  const champ=standings(TABLE)[0].n;
+  const held=champ===fav.n;
+  const cOdds=PREDICT[champ]?PREDICT[champ].title:0;
+  return `<div class="shark" style="margin-top:12px"><div><b>How often the favourite wins</b>
+    ${fav.n} were given a <b>${odds}%</b> chance of the title.
+    ${held?`They won it. That is the usual outcome, and it is still not a certainty — replay this season and roughly one time in ${Math.max(2,Math.round(100/(100-odds)))} they do not.`
+      :`<b>${champ}</b> won it instead, from ${cOdds}% odds. That happens roughly one season in ${Math.max(2,Math.round(100/Math.max(1,100-odds)))} — a ${odds}% favourite is not a sure thing.`}
+    </div></div>`;
+}
+/* --- ending --------------------------------------------------------------- */
+function renderEnding(){
+  while(S.mw<MW){const wk=S.mw,[h,a]=myFixture(wk),home=h===CLUB;
+    const[hg,ag]=playFixture(h,a,true);
+    award(TABLE,h,a,hg,ag);playOthers(wk);resolveMine(hg,ag,home);S.mw++}
+  const st=standings(TABLE);myPos();
+  const rel=S.pos>=st.length-1;
+  /* Bonuses are paid on what actually happened, not on the promise. */
+  let owed=0;const lines=[];
+  (S.bonuses||[]).forEach(b=>{
+    const p=S.squadList.find(x=>x.nm===b.nm);
+    if(b.type==="goals"){const g=Math.max(0,((p&&p.goals)||0)-b.from),c=g*b.rate;owed+=c;
+      lines.push(`${b.nm}: ${g} ${g===1?"goal":"goals"} × ${fmtMoney(b.rate)} = ${fmtMoney(c)}`)}
+    else if(b.type==="finish"){const c=S.pos<=3?b.amt:0;owed+=c;
+      lines.push(`${b.nm}: top-three bonus ${S.pos<=3?"triggered":"not triggered"} = ${fmtMoney(c)}`)}
+    else if(b.type==="apps"){const n=Math.max(0,MW-b.from),c=n*b.rate;owed+=c;
+      lines.push(`${b.nm}: ${n} appearances × ${fmtMoney(b.rate)} = ${fmtMoney(c)}`)}
+  });
+  if(owed&&!S.bonusesSettled){S.cash-=owed;S.bonusesSettled=true}
+  S._bonusLines=lines;S._bonusOwed=owed;
+  const{total}=scoreParts();
+  const pred=PREDICT[CLUB],predPos=Math.round(pred.avg),beat=predPos-S.pos;
+  let v,b;
+  if(!S.alive){v="ADMINISTRATION";b="The club went under. The Shark wins by default."}
+  else if(S.pos===1){v="CHAMPIONS";b=`The Shark gave you a ${pred.title}% chance of the title. You were the ${pred.title}%.`}
+  else if(beat>=2){v="YOU BEAT THE SHARK";b=`Predicted ${ord(predPos)}, finished ${ord(S.pos)}. That is not luck — the model does not know about your decisions.`}
+  else if(beat===1){v="YOU BEAT THE SHARK";b=`One place better than the model. Narrow, and it counts.`}
+  else if(beat===0){v="THE SHARK WAS RIGHT";b=`Exactly where it said. Everything you did cancelled out — which is its own kind of lesson.`}
+  else if(rel){v="THE SHARK WINS";b=`Predicted ${ord(predPos)}, and you went down. The model was kinder to you than your decisions were.`}
+  else{v="THE SHARK WINS";b=`Predicted ${ord(predPos)}, finished ${ord(S.pos)}. The model would have done better by doing nothing.`}
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">FINAL DAY · ${ROLE.name.toUpperCase()}</div>
+    <div class="verdict ${!rel&&S.alive?'ok':'fail'}">${v}</div><p class="lede">${b}</p>
+    <div style="font-family:var(--disp);font-size:54px;font-weight:700;line-height:1;margin:4px 0 10px;
+      color:${total>=65?'var(--good)':total>=40?'var(--amber)':'var(--bad)'}">${total}<span style="font-size:20px;color:var(--mute)">/100</span></div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:4px 0 10px;text-align:center">
+      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">THE SHARK SAID</div>
+        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${ord(predPos)}</div></div>
+      <div style="font-family:var(--disp);font-size:22px;color:var(--mute)">v</div>
+      <div style="background:var(--panel2);border:1.5px solid ${beat>0?'var(--good)':beat<0?'var(--bad)':'var(--line)'};border-radius:9px;padding:9px">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">YOU FINISHED</div>
+        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${ord(S.pos)}</div></div>
+    </div>
+    <p class="small">Matching the model scores 50. Every place better is worth 15, every place worse costs 15, and the title adds 15.
+      The Shark's prediction is roughly what happens if a club makes no decisions at all — so this score measures what your decisions were worth.</p>
+
+    ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
+      ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
+    ${probabilityLesson()}
+    <div style="margin-top:12px">${tableHTML()}</div>
+    <button class="choice primary" id="again" style="margin-top:11px"><span class="t">Same season, different decisions</span><span class="d">Identical seed — beat your own score</span></button>
+    <button class="choice" id="role"><span class="t">Same season, different role</span><span class="d">The same club from another chair</span></button>
+    <button class="choice" id="rand"><span class="t">A new season</span><span class="d">New seed</span></button>
+    <div class="seed">seed ${SEED} · ${ROLE.id}</div></div>`;
+  document.getElementById('again').onclick=()=>boot();
+  document.getElementById('role').onclick=chooseRole;
+  document.getElementById('rand').onclick=()=>{SEED="SOC-S"+String(rnd(2,99)).padStart(2,'0');chooseRole()};
+}
+/* --- start ---------------------------------------------------------------- */
+function chooseRole(){
+  S=null;
+  /* Build the fixture list and run the model now, so the opening screen can
+     state the real prediction instead of asserting a league position that
+     nothing has yet produced. */
+  pickRivals();
+  R.s=hashSeed(SEED+"|preview");
+  buildFixtures();TABLE=blankTable();PREDICT=monteCarlo(2000);
+  const pp=Math.round(PREDICT[CLUB].avg),prel=PREDICT[CLUB].rel;
+  document.getElementById('hScore').innerHTML=`—<span class="sub">SCORE</span>`;
+  document.getElementById('hTwo').innerHTML="";document.getElementById('hTrend').textContent="";
+  document.getElementById('hSeason').innerHTML="";
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">FIXTURESHARK · A SEASON IN FIVE MINUTES</div>
+    <h1>Beat the Shark</h1>
+    <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
+    <p class="small">FixtureShark predict <strong>${ord(pp)} of six</strong>, relegated in <strong>${prel}%</strong> of 2,000 simulated seasons. £850k of debt, a fortnight's cash.</p>
+    <p class="small"><strong>The Shark has predicted where you finish. Your job is to prove it wrong.</strong></p>
+    ${["manager","owner","player"].map(k=>ROLES[k]).map(r=>`<button class="opt" data-r="${r.id}"
+      ${r.id==="manager"?'style="border-color:var(--amber)"':''}><div class="tag">${r.tag}${r.id==="manager"?" · most influence over results":r.id==="player"?" · hardest":""}</div><h3>${r.name}</h3>
+      <p>${r.blurb}</p><div class="mis"><b>Your levers:</b> ${r.id==="owner"?"two transfer windows, the stadium, ticket prices, sponsors and creditors."
+        :r.id==="manager"?"pre-season, training, tactics, selection, discipline and a winter break."
+        :"your body, your mouth, your agent and your summer."}</div></button>`).join('')}
+    <div class="seed">seed ${SEED}</div></div>`;
+  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ROLE=ROLES[b.dataset.r];boot()});
+}
+function boot(){
+  pickRivals();
+  R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
+  S=newState();cursor=0;pendingReveal=null;
+  buildFixtures();TABLE=blankTable();PREDICT=monteCarlo();
+  recalcSquadRating();myPos();paintHeader();
+  const pr=PREDICT[CLUB];
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">${ROLE.name.toUpperCase()} · ${CLUB} · JULY</div>
+    <h1>${ROLE.mission}</h1><p class="lede">${ROLE.missionLong}</p>
+    <div class="shark"><div><b>FixtureShark pre-season model</b>${sharkRate(S)}
+      Nothing has been played. Simulating the season 4,000 times, the model has ${CLUB} finishing
+      <b>${ord(Math.round(pr.avg))}</b> on average and relegated in <b>${pr.rel}%</b> of them —
+      a projection built on the squad you are left with, not on results. ${RIVALS.map(r=>`${r.n} ${ord(Math.round(PREDICT[r.n].avg))}`).join(" · ")}</div></div>
+    <h2>Your squad</h2>${squadHTML()}
+    <h2>Predicted table</h2>${predictedTableHTML()}
+    <button class="choice primary" id="go" style="margin-top:11px"><span class="t">Begin</span>
+      <span class="d">${ROLE.id==="owner"?"The summer window is open":ROLE.id==="manager"?"Pre-season starts Monday":"Six weeks of summer"}</span></button></div>`;
+  document.getElementById('go').onclick=()=>{cursor=0;step()};
+}
+document.getElementById('foot').innerHTML="FixtureShark · Beat the Shark · fictional clubs, players, papers and pundits";
+chooseRole();
+</script>
+</body>
+</html>
