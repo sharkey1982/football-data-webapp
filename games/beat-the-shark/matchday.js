@@ -276,14 +276,24 @@ function renderTeamSheet(done){
       ${(()=>{const p=matchProbs(opp,home);return `<div class="xibar" style="border-color:var(--amber)">
         <b>This match, as the model sees it:</b> xGF <b>${p.xgf.toFixed(2)}</b> · clean sheet <b>${Math.round(p.cs*100)}%</b>
         · win <b>${p.w}%</b> <span style="color:var(--mute)">— changes as you pick the side</span></div>
-        ${(()=>{const q=matchProbs(opp,!home);return `<div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage</b>
+        ${(()=>{const q=matchProbs(opp,!home);const tip=`<div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage</b>
           ${home?`You are at home: that is worth <b>${p.w-q.w} points of win chance</b>. The same game away would be
             ${q.w}% to win, with ${q.xgf.toFixed(2)} xGF instead of ${p.xgf.toFixed(2)}.`
           :`You are away: that costs <b>${q.w-p.w} points of win chance</b>. The same game at home would be
             ${q.w}% to win, with ${q.xgf.toFixed(2)} xGF instead of ${p.xgf.toFixed(2)}.`}
-          Home sides score about 19% more — the same edge FixtureShark's real model measures.</div>`})()}`})()}
+          Home sides score about 19% more — the same edge FixtureShark's real model measures.</div>`;
+          // Beginners: folded away, so the sheet is the essentials plus this match's one new idea.
+          return LEVEL==="beginner"?why(tip,"Why does home or away matter?"):tip})()}`})()}
       ${squadHTML({pick:mgr&&can("rotation"),sel})}
-      ${sheetLessons(wk,mgr)}
+      ${(()=>{
+        // Beginners see a lesson in full in the match it is introduced; after
+        // that it folds behind "Why?" rather than piling up on every sheet
+        // (a beginner's 4th sheet had grown heavier than a Data guru's).
+        const lessons=sheetLessons(wk,mgr);
+        if(LEVEL!=="beginner"||!lessons)return lessons;
+        const nw=newThisMatch();
+        return nw==="rotation"||nw==="setpieces"?lessons:why(lessons,"Rest, rotation and set pieces");
+      })()}
       ${mgr&&can("rotation")?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>
         <span class="d">Let the game choose the strongest available side for this shape</span></button>`:''}
       <button class="choice primary" id="kick" style="margin-top:6px"><span class="t">Kick off</span></button></div>`;

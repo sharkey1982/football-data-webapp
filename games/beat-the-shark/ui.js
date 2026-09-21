@@ -205,21 +205,28 @@ function physioSpec(){
 function renderPhysio(){
   renderSpec(Object.assign(physioSpec(),{keepFull:true}),"THURSDAY · THE PHYSIO ROOM",next);
 }
+/* "WHY?" -- detail folded away until asked for (ten-minute season, 2026-09-21).
+   A native <details>, so it works with keyboards and screen readers with no
+   extra code. The reading budget counts only what is VISIBLE: text behind a
+   closed "Why?" isn't read unless someone chooses to. */
+function why(inner,summary,open){
+  return `<details class="why"${open?" open":""}><summary>${summary||"Why?"}</summary><div class="whybody">${inner}</div></details>`;
+}
 function renderHeatmap(){
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">PRE-SEASON · FIXTURE HEAT MAP</div>
-    <h1>The season, laid out</h1>
-    <p class="lede">Your first five fixtures: how many you should score, how likely you are to keep a clean sheet, and the odds.</p>
-    <div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage is real, and measurable</b>
+    <h1>Your first five fixtures</h1>
+    <p class="lede">Green is good for you. <b>H</b> means at home, where sides score about 19% more.</p>
+    ${fixtureHeatHTML(0,5)}
+    ${why(`<div class="tip" style="border-left-color:#7cb9e8;background:var(--panel2)"><b>Home advantage is real, and measurable</b>
       FixtureShark's real model finds that home sides score about <b>19% more goals</b> (a home-advantage parameter of 0.175
       in its latest fit). This game uses the same number. Over your season it is worth about
-      <b>${homeValue().toFixed(1)} points</b> — which is why the H and A on every fixture matter.
+      <b>${homeValue().toFixed(1)} points</b>.
       <a href="${SITE}/football/model-accuracy" style="color:var(--pitch2)">How the real model performs</a></div>
-    ${fixtureHeatHTML(0,5)}
-    <h2 style="margin-top:14px">Team Strength</h2>
+    <h2 style="margin-top:10px">Team Strength</h2>
     <p class="small">Attack and defence in expected goals. Results come from this; the table is what it looks like afterwards.</p>
-    ${strengthTableHTML()}
+    ${strengthTableHTML()}`,"Why? Home advantage and Team Strength")}
     <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Get on with it</span></button></div>`;
   document.getElementById('nx').onclick=next;
 }
@@ -292,8 +299,7 @@ function renderStats(){
     </div>
     <div style="font-size:11px;color:var(--mute);margin-bottom:12px">
       <span style="color:var(--good)">■</span> scored · <span style="color:var(--bad)">■</span> conceded, by gameweek</div>
-    <h2>Team Strength now</h2>${strengthTableHTML()}
-    <h2 style="margin-top:14px">The last five</h2>${fixtureHeatHTML(5,5)}
+    ${why(`<h2>Team Strength now</h2>${strengthTableHTML()}<h2 style="margin-top:14px">The last five</h2>${fixtureHeatHTML(5,5)}`,"Team Strength and the last five fixtures")}
     <button class="choice primary" id="nx" style="margin-top:12px"><span class="t">Continue</span></button></div>`;
   document.getElementById('nx').onclick=next;
 }
@@ -440,6 +446,17 @@ function realThingLinks(){
       `<li style="margin-bottom:3px"><a href="${SITE}${u}" style="color:var(--pitch2)">${t}</a> — ${d}</li>`).join('')}</ul></div></div>`;
 }
 /* --- ending --------------------------------------------------------------- */
+function endingDetailHTML(){
+  return `<p class="small">The Shark predicts the points a <b>well-run</b> club with your squad would take — sensible
+      formations, sensible decisions. Matching it scores 50; each point better is worth 5, each point worse costs 5,
+      and the title adds 10. A competent manager beats it about six times in ten.</p>
+
+    ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
+      ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
+    ${probabilityLesson()}
+    ${seasonLessons()}
+    <div style="margin-top:12px">${tableHTML()}</div>`;
+}
 function renderEnding(){
   while(S.mw<MW){const wk=S.mw,[h,a]=myFixture(wk),home=h===CLUB;
     const[hg,ag]=playFixture(h,a,true);
@@ -488,16 +505,8 @@ function renderEnding(){
     </div>
     ${kpiHTML()}
     ${red?`<div class="outcome" style="border-left-color:var(--bad)">You finished ${fmtMoney(S.cash)} in the red. That cost you ${Math.round(red)} points of score — an owner answers for the money as well as the football.</div>`:""}
-    <p class="small">The Shark predicts the points a <b>well-run</b> club with your squad would take — sensible
-      formations, sensible decisions. Matching it scores 50; each point better is worth 5, each point worse costs 5,
-      and the title adds 10. A competent manager beats it about six times in ten.</p>
-
-    ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
-      ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
-    ${probabilityLesson()}
-    ${seasonLessons()}
     ${realThingLinks()}
-    <div style="margin-top:12px">${tableHTML()}</div>
+    ${why(endingDetailHTML(),"How the score works, the season's lessons and the final table")}
     <button class="choice primary" id="again" style="margin-top:11px"><span class="t">Same season, different decisions</span><span class="d">Identical seed — beat your own score</span></button>
     <button class="choice" id="role"><span class="t">Same season, different role</span><span class="d">The same club from another chair</span></button>
     <button class="choice" id="rand"><span class="t">A new season</span><span class="d">New seed</span></button>
@@ -519,7 +528,7 @@ function chooseRole(){
   document.getElementById('hTwo').innerHTML="";document.getElementById('hTrend').textContent="";
   document.getElementById('hSeason').innerHTML="";
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">FIXTURESHARK · A SEASON IN FIVE MINUTES</div>
+    <div class="datechip">FIXTURESHARK · A SEASON IN TEN MINUTES</div>
     <h1>Beat the Shark</h1>
     <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
     <p class="small">Before a ball is kicked, FixtureShark sets a target: the points a <b>well-run</b> club with your squad would take.
@@ -554,12 +563,17 @@ function boot(){
     <h1>${ROLE.mission}</h1><p class="lede">${ROLE.missionLong}</p>
     <div class="shark"><div><b>The Shark's target</b>
       A well-run club with this squad would take <b>${sharkPts().toFixed(1)} points</b>. Beat that.</div></div>
-    <div class="shark"><div><b>The model's projection, as the squad stands</b>
+    ${(()=>{
+      // Get to the first decision fast: the mission and the target, then Begin.
+      // The rest is one tap away -- visible by default only for the Data guru.
+      const detail=`<div class="shark"><div><b>The model's projection, as the squad stands</b>
       Before any decisions: <b>${ord(Math.round(pr.avg))}</b>, relegated in <b>${pr.rel}%</b> of simulated seasons, about
       ${pr.pts.toFixed(1)} points. The gap between that and the target is what good decisions are worth.</div></div>
-    ${kpiHTML()}
-    <h2>Your squad</h2>${squadHTML()}
-    <h2>The model's projection</h2>${predictedTableHTML()}
+      ${kpiHTML()}
+      <h2>Your squad</h2>${squadHTML()}
+      <h2>The model's projection</h2>${predictedTableHTML()}`;
+      return LEVELS[LEVEL].guru?detail:why(detail,"Your squad and the model's projection");
+    })()}
     <button class="choice primary" id="go" style="margin-top:11px"><span class="t">Begin</span>
       <span class="d">${ROLE.id==="owner"?"The summer window is open":ROLE.id==="manager"?"Pre-season starts Monday":"Six weeks of summer"}</span></button></div>`;
   document.getElementById('go').onclick=()=>{cursor=0;step()};

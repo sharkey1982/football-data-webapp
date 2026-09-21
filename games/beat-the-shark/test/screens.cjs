@@ -159,7 +159,10 @@ ok("when all results are in, the table redraws once, with moves since 3pm", /ARR
 // is ~4,900 words (~19 min of reading) for a game billed as "a season in
 // five minutes". These caps stop any screen, or the season, growing from
 // here; lower them as screens are trimmed toward the chosen target.
-const text=h=>h.replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').replace(/\s+/g,' ').trim();
+// VISIBLE text only: a closed "Why?" shows just its one-line label, and
+// nobody reads what's folded inside unless they choose to open it.
+const visible=h=>h.replace(/<details[^>]*>\s*<summary>([\s\S]*?)<\/summary>[\s\S]*?<\/details>/g,' $1 ');
+const text=h=>visible(h).replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').replace(/\s+/g,' ').trim();
 const words=h=>text(h).split(' ').filter(w=>/[A-Za-z0-9]/.test(w)).length;
 // season: 5,527 measured with commentary run to the end and the new pace
 // controls included (the earlier ~4,900 estimate stopped mid-commentary).

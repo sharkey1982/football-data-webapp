@@ -248,6 +248,12 @@
   .kpi .kl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
   .kpi .kb{font-family:var(--disp);font-size:24px;font-weight:700;line-height:1.1}
   .kpi .ks{font-size:11px;color:var(--ink2);margin-bottom:3px;min-height:15px}
+  /* "Why?" fold-outs */
+  details.why{margin:10px 0;border-top:1px solid var(--line);padding-top:6px}
+  details.why>summary{cursor:pointer;color:var(--pitch2);font-size:12.5px;list-style:none}
+  details.why>summary::before{content:"+ ";font-family:var(--mono)}
+  details.why[open]>summary::before{content:"\2212  "}
+  details.why>.whybody{margin-top:6px}
 </style>
 </head>
 <body>
