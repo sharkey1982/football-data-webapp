@@ -254,6 +254,11 @@
   details.why>summary::before{content:"+ ";font-family:var(--mono)}
   details.why[open]>summary::before{content:"\2212  "}
   details.why>.whybody{margin-top:6px}
+  /* consequence tags */
+  .tag{display:inline-block;margin:3px 5px 3px 0;padding:3px 9px;border-radius:999px;font-size:12.5px;font-weight:600;
+    background:var(--panel2);border:1px solid var(--line);color:var(--ink2)}
+  .tag.up{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 10%,transparent)}
+  .tag.down{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:color-mix(in srgb,var(--bad) 10%,transparent)}
 </style>
 </head>
 <body>

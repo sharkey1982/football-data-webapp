@@ -251,7 +251,94 @@ const NEW_IDEA={
   oop:["Out of position","You can now play someone out of position. A defender moved into midfield still defends like a defender — and gets a midfielder's chances."]};
 function newThisMatch(){if(ROLE.id!=="manager"||LEVEL!=="beginner")return null;
   const n=S.fullMatches||0;return Object.keys(NEW_IDEA).find(f=>LEVELS.beginner.unlock[f]===n)||null}
+/* ===========================================================================
+   BEGINNER TEAM SHEET (Chris: cut the cognitive load but keep similar
+   items). One decision between TWO options per match, each showing its win
+   chance; the pitch is a picture, not a puzzle. Across the season a Beginner
+   still meets shape, selection, set pieces and out of position -- one at a
+   time, as a simple either/or. Anything that can't arise this week (nobody
+   tired, no spare defender) falls back to the shape decision.
+   =========================================================================== */
+const BEGINNER_DECISION_ORDER=["formation","selection","setpieces","oop","formation"];
+const BEGINNER_IDEA={
+  formation:["Pick your shape","Each shape trades attack for defence. Pick the one that suits this opponent."],
+  selection:["One place in the side","The better player, or the fresher one? Tired players play worse and get injured more."],
+  setpieces:["Who takes the set pieces?","About a quarter of goals come from set pieces."],
+  oop:["Try something different?","A defender moved into midfield still defends like a defender, and gets a midfielder's chances."]};
+function beginnerDecision(opp,home){
+  const snap={f:S.formation,xi:S.manualXI?S.manualXI.map(x=>({...x})):null,sp:S.spTaker};
+  const restore=()=>{S.formation=snap.f;S.manualXI=snap.xi?snap.xi.map(x=>({...x})):null;S.spTaker=snap.sp};
+  const shape=f=>{const v=FORMATIONS[f];return v.att-v.def>=2?"attacking":v.def-v.att>=2?"defensive":"balanced"};
+  const build={
+    formation(){
+      const best=bestShapeFor(opp,home),others=Object.keys(FORMATIONS).filter(f=>f!==best);
+      const alt=shape(best)==="attacking"?others.sort((a,b)=>FORMATIONS[b].def-FORMATIONS[a].def)[0]
+        :others.sort((a,b)=>FORMATIONS[b].att-FORMATIONS[a].att)[0];
+      return{options:[best,alt].map(f=>({title:f,sub:`A more ${shape(f)} shape`,set(){S.formation=f;S.manualXI=null}}))};
+    },
+    selection(){
+      S.manualXI=null;const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
+      let bestPair=null;
+      for(const x of xi){const s=S.squadList[x.i];if(!s||s.fit>=85)continue;
+        for(const b of available()){const j=S.squadList.indexOf(b);
+          if(inXI.has(j)||b.pos!==s.pos||b.fit<=s.fit+8)continue;
+          const gain=b.fit-s.fit;if(!bestPair||gain>bestPair.gain)bestPair={slot:x.slot,si:x.i,bi:j,s,b,gain}}}
+      if(!bestPair)return null;
+      const{si,bi,s,b}=bestPair;
+      return{options:[
+        {title:`Start ${s.nm}`,sub:`Better player (quality ${s.rt}), but ${s.fit}% fit`,set(){S.manualXI=null}},
+        {title:`Start ${b.nm}`,sub:`Fresher (${b.fit}% fit), quality ${b.rt}`,set(){S.manualXI=null;const x=currentXI().map(y=>({...y}));
+          const k=x.findIndex(y=>y.i===si);if(k>=0){x[k].i=bi;S.manualXI=x;S.manualFm=S.formation}}}]};
+    },
+    setpieces(){
+      S.manualXI=null;const xi=currentXI().map(x=>({p:S.squadList[x.i],i:x.i})).filter(x=>x.p);
+      const top=xi.sort((a,b)=>(b.p.sp||0)-(a.p.sp||0)||b.p.rt-a.p.rt).slice(0,2);
+      if(top.length<2)return null;
+      return{options:top.map(({p,i})=>({title:`${p.nm} takes them`,sub:`Set pieces ${p.sp||0}/3 · quality ${p.rt}`,set(){S.spTaker=i}}))};
+    },
+    oop(){
+      S.manualXI=null;const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
+      const mids=xi.filter(x=>x.slot==="MF").map(x=>({x,p:S.squadList[x.i]})).sort((a,b)=>a.p.rt-b.p.rt);
+      const spareDF=available().filter(p=>p.pos==="DF"&&!inXI.has(S.squadList.indexOf(p))).sort((a,b)=>b.rt-a.rt)[0];
+      if(!mids.length||!spareDF)return null;
+      const m=mids[0],di=S.squadList.indexOf(spareDF);
+      return{options:[
+        {title:`Keep ${m.p.nm} in midfield`,sub:`Your usual midfielder, quality ${m.p.rt}`,set(){S.manualXI=null}},
+        {title:`Move ${spareDF.nm} into midfield`,sub:`A defender, quality ${spareDF.rt}: tighter, fewer chances`,set(){S.manualXI=null;
+          const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===m.x.i);if(k>=0){x[k].i=di;S.manualXI=x;S.manualFm=S.formation}}}]};
+    }};
+  let kind=BEGINNER_DECISION_ORDER[Math.min(S.fullMatches||0,BEGINNER_DECISION_ORDER.length-1)];
+  let dec=build[kind]();restore();
+  if(!dec){kind="formation";dec=build.formation();restore()}
+  for(const o of dec.options){o.set();recalcSquadRating();o.p=matchProbs(opp,home);restore()}
+  recalcSquadRating();
+  return{kind,...dec};
+}
+function renderBeginnerSheet(done){
+  const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
+  if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
+  const dec=beginnerDecision(opp,home);
+  let chosen=0;dec.options[0].set();
+  function draw(){
+    recalcSquadRating();paintHeader();
+    const [title,idea]=BEGINNER_IDEA[dec.kind];
+    document.getElementById('app').innerHTML=`<div class="card">
+      <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
+      <h1>${home?`${opp}, at home`:`Away at ${opp}`}</h1>
+      <h2 style="margin-top:6px">${title}</h2>
+      <p class="small">${idea}</p>
+      ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
+        style="${i===chosen?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub} · <b>win chance ${o.p.w}%</b></span></button>`).join('')}
+      ${squadHTML({})}
+      <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button></div>`;
+    document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{chosen=+b.dataset.bc;dec.options[chosen].set();draw()});
+    document.getElementById('kick').onclick=()=>{S.fullMatches=(S.fullMatches||0)+1;done()};
+  }
+  draw();
+}
 function renderTeamSheet(done){
+  if(ROLE.id==="manager"&&LEVEL==="beginner")return renderBeginnerSheet(done);
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
   const mgr=ROLE.id==="manager";
@@ -470,7 +557,9 @@ function renderElsewhere(info,done){
   const near=n=>Math.abs(TABLE[n].pts-TABLE[CLUB].pts)<=3;
   const flagged=others.map(r=>near(r.h)||near(r.a));
   for(const r of others)award(TABLE,r.h,r.a,r.hg,r.ag);
-  S.mw++;myPos();paintHeader();
+  S.mw++;
+  const money=cashConsequences();
+  myPos();paintHeader();
   kpiRecord();
   const endPos=posOf(CLUB),moved=myBefore-endPos;
   const line=final
@@ -479,6 +568,9 @@ function renderElsewhere(info,done){
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE OTHER RESULTS</div>
     <h1>${line}</h1>
+    ${money.map(ev=>ev.type==="deduction"
+      ?`<div class="outcome" style="border-left-color:var(--bad)"><b>Points deduction: −${ev.pts}.</b> The club went too far into the red.</div>`
+      :`<div class="outcome" style="border-left-color:var(--bad)"><b>The bank forced a sale.</b> ${ev.nm} (${ev.pos}, quality ${ev.rt}) sold for ${fmtMoney(ev.fee)}. Your team is weaker.</div>`).join('')}
     ${others.map((r,i)=>`<div class="res" style="margin-top:6px"><span>${flagged[i]?"★ ":""}${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span></div>`).join('')}
     ${flagged.some(Boolean)?`<p class="small" style="margin-top:6px">★ involves a club within three points of you.</p>`:""}
     <div class="datechip" style="margin:10px 0 5px">WHAT THAT DID TO THE TABLE · ARROWS SHOW EVERY MOVE</div>

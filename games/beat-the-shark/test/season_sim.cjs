@@ -28,7 +28,7 @@ global.setTimeout=()=>{};
 const G=eval(src+`;({ROLES,SHAPES,FORMATIONS,PLAN,MW,newState,buildFixtures,blankTable,monteCarlo,recalcSquadRating,pickRivals,
   playFixture,simScore,strOf,award,standings,resolveMine,apply,later,drainPending,myStrength,clubRates,
   presserSpec,callSpec,physioSpec,preseasonSpec,winterSpec,playerSummerSpec,playerWinterSpec,makeTargets,drawEvent,
-  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,ratingsNow,projectionNow,projOrder,expectedFinal,
+  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,cashConsequences,sharkPos,scoreParts,ratingsNow,projectionNow,projOrder,expectedFinal,
   setSeed:v=>{SEED=v},setRole:r=>{ROLE=r},setS:x=>{S=x},getS:()=>S,setTable:t=>{TABLE=t},T:()=>TABLE,
   setPredict:p=>{PREDICT=p},setCursor:v=>{cursor=v},getR:()=>R.s,setR:v=>{R.s=v},
   resetRecent:()=>{RECENT=new Set();RECENT_Q=[]},getRivals:()=>RIVALS,getRoleId:()=>ROLE.id,
@@ -37,6 +37,7 @@ const G=eval(src+`;({ROLES,SHAPES,FORMATIONS,PLAN,MW,newState,buildFixtures,blan
 /* What the policy optimises: the strength the match engine will actually
    use, including the attack/defence split and delayed consequences. */
 function metric(){const S=G.getS();return G.myStrength()+((S.attMod||0)+(S.defMod||0))/2}
+const CASH_BUFFER=60; // £k a competent player keeps in hand (150 was over-cautious: titles fell to 4%)
 function evalChoice(c){
   const S=G.getS(),snap={st:JSON.stringify(S),r:G.getR()};
   try{
@@ -44,7 +45,12 @@ function evalChoice(c){
     if(c.after)c.after();
     if(c.delayed){const amp={};for(const[k,v]of Object.entries(c.delayed))amp[k]=v*2.4;G.apply(amp,false)}
     G.recalcSquadRating();
-    return metric();
+    // A competent player watches the money now that the red has football
+    // consequences (forced sales, a points deduction): an option that leaves
+    // the club below a cash buffer is heavily penalised -- chosen only when
+    // every option does.
+    const cashAfter=G.getS().cash;
+    return metric()-(cashAfter<CASH_BUFFER?1000+(CASH_BUFFER-cashAfter):0);
   }finally{G.setS(JSON.parse(snap.st));G.setR(snap.r)}
 }
 function choose(spec,policy){
@@ -74,7 +80,7 @@ function transferWindow(policy){
   if(policy==="none")return;
   if(policy==="best"){
     const t=G.makeTargets(3).sort((a,b)=>(b.rt-38)/b.fee-(a.rt-38)/a.fee);
-    for(const x of t){if(S.cash>=x.fee&&x.rt>S.squad){S.cash-=x.fee;S.wages+=x.wage;
+    for(const x of t){if(S.cash-x.fee>=CASH_BUFFER&&x.rt>S.squad){S.cash-=x.fee;S.wages+=x.wage;
       S.squadList.push({pos:x.pos,nm:x.nm,rt:x.rt,fit:x.fit,gone:false,out:0,quirk:""});G.recalcSquadRating()}}
   }else{
     const sell=G.alive().sort((a,b)=>b.rt-a.rt).slice(0,2);
@@ -127,12 +133,16 @@ function playWeek(policy,credit){
   const[hg,ag]=G.playFixture(fx[0],fx[1],true);
   G.award(T,fx[0],fx[1],hg,ag);
   G.otherFixtures(wk).forEach(([h,a])=>{const[x,y]=G.simScore(G.strOf(h),G.strOf(a));G.award(T,h,a,x,y)});
-  const r=G.resolveMine(hg,ag,home);G.apply(r.fx,true);S.mw++;
+  const r=G.resolveMine(hg,ag,home);G.apply(r.fx,true);S.mw++;G.cashConsequences();
 }
-function season(seed,roleId,policy){
+function season(seed,roleId,policy,withTarget){
   G.setSeed(seed);G.pickRivals();G.buildFixtures();G.setTable(G.blankTable());
   G.setRole(G.ROLES[roleId]);G.setR(hashSeedJS(seed+"|"+roleId));G.resetRecent();
   const S=G.newState();G.setS(S);G.recalcSquadRating();
+  // The Shark's finishing-position target for THIS season (position scoring),
+  // computed before play exactly as the game does at kick-off. Restores the
+  // RNG so the season itself plays out identically with or without it.
+  if(withTarget){G.setPredict(G.monteCarlo(400));G.setTable(G.blankTable());G.setR(hashSeedJS(seed+"|"+roleId))}
   for(let i=0;i<G.PLAN.length;i++){
     G.setCursor(i);
     const b=G.PLAN[i];

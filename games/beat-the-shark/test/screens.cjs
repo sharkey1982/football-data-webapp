@@ -91,7 +91,14 @@ ok("end of season reports set-piece share and out-of-position goals in FPL point
 // 7. a decision says what it did to the next result
 run(`S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
 els.ch.children[0].onclick();
-ok("a decision shows its effect on xGF, clean sheet and win chance", /xGF [\s\S]+?→[\s\S]+?clean sheet [\s\S]+?→[\s\S]+?win [\s\S]+?→/.test(app()));
+// Consequence tags (Chris: "a mess of numbers"): simple by default...
+ok("a decision shows its effect as tags: Team, Attack, and the win chance", /class="tag up">Team ▲▲▲/.test(app())&&/class="tag up">Attack ▲/.test(app())&&/Win chance [\s\S]+?→/.test(app()));
+ok("...with the exact figures folded under The numbers, and no xGF by default", /<summary>The numbers<\/summary>/.test(app())&&!/xGF/.test(app().replace(/<details[\s\S]*?<\/details>/g,'')));
+// ...and the Data guru still gets the site's measures.
+run(`LEVEL="guru";S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
+els.ch.children[0].onclick();
+ok("the Data guru still sees xGF, clean sheet and win chance", /xGF [\s\S]+?→[\s\S]+?clean sheet [\s\S]+?→/.test(app())&&/Morale \+/.test(app()));
+run(`LEVEL="intermediate"`);
 // 10. the cash crisis: two players, the model's numbers, and the heat map
 run(`ROLE=ROLES.owner;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=3;renderSpec(crisisSpec(),"THE BANK HAS CALLED",()=>{})`);
 const cr=app();
@@ -106,7 +113,7 @@ run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw
 ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
-ok("ending compares points with the Shark's target", /THE SHARK'S TARGET/.test(app())&&/YOU TOOK/.test(app())&&/pts/.test(app()));
+ok("ending compares FINISHING POSITION with the Shark's", /YOU FINISHED/.test(app())&&/\d(st|nd|rd|th)/.test(app())&&/The Shark said|LEVEL WITH THE SHARK|CHAMPIONS/.test(app()));
 // 14. home advantage, made visible
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
@@ -125,15 +132,28 @@ ok("Team Strength shows xPts and projected points, ordered by them", /<th class=
 const sq=run("squadHTML({})");
 ok("players show quality (Q) and condition (%) explicitly, with a legend", /<b>Q\d+<\/b> · <span[^>]*>\d+%<\/span>/.test(sq)&&/quality · <b>%<\/b> condition/.test(sq));
 run(`paintHeader()`);
-ok("header calls the Shark's number a target, in points", /The Shark's target/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
+ok("header shows the Shark's predicted position and yours", /The Shark says/.test(els.hTwo.innerHTML)&&/\d(st|nd|rd|th)/.test(els.hTwo.innerHTML));
+ok("the manager can see the club's cash (money now has football consequences)", run("ROLE.id")!=="manager"||/Cash/.test(els.hTwo.innerHTML));
 // 16. levels: progressive disclosure for beginners, everything for the rest
 const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
-let b0=sheetAt("beginner",0);
-ok("beginner, first match: formations only, flagged as new", /New this match · Formations/.test(b0)&&/data-fm=/.test(b0)&&!/data-xi=/.test(b0)&&!/data-sp=/.test(b0));
-let b1=sheetAt("beginner",1);
-ok("beginner, second match: rotation unlocks, flagged as new", /New this match · Rest and rotation/.test(b1)&&/data-xi=/.test(b1)&&!/data-sp=/.test(b1));
-ok("beginner, third match: set pieces unlock", /New this match · Set pieces/.test(sheetAt("beginner",2))&&/data-sp=/.test(app()));
-ok("beginner, fourth match: out of position unlocks", /New this match · Out of position/.test(sheetAt("beginner",3)));
+// Beginners: ONE either/or per match, each with a win chance (Chris: cut
+// the cognitive load, keep similar items).
+const bc=h=>(h.match(/data-bc="/g)||[]).length;
+const kinds=[];
+for(let n=0;n<5;n++){
+  const h=sheetAt("beginner",n);
+  kinds.push(run(`beginnerDecision(...(()=>{const[hT,aT]=myFixture(S.mw);return[hT===CLUB?aT:hT,hT===CLUB]})()).kind`));
+  ok(`beginner match ${n+1}: exactly two options, each with a win chance, and no complex controls`,
+    bc(h)===2&&(h.match(/win chance \d+%/g)||[]).length===2&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+}
+ok("a beginner's season opens on shape and still meets selection, set pieces and out of position (or falls back to shape)",
+  kinds[0]==="formation"&&["selection","formation"].includes(kinds[1])&&kinds[2]==="setpieces"&&["oop","formation"].includes(kinds[3]), kinds.join(" → "));
+// choosing the second option actually changes the side
+sheetAt("beginner",0);
+const fmBefore=run("S.formation");
+run(`document.querySelectorAll=()=>[]`); // the harness can't click; apply the option directly, as the button does
+run(`(()=>{const[hT,aT]=myFixture(S.mw);const d=beginnerDecision(hT===CLUB?aT:hT,hT===CLUB);d.options[1].set();globalThis.__alt=d.options[1].title})()`);
+ok("picking the other shape really changes the formation", run("S.formation")===run("__alt")&&run("S.formation")!==fmBefore);
 ok("intermediate has every lever from the first match, no 'new' banner", (()=>{const h=sheetAt("intermediate",0);return /data-xi=/.test(h)&&/data-sp=/.test(h)&&!/New this match/.test(h)})());
 ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
 // a beginner cannot play someone out of position before it unlocks
@@ -174,7 +194,7 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // ~575 -> 258 words; pre-season 360 -> 56; a beginner's 4th team sheet 457
 // -> 274; season reading time ~22 -> ~15 min. Target: ~7 min of reading (+
 // ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
-const BUDGET={screen:270,beginnerTeamSheet:285,opening:200,preseason:70,minutes:15.5};
+const BUDGET={screen:210,beginnerTeamSheet:210,opening:200,preseason:70,minutes:16}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);
@@ -184,9 +204,14 @@ ok(`reading budget: a beginner's team sheet <= ${BUDGET.beginnerTeamSheet} words
 {
   const plan=run('PLAN');let total=0,worst=0,worstAt='',secs=0;
   for(let i=0;i<plan.length;i++){
+    delete els.ch; // a fresh choice area per screen, as a real browser creates
     try{run(`cursor=${i};S.mw=Math.min(MW-1,${Math.floor(i/3)});S.pendingOppFm=null;S._sheetShown=false;step()`)}catch(e){continue}
     const settle=()=>{for(let k=0;k<400&&q.length;k++){try{q.shift()()}catch(e){}}};
-    const count=()=>{const h=app(),w=words(h);total+=w;secs+=readSecs(h);if(w>worst){worst=w;worstAt=plan[i]}};
+    // Include the choice buttons: decision screens add them to #ch, a separate
+    // element the harness doesn't fold into the page's HTML.
+    // (Only when THIS screen has a choice area: the harness keeps old
+    // elements between screens, so stale buttons would otherwise count.)
+    const count=()=>{const a=app(),h=a+(/id="ch"/.test(a)&&els.ch?els.ch.children.map(c=>c.innerHTML||'').join(' '):''),w=words(h);total+=w;secs+=readSecs(h);if(w>worst){worst=w;worstAt=plan[i]}};
     settle();count();
     // A match is several screens now: follow it through and count each one
     // (a full match's commentary page once, after the second half).
@@ -201,5 +226,12 @@ ok(`reading budget: a beginner's team sheet <= ${BUDGET.beginnerTeamSheet} words
   ok(`reading budget: a beginner's season takes <= ${BUDGET.minutes} minutes to read`, secs/60<=BUDGET.minutes, `~${(secs/60).toFixed(1)} min (prose at 250 wpm + ~6s per table or pitch), before commentary playback`);
 }
 run(`LEVEL="intermediate";SPEED=null`);
+// 19. money with football consequences, shown plainly
+run(`LEVEL="beginner";ROLE=ROLES.manager;boot();S.cash=-50;const before=alive().length;globalThis.__before=before;
+  renderElsewhere({wk:0,final:false},()=>{})`);
+ok("in the red at the end of a gameweek, the bank forces a sale -- and the results screen says so", /The bank forced a sale/.test(app())&&run("alive().length")===run("__before")-1);
+run(`boot();S.cash=-400;S.deducted=false;const p0=TABLE[CLUB].pts;globalThis.__p0=p0;renderElsewhere({wk:0,final:false},()=>{})`);
+ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(app())&&run("S.deducted")===true);
+run(`LEVEL="intermediate"`);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);
