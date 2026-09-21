@@ -6,7 +6,8 @@ import {
   getMostRecentFixtureSeason,
   type FantasyFixtureData,
 } from '../lib/api';
-import { getDefaultMatchweek } from '../lib/fplSeasonApi';
+import { getDefaultMatchweek, getGameweekInPlay } from '../lib/fplSeasonApi';
+import GameweekRangeFilter from '../components/fpl/GameweekRangeFilter';
 import FantasyFixtureHeatmap, {
   type FantasyColourBasis,
   type FantasyFocus,
@@ -29,17 +30,14 @@ export default function FantasyFixtures() {
 
   const [focus, setFocus] = useState<FantasyFocus>('attack');
   const [colourBasis, setColourBasis] = useState<FantasyColourBasis>('model');
-  const [defenceMetric, setDefenceMetric] = useState<FantasyDefenceMetric>('goals');
-  const [rankWindowInput, setRankWindowInput] = useState(String(DEFAULT_RANK_WINDOW));
-  const [startGwInput, setStartGwInput] = useState('');
+  const [defenceMetric, setDefenceMetric] = useState<FantasyDefenceMetric>('cleansheet');
+  // The shared gameweek filter (as on Optimal Squad and Player Projections),
+  // so this page gets the in-progress-gameweek tick box too: "from" is the
+  // start week, the span is how many fixtures the ranking averages.
+  const [fromGw, setFromGw] = useState<number | null>(null);
+  const [toGw, setToGw] = useState<number | null>(null);
+  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
-  // Matches the preset-button style used on Optimal Squad and Player
-  // Points Table -- here a preset sets BOTH "start from GW" and "rank by
-  // next N fixtures" together (e.g. "Next 5 GWs" = start now, rank by the
-  // next 5), which is a more coherent match for what a preset actually
-  // means on this page than only setting the start week would be.
-  const [gwPreset, setGwPreset] = useState('next10');
-
   // Clean sheet probability only exists as a Dixon-Coles model output --
   // there's no FDR-quintile equivalent -- so switching to it forces the
   // colour scale back to the model rather than leaving it on a stale FDR
@@ -56,6 +54,9 @@ export default function FantasyFixtures() {
     // the app (Optimal Squad, FPL Projections) -- fetched independently
     // of the fixture-difficulty data below so a fetch failure here never
     // blocks the heatmap itself from loading.
+    getGameweekInPlay()
+      .then((g) => { if (!cancelled) setInPlay(g); })
+      .catch(() => { if (!cancelled) setInPlay(null); });
     getDefaultMatchweek()
       .then((gw) => {
         if (!cancelled) setDefaultGw(gw);
@@ -119,10 +120,8 @@ export default function FantasyFixtures() {
   // canonical current gameweek (matching every other page in the app);
   // typing a later one skips past an in-progress gameweek explicitly.
   const startMatchweek = useMemo(() => {
-    const n = parseInt(startGwInput, 10);
-    if (!Number.isFinite(n)) return defaultGw ?? earliestMatchweek ?? 1;
-    return n;
-  }, [startGwInput, defaultGw, earliestMatchweek]);
+    return fromGw ?? defaultGw ?? earliestMatchweek ?? 1;
+  }, [fromGw, defaultGw, earliestMatchweek]);
 
   const matchweeksFromStart = useMemo(
     () => allMatchweeks.filter((mw) => mw >= startMatchweek),
@@ -130,10 +129,10 @@ export default function FantasyFixtures() {
   );
 
   const rankWindowSize = useMemo(() => {
-    const n = parseInt(rankWindowInput, 10);
+    const n = fromGw != null && toGw != null ? toGw - fromGw + 1 : DEFAULT_RANK_WINDOW;
     if (!Number.isFinite(n) || n < 1) return 1;
     return Math.min(n, matchweeksFromStart.length || 1);
-  }, [rankWindowInput, matchweeksFromStart.length]);
+  }, [fromGw, toGw, matchweeksFromStart.length]);
 
   // The number box controls both the ranking average AND which columns are
   // shown -- there's no separate "full season" view, so the two can never
@@ -205,6 +204,17 @@ export default function FantasyFixtures() {
     const max = Math.max(...allValues);
     const range = max - min || 1;
 
+    // ATTACK (Dixon-Coles expected goals) is on an ABSOLUTE scale (Chris):
+    // 1.0 or less is fully red, 2.0 or more fully green, linear between --
+    // so a colour means the same thing every week, whatever else is on screen.
+    if (focus === 'attack') {
+      const d = (v: number) => 1 + 4 * Math.max(0, Math.min(1, 2 - v));
+      return rows.map((row) => {
+        const newCells = new Map(row.cellsByMatchweek);
+        for (const [mw, cell] of newCells) newCells.set(mw, { ...cell, difficulty: d(cell.value) });
+        return { ...row, cellsByMatchweek: newCells, rankValue: d(row.rankValue) };
+      });
+    }
     return rows.map((row) => {
       const newCells = new Map(row.cellsByMatchweek);
       for (const [mw, cell] of newCells) {
@@ -216,7 +226,7 @@ export default function FantasyFixtures() {
       const orientedRankT = higherValueIsBetter ? 1 - rankT : rankT;
       return { ...row, cellsByMatchweek: newCells, rankValue: 1 + orientedRankT * 4 };
     });
-  }, [rows, colourBasis, higherValueIsBetter]);
+  }, [rows, colourBasis, higherValueIsBetter, focus]);
 
   const sortedRows = useMemo(
     () => [...scaledRows].sort((a, b) => a.rankValue - b.rankValue),
@@ -324,76 +334,16 @@ export default function FantasyFixtures() {
           </div>
         </div>
 
-        <div>
-          <div className="text-xs font-medium text-ink-500 mb-1">Gameweek range</div>
-          <div className="flex flex-wrap gap-1.5">
-            {(
-              [
-                ['this', 'This GW', 1],
-                ['next3', 'Next 3 GWs', 3],
-                ['next5', 'Next 5 GWs', 5],
-                ['next10', 'Next 10 GWs', 10],
-                ['custom', 'Custom', null],
-              ] as [string, string, number | null][]
-            ).map(([key, label, count]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  setGwPreset(key);
-                  if (count !== null && defaultGw !== null) {
-                    setStartGwInput(String(defaultGw));
-                    setRankWindowInput(String(count));
-                  }
-                }}
-                className={[
-                  'px-3 py-1.5 text-sm font-medium rounded-md border transition-colors',
-                  gwPreset === key ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'bg-white text-ink-700 border-chalk-300 hover:bg-chalk-100',
-                ].join(' ')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="start-gw">
-            Start from GW
-          </label>
-          <input
-            id="start-gw"
-            type="number"
-            min={earliestMatchweek ?? 1}
-            placeholder={(defaultGw ?? earliestMatchweek) !== null ? String(defaultGw ?? earliestMatchweek) : undefined}
-            value={startGwInput}
-            onChange={(e) => {
-              setGwPreset('custom');
-              setStartGwInput(e.target.value);
-            }}
-            className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
+        <div className="w-full">
+          <GameweekRangeFilter
+            inPlay={inPlay}
+            defaultGw={defaultGw}
+            fromGw={fromGw}
+            toGw={toGw}
+            onChange={(f, t) => { setFromGw(f); setToGw(t); }}
+            initialPreset="next10"
+            presets={['this', 'next3', 'next5', 'next10', 'custom']}
           />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="rank-window">
-            Rank by next
-          </label>
-          <div className="flex items-center gap-1.5">
-            <input
-              id="rank-window"
-              type="number"
-              min={1}
-              max={matchweeksFromStart.length || 1}
-              value={rankWindowInput}
-              onChange={(e) => {
-                setGwPreset('custom');
-                setRankWindowInput(e.target.value);
-              }}
-              className="w-16 border border-chalk-300 rounded px-2 py-1 text-sm font-mono"
-            />
-            <span className="text-sm text-ink-500">fixtures</span>
-          </div>
         </div>
       </div>
 
