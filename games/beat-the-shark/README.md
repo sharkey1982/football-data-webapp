@@ -124,6 +124,36 @@ effects from the club's current state. Turning the simplest of them into
 pure data would remove code from the writing entirely. Not worth it yet; the
 split already isolates the writing from the engine.
 
+## How it is scored, and how hard it is
+
+The Shark predicts the **points** a *well-run* club with your squad would
+take — sensible formations and sensible decisions — and you are scored on
+the points you actually take against that. Matching it scores 50; each point
+better or worse is worth 5; the title adds 10. The owner also loses up to 30
+for finishing the season in the red. The manager is not scored on cash.
+
+Points, not position, because a predicted position only changes when you jump
+a whole place, so beating it was often luck; every decision moves points.
+
+**Difficulty is a deliberate setting**, `SHARK_UPLIFT` in config.js, chosen so:
+
+| Player | Beats the Shark |
+|---|---|
+| Competent manager | about 6 in 10 seasons |
+| Careless manager | 2–3 in 10 |
+| Expert using every team-sheet lever | only slightly more than competent |
+
+The balance checks enforce all three, including an *expert* simulated player
+who hand-picks lineups and out-of-position players — added after the game
+became too easy through levers the old checks could not see.
+
+**Luck is kept rare and, where possible, turned into decisions.** Red cards
+are about once a season; there is one luck event, mid-season. The other slots
+hold the cash crisis — sell your best striker or your best defender — which
+shows the model's xGF and clean-sheet numbers for each option beside the
+heat map. Randomness that hands you a decision keeps the sense of control;
+randomness that decides the result after you choose erodes it.
+
 ## What the game teaches, and where it lives
 
 Each mechanic is built to teach something the site measures for real, using

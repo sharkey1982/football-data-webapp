@@ -84,6 +84,21 @@ ok("end of season reports set-piece share and out-of-position goals in FPL point
 // 7. a decision says what it did to the next result
 run(`S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
 els.ch.children[0].onclick();
-ok("a decision shows its effect on next match's win chance", /Win chance (at home to|away at) .+: \d+% → <b>\d+%<\/b>/.test(app()));
+ok("a decision shows its effect on xGF, clean sheet and win chance", /xGF [\s\S]+?→[\s\S]+?clean sheet [\s\S]+?→[\s\S]+?win [\s\S]+?→/.test(app()));
+// 10. the cash crisis: two players, the model's numbers, and the heat map
+run(`ROLE=ROLES.owner;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=3;renderSpec(crisisSpec(),"THE BANK HAS CALLED",()=>{})`);
+const cr=app();
+ok("cash crisis offers a striker or a defender", /Sell .+\(\d+, FW\)/.test(cr)&&/Sell .+\(\d+, DF\)/.test(cr));
+ok("cash crisis shows xGF and clean sheets for each option", /Keep both/.test(cr)&&/xGF/.test(cr)&&/Clean sheets/.test(cr));
+ok("cash crisis puts the heat map beside the decision", /Goals for/.test(cr)&&/Clean sheet/.test(cr));
+// 11. the owner's header shows cash; the score is in points
+run(`paintHeader()`);
+ok("owner's header shows cash and the Shark's points", /Cash/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
+// 12. the team sheet shows this match's numbers live
+run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
+ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
+// 13. the ending speaks in points
+run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
+ok("ending compares points with the Shark", /THE SHARK SAID/.test(app())&&/YOU TOOK/.test(app())&&/pts/.test(app()));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

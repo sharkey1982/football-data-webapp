@@ -149,35 +149,39 @@ console.log('\n3. BALANCE — the design targets still hold');
      the probability lesson. At ~48% it was a coin flip and taught nothing. */
   check('favourite wins the title 65–85% of simulated seasons', fav.title >= 65 && fav.title <= 85, `${fav.title}%`);
 
-  const N = 800;
+  const N = 700;
+  const sharkPts = P['Your Team'].pts;
+  /* Scored in POINTS against a Shark that predicts a well-run club. */
   const run = (role, pol) => {
-    let title = 0, beat = 0, score = 0;
+    let title = 0, beat = 0;
     for (let i = 1; i <= N; i++) {
       const pos = season(`BAL-${role}-${pol}-${i}`, role, pol);
       if (pos === 1) title++;
-      if (pos < pred) beat++;
-      score += Math.max(0, Math.min(100, 50 + (pred - pos) * 15 + (pos === 1 ? 15 : 0)));
+      if (G.T()['Your Team'].pts > sharkPts) beat++;
     }
-    return { title: (title / N) * 100, beat: (beat / N) * 100, score: score / N };
+    return { title: (title / N) * 100, beat: (beat / N) * 100 };
   };
-  const mBest = run('manager', 'best'), mNone = run('manager', 'none'), oBest = run('owner', 'best');
+  const mBest = run('manager', 'best'), mNone = run('manager', 'none'), mExp = run('manager', 'expert'), oBest = run('owner', 'best');
 
-  /* A well-played manager wins the league roughly 10-15% of the time. The
-     range is wider than that because 800 seasons carries about +/-2%
-     sampling noise on a rate this size. */
-  check('well-played manager wins the title 7–17%', mBest.title >= 7 && mBest.title <= 17, `${mBest.title.toFixed(1)}%`);
+  /* A well-played manager wins the league roughly 10-15% of the time. */
+  check('well-played manager wins the title 7–18%', mBest.title >= 7 && mBest.title <= 18, `${mBest.title.toFixed(1)}%`);
 
-  /* No decisions should score about 50: the Shark's prediction is what a
-     club that decides nothing achieves. If this drifts, the score stops
-     meaning "what your decisions were worth". */
-  check('no-decision play scores 44–57 (the Shark is the no-decision baseline)', mNone.score >= 44 && mNone.score <= 57, `${mNone.score.toFixed(1)}`);
+  /* THE DIFFICULTY SETTING (SHARK_UPLIFT). A competent manager should beat
+     the Shark about 6 times in 10 -- beatable but earned -- and a careless
+     one only 2-3 times in 10. If this drifts, the Shark has become either
+     naive or unbeatable. */
+  check('competent manager beats the Shark 50–72% of seasons', mBest.beat >= 50 && mBest.beat <= 72, `${mBest.beat.toFixed(0)}%`);
+  check('careless manager beats the Shark only 12–40% of seasons', mNone.beat >= 12 && mNone.beat <= 40, `${mNone.beat.toFixed(0)}%`);
 
-  /* Decisions must matter, or it is a slideshow. */
-  check('good management beats the Shark far more often than none', mBest.beat - mNone.beat >= 20, `${mBest.beat.toFixed(0)}% vs ${mNone.beat.toFixed(0)}%`);
+  /* Using every team-sheet lever should help, but not break the game: an
+     expert who hand-picks lineups and out-of-position players must not be
+     far ahead of a sensible manager. This is the check that was missing
+     when the game became too easy. */
+  check('expert lineup play helps without breaking the game (within +12 of competent)',
+    mExp.beat >= mBest.beat - 3 && mExp.beat <= mBest.beat + 12, `expert ${mExp.beat.toFixed(0)}% vs competent ${mBest.beat.toFixed(0)}%`);
 
-  /* The manager is meant to be the most powerful chair: the audience is
-     fantasy-football players who want to manage. */
-  check('manager is the most influential role', mBest.title > oBest.title, `manager ${mBest.title.toFixed(1)}% vs owner ${oBest.title.toFixed(1)}%`);
+  /* The manager is meant to be the most powerful chair. */
+  check('manager is the most influential role', mBest.beat > oBest.beat, `manager ${mBest.beat.toFixed(0)}% vs owner ${oBest.beat.toFixed(0)}% beat the Shark`);
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

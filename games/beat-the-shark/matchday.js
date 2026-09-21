@@ -253,6 +253,9 @@ function renderTeamSheet(done){
       </div>`:''}
       <div class="xibar">XI quality <b>${Math.round(x.q)}</b> · condition <b>${Math.round(x.fit)}</b>
         · attack lean ${lean(bA)} · defence lean ${lean(bD)}</div>
+      ${(()=>{const p=matchProbs(opp,home);return `<div class="xibar" style="border-color:var(--amber)">
+        <b>This match, as the model sees it:</b> xGF <b>${p.xgf.toFixed(2)}</b> · clean sheet <b>${Math.round(p.cs*100)}%</b>
+        · win <b>${p.w}%</b> <span style="color:var(--mute)">— changes as you pick the side</span></div>`})()}
       ${squadHTML({pick:mgr,sel})}
       ${sheetLessons(wk,mgr)}
       ${mgr?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>
@@ -337,7 +340,9 @@ function renderMatch(done,quick){
   }
   half(4,45,()=>{
     add("HT","Half time","ft",sc());
-    if(quick){add("46'","— second half —","");return half(46,92,finish)}
+    /* The owner used to get a half-time "decision" (concourse or boardroom)
+       that changed nothing that mattered. He now watches, like an owner. */
+    if(quick||ROLE.id==="owner"){add("46'","— second half —","");return half(46,92,finish)}
     if(ROLE.id==="manager")return tacticalHalfTime(mine,theirs,oFm,()=>{add("46'","— second half —","");half(46,92,finish)});
     const losing=mine<theirs,level=mine===theirs;
     const spec=ROLE.id==="player"

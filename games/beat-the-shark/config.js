@@ -18,7 +18,10 @@ const CLUB_SENS=16,BAL_WEIGHT=1.1;
 
 /* Red cards: chance per match of one for the opposition, for you, and for
    you when the Hot Head is in your XI. */
-const RED_THEM=.11,RED_US=.05,RED_US_HOTHEAD=.14;
+/* Rare on purpose: a red card is an incident, roughly once a season, not a
+   regular coin flip. Randomness that decides a result AFTER you have chosen
+   erodes the sense that decisions matter, so it is kept scarce. */
+const RED_THEM=.05,RED_US=.025,RED_US_HOTHEAD=.07;
 
 /* The wear the Shark's prediction assumes: season-long average squad fatigue
    and player condition for a side that simply plays its fixtures, measured
@@ -36,6 +39,14 @@ const SEASON_SWING=10;
 /* How much the set-piece taker's skill and the XI's aerial threat add to
    attacking lean. */
 const SP_WEIGHT=.8,AER_WEIGHT=.35;
+
+/* HOW GOOD THE SHARK IS. The Shark predicts a WELL-RUN club with your squad:
+   sensible formations, plus the value of sensible decisions, expressed here
+   as strength. This is a deliberate difficulty setting, chosen so that a
+   competent manager beats the Shark about 6 times in 10 and a careless one
+   2-3 times in 10 -- beatable, but earned, and a model worth respecting.
+   Measured by test/checks.cjs; re-measure if the decision effects change. */
+const SHARK_UPLIFT=2.5;
 
 /* The main FixtureShark site. Links from the game always use this ABSOLUTE
    address, because the game is reachable two ways -- proxied at

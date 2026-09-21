@@ -786,3 +786,61 @@ function drawLuck(){
   let out=null;for(let t=0;t<8&&!out;t++)out=pick(pool)();
   return out;
 }
+
+/* ===========================================================================
+   THE CASH CRISIS. Money becomes a problem and one of two players must go:
+   your best forward or your best defender. Neither is obviously right --
+   it depends on the fixtures ahead, which is the point: the decision shows
+   what each sale does to your expected goals FOR and your clean-sheet
+   chance over the next five games, and puts the heat map in front of you.
+   Making a real choice with the model's numbers is the lesson.
+   The owner decides and answers for the cash; the manager is asked for his
+   advice, and the owner acts on it.
+   =========================================================================== */
+function outlook(n){
+  const out={xgf:0,cs:0,w:0,k:0};
+  for(let wk=S.mw;wk<Math.min(MW,S.mw+n);wk++){
+    const[h,a]=myFixture(wk),home=h===CLUB,opp=home?a:h,p=matchProbs(opp,home);
+    out.xgf+=p.xgf;out.cs+=p.cs;out.w+=p.w;out.k++;
+  }
+  return out;
+}
+function outlookWithout(idx,n){
+  const p=S.squadList[idx],was=p.gone,wm=S.manualXI;p.gone=true;S.manualXI=null;
+  const o=outlook(n);p.gone=was;S.manualXI=wm;return o;
+}
+function crisisSpec(){
+  const fwd=alive().filter(p=>p.pos==="FW"&&!p.out).sort((a,b)=>b.rt-a.rt)[0];
+  const def=alive().filter(p=>p.pos==="DF"&&!p.out).sort((a,b)=>b.rt-a.rt)[0];
+  if(!fwd||!def)return drawEvent();
+  const need=rnd(110,170),fee=p=>Math.round((p.rt-38)*13);
+  const n=Math.min(5,MW-S.mw),base=outlook(n);
+  const fi=S.squadList.indexOf(fwd),di=S.squadList.indexOf(def);
+  const oF=outlookWithout(fi,n),oD=outlookWithout(di,n);
+  const cs=o=>(o.cs).toFixed(1),xg=o=>(o.xgf).toFixed(1),win=o=>Math.round(o.w/Math.max(1,o.k));
+  const row=(label,o)=>`<tr><td>${label}</td><td class="n">${xg(o)}</td><td class="n">${cs(o)}</td><td class="n">${win(o)}%</td></tr>`;
+  const owner=ROLE.id==="owner";
+  /* The bank is paid either way. Selling covers it with the fee; borrowing
+     keeps the squad and puts the account back by the demand plus interest --
+     and for the owner, ending the season in the red costs score. */
+  const sellFx=p=>owner?{cash:fee(p)-need}:{cash:fee(p)-need,board:2};
+  const after=i=>()=>{S.squadList[i].gone=true;S.manualXI=null;recalcSquadRating()};
+  return{sig:`crisis|${S.mw}`,title:owner?`You need ${fmtMoney(need)} by Friday`:`The owner needs ${fmtMoney(need)} by Friday`,
+    lede:owner?`The bank will not extend again. One of two players has to go — and you decide which.`
+      :`He has to sell one of two players, and he is asking which you can live without.`,
+    body:`<div class="shark"><div><b>The Shark's view — your next ${n} games</b>
+      <table class="tbl" style="margin-top:4px"><thead><tr><th></th><th class="n">xGF</th><th class="n">Clean sheets</th><th class="n">Avg win</th></tr></thead><tbody>
+        ${row("Keep both",base)}${row(`Sell ${fwd.nm} (${fwd.rt}, FW)`,oF)}${row(`Sell ${def.nm} (${def.rt}, DF)`,oD)}
+      </tbody></table>
+      <div style="margin-top:6px">xGF is the goals you should score across those games; clean sheets is how many you should keep.
+      Which matters more depends on who you are playing — the heat map below shows it.</div></div></div>
+      ${fixtureHeatHTML(S.mw,n)}`,
+    choices:[
+      {t:`Sell ${fwd.nm}`,d:`${fmtMoney(fee(fwd))} · xGF ${xg(base)} → ${xg(oF)}, clean sheets ${cs(base)} → ${cs(oF)}`,
+        fx:sellFx(fwd),after:after(fi),out:`${fwd.nm} is gone by Thursday. The goals will have to come from somewhere else.`},
+      {t:`Sell ${def.nm}`,d:`${fmtMoney(fee(def))} · xGF ${xg(base)} → ${xg(oD)}, clean sheets ${cs(base)} → ${cs(oD)}`,
+        fx:sellFx(def),after:after(di),out:`${def.nm} leaves. The back line will need reorganising.`},
+      {t:owner?"Sell neither — borrow it":"Tell him you cannot lose either",
+        d:owner?`Keep the squad; ${fmtMoney(need)} of debt, and the account goes backwards`:"He borrows instead. He will remember you said it.",
+        fx:owner?{cash:-Math.round(need*1.1),board:-4}:{cash:-Math.round(need*1.1),board:-6,squad:3},out:owner?"Borrowed at a rate you would rather not repeat.":"He takes the loan, and your word for it."}]};
+}

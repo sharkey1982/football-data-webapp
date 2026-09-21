@@ -178,18 +178,35 @@ function matchProbs(opp,home){
     return{xgf:m,xga:t,cs:Math.exp(-t),w:W,d:D,l:100-W-D};
   });
 }
+/* The formation a competent manager would pick against this opponent: the
+   one with the best expected goal difference in the model's view. The Shark
+   assumes your club is run this well, and so does the manager you employ
+   when you are the owner. */
+function bestShapeFor(opp,home){
+  const was=S.formation,wasXI=S.manualXI;let best=was,bv=-1e9;
+  for(const f of Object.keys(FORMATIONS)){S.formation=f;S.manualXI=null;const p=matchProbs(opp,home);if(p.xgf-p.xga>bv){bv=p.xgf-p.xga;best=f}}
+  S.formation=was;S.manualXI=wasXI;return best;
+}
 function monteCarlo(runs=4000){
   /* blankTable() resets -- and award() fills -- the FORM and CLEAN records,
      which are shared with the real season. Without saving and restoring
      them, the real game began with the form and clean sheets of the last
      simulated season (60 results and 21 clean sheets, measured). */
   const savedForm=FORM,savedClean=CLEAN;
-  const saved=R.s,counts={};R.s=hashSeed(SEED+"|shark");[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>counts[n]={sum:0,bot2:0,top:0});
+  const saved=R.s,counts={};R.s=hashSeed(SEED+"|shark");[CLUB].concat(RIVALS.map(r=>r.n)).forEach(n=>counts[n]={sum:0,bot2:0,top:0,pts:0});
   const live=typeof S!=="undefined"&&S&&S.squadList&&typeof ROLE!=="undefined"&&ROLE;
-  const cache={};
+  const cache={},shapeCache={};
   const clubGame=(h,a)=>{
     const home=h===CLUB,opp=home?a:h,fm=oppFormation(opp),key=opp+"|"+home+"|"+fm;
-    const[m0,t0]=cache[key]||(cache[key]=clubRates(opp,home,1.25,fm));
+    /* A WELL-RUN club, not a club making no decisions: it picks the right
+       shape for each opponent. Predicting a club that does nothing made the
+       Shark easy to beat (a sensible manager beat it 71% of the time) and
+       quietly taught that the model is naive. */
+    if(!cache[key]){const was=S.formation,wasB=S.matchBoost;S.formation=shapeCache[opp+"|"+home]||(shapeCache[opp+"|"+home]=bestShapeFor(opp,home));
+      /* ...and it makes the rest of its decisions sensibly too: training,
+         morale, transfers. SHARK_UPLIFT is that, as strength -- see config. */
+      S.matchBoost=SHARK_UPLIFT;cache[key]=clubRates(opp,home,1.25,fm);S.formation=was;S.matchBoost=wasB}
+    const[m0,t0]=cache[key];
     let m=m0,t=t0;
     if(rng()<RED_THEM){t*=.86;m*=1.12}
     if(rng()<RED_US_BASE){m*=.86;t*=1.12}
@@ -216,11 +233,11 @@ function monteCarlo(runs=4000){
       const[hg,ag]=(live&&(h===CLUB||a===CLUB))?clubGame(h,a)
         :simScore(h===CLUB?52:strOf(h),a===CLUB?52:strOf(a));
       award(t,h,a,hg,ag)}));
-    standings(t).forEach((row,idx)=>{counts[row.n].sum+=idx+1;if(idx>=4)counts[row.n].bot2++;if(idx===0)counts[row.n].top++})}
+    standings(t).forEach((row,idx)=>{counts[row.n].sum+=idx+1;counts[row.n].pts+=row.pts;if(idx>=4)counts[row.n].bot2++;if(idx===0)counts[row.n].top++})}
   if(restore)restore();
   if(live)S._mc=false;
   R.s=saved;FORM=savedForm;CLEAN=savedClean;
-  const out={};for(const[n,c]of Object.entries(counts))out[n]={avg:c.sum/runs,rel:Math.round(c.bot2/runs*100),title:Math.round(c.top/runs*100)};
+  const out={};for(const[n,c]of Object.entries(counts))out[n]={avg:c.sum/runs,pts:c.pts/runs,rel:Math.round(c.bot2/runs*100),title:Math.round(c.top/runs*100)};
   return out;
 }
 
@@ -493,12 +510,29 @@ function predictedTableHTML(){
    happens if a club makes no decisions at all. Matching it scores 50. Each
    place better is +15, each place worse -15, and winning the league adds 15.
    So the score is literally "how much better than the model were you". */
+/* THE SCORE IS POINTS. The Shark predicts how many league points a
+   well-run club with your squad would take; you are scored on how many you
+   actually take against that. Points rather than position, because a
+   predicted position (say 3.56) only changes when you jump a whole place --
+   so beating it was often luck -- while every decision moves your points.
+   It is also how Fantasy players already think, and what the site's own
+   projections predict.
+     Matching the Shark's points scores 50; each point above or below is
+     worth 5; winning the league adds 10.
+     THE OWNER also answers for the money: finishing the season in the red
+     costs up to 30. The manager is not scored on cash -- it is the owner's
+     problem, and his constraint. */
 function sharkPos(){return Math.round(PREDICT[CLUB].avg)}
+function sharkPts(){return PREDICT[CLUB].pts}
 function scoreParts(){
-  const pred=sharkPos(),diff=pred-S.pos;
-  let total=50+diff*15+(S.pos===1?15:0);
+  const pred=sharkPts(),pts=TABLE[CLUB].pts;
+  /* during the season, compare with where the Shark expects you to be by now */
+  const par=pred*(S.mw/MW),diff=pts-par;
+  let total=50+(pts-pred)*5*(S.mw>=MW?1:0)+(S.mw<MW?diff*5:0)+(S.mw>=MW&&S.pos===1?10:0);
+  const red=ROLE.id==="owner"&&S.cash<0?Math.min(30,-S.cash/10):0;
+  total-=red;
   if(!S.alive)total*=.3;
-  return{pred,diff,total:Math.round(clamp(total,0,100))};
+  return{pred,par,pts,diff,red,total:Math.round(clamp(total,0,100))};
 }
 function apply(fx,noisy){const out=[];
   for(const[k,v0]of Object.entries(fx||{})){if(!v0)continue;
@@ -521,15 +555,17 @@ function drainPending(){const d=S.pending.filter(p=>p.at<=cursor);S.pending=S.pe
 
 function paintHeader(){
   if(!S)return;myPos();
-  const {pred,diff,total}=scoreParts();
+  const {pred,par,pts,diff,total}=scoreParts();
   document.getElementById('hScore').innerHTML=`${total}<span class="sub">SCORE</span>`;
-  const played=S.mw>0;
+  const played=S.mw>0,d1=Math.round(diff*10)/10;
   document.getElementById('hTwo').innerHTML=
-   `<div class="two"><div class="k">The Shark says</div><div class="v">${ord(pred)}</div>
-      <div class="pts">pre-season prediction</div></div>
-    <div class="two"><div class="k">You are</div><div class="v">${played?ord(S.pos):"—"}</div>
-      <div class="pts" style="color:${!played?'inherit':diff>0?'#9ce0b9':diff<0?'#f0a89f':'inherit'}">
-        ${!played?"nothing played":diff>0?`beating it by ${diff}`:diff<0?`${Math.abs(diff)} behind it`:"level with it"}</div></div>`;
+   `<div class="two"><div class="k">The Shark says</div><div class="v">${pred.toFixed(1)} pts</div>
+      <div class="pts">${played?`${par.toFixed(1)} expected by now`:`about ${ord(sharkPos())}`}</div></div>
+    <div class="two"><div class="k">You have</div><div class="v">${played?pts+" pts":"—"}</div>
+      <div class="pts" style="color:${!played?'inherit':d1>0?'#9ce0b9':d1<0?'#f0a89f':'inherit'}">
+        ${!played?"nothing played":d1>0?`${d1} ahead of the Shark`:d1<0?`${Math.abs(d1)} behind the Shark`:"level with the Shark"} · ${played?ord(S.pos):""}</div></div>
+    ${ROLE.id==="owner"?`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
+      <div class="pts">${S.cash<0?"in the red — it costs you":"stay out of the red"}</div></div>`:""}`;
   const tr=document.getElementById('hTrend');
   if(S.lastScore==null){tr.className="trend fl";tr.textContent="—"}
   else{const d=total-S.lastScore;tr.className="trend "+(d>0?"up":d<0?"dn":"fl");

@@ -8,8 +8,11 @@
 /* Three "luck" beats: things that happen TO the season, for and against
    you and your rivals -- added after playtesting asked for more spread in
    where Your Team finishes, and for chance alongside decisions. */
-const PLAN=["special1","heatmap","presser","match","live","luck","physio","match","papers","event","live","podcast",
-            "match","special2","stats","luck","event","live","physio","match","call","live","luck","event","match","papers","event","live","end"];
+/* One luck beat per season, mid-season: an incident, not a recurring coin
+   flip. The two slots it gave up now hold the cash crisis -- randomness that
+   hands you a DECISION rather than simply deciding the outcome. */
+const PLAN=["special1","heatmap","presser","match","live","crisis","physio","match","papers","event","live","podcast",
+            "match","special2","stats","luck","event","live","physio","match","call","live","crisis","event","match","papers","event","live","end"];
 let cursor=0,pendingReveal=null,RECENT=new Set(),RECENT_Q=[];
 function remember(s){RECENT.add(s);RECENT_Q.push(s);if(RECENT_Q.length>18)RECENT.delete(RECENT_Q.shift())}
 function drawEvent(){let best=null;
@@ -48,6 +51,7 @@ function step(){
   if(b==="round")return renderRoundup();
   if(b==="live")return renderLiveWeek();
   if(b==="luck")return renderLuck();
+  if(b==="crisis")return renderSpec(crisisSpec(),ROLE.id==="owner"?"THE BANK HAS CALLED":"THE OWNER HAS CALLED",next);
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
   if(b==="physio")return renderPhysio();
@@ -217,7 +221,7 @@ function renderHeatmap(){
 function nextWinChance(){
   if(!S||S.mw>=MW)return null;
   const[h,a]=myFixture(S.mw),home=h===CLUB,opp=home?a:h;
-  return{opp,home,w:winProb(opp,home).w};
+  return{opp,home,...matchProbs(opp,home)};
 }
 function renderLuck(){
   const L=drawLuck();
@@ -305,9 +309,13 @@ function renderSpec(spec,chip,after){
          one number anybody understands: the chance of winning next time. */
       recalcSquadRating();
       const wAfter=nextWinChance();
-      const winLine=wBefore&&wAfter&&Math.abs(wAfter.w-wBefore.w)>=1
-        ?`<div class="later" style="border-left-color:${wAfter.w>wBefore.w?'var(--good)':'var(--bad)'}"><b>Next match</b>
-           Win chance ${wAfter.home?"at home to":"away at"} ${wAfter.opp}: ${wBefore.w}% → <b>${wAfter.w}%</b></div>`:"";
+      /* What the decision did, in the site's own measures: goals you should
+         score (xGF), chance of a clean sheet, and chance of winning. */
+      const ch=wBefore&&wAfter&&(Math.abs(wAfter.xgf-wBefore.xgf)>=.05||Math.abs(wAfter.cs-wBefore.cs)>=.01||wAfter.w!==wBefore.w);
+      const arrow=(a,b,f)=>`${f(a)} → <b style="color:${b>a?'var(--good)':b<a?'var(--bad)':'inherit'}">${f(b)}</b>`;
+      const winLine=ch?`<div class="later" style="border-left-color:var(--amber)"><b>Next match, ${wAfter.home?"at home to":"away at"} ${wAfter.opp}</b>
+           xGF ${arrow(wBefore.xgf,wAfter.xgf,v=>v.toFixed(2))} · clean sheet ${arrow(wBefore.cs,wAfter.cs,v=>Math.round(v*100)+"%")}
+           · win ${arrow(wBefore.w,wAfter.w,v=>v+"%")}</div>`:"";
       recalcSquadRating();paintHeader();
       const outTxt=c.out&&c.out.length>120?c.out.split(/(?<=[.!?])\s+(?=[A-Z"“])/)[0]:c.out;
       document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">${chip}</div>
@@ -399,33 +407,37 @@ function renderEnding(){
   });
   if(owed&&!S.bonusesSettled){S.cash-=owed;S.bonusesSettled=true}
   S._bonusLines=lines;S._bonusOwed=owed;
-  const{total}=scoreParts();
-  const pred=PREDICT[CLUB],predPos=Math.round(pred.avg),beat=predPos-S.pos;
+  const{total,red}=scoreParts();
+  const pred=PREDICT[CLUB],predPos=Math.round(pred.avg),pts=TABLE[CLUB].pts,beat=Math.round((pts-pred.pts)*10)/10;
   let v,b;
   if(!S.alive){v="ADMINISTRATION";b="The club went under. The Shark wins by default."}
   else if(S.pos===1){v="CHAMPIONS";b=`The Shark gave you a ${pred.title}% chance of the title. You were the ${pred.title}%.`}
-  else if(beat>=2){v="YOU BEAT THE SHARK";b=`Predicted ${ord(predPos)}, finished ${ord(S.pos)}. That is not luck — the model does not know about your decisions.`}
-  else if(beat===1){v="YOU BEAT THE SHARK";b=`One place better than the model. Narrow, and it counts.`}
-  else if(beat===0){v="THE SHARK WAS RIGHT";b=`Exactly where it said. Everything you did cancelled out — which is its own kind of lesson.`}
-  else if(rel){v="THE SHARK WINS";b=`Predicted ${ord(predPos)}, and you went down. The model was kinder to you than your decisions were.`}
-  else{v="THE SHARK WINS";b=`Predicted ${ord(predPos)}, finished ${ord(S.pos)}. The model would have done better by doing nothing.`}
+  else if(beat>=3){v="YOU BEAT THE SHARK";b=`${beat} points better than the model expected from a well-run club with your squad. That is out-thinking it.`}
+  else if(beat>0){v="YOU BEAT THE SHARK";b=`${beat} ${beat===1?"point":"points"} better than the model. Narrow, and it counts.`}
+  else if(beat>-1){v="LEVEL WITH THE SHARK";b=`Within a point of the model's number. You ran the club about as well as it expected.`}
+  else if(rel){v="THE SHARK WINS";b=`${Math.abs(beat)} points short of the model, and relegated. It expected better from this squad.`}
+  else{v="THE SHARK WINS";b=`${Math.abs(beat)} points short of what the model expected from a well-run club with your squad.`}
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">FINAL DAY · ${ROLE.name.toUpperCase()}</div>
-    <div class="verdict ${!rel&&S.alive?'ok':'fail'}">${v}</div><p class="lede">${b}</p>
+    <div class="verdict ${beat>0&&S.alive?'ok':'fail'}">${v}</div><p class="lede">${b}</p>
     <div style="font-family:var(--disp);font-size:54px;font-weight:700;line-height:1;margin:4px 0 10px;
       color:${total>=65?'var(--good)':total>=40?'var(--amber)':'var(--bad)'}">${total}<span style="font-size:20px;color:var(--mute)">/100</span></div>
     <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:4px 0 10px;text-align:center">
       <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px">
         <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">THE SHARK SAID</div>
-        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${ord(predPos)}</div></div>
+        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${pred.pts.toFixed(1)} pts</div>
+        <div style="font-size:11px;color:var(--mute)">about ${ord(predPos)}</div></div>
       <div style="font-family:var(--disp);font-size:22px;color:var(--mute)">v</div>
       <div style="background:var(--panel2);border:1.5px solid ${beat>0?'var(--good)':beat<0?'var(--bad)':'var(--line)'};border-radius:9px;padding:9px">
-        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">YOU FINISHED</div>
-        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${ord(S.pos)}</div></div>
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">YOU TOOK</div>
+        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${pts} pts</div>
+        <div style="font-size:11px;color:var(--mute)">${ord(S.pos)}</div></div>
     </div>
-    <p class="small">Matching the model scores 50. Every place better is worth 15, every place worse costs 15, and the title adds 15.
-      The Shark's prediction is roughly what happens if a club makes no decisions at all — so this score measures what your decisions were worth.</p>
+    ${red?`<div class="outcome" style="border-left-color:var(--bad)">You finished ${fmtMoney(S.cash)} in the red. That cost you ${Math.round(red)} points of score — an owner answers for the money as well as the football.</div>`:""}
+    <p class="small">The Shark predicts the points a <b>well-run</b> club with your squad would take — sensible
+      formations, sensible decisions. Matching it scores 50; each point better is worth 5, each point worse costs 5,
+      and the title adds 10. A competent manager beats it about six times in ten.</p>
 
     ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
       ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
@@ -460,7 +472,7 @@ function chooseRole(){
     <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
     <p class="small">FixtureShark predict <strong>${ord(pp)} of six</strong>, relegated in <strong>${prel}%</strong> of 2,000 simulated seasons. £850k of debt, a fortnight's cash.</p>
     <p class="small"><strong>The Shark has predicted where you finish. Your job is to prove it wrong.</strong></p>
-    ${["manager","owner","player"].map(k=>ROLES[k]).map(r=>`<button class="opt" data-r="${r.id}"
+    ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="opt" data-r="${r.id}"
       ${r.id==="manager"?'style="border-color:var(--amber)"':''}><div class="tag">${r.tag}${r.id==="manager"?" · most influence over results":r.id==="player"?" · hardest":""}</div><h3>${r.name}</h3>
       <p>${r.blurb}</p><div class="mis"><b>Your levers:</b> ${r.id==="owner"?"two transfer windows, the stadium, ticket prices, sponsors and creditors."
         :r.id==="manager"?"pre-season, training, tactics, selection, discipline and a winter break."

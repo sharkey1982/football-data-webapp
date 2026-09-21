@@ -28,7 +28,7 @@ global.setTimeout=()=>{};
 const G=eval(src+`;({ROLES,SHAPES,FORMATIONS,PLAN,MW,newState,buildFixtures,blankTable,monteCarlo,recalcSquadRating,pickRivals,
   playFixture,simScore,strOf,award,standings,resolveMine,apply,later,drainPending,myStrength,clubRates,
   presserSpec,callSpec,physioSpec,preseasonSpec,winterSpec,playerSummerSpec,playerWinterSpec,makeTargets,drawEvent,
-  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,
+  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,
   setSeed:v=>{SEED=v},setRole:r=>{ROLE=r},setS:x=>{S=x},getS:()=>S,setTable:t=>{TABLE=t},T:()=>TABLE,
   setPredict:p=>{PREDICT=p},setCursor:v=>{cursor=v},getR:()=>R.s,setR:v=>{R.s=v},
   resetRecent:()=>{RECENT=new Set();RECENT_Q=[]},getRivals:()=>RIVALS,getRoleId:()=>ROLE.id,
@@ -51,6 +51,7 @@ function choose(spec,policy){
   const real=(spec.choices||[]).filter(c=>!c.ask);
   if(!real.length)return null;
   if(policy==="none")return null;
+  if(policy==="expert")policy="best";
   let best=null,bv=policy==="best"?-1e9:1e9;
   real.forEach(c=>{const v=evalChoice(c);if(policy==="best"?v>bv:v<bv){bv=v;best=c}});
   return best;
@@ -66,6 +67,7 @@ function doChoice(c){
    raises the squad. Worst: sell your best players. None: do nothing. */
 function transferWindow(policy){
   const S=G.getS();
+  if(policy==="expert")policy="best";
   if(policy==="none")return;
   if(policy==="best"){
     const t=G.makeTargets(3).sort((a,b)=>(b.rt-38)/b.fee-(a.rt-38)/a.fee);
@@ -86,10 +88,37 @@ function setFormation(opp,home,policy){
     const v=m-t;if(policy==="best"?v>bv:v<bv){bv=v;bf=f}}
   S.formation=bf;
 }
+/* EXPERT: uses every lever a human manager has on the team sheet --
+   formation, a hand-picked XI including out-of-position players, and the
+   set-piece taker -- greedily maximising expected goal difference (xGF
+   minus xGA) against this week's opponent. Built because the plain "best"
+   policy only chose a formation, so the balance checks could not see an
+   overpowered lineup trick. */
+function expertTeamSheet(opp,home){
+  const S=G.getS();
+  const score=()=>{const p=G.matchProbs(opp,home);return p.xgf-p.xga};
+  let bestFm=S.formation,bestV=-1e9;
+  for(const f of Object.keys(G.FORMATIONS)){S.formation=f;S.manualXI=null;const v=score();if(v>bestV){bestV=v;bestFm=f}}
+  S.formation=bestFm;S.manualXI=null;S.manualFm=bestFm;
+  let xi=G.currentXI().map(x=>({...x}));S.manualXI=xi;
+  for(let pass=0;pass<2;pass++){
+    for(let k=0;k<xi.length;k++){
+      if(xi[k].slot==="GK")continue;
+      const pool=S.squadList.map((p,i)=>i).filter(i=>!S.squadList[i].gone&&!S.squadList[i].out&&S.squadList[i].pos!=="GK"&&!xi.some(x=>x.i===i));
+      let cur=score(),bi=-1;
+      for(const i of pool){const was=xi[k].i;xi[k].i=i;S.manualXI=xi;const v=score();if(v>cur+1e-9){cur=v;bi=i}xi[k].i=was;S.manualXI=xi}
+      if(bi>=0){xi[k].i=bi;S.manualXI=xi}
+    }
+  }
+  let bt=null,bv=score();
+  for(const x of xi){if(x.slot==="GK")continue;S.spTaker=x.i;const v=score();if(v>bv){bv=v;bt=x.i}}
+  S.spTaker=bt;
+}
 function playWeek(policy,credit){
   const S=G.getS(),wk=S.mw,T=G.T();
   const fx=G.myFixture(wk),home=fx[0]==="Your Team",opp=home?fx[1]:fx[0];
-  if(G.getRoleId()==="manager")setFormation(opp,home,policy);
+  if(G.getRoleId()==="manager"){if(policy==="expert")expertTeamSheet(opp,home);else setFormation(opp,home,policy)}
+  else G.getS().formation=G.bestShapeFor(opp,home);
   const[hg,ag]=G.playFixture(fx[0],fx[1],true);
   G.award(T,fx[0],fx[1],hg,ag);
   G.otherFixtures(wk).forEach(([h,a])=>{const[x,y]=G.simScore(G.strOf(h),G.strOf(a));G.award(T,h,a,x,y)});
@@ -114,6 +143,7 @@ function season(seed,roleId,policy){
     else if(b==="physio")doChoice(choose(G.physioSpec(),policy));
     else if(b==="event")doChoice(choose(G.drawEvent(),policy));
     else if(b==="luck"){const L=G.drawLuck();if(L)L.apply()}
+    else if(b==="crisis")doChoice(choose(G.crisisSpec(),policy));
     G.drainPending().forEach(p=>G.apply(p.fx));
     if(S.mw>=G.MW)break;
   }
