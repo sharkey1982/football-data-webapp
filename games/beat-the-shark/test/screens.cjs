@@ -42,7 +42,7 @@ ok("Your Team tagged YOU in the table", /class="you">YOU/.test(el));
 ok("the gameweek is not over until the other results are in", run("S.mw")===0, "S.mw="+run("S.mw"));
 els.toOthers.onclick();
 const el2=app();
-ok("then the other results, all at once, and what they did to the table", /THE OTHER RESULTS/.test(el2)&&/WHAT THAT DID TO THE TABLE/.test(el2));
+ok("then the other results, all at once, and the table now", /THE OTHER RESULTS/.test(el2)&&/THE TABLE NOW/.test(el2));
 ok("no timers after the whistle -- nothing runs on its own", q.length===0);
 ok("gameweek advanced after all results", run("S.mw")===1, "S.mw="+run("S.mw"));
 ok("no broken text on match screens", !bad(vp)&&!bad(el)&&!bad(el2));
@@ -164,7 +164,7 @@ ok("intermediate has every lever from the first match, no 'new' banner", (()=>{c
 ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
 // a beginner cannot play someone out of position before it unlocks
 sheetAt("beginner",1);ok("beginner: out of position locked in match 2, open from match 4", run(`can("oop")`)===false&&(sheetAt("beginner",3),run(`can("oop")`)===true));
-ok("the opening screen offers the three levels", (()=>{run("chooseRole()");const h=app();return /data-level="beginner"/.test(h)&&/data-level="guru"/.test(h)&&/same Shark/.test(h)})());
+ok("the opening screen offers the three levels, plainly named", (()=>{run("chooseRole()");const h=app();return /data-level="beginner"/.test(h)&&/>Beginner</.test(h)&&/>Intermediate</.test(h)&&/>Advanced</.test(h)&&!/Data guru/.test(h)})());
 run(`LEVEL="intermediate"`);
 // 17. PACING (Chris's playtest: "too fast to follow")
 run(`LEVEL="beginner";SPEED=null`);
@@ -200,7 +200,7 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // ~575 -> 258 words; pre-season 360 -> 56; a beginner's 4th team sheet 457
 // -> 274; season reading time ~22 -> ~15 min. Target: ~7 min of reading (+
 // ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
-const BUDGET={screen:205,beginnerTeamSheet:200,opening:180,preseason:55,minutes:12.5}; // now counting choice text too (it was missed before)
+const BUDGET={screen:205,beginnerTeamSheet:200,opening:40,preseason:55,minutes:12}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);

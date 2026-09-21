@@ -1464,6 +1464,19 @@ TO DO toward ~10 minutes (~7 min reading): physio (~200 words x2), crisis
 (~160 x2), the team sheet's prose around the pitch, and the opening screen
 (194 words). Measure each with the budget check and ratchet it down.
 
+## BEAT THE SHARK — DESIGN RULE: NO FLUFF (Chris, 2026-09-21)
+
+A label, not a paragraph. No explanations of how the game works, no
+strapline, no blurbs under buttons, no captions explaining a chart. If
+something needs explaining, it's either obvious from play or it goes
+behind "Why?". The reading-budget check (test/screens.cjs) enforces the
+caps; ratchet them down with every cut.
+
+Applied: opening screen 172 -> 25 words (title; "Win the league. The
+Shark predicts 3rd."; Beginner / Intermediate / Advanced; Manager / Owner).
+"Data guru" renamed Advanced. Pre-season: "Win the league" + the
+prediction. Dashboard caption, star footnote and wordy table labels gone.
+
 ## BEAT THE SHARK — WIN THE LEAGUE (2026-09-21)
 
 Chris: the aim is just to finish first; no over-complication or explanation.

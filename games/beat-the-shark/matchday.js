@@ -557,7 +557,7 @@ function renderTableAfterMatch(info,done){
     <div class="datechip" style="margin:8px 0 5px">AS IT STANDS · ${left} ${left===1?"GAME":"GAMES"} STILL TO PLAY</div>
     ${tableRowsHTML(null)}
     <button class="choice primary" id="toOthers" style="margin-top:11px"><span class="t">${left?"The other results":"Continue"}</span>
-      <span class="d">${left?"And what they do to the table":""}</span></button></div>`;
+      <span class="d"></span></button></div>`;
   document.getElementById('toOthers').onclick=()=>renderElsewhere(info,done);
 }
 function renderElsewhere(info,done){
@@ -584,9 +584,8 @@ function renderElsewhere(info,done){
     ${money.map(ev=>ev.type==="deduction"
       ?`<div class="outcome" style="border-left-color:var(--bad)"><b>Points deduction: −${ev.pts}.</b> The club went too far into the red.</div>`
       :`<div class="outcome" style="border-left-color:var(--bad)"><b>The bank forced a sale.</b> ${ev.nm} (${ev.pos}, quality ${ev.rt}) sold for ${fmtMoney(ev.fee)}. Your team is weaker.</div>`).join('')}
-    ${others.map((r,i)=>`<div class="res" style="margin-top:6px"><span>${flagged[i]?"★ ":""}${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span></div>`).join('')}
-    ${flagged.some(Boolean)?`<p class="small" style="margin-top:6px">★ involves a club within three points of you.</p>`:""}
-    <div class="datechip" style="margin:10px 0 5px">WHAT THAT DID TO THE TABLE · ARROWS SHOW EVERY MOVE</div>
+    ${others.map((r,i)=>`<div class="res" style="margin-top:6px"><span>${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span></div>`).join('')}
+    <div class="datechip" style="margin:10px 0 5px">THE TABLE NOW</div>
     ${tableRowsHTML(before)}
     ${kpiLineHTML()}
     <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button></div>`;
