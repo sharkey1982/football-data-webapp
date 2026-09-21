@@ -16,7 +16,7 @@ import BarRace from '../components/finance/BarRace';
 import { getAllClubFinance } from '../lib/financeApi';
 import { fyLabel, formatMoneyShort } from '../lib/financeFormat';
 import {
-  buildComparison, debtTakeaway, financialYears, forYear, growthTakeaway, money, resultTakeaway, smallClubIds, wageRatio, wageTakeaway,
+  buildComparison, financialYears, forYear, growthTakeaway, money, smallClubIds, wageRatio, wageTakeaway,
   type ComparisonClub,
 } from '../lib/financeCompare';
 
@@ -80,10 +80,6 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
 
   const maxRev = Math.max(...clubs.map((c) => money(c.latest, 'revenue_total') ?? 0), 1);
   const byWage = [...clubs].sort((a, b) => (wageRatio(b.latest) ?? -1) - (wageRatio(a.latest) ?? -1));
-  const results = clubs.flatMap((c) => [money(c.latest, 'operating_profit'), money(c.latest, 'profit_before_tax')]).filter((v): v is number => v != null);
-  const lo = Math.min(0, ...results), hi = Math.max(0, ...results), span = hi - lo || 1;
-  const x = (v: number) => `${((v - lo) / span) * 100}%`;
-  const maxDebt = Math.max(...clubs.flatMap((c) => [money(c.latest, 'borrowings') ?? 0, money(c.latest, 'cash') ?? 0]), 1);
 
   const cols: { key: string; label: string; get: (c: ComparisonClub) => number | null; fmt: (v: number | null) => React.ReactNode }[] = [
     { key: 'revenue', label: 'Revenue', get: (c) => money(c.latest, 'revenue_total'), fmt: m },
@@ -123,6 +119,10 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
         )}
       </header>
 
+      <Section title="Year by year" takeaway={growthTakeaway(base)}>
+        <BarRace clubs={base} />
+      </Section>
+
       <Section title="The money league" takeaway="Revenue, with the part spent on wages shaded.">
         <ul className="space-y-1.5" aria-label="Revenue and wages by club">
           {clubs.map((c) => {
@@ -150,44 +150,6 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
           })}
         </ul>
         <p className="text-xs text-ink-500">Line: 70%, a widely used warning level.</p>
-      </Section>
-
-      <Section title="Day-to-day result vs bottom line" takeaway={resultTakeaway(clubs)}>
-        <ul className="space-y-1.5" aria-label="Operating result and result before tax">
-          {clubs.map((c) => {
-            const op = money(c.latest, 'operating_profit'), pbt = money(c.latest, 'profit_before_tax');
-            return (
-              <Row key={c.team.team_id} name={c.team.display_name} slug={c.team.slug} value={m(pbt)}>
-                <div className="absolute inset-y-0 w-px bg-ink-500/50" style={{ left: x(0) }} aria-hidden="true" />
-                {op != null && pbt != null && (
-                  <div className="absolute top-1/2 h-0.5 -translate-y-1/2 bg-ink-500/40" style={{ left: x(Math.min(op, pbt)), width: `${(Math.abs(pbt - op) / span) * 100}%` }} />
-                )}
-                {op != null && <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink-700 bg-white" style={{ left: x(op) }} title={`Operating ${formatMoneyShort(op)}`} />}
-                {pbt != null && <span className={`absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ${pbt < 0 ? 'bg-loss-600' : 'bg-pitch-700'}`} style={{ left: x(pbt) }} title={`Before tax ${formatMoneyShort(pbt)}`} />}
-              </Row>
-            );
-          })}
-        </ul>
-        <p className="text-xs text-ink-500">○ operating result &nbsp;● before tax (value shown)</p>
-      </Section>
-
-      <Section title="Borrowings and cash" takeaway={debtTakeaway(clubs)}>
-        <ul className="space-y-2" aria-label="Borrowings and cash">
-          {clubs.map((c) => {
-            const b = money(c.latest, 'borrowings'), cash = money(c.latest, 'cash');
-            return (
-              <Row key={c.team.team_id} name={c.team.display_name} slug={c.team.slug} value={<>{m(b)} <span className="text-ink-500">· cash {m(cash)}</span></>}>
-                {b != null && <div className="absolute top-0 h-2 left-0 rounded bg-loss-600/80" style={{ width: `${(b / maxDebt) * 100}%` }} />}
-                {cash != null && <div className="absolute bottom-0 h-2 left-0 rounded bg-pitch-700" style={{ width: `${(cash / maxDebt) * 100}%` }} />}
-              </Row>
-            );
-          })}
-        </ul>
-        <p className="text-xs text-ink-500"><span className="text-loss-600">■</span> borrowings &nbsp;<span className="text-pitch-700">■</span> cash</p>
-      </Section>
-
-      <Section title="Year by year" takeaway={growthTakeaway(base)}>
-        <BarRace clubs={base} />
       </Section>
 
       <section aria-labelledby="all-h" className="space-y-2">

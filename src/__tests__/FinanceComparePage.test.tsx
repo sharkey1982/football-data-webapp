@@ -75,12 +75,20 @@ describe('the comparison page', () => {
     expect(within(screen.getByRole('list', { name: 'Revenue and wages by club' })).getByText('Southend')).toBeInTheDocument();
   });
 
-  it('shows not-disclosed borrowings as n/d, never as £0', () => {
+  it('shows not-disclosed borrowings as n/d in the table, never as £0', () => {
     renderPage();
-    const debt = screen.getByRole('list', { name: 'Borrowings and cash' });
-    const city = within(debt).getByText('Manchester City').closest('li')!;
-    expect(city.textContent).toMatch(/n\/d/);
-    expect(city.textContent).not.toMatch(/£0\b/);
+    const table = screen.getByRole('table', { name: /Latest filed figures/ });
+    const city = within(table).getByRole('link', { name: 'Manchester City' }).closest('tr')!;
+    const cells = within(city).getAllByRole('cell');
+    expect(cells[cells.length - 1].textContent).toBe('n/d'); // Borrowings is the last column
+  });
+
+  it('opens with the year-by-year timelapse, above the other charts', () => {
+    renderPage();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings.slice(0, 3)).toEqual(['Year by year', 'The money league', 'Wages as a share of revenue']);
+    expect(headings).not.toContain('Borrowings and cash');
+    expect(headings).not.toContain('Day-to-day result vs bottom line');
   });
 
   it('ranks wage share highest first, with the takeaway', () => {
