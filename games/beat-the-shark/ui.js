@@ -363,6 +363,21 @@ function probabilityLesson(){
       :`<b>${champ}</b> won it instead, from ${cOdds}% odds. That happens roughly one season in ${Math.max(2,Math.round(100/Math.max(1,100-odds)))} — a ${odds}% favourite is not a sure thing.`}
     </div></div>`;
 }
+/* The end of a season is the best moment to send a player into the real
+   site: they have just watched the model predict, simulate and be beaten
+   (or not). Each link says which part of the game it is the real version of.
+   Absolute URLs -- see SITE in config.js. */
+function realThingLinks(){
+  const L=[
+    ["/team-strength","Team Strength","the attack and defence ratings you just played against, for every real club"],
+    ["/fpl/line-ups","Starting Lineups","the XI the model expects real clubs to field this week"],
+    ["/football/model-accuracy","Model Accuracy","how often the Shark's real predictions come true"],
+    ["/fantasy","Fixture Heat Map","the heat map, with real fixtures"]];
+  return `<div class="shark" style="margin-top:12px"><div><b>The real thing</b>
+    The Shark in this game is FixtureShark's actual model. See it on real football:
+    <ul style="margin:6px 0 0;padding-left:18px">${L.map(([u,t,d])=>
+      `<li style="margin-bottom:3px"><a href="${SITE}${u}" style="color:var(--pitch2)">${t}</a> — ${d}</li>`).join('')}</ul></div></div>`;
+}
 /* --- ending --------------------------------------------------------------- */
 function renderEnding(){
   while(S.mw<MW){const wk=S.mw,[h,a]=myFixture(wk),home=h===CLUB;
@@ -414,6 +429,7 @@ function renderEnding(){
     ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
       ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
     ${probabilityLesson()}
+    ${realThingLinks()}
     <div style="margin-top:12px">${tableHTML()}</div>
     <button class="choice primary" id="again" style="margin-top:11px"><span class="t">Same season, different decisions</span><span class="d">Identical seed — beat your own score</span></button>
     <button class="choice" id="role"><span class="t">Same season, different role</span><span class="d">The same club from another chair</span></button>

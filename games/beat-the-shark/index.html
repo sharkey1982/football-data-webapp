@@ -17,7 +17,21 @@
     location.replace(p+"/"+location.search+location.hash);})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Beat the Shark — FixtureShark</title>
+<title>Beat the Shark — a football management game | FixtureShark</title>
+<meta name="description" content="A five-minute football management game. FixtureShark's model predicts where your club finishes before a ball is kicked. Take charge for a season and prove it wrong.">
+<!-- The game is reachable at two addresses (proxied on the main domain, and
+     directly on its own Netlify site). Canonical points both at the main
+     domain, so search engines treat them as one page rather than duplicate
+     content. Deliberately NOT an X-Robots-Tag noindex on the game site: the
+     proxy passes response headers through, so it would noindex the
+     canonical copy too. -->
+<link rel="canonical" href="https://footballdatashark.netlify.app/play/beat-the-shark/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FixtureShark">
+<meta property="og:title" content="Beat the Shark — can you out-manage the model?">
+<meta property="og:description" content="A five-minute football management game. FixtureShark's model predicts where your club finishes before a ball is kicked. Take charge for a season and prove it wrong.">
+<meta property="og:url" content="https://footballdatashark.netlify.app/play/beat-the-shark/">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -42,6 +56,9 @@
   header{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;
     background:linear-gradient(180deg,var(--pitch),color-mix(in srgb,var(--pitch) 84%,black));
     color:var(--onPitch);margin:0 -13px 11px;padding:9px 13px 10px;border-bottom:3px solid var(--amber)}
+  .homelink{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--amber);text-decoration:none;margin:-2px 0 6px;opacity:.9}
+  .homelink:hover{opacity:1;text-decoration:underline}
   .hmain{display:flex;align-items:center;gap:11px}
   .bigscore{font-family:var(--disp);font-size:40px;font-weight:700;line-height:.95;min-width:56px}
   .bigscore .sub{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;opacity:.7;font-weight:400;margin-top:3px}
@@ -152,6 +169,7 @@
 <body>
 <div class="wrap">
   <header>
+    <a class="homelink" href="https://footballdatashark.netlify.app/">&larr; FixtureShark</a>
     <div class="hmain">
       <div class="bigscore" id="hScore">—<span class="sub">SCORE</span></div>
       <div class="twos" id="hTwo"></div>
@@ -161,6 +179,23 @@
   </header>
   <main id="app"></main>
   <div class="foot" id="foot"></div>
+  <!-- Static on purpose: everything above is drawn by JavaScript, so without
+       this a crawler would see an empty page. It also gives every player a
+       way into the real site at the bottom of every screen. -->
+  <footer class="about">
+    <h2>About Beat the Shark</h2>
+    <p>Before a ball is kicked, FixtureShark's model simulates the season thousands of times and predicts
+      where your club will finish. Your job is to beat that prediction — as manager, owner or star player.
+      Every club, player and pundit is fictional; the model behind it is the real one.</p>
+    <p>The ideas in the game are the site's real tools:</p>
+    <ul>
+      <li><a href="https://footballdatashark.netlify.app/team-strength">Team Strength</a> — every club's attack and defence, as expected goals</li>
+      <li><a href="https://footballdatashark.netlify.app/fpl/line-ups">Starting Lineups</a> — the XI the model expects each club to field</li>
+      <li><a href="https://footballdatashark.netlify.app/fantasy">Fixture Heat Map</a> — who has the kindest run of fixtures</li>
+      <li><a href="https://footballdatashark.netlify.app/football/model-accuracy">Model Accuracy</a> — how often the predictions come true</li>
+    </ul>
+    <p><a href="https://footballdatashark.netlify.app/">Back to FixtureShark</a></p>
+  </footer>
 </div>
 <script src="config.js"></script>
 <script src="engine.js"></script>

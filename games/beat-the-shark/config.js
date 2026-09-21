@@ -11,6 +11,14 @@
    that thinking ahead beats greedy play roughly 3:1. */
 const DELAY_AMP=2.4,NOISE=.26;
 
+/* The main FixtureShark site. Links from the game always use this ABSOLUTE
+   address, because the game is reachable two ways -- proxied at
+   /play/beat-the-shark/ on the main domain, and directly on its own Netlify
+   site -- and a relative link like "/team-strength" would only work in the
+   first. If the site moves to a custom domain, change it here (and the
+   canonical/og:url tags in index.html). */
+const SITE="https://footballdatashark.netlify.app";
+
 /* THE LEAGUE AS A LESSON. Every club is named for how it makes decisions,
    and its strength follows from that: the more a club uses evidence, the
    better it does. Reading the table teaches the site's premise without a
