@@ -8,7 +8,7 @@ vi.mock('../lib/auth', async () => {
 });
 vi.mock('../lib/financeApi', async () => {
   const actual = await vi.importActual<typeof financeApi>('../lib/financeApi');
-  return { ...actual, getClubFinanceBySlug: vi.fn(), getFinanceIndex: vi.fn(), teamHasFinance: vi.fn().mockResolvedValue(false) };
+  return { ...actual, getClubFinanceBySlug: vi.fn(), getFinanceIndex: vi.fn(), getAllClubFinance: vi.fn(), teamHasFinance: vi.fn().mockResolvedValue(false) };
 });
 const mocked = financeApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -40,6 +40,13 @@ describe('finance routes, through the real App', () => {
     visit('/finance');
     expect(await screen.findByRole('heading', { level: 1, name: 'Club finances' })).toBeInTheDocument();
     expect(await screen.findByRole('link', { name: /Southend/ })).toHaveAttribute('href', '/football/teams/southend/finances');
+  });
+
+  it('/finance/compare renders the club comparison', async () => {
+    mocked.getAllClubFinance.mockResolvedValue([southendData()]);
+    visit('/finance/compare');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Club finances compared' })).toBeInTheDocument();
+    expect(mocked.getAllClubFinance).toHaveBeenCalled();
   });
 
   it('/football/finance is NOT the finance page (it belongs to the journey routes)', async () => {

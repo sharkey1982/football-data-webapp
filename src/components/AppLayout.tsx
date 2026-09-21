@@ -229,7 +229,10 @@ export default function AppLayout() {
       // at /football/teams/:slug/finances and is reached from here and
       // from its team page.
       label: 'The Boardroom',
-      items: [{ to: '/finance', label: 'Club finances', matchPrefix: '/finance' }],
+      items: [
+        { to: '/finance', label: 'Club finances', matchPrefix: '/finance' },
+        { to: '/finance/compare', label: 'Compare clubs', matchPrefix: '/finance/compare' },
+      ],
     },
     {
       // Renamed from "Data" and re-scoped. Results Data moved into

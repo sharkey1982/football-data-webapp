@@ -65,6 +65,7 @@ describe('AppLayout main nav', () => {
     const boardroom = screen.getByRole('button', { name: /The Boardroom/ });
     await userEvent.setup().click(boardroom);
     expect(await screen.findByRole('link', { name: 'Club finances' })).toHaveAttribute('href', '/finance');
+    expect(screen.getByRole('link', { name: 'Compare clubs' })).toHaveAttribute('href', '/finance/compare');
   });
 
   it('the Admin menu holds operational tools only -- Optimiser is a Fantasy feature', async () => {

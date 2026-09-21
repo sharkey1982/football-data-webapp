@@ -37,6 +37,7 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
       <header className="space-y-2">
         <p className="font-mono text-xs text-amber-600 uppercase tracking-widest">Statutory accounts</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">Club finances</h1>
+        <p><Link to="/finance/compare" className="text-pitch-800 underline underline-offset-2">Compare clubs side by side &rarr;</Link></p>
         <p className="text-ink-700 max-w-prose">
           What clubs earn, spend, owe and hold &mdash; taken from the accounts they file by law at Companies House,
           with every figure traceable to the filing it came from. Clubs appear here once their accounts have been checked.

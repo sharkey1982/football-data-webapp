@@ -178,6 +178,7 @@ async function main() {
         financeCount = site.sitemap.length;
         const latest = site.sitemap.map((s) => s.lastmod).filter(Boolean).sort().pop() ?? null;
         if (!staticPaths.includes('/finance')) entries.push(urlEntry('/finance', latest));
+        if (!staticPaths.includes('/finance/compare')) entries.push(urlEntry('/finance/compare', latest));
       }
     } catch (err) {
       console.error('Sitemap: finance pages skipped --', err?.message ?? err);
