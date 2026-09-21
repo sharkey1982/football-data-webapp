@@ -113,7 +113,7 @@ run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw
 ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
-ok("ending compares points with the Shark's target", /THE SHARK'S TARGET/.test(app())&&/YOU TOOK/.test(app())&&/pts/.test(app()));
+ok("ending compares FINISHING POSITION with the Shark's", /YOU FINISHED/.test(app())&&/\d(st|nd|rd|th)/.test(app())&&/The Shark said|LEVEL WITH THE SHARK|CHAMPIONS/.test(app()));
 // 14. home advantage, made visible
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
@@ -132,7 +132,8 @@ ok("Team Strength shows xPts and projected points, ordered by them", /<th class=
 const sq=run("squadHTML({})");
 ok("players show quality (Q) and condition (%) explicitly, with a legend", /<b>Q\d+<\/b> · <span[^>]*>\d+%<\/span>/.test(sq)&&/quality · <b>%<\/b> condition/.test(sq));
 run(`paintHeader()`);
-ok("header calls the Shark's number a target, in points", /The Shark's target/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
+ok("header shows the Shark's predicted position and yours", /The Shark says/.test(els.hTwo.innerHTML)&&/\d(st|nd|rd|th)/.test(els.hTwo.innerHTML));
+ok("the manager can see the club's cash (money now has football consequences)", run("ROLE.id")!=="manager"||/Cash/.test(els.hTwo.innerHTML));
 // 16. levels: progressive disclosure for beginners, everything for the rest
 const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
 // Beginners: ONE either/or per match, each with a win chance (Chris: cut
@@ -225,5 +226,12 @@ ok(`reading budget: a beginner's team sheet <= ${BUDGET.beginnerTeamSheet} words
   ok(`reading budget: a beginner's season takes <= ${BUDGET.minutes} minutes to read`, secs/60<=BUDGET.minutes, `~${(secs/60).toFixed(1)} min (prose at 250 wpm + ~6s per table or pitch), before commentary playback`);
 }
 run(`LEVEL="intermediate";SPEED=null`);
+// 19. money with football consequences, shown plainly
+run(`LEVEL="beginner";ROLE=ROLES.manager;boot();S.cash=-50;const before=alive().length;globalThis.__before=before;
+  renderElsewhere({wk:0,final:false},()=>{})`);
+ok("in the red at the end of a gameweek, the bank forces a sale -- and the results screen says so", /The bank forced a sale/.test(app())&&run("alive().length")===run("__before")-1);
+run(`boot();S.cash=-400;S.deducted=false;const p0=TABLE[CLUB].pts;globalThis.__p0=p0;renderElsewhere({wk:0,final:false},()=>{})`);
+ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(app())&&run("S.deducted")===true);
+run(`LEVEL="intermediate"`);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

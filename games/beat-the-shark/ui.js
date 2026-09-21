@@ -488,9 +488,10 @@ function realThingLinks(){
 }
 /* --- ending --------------------------------------------------------------- */
 function endingDetailHTML(){
-  return `<p class="small">The Shark predicts the points a <b>well-run</b> club with your squad would take — sensible
-      formations, sensible decisions. Matching it scores 50; each point better is worth 5, each point worse costs 5,
-      and the title adds 10. A competent manager beats it about six times in ten.</p>
+  return `<p class="small">The Shark predicts where a <b>well-run</b> club with your squad would finish — sensible
+      formations, sensible decisions, no money trouble. Matching it scores 50; each place better is worth 15, each place
+      worse costs 15, and the title adds 10. Points only separate two managers who finished in the same place.
+      In the red, the bank forces sales; deep in the red costs ${CASH_RULES.deductPts} points.</p>
 
     ${S._bonusLines&&S._bonusLines.length?`<div class="shark" style="margin-top:12px"><div><b>Bonuses settled</b>
       ${S._bonusLines.join("<br>")}<br><b>Total: ${fmtMoney(S._bonusOwed)}</b>, taken from cash before the score above.</div></div>`:''}
@@ -519,30 +520,32 @@ function renderEnding(){
   S._bonusLines=lines;S._bonusOwed=owed;
   const{total,red}=scoreParts();
   const pred=PREDICT[CLUB],predPos=Math.round(pred.avg),pts=TABLE[CLUB].pts,beat=Math.round((pts-pred.pts)*10)/10;
+  // The verdict is about FINISHING POSITION against the Shark's prediction
+  // for a well-run club with this squad.
+  const target=sharkPos(),place=S.pos,gap=target-place;
   let v,b;
   if(!S.alive){v="ADMINISTRATION";b="The club went under. The Shark wins by default."}
-  else if(S.pos===1){v="CHAMPIONS";b=`The Shark gave you a ${pred.title}% chance of the title. You were the ${pred.title}%.`}
-  else if(beat>=3){v="YOU BEAT THE SHARK";b=`${beat} points better than the model expected from a well-run club with your squad. That is out-thinking it.`}
-  else if(beat>0){v="YOU BEAT THE SHARK";b=`${beat} ${beat===1?"point":"points"} better than the model. Narrow, and it counts.`}
-  else if(beat>-1){v="LEVEL WITH THE SHARK";b=`Within a point of the model's number. You ran the club about as well as it expected.`}
-  else if(rel){v="THE SHARK WINS";b=`${Math.abs(beat)} points short of the model, and relegated. It expected better from this squad.`}
-  else{v="THE SHARK WINS";b=`${Math.abs(beat)} points short of what the model expected from a well-run club with your squad.`}
+  else if(place===1){v="CHAMPIONS";b=target>1?`The Shark said ${ord(target)}. It gave you a ${pred.title}% chance of the title, and you were the ${pred.title}%.`:`The Shark expected it, and you delivered.`}
+  else if(gap>0){v="YOU BEAT THE SHARK";b=`${ord(place)}. The Shark said ${ord(target)} for a well-run club with your squad: ${gap} ${gap===1?"place":"places"} better.`}
+  else if(gap===0){v="LEVEL WITH THE SHARK";b=`${ord(place)}, exactly where the Shark said a well-run club would finish.`}
+  else if(rel){v="THE SHARK WINS";b=`${ord(place)} and relegated. The Shark said ${ord(target)} for this squad.`}
+  else{v="THE SHARK WINS";b=`${ord(place)}. The Shark said ${ord(target)} for a well-run club with your squad: ${-gap} ${gap===-1?"place":"places"} worse.`}
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">FINAL DAY · ${ROLE.name.toUpperCase()}</div>
-    <div class="verdict ${beat>0&&S.alive?'ok':'fail'}">${v}</div><p class="lede">${b}</p>
+    <div class="verdict ${(gap>0||place===1)&&S.alive?'ok':'fail'}">${v}</div><p class="lede">${b}</p>
     <div style="font-family:var(--disp);font-size:54px;font-weight:700;line-height:1;margin:4px 0 10px;
       color:${total>=65?'var(--good)':total>=40?'var(--amber)':'var(--bad)'}">${total}<span style="font-size:20px;color:var(--mute)">/100</span></div>
     <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:4px 0 10px;text-align:center">
       <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px">
         <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">THE SHARK'S TARGET</div>
-        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${pred.pts.toFixed(1)} pts</div>
-        <div style="font-size:11px;color:var(--mute)">a well-run club's target</div></div>
+        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${ord(target)}</div>
+        <div style="font-size:11px;color:var(--mute)">a well-run club · ${pred.pts.toFixed(1)} pts</div></div>
       <div style="font-family:var(--disp);font-size:22px;color:var(--mute)">v</div>
-      <div style="background:var(--panel2);border:1.5px solid ${beat>0?'var(--good)':beat<0?'var(--bad)':'var(--line)'};border-radius:9px;padding:9px">
-        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">YOU TOOK</div>
-        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${pts} pts</div>
-        <div style="font-size:11px;color:var(--mute)">${ord(S.pos)}</div></div>
+      <div style="background:var(--panel2);border:1.5px solid ${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--line)'};border-radius:9px;padding:9px">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;color:var(--mute)">YOU FINISHED</div>
+        <div style="font-family:var(--disp);font-size:30px;font-weight:700;line-height:1.1">${ord(place)}</div>
+        <div style="font-size:11px;color:var(--mute)">${pts} pts${S.deducted?` (after a ${CASH_RULES.deductPts}-point deduction)`:""}</div></div>
     </div>
     ${kpiHTML()}
     ${red?`<div class="outcome" style="border-left-color:var(--bad)">You finished ${fmtMoney(S.cash)} in the red. That cost you ${Math.round(red)} points of score — an owner answers for the money as well as the football.</div>`:""}
@@ -572,8 +575,8 @@ function chooseRole(){
     <div class="datechip">FIXTURESHARK · A SEASON IN TEN MINUTES</div>
     <h1>Beat the Shark</h1>
     <p class="small" style="margin-top:-4px">Home: ${STADIUM}. Last full: 2009.</p>
-    <p class="small">Before a ball is kicked, FixtureShark sets a target: the points a <b>well-run</b> club with your squad would take.
-      Your job is to beat it. £850k of debt, a fortnight's cash.</p>
+    <p class="small">Before a ball is kicked, FixtureShark predicts where a <b>well-run</b> club with your squad would finish. Finish higher.
+      £850k of debt, a fortnight's cash.</p>
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--mute);margin:12px 0 5px">YOUR LEVEL</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px">
       ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" style="margin:0;padding:8px 6px;text-align:center;
@@ -604,7 +607,8 @@ function boot(){
     <div class="datechip">${ROLE.name.toUpperCase()} · ${CLUB} · JULY</div>
     <h1>${ROLE.mission}</h1><p class="lede">${ROLE.missionLong}</p>
     <div class="shark"><div><b>The Shark's target</b>
-      A well-run club with this squad would take <b>${sharkPts().toFixed(1)} points</b>. Beat that.</div></div>
+      A well-run club with this squad would finish <b>${ord(sharkPos())}</b>. Finish higher.
+      <span class="small" style="display:block;margin-top:3px">Watch the money: in the red, the bank forces you to sell your best player.</span></div></div>
     ${(()=>{
       // Get to the first decision fast: the mission and the target, then Begin.
       // The rest is one tap away -- visible by default only for the Data guru.

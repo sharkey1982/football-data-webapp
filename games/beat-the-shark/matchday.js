@@ -557,7 +557,9 @@ function renderElsewhere(info,done){
   const near=n=>Math.abs(TABLE[n].pts-TABLE[CLUB].pts)<=3;
   const flagged=others.map(r=>near(r.h)||near(r.a));
   for(const r of others)award(TABLE,r.h,r.a,r.hg,r.ag);
-  S.mw++;myPos();paintHeader();
+  S.mw++;
+  const money=cashConsequences();
+  myPos();paintHeader();
   kpiRecord();
   const endPos=posOf(CLUB),moved=myBefore-endPos;
   const line=final
@@ -566,6 +568,9 @@ function renderElsewhere(info,done){
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE OTHER RESULTS</div>
     <h1>${line}</h1>
+    ${money.map(ev=>ev.type==="deduction"
+      ?`<div class="outcome" style="border-left-color:var(--bad)"><b>Points deduction: −${ev.pts}.</b> The club went too far into the red.</div>`
+      :`<div class="outcome" style="border-left-color:var(--bad)"><b>The bank forced a sale.</b> ${ev.nm} (${ev.pos}, quality ${ev.rt}) sold for ${fmtMoney(ev.fee)}. Your team is weaker.</div>`).join('')}
     ${others.map((r,i)=>`<div class="res" style="margin-top:6px"><span>${flagged[i]?"★ ":""}${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span></div>`).join('')}
     ${flagged.some(Boolean)?`<p class="small" style="margin-top:6px">★ involves a club within three points of you.</p>`:""}
     <div class="datechip" style="margin:10px 0 5px">WHAT THAT DID TO THE TABLE · ARROWS SHOW EVERY MOVE</div>

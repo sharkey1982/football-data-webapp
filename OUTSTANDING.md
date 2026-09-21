@@ -1464,6 +1464,34 @@ TO DO toward ~10 minutes (~7 min reading): physio (~200 words x2), crisis
 (~160 x2), the team sheet's prose around the pitch, and the opening screen
 (194 words). Measure each with the budget check and ratchet it down.
 
+## BEAT THE SHARK — POSITION, MONEY AND SIMPLER BEGINNERS (2026-09-21)
+
+DONE: scored on FINISHING POSITION vs the Shark's predicted place for a
+well-run club (15 per place, +10 title; points only break ties). Money has
+football consequences, checked every gameweek by game and simulator alike:
+in the red -> the bank forces the sale of your best player (if 11 would
+remain); below -GBP300k -> a 3-point deduction, once. Cash now shown to
+managers too. Consequences shown as tags (Team/Fans/Board/Cash with arrows;
+next match as Attack/Defence/Win chance); exact figures under "The
+numbers"; Data guru keeps full figures. Beginners: one either/or per match
+(shape, one place in the side, set pieces, out of position, shape), each
+with its win chance; options briefed with full text under "More about
+these options".
+
+MEASURED (simulator): competent manager beats the Shark 36%, level 38%;
+careless 6%; worst 2%. Careful (money-aware) players meet the bank 0% of
+seasons; reckless 74-99%. Title for a well-played manager ~5% (check
+recalibrated to 5-13%, reason recorded). The Shark's target is 3rd in every
+season (league structure), so beating it means finishing top two.
+
+OPEN:
+1. OWNER BALANCE: a competent owner beats the Shark only ~17% and loses
+   ~49% -- owners can't pick the team, so position depends less on their
+   decisions. Needs more football levers for the owner, or a per-role
+   target.
+2. Reading: ~15.7 min for a Beginner (target ~7). Largest remaining: the
+   four story events (~74s each), cash crises (~84s), physio, the call.
+
 ## PRODUCT: FOOTBALL FINANCE PILLAR — ASSESSED, NOT STARTED
 Full brief retained separately. Position taken 2026-09-20:
 

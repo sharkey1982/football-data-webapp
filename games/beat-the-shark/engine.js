@@ -610,17 +610,48 @@ function predictedTableHTML(){
      THE OWNER also answers for the money: finishing the season in the red
      costs up to 30. The manager is not scored on cash -- it is the owner's
      problem, and his constraint. */
-function sharkPos(){return Math.round(PREDICT[CLUB].avg)}
+function sharkPos(){return clamp(Math.round(PREDICT[CLUB].avg),1,6)}
 function sharkPts(){return PREDICT[CLUB].pts}
+/* SCORING BY FINISHING POSITION (Chris: the best finishing position is the
+   main thing being assessed). The target is the place a WELL-RUN club with
+   your squad would finish (the Shark's prediction). Each place above it is
+   worth 15, the title adds 10; points against target pace are only a small
+   tie-breaker. Pre-season the score is 50; during the season it tracks your
+   PROJECTED finish, steadier than the week-to-week table. Money no longer
+   docks the score directly: it bites through forced sales and a points
+   deduction (cashConsequences), i.e. through league position. */
 function scoreParts(){
   const pred=sharkPts(),pts=TABLE[CLUB].pts;
-  /* during the season, compare with where the Shark expects you to be by now */
-  const par=pred*(S.mw/MW),diff=pts-par;
-  let total=50+(pts-pred)*5*(S.mw>=MW?1:0)+(S.mw<MW?diff*5:0)+(S.mw>=MW&&S.pos===1?10:0);
-  const red=ROLE.id==="owner"&&S.cash<0?Math.min(30,-S.cash/10):0;
-  total-=red;
+  const par=pred*(S.mw/MW),diff=pts-par,done=S.mw>=MW;
+  const target=sharkPos();
+  const place=done?S.pos:S.mw===0?target:projectedPlace(CLUB);
+  let total=S.mw===0?50:50+15*(target-place)+2*(done?pts-pred:diff)+(done&&S.pos===1?10:0);
   if(!S.alive)total*=.3;
-  return{pred,par,pts,diff,red,total:Math.round(clamp(total,0,100))};
+  return{pred,par,pts,diff,target,place,red:0,total:Math.round(clamp(total,0,100))};
+}
+/* MONEY WITH FOOTBALL CONSEQUENCES (Chris). Checked at the end of every
+   gameweek, by the game and by the simulator alike:
+   - deep in the red (below CASH_RULES.deductBelow): a points deduction, once
+     a season -- 3 points, the ten-game equivalent of the real 12;
+   - in the red at all: the bank forces the sale of your most valuable player,
+     as long as eleven would still be fit to play.
+   Returns what happened, for the results screen to say. */
+const CASH_RULES={deductBelow:-300,deductPts:3,minSquad:11};
+function cashConsequences(){
+  const out=[];
+  if(!S.alive)return out;
+  if(S.cash<CASH_RULES.deductBelow&&!S.deducted){
+    TABLE[CLUB].pts-=CASH_RULES.deductPts;S.deducted=true;out.push({type:"deduction",pts:CASH_RULES.deductPts});
+  }
+  if(S.cash<0){
+    const fit=alive().filter(p=>!p.gone);
+    if(fit.length>CASH_RULES.minSquad){
+      const p=fit.slice().sort((a,b)=>b.rt-a.rt)[0],fee=Math.round((p.rt-38)*13);
+      S.cash+=fee;S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));p.gone=true;recalcSquadRating();
+      out.push({type:"sale",nm:p.nm,pos:p.pos,rt:p.rt,fee});
+    }
+  }
+  return out;
 }
 function apply(fx,noisy){const out=[];
   for(const[k,v0]of Object.entries(fx||{})){if(!v0)continue;
@@ -669,13 +700,13 @@ function paintHeader(){
   document.getElementById('hScore').innerHTML=`${total}<span class="sub">SCORE</span>`;
   const played=S.mw>0,d1=Math.round(diff*10)/10;
   document.getElementById('hTwo').innerHTML=
-   `<div class="two"><div class="k">The Shark's target</div><div class="v">${pred.toFixed(1)} pts</div>
-      <div class="pts">${played?`${par.toFixed(1)} expected by now`:"target for the season"}</div></div>
-    <div class="two"><div class="k">You have</div><div class="v">${played?pts+" pts":"—"}</div>
-      <div class="pts" style="color:${!played?'inherit':d1>0?'#9ce0b9':d1<0?'#f0a89f':'inherit'}">
-        ${!played?"nothing played":d1>0?`${d1} ahead of the Shark`:d1<0?`${Math.abs(d1)} behind the Shark`:"level with the Shark"} · ${played?ord(S.pos):""}</div></div>
-    ${ROLE.id==="owner"?`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
-      <div class="pts">${S.cash<0?"in the red — it costs you":"stay out of the red"}</div></div>`:""}`;
+   `<div class="two"><div class="k">The Shark says</div><div class="v">${ord(sharkPos())}</div>
+      <div class="pts">where a well-run club finishes</div></div>
+    <div class="two"><div class="k">You</div><div class="v">${played?ord(S.pos):"—"}</div>
+      <div class="pts" style="color:${!played?'inherit':projectedPlace(CLUB)<sharkPos()?'#9ce0b9':projectedPlace(CLUB)>sharkPos()?'#f0a89f':'inherit'}">
+        ${!played?"nothing played":`projected ${ord(projectedPlace(CLUB))} · ${pts} pts`}</div></div>
+    ${ROLE.id==="owner"||ROLE.id==="manager"?`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
+      <div class="pts">${S.cash<0?"in the red — the bank will force a sale":"stay out of the red"}</div></div>`:""}`;
   const tr=document.getElementById('hTrend');
   if(S.lastScore==null){tr.className="trend fl";tr.textContent="—"}
   else{const d=total-S.lastScore;tr.className="trend "+(d>0?"up":d<0?"dn":"fl");
