@@ -131,6 +131,7 @@ ok("the ending: CHAMPIONS or your position, the Shark's prediction, and the tabl
 // 14. home advantage, made visible
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
+run(`configureLevel("intermediate");buildFixtures()`); // home and away: the ten-game level
 run(`renderHeatmap()`);
 ok("pre-season explains home advantage from the real model", /19% more goals/.test(app())&&/0\.175/.test(app())&&/points/.test(app()));
 ok("heat map compares expected points home and away", /Home games:<\/b> [\d.]+ expected points each/.test(run("fixtureHeatHTML(0,10)")));
@@ -149,7 +150,7 @@ run(`paintHeader()`);
 ok("the header shows league position and cash, and nothing else", /POSITION/.test(els.hScore.innerHTML)&&/Cash/.test(els.hTwo.innerHTML)&&!/Shark|SCORE|pts/.test((els.hScore.innerHTML+els.hTwo.innerHTML).replace(/<[^>]+>/g," "))); // visible text only (the cash box's CSS class is "pts")
 ok("the manager can see the club's cash (money now has football consequences)", run("ROLE.id")!=="manager"||/Cash/.test(els.hTwo.innerHTML));
 // 16. levels: progressive disclosure for beginners, everything for the rest
-const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
+const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();configureLevel("${lvl}");buildFixtures();S.mw=${played};S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
 // Beginners: ONE either/or per match, each with a win chance (Chris: cut
 // the cognitive load, keep similar items).
 const bc=h=>(h.match(/data-bc="/g)||[]).length;
@@ -161,8 +162,8 @@ for(let n=0;n<5;n++){
     bc(h)===2&&!/win chance/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
   if(kinds[n]==="formation")ok(`beginner match ${n+1}: the shape choice reads the opponent (their attack and defence)`, /(attack)[\s\S]*(defence)/.test(h)&&/Go for it/.test(h)&&/Stay compact/.test(h));
 }
-ok("a beginner's season opens on shape and still meets selection, set pieces and out of position (or falls back to shape)",
-  kinds[0]==="formation"&&["selection","formation"].includes(kinds[1])&&kinds[2]==="setpieces"&&["oop","formation"].includes(kinds[3]), kinds.join(" → "));
+ok("the agreed Beginner order: shape, shape, set pieces, selection (or shape if nobody's tired), shape",
+  kinds[0]==="formation"&&kinds[1]==="formation"&&kinds[2]==="setpieces"&&["selection","formation"].includes(kinds[3])&&kinds[4]==="formation", kinds.join(" → "));
 // choosing the second option actually changes the side
 sheetAt("beginner",0);
 const fmBefore=run("S.formation");
@@ -276,11 +277,14 @@ const p4=app();
 ok("page 4: Kick off sits right under the choice, the pitch below it, and no bench",
   p4.indexOf('id="kick"')<p4.indexOf('<!--SQ-->')&&p4.indexOf('data-bc=')<p4.indexOf('id="kick"')&&!/class="benchh"/.test(p4));
 els.kick.onclick();drain();
+ok("every Beginner game has a half-time decision -- Gameweek 1: push on or hold", /Push on or hold\?/.test(els.htBox.innerHTML));
+els.htHold.onclick();drain();
 els.toTable.onclick();
 ok("page 6: the position at the top updates once your result is in", /\d(st|nd|rd|th)<span class="sub">POSITION/.test(els.hScore.innerHTML));
 els.toOthers.onclick();drain();
 ok("page 7: a plain headline at full time -- never 'No change for you'", !/No change for you/.test(els.asit.textContent)&&/^(Up to |Down to )?\d(st|nd|rd|th)\.$/.test(els.asit.textContent), els.asit.textContent);
-ok("page 8: the second match comes straight after the first -- a full match, with the shape choice", run("PLAN.slice(0,2).join()")==="match,match");
+ok("the agreed Beginner season: five games, a story between each, the window and the bank before Gameweek 4",
+  run("PLAN.join()")==="match,presser,match,knock,match,window,bank,match,papers,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
 ok("page 8: ...against the strongest club", (()=>{const[h,a]=run("myFixture(1)");const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");return h===st||a===st})());
 run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
 ok("page 8: ...with a half-time decision about a player change", /is tiring/.test(els.htBox.innerHTML)&&/Keep .+ on/.test(els.htBox.innerHTML)&&/Bring on /.test(els.htBox.innerHTML));
@@ -295,7 +299,7 @@ ok("page 8: ...with a half-time decision about a player change", /is tiring/.tes
 // Gameweek 2, the hard game: summary -> team sheet -> the half-time dilemma
 function toGW2HalfTime(seed){
   delete els.htBox;
-  run(`SEED="${seed}";LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=1;cursor=1;S._summaryShown=false;S._sheetShown=false;step()`);
+  run(`SEED="${seed}";LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=1;cursor=PLAN.indexOf("match",1);S._summaryShown=false;S._sheetShown=false;step()`);
   const summary=app();
   els.go.onclick();
   const sheet=app();
@@ -304,7 +308,7 @@ function toGW2HalfTime(seed){
 }
 const g2=toGW2HalfTime("MD-1");
 ok("before every game: a match-day summary -- position, cash, team health, expected goals, clean sheets",
-  /MATCHDAY 2 OF 10/.test(g2.summary)&&/Position/.test(g2.summary)&&/In the bank/.test(g2.summary)&&/Team health/.test(g2.summary)&&/Expected goals/.test(g2.summary)&&/Clean sheets/.test(g2.summary));
+  /MATCHDAY 2 OF 5/.test(g2.summary)&&/Position/.test(g2.summary)&&/In the bank/.test(g2.summary)&&/Team health/.test(g2.summary)&&/Expected goals/.test(g2.summary)&&/Clean sheets/.test(g2.summary));
 const strongest=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");
 ok("then the preview: them v you against the strongest club, with the shape choice", g2.sheet.includes(strongest)&&/<th class="n">You<\/th>/.test(g2.sheet)&&/Stay compact/.test(g2.sheet));
 ok("at half time: the dilemma, with health and goal-threat bars for this half and next game",
@@ -319,7 +323,37 @@ const g2b=toGW2HalfTime("MD-1");
 els.subYes.onclick();drain(); // bring the fresher man on
 ok("bring on the fresher man: the star is fit for the next game", run(`S.squadList.find(p=>p.nm===${JSON.stringify(star)}).out`)===0&&!run("S.manualXI"));
 // a quick week: the preview, then kick off
-run(`SEED="MD-1";LEVEL="beginner";ROLE=ROLES.manager;boot();const i=PLAN.indexOf("live");cursor=i;S.mw=2;S._summaryShown=true;step()`);
+// (quick weeks are the ten-game level's; every Beginner game has its decisions)
+run(`SEED="MD-1";LEVEL="intermediate";ROLE=ROLES.manager;boot();const i=PLAN.indexOf("live");cursor=i;S.mw=2;S._summaryShown=true;step()`);
 ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n">You<\/th>/.test(app())&&/id="kick"/.test(app())&&/12:30 KICK-OFF/.test(app()));
+// 23. THE BEGINNER SEASON (agreed 2026-09-21)
+run(`SEED="BG-1";chooseRole()`);
+ok("levels: Beginner only for now -- Intermediate and Advanced marked 'Coming soon' and not selectable",
+  /data-level="beginner"/.test(app())&&!/data-level="intermediate"/.test(app())&&!/data-level="guru"/.test(app())&&(app().match(/Coming soon/g)||[]).length===2);
+run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();
+ok("neutral venues: no home or away anywhere, and no home advantage in the model",
+  !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
+ok("Shark Scout are stronger at Beginner only (they win the league most of the time)",
+  // (through the model's view, which excludes the hidden season swing)
+  run(`modelView(()=>strOf("Shark Scout United"))`)===run(`RIVALS.find(r=>r.n==="Shark Scout United").str`)+run("BEGINNER_SHARK_BOOST"));
+// weekly wages: the result's cash is gate money minus the wage bill
+run(`S.cash=100`);const wages=run("S.wages");
+run(`(()=>{const r=resolveMine(1,0,true);globalThis.__fx=r.fx})()`);
+ok("the wage bill is paid every week at Beginner (gate money minus wages)", run("__fx.cash")<=30-wages&&run("__fx.cash")>=16-wages, `cash ${run("__fx.cash")} with wages ${wages}`);
+// the knock
+delete els.ch;run(`renderSpec(knockSpec(),"T",()=>{})`);
+const knockName=(app().match(/<h1>(.+?) has a knock<\/h1>/)||[])[1];
+els.ch.children[0].onclick();
+ok("the knock: one named player -- resting him means he misses the next game", !!knockName&&run(`S.squadList.find(p=>p.nm===${JSON.stringify(knockName)}).out`)===1);
+// the window: sell, then that money is spendable; the price shown is the price paid
+run(`S.cash=10;S.janBudget=null;renderWindow("freshen",()=>{})`);
+const before=run("S.cash"),first=run(`alive().filter(p=>!p.gone).sort((a,b)=>b.rt-a.rt)[0]`),shown=run(`saleFee(alive().filter(p=>!p.gone).sort((a,b)=>b.rt-a.rt)[0])`);
+ok("the window is billed as freshening up after Gameweek 3", /Freshen up the squad/.test(app())&&/AFTER GAMEWEEK 3/.test(app()));
+run(`(()=>{const p=alive().filter(p=>!p.gone).sort((a,b)=>b.rt-a.rt)[0];const i=S.squadList.indexOf(p);S.cash+=saleFee(p);p.gone=true})()`);
+ok("sale money is spendable (it used to be stuck outside the manager's budget)", run("spendable()")===before+shown&&run("S.janBudget")===null);
+ok("one sale price per player, the same every time it's asked", run(`saleFee(S.squadList[0])`)===run(`saleFee(S.squadList[0])`));
+// the bank
+delete els.ch;run(`renderSpec(bankSpec(),"T",()=>{})`);
+ok("the bank's call: sell a named player at his one price, or ride it out", /The bank has called/.test(app())&&/Sell .+ for £\d+k/.test(els.ch.children[0].innerHTML)&&/Ride it out/.test(els.ch.children[1].innerHTML));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

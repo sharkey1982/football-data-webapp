@@ -28,7 +28,7 @@ global.setTimeout=()=>{};
 const G=eval(src+`;({ROLES,SHAPES,FORMATIONS,PLAN,MW,newState,buildFixtures,blankTable,monteCarlo,recalcSquadRating,pickRivals,
   playFixture,simScore,strOf,award,standings,resolveMine,apply,later,drainPending,myStrength,clubRates,
   presserSpec,callSpec,physioSpec,preseasonSpec,winterSpec,playerSummerSpec,playerWinterSpec,makeTargets,drawEvent,
-  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,cashConsequences,sharkPos,scoreParts,ratingsNow,projectionNow,projOrder,expectedFinal,
+  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,cashConsequences,sharkPos,scoreParts,configureLevel,getMW:()=>MW,ratingsNow,projectionNow,projOrder,expectedFinal,
   setSeed:v=>{SEED=v},setRole:r=>{ROLE=r},setS:x=>{S=x},getS:()=>S,setTable:t=>{TABLE=t},T:()=>TABLE,
   setPredict:p=>{PREDICT=p},setCursor:v=>{cursor=v},getR:()=>R.s,setR:v=>{R.s=v},
   resetRecent:()=>{RECENT=new Set();RECENT_Q=[]},getRivals:()=>RIVALS,getRoleId:()=>ROLE.id,
@@ -123,6 +123,11 @@ function expertTeamSheet(opp,home){
   for(const x of xi){if(x.slot==="GK")continue;S.spTaker=x.i;const v=score();if(v>bv){bv=v;bt=x.i}}
   S.spTaker=bt;
 }
+// Loading the game runs its opening screen, which now switches to Beginner
+// (Intermediate/Advanced are "coming soon"). These simulations and the
+// ten-game checks are about the ten-game level, so set it explicitly.
+G.configureLevel("intermediate");
+
 function playWeek(policy,credit){
   const S=G.getS(),wk=S.mw,T=G.T();
   const fx=G.myFixture(wk),home=fx[0]==="Your Team",opp=home?fx[1]:fx[0];
@@ -160,9 +165,25 @@ function season(seed,roleId,policy,withTarget){
     else if(b==="luck"){const L=G.drawLuck();if(L)L.apply()}
     else if(b==="crisis")doChoice(choose(G.crisisSpec(),policy));
     G.drainPending().forEach(p=>G.apply(p.fx));
-    if(S.mw>=G.MW)break;
+    if(S.mw>=G.getMW())break; // the LIVE season length (G.MW was captured at load)
   }
   const st=G.standings(G.T());return st.findIndex(r=>r.n==="Your Team")+1;
 }
 function hashSeedJS(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
-module.exports={G,season};
+/* THE BEGINNER SEASON: five games, one round, neutral venues, weekly wages,
+   Shark Scout boosted -- the same level settings the game applies. Plays the
+   five matches with a policy's shape choices; story steps are left out (they
+   move cash and morale a little either way). Restores the ten-game level. */
+function beginnerSeason(seed,policy,withTarget){
+  G.configureLevel("beginner");
+  try{
+    G.setSeed(seed);G.pickRivals();G.buildFixtures();G.setTable(G.blankTable());
+    G.setRole(G.ROLES.manager);G.setR(hashSeedJS(seed+"|manager"));G.resetRecent();
+    const S=G.newState();G.setS(S);G.recalcSquadRating();
+    if(withTarget){G.setPredict(G.monteCarlo(400));G.setTable(G.blankTable());G.setR(hashSeedJS(seed+"|manager"))}
+    for(let wk=0;wk<G.getMW();wk++){G.setCursor(wk);playWeek(policy);G.cashConsequences()}
+    const st=G.standings(G.T());
+    return{pos:st.findIndex(r=>r.n==="Your Team")+1,champ:st[0].n,cash:G.getS().cash};
+  }finally{G.configureLevel("intermediate")}
+}
+module.exports={G,season,beginnerSeason};

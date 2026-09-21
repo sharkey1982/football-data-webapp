@@ -33,7 +33,14 @@ function showPending(){
    fixture heat map, the first team sheet). Derived afresh each season from
    the untouched base order, so switching level can't leave it scrambled. */
 const PLAN_BASE=PLAN.slice();
+/* THE BEGINNER SEASON (agreed with Chris, 2026-09-21): five games, each
+   with a summary, a preview, one pre-match and one half-time decision, and
+   a story between games that builds -- cash a real issue by Gameweek 4. */
+const BEGINNER_PLAN=["match","presser","match","knock","match","window","bank","match","papers","match","end"];
+// The owner's five games: his own decisions around them (he doesn't pick the team).
+const BEGINNER_OWNER_PLAN=["special1","match","call","match","crisis","match","special2","match","papers","match","end"];
 function planFor(level,role){
+  if(level==="beginner")return (role==="manager"?BEGINNER_PLAN:BEGINNER_OWNER_PLAN).slice();
   const p=PLAN_BASE.slice();
   // The manager's season starts with the opening match (Chris); everything
   // else keeps its order after it.
@@ -82,6 +89,9 @@ function step(){
   if(b==="crisis")return renderSpec(crisisSpec(),ROLE.id==="owner"?"THE BANK HAS CALLED":"THE OWNER HAS CALLED",next);
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
+  if(b==="knock")return renderSpec(knockSpec(),"THE PHYSIO ROOM",next);
+  if(b==="window"){S.janBudget=null;return renderWindow("freshen",next)}
+  if(b==="bank")return renderSpec(bankSpec(),"THE BANK HAS CALLED",next);
   if(b==="physio")return renderPhysio();
   if(b==="presser")return renderSpec(presserSpec(),"FRIDAY · PRESS CONFERENCE",next);
   if(b==="papers")return renderPapers();
@@ -554,7 +564,8 @@ function renderEnding(){
 }
 /* --- start ---------------------------------------------------------------- */
 function chooseRole(){
-  S=null;
+  S=null;LEVEL="beginner"; // Intermediate and Advanced: coming soon
+  configureLevel(LEVEL);
   /* Build the fixture list and run the model now, so the opening screen can
      state the real prediction instead of asserting a league position that
      nothing has yet produced. */
@@ -569,8 +580,9 @@ function chooseRole(){
     <div class="hero-kicker">BEAT THE SHARK</div>
     <div class="mission">Your mission:<br>Win the league!</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:16px 0 8px">
-      ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" aria-pressed="${k===LEVEL}"
-        style="margin:0;padding:9px 6px;text-align:center;${k===LEVEL?sel:''}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`).join('')}
+      ${Object.entries(LEVELS).map(([k,v])=>k==="beginner"
+        ?`<button class="choice" data-level="${k}" aria-pressed="true" style="margin:0;padding:9px 6px;text-align:center;${sel}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`
+        :`<div class="choice" aria-disabled="true" style="margin:0;padding:9px 6px;text-align:center;opacity:.5"><span class="t" style="font-size:13.5px">${v.name}</span><span class="d" style="font-size:11px">Coming soon</span></div>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
       ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="choice primary" data-r="${r.id}" style="margin:0;height:100%">
@@ -616,7 +628,7 @@ function renderMatchdaySummary(then){
       ${small("Team health",`${health}%`,health>=85?"fit and ready":health>=70?"a few knocks":"struggling")}
       ${small("Expected goals",mine.xgf.toFixed(1),"a game")}
       ${small("Clean sheets",`${Math.round(Math.exp(-mine.xga)*100)}%`,"of games")}
-      ${small("Next",opp,h===CLUB?"at home":"away")}
+      ${small("Next",opp,venueNote(h===CLUB).toLowerCase()||"next up")}
     </div>
     <button class="choice primary" id="go"><span class="t">Team news: ${opp}</span></button></div>`;
   document.getElementById('go').onclick=then;
@@ -627,7 +639,7 @@ function renderQuickPreview(){
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">${kickoffChip(S.mw)}</div>
-    <h1>${home?`${opp}, at home`:`Away at ${opp}`}</h1>
+    <h1>${venueTitle(opp,home)}</h1>
     ${oppCompareHTML(opp)}
     <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button></div>`;
   document.getElementById('kick').onclick=()=>renderMatch(next,true);
@@ -651,13 +663,14 @@ function renderTeamIntro(){
       ${small("Team health",`${health}%`,health>=85?"fit and ready":health>=70?"a few knocks":"struggling")}
       ${small("Squad quality",ord(clubRank(quality,true)),"of six")}
     </div>
-    <button class="choice primary" id="go"><span class="t">First match: ${opp}</span><span class="d">${h===CLUB?"At home":"Away"}</span></button></div>`;
+    <button class="choice primary" id="go"><span class="t">First match: ${opp}</span><span class="d">${venueNote(h===CLUB)||"Opening day"}</span></button></div>`;
   document.getElementById('go').onclick=()=>{cursor=0;step()};
 }
 function boot(){
   pickRivals();
   R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
   S=newState();cursor=0;pendingReveal=null;
+  configureLevel(LEVEL);
   PLAN.splice(0,PLAN.length,...planFor(LEVEL,ROLE.id));
   // The squad's strength must be worked out BEFORE the Shark predicts: the
   // other way round, the prediction used the wrong squad and said 1st.

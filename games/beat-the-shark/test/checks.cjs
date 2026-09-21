@@ -62,7 +62,7 @@ if (failures) {
   console.log('Fix the script order or the file named above, then run again.');
   process.exit(1);
 }
-const { G, season } = require('./season_sim.cjs');
+const { G, season, beginnerSeason } = require('./season_sim.cjs');
 
 /* ---------------------------------------------------------------- 1 ---- */
 console.log('\n1. INTEGRITY — every event renders cleanly');
@@ -244,6 +244,25 @@ console.log('\n3. BALANCE — the design targets still hold');
 
   /* The manager is meant to be the most powerful chair. */
   check('manager is the most influential role', mBest.beat > oBest.beat, `manager ${mBest.beat.toFixed(0)}% vs owner ${oBest.beat.toFixed(0)}% beat the Shark`);
+}
+
+/* ------------------------------------------------------------- 1d (last) */
+/* Runs LAST: it leaves a five-game fixture list behind. */
+/* THE BEGINNER SEASON (agreed 2026-09-21): five games, neutral venues,
+   weekly wages, Shark Scout boosted. Policies are compared on the SAME
+   seasons -- different seeds per policy once made "best" look worse than
+   doing nothing, which was noise. */
+console.log('\n1d. BEGINNER SEASON (five games)');
+{
+  const N = 400; const agg = {};
+  for (const pol of ['best', 'none', 'worst']) { let sum = 0, mine = 0, sharks = 0;
+    for (let i = 1; i <= N; i++) { const r = beginnerSeason(`CHK-B-${i}`, pol); sum += r.pos; if (r.pos === 1) mine++; if (r.champ === 'Shark Scout United') sharks++; }
+    agg[pol] = { avg: sum / N, title: mine / N * 100, sharks: sharks / N * 100 }; }
+  let third = 0; for (let i = 1; i <= 40; i++) { beginnerSeason(`CHK-B3-${i}`, 'none', true); if (G.sharkPos() === 3) third++; }
+  check('Shark Scout United win the league most of the time (55-80%)', agg.none.sharks >= 55 && agg.none.sharks <= 80, `${agg.none.sharks.toFixed(0)}%`);
+  check('the Shark predicts 3rd (at least 38 of 40 seasons)', third >= 38, `${third}/40`);
+  check('decisions matter: best finishes higher on average than none, and none than worst', agg.best.avg < agg.none.avg && agg.none.avg < agg.worst.avg, `${agg.best.avg.toFixed(2)} / ${agg.none.avg.toFixed(2)} / ${agg.worst.avg.toFixed(2)}`);
+  check('good decisions win more titles than none (still rare: under 15%)', agg.best.title > agg.none.title && agg.best.title < 15, `best ${agg.best.title.toFixed(1)}%, none ${agg.none.title.toFixed(1)}%`);
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

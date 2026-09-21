@@ -19,7 +19,7 @@ const TARGET_TYPES=[
 ];
 function makeTargets(n){
   return shuffle(TARGET_TYPES).slice(0,n).map(t=>{
-    const rt=rnd(t.rt[0],t.rt[1]),fee=Math.round((rt-40)*rnd(9,18)),wage=Math.round((rt-40)*rnd(.4,.9)+3);
+    const rt=rnd(t.rt[0],t.rt[1]),fee=Math.round((rt-40)*rnd(9,18)*priceScale()),wage=Math.round((rt-40)*rnd(.4,.9)+3);
     return Object.assign({},t,{rt,rtf:rt,fee,wage,fit:rnd(80,97),out:0,goals:0,gone:false,quip:t.line,bought:false});
   });
 }
@@ -47,13 +47,40 @@ function deltaChip(now,then){
 /* What can be spent right now. The owner spends the club's cash; the
    manager spends only the budget the owner gave him for January. */
 function spendable(){return S.janBudget!=null&&ROLE.id==="manager"?Math.min(S.janBudget,S.cash):S.cash}
+/* THE KNOCK (Beginner, after Gameweek 2): one named player, one decision.
+   Replaces "Rest everyone under 70%", which benched nobody. */
+/* One sale price per player: shown and paid alike. (It was re-rolled at
+   random on every redraw, and rolled again when the sale went through.) */
+// Beginner's economy is smaller (GBP120k in the bank, GBP41k a week in
+// wages), so transfer prices are a third of the ten-game season's.
+const priceScale=()=>NEUTRAL?1/3:1;
+function saleFee(p){return Math.round((p.rt-38)*13*priceScale())}
+function knockSpec(){
+  const xi=currentXI().map(x=>S.squadList[x.i]).filter(p=>p&&p.pos!=="GK");
+  const p=xi.sort((a,b)=>b.rt-a.rt)[0];const i=S.squadList.indexOf(p);
+  return{title:`${p.nm} has a knock`,lede:`Your best outfield player, quality ${p.rt}. The physio isn't sure.`,
+    choices:[
+      {t:`Rest him for Gameweek 3`,d:"Weaker for one game, fully fit after",after(){p.out=1;p.fit=clamp(p.fit+15);recalcSquadRating()},out:`${p.nm} sits this one out.`},
+      {t:`Risk him`,d:"Plays Gameweek 3; a 1 in 2 chance he's out for the rest",after(){S._knockRisk=i},out:`${p.nm} will play. Fingers crossed.`}]};
+}
+/* THE BANK CALLS (Beginner, before Gameweek 4): cash is now the issue. */
+function bankSpec(){
+  const sellable=alive().filter(p=>!p.gone&&p.pos!=="GK").sort((a,b)=>b.rt-a.rt);
+  const p=sellable[1]||sellable[0],fee=saleFee(p);
+  const weekly=Math.max(0,S.wages-18);
+  return{title:"The bank has called",
+    lede:`${fmtMoney(S.cash)} in the bank. Wages cost about ${fmtMoney(weekly)} a week more than the gate brings in. In the red at the end of a gameweek, the bank sells your best player.`,
+    choices:[
+      {t:`Sell ${p.nm} for ${fmtMoney(fee)}`,d:"Safe in the bank, a weaker team",after(){p.gone=true;recalcSquadRating()},fx:{cash:fee},out:`${p.nm} is sold. The bank is happy.`},
+      {t:"Ride it out",d:S.cash-2*weekly<0?"Likely in the red before the end":"Should just about get through",out:`You hold your nerve.`}]};
+}
 function renderWindow(which,after){
   const targets=S.flags["tw_"+which]||(S.flags["tw_"+which]=makeTargets(3));
   const guru=!!LEVELS[LEVEL].guru;
   let sellOpen=false; // keep "Sell a player" open once someone is sold
   const sellListHTML=canSell=>`<p class="small">Selling raises cash and lowers quality.</p>
       ${S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone).sort((a,b)=>b.p.rt-a.p.rt).map(({p,i})=>`<div class="market">
-        <div class="top"><span class="nm">${p.pos} ${p.nm}</span><span class="fee">${fmtMoney(Math.round((p.rt-38)*rnd(10,16)))}</span></div>
+        <div class="top"><span class="nm">${p.pos} ${p.nm}</span><span class="fee">${fmtMoney(saleFee(p))}</span></div>
         <div class="meta">Quality ${p.rt} · condition ${p.fit}${p.out?` · <span style="color:var(--bad)">out ${p.out}w</span>`:''} · ${p.line}</div>
         <button class="choice" style="margin:8px 0 0" data-sell="${i}" ${canSell?"":"disabled"}>
           <span class="t">${canSell?"Accept an offer":"Squad too small to sell"}</span>
@@ -62,12 +89,13 @@ function renderWindow(which,after){
     paintHeader();
     const canSell=alive().length>5;
     document.getElementById('app').innerHTML=`<div class="card">
-      <div class="datechip">${which==="summer"?"AUGUST · TRANSFER WINDOW":"JANUARY · TRANSFER WINDOW"}</div>
-      <h1>${which==="summer"?"The window is open":"The January window"}</h1>
+      <div class="datechip">${which==="summer"?"AUGUST · TRANSFER WINDOW":which==="freshen"?"AFTER GAMEWEEK 3 · TRANSFER WINDOW":"JANUARY · TRANSFER WINDOW"}</div>
+      <h1>${which==="summer"?"The window is open":which==="freshen"?"Freshen up the squad":"The January window"}</h1>
       <p class="lede">${which==="summer"
         ? "Six weeks to change the squad you inherited. You have "+fmtMoney(S.cash)+" and a wage bill of "+fmtMoney(S.wages)+" a week."
+        : which==="freshen"?`${ord(S.pos)} of six, ${fmtMoney(S.cash)} in the bank, two games to go. Sell to raise money, then sign.`
         : "Halfway, "+ord(S.pos)+" of six, and one last chance to change the shape of the season."}</p>
-      ${ROLE.id==="manager"?`<div class="outcome">The owner has given you <b>${fmtMoney(spendable())}</b> to spend this window.</div>`:""}
+      ${ROLE.id==="manager"&&S.janBudget!=null?`<div class="outcome">The owner has given you <b>${fmtMoney(spendable())}</b> to spend this window.</div>`:""}
       <div class="shark"><div><b>FixtureShark</b>${sharkRate(S)} Every fee below is what the model says they are worth, give or take.</div></div>
       <div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:11px">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -100,7 +128,11 @@ function renderWindow(which,after){
     });
     document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{
       const p=S.squadList[+b.dataset.sell];
-      S.cash+=Math.round((p.rt-38)*rnd(10,16));S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));
+      S.cash+=saleFee(p);S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));
+      // Sale money is spendable: it went into cash but not the manager's
+      // January budget, so it could never be spent (Chris: "sold players,
+      // had cash, but unable to buy").
+      if(S.janBudget!=null)S.janBudget+=saleFee(p);
       p.gone=true;recalcSquadRating();S.fans=clamp(S.fans-(p.rt>60?11:4));sellOpen=true;draw();
     });
     document.getElementById('close').onclick=()=>{recalcSquadRating();after()};

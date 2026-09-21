@@ -79,7 +79,19 @@ player:{id:"player",name:"The Star Player",tag:"You are the asset",
 let ROLE=null,S=null;
 
 /* --- season --------------------------------------------------------------- */
-const MW=10;
+/* LEVEL SETTINGS (Chris, 2026-09-21). Beginner: FIVE games -- one round,
+   everyone plays everyone once -- at NEUTRAL venues (home and away comes in
+   at the higher levels), and the wage bill actually paid every week so cash
+   tightens by Gameweek 4. Other levels keep the ten-game season. Set by
+   configureLevel() at the start of each season. */
+let MW=10,NEUTRAL=false,WEEKLY_WAGES=false;
+/* Beginner: Shark Scout United win the league most of the time (Chris). */
+let BEGINNER_SHARK_BOOST=5;
+function configureLevel(level){const b=level==="beginner";MW=b?5:10;NEUTRAL=b;WEEKLY_WAGES=b}
+const homeMult=()=>NEUTRAL?1:HOME_MULT;
+/* How a fixture is billed: neutral venues for Beginner. */
+function venueTitle(opp,home){return NEUTRAL?`v ${opp}`:home?`${opp}, at home`:`Away at ${opp}`}
+function venueNote(home){return NEUTRAL?"":home?"At home":"Away"}
 let FIXTURES=[],TABLE={},PREDICT={};
 function buildFixtures(){
   const teams=[CLUB].concat(RIVALS.map(r=>r.n)),n=teams.length,rounds=[],arr=teams.slice();
@@ -95,14 +107,15 @@ function buildFixtures(){
   const strongest=RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n;
   const r2=rounds.findIndex((wk,i)=>i>0&&wk.some(([h,a])=>(h===CLUB&&a===strongest)||(a===CLUB&&h===strongest)));
   if(r2>1)[rounds[1],rounds[r2]]=[rounds[r2],rounds[1]];
-  FIXTURES=rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
+  // Beginner: one round (five games); otherwise home and away (ten).
+  FIXTURES=MW<=rounds.length?rounds.slice(0,MW):rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
 }
 /* A rival's strength can move mid-season through luck events (an injury to
    their star, a new signing), stored per season in S.rivalMod. Guarded
    because the pre-season model runs before a season state exists. */
 const strOf=n=>{if(n===CLUB)return null;
   const live=typeof S!=="undefined"&&S;
-  return RIVALS.find(r=>r.n===n).str+((live&&S.rivalMod&&S.rivalMod[n])||0)
+  return RIVALS.find(r=>r.n===n).str+(NEUTRAL&&n==="Shark Scout United"?BEGINNER_SHARK_BOOST:0)+((live&&S.rivalMod&&S.rivalMod[n])||0)
     /* the hidden season swing -- invisible to the Shark's own simulation */
     +((live&&!S._mc&&S.swing&&S.swing[n])||0)};
 function oppFormation(n){
@@ -125,8 +138,8 @@ function clubRates(opp,home,scale,oppFm){
      response makes every lever count for more -- and widens where Your Team
      can finish, which was also asked for. Rival-v-rival games keep the
      gentler curve in simScore. */
-  return[Math.max(.08,k*Math.pow(1.5,(att-oDef)/CLUB_SENS)*(home?HOME_MULT:1)),
-         Math.max(.08,k*Math.pow(1.5,(oAtt-def)/CLUB_SENS)*(home?1:HOME_MULT))];
+  return[Math.max(.08,k*Math.pow(1.5,(att-oDef)/CLUB_SENS)*(home?homeMult():1)),
+         Math.max(.08,k*Math.pow(1.5,(oAtt-def)/CLUB_SENS)*(home?1:homeMult()))];
 }
 const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
 /* One entry point for any fixture, so your club always uses the split
@@ -150,7 +163,7 @@ function playFixture(h,a,credit){
 }
 function simScore(hs,as){
   /* home advantage as the real model applies it: see HOME_MULT */
-  const hx=Math.max(.2,1.25*Math.pow(1.5,(hs-as)/20)*HOME_MULT),ax=Math.max(.2,1.25*Math.pow(1.5,(as-hs)/20));
+  const hx=Math.max(.2,1.25*Math.pow(1.5,(hs-as)/20)*homeMult()),ax=Math.max(.2,1.25*Math.pow(1.5,(as-hs)/20));
   const pois=l=>{let L=Math.exp(-l),k=0,p=1;do{k++;p*=rng()}while(p>L);return k-1};
   return[Math.min(5,pois(hx)),Math.min(5,pois(ax))];
 }
@@ -226,7 +239,7 @@ function homeValue(){let v=0;
 function fixtureRates(h,a){
   return modelView(()=>{
     if(h!==CLUB&&a!==CLUB){const hs=strOf(h),as=strOf(a);
-      return[Math.max(.2,1.25*Math.pow(1.5,(hs-as)/20)*HOME_MULT),Math.max(.2,1.25*Math.pow(1.5,(as-hs)/20))]}
+      return[Math.max(.2,1.25*Math.pow(1.5,(hs-as)/20)*homeMult()),Math.max(.2,1.25*Math.pow(1.5,(as-hs)/20))]}
     const home=h===CLUB,opp=home?a:h,[m,t]=clubRates(opp,home,1.25,typicalShape(opp));
     return home?[m,t]:[t,m];
   });
