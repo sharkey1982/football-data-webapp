@@ -12,6 +12,7 @@ vi.mock('../lib/api', async () => {
     getCountries: vi.fn(),
     getSeasons: vi.fn(),
     getLeagueTable: vi.fn(),
+    getPointsRace: vi.fn(),
   };
 });
 
@@ -98,5 +99,26 @@ describe('LeagueTable page', () => {
     expect(params.get('view')).toBe('team');
     expect(params.get('team')).toBe('42');
     expect(params.get('season')).toBe('13');
+  });
+
+  it('toggles between the table and a timelapse, loading the race only when asked', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 12, label: '2526', start_year: 2025, end_year: 2026 }]);
+    mockedApi.getLeagueTable.mockResolvedValue([
+      { team_id: 1, team_name: 'Arsenal', played: 2, won: 2, drawn: 0, lost: 0, goalsFor: 4, goalsAgainst: 0, goalDifference: 4, pointsBeforeAdjustment: 6, pointsAdjustment: 0, points: 6, deductions: [] },
+    ]);
+    mockedApi.getPointsRace.mockReset();
+    mockedApi.getPointsRace.mockResolvedValue({ frames: 2, series: [{ id: 1, name: 'Arsenal', values: [3, 6] }, { id: 2, name: 'Chelsea', values: [1, 4] }] });
+    render(<MemoryRouter initialEntries={['/table?league=1&season=12']}><Routes><Route path="/table" element={<LeagueTable />} /></Routes></MemoryRouter>);
+    const toggle = await screen.findByRole('button', { name: 'Timelapse' });
+    expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+    expect(mockedApi.getPointsRace).not.toHaveBeenCalled();
+    await userEvent.click(toggle);
+    expect(await screen.findByRole('list', { name: 'Points, After 2 games' })).toBeInTheDocument();
+    expect(mockedApi.getPointsRace).toHaveBeenCalledWith(1, 12);
+    expect(screen.queryByRole('table', { name: /league table/i })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.queryByRole('list', { name: /Points,/ })).toBeNull();
   });
 });

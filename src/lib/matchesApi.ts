@@ -351,3 +351,66 @@ export async function getLeagueTable(leagueId: number, seasonId: number): Promis
     });
 }
 
+
+// ---- Points race: every club's points after each game ----------------------
+export type RaceSeries = { id: number; name: string; values: number[] };
+
+/**
+ * Cumulative points after each club's 1st, 2nd, 3rd... game, in date order.
+ * Frame k = every club after (k+1) games, or its latest total if it has
+ * played fewer. A deduction applies from the club's first game on or after
+ * its effective date (or at the end if undated/after the last game), so the
+ * final frame equals the league table exactly.
+ */
+export function buildPointsRace(
+  matches: { match_date: string; home_team_id: number; away_team_id: number; full_time_result: string; home_name: string; away_name: string }[],
+  deductions: { team_id: number; points: number; effective_date: string | null }[]
+): { frames: number; series: RaceSeries[] } {
+  const games = new Map<number, { name: string; pts: { date: string; p: number }[] }>();
+  const add = (id: number, name: string, date: string, p: number) => {
+    if (!games.has(id)) games.set(id, { name, pts: [] });
+    games.get(id)!.pts.push({ date, p });
+  };
+  for (const m of [...matches].sort((a, b) => a.match_date.localeCompare(b.match_date))) {
+    const r = m.full_time_result;
+    add(m.home_team_id, m.home_name, m.match_date, r === 'H' ? 3 : r === 'D' ? 1 : 0);
+    add(m.away_team_id, m.away_name, m.match_date, r === 'A' ? 3 : r === 'D' ? 1 : 0);
+  }
+  const frames = Math.max(0, ...[...games.values()].map((g) => g.pts.length));
+  const series: RaceSeries[] = [];
+  for (const [id, g] of games) {
+    const cum: number[] = [];
+    let total = 0;
+    g.pts.forEach((x, k) => { total += x.p; cum[k] = total; });
+    for (const d of deductions.filter((x) => x.team_id === id)) {
+      let from = d.effective_date ? g.pts.findIndex((x) => x.date >= d.effective_date!) : -1;
+      if (from < 0) from = g.pts.length - 1; // undated, or after the last game: at the end
+      // Stored as a signed adjustment (a deduction is negative); added exactly as the table adds it.
+      for (let k = from; k < cum.length; k++) cum[k] += d.points;
+    }
+    const values = Array.from({ length: frames }, (_, k) => cum[Math.min(k, cum.length - 1)] ?? 0);
+    series.push({ id, name: g.name, values });
+  }
+  return { frames, series };
+}
+
+export async function getPointsRace(leagueId: number, seasonId: number): Promise<{ frames: number; series: RaceSeries[] }> {
+  const [{ data, error }, deductions] = await Promise.all([
+    supabase
+      .from('matches')
+      .select('match_date, home_team_id, away_team_id, full_time_result, home_team:teams!matches_home_team_id_fkey(canonical_name:display_name), away_team:teams!matches_away_team_id_fkey(canonical_name:display_name)')
+      .eq('league_id', leagueId)
+      .eq('season_id', seasonId),
+    getPointDeductions(leagueId, seasonId),
+  ]);
+  if (error) throw error;
+  const rows = (data ?? []).map((m) => ({
+    match_date: String(m.match_date),
+    home_team_id: m.home_team_id,
+    away_team_id: m.away_team_id,
+    full_time_result: String(m.full_time_result),
+    home_name: (m.home_team as { canonical_name?: string } | null)?.canonical_name ?? 'Unknown',
+    away_name: (m.away_team as { canonical_name?: string } | null)?.canonical_name ?? 'Unknown',
+  }));
+  return buildPointsRace(rows, deductions.map((d) => ({ team_id: d.team_id, points: d.points, effective_date: (d as { effective_date?: string | null }).effective_date ?? null })));
+}
