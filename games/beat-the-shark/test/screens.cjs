@@ -27,13 +27,20 @@ run(`renderMatch(()=>{globalThis.__done=1},true)`);
 const vp=app();
 ok("vidiprinter: Your Team on the LEFT", /<div class="teams">\s*<span>YOUR TEAM/.test(vp));
 drain();
+// After the whistle: three calm screens, no timers (Chris's playtest).
+ok("full time WAITS for the player -- no automatic jump to the results", /See the league table/.test(els.paceBox.innerHTML)&&q.length===0);
+els.toTable.onclick();
 const el=app();
-ok("3pm kick-offs screen reached", /THE 3PM KICK-OFFS/.test(el));
-ok("table shown 'as it stands' before other results", /AS IT STANDS|FULL TIME · ALL GAMES DONE/.test(el));
+ok("then the league table, as it stands", /THE TABLE/.test(el)&&/AS IT STANDS/.test(el));
 ok("result line puts Your Team first", /<b>Your Team<\/b> \d+–\d+/.test(el));
 ok("Your Team tagged YOU in the table", /class="you">YOU/.test(el));
+ok("the gameweek is not over until the other results are in", run("S.mw")===0, "S.mw="+run("S.mw"));
+els.toOthers.onclick();
+const el2=app();
+ok("then the other results, all at once, and what they did to the table", /THE OTHER RESULTS/.test(el2)&&/WHAT THAT DID TO THE TABLE/.test(el2));
+ok("no timers after the whistle -- nothing runs on its own", q.length===0);
 ok("gameweek advanced after all results", run("S.mw")===1, "S.mw="+run("S.mw"));
-ok("no broken text on match screens", !bad(vp)&&!bad(el));
+ok("no broken text on match screens", !bad(vp)&&!bad(el)&&!bad(el2));
 // 2. full match: team sheet first, then kick off
 run(`renderMatch(()=>{},false)`);
 const sheet=app();
@@ -42,7 +49,7 @@ ok("team sheet names the opponent's formation", /They are lining up <b>\d-\d-\d<
 els.kick.onclick();drain();
 ok("manager's match pauses at half time for the tactical call", /HALF TIME/.test(els.htBox.innerHTML)&&!!(els.goSecond&&els.goSecond.onclick));
 els.goSecond.onclick();drain();
-ok("full match plays through to 3pm results after half time", /THE 3PM KICK-OFFS/.test(app()));
+ok("full match plays through to full time after half time, then waits", /See the league table/.test(els.paceBox.innerHTML));
 // 3. heat map in site language
 const hm=run("fixtureHeatHTML(2,5)");
 ok("heat map: GW, H/A codes, and no MW", /GW\d/.test(hm)&&/[A-Z]{3} - [HA]/.test(hm)&&!/MW/.test(hm));
@@ -135,35 +142,39 @@ ok("the opening screen offers the three levels", (()=>{run("chooseRole()");const
 run(`LEVEL="intermediate"`);
 // 17. PACING (Chris's playtest: "too fast to follow")
 run(`LEVEL="beginner";SPEED=null`);
-ok("beginners start on slow; commentary gives at least 2s a line (reading pace)", run(`speedName()`)==="slow"&&run(`PACE.commentaryMs*speedFactor()`)>=2000);
+ok("beginners start on slow; commentary gives about 3s a line", run(`speedName()`)==="slow"&&run(`PACE.commentaryMs*speedFactor()`)>=2900);
 run(`LEVEL="intermediate";SPEED=null`);
-ok("other levels start on normal, still slower than the old 0.8s a line", run(`speedName()`)==="normal"&&run(`PACE.commentaryMs*speedFactor()`)>=1500);
+ok("other levels start on normal: over 2s a line (was 0.8s)", run(`speedName()`)==="normal"&&run(`PACE.commentaryMs*speedFactor()`)>=2000);
 run(`SPEED="fast"`);
 ok("the player's speed choice overrides the level default", run(`speedName()`)==="fast");
 run(`SPEED=null;LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=0;S.pendingOppFm=null;S._sheetShown=true;renderMatch(()=>{},false)`); // past the team sheet, into the commentary
 ok("live commentary shows speed controls and Skip to full time", /data-speed="slow"/.test(app())&&/Skip to full time/.test(app()));
-// the 3pm results: the table stays put until every result is in, then redraws once with arrows
-q.length=0;delete els.scTable; // a fresh element: the harness keeps elements between tests
-run(`renderElsewhere({wk:0,fx:{},res:'w',mine:1,theirs:0,opp:RIVALS[0].n,home:true,startPos:null,final:false},()=>{})`);
-// (The harness doesn't parse HTML, so the initial table is checked in the
-// page markup, and "not re-sorted" is checked as: the table element is not
-// written AT ALL until every result is in.)
-ok("3pm results offer speed controls and Show all results", /Show all results/.test(app()));
-ok("before the results, the table is labelled as it stood at 3pm", /AS IT STANDS AT 3PM/.test(app()));
-if(q.length)q.shift()(); // the first result arrives
-ok("after a result arrives, the table has NOT been touched (it used to re-sort every 1.5s)", !els.scTable || els.scTable.innerHTML==="");
-for(let k=0;k<20&&q.length;k++)q.shift()();
-ok("when all results are in, the table redraws once, with moves since 3pm", /ARROWS SHOW MOVES SINCE 3PM/.test(els.scTable.innerHTML));
-
+// 17b. Beginners: an easy story decision before the data-heavy ones
+run(`LEVEL="beginner";ROLE=ROLES.manager;boot()`);
+ok("Beginner season opens with the press conference (a story decision)", run(`PLAN[0]`)==="presser");
+run(`LEVEL="intermediate";ROLE=ROLES.manager;boot()`);
+ok("other levels keep the original order", run(`PLAN[0]`)==="special1");
 // 18. READING BUDGET -- a ratchet. Measured 2026-09-21: a beginner's season
 // is ~4,900 words (~19 min of reading) for a game billed as "a season in
 // five minutes". These caps stop any screen, or the season, growing from
 // here; lower them as screens are trimmed toward the chosen target.
-const text=h=>h.replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').replace(/\s+/g,' ').trim();
+// VISIBLE text only: a closed "Why?" shows just its one-line label, and
+// nobody reads what's folded inside unless they choose to open it.
+const visible=h=>h.replace(/<details[^>]*>\s*<summary>([\s\S]*?)<\/summary>[\s\S]*?<\/details>/g,' $1 ');
+const text=h=>visible(h).replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').replace(/\s+/g,' ').trim();
 const words=h=>text(h).split(' ').filter(w=>/[A-Za-z0-9]/.test(w)).length;
-// season: 5,527 measured with commentary run to the end and the new pace
-// controls included (the earlier ~4,900 estimate stopped mid-commentary).
-const BUDGET={screen:600,beginnerTeamSheet:470,opening:200,preseason:370,season:5550};
+// Reading TIME, the honest measure: prose at 250 words a minute, plus ~6s
+// per table or pitch (glanced at, not read word by word). Folded "Why?"
+// text isn't counted -- it's only read if opened.
+const visuals=h=>(visible(h).match(/<table|<!--SQ-->/g)||[]).length;
+const prose=h=>visible(h).replace(/<!--SQ-->[\s\S]*?<!--\/SQ-->/g,' ').replace(/<table[\s\S]*?<\/table>/g,' ')
+  .replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(w=>/[A-Za-z]/.test(w)).length;
+const readSecs=h=>prose(h)/250*60+visuals(h)*6;
+// RATCHETED DOWN 2026-09-21 after the ten-minute work: largest screen
+// ~575 -> 258 words; pre-season 360 -> 56; a beginner's 4th team sheet 457
+// -> 274; season reading time ~22 -> ~15 min. Target: ~7 min of reading (+
+// ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
+const BUDGET={screen:270,beginnerTeamSheet:285,opening:200,preseason:70,minutes:15.5};
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);
@@ -171,14 +182,23 @@ ok(`reading budget: pre-season <= ${BUDGET.preseason} words`, words(app())<=BUDG
 run(`S.fullMatches=3;S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok(`reading budget: a beginner's team sheet <= ${BUDGET.beginnerTeamSheet} words`, words(app())<=BUDGET.beginnerTeamSheet, `${words(app())} words`);
 {
-  const plan=run('PLAN');let total=0,worst=0,worstAt='';
+  const plan=run('PLAN');let total=0,worst=0,worstAt='',secs=0;
   for(let i=0;i<plan.length;i++){
     try{run(`cursor=${i};S.mw=Math.min(MW-1,${Math.floor(i/3)});S.pendingOppFm=null;S._sheetShown=false;step()`)}catch(e){continue}
-    for(let k=0;k<400&&q.length;k++){try{q.shift()()}catch(e){}}
-    const w=words(app());total+=w;if(w>worst){worst=w;worstAt=plan[i]}
+    const settle=()=>{for(let k=0;k<400&&q.length;k++){try{q.shift()()}catch(e){}}};
+    const count=()=>{const h=app(),w=words(h);total+=w;secs+=readSecs(h);if(w>worst){worst=w;worstAt=plan[i]}};
+    settle();count();
+    // A match is several screens now: follow it through and count each one
+    // (a full match's commentary page once, after the second half).
+    const full=plan[i]==='match';
+    for(const btn of ['kick','goSecond','toTable','toOthers']){
+      const b=els[btn];if(!b||typeof b.onclick!=='function')continue;
+      try{b.onclick();settle();if(!(full&&btn==='kick'))count()}catch(e){}
+      els[btn]=undefined;
+    }
   }
   ok(`reading budget: no screen over ${BUDGET.screen} words`, worst<=BUDGET.screen, `largest ${worst} (${worstAt})`);
-  ok(`reading budget: a beginner's whole season <= ${BUDGET.season} words`, total<=BUDGET.season, `${total} words, ~${Math.round(total/250)} min at 250 wpm`);
+  ok(`reading budget: a beginner's season takes <= ${BUDGET.minutes} minutes to read`, secs/60<=BUDGET.minutes, `~${(secs/60).toFixed(1)} min (prose at 250 wpm + ~6s per table or pitch), before commentary playback`);
 }
 run(`LEVEL="intermediate";SPEED=null`);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");

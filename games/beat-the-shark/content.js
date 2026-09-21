@@ -49,6 +49,15 @@ function deltaChip(now,then){
 function spendable(){return S.janBudget!=null&&ROLE.id==="manager"?Math.min(S.janBudget,S.cash):S.cash}
 function renderWindow(which,after){
   const targets=S.flags["tw_"+which]||(S.flags["tw_"+which]=makeTargets(3));
+  const guru=!!LEVELS[LEVEL].guru;
+  let sellOpen=false; // keep "Sell a player" open once someone is sold
+  const sellListHTML=canSell=>`<p class="small">Selling raises cash and lowers quality.</p>
+      ${S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone).sort((a,b)=>b.p.rt-a.p.rt).map(({p,i})=>`<div class="market">
+        <div class="top"><span class="nm">${p.pos} ${p.nm}</span><span class="fee">${fmtMoney(Math.round((p.rt-38)*rnd(10,16)))}</span></div>
+        <div class="meta">Quality ${p.rt} · condition ${p.fit}${p.out?` · <span style="color:var(--bad)">out ${p.out}w</span>`:''} · ${p.line}</div>
+        <button class="choice" style="margin:8px 0 0" data-sell="${i}" ${canSell?"":"disabled"}>
+          <span class="t">${canSell?"Accept an offer":"Squad too small to sell"}</span>
+          <span class="d">Cash now, quality gone</span></button></div>`).join('')}`;
   function draw(){
     paintHeader();
     const canSell=alive().length>5;
@@ -69,24 +78,18 @@ function renderWindow(which,after){
       ${targets.map((t,i)=>`<div class="market">
         <div class="top"><span class="nm">${t.pos} ${t.nm}</span><span class="fee">${t.bought?"SIGNED":fmtMoney(t.fee)}</span></div>
         <div class="meta">Quality ${t.rt} · wants ${fmtMoney(t.wage)}/wk · condition ${t.fit}</div>
-        <div class="meta" style="color:var(--ink2)">Value for money:
-          <b>${((t.rt-38)/Math.max(1,t.fee/100)).toFixed(2)}</b> quality per £100k ·
-          <b>${((t.rt-38)/Math.max(1,t.wage)).toFixed(1)}</b> per £1k of wages
-          ${((t.rt-38)/Math.max(1,t.fee/100))>2.6?' <span style="color:var(--good)">— the model likes this one</span>':
-            ((t.rt-38)/Math.max(1,t.fee/100))<1.4?' <span style="color:var(--bad)">— overpriced on the model</span>':''}</div>
+        ${(()=>{const vfm=(t.rt-38)/Math.max(1,t.fee/100);
+          const verdict=vfm>2.6?'<span style="color:var(--good)">The model likes this one</span>':vfm<1.4?'<span style="color:var(--bad)">Overpriced on the model</span>':'';
+          // Everyone gets the verdict; the Data guru also gets the figures behind it.
+          return guru?`<div class="meta" style="color:var(--ink2)">Value for money: <b>${vfm.toFixed(2)}</b> quality per £100k ·
+            <b>${((t.rt-38)/Math.max(1,t.wage)).toFixed(1)}</b> per £1k of wages${verdict?` — ${verdict.toLowerCase()}`:''}</div>`
+            :verdict?`<div class="meta">${verdict}</div>`:'';})()}
         <div class="quip">${t.quip}</div>
         ${t.bought?"":`<button class="choice" style="margin:8px 0 0" data-buy="${i}" ${spendable()<t.fee?"disabled":""}>
           <span class="t">${spendable()<t.fee?"Over budget":"Sign him"} · ${deltaChip(S.squad,ratingWith(t,null))}</span>
           <span class="d">${fmtMoney(t.fee)} now, ${fmtMoney(t.wage)} a week after · cash would be ${fmtMoney(S.cash-t.fee)}</span></button>`}
       </div>`).join('')}
-      <h2 style="margin-top:14px">Your squad</h2>
-      <p class="small">Selling raises cash and lowers quality.</p>
-      ${S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone).sort((a,b)=>b.p.rt-a.p.rt).map(({p,i})=>`<div class="market">
-        <div class="top"><span class="nm">${p.pos} ${p.nm}</span><span class="fee">${fmtMoney(Math.round((p.rt-38)*rnd(10,16)))}</span></div>
-        <div class="meta">Quality ${p.rt} · condition ${p.fit}${p.out?` · <span style="color:var(--bad)">out ${p.out}w</span>`:''} · ${p.line}</div>
-        <button class="choice" style="margin:8px 0 0" data-sell="${i}" ${canSell?"":"disabled"}>
-          <span class="t">${canSell?"Accept an offer":"Squad too small to sell"}</span>
-          <span class="d">Cash now, quality gone</span></button></div>`).join('')}
+      ${guru?`<h2 style="margin-top:14px">Your squad</h2>${sellListHTML(canSell)}`:why(sellListHTML(canSell),"Sell a player",sellOpen)}
       <button class="choice primary" id="close" style="margin-top:12px"><span class="t">Close the window</span>
         <span class="d">${which==="summer"?"Get the season started":"Back to the run-in"}</span></button></div>`;
     document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
@@ -98,7 +101,7 @@ function renderWindow(which,after){
     document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{
       const p=S.squadList[+b.dataset.sell];
       S.cash+=Math.round((p.rt-38)*rnd(10,16));S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));
-      p.gone=true;recalcSquadRating();S.fans=clamp(S.fans-(p.rt>60?11:4));draw();
+      p.gone=true;recalcSquadRating();S.fans=clamp(S.fans-(p.rt>60?11:4));sellOpen=true;draw();
     });
     document.getElementById('close').onclick=()=>{recalcSquadRating();after()};
   }

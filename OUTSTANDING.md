@@ -1447,12 +1447,22 @@ after every result -- it redraws once at the end with arrows since 3pm.
 READING BUDGET ratchet in test/screens.cjs caps every screen and the season
 at today's level, so nothing grows; lower the caps as screens are trimmed.
 
-TO DO (needs Chris's call: 5- or 10-minute target):
-1. Beginner's first decision within ~30s (role+level -> one-line mission
-   -> first team sheet; squad and heat map later, in context).
-2. Invert Beginner mode: only that match's new idea + essentials; other
-   explanation behind a "Why?" link.
-3. Trim the heaviest screens to their key message (target ~120 words).
+DONE (ten-minute season, Chris chose 10): "Why?" fold-outs on the heavy
+screens; pre-season 360 -> 56 words (mission + target + Begin); Beginner
+team sheet inverted (lessons fold after the match they're introduced);
+January window (verdict-only targets, sell list folded); ending, heat map,
+stats slimmed; Beginners open with the press conference (story first).
+After the whistle: three calm screens, no timers -- the match (waits at
+full time), the table, then the other results and what they did to the
+table. Commentary ~3s a line for Beginners (2.2s normal). Dashboard only on
+key screens; a one-line summary after each week.
+MEASURED: a Beginner's season ~15 min of reading (was ~22) + ~3 min of
+commentary. Largest screen 258 words (was ~575). Budget caps ratcheted
+down to these levels.
+
+TO DO toward ~10 minutes (~7 min reading): physio (~200 words x2), crisis
+(~160 x2), the team sheet's prose around the pitch, and the opening screen
+(194 words). Measure each with the budget check and ratchet it down.
 
 ## PRODUCT: FOOTBALL FINANCE PILLAR — ASSESSED, NOT STARTED
 Full brief retained separately. Position taken 2026-09-20:
