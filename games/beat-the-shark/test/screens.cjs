@@ -135,12 +135,24 @@ run(`paintHeader()`);
 ok("header calls the Shark's number a target, in points", /The Shark's target/.test(els.hTwo.innerHTML)&&/pts/.test(els.hTwo.innerHTML));
 // 16. levels: progressive disclosure for beginners, everything for the rest
 const sheetAt=(lvl,played)=>{run(`LEVEL="${lvl}";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.fullMatches=${played};S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);return app()};
-let b0=sheetAt("beginner",0);
-ok("beginner, first match: formations only, flagged as new", /New this match · Formations/.test(b0)&&/data-fm=/.test(b0)&&!/data-xi=/.test(b0)&&!/data-sp=/.test(b0));
-let b1=sheetAt("beginner",1);
-ok("beginner, second match: rotation unlocks, flagged as new", /New this match · Rest and rotation/.test(b1)&&/data-xi=/.test(b1)&&!/data-sp=/.test(b1));
-ok("beginner, third match: set pieces unlock", /New this match · Set pieces/.test(sheetAt("beginner",2))&&/data-sp=/.test(app()));
-ok("beginner, fourth match: out of position unlocks", /New this match · Out of position/.test(sheetAt("beginner",3)));
+// Beginners: ONE either/or per match, each with a win chance (Chris: cut
+// the cognitive load, keep similar items).
+const bc=h=>(h.match(/data-bc="/g)||[]).length;
+const kinds=[];
+for(let n=0;n<5;n++){
+  const h=sheetAt("beginner",n);
+  kinds.push(run(`beginnerDecision(...(()=>{const[hT,aT]=myFixture(S.mw);return[hT===CLUB?aT:hT,hT===CLUB]})()).kind`));
+  ok(`beginner match ${n+1}: exactly two options, each with a win chance, and no complex controls`,
+    bc(h)===2&&(h.match(/win chance \d+%/g)||[]).length===2&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+}
+ok("a beginner's season opens on shape and still meets selection, set pieces and out of position (or falls back to shape)",
+  kinds[0]==="formation"&&["selection","formation"].includes(kinds[1])&&kinds[2]==="setpieces"&&["oop","formation"].includes(kinds[3]), kinds.join(" → "));
+// choosing the second option actually changes the side
+sheetAt("beginner",0);
+const fmBefore=run("S.formation");
+run(`document.querySelectorAll=()=>[]`); // the harness can't click; apply the option directly, as the button does
+run(`(()=>{const[hT,aT]=myFixture(S.mw);const d=beginnerDecision(hT===CLUB?aT:hT,hT===CLUB);d.options[1].set();globalThis.__alt=d.options[1].title})()`);
+ok("picking the other shape really changes the formation", run("S.formation")===run("__alt")&&run("S.formation")!==fmBefore);
 ok("intermediate has every lever from the first match, no 'new' banner", (()=>{const h=sheetAt("intermediate",0);return /data-xi=/.test(h)&&/data-sp=/.test(h)&&!/New this match/.test(h)})());
 ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
 // a beginner cannot play someone out of position before it unlocks
