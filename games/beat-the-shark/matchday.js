@@ -352,8 +352,8 @@ function renderBeginnerSheet(done){
       ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
         style="${i===chosen?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
         <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span></button>`).join('')}
-      ${squadHTML({})}
-      <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button></div>`;
+      <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button>
+      ${squadHTML({noBench:true})}</div>`;
     document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{chosen=+b.dataset.bc;dec.options[chosen].set();draw()});
     document.getElementById('kick').onclick=()=>{S.fullMatches=(S.fullMatches||0)+1;done()};
   }
@@ -593,7 +593,7 @@ function renderElsewhere(info,done){
   const endPos=posOf(CLUB),moved=myBefore-endPos;
   const line=final
     ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
-    :`${moved>0?`Up ${moved}`:moved<0?`Down ${-moved}`:"No change for you"} — ${ord(endPos)} of six.`;
+    :moved>0?`Up to ${ord(endPos)}.`:moved<0?`Down to ${ord(endPos)}.`:`${ord(endPos)}.`;
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE OTHER RESULTS</div>
     <h1>${line}</h1>
@@ -643,9 +643,12 @@ function pickScorer(){const g=pickGoal();return g?g.p:null}
 function subHalfTime(resume){
   const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
   let pair=null;
-  for(const x of xi){const s=S.squadList[x.i];if(!s||s.fit>=80)continue;
+  // Gameweek 2 always asks (Chris): the tiredest starter who has a fresher
+  // like-for-like replacement. Other weeks only when someone is really tiring.
+  const always=S.mw===1;
+  for(const x of xi){const s=S.squadList[x.i];if(!s||(!always&&s.fit>=80))continue;
     for(const b of available()){const j=S.squadList.indexOf(b);
-      if(inXI.has(j)||b.pos!==s.pos||b.fit<s.fit+10)continue;
+      if(inXI.has(j)||b.pos!==s.pos||b.fit<=s.fit+(always?0:9))continue;
       if(!pair||s.fit<pair.s.fit)pair={si:x.i,bi:j,s,b}}}
   if(!pair)return resume();
   const box=document.getElementById('htBox');

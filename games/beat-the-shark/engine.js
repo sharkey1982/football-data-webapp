@@ -88,6 +88,10 @@ function buildFixtures(){
   const holds=(wk,home)=>wk.some(([h,a])=>home?h===CLUB&&a===weakest:a===CLUB&&h===weakest);
   let r=rounds.findIndex(wk=>holds(wk,true));if(r<0)r=rounds.findIndex(wk=>holds(wk,false));
   if(r>0)[rounds[0],rounds[r]]=[rounds[r],rounds[0]];
+  // Gameweek 2 is against the STRONGEST club (Chris): a harder second match.
+  const strongest=RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n;
+  const r2=rounds.findIndex((wk,i)=>i>0&&wk.some(([h,a])=>(h===CLUB&&a===strongest)||(a===CLUB&&h===strongest)));
+  if(r2>1)[rounds[1],rounds[r2]]=[rounds[r2],rounds[1]];
   FIXTURES=rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
 }
 /* A rival's strength can move mid-season through luck events (an injury to
@@ -528,7 +532,7 @@ function squadHTML(opts){
       <span><b style="color:#7cb9e8">Rusty</b> rested too long</span>
       <span><b>Q</b> quality · <b>%</b> condition (fitness)</span>
     </div>
-    <div class="benchh">Bench${opts.pick?' — tap a player on the pitch, then one here, to swap':''}
+    ${opts.noBench?"":`    <div class="benchh">Bench${opts.pick?' — tap a player on the pitch, then one here, to swap':''}
       <span style="float:right;text-transform:none;letter-spacing:0">Quality · Condition</span></div>
     <div class="bench">${bench.map(({p,i})=>
       `<button type="button" class="bp${p.out?' out':''}${i===S.meIdx?' me':''}" ${opts.pick&&!p.out?`data-bench="${i}"`:'disabled'}>
@@ -536,7 +540,7 @@ function squadHTML(opts){
         <span class="bn">${p.nm}<small>${p.out?`<b style="color:var(--bad)">OUT ${p.out} ${p.out===1?"week":"weeks"}</b> · `:
           (p.sharp!=null&&p.sharp<RUST_LINE)?'<b style="color:#7cb9e8">Rusty</b> · ':''}${p.line}</small></span>
         <span class="bq">Q${p.rt}</span>
-        <span class="bq" style="color:${condCol(p.fit)};min-width:38px;text-align:right">${p.fit}%</span></button>`).join('')}</div>
+        <span class="bq" style="color:${condCol(p.fit)};min-width:38px;text-align:right">${p.fit}%</span></button>`).join('')}</div>`}
   </div><!--/SQ-->`;
 }
 const alive=()=>S.squadList.filter(p=>!p.gone);
@@ -689,14 +693,11 @@ function apply(fx,noisy){const out=[];
   const size=v=>{const a=Math.abs(v);return a<=3?1:a<=8?2:3};
   const tag=(label,v,good)=>`<span class="tag ${good?'up':'down'}">${label} ${(v>0?'\u25b2':'\u25bc').repeat(size(v))}</span>`;
   const tags=[];
-  if(T.team)tags.push(tag("Team",T.team,T.team>0));
-  if(T.fans)tags.push(tag("Fans",T.fans,T.fans>0));
-  if(T.board)tags.push(tag("Board",T.board,T.board>0));
-  if(interest)tags.push(tag("Interest",interest,interest>0));
+  // Only money is shown (Chris: fans and board were pointless; cash and
+  // league position are what matter). Team effects still happen -- they show
+  // up where they count, in results and the table.
   if(M.cash)tags.push(`<span class="tag ${M.cash>0?'up':'down'}">Cash ${M.cash>0?'+':'\u2212'}${fmtMoney(Math.abs(M.cash))}</span>`);
-  if(M.debt)tags.push(tag("Debt",M.debt,M.debt<0));
-  if(M.wages)tags.push(tag("Wages",M.wages,M.wages<0));
-  return tags.join('')+(tags.length?why(`<div class="delta">${exact}</div>`,"The numbers"):"")}
+  return tags.join('')}
 function later(n,fx,text){if(!fx)return;const a={};for(const[k,v]of Object.entries(fx))a[k]=Math.round(v*DELAY_AMP);
   S.pending.push({at:cursor+n,fx:a,text})}
 function drainPending(){const d=S.pending.filter(p=>p.at<=cursor);S.pending=S.pending.filter(p=>p.at>cursor);return d}
@@ -705,7 +706,7 @@ function paintHeader(){
   if(!S)return;myPos();
   const {pred,par,pts,diff,total}=scoreParts();
   // The top of the screen: league position and cash. Nothing else (Chris).
-  document.getElementById('hScore').innerHTML=`${S.mw?ord(S.pos):"—"}<span class="sub">POSITION</span>`;
+  document.getElementById('hScore').innerHTML=`${TABLE[CLUB].p?ord(S.pos):"—"}<span class="sub">POSITION</span>`;
   document.getElementById('hTwo').innerHTML=`<div class="two"><div class="k">Cash</div><div class="v${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
       <div class="pts">${S.cash<0?"in the red: the bank will sell a player":""}</div></div>`;
   const tr=document.getElementById('hTrend');tr.className="trend fl";tr.textContent="";

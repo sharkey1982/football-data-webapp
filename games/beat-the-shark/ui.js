@@ -37,7 +37,12 @@ function planFor(level,role){
   const p=PLAN_BASE.slice();
   // The manager's season starts with the opening match (Chris); everything
   // else keeps its order after it.
-  if(role==="manager"){const i=p.indexOf("match");if(i>0){p.splice(i,1);p.unshift("match")}}
+  if(role==="manager"){
+    const i=p.indexOf("match");if(i>0){p.splice(i,1);p.unshift("match")}
+    // ...and straight on to the second (Chris): a harder side, with a
+    // half-time decision about a player change.
+    const j=p.indexOf("live");if(j>1){p.splice(j,1);p.splice(1,0,"live")}
+  }
   return p;
 }
 function step(){
@@ -396,7 +401,7 @@ function renderSpec(spec,chip,after){
       // anybody understands -- the chance of winning. The Data guru also
       // gets the site's measures (xGF, clean sheet chance).
       const dirTag=(label,d,goodWhenUp)=>Math.abs(d)<.02?"":`<span class="tag ${(d>0)===goodWhenUp?'up':'down'}">${label} ${d>0?'\u25b2':'\u25bc'}</span>`;
-      const winLine=ch?`<div class="later" style="border-left-color:var(--amber)"><b>Next match, ${wAfter.home?"at home to":"away at"} ${wAfter.opp}</b>
+      const winLine=ch&&LEVELS[LEVEL].guru?`<div class="later" style="border-left-color:var(--amber)"><b>Next match, ${wAfter.home?"at home to":"away at"} ${wAfter.opp}</b>
            <div style="margin-top:4px">${dirTag("Attack",wAfter.xgf-wBefore.xgf,true)}${dirTag("Defence",wAfter.cs-wBefore.cs,true)}
            <span class="tag ${wAfter.w>wBefore.w?'up':wAfter.w<wBefore.w?'down':''}">Win chance ${arrow(wBefore.w,wAfter.w,v=>v+"%")}</span></div>
            ${LEVELS[LEVEL].guru?`<div class="small" style="margin-top:4px">xGF ${arrow(wBefore.xgf,wAfter.xgf,v=>v.toFixed(2))} · clean sheet ${arrow(wBefore.cs,wAfter.cs,v=>Math.round(v*100)+"%")}</div>`:""}</div>`:"";
@@ -570,7 +575,11 @@ function renderLeagueIntro(){
   document.getElementById('app').innerHTML=`<div class="card hero">
     <div class="hero-kicker">THE LEAGUE</div>
     <div class="mission">Six clubs. Ten games.<br>One title.</div>
-    <div style="margin:14px 0;text-align:left">${tableRowsHTML(null)}</div>
+    <div class="datechip" style="margin:12px 0 4px">PREDICTED FINISH</div>
+    <table class="tbl" style="text-align:left"><tbody>
+      ${[CLUB].concat(RIVALS.map(r=>r.n)).sort((a,b)=>PREDICT[a].avg-PREDICT[b].avg)
+        .map((n,i)=>`<tr class="${n===CLUB?'me':''}"><td class="n">${i+1}</td><td>${n}${youTag(n)}</td></tr>`).join('')}
+    </tbody></table>
     <button class="choice primary" id="go"><span class="t">Begin</span></button></div>`;
   document.getElementById('go').onclick=renderTeamIntro;
 }

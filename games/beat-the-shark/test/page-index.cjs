@@ -28,14 +28,14 @@ run(`SEED="SOC-S07";LEVEL="beginner";ROLE=ROLES.manager;boot()`);
 const plan=run('PLAN');const out=[];let n=0,gw=0;
 const add=(t)=>out.push(`${String(++n).padStart(2)}. ${t}`);
 add('Opening — "Your mission: Win the league!"; level; Manager / Owner');
-add('The league — all six clubs on zero; Begin');
+add('The league — predicted finishing positions; Begin');
 add('Your team — expected finish, bank balance; goals-for rank, clean-sheet rank, team health, squad quality');
 const NAME={special1:'A bid arrives — keep or sell your best player',heatmap:'Your next five fixtures (heat map)',presser:'Press conference (story)',
   crisis:'Cash crisis — sell a striker or a defender',physio:'The physio room',papers:'The Sunday papers',event:'A story decision',podcast:'The podcast clip',
   special2:'January window, then the winter break',stats:'Halfway: the numbers',luck:'A stroke of luck (or not)',call:'A phone call'};
 for(const b of plan){
-  if(b==='match'){gw++;add(`Gameweek ${gw} — team sheet: them v you, then one decision`);add(`Gameweek ${gw} — the match (commentary; no half-time decision)`);add(`Gameweek ${gw} — the table`);add(`Gameweek ${gw} — the other results and the table now`)}
-  else if(b==='live'){gw++;add(`Gameweek ${gw} — the match (commentary; half-time sub if someone's tiring)`);add(`Gameweek ${gw} — the table`);add(`Gameweek ${gw} — the other results and the table now`)}
+  if(b==='match'){gw++;add(`Gameweek ${gw} — team sheet: them v you, one decision, Kick off, the pitch`);add(`Gameweek ${gw} — the match (commentary; no half-time decision)`);add(`Gameweek ${gw} — the table`);add(`Gameweek ${gw} — the other results and the table now`)}
+  else if(b==='live'){gw++;add(gw===2?`Gameweek 2 — v the strongest club; half-time: make a change?`:`Gameweek ${gw} — the match (commentary; half-time sub if someone's tiring)`);add(`Gameweek ${gw} — the table`);add(`Gameweek ${gw} — the other results and the table now`)}
   else if(b==='end')add('The end — champions or your position; the final table');
   else add(NAME[b]||b);
 }
