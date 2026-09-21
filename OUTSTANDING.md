@@ -1466,13 +1466,21 @@ Full brief retained separately. Position taken 2026-09-20:
 Read-only sweep after a heavy day of changes (game, finance, In the papers,
 two AIs editing the same repo and database). Ranked:
 
-1. **HIGH — the repo cannot rebuild the database.** 342 migrations are
-   recorded in production; only today's exist as files. IN PROGRESS:
-   .github/workflows/schema-snapshot.yml dumps the public schema (with
-   policies and grants) to supabase/schema/public.sql weekly and on demand.
-   WAITING ON CHRIS: add the SUPABASE_DB_URL secret (Session pooler string)
-   and run it once — Claude's token cannot write secrets (HTTP 403) and has
-   no database password.
+1. **HIGH — the repo cannot rebuild the database. FIXED (2026-09-21).**
+   supabase/schema/public.sql is a baseline of the whole public schema, built
+   from the live catalogue: 79 functions, 85 tables, constraints, indexes,
+   foreign keys, 42 views in dependency order, triggers, RLS, 69 policies,
+   and every table/view/function privilege (REVOKE then GRANT, exactly as
+   live). Scanned for secrets before committing (the repo is public): none.
+   VERIFIED: restored into an empty PostgreSQL with zero errors, and
+   supabase/schema/verify/fingerprint.sql -- 19 checks incl. which tables and
+   functions anon/authenticated can read, write and call -- matched
+   production exactly (whole-fingerprint md5 identical). The kit to repeat
+   this is in supabase/schema/verify/. When the SUPABASE_DB_URL secret is
+   added, the weekly workflow replaces this file with a true pg_dump.
+   Not included: data, sequence positions, ownership, Supabase platform
+   objects, pg_cron commands (names/schedules only).
+
 2. **MEDIUM — admin diagnostics callable anonymously.** FIXED
    (migration 20260921120115): get_public_read_audit and
    get_data_integrity_report now admin/service-role only via wrappers over
