@@ -41,6 +41,30 @@ function match(overrides: Partial<MatchWithNames>): MatchWithNames {
 }
 
 describe('TeamExplorer page', () => {
+  it('defaults the division to the Premier League (E0), without first loading every team', async () => {
+    vi.clearAllMocks();
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 2, code: 'E1', name: 'Championship' },
+      { league_id: 1, code: 'E0', name: 'Premier League' },
+    ]);
+    mockedApi.getMostRecentFixtureSeason.mockResolvedValue({ season_id: 13 });
+    mockedApi.getTeamsInLeagueFixtures.mockResolvedValue([{ team_id: 3, canonical_name: 'Arsenal', slug: 'arsenal' }]);
+    mockedApi.getTeams.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={['/teams']}>
+        <Routes><Route path="/teams" element={<TeamExplorer />} /></Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /Filter by division/ })).toHaveValue('1'));
+    await waitFor(() => expect(mockedApi.getTeamsInLeagueFixtures).toHaveBeenCalledWith(1, 13));
+    // no fetch-everything-then-refetch flash
+    expect(mockedApi.getTeams).not.toHaveBeenCalled();
+    // "All divisions" is still available
+    expect(screen.getByRole('option', { name: 'All divisions' })).toBeInTheDocument();
+  });
+
   it('resolves /football/teams/:slug on load and auto-selects that team -- the canonical, bookmarkable entry point', async () => {
     mockedApi.getLeagues.mockResolvedValue([]);
     mockedApi.getTeams.mockResolvedValue([]);

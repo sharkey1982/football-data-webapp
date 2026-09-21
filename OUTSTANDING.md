@@ -1419,6 +1419,17 @@ Full brief retained separately. Position taken 2026-09-20:
 
 ---
 
+## BEAT THE SHARK — PLAYTEST FEEDBACK (Chris, 2026-09-21)
+
+Chris played as a Beginner. More comments to come; batch them before acting.
+
+1. **Beginner felt lost.** Progressive disclosure alone isn't enough
+   orientation -- needs a clearer "what am I doing and why" at the start
+   and at each new idea.
+2. **The vidiprinter and the league updates are too fast to follow.**
+   Consider slower defaults (especially for Beginner), a speed control, and
+   tap-to-continue or pause, so the 3pm results and table moves can be read.
+
 ## PRODUCT: FOOTBALL FINANCE PILLAR — ASSESSED, NOT STARTED
 Full brief retained separately. Position taken 2026-09-20:
 
