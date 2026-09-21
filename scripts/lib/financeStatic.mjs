@@ -43,22 +43,24 @@ export async function fetchFinanceBulk(queryAll) {
  * @param {any} entry  the built SSR entry module
  */
 export function buildFinanceSite(bulk, entry) {
+  // The SSR entry exposes the finance module as the `finance` namespace.
+  const fin = entry.finance ?? entry;
   const teams = bulk.teams
     .filter((t) => t && t.slug)
     .map((t) => ({ team_id: Number(t.team_id), slug: t.slug, display_name: t.display_name }));
-  const grouped = entry.groupFinanceByTeam(
+  const grouped = fin.groupFinanceByTeam(
     teams,
-    bulk.periods.map(entry.normalisePeriod),
-    bulk.provenance.map(entry.normaliseProvenance),
-    bulk.derived.map(entry.normaliseDerived),
+    bulk.periods.map(fin.normalisePeriod),
+    bulk.provenance.map(fin.normaliseProvenance),
+    bulk.derived.map(fin.normaliseDerived),
     bulk.dictionary
   );
   const clubs = [...grouped.values()];
   return {
     clubs,
-    index: entry.buildFinanceIndex(clubs),
+    index: fin.buildFinanceIndex(clubs),
     teamIds: new Set(grouped.keys()),
     // lastmod is the latest filing date: the page changes when accounts do.
-    sitemap: clubs.map((d) => ({ path: `/football/teams/${d.team.slug}/finances`, lastmod: entry.latestFilingDate(d.periods) })),
+    sitemap: clubs.map((d) => ({ path: `/football/teams/${d.team.slug}/finances`, lastmod: fin.latestFilingDate(d.periods) })),
   };
 }

@@ -60,7 +60,7 @@ const TRENDS: FinanceMetricKey[] = ['revenue_total', 'profit_before_tax', 'cash'
 
 const isCount = (k: string) => k === 'average_employees';
 
-export function metricValue(p: FinancePeriod, k: FinanceMetricKey): number | null {
+function metricValue(p: FinancePeriod, k: FinanceMetricKey): number | null {
   return isCount(k) ? p[k] : scaled(p[k], p.unit_scale);
 }
 

@@ -21,24 +21,19 @@
 // ============================================================================
 
 import { renderToString } from 'react-dom/server';
-import { StaticRouter } from 'react-router';
-import { Route, Routes } from 'react-router-dom';
+// StaticRouter, Routes and Route all from ONE package. Importing StaticRouter
+// from 'react-router' and Routes from 'react-router-dom' worked in the
+// production bundle (which merges them) but loaded two copies of the router
+// under the test runner, so the router context did not match -- "useRoutes()
+// may be used only in the context of a <Router>". That is why these
+// renderers could not be tested until now.
+import { Route, Routes, StaticRouter } from 'react-router-dom';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
 import TeamFinancePage from './pages/football/TeamFinancePage';
 import FinanceIndexPage from './pages/FinanceIndexPage';
-import {
-  buildFinanceIndex,
-  groupFinanceByTeam,
-  latestFilingDate,
-  latestPeriod,
-  normaliseDerived,
-  normalisePeriod,
-  normaliseProvenance,
-  type ClubFinanceData,
-  type FinanceIndexEntry,
-} from './lib/financeApi';
+import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
@@ -232,9 +227,10 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
 export { STATIC_ROUTES };
 
 // ---- Club finances ---------------------------------------------------------
-// Re-exported so the build scripts group and normalise rows with exactly the
-// same code the browser uses: one bulk query per view for every club.
-export { buildFinanceIndex, groupFinanceByTeam, latestFilingDate, normaliseDerived, normalisePeriod, normaliseProvenance };
+// The finance module, re-exported as ONE namespace so the build scripts group
+// and normalise rows with exactly the code the browser uses (one bulk query
+// per view for every club) -- see scripts/lib/financeStatic.mjs.
+export * as finance from './lib/financeApi';
 
 export function renderTeamFinancePage(slug: string, data: ClubFinanceData): RenderedPage {
   const path = `/football/teams/${slug}/finances`;
@@ -291,7 +287,6 @@ export function renderFinanceIndexPage(entries: FinanceIndexEntry[]): RenderedPa
   };
 }
 
-export { latestPeriod };
 
 /** Injects a rendered page into the built index.html shell: its markup
  * into #root, and real head tags replacing the shell's static
