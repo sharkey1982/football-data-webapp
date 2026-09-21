@@ -33,8 +33,8 @@ add('Your team — expected finish, bank balance; goals-for rank, clean-sheet ra
 const NAME={knock:'The physio — one named player has a knock: rest him for the next game, or risk him',window:'Transfer window — a choice between two players: the better one, or the cheaper one (fee, wages, cash left, squad quality)',bank:'The bank calls — cash is now the issue: sell a player, or ride it out',special1:'A bid arrives — keep or sell your best player',heatmap:'Your next five fixtures (heat map)',presser:'Press conference (story)',
   crisis:'Cash crisis — sell a striker or a defender',physio:'The physio room',papers:'The Sunday papers',event:'A story decision',podcast:'The podcast clip',
   special2:'January window, then the winter break',stats:'Halfway: the numbers',luck:'A stroke of luck (or not)',call:'A phone call'};
-const PRE=["Shape: read the opponent — go for it or stay compact (each option shows your xG and theirs)","Shape v the strongest club — compact is right","Set pieces — pick your taker from two","Selection — the better player or the fresher one","Final day — shape: must-win or protect"];
-const HT=["none — the first game is kept simple","Keep the tiring star on, or bring on a fresher player?","Push on or hold?","Keep the tiring star on, or bring on a fresher player?","Push on or hold?"];
+const PRE=["Shape: read the opponent — go for it or stay compact (each option shows your xG and theirs)","Shape v the strongest club — compact is right","Selection — the better player or the fresher one","Shape — three options: go for it, balanced, stay compact","Final day — shape, three options"];
+const HT=["none — the first game is kept simple","Keep the tiring star on, or bring on a fresher player?","Push on or hold?","Keep the tiring star on, or bring on a fresher player?","TWO changes — a sub at half time, then at 70': chase it or protect it?"];
 for(const b of plan){
   if(b==='match'){
     gw++;const k=gw-1,[h,a]=run(`myFixture(${k})`),opp=h==='Your Team'?a:h;

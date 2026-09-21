@@ -159,12 +159,13 @@ const kinds=[];
 for(let n=0;n<5;n++){
   const h=sheetAt("beginner",n);
   kinds.push(run(`beginnerDecision(...(()=>{const[hT,aT]=myFixture(S.mw);return[hT===CLUB?aT:hT,hT===CLUB]})()).kind`));
-  ok(`beginner match ${n+1}: exactly two options, no win percentages, no complex controls`,
-    bc(h)===2&&!/win chance/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+  // two options for the first three games; three shapes from Gameweek 4
+  ok(`beginner match ${n+1}: ${n<3?'two':'three'} options, no win percentages, no complex controls`,
+    bc(h)===(n<3?2:3)&&!/win chance/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
   if(kinds[n]==="formation")ok(`beginner match ${n+1}: the shape choice reads the opponent (their attack and defence)`, /(attack)[\s\S]*(defence)/.test(h)&&/Go for it/.test(h)&&/Stay compact/.test(h));
 }
-ok("the agreed Beginner order: shape, shape, set pieces, selection (or shape if nobody's tired), shape",
-  kinds[0]==="formation"&&kinds[1]==="formation"&&kinds[2]==="setpieces"&&["selection","formation"].includes(kinds[3])&&kinds[4]==="formation", kinds.join(" → "));
+ok("the Beginner order: shape, shape, selection, three shapes, three shapes -- no set pieces",
+  kinds.join()==="formation,formation,selection,formation3,formation3", kinds.join(" → "));
 // choosing the second option actually changes the side
 sheetAt("beginner",0);
 const fmBefore=run("S.formation");
@@ -375,5 +376,22 @@ const num=(t,re)=>+((t.match(re)||[])[1]);
 ok("the window: exactly two players, each with fee, wages, cash left and squad quality", opts.length===2&&opts.every(t=>/£\d+k now/.test(t)&&/wages \+£\d+k a week/.test(t)&&/£-?\d+k left/.test(t)&&/squad quality [\d.]+ → [\d.]+/.test(t)));
 ok("...one better, one with the cash advantage",
   num(opts[0],/→ ([\d.]+)/)>num(opts[1],/→ ([\d.]+)/)&&num(opts[1],/£(-?\d+)k left/)>num(opts[0],/£(-?\d+)k left/), opts.map(t=>t.replace(/\s+/g,' ').trim()).join(' | '));
+// 25. Round 3 of Beginner feedback: no set pieces; three shapes from GW4; GW5 two changes
+run(`SEED="R3-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3;cursor=PLAN.indexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
+ok("Gameweek 4: three shapes -- go for it, balanced, stay compact -- each with its impact",
+  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&(app().match(/You \d\.\d xG/g)||[]).length===3);
+run(`S.mw=2;S._sheetShown=false;renderTeamSheet(()=>{})`);
+ok("Gameweek 3: selection, not set pieces", /One place in the side/.test(app())&&!/set pieces/i.test(app()));
+delete els.htBox;delete els.toTable;
+run(`S.mw=4;cursor=PLAN.lastIndexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
+els.kick.onclick();drain();
+ok("Gameweek 5, change one: the half-time sub", /is tiring/.test(els.htBox.innerHTML));
+els.subYes.onclick();drain();
+ok("Gameweek 5, change two: at 70 minutes, chase it or protect it", /70 MINUTES/.test(els.htBox.innerHTML)&&/Chase it or protect it\?/.test(els.htBox.innerHTML));
+els.htHold.onclick();drain();
+ok("...and then on to full time", !!(els.toTable&&els.toTable.onclick));
+// splitting the second half keeps the same goals on average
+{ const f=run(`(()=>{const[h,a]=myFixture(4),home=h===CLUB,opp=home?a:h;const r1=clubRates(opp,home,.62,"4-4-2"),r2=clubRates(opp,home,.62*24/46,"4-4-2"),r3=clubRates(opp,home,.62*22/46,"4-4-2");return[r1[0],r2[0]+r3[0]]})()`);
+  ok("splitting the second half at 70' keeps the same expected goals", Math.abs(f[0]-f[1])<1e-9, `${f[0].toFixed(3)} vs ${f[1].toFixed(3)}`); }
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);
