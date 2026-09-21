@@ -13,13 +13,22 @@ function resolveMine(hg,ag,home){
   else{res='l';fx={fans:-7,board:-6,cash:rnd(8,15)}}
   S.formArr.push(res);S.lastRes=res;S.fatigue=clamp(S.fatigue+rnd(5,9));S.matchBoost=0;
   S.seasonLog.push({mw:S.mw+1,gf:mg,ga:tg,cs:tg===0?1:0});
-  S.squadList.forEach(p=>{
+  /* Only the players who PLAYED tire and risk injury; the bench recovers.
+     That is what makes rotation a real decision rather than a readout.
+     Every player also drifts by his trajectory: the young improve through
+     the season, the veterans decline -- so the squad you finish with is not
+     the one you started with. */
+  const played=new Set(currentXI().map(s=>s.i));
+  S.squadList.forEach((p,i)=>{
     if(p.gone)return;
+    p.rtf=(p.rtf==null?p.rt:p.rtf)+(p.dev||0);
+    p.rt=clamp(Math.round(p.rtf),30,85);
     if(p.out){p.out--;if(!p.out)p.fit=clamp(p.fit+18);return}   /* recovering */
-    p.fit=clamp(p.fit-rnd(3,8),25,100);
-    /* The lower the condition, the likelier the match breaks him. This is
-       what makes the Physio Room matter rather than being a readout. */
-    const risk=p.fit<55?.26:p.fit<70?.12:.04;
+    if(!played.has(i)){p.fit=clamp(p.fit+rnd(4,8));return}     /* rested */
+    p.fit=clamp(p.fit-rnd(3,8)*(p.inj>1.2?1.3:1),25,100);
+    /* The lower the condition, the likelier the match breaks him -- and
+       some players break more easily than others. */
+    const risk=(p.fit<55?.26:p.fit<70?.12:.04)*(p.inj||1);
     if(rng()<risk){p.out=rnd(1,3);p.fit=clamp(p.fit-10)}
   });
   if(ROLE.id==="player"){S.fitness=clamp(S.fitness-rnd(2,6));S.form=clamp(S.form+(mg>tg?5:mg===tg?0:-4))}
@@ -30,9 +39,9 @@ function resolveMine(hg,ag,home){
    they sat or what the model made of the tie. */
 /* Team Strength, in the site's own currency: an attack rating and a defence
    rating expressed as expected goals per match, not an opaque 0-100 score. */
-function teamAtt(n){const st=n===CLUB?myStrength()+(S.attMod||0)+FORMATIONS[S.formation||"4-4-2"].att:strOf(n);
+function teamAtt(n){const st=n===CLUB?myStrength()+(S.attMod||0)+FORMATIONS[S.formation||"4-4-2"].att+balanceAdj()[0]:strOf(n);
   return Math.max(.35,0.95+(st-52)/26)}
-function teamDef(n){const st=n===CLUB?myStrength()+(S.defMod||0)+FORMATIONS[S.formation||"4-4-2"].def:strOf(n);
+function teamDef(n){const st=n===CLUB?myStrength()+(S.defMod||0)+FORMATIONS[S.formation||"4-4-2"].def+balanceAdj()[1]:strOf(n);
   return Math.max(.35,1.55-(st-52)/26)}
 function strengthTableHTML(){
   const rows=[CLUB].concat(RIVALS.map(r=>r.n))
@@ -222,9 +231,54 @@ function renderRoundup(){
     <button class="choice primary" id="nx" style="margin-top:11px"><span class="t">Continue</span></button></div>`;
   document.getElementById('nx').onclick=next;
 }
-function renderMatch(done){
+/* THE TEAM SHEET, before every match you watch in full. The opponent's
+   shape is decided HERE and carried into the match, so what you pick
+   against is what you play against (re-rolling it at kickoff would also
+   shift the seeded random sequence). The manager picks the formation and
+   the XI; other roles see the manager's choice. */
+function renderTeamSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
-  const oFm=oppFormation(opp);S.nextOppFm=oFm;
+  if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
+  const mgr=ROLE.id==="manager";
+  let sel=null;
+  function draw(){
+    recalcSquadRating();paintHeader();
+    const x=xiStats(),[bA,bD]=balanceAdj();
+    const lean=v=>`<span style="color:${v>0.4?'var(--good)':v<-0.4?'var(--bad)':'var(--mute)'}">${v>0?'+':''}${v.toFixed(1)}</span>`;
+    document.getElementById('app').innerHTML=`<div class="card">
+      <div class="datechip">MATCHWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
+      <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
+      <p class="small">They are lining up <b>${S.pendingOppFm}</b>. ${mgr?"Pick your shape and your eleven.":"The manager has picked the side."}</p>
+      ${mgr?`<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0 10px">
+        ${Object.entries(FORMATIONS).map(([k,v])=>`<button class="choice" data-fm="${k}" style="margin:0;padding:7px 2px;text-align:center;
+          ${k===S.formation?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+          <span class="t" style="font-size:13px">${k}</span><span class="d" style="font-size:10px">${v.att>0?'+':''}${v.att}/${v.def>0?'+':''}${v.def}</span></button>`).join('')}
+      </div>`:''}
+      <div class="xibar">XI quality <b>${Math.round(x.q)}</b> · condition <b>${Math.round(x.fit)}</b>
+        · attack lean ${lean(bA)} · defence lean ${lean(bD)}</div>
+      ${squadHTML({pick:mgr,sel})}
+      ${mgr?`<button class="choice" id="bestXI" style="margin-top:9px"><span class="t">Pick my best XI</span>
+        <span class="d">Let the game choose the strongest available side for this shape</span></button>`:''}
+      <button class="choice primary" id="kick" style="margin-top:6px"><span class="t">Kick off</span></button></div>`;
+    if(mgr){
+      document.querySelectorAll('[data-fm]').forEach(b=>b.onclick=()=>{S.formation=b.dataset.fm;S.manualXI=null;sel=null;draw()});
+      document.querySelectorAll('[data-xi]').forEach(b=>b.onclick=()=>{const i=+b.dataset.xi;sel=sel===i?null:i;draw()});
+      document.querySelectorAll('[data-bench]').forEach(b=>b.onclick=()=>{
+        if(sel==null)return;
+        const j=+b.dataset.bench,xi=currentXI().map(s=>({...s}));
+        const k=xi.findIndex(s=>s.i===sel);if(k<0)return;
+        xi[k].i=j;S.manualXI=xi;S.manualFm=S.formation;sel=null;draw()});
+      document.getElementById('bestXI').onclick=()=>{S.manualXI=null;sel=null;draw()};
+    }
+    document.getElementById('kick').onclick=done;
+  }
+  draw();
+}
+function renderMatch(done){
+  if(!S._sheetShown){S._sheetShown=true;return renderTeamSheet(()=>renderMatch(done))}
+  S._sheetShown=false;
+  const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
+  const oFm=S.pendingOppFm||oppFormation(opp);S.pendingOppFm=null;S.nextOppFm=oFm;
   S.matchBoost=0;S.matchAtt=0;S.matchDef=0;S.subsUsed=0;
   paintHeader();
   const fmLine=(mine)=>`<span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${mine?S.formation:oFm}</span>`;
@@ -298,13 +352,16 @@ function renderMatch(done){
 /* Who scores. A player on a goal bonus shoots more, so he is likelier to be
    the name on the vidiprinter -- the bonus has a visible consequence. */
 function pickScorer(){
-  const pool=available().filter(p=>p.pos!=="GK");
+  /* Scorers come from the XI actually on the pitch, weighted by where they
+     are playing and how attacking they are. A player on a goal bonus shoots
+     more, so he is likelier to be the name on the vidiprinter. */
+  const pool=currentXI().filter(s=>s.slot!=="GK").map(s=>({p:S.squadList[s.i],slot:s.slot}));
   if(!pool.length)return null;
-  const w=pool.map(p=>{let x=p.pos==="FW"?3:p.pos==="MF"?2:1;
+  const w=pool.map(({p,slot})=>{let x=(slot==="FW"?3:slot==="MF"?2:1)*(1+Math.max(0,p.att)*.25);
     if(S.bonuses.some(b=>b.type==="goals"&&b.nm===p.nm))x*=2.2;return x});
   let r=rng()*w.reduce((a,b)=>a+b,0);
-  for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i]}
-  return pool[pool.length-1];
+  for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i].p}
+  return pool[pool.length-1].p;
 }
 /* THE MANAGER'S HALF TIME: a real tactical panel, not a tone of voice.
    Pick a shape, make substitutions, push someone out of position, then
@@ -313,7 +370,7 @@ function pickScorer(){
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');
   let fm=S.formation,subs=[],oop=null;
-  const tired=available().filter(p=>p.fit<72).sort((a,b)=>a.fit-b.fit).slice(0,3);
+  const tired=currentXI().map(s=>S.squadList[s.i]).filter(p=>p.fit<72).sort((a,b)=>a.fit-b.fit).slice(0,3);
   const defenders=available().filter(p=>p.pos==="DF");
   function effect(){
     const f=FORMATIONS[fm],fb=FORMATIONS[S.formation];

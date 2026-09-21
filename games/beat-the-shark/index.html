@@ -164,6 +164,43 @@
   .opt .mis b{color:var(--amber)}
   .seed{font-family:var(--mono);font-size:10.5px;color:var(--mute);text-align:center;margin-top:14px}
   .foot{font-size:11.5px;color:var(--mute);text-align:center;margin-top:12px;line-height:1.55}
+  /* ---- pitch view and bench ---- */
+  .pitchbox{margin:6px 0 11px}
+  .pitch{background:linear-gradient(180deg,#2e6b43,#285f3b);border-radius:10px;padding:8px 5px;
+    display:flex;flex-direction:column;gap:7px;position:relative;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.22)}
+  .pitch::before{content:"";position:absolute;left:8%;right:8%;top:50%;border-top:2px solid rgba(255,255,255,.18)}
+  .prow{display:flex;justify-content:center;gap:4px;position:relative}
+  .chip{flex:1;max-width:108px;min-width:0;background:rgba(10,24,15,.78);color:#f4f1e6;border:1.5px solid rgba(255,255,255,.25);
+    border-radius:7px;padding:4px 4px 5px;text-align:center;font:inherit;cursor:default}
+  .chip[data-xi]{cursor:pointer}
+  .chip.oop{border-color:#e8b45c}
+  .chip.sel{border-color:#9ce0b9;box-shadow:0 0 0 2px #9ce0b9}
+  .chip.me{border-color:var(--amber)}
+  .chip .cn{display:block;font-size:10.5px;font-weight:600;line-height:1.15;min-height:24px;
+    display:flex;align-items:center;justify-content:center}
+  .chip .cs{display:block;font-family:var(--mono);font-size:10px;opacity:.9;margin-top:2px}
+  .chip .cs b{color:#f0c87e;font-weight:600}
+  .cb{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.2);margin:3px auto 0;overflow:hidden;width:80%}
+  .cb i{display:block;height:100%}
+  .benchh{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin:10px 0 5px}
+  .bench{display:flex;flex-direction:column;gap:4px}
+  .bp{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px;font:inherit;color:var(--ink);text-align:left;cursor:default}
+  .bp[data-bench]{cursor:pointer}.bp[data-bench]:hover{border-color:var(--pitch2)}
+  .bp.out{opacity:.55}.bp.me{outline:1.5px solid var(--amber)}
+  .bp .bpos{font-family:var(--mono);font-size:10px;color:var(--onPitch);background:var(--pitch2);border-radius:3px;padding:1px 5px;flex:none}
+  .bp .bn{flex:1;font-size:13px;font-weight:500;min-width:0}
+  .bp .bn small{display:block;font-size:11px;color:var(--mute);font-weight:400}
+  .bp .bq{font-family:var(--mono);font-size:13px;font-weight:600}
+  .bp .cb{width:34px;margin:0;flex:none}
+  .xibar{font-size:12.5px;color:var(--ink2);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:8px}
+  /* ---- static footer (crawlable text + links into the site) ---- */
+  .about{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;color:var(--ink2)}
+  .about h2{font-size:17px;margin:0 0 7px}
+  .about ul{margin:0 0 10px;padding-left:18px}
+  .about li{margin-bottom:4px}
+  .about a{color:var(--pitch2)}
 </style>
 </head>
 <body>

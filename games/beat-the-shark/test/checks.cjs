@@ -90,6 +90,32 @@ console.log('\n1. INTEGRITY — every event renders cleanly');
     }
   }
   check('no event text contains undefined/NaN/[object', broken === 0, `${broken} of ${rendered}${firstBad ? ' — ' + firstBad : ''}`);
+
+  /* The pitch view and bench, in every formation, read-only and in pick
+     mode, including a keeper crisis and an injury-hit squad. */
+  let pitchBad = '', pitches = 0;
+  for (const role of ['owner', 'manager', 'player']) {
+    for (const fm of Object.keys(G.FORMATIONS)) {
+      G.setRole(G.ROLES[role]); G.setS(G.newState()); G.recalcSquadRating();
+      const S = G.getS(); S.formation = fm;
+      const variants = [() => {}, () => { S.squadList.filter((p) => p.pos === 'GK').forEach((p) => (p.out = 2)); },
+                        () => { S.squadList.slice(0, 6).forEach((p) => (p.out = 1)); }];
+      for (const v of variants) {
+        v();
+        for (const opts of [{}, { pick: true, sel: 0 }]) {
+          try {
+            const html = G.squadHTML(opts); pitches++;
+            const starters = (html.match(/class="chip/g) || []).length;
+            /* Eleven -- or everyone available, if injuries leave fewer. */
+            const want = Math.min(11, S.squadList.filter((p) => !p.gone && !p.out).length);
+            if (/undefined|NaN|\[object/.test(html)) pitchBad = pitchBad || `${role}/${fm}: bad text`;
+            else if (starters !== want) pitchBad = pitchBad || `${role}/${fm}: ${starters} on the pitch, expected ${want}`;
+          } catch (e) { pitchBad = pitchBad || `${role}/${fm}: ${e.message}`; }
+        }
+      }
+    }
+  }
+  check('pitch view fields a full side cleanly in every formation and crisis', !pitchBad, pitchBad || `${pitches} renders`);
   check('no event throws while being built', threw === 0, `${threw} of ${rendered}`);
 }
 

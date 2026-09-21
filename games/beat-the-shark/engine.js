@@ -94,8 +94,9 @@ function oppFormation(n){
 function clubRates(opp,home,scale,oppFm){
   const base=myStrength();
   const f=FORMATIONS[S.formation||"4-4-2"],of=FORMATIONS[oppFm||"4-4-2"];
-  const att=base+(S.attMod||0)+f.att+(S.matchAtt||0);
-  const def=base+(S.defMod||0)+f.def+(S.matchDef||0);
+  const[bA,bD]=balanceAdj();
+  const att=base+(S.attMod||0)+f.att+(S.matchAtt||0)+bA;
+  const def=base+(S.defMod||0)+f.def+(S.matchDef||0)+bD;
   const os=strOf(opp),oAtt=os+of.att,oDef=os+of.def,h=home?5:-5;
   const k=scale||1.25;
   return[Math.max(.08,k*Math.pow(1.5,(att+h-oDef)/20)),Math.max(.08,k*Math.pow(1.5,(oAtt-def-h)/20))];
@@ -140,26 +141,119 @@ function monteCarlo(runs=4000){
 }
 
 /* --- squad ---------------------------------------------------------------- */
-const QUIRKS=["never passes left","unplayable in the rain","allergic to tracking back","captain material, eventually",
-  "hasn't scored since March","best trainer at the club","argues with everyone","thirty-four and knows it",
-  "quick, and nothing else","the fans adore him"];
+/* ===========================================================================
+   THE SQUAD
+   Sixteen players, each named for what they ARE rather than who they are, so
+   the name tells you how to use them. Every player carries:
+     rt    quality             fit   condition
+     att   attacking lean      def   defensive lean
+     dev   change in quality per matchweek (young +, veterans -)
+     inj   injury proneness (multiplies the risk of breaking down)
+   Balance is the point: the XI you field moves attack and defence
+   independently, players out of position cost you, and only the players who
+   PLAY get tired -- so rotation, not just quality, decides a season.
+   =========================================================================== */
+const ARCHETYPES=[
+  {pos:"GK",nm:"Safe Hands",          rt:56,fit:90,att:0,def:2, dev:0,   inj:.6, line:"never spectacular, never wrong"},
+  {pos:"GK",nm:"Error-Prone Keeper",  rt:49,fit:95,att:0,def:-1,dev:.3,  inj:.8, line:"brilliant saves, baffling mistakes"},
+  {pos:"DF",nm:"Captain Grit",        rt:55,fit:78,att:0,def:3, dev:-.4, inj:1.3,line:"thirty-four, organises everyone"},
+  {pos:"DF",nm:"Aerial Giant",        rt:53,fit:88,att:1,def:2, dev:0,   inj:.9, line:"wins every header, loses every race"},
+  {pos:"DF",nm:"Ball-Playing Defender",rt:52,fit:88,att:2,def:-1,dev:.1, inj:1,  line:"lovely on the ball, nervy off it"},
+  {pos:"DF",nm:"Journeyman Defender", rt:49,fit:92,att:0,def:1, dev:0,   inj:.6, line:"seventh club, never injured"},
+  {pos:"DF",nm:"Young Full-Back",     rt:45,fit:96,att:1,def:0, dev:.8,  inj:.9, line:"raw, quick, better every week"},
+  {pos:"MF",nm:"Playmaker",           rt:56,fit:84,att:3,def:-2,dev:0,   inj:1,  line:"sees passes nobody else does"},
+  {pos:"MF",nm:"Engine Room",         rt:54,fit:94,att:1,def:2, dev:0,   inj:.7, line:"runs all day, never tires"},
+  {pos:"MF",nm:"Hot Head",            rt:53,fit:88,att:1,def:1, dev:0,   inj:1,  line:"brilliant, and one tackle from a red"},
+  {pos:"MF",nm:"Set-Piece Specialist",rt:49,fit:88,att:2,def:0, dev:0,   inj:.9, line:"worth a goal a month from dead balls"},
+  {pos:"MF",nm:"Loan Kid",            rt:46,fit:96,att:1,def:0, dev:1.0, inj:.9, line:"on loan from a big club, improving fast"},
+  {pos:"FW",nm:"Old Superstar",       rt:62,fit:72,att:4,def:-1,dev:-.6, inj:1.8,line:"used to be brilliant; still is, for an hour"},
+  {pos:"FW",nm:"Greedy but Quick",    rt:55,fit:90,att:3,def:-1,dev:0,   inj:1,  line:"shoots from everywhere, passes to nobody"},
+  {pos:"FW",nm:"Fox in the Box",      rt:53,fit:88,att:2,def:0, dev:0,   inj:.9, line:"does nothing except score"},
+  {pos:"FW",nm:"Young Potential",     rt:45,fit:97,att:1,def:0, dev:1.2, inj:.8, line:"the academy's best hope in years"}
+];
+/* Out of position: an outfield player in the wrong line loses a little;
+   anyone swapping to or from goalkeeper loses a great deal. */
+const OOP_PENALTY=7,GK_OOP_PENALTY=18;
 function makeSquad(){
-  const nm=shuffle(SURNAMES).slice(0,8),base=[56,54,50,58,46,71,49,44],pos=["GK","DF","DF","MF","MF","FW","FW","DF"];
-  const q=shuffle(QUIRKS);
-  return nm.map((n,i)=>({pos:pos[i],nm:n,rt:base[i],fit:rnd(74,98),gone:false,out:0,quirk:q[i%q.length]}));
+  return ARCHETYPES.map(a=>{const rt=a.rt+rnd(-2,2);
+    return Object.assign({},a,{rt,rtf:rt,fit:clamp(a.fit+rnd(-4,3)),gone:false,out:0,goals:0})});
 }
 function pips(v,max,cls){let h="";for(let i=0;i<5;i++)h+=`<i class="${v>=(i+1)*(max/5)?cls:''}"></i>`;return `<div class="pips">${h}</div>`}
+function lineShape(fm){const[d,m,f]=fm.split("-").map(Number);return{GK:1,DF:d,MF:m,FW:f}}
+function effRating(p,slot){
+  if(p.pos===slot)return p.rt;
+  return p.rt-((p.pos==="GK"||slot==="GK")?GK_OOP_PENALTY:OOP_PENALTY);
+}
+/* The best XI the formation allows from AVAILABLE players, rated with a
+   little weight on condition. Where a line runs short -- injuries, sales --
+   it borrows the best remaining outfield player and plays him out of
+   position, visibly and at a cost. */
+function autoXI(){
+  const shape=lineShape(S.formation||"4-4-2");
+  const pool=S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone&&!x.p.out);
+  const val=x=>x.p.rt*(0.7+0.3*x.p.fit/100);
+  const used=new Set(),xi=[];
+  for(const slot of ["GK","DF","MF","FW"]){
+    const cands=pool.filter(x=>x.p.pos===slot).sort((a,b)=>val(b)-val(a));
+    for(let k=0;k<shape[slot];k++){
+      let c=cands.find(x=>!used.has(x.i));
+      /* No keeper fit: the LEAST valuable outfield player goes in goal --
+         not the best one, which would cost you your striker too. */
+      if(!c&&slot==="GK")c=pool.filter(x=>!used.has(x.i)).sort((a,b)=>a.p.rt-b.p.rt)[0];
+      /* Short in this line: borrow the best unused player, keeping keepers
+         out of outfield slots unless nobody else is left. */
+      if(!c)c=pool.filter(x=>!used.has(x.i)&&(slot==="GK"||x.p.pos!=="GK"))
+                  .sort((a,b)=>effRating(b.p,slot)-effRating(a.p,slot))[0];
+      if(!c)c=pool.filter(x=>!used.has(x.i)).sort((a,b)=>effRating(b.p,slot)-effRating(a.p,slot))[0];
+      if(!c)break;
+      used.add(c.i);xi.push({i:c.i,slot});
+    }
+  }
+  return xi;
+}
+/* A lineup the manager picked by hand stands until one of its players is
+   no longer available, or the formation changes -- then the game re-picks. */
+function currentXI(){
+  const m=S.manualXI;
+  if(m&&S.manualFm===S.formation&&m.every(s=>{const p=S.squadList[s.i];return p&&!p.gone&&!p.out}))return m;
+  S.manualXI=null;
+  return autoXI();
+}
+function xiStats(){
+  const xi=currentXI();
+  if(!xi.length)return{q:40,fit:70,att:0,def:0,xi};
+  let q=0,fit=0,att=0,def=0;
+  for(const s of xi){const p=S.squadList[s.i],oop=p.pos!==s.slot;
+    q+=effRating(p,s.slot);fit+=p.fit;
+    att+=oop?p.att*.5:p.att;def+=oop?p.def*.5-1:p.def}
+  const n=xi.length;
+  /* Fewer than eleven fit players is punished directly. */
+  return{q:q/n-(11-n)*3,fit:fit/n,att,def,xi};
+}
+/* How far the XI's attacking and defensive lean has moved from the side
+   you started the season with. Feeds attack and defence separately. */
+function balanceAdj(){const x=xiStats();return[(x.att-(S.attBase||0))*.8,(x.def-(S.defBase||0))*.8]}
 function squadHTML(opts){
-  return `<!--SQ--><div class="sq">${S.squadList.map((p,i)=>
-   `<div class="pl ${p.gone?'gone':''} ${i===S.meIdx?'me':''}" ${p.out?'style="opacity:.62"':''}>
-      <span class="pos">${p.pos}</span>
-      <span class="nm">${p.nm}${i===S.meIdx?' <span style="color:var(--amber);font-size:11px">you</span>':''}
-        ${p.out?`<span style="color:var(--bad);font-size:11px">OUT ${p.out} ${p.out===1?"week":"weeks"}</span>`:''}
-        <small>${p.quirk}</small></span>
-      <span class="stat"><span class="lb">Quality</span><span class="vv">${p.gone?'—':p.rt}</span>${p.gone?'':pips(p.rt,100,'on')}</span>
-      <span class="stat"><span class="lb">Condition</span><span class="vv" style="color:${p.fit<60?'var(--bad)':p.fit<78?'var(--amber)':'var(--good)'}">${p.gone?'—':p.fit}</span>
-        ${p.gone?'':pips(p.fit,100,p.fit<60?'bad':p.fit<78?'hot':'on')}</span>
-    </div>`).join('')}</div><!--/SQ-->`;
+  opts=opts||{};
+  const xi=currentXI(),inXI=new Set(xi.map(s=>s.i));
+  const condCol=f=>f<60?'var(--bad)':f<78?'var(--amber)':'var(--good)';
+  const chip=s=>{const p=S.squadList[s.i],oop=p.pos!==s.slot,sel=opts.sel===s.i;
+    return `<button type="button" class="chip${oop?' oop':''}${s.i===S.meIdx?' me':''}${sel?' sel':''}" ${opts.pick?`data-xi="${s.i}"`:'disabled'}>
+      <span class="cn">${p.nm}</span>
+      <span class="cs">${oop?`<b>${p.pos} as ${s.slot}</b> · `:''}${p.rt}
+        <i class="cb"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></span></button>`};
+  const bench=S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone&&!inXI.has(x.i));
+  return `<!--SQ--><div class="pitchbox">
+    <div class="pitch">${["FW","MF","DF","GK"].map(r=>
+      `<div class="prow">${xi.filter(s=>s.slot===r).map(chip).join('')}</div>`).join('')}</div>
+    <div class="benchh">Bench${opts.pick?' — tap a starter, then a bench player, to swap':''}</div>
+    <div class="bench">${bench.map(({p,i})=>
+      `<button type="button" class="bp${p.out?' out':''}${i===S.meIdx?' me':''}" ${opts.pick&&!p.out?`data-bench="${i}"`:'disabled'}>
+        <span class="bpos">${p.pos}</span>
+        <span class="bn">${p.nm}<small>${p.out?`<b style="color:var(--bad)">OUT ${p.out} ${p.out===1?"week":"weeks"}</b> · `:''}${p.line}</small></span>
+        <span class="bq">${p.rt}</span>
+        <i class="cb"><i style="width:${p.fit}%;background:${condCol(p.fit)}"></i></i></button>`).join('')}</div>
+  </div><!--/SQ-->`;
 }
 const alive=()=>S.squadList.filter(p=>!p.gone);
 /* AVAILABLE is not the same as at the club. The Physio Room is where the
@@ -168,24 +262,30 @@ const available=()=>S.squadList.filter(p=>!p.gone&&!p.out);
 const me=()=>S.squadList[S.meIdx]||alive()[0];
 function newState(){
   const sq=makeSquad();
-  return{club:CLUB,cash:120,debt:850,wages:41,squad:52,fans:55,board:50,fatigue:22,
+  /* As the star player you are the best FORWARD who is not in decline --
+     the player events are written for someone in his prime. */
+  const meIdx=ROLE.id==="player"?sq.reduce((b,p,i)=>(p.pos==="FW"&&p.dev>=0&&(b<0||p.rt>sq[b].rt))?i:b,-1):-1;
+  return{club:CLUB,cash:120,debt:850,wages:41,squad:52,morale:50,fans:55,board:50,fatigue:22,
     form:62,fitness:88,interest:40,mw:0,pos:6,formArr:[],lastRes:null,alive:true,
-    pending:[],flags:{},squadList:sq,meIdx:ROLE.id==="player"?sq.reduce((b,p,i)=>p.rt>sq[b].rt?i:b,0):-1,
+    pending:[],flags:{},squadList:sq,meIdx,manualXI:null,manualFm:null,
     matchBoost:0,lastScore:null,ticketLevel:0,signings:0,seasonLog:[],physioLevel:0,
-    formation:"4-4-2",attMod:0,defMod:0,matchAtt:0,matchDef:0,bonuses:[],
-    departed:shuffle(SURNAMES.filter(n=>!sq.some(p=>p.nm===n))).slice(0,6)
-      .map(n=>({nm:n,rt:rnd(58,74),to:pick(["a League One side","a rival","free agency","retirement","abroad","a National League club"])}))};
+    formation:"4-4-2",attMod:0,defMod:0,matchAtt:0,matchDef:0,bonuses:[]};
 }
+/* S.squad is now a READOUT of the XI's quality, recomputed freely. What
+   events change is MORALE -- a separate number that persists. They used to
+   share one number, so every "Squad +4" an event showed was overwritten by
+   the next recalculation and did nothing at all. */
 function recalcSquadRating(){
-  const a=alive();if(!a.length)return;
-  S.squad=clamp(Math.round(a.reduce((x,p)=>x+p.rt,0)/a.length + (S.board-50)*.05));
+  const x=xiStats();
+  if(S.attBase==null){S.attBase=x.att;S.defBase=x.def}
+  S.squad=clamp(Math.round(x.q));
 }
-function myStrength(){const a=available().length?available():alive();
-  const fit=a.length?a.reduce((x,p)=>x+p.fit,0)/a.length:80;
-  const rs=a.map(p=>p.rt),avail=rs.length?rs.reduce((x,y)=>x+y,0)/rs.length:S.squad;
-  let b=avail+(fit-86)*.16-(S.fatigue-40)*.12+(S.fans-50)*.04;
+function myStrength(){
+  const x=xiStats();
+  let b=x.q+(x.fit-86)*.16-(S.fatigue-40)*.12+(S.fans-50)*.04+((S.morale==null?50:S.morale)-50)*.12;
   if(ROLE.id==="player")b+=(S.form-62)*.12+(S.fitness-86)*.05;
-  return b+(S.matchBoost||0)}
+  return b+(S.matchBoost||0);
+}
 function tableHTML(){const st=standings(TABLE),N=st.length;
   return `<table class="tbl"><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
   ${st.map((r,i)=>`<tr class="${r.n===CLUB?'me':''} ${i>=N-2?'rel':''}"><td class="n">${i+1}</td><td>${r.n}</td>
@@ -225,7 +325,7 @@ function apply(fx,noisy){const out=[];
     if(k==='cash'){S.cash+=v;out.push([`Cash ${v>0?'+':'−'}${M(v)}`,v>0])}
     else if(k==='debt'){S.debt+=v;out.push([`Debt ${v>0?'+':'−'}${M(v)}`,v<0])}
     else if(k==='wages'){S.wages+=v;out.push([`Wages ${v>0?'+':'−'}${M(v)}/w`,v<0])}
-    else if(k==='squad'){S.squad=clamp(S.squad+v);out.push([`Squad ${v>0?'+':''}${v}`,v>0])}
+    else if(k==='squad'){S.morale=clamp((S.morale==null?50:S.morale)+v);out.push([`Morale ${v>0?'+':''}${v}`,v>0])}
     else if(k==='fans'){S.fans=clamp(S.fans+v);out.push([`Fans ${v>0?'+':''}${v}`,v>0])}
     else if(k==='board'){S.board=clamp(S.board+v);out.push([`Board ${v>0?'+':''}${v}`,v>0])}
     else if(k==='fatigue'){S.fatigue=clamp(S.fatigue+v);out.push([`Fatigue ${v>0?'+':''}${v}`,v<0])}

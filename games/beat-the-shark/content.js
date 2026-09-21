@@ -3,29 +3,41 @@
    window and pre-season. Nearly every future change lands here.
    =========================================================================== */
 /* ====================== TRANSFER WINDOW (owner) =========================== */
-const TARGET_QUIPS=[
- "Scored twenty in this division two years ago, then discovered nightclubs.",
- "His agent has sent the same email eleven times. The highlights reel is four minutes of one game.",
- "Released by a Championship club in February. Nobody will say why, which is either a bargain or a warning.",
- "Thirty-three, knees like a deckchair, and still the best finisher you will see at this level.",
- "Six foot seven. That is the entire scouting report, and it is enough in League Two.",
- "Played in Iceland last season. FixtureShark rate the league; nobody else has heard of it."];
+/* Transfer targets are TYPES of player, like the squad: the name tells you
+   what you are buying, including the catch. Each carries the same traits as
+   a squad player, so a signing changes attack, defence and trajectory -- not
+   just the average. */
+const TARGET_TYPES=[
+  {pos:"FW",nm:"Veteran Target Man",   rt:[60,68],att:3,def:0, dev:-.5,inj:1.4,line:"thirty-three, knees like a deckchair, still scores"},
+  {pos:"FW",nm:"Hungry Young Striker", rt:[50,58],att:2,def:0, dev:1.0,inj:.9, line:"released by a Championship club; nobody will say why"},
+  {pos:"MF",nm:"Box-to-Box Grafter",   rt:[54,62],att:1,def:2, dev:0,  inj:.7, line:"never the best player, never the worst"},
+  {pos:"MF",nm:"Flair Merchant",       rt:[56,66],att:4,def:-3,dev:0,  inj:1.1,line:"unplayable one week, invisible the next"},
+  {pos:"DF",nm:"No-Nonsense Stopper",  rt:[54,62],att:0,def:4, dev:-.2,inj:.8, line:"has never passed forward, has never needed to"},
+  {pos:"DF",nm:"Attacking Wing-Back",  rt:[52,60],att:3,def:-2,dev:.3, inj:1,  line:"more winger than defender, whatever the contract says"},
+  {pos:"GK",nm:"Veteran Keeper",       rt:[56,64],att:0,def:3, dev:-.3,inj:.7, line:"forty next birthday, organises the whole back line"},
+  {pos:"MF",nm:"Iceland Loan Signing", rt:[50,60],att:1,def:1, dev:.6, inj:.9, line:"FixtureShark rate his league; nobody else has heard of it"}
+];
 function makeTargets(n){
-  const names=shuffle(SURNAMES.filter(x=>!S.squadList.some(p=>p.nm===x)));
-  const q=shuffle(TARGET_QUIPS);
-  return Array.from({length:n},(_,i)=>{
-    const rt=rnd(48,74),fee=Math.round((rt-40)*rnd(9,18)),wage=Math.round((rt-40)*rnd(.4,.9)+3);
-    return{nm:names[i],pos:pick(["GK","DF","MF","FW"]),rt,fee,wage,fit:rnd(80,97),quip:q[i],bought:false};
+  return shuffle(TARGET_TYPES).slice(0,n).map(t=>{
+    const rt=rnd(t.rt[0],t.rt[1]),fee=Math.round((rt-40)*rnd(9,18)),wage=Math.round((rt-40)*rnd(.4,.9)+3);
+    return Object.assign({},t,{rt,rtf:rt,fee,wage,fit:rnd(80,97),out:0,goals:0,gone:false,quip:t.line,bought:false});
   });
 }
-/* What the squad rating WOULD be after a change. The window used to show fees
-   and ratings and leave you to do the arithmetic; this states the consequence
-   of each move in the one number the simulation actually uses. */
-function ratingWith(extraRt,dropIdx){
-  const rs=S.squadList.filter((p,i)=>!p.gone&&i!==dropIdx).map(p=>p.rt);
-  if(extraRt!=null)rs.push(extraRt);
-  if(!rs.length)return 0;
-  return clamp(Math.round(rs.reduce((a,b)=>a+b,0)/rs.length+(S.board-50)*.05));
+/* What the XI's rating WOULD be after a signing or a sale -- worked out by
+   actually trying the change and re-picking the best XI, then undoing it.
+   A cheap signing who would not make the team shows no change, which is the
+   honest answer; the old version averaged the WHOLE squad, so bench players
+   looked like they mattered as much as starters. */
+function ratingWith(extra,dropIdx){
+  const was=S.squadList.length,wasGone=dropIdx!=null?S.squadList[dropIdx].gone:null,wasManual=S.manualXI;
+  if(extra)S.squadList.push(Object.assign({},extra,{gone:false,out:0}));
+  if(dropIdx!=null)S.squadList[dropIdx].gone=true;
+  S.manualXI=null;
+  const q=Math.round(xiStats().q);
+  S.squadList.length=was;
+  if(dropIdx!=null)S.squadList[dropIdx].gone=wasGone;
+  S.manualXI=wasManual;
+  return clamp(q);
 }
 function deltaChip(now,then){
   const d=then-now;
@@ -60,14 +72,14 @@ function renderWindow(which,after){
             ((t.rt-38)/Math.max(1,t.fee/100))<1.4?' <span style="color:var(--bad)">— overpriced on the model</span>':''}</div>
         <div class="quip">${t.quip}</div>
         ${t.bought?"":`<button class="choice" style="margin:8px 0 0" data-buy="${i}" ${S.cash<t.fee?"disabled":""}>
-          <span class="t">${S.cash<t.fee?"Cannot afford him":"Sign him"} · ${deltaChip(S.squad,ratingWith(t.rt,null))}</span>
+          <span class="t">${S.cash<t.fee?"Cannot afford him":"Sign him"} · ${deltaChip(S.squad,ratingWith(t,null))}</span>
           <span class="d">${fmtMoney(t.fee)} now, ${fmtMoney(t.wage)} a week after · cash would be ${fmtMoney(S.cash-t.fee)}</span></button>`}
       </div>`).join('')}
       <h2 style="margin-top:14px">Your squad</h2>
       <p class="small">Selling raises cash and lowers quality.</p>
       ${S.squadList.map((p,i)=>({p,i})).filter(x=>!x.p.gone).sort((a,b)=>b.p.rt-a.p.rt).map(({p,i})=>`<div class="market">
         <div class="top"><span class="nm">${p.pos} ${p.nm}</span><span class="fee">${fmtMoney(Math.round((p.rt-38)*rnd(10,16)))}</span></div>
-        <div class="meta">Quality ${p.rt} · condition ${p.fit}${p.out?` · <span style="color:var(--bad)">out ${p.out}w</span>`:''} · ${p.quirk}</div>
+        <div class="meta">Quality ${p.rt} · condition ${p.fit}${p.out?` · <span style="color:var(--bad)">out ${p.out}w</span>`:''} · ${p.line}</div>
         <button class="choice" style="margin:8px 0 0" data-sell="${i}" ${canSell?"":"disabled"}>
           <span class="t">${canSell?"Accept an offer":"Squad too small to sell"}</span>
           <span class="d">Cash now, quality gone</span></button></div>`).join('')}
@@ -76,7 +88,7 @@ function renderWindow(which,after){
     document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
       const t=targets[+b.dataset.buy];if(S.cash<t.fee)return;
       S.cash-=t.fee;S.wages+=t.wage;t.bought=true;S.signings++;
-      S.squadList.push({pos:t.pos,nm:t.nm,rt:t.rt,fit:t.fit,gone:false,quirk:"new, and being watched"});
+      S.squadList.push(Object.assign({},t,{bought:undefined,quip:undefined,gone:false,out:0,goals:0}));
       recalcSquadRating();S.fans=clamp(S.fans+4);draw();
     });
     document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{
