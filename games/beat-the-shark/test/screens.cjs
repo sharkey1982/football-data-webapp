@@ -91,7 +91,14 @@ ok("end of season reports set-piece share and out-of-position goals in FPL point
 // 7. a decision says what it did to the next result
 run(`S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
 els.ch.children[0].onclick();
-ok("a decision shows its effect on xGF, clean sheet and win chance", /xGF [\s\S]+?→[\s\S]+?clean sheet [\s\S]+?→[\s\S]+?win [\s\S]+?→/.test(app()));
+// Consequence tags (Chris: "a mess of numbers"): simple by default...
+ok("a decision shows its effect as tags: Team, Attack, and the win chance", /class="tag up">Team ▲▲▲/.test(app())&&/class="tag up">Attack ▲/.test(app())&&/Win chance [\s\S]+?→/.test(app()));
+ok("...with the exact figures folded under The numbers, and no xGF by default", /<summary>The numbers<\/summary>/.test(app())&&!/xGF/.test(app().replace(/<details[\s\S]*?<\/details>/g,'')));
+// ...and the Data guru still gets the site's measures.
+run(`LEVEL="guru";S=newState();TABLE=blankTable();recalcSquadRating();renderSpec({title:"T",lede:"L",choices:[{t:"Big morale boost",d:"",fx:{squad:30},out:"Done."}]},"TEST",()=>{})`);
+els.ch.children[0].onclick();
+ok("the Data guru still sees xGF, clean sheet and win chance", /xGF [\s\S]+?→[\s\S]+?clean sheet [\s\S]+?→/.test(app())&&/Morale \+/.test(app()));
+run(`LEVEL="intermediate"`);
 // 10. the cash crisis: two players, the model's numbers, and the heat map
 run(`ROLE=ROLES.owner;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=3;renderSpec(crisisSpec(),"THE BANK HAS CALLED",()=>{})`);
 const cr=app();

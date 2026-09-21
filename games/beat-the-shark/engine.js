@@ -636,7 +636,29 @@ function apply(fx,noisy){const out=[];
     else if(k==='fitness'){S.fitness=clamp(S.fitness+v);out.push([`Fitness ${v>0?'+':''}${v}`,v>0])}
     else if(k==='interest'){S.interest=clamp(S.interest+v);out.push([`Interest ${v>0?'+':''}${v}`,v>0])}
     else if(k==='condition'){S.squadList.forEach(p=>{if(!p.gone)p.fit=clamp(p.fit+v)});out.push([`Condition ${v>0?'+':''}${v} all`,v>0])}}
-  return out.map(([t,g])=>`<span class="${g?'up':'down'}">${t}</span>`).join('')}
+  // The exact figures, as before.
+  const exact=out.map(([t,g])=>`<span class="${g?'up':'down'}">${t}</span>`).join('');
+  if(typeof LEVELS!=="undefined"&&LEVELS[LEVEL]&&LEVELS[LEVEL].guru)return exact;
+  // Everyone else: a few tags in football terms (Chris: "a mess of numbers").
+  // Arrows show size: small, big, major. Green is good for you.
+  const T={team:0,fans:0,board:0},M={cash:0,debt:0,wages:0};let interest=0;
+  for(const[k,v0]of Object.entries(fx||{})){if(!v0)continue;
+    if(['squad','form','fitness','condition'].includes(k))T.team+=v0;
+    else if(k==='fatigue')T.team-=v0;
+    else if(k==='fans'||k==='board')T[k]+=v0;
+    else if(k in M)M[k]+=v0;
+    else if(k==='interest')interest+=v0}
+  const size=v=>{const a=Math.abs(v);return a<=3?1:a<=8?2:3};
+  const tag=(label,v,good)=>`<span class="tag ${good?'up':'down'}">${label} ${(v>0?'\u25b2':'\u25bc').repeat(size(v))}</span>`;
+  const tags=[];
+  if(T.team)tags.push(tag("Team",T.team,T.team>0));
+  if(T.fans)tags.push(tag("Fans",T.fans,T.fans>0));
+  if(T.board)tags.push(tag("Board",T.board,T.board>0));
+  if(interest)tags.push(tag("Interest",interest,interest>0));
+  if(M.cash)tags.push(`<span class="tag ${M.cash>0?'up':'down'}">Cash ${M.cash>0?'+':'\u2212'}${fmtMoney(Math.abs(M.cash))}</span>`);
+  if(M.debt)tags.push(tag("Debt",M.debt,M.debt<0));
+  if(M.wages)tags.push(tag("Wages",M.wages,M.wages<0));
+  return tags.join('')+(tags.length?why(`<div class="delta">${exact}</div>`,"The numbers"):"")}
 function later(n,fx,text){if(!fx)return;const a={};for(const[k,v]of Object.entries(fx))a[k]=Math.round(v*DELAY_AMP);
   S.pending.push({at:cursor+n,fx:a,text})}
 function drainPending(){const d=S.pending.filter(p=>p.at<=cursor);S.pending=S.pending.filter(p=>p.at>cursor);return d}

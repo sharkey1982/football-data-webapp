@@ -381,9 +381,14 @@ function renderSpec(spec,chip,after){
          score (xGF), chance of a clean sheet, and chance of winning. */
       const ch=wBefore&&wAfter&&(Math.abs(wAfter.xgf-wBefore.xgf)>=.05||Math.abs(wAfter.cs-wBefore.cs)>=.01||wAfter.w!==wBefore.w);
       const arrow=(a,b,f)=>`${f(a)} → <b style="color:${b>a?'var(--good)':b<a?'var(--bad)':'inherit'}">${f(b)}</b>`;
+      // Simple by default: attack and defence as tags, and the one number
+      // anybody understands -- the chance of winning. The Data guru also
+      // gets the site's measures (xGF, clean sheet chance).
+      const dirTag=(label,d,goodWhenUp)=>Math.abs(d)<.02?"":`<span class="tag ${(d>0)===goodWhenUp?'up':'down'}">${label} ${d>0?'\u25b2':'\u25bc'}</span>`;
       const winLine=ch?`<div class="later" style="border-left-color:var(--amber)"><b>Next match, ${wAfter.home?"at home to":"away at"} ${wAfter.opp}</b>
-           xGF ${arrow(wBefore.xgf,wAfter.xgf,v=>v.toFixed(2))} · clean sheet ${arrow(wBefore.cs,wAfter.cs,v=>Math.round(v*100)+"%")}
-           · win ${arrow(wBefore.w,wAfter.w,v=>v+"%")}</div>`:"";
+           <div style="margin-top:4px">${dirTag("Attack",wAfter.xgf-wBefore.xgf,true)}${dirTag("Defence",wAfter.cs-wBefore.cs,true)}
+           <span class="tag ${wAfter.w>wBefore.w?'up':wAfter.w<wBefore.w?'down':''}">Win chance ${arrow(wBefore.w,wAfter.w,v=>v+"%")}</span></div>
+           ${LEVELS[LEVEL].guru?`<div class="small" style="margin-top:4px">xGF ${arrow(wBefore.xgf,wAfter.xgf,v=>v.toFixed(2))} · clean sheet ${arrow(wBefore.cs,wAfter.cs,v=>Math.round(v*100)+"%")}</div>`:""}</div>`:"";
       recalcSquadRating();paintHeader();
       const outTxt=c.out&&c.out.length>120?c.out.split(/(?<=[.!?])\s+(?=[A-Z"“])/)[0]:c.out;
       document.getElementById('app').innerHTML=`<div class="card"><div class="datechip">${chip}</div>
