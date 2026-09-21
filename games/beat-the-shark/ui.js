@@ -33,7 +33,14 @@ function showPending(){
    fixture heat map, the first team sheet). Derived afresh each season from
    the untouched base order, so switching level can't leave it scrambled. */
 const PLAN_BASE=PLAN.slice();
+/* THE BEGINNER SEASON (agreed with Chris, 2026-09-21): five games, each
+   with a summary, a preview, one pre-match and one half-time decision, and
+   a story between games that builds -- cash a real issue by Gameweek 4. */
+const BEGINNER_PLAN=["match","presser","match","knock","match","window","bank","match","papers","match","end"];
+// The owner's five games: his own decisions around them (he doesn't pick the team).
+const BEGINNER_OWNER_PLAN=["special1","match","call","match","crisis","match","special2","match","papers","match","end"];
 function planFor(level,role){
+  if(level==="beginner")return (role==="manager"?BEGINNER_PLAN:BEGINNER_OWNER_PLAN).slice();
   const p=PLAN_BASE.slice();
   // The manager's season starts with the opening match (Chris); everything
   // else keeps its order after it.
@@ -41,7 +48,11 @@ function planFor(level,role){
     const i=p.indexOf("match");if(i>0){p.splice(i,1);p.unshift("match")}
     // ...and straight on to the second (Chris): a harder side, with a
     // half-time decision about a player change.
-    const j=p.indexOf("live");if(j>1){p.splice(j,1);p.splice(1,0,"live")}
+    // Gameweek 2 is a full match too (Chris): the shape choice against the
+    // strongest side, then the half-time dilemma. A later full match becomes
+    // a quick week, so the season keeps five of each.
+    const j=p.indexOf("live");if(j>1){p.splice(j,1);p.splice(1,0,"match")}
+    const k=p.indexOf("match",2);if(k>0)p[k]="live";
   }
   return p;
 }
@@ -64,6 +75,13 @@ function step(){
       return renderWindow("january",()=>renderSpec(winterSpec(),"DECEMBER · THE WINTER BREAK",next))}
     return renderSpec(playerWinterSpec(),"DECEMBER · MIDWINTER",next);
   }
+  if((b==="match"||b==="live")&&ROLE.id==="manager"){
+    // Before every game (Chris): the match-day summary (from Gameweek 2 --
+    // Gameweek 1 has the Your Team page), then the preview.
+    if(S.mw>0&&!S._summaryShown){S._summaryShown=true;return renderMatchdaySummary(step)}
+    S._summaryShown=false;
+    if(b==="live")return renderQuickPreview();
+  }
   if(b==="match")return renderMatch(next);
   if(b==="round")return renderRoundup();
   if(b==="live")return renderLiveWeek();
@@ -71,6 +89,9 @@ function step(){
   if(b==="crisis")return renderSpec(crisisSpec(),ROLE.id==="owner"?"THE BANK HAS CALLED":"THE OWNER HAS CALLED",next);
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
+  if(b==="knock")return renderSpec(knockSpec(),"THE PHYSIO ROOM",next);
+  if(b==="window")return renderSpec(Object.assign(signingSpec(),{keepFull:true,fullChoices:true}),"AFTER GAMEWEEK 3 · TRANSFER WINDOW",next);
+  if(b==="bank")return renderSpec(bankSpec(),"THE BANK HAS CALLED",next);
   if(b==="physio")return renderPhysio();
   if(b==="presser")return renderSpec(presserSpec(),"FRIDAY · PRESS CONFERENCE",next);
   if(b==="papers")return renderPapers();
@@ -382,7 +403,8 @@ function renderSpec(spec,chip,after){
   const box=document.getElementById('ch');
   spec.choices.forEach(c=>{
     const b=document.createElement('button');b.className='choice';
-    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${beginner?briefChoice(c.d):c.d}</span>`:''}`;
+    // (fullChoices: a decision whose numbers ARE the choice -- shown in full)
+    b.innerHTML=`<span class="t">${c.t}</span>${c.d?`<span class="d">${beginner&&!spec.fullChoices?briefChoice(c.d):c.d}</span>`:''}`;
     b.onclick=()=>{
       if(c.ask){pendingReveal=c.reveal();return renderSpec(spec,chip,after)}
       pendingReveal=null;if(c.after)c.after();
@@ -414,7 +436,7 @@ function renderSpec(spec,chip,after){
     };box.appendChild(b);
   });
   // The full descriptions, one tap away, for anyone who wants them.
-  if(beginner&&spec.choices.some(c=>c.d&&briefChoice(c.d)!==String(c.d).replace(/<[^>]+>/g,"").trim())){
+  if(beginner&&!spec.fullChoices&&spec.choices.some(c=>c.d&&briefChoice(c.d)!==String(c.d).replace(/<[^>]+>/g,"").trim())){
     const more=document.createElement('div');
     more.innerHTML=why(spec.choices.filter(c=>c.d).map(c=>`<p class="small"><b>${c.t}</b> — ${c.d}</p>`).join(''),"More about these options");
     box.appendChild(more);
@@ -543,7 +565,8 @@ function renderEnding(){
 }
 /* --- start ---------------------------------------------------------------- */
 function chooseRole(){
-  S=null;
+  S=null;LEVEL="beginner"; // Intermediate and Advanced: coming soon
+  configureLevel(LEVEL);
   /* Build the fixture list and run the model now, so the opening screen can
      state the real prediction instead of asserting a league position that
      nothing has yet produced. */
@@ -558,12 +581,15 @@ function chooseRole(){
     <div class="hero-kicker">BEAT THE SHARK</div>
     <div class="mission">Your mission:<br>Win the league!</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:16px 0 8px">
-      ${Object.entries(LEVELS).map(([k,v])=>`<button class="choice" data-level="${k}" aria-pressed="${k===LEVEL}"
-        style="margin:0;padding:9px 6px;text-align:center;${k===LEVEL?sel:''}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`).join('')}
+      ${Object.entries(LEVELS).map(([k,v])=>k==="beginner"
+        ?`<button class="choice" data-level="${k}" aria-pressed="true" style="margin:0;padding:9px 6px;text-align:center;${sel}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`
+        :`<div class="choice" aria-disabled="true" style="margin:0;padding:9px 6px;text-align:center;opacity:.5"><span class="t" style="font-size:13.5px">${v.name}</span><span class="d" style="font-size:11px">Coming soon</span></div>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
-      ${["manager","owner"].map(k=>ROLES[k]).map(r=>`<button class="choice primary" data-r="${r.id}" style="margin:0;height:100%">
-        <span class="t">${r.name}</span><span class="d">${r.tag}</span></button>`).join('')}
+      ${["manager","owner"].map(k=>ROLES[k]).map(r=>r.id==="manager"
+        ?`<button class="choice primary" data-r="${r.id}" style="margin:0;height:100%"><span class="t">${r.name}</span><span class="d">${r.tag}</span></button>`
+        // The owner is greyed out while the manager version is refined (Chris).
+        :`<div class="choice" aria-disabled="true" style="margin:0;height:100%;opacity:.5"><span class="t">${r.name}</span><span class="d">Coming soon</span></div>`).join('')}
     </div></div>`;
   document.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>{LEVEL=b.dataset.level;chooseRole()});
   document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ROLE=ROLES[b.dataset.r];boot()});
@@ -589,6 +615,38 @@ function clubRank(valueOf,higherIsBetter){
   const v=clubs.map(n=>({n,v:valueOf(n)})).sort((a,b)=>higherIsBetter?b.v-a.v:a.v-b.v);
   return v.findIndex(x=>x.n===CLUB)+1;
 }
+/* Before every game: where you stand, and the side you're sending out. */
+function renderMatchdaySummary(then){
+  const R=ratingsNow(S.mw),mine=R[CLUB],health=Math.round(xiStats().fit);
+  const[h,a]=myFixture(S.mw),opp=h===CLUB?a:h;
+  const small=(label,big,sub)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div></div>`;
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card hero">
+    <div class="hero-kicker">MATCHDAY ${S.mw+1} OF ${MW}</div>
+    <div class="bigstats">
+      <div><div class="bigstat">${ord(S.pos)}</div><div class="biglabel">Position</div></div>
+      <div><div class="bigstat${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div><div class="biglabel">In the bank</div></div>
+    </div>
+    <div class="kpis" style="text-align:left">
+      ${small("Team health",`${health}%`,health>=85?"fit and ready":health>=70?"a few knocks":"struggling")}
+      ${small("Expected goals",mine.xgf.toFixed(1),"a game")}
+      ${small("Clean sheets",`${Math.round(Math.exp(-mine.xga)*100)}%`,"of games")}
+      ${small("Next",opp,venueNote(h===CLUB).toLowerCase()||"next up")}
+    </div>
+    <button class="choice primary" id="go"><span class="t">Team news: ${opp}</span></button></div>`;
+  document.getElementById('go').onclick=then;
+}
+/* A week with no pre-match decision: them v you, then kick off. */
+function renderQuickPreview(){
+  const[h,a]=myFixture(S.mw),home=h===CLUB,opp=home?a:h;
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip">${kickoffChip(S.mw)}</div>
+    <h1>${venueTitle(opp,home)}</h1>
+    ${oppCompareHTML(opp)}
+    <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button></div>`;
+  document.getElementById('kick').onclick=()=>renderMatch(next,true);
+}
 function renderTeamIntro(){
   const R=ratingsNow(0),mine=R[CLUB],cs=n=>Math.exp(-R[n].xga);
   const quality=n=>n===CLUB?S.squad:RIVALS.find(r=>r.n===n).str;
@@ -608,13 +666,14 @@ function renderTeamIntro(){
       ${small("Team health",`${health}%`,health>=85?"fit and ready":health>=70?"a few knocks":"struggling")}
       ${small("Squad quality",ord(clubRank(quality,true)),"of six")}
     </div>
-    <button class="choice primary" id="go"><span class="t">First match: ${opp}</span><span class="d">${h===CLUB?"At home":"Away"}</span></button></div>`;
+    <button class="choice primary" id="go"><span class="t">First match: ${opp}</span><span class="d">${venueNote(h===CLUB)||"Opening day"}</span></button></div>`;
   document.getElementById('go').onclick=()=>{cursor=0;step()};
 }
 function boot(){
   pickRivals();
   R.s=hashSeed(SEED+"|"+ROLE.id);RECENT=new Set();RECENT_Q=[];
   S=newState();cursor=0;pendingReveal=null;
+  configureLevel(LEVEL);
   PLAN.splice(0,PLAN.length,...planFor(LEVEL,ROLE.id));
   // The squad's strength must be worked out BEFORE the Shark predicts: the
   // other way round, the prediction used the wrong squad and said 1st.

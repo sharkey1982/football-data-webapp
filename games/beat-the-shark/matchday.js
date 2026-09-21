@@ -11,6 +11,9 @@ function resolveMine(hg,ag,home){
   if(mg>tg){res='w';fx={fans:7,board:7,cash:rnd(16,30)}}
   else if(mg===tg){res='d';fx={fans:1,board:1,cash:rnd(10,19)}}
   else{res='l';fx={fans:-7,board:-6,cash:rnd(8,15)}}
+  // Beginner: the wage bill is paid every week, so cash is a real
+  // consideration by Gameweek 4 (gate money alone doesn't cover it).
+  if(WEEKLY_WAGES)fx.cash-=S.wages;
   S.formArr.push(res);S.lastRes=res;S.matchBoost=0;
   /* Squad fatigue now RECOVERS between matches, settling around the mid-40s
      unless decisions push it. It used to climb 5-9 every match with nothing
@@ -259,9 +262,17 @@ function newThisMatch(){if(ROLE.id!=="manager"||LEVEL!=="beginner")return null;
    time, as a simple either/or. Anything that can't arise this week (nobody
    tired, no spare defender) falls back to the shape decision.
    =========================================================================== */
-const BEGINNER_DECISION_ORDER=["formation","selection","setpieces","oop","formation"];
+// Gameweek 2 is shape again (compact v the strongest side); the selection
+// lesson now lives in its half-time dilemma.
+// (set pieces dropped -- Chris: pointless. From Gameweek 4, three shapes.)
+const BEGINNER_DECISION_ORDER=["formation","formation","selection","formation3","formation3"];
+// ...and one half-time decision every game, alternating.
+// Gameweek 1 has NO half-time decision (Chris: the first game should be simple).
+// Gameweek 5: TWO in-game changes -- a sub at half time, then a 70th-minute call.
+const BEGINNER_HT=[null,"sub","shape","sub","sub+late"];
 const BEGINNER_IDEA={
   formation:["Pick your shape","Each shape trades attack for defence. Pick the one that suits this opponent."],
+  formation3:["Pick your shape","Three shapes now: bold, balanced or compact."],
   selection:["One place in the side","The better player, or the fresher one? Tired players play worse and get injured more."],
   setpieces:["Who takes the set pieces?","About a quarter of goals come from set pieces."],
   oop:["Try something different?","A defender moved into midfield still defends like a defender, and gets a midfielder's chances."]};
@@ -283,12 +294,21 @@ function beginnerDecision(opp,home){
         {title:`Go for it (${bold})`,sub:"More goals for you, more at the other end",set(){S.formation=bold;S.manualXI=null}},
         {title:`Stay compact (${safe})`,sub:"Harder to break down, fewer chances",set(){S.formation=safe;S.manualXI=null}}]};
     },
+    formation3(){
+      // three shapes: bold, balanced, compact (from Gameweek 4)
+      const two=build.formation(),fs=Object.keys(FORMATIONS);
+      const used=new Set(two.options.map(o=>o.title.match(/\((.+)\)/)[1]));
+      const mid=fs.filter(f=>!used.has(f)).sort((a,b)=>Math.abs(FORMATIONS[a].att-FORMATIONS[a].def)-Math.abs(FORMATIONS[b].att-FORMATIONS[b].def))[0];
+      return{scout:two.scout,options:[two.options[0],{title:`Balanced (${mid})`,sub:"A bit of both",set(){S.formation=mid;S.manualXI=null}},two.options[1]]};
+    },
     selection(){
       S.manualXI=null;const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
       let bestPair=null;
-      for(const x of xi){const s=S.squadList[x.i];if(!s||s.fit>=85)continue;
+      // Always a choice (Gameweek 3): the starter with the biggest fitness gap
+      // to a weaker, fresher man in the same position.
+      for(const x of xi){const s=S.squadList[x.i];if(!s)continue;
         for(const b of available()){const j=S.squadList.indexOf(b);
-          if(inXI.has(j)||b.pos!==s.pos||b.fit<=s.fit+8)continue;
+          if(inXI.has(j)||b.pos!==s.pos||b.fit<=s.fit||b.rt>=s.rt)continue;
           const gain=b.fit-s.fit;if(!bestPair||gain>bestPair.gain)bestPair={slot:x.slot,si:x.i,bi:j,s,b,gain}}}
       if(!bestPair)return null;
       const{si,bi,s,b}=bestPair;
@@ -314,13 +334,15 @@ function beginnerDecision(opp,home){
         {title:`Move ${spareDF.nm} into midfield`,sub:`A defender, quality ${spareDF.rt}: tighter, fewer chances`,set(){S.manualXI=null;
           const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===m.x.i);if(k>=0){x[k].i=di;S.manualXI=x;S.manualFm=S.formation}}}]};
     }};
-  let kind=BEGINNER_DECISION_ORDER[Math.min(S.fullMatches||0,BEGINNER_DECISION_ORDER.length-1)];
+  let kind=BEGINNER_DECISION_ORDER[Math.min(S.mw,BEGINNER_DECISION_ORDER.length-1)];
   let dec=build[kind]();restore();
   if(!dec){kind="formation";dec=build.formation();restore()}
   for(const o of dec.options){o.set();recalcSquadRating();o.p=matchProbs(opp,home);restore()}
   recalcSquadRating();
   return{kind,...dec};
 }
+/* Your game is the early kick-off every week; Gameweek 1 is opening day. */
+function kickoffChip(wk){return `GAMEWEEK ${wk+1} OF ${MW} · ${wk===0?"OPENING DAY · ":wk===MW-1?"FINAL DAY · ":""}12:30 KICK-OFF`}
 /* Them v you, before the shape question: the same model numbers as
    everywhere else, better figure on each row highlighted. */
 function oppCompareHTML(opp){
@@ -335,6 +357,17 @@ function oppCompareHTML(opp){
   return `<table class="tbl" style="margin:8px 0"><thead><tr><th></th><th class="n">${opp}</th><th class="n">You</th></tr></thead><tbody>
     ${rows.map(([l,t,y,f,hi])=>`<tr><td>${l}</td>${cell(t,y,f,hi)}${cell(y,t,f,hi)}</tr>`).join('')}</tbody></table>`;
 }
+/* What an option does to THIS match, next to the other option: your
+   expected goals and theirs (Chris: show the decision's impact, as the
+   half-time cards do). Goals, not win % -- Chris found win % unhelpful. */
+function impactHTML(o,other){
+  // arrows compare with the option currently chosen (none on the chosen one)
+  const arrow=(v,w,goodUp)=>{if(w==null)return"";const d=v-w;if(Math.abs(d)<.05)return"";const good=goodUp?d>0:d<0;
+    return ` <span style="color:${good?'var(--good)':'var(--bad)'}">${d>0?'\u25b2':'\u25bc'}</span>`};
+  return `<span style="display:flex;gap:14px;margin-top:6px;font-family:var(--mono);font-size:12px">
+    <span>You ${o.p.xgf.toFixed(1)} xG${arrow(o.p.xgf,other&&other.p.xgf,true)}</span>
+    <span>Them ${o.p.xga.toFixed(1)} xG${arrow(o.p.xga,other&&other.p.xga,false)}</span></span>`;
+}
 function renderBeginnerSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
@@ -344,14 +377,15 @@ function renderBeginnerSheet(done){
     recalcSquadRating();paintHeader();
     const [title,idea]=BEGINNER_IDEA[dec.kind];
     document.getElementById('app').innerHTML=`<div class="card">
-      <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
-      <h1>${home?`${opp}, at home`:`Away at ${opp}`}</h1>
+      <div class="datechip">${kickoffChip(wk)}</div>
+      <h1>${venueTitle(opp,home)}</h1>
       ${oppCompareHTML(opp)}
       <h2 style="margin-top:6px">${title}</h2>
       <p class="small">${dec.scout||idea}</p>
       ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
         style="${i===chosen?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span></button>`).join('')}
+        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span>
+        ${impactHTML(o,i===chosen?null:dec.options[chosen])}</button>`).join('')}
       <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button>
       ${squadHTML({noBench:true})}</div>`;
     document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{chosen=+b.dataset.bc;dec.options[chosen].set();draw()});
@@ -370,8 +404,8 @@ function renderTeamSheet(done){
     const x=xiStats(),[bA,bD]=balanceAdj();
     const lean=v=>`<span style="color:${v>0.4?'var(--good)':v<-0.4?'var(--bad)':'var(--mute)'}">${v>0?'+':''}${v.toFixed(1)}</span>`;
     document.getElementById('app').innerHTML=`<div class="card">
-      <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · TEAM SHEET</div>
-      <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
+      <div class="datechip">${kickoffChip(wk)}</div>
+      <h1>${NEUTRAL?`v ${opp}`:home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
       ${oppCompareHTML(opp)}
       <p class="small">They are lining up <b>${S.pendingOppFm}</b>. ${mgr?(can("rotation")?"Pick your shape and your eleven.":"Pick your shape; the game picks your best eleven for it."):"The manager has picked the side."}</p>
       ${(()=>{const f=newThisMatch();return f?`<div class="tip" style="border-left-color:var(--amber)"><b>New this match · ${NEW_IDEA[f][0]}</b>${NEW_IDEA[f][1]}</div>`:""})()}
@@ -470,8 +504,8 @@ function renderMatch(done,quick){
   const reds=drawReds();
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE EARLY KICK-OFF</div>
-    <h1>${home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
+    <div class="datechip">${kickoffChip(wk)}</div>
+    <h1>${NEUTRAL?`v ${opp}`:home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
     ${quick?"":opponentPanel(opp,home)}
     <div class="vp"><div class="teams">
       <span>${CLUB.toUpperCase()} <small style="opacity:.7">(${home?"H":"A"})</small><br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${S.formation}</span></span>
@@ -488,8 +522,10 @@ function renderMatch(done,quick){
   let skipping=false;
   const lineDelay=()=>skipping?0:((quick?PACE.quickCommentaryMs:PACE.commentaryMs)*speedFactor()*(0.9+Math.random()*0.2));
   wirePaceControls(document.getElementById('paceBox'),()=>{skipping=true});
-  function half(from,to,cb){
-    let[mr,tr]=clubRates(opp,home,.62,oFm);
+  // share: the part of a half this segment covers (Gameweek 5 splits the
+  // second half at 70'), so a split half produces the same goals on average.
+  function half(from,to,cb,share=1){
+    let[mr,tr]=clubRates(opp,home,.62*share,oFm);
     /* a first-half red card shapes the second half */
     for(const r of reds)if(from>45&&r.m<=45){if(r.us){mr*=.72;tr*=1.25}else{tr*=.72;mr*=1.25}}
     const mg=Math.min(3,pois(mr)),tg=Math.min(3,pois(tr)),ev=[];
@@ -516,7 +552,17 @@ function renderMatch(done,quick){
     if(ROLE.id==="owner")return second();
     // A decision is never skipped: stop skipping here, and resume at the chosen speed.
     // Weeks with no pre-match decision get ONE simple half-time choice: a sub.
-    if(ROLE.id==="manager"&&quick){skipping=false;return subHalfTime(second)}
+    if(ROLE.id==="manager"&&LEVEL==="beginner"){skipping=false;
+      const ht=BEGINNER_HT[Math.min(S.mw,BEGINNER_HT.length-1)];
+      if(ht==="sub+late"){
+        // two changes: a sub now; at 70' chase or protect, on the score then
+        const secondSplit=()=>{add("46'","— second half —","");
+          half(46,70,()=>{skipping=false;shapeHalfTime(()=>{add("70'","— the last twenty —","");half(71,92,finish,22/46)},mine,theirs,
+            {chip:"70 MINUTES",ask:"Chase it or protect it?",push:"Chase it",hold:"Protect it",share:22/92})},24/46)};
+        return subHalfTime(secondSplit,true);
+      }
+      return !ht?second():ht==="sub"?subHalfTime(second,true):shapeHalfTime(second,mine,theirs)}
+    if(ROLE.id==="manager"&&(quick||S.mw===1)){skipping=false;return subHalfTime(second)}
     // Beginners made their pre-match decision; no half-time one on top.
     if(ROLE.id==="manager"&&LEVEL==="beginner")return second();
     if(ROLE.id==="manager"){skipping=false;return tacticalHalfTime(mine,theirs,oFm,second)}
@@ -545,6 +591,12 @@ function renderMatch(done,quick){
     const{fx,res}=resolveMine(hg,ag,home);
     S.matchAtt=0;S.matchDef=0;
     if(S._subXI){S.manualXI=null;S._subXI=false} // a half-time sub is for this match only
+    // Kept a tiring star on at half time: he breaks down, out for the next game.
+    // (Set after resolveMine's weekly update, so it isn't counted down at once.)
+    if(S._knockRisk!=null){const p=S.squadList[S._knockRisk];S._knockRisk=null;
+      if(p&&rng()<.5){p.out=Math.max(p.out||0,2);add("FT",`${p.nm}'s knock flares up: out for the rest of the season.`,"")}}
+    if(S._injureAfter!=null){const p=S.squadList[S._injureAfter];S._injureAfter=null;
+      if(p){p.out=Math.max(p.out||0,1);add("FT",`${p.nm} limps off at the whistle: out for the next game.`,"")}}
     // Full time WAITS for the player (Chris: the game, the other games and
     // the table shouldn't all happen on one page, on a timer). Next: the table.
     const pb=document.getElementById('paceBox');
@@ -572,40 +624,73 @@ function renderTableAfterMatch(info,done){
     <div class="delta" style="margin:6px 0 8px">${d}</div>
     <div class="datechip" style="margin:8px 0 5px">AS IT STANDS · ${left} ${left===1?"GAME":"GAMES"} STILL TO PLAY</div>
     ${tableRowsHTML(null)}
-    <button class="choice primary" id="toOthers" style="margin-top:11px"><span class="t">${left?"The other results":"Continue"}</span>
+    <button class="choice primary" id="toOthers" style="margin-top:11px"><span class="t">${left?"The 3pm kick-offs":"Continue"}</span>
       <span class="d"></span></button></div>`;
   document.getElementById('toOthers').onclick=()=>renderElsewhere(info,done);
 }
+/* THE 3PM KICK-OFFS, LIVE (Chris: make it feel like a real match day).
+   A clock runs 0'-90'; each game has a scoreboard; goals flash in at a
+   readable pace, with your live position "as it stands". The full table
+   stays put until full time (it used to reshuffle after every result),
+   then shows every move. Speed control and a "Full time" skip. */
 function renderElsewhere(info,done){
   const{wk,final}=info;
   const posMap=()=>{const m={};standings(TABLE).forEach((r,i)=>m[r.n]=i+1);return m};
   const before=posMap(),myBefore=posOf(CLUB);
-  const others=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB)
-    .map(([h,a])=>{const[hg,ag]=simScore(strOf(h),strOf(a));return{h,a,hg,ag}});
-  // Flag games involving a club within three points of you, BEFORE they count.
-  const near=n=>Math.abs(TABLE[n].pts-TABLE[CLUB].pts)<=3;
-  const flagged=others.map(r=>near(r.h)||near(r.a));
-  for(const r of others)award(TABLE,r.h,r.a,r.hg,r.ag);
-  S.mw++;
-  const money=cashConsequences();
-  myPos();paintHeader();
-  kpiRecord();
-  const endPos=posOf(CLUB),moved=myBefore-endPos;
-  const line=final
-    ?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
-    :moved>0?`Up to ${ord(endPos)}.`:moved<0?`Down to ${ord(endPos)}.`:`${ord(endPos)}.`;
+  const games=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB).map(([h,a])=>{
+    const[hg,ag]=simScore(strOf(h),strOf(a));
+    const goals=[...Array(hg).fill(h),...Array(ag).fill(a)].map(t=>({t,min:rnd(2,90)})).sort((x,y)=>x.min-y.min);
+    return{h,a,hg,ag,goals,sh:0,sa:0}});
+  const events=games.flatMap((g,gi)=>g.goals.map(x=>({...x,gi}))).sort((x,y)=>x.min-y.min);
+  let minute=0,next=0,skipping=false,timer=null;
+  // a live position: the table as it stands, with these scores counted
+  const liveTable=()=>{const T=JSON.parse(JSON.stringify(TABLE));for(const g of games)award(T,g.h,g.a,g.sh,g.sa);
+    return standings(T).findIndex(r=>r.n===CLUB)+1};
+  const board=()=>games.map(g=>`<div class="res" style="margin-top:6px;font-size:15px"><span>${g.h} v ${g.a}</span><span class="sc">${g.sh}–${g.sa}</span></div>`).join('');
   document.getElementById('app').innerHTML=`<div class="card">
-    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE OTHER RESULTS</div>
-    <h1>${line}</h1>
-    ${money.map(ev=>ev.type==="deduction"
+    <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE 3PM KICK-OFFS</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><h1 style="margin:4px 0">Live</h1>
+      <span id="clock" style="font-family:var(--disp);font-size:34px;font-weight:700">0'</span></div>
+    <div id="boards">${board()}</div>
+    <div id="flash" aria-live="polite" style="min-height:44px;margin:10px 0;font-family:var(--disp);font-size:22px;font-weight:700;color:var(--amber)"></div>
+    <div id="asit" class="outcome">As it stands: ${ord(myBefore)}</div>
+    <div id="lpace">${paceControlsHTML("Full time")}</div>
+    <div id="lend"></div></div>`;
+  paintHeader();
+  wirePaceControls(document.getElementById('lpace'),()=>{skipping=true;if(timer){clearTimeout(timer);timer=null}tick()});
+  function tick(){
+    if(next<events.length&&(skipping||events[next].min<=minute+1)){
+      const e=events[next++],g=games[e.gi];
+      if(e.t===g.h)g.sh++;else g.sa++;
+      minute=Math.max(minute,e.min);
+      document.getElementById('boards').innerHTML=board();
+      document.getElementById('flash').textContent=`GOAL! ${e.min}' ${e.t}  ·  ${g.h} ${g.sh}–${g.sa} ${g.a}`;
+      document.getElementById('asit').textContent=`As it stands: ${ord(liveTable())}`;
+    }else if(minute<90)minute=Math.min(90,minute+(next<events.length?Math.max(1,events[next].min-minute-1):6));
+    document.getElementById('clock').textContent=minute>=90&&next>=events.length?"FT":`${minute}'`;
+    if(minute>=90&&next>=events.length)return fullTime();
+    const goalNext=next<events.length&&events[next].min<=minute+1;
+    timer=setTimeout(()=>{timer=null;tick()},skipping?0:(goalNext?PACE.commentaryMs*1.1:PACE.commentaryMs*.35)*speedFactor());
+  }
+  function fullTime(){
+    for(const g of games)award(TABLE,g.h,g.a,g.hg,g.ag);
+    S.mw++;
+    const money=cashConsequences();
+    myPos();paintHeader();kpiRecord();
+    const endPos=posOf(CLUB),moved=myBefore-endPos;
+    const line=final?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
+      :moved>0?`Up to ${ord(endPos)}.`:moved<0?`Down to ${ord(endPos)}.`:`${ord(endPos)}.`;
+    document.getElementById('lpace').innerHTML="";
+    document.getElementById('flash').textContent="Full time.";
+    document.getElementById('asit').textContent=line;
+    document.getElementById('lend').innerHTML=`${money.map(ev=>ev.type==="deduction"
       ?`<div class="outcome" style="border-left-color:var(--bad)"><b>Points deduction: −${ev.pts}.</b> The club went too far into the red.</div>`
       :`<div class="outcome" style="border-left-color:var(--bad)"><b>The bank forced a sale.</b> ${ev.nm} (${ev.pos}, quality ${ev.rt}) sold for ${fmtMoney(ev.fee)}. Your team is weaker.</div>`).join('')}
-    ${others.map((r,i)=>`<div class="res" style="margin-top:6px"><span>${r.h} v ${r.a}</span><span class="sc">${r.hg}–${r.ag}</span></div>`).join('')}
-    <div class="datechip" style="margin:10px 0 5px">THE TABLE NOW</div>
-    ${tableRowsHTML(before)}
-    ${kpiLineHTML()}
-    <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button></div>`;
-  document.getElementById('mn').onclick=done;
+      <div class="datechip" style="margin:10px 0 5px">THE TABLE NOW</div>${tableRowsHTML(before)}
+      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
+    document.getElementById('mn').onclick=done;
+  }
+  timer=setTimeout(()=>{timer=null;tick()},600);
 }
 /* WHO SCORES, AND HOW. About a quarter of goals come from set pieces: the
    taker scores penalties and free kicks wherever he plays, and corners are
@@ -637,30 +722,79 @@ function pickGoal(){
 }
 /* kept for callers that only need the player */
 function pickScorer(){const g=pickGoal();return g?g.p:null}
-/* HALF TIME, SIMPLY: bring on a fresh player for a tiring one, or leave it.
-   For weeks played without a pre-match decision. No question if nobody is
-   tiring. The change is for this match only. */
-function subHalfTime(resume){
-  const xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
+/* HALF TIME: KEEP THE STAR, OR SAVE HIM (Chris). A better player who is
+   tiring, against a fresher, weaker one in the same position:
+   - keep him on: the second half's goal threat stays -- but he breaks down,
+     out for the next game, so next week's goal threat drops;
+   - bring the fresher man on: less goal threat now -- the star is fit next week.
+   Shown as bars for this half and next week, with each player's health.
+   Always asked in Gameweek 2; in other weeks only when someone is tiring. */
+function subHalfTime(resume,force){
+  const always=force||S.mw===1,xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
   let pair=null;
-  // Gameweek 2 always asks (Chris): the tiredest starter who has a fresher
-  // like-for-like replacement. Other weeks only when someone is really tiring.
-  const always=S.mw===1;
   for(const x of xi){const s=S.squadList[x.i];if(!s||(!always&&s.fit>=80))continue;
     for(const b of available()){const j=S.squadList.indexOf(b);
       if(inXI.has(j)||b.pos!==s.pos||b.fit<=s.fit+(always?0:9))continue;
-      if(!pair||s.fit<pair.s.fit)pair={si:x.i,bi:j,s,b}}}
+      // the dilemma needs a BETTER player tiring and a weaker, fresher one
+      if(always&&b.rt>=s.rt)continue;
+      const score=always?s.rt-s.fit/10:-s.fit;
+      if(!pair||score>pair.score)pair={si:x.i,bi:j,s,b,score}}}
   if(!pair)return resume();
+  const[hT,aT]=myFixture(S.mw),home=hT===CLUB,opp=home?aT:hT;
+  const threat=()=>{recalcSquadRating();return matchProbs(opp,home).xgf/2};
+  const nextThreat=()=>{if(S.mw+1>=MW)return null;const[h2,a2]=myFixture(S.mw+1),hm=h2===CLUB;recalcSquadRating();return matchProbs(hm?a2:h2,hm).xgf};
+  // (a manual XI only counts when tagged with the current formation -- untagged,
+  // currentXI() silently discards it, which made both options preview the same)
+  const was=S.manualXI?S.manualXI.map(y=>({...y})):null,wasFm=S.manualFm;
+  const swapped=()=>{const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===pair.si);if(k>=0)x[k].i=pair.bi;return x};
+  const keepNow=threat(),keepNext=(()=>{pair.s.out=1;const v=nextThreat();pair.s.out=0;return v})();
+  S.manualXI=swapped();S.manualFm=S.formation;const subNow=threat();S.manualXI=was;S.manualFm=wasFm;const subNext=nextThreat();recalcSquadRating();
+  const max=Math.max(keepNow,subNow,keepNext||0,subNext||0,.1);
+  const bar=(v,good)=>v==null?"":`<div style="height:9px;border-radius:5px;background:var(--line);margin:3px 0 1px"><div style="height:9px;border-radius:5px;width:${Math.round(v/max*100)}%;background:${good?'var(--good)':'var(--amber)'}"></div></div><div style="font-family:var(--mono);font-size:11px">${v.toFixed(1)} xG</div>`;
+  const health=p=>`<div style="font-size:12px;margin-top:2px">${p.nm} · Q${p.rt}</div><div style="height:6px;border-radius:3px;background:var(--line)"><div style="height:6px;border-radius:3px;width:${p.fit}%;background:${p.fit<75?'var(--bad)':p.fit<85?'var(--amber)':'var(--good)'}"></div></div><div style="font-size:11px;color:var(--mute)">${p.fit}% health</div>`;
+  const card=(id,title,who,now,next,nextNote,nowBetter,nextBetter)=>`<button class="choice" id="${id}" style="margin:0;height:100%;text-align:left">
+    <span class="t">${title}</span>${who}
+    <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">GOAL THREAT, 2ND HALF</div>${bar(now,nowBetter)}
+    <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">GOAL THREAT, NEXT GAME</div>${bar(next,nextBetter)}
+    <div style="font-size:12px;margin-top:4px">${nextNote}</div></button>`;
   const box=document.getElementById('htBox');
   box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">HALF TIME</div>
-    <h2>Make a change?</h2>
-    <button class="choice" id="subYes"><span class="t">Bring on ${pair.b.nm} for ${pair.s.nm}</span><span class="d">${pair.s.nm} is tiring</span></button>
-    <button class="choice" id="subNo"><span class="t">Leave it</span><span class="d">Same eleven</span></button></div>`;
+    <h2>${pair.s.nm} is tiring</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
+      ${card("subNo",`Keep ${pair.s.nm} on`,health(pair.s),keepNow,keepNext,`<b style="color:var(--bad)">✗ Injured for the next game</b>`,keepNow>=subNow,false)}
+      ${card("subYes",`Bring on ${pair.b.nm}`,health(pair.b),subNow,subNext,`<b style="color:var(--good)">✓ ${pair.s.nm} fit next game</b>`,subNow>keepNow,true)}
+    </div></div>`;
   document.getElementById('subYes').onclick=()=>{
-    const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===pair.si);
-    if(k>=0){x[k].i=pair.bi;S.manualXI=x;S.manualFm=S.formation;S._subXI=true}
-    box.innerHTML="";resume()};
-  document.getElementById('subNo').onclick=()=>{box.innerHTML="";resume()};
+    const x=swapped();S.manualXI=x;S.manualFm=S.formation;S._subXI=true;box.innerHTML="";resume()};
+  document.getElementById('subNo').onclick=()=>{S._injureAfter=pair.si;box.innerHTML="";resume()};
+}
+/* HALF TIME: PUSH ON OR HOLD? The same card style as the sub dilemma:
+   goal-threat bars for BOTH ends in the second half, for each shape. */
+function shapeHalfTime(resume,mine,theirs,o={}){
+  const chip=o.chip||"HALF TIME",ask=o.ask||"Push on or hold?",pushT=o.push||"Push on",holdT=o.hold||"Hold",share=o.share||.5;
+  const[hT,aT]=myFixture(S.mw),home=hT===CLUB,opp=home?aT:hT;
+  const fs=Object.keys(FORMATIONS);
+  const bold=fs.slice().sort((a,b)=>(FORMATIONS[b].att-FORMATIONS[b].def)-(FORMATIONS[a].att-FORMATIONS[a].def))[0];
+  const safe=fs.slice().sort((a,b)=>(FORMATIONS[b].def-FORMATIONS[b].att)-(FORMATIONS[a].def-FORMATIONS[a].att))[0];
+  const was=S.formation,wasXI=S.manualXI;
+  const view=f=>{S.formation=f;S.manualXI=null;recalcSquadRating();const p=matchProbs(opp,home);return{us:p.xgf*share,them:p.xga*share}};
+  const P=view(bold),H=view(safe);S.formation=was;S.manualXI=wasXI;recalcSquadRating();
+  const max=Math.max(P.us,P.them,H.us,H.them,.1);
+  const bar=(v,col)=>`<div style="height:9px;border-radius:5px;background:var(--line);margin:3px 0 1px"><div style="height:9px;border-radius:5px;width:${Math.round(v/max*100)}%;background:${col}"></div></div><div style="font-family:var(--mono);font-size:11px">${v.toFixed(1)} xG</div>`;
+  const card=(id,title,sub,v)=>`<button class="choice" id="${id}" style="margin:0;height:100%;text-align:left">
+    <span class="t">${title}</span><span class="d">${sub}</span>
+    <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">YOUR GOAL THREAT</div>${bar(v.us,'var(--good)')}
+    <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">THEIR GOAL THREAT</div>${bar(v.them,'var(--bad)')}</button>`;
+  const state=mine>theirs?`You lead ${mine}–${theirs}.`:mine<theirs?`You trail ${mine}–${theirs}.`:`${mine}–${theirs}.`;
+  const box=document.getElementById('htBox');
+  box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">${chip}</div>
+    <h2>${state} ${ask}</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
+      ${card("htPush",`${pushT} (${bold})`,"More chances, both ends",P)}
+      ${card("htHold",`${holdT} (${safe})`,"Tighter, fewer chances",H)}
+    </div></div>`;
+  document.getElementById('htPush').onclick=()=>{S.formation=bold;S.manualXI=null;box.innerHTML="";resume()};
+  document.getElementById('htHold').onclick=()=>{S.formation=safe;S.manualXI=null;box.innerHTML="";resume()};
 }
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');

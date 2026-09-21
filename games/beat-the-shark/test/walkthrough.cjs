@@ -56,6 +56,8 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
       if((openClaim&&openClaim!==preClaim)||(preClaim&&preClaim!==model))problems.push(`${lvl}/${role}/${seed}: opening says ${openClaim}, pre-season says ${preClaim}, model says ${model}`);}
   catch(e){crashes.push(`${lvl}/${role}/${seed} start: ${e.message}`);continue}
   const plan=run('PLAN');
+  const games=plan.filter(b=>b==='match'||b==='live'||b==='round').length;
+  if(games!==run('MW'))problems.push(`${lvl}/${role}/${seed}: the plan has ${games} games but the season has ${run('MW')}`);
   for(let i=0;i<plan.length;i++){
     delete els.ch;
     try{run(`cursor=${i};S.pendingOppFm=null;S._sheetShown=false;step()`)}catch(e){crashes.push(`${lvl}/${role}/${seed} step ${i} ${plan[i]}: ${e.message}`);continue}
@@ -63,8 +65,14 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
     settle();scan(`${lvl}/${role} ${plan[i]}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML+(els.ch?els.ch.children.map(c=>c.innerHTML||'').join(' '):''));
     // take the first choice on decision screens, so outcome screens are checked too
     if(els.ch&&els.ch.children.length&&typeof els.ch.children[0].onclick==='function'){try{els.ch.children[0].onclick();settle();scan(`${lvl}/${role} ${plan[i]} (outcome)`,els.app.innerHTML)}catch(e){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} choice: ${e.message}`)}}
-    for(const b of ['kick','subNo','goSecond','toTable','toOthers']){const e=els[b];if(!e||typeof e.onclick!=='function')continue;
-      try{e.onclick();settle();scan(`${lvl}/${role} ${plan[i]} → ${b}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML)}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} → ${b}: ${x.message}`)};els[b]=undefined}
+    // go: the match-day summary (from GW2) -> team sheet or quick preview; then the match.
+    for(const b of ['go','kick','subNo','goSecond','toTable','toOthers','mn']){const e=els[b];if(!e||typeof e.onclick!=='function')continue;
+      const wkNow=run('S.mw');
+      try{e.onclick();settle();scan(`${lvl}/${role} ${plan[i]} → ${b}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML)
+        // (Chris saw "the same team playing the same opponent as me") -- at the 3pm
+        // kick-offs, neither your team nor your opponent may be in the other games.
+        if(b==='toOthers'&&els.boards){const[h,a]=run(`myFixture(${wkNow})`),opp=h==='Your Team'?a:h,bt=txt(els.boards.innerHTML);
+          if(bt.includes(opp)||bt.includes('Your Team'))problems.push(`${lvl}/${role}/${seed} GW${wkNow+1}: the 3pm games include ${bt.includes(opp)?opp:'Your Team'}: ${bt}`)}}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} → ${b}: ${x.message}`)};els[b]=undefined}
   }
   try{run('S.mw=MW;renderEnding()');scan(`${lvl}/${role} ending`,els.app.innerHTML)}catch(e){crashes.push(`${lvl}/${role}/${seed} ending: ${e.message}`)}
   }
