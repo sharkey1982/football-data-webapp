@@ -1,6 +1,5 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { recordVisit, _resetVisitedPages } from '../lib/visitedPages';
 import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -8,8 +7,8 @@ import { TriviaCarousel } from '../components/TriviaCarousel';
 import type { TriviaFact } from '../lib/landingApi';
 
 const facts: TriviaFact[] = [
-  { question: 'Q1?', options: ['A', 'B', 'C'], correct: [1], explanation: 'B was right.', optionDetails: ['A: 10%', 'B: 30%', 'C: 20%'], link: { to: '/results-data', label: 'Explore every result' } },
-  { question: 'Q2?', options: ['D', 'E', 'F'], correct: [0], explanation: 'D was right.', link: { to: '/table', label: 'Table' } },
+  { question: 'Q1?', options: ['A', 'B', 'C'], correct: [1], explanation: 'B was right.', optionDetails: ['A: 10%', 'B: 30%', 'C: 20%'], link: { to: '/table', label: 'See the table' } },
+  { question: 'Q2?', options: ['D', 'E', 'F'], correct: [0], explanation: 'D was right.', link: { to: '/results-data', label: 'Explore every result' } },
   { question: 'Q3?', options: ['G', 'H', 'I'], correct: [2], explanation: 'I was right.', link: { to: '/fpl/value', label: 'Value' } },
 ];
 
@@ -26,7 +25,6 @@ function render(ui: React.ReactElement) {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
-  _resetVisitedPages();
 });
 
 // The carousel now shuffles (unvisited pages first, random within). These
@@ -104,9 +102,9 @@ describe('TriviaCarousel', () => {
 
   it('links to the page that holds the answer, once answered', () => {
     render(<TriviaCarousel facts={facts} />);
-    expect(screen.queryByRole('link', { name: /Explore every result/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /See the table/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^B/ }));
-    expect(screen.getByRole('link', { name: /Explore every result/ })).toHaveAttribute('href', '/results-data');
+    expect(screen.getByRole('link', { name: /See the table/ })).toHaveAttribute('href', '/table');
   });
 
   it('with a genuine tie, every tied option is correct and picking any of them counts as right', () => {
@@ -152,9 +150,20 @@ describe('TriviaCarousel', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('leads with questions about pages not yet visited this session', () => {
-    recordVisit('/results-data'); // Q1's page
-    render(<TriviaCarousel facts={facts} />);
-    expect(screen.getByText('Q2?')).toBeInTheDocument(); // an unvisited page's question comes first
+  it('follows the header menu order, whatever order the questions arrive in', () => {
+    const scrambled: TriviaFact[] = [
+      { question: 'Heat map?', options: ['a', 'b'], correct: [0], explanation: '.', link: { to: '/fantasy', label: 'x' } },
+      { question: 'Match?', options: ['a', 'b'], correct: [0], explanation: '.', link: { to: '/football/matches/arsenal-v-spurs', label: 'x' } },
+      { question: 'TOTW?', options: ['a', 'b'], correct: [0], explanation: '.', link: { to: '/fpl/team-of-the-week/gw5', label: 'x' } },
+      { question: 'Strength?', options: ['a', 'b'], correct: [0], explanation: '.', link: { to: '/team-strength', label: 'x' } },
+    ];
+    render(<TriviaCarousel facts={scrambled} />);
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      seen.push(screen.getByText(/\?$/).textContent!);
+      fireEvent.click(screen.getByRole('button', { name: 'Next fact' }));
+    }
+    // Fixtures & Results (a match page), Team Strength, Team of the Week, Fixture Heat Map
+    expect(seen).toEqual(['Match?', 'Strength?', 'TOTW?', 'Heat map?']);
   });
 });

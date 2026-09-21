@@ -4,7 +4,6 @@ import { CookieConsent } from './CookieConsent';
 import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
-import { recordVisit } from '../lib/visitedPages';
 
 type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[] };
 /** A group's items may be split into the four journey stages
@@ -138,12 +137,6 @@ function NavDropdown({ group }: { group: NavGroup }) {
 
 export default function AppLayout() {
   const location = useLocation();
-
-  // Remember which pages this browser has opened (on-device only), so the
-  // trivia carousel can lead with places a visitor hasn't found yet.
-  useEffect(() => {
-    recordVisit(location.pathname);
-  }, [location.pathname]);
 
   // AppLayout wraps every page and never unmounts on route changes (only
   // the <Outlet /> content swaps), so it's the right place to remember the
