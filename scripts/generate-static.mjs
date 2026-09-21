@@ -28,6 +28,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -191,6 +192,44 @@ async function main() {
   }
 
   await writePlayerScoutPages();
+
+  // ---- Club finance pages --------------------------------------------------
+  // Generated for EVERY team with published accounts -- not only the Premier
+  // League -- from five requests in total however many clubs there are (see
+  // scripts/lib/financeStatic.mjs). Runs BEFORE the team pages, which need to
+  // know which clubs have accounts (for their Finances link), and so that the
+  // team block's early exit on missing fixture data cannot take these down.
+  async function writeFinancePages() {
+    const bulk = await fetchFinanceBulk(queryAll);
+    if (!bulk) {
+      console.warn('Static: finance data unavailable -- skipping finance pages.');
+      return new Set();
+    }
+    const entry = await import(ENTRY);
+    const site = buildFinanceSite(bulk, entry);
+    let n = 0;
+    for (const club of site.clubs) {
+      try {
+        const page = entry.renderTeamFinancePage(club.team.slug, club);
+        const dir = join(DIST, 'football', 'teams', club.team.slug, 'finances');
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+        n++;
+      } catch (err) {
+        console.error(`Static: failed finance page ${club.team.slug}: ${err?.message ?? err}`);
+      }
+    }
+    try {
+      const page = entry.renderFinanceIndexPage(site.index);
+      mkdirSync(join(DIST, 'finance'), { recursive: true });
+      writeFileSync(join(DIST, 'finance', 'index.html'), buildDocument(shell, page), 'utf8');
+    } catch (err) {
+      console.error(`Static: failed /finance index: ${err?.message ?? err}`);
+    }
+    console.log(`Static: wrote ${n} club finance page(s) and the /finance index.`);
+    return site.teamIds;
+  }
+  const financeTeamIds = await writeFinancePages();
 
   // Bulk fetches -- three requests total, not one per page.
   const teams = await query('teams?select=team_id,display_name,slug&limit=1000');
@@ -442,6 +481,7 @@ async function main() {
         fitted_at: currentFit?.fitted_at ?? null,
       },
       matches: teamMatches,
+      hasFinance: financeTeamIds.has(teamId),
     };
 
     try {
