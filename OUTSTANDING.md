@@ -1430,6 +1430,30 @@ Chris played as a Beginner. More comments to come; batch them before acting.
    Consider slower defaults (especially for Beginner), a speed control, and
    tap-to-continue or pause, so the 3pm results and table moves can be read.
 
+## BEAT THE SHARK — ENGAGEMENT REVIEW (2026-09-21)
+
+Measured (test harness, beginner manager, 250 words/min): a season is ~5,500
+words (~22 min of reading) plus animations, for a game billed as "a season
+in five minutes"; ~870 words before the first match; a beginner's 4th team
+sheet (457 words, 27 buttons) is HEAVIER than a Data guru's (315) because
+banners/tips were added on top; heaviest screens: January window ~575,
+ending ~370, heat map ~320, stats ~285.
+
+DONE (pacing, from the playtest): commentary slowed to reading pace (2.2s a
+line for beginners, 1.6s otherwise; was 0.8-1.0s), 3pm results 2.6s each;
+Slow/Normal/Fast control and "Skip to full time" / "Show all results"
+(skipping never passes a half-time decision); the table no longer re-sorts
+after every result -- it redraws once at the end with arrows since 3pm.
+READING BUDGET ratchet in test/screens.cjs caps every screen and the season
+at today's level, so nothing grows; lower the caps as screens are trimmed.
+
+TO DO (needs Chris's call: 5- or 10-minute target):
+1. Beginner's first decision within ~30s (role+level -> one-line mission
+   -> first team sheet; squad and heat map later, in context).
+2. Invert Beginner mode: only that match's new idea + essentials; other
+   explanation behind a "Why?" link.
+3. Trim the heaviest screens to their key message (target ~120 words).
+
 ## PRODUCT: FOOTBALL FINANCE PILLAR — ASSESSED, NOT STARTED
 Full brief retained separately. Position taken 2026-09-20:
 

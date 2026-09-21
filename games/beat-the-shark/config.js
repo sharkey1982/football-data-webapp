@@ -74,6 +74,18 @@ const LEVELS={
 };
 let LEVEL="beginner";
 
+/* PACING (Chris's playtest: "too fast to follow"). Measured: live commentary
+   showed a line every 0.8-1.0s and 3pm results every 1.5s -- two to three
+   times reading speed (a 10-word line needs ~2.5s at 250 words a minute),
+   with the whole table re-sorting after every result. Base delays below are
+   per commentary line / per result at "normal"; the speed setting scales
+   them. Beginners start on "slow". Players can change speed, or skip to full
+   time, while it runs -- skipping always stops at a half-time decision. */
+const PACE={commentaryMs:1600,quickCommentaryMs:900,resultMs:2600,speeds:{slow:1.4,normal:1,fast:.45}};
+let SPEED=null; // the player's choice this session; null = the level's default
+function speedName(){return SPEED||(LEVEL==="beginner"?"slow":"normal")}
+function speedFactor(){return PACE.speeds[speedName()]}
+
 /* The main FixtureShark site. Links from the game always use this ABSOLUTE
    address, because the game is reachable two ways -- proxied at
    /play/beat-the-shark/ on the main domain, and directly on its own Netlify
