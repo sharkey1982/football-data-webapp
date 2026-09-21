@@ -157,3 +157,63 @@ export async function getFormationSlots(): Promise<FormationSlot[]> {
 export function formationLabel(code: string, canonical: string | null | undefined): string {
   return canonical ? canonical : `Formation ${code}`;
 }
+
+// ---- Comparing formations by ROLE --------------------------------------------
+// Each formation numbers its eleven slots differently, so formations are
+// compared by role, read from where each slot sits on the pitch (x: 0 left to
+// 100 right; y: 0 own goal to 100 opponents' goal). A 4-3-3's wide forwards
+// and a 4-2-3-1's wide attacking midfielders are both "Wide players".
+export const ROLES = ['Strikers', 'No.10', 'Wide players', 'Central midfield', 'Full-backs', 'Centre-backs', 'Goalkeeper'] as const;
+export type Role = (typeof ROLES)[number];
+
+export function roleOf(x: number, y: number): Role {
+  const wide = (edge: number) => x < edge || x > 100 - edge;
+  if (y < 10) return 'Goalkeeper';
+  if (y < 40) return wide(25) ? 'Full-backs' : 'Centre-backs';
+  if (y < 66) return wide(25) ? 'Wide players' : 'Central midfield';
+  if (y < 80) return wide(35) ? 'Wide players' : 'No.10';
+  return wide(35) ? 'Wide players' : 'Strikers';
+}
+
+export type RoleMetric = 'goals' | 'assists' | 'ga';
+
+export type RoleGrid = {
+  formations: { code: string; name: string; matches: number }[];
+  /** share of the formation's total for each role (0-1); null = no such role */
+  cells: Record<Role, (number | null)[]>;
+  max: number;
+};
+
+/**
+ * Share of each formation's goals / assists / goals+assists by role, for
+ * formations used in at least `minMatches` matches (fewer is too thin to
+ * compare). Shares in each formation's column sum to 1.
+ */
+export function buildRoleGrid(
+  slots: FormationSlot[],
+  geometry: Map<string, Map<number, { slot: number; x_pct: number; y_pct: number }>>,
+  names: Map<string, string>,
+  metric: RoleMetric,
+  minMatches = 50
+): RoleGrid {
+  const value = (s: FormationSlot) => (metric === 'goals' ? s.goals : metric === 'assists' ? s.assists : s.goals + s.assists);
+  const byCode = new Map<string, FormationSlot[]>();
+  for (const s of slots) (byCode.get(s.source_formation_code) ?? byCode.set(s.source_formation_code, []).get(s.source_formation_code)!).push(s);
+  const formations = [...byCode.entries()]
+    .map(([code, ss]) => ({ code, name: names.get(code) ?? ss[0]?.canonical_formation ?? code, matches: Math.round(ss.reduce((a, s) => a + s.starts, 0) / 11), ss }))
+    .filter((f) => f.matches >= minMatches && geometry.has(f.code))
+    .sort((a, b) => b.matches - a.matches);
+  const cells = Object.fromEntries(ROLES.map((r) => [r, formations.map(() => null as number | null)])) as Record<Role, (number | null)[]>;
+  formations.forEach((f, i) => {
+    const total = f.ss.reduce((a, s) => a + value(s), 0);
+    const geo = geometry.get(f.code)!;
+    for (const s of f.ss) {
+      const g = geo.get(Number(s.source_formation_slot));
+      if (!g) continue;
+      const r = roleOf(g.x_pct, g.y_pct);
+      cells[r][i] = (cells[r][i] ?? 0) + (total > 0 ? value(s) / total : 0);
+    }
+  });
+  const max = Math.max(0.0001, ...ROLES.flatMap((r) => cells[r].filter((v): v is number => v != null)));
+  return { formations: formations.map(({ code, name, matches }) => ({ code, name, matches })), cells, max };
+}
