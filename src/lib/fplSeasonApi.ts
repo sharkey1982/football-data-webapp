@@ -96,6 +96,33 @@ export async function getDefaultMatchweek(): Promise<number> {
   return typeof data === 'number' ? data : 1;
 }
 
+/**
+ * The gameweek currently IN PLAY -- some of its matches played, some not --
+ * or null when no gameweek is part-way through. While one is, it mostly
+ * holds results already in the books plus a leftover match or two, so
+ * range filters let people leave it out (GameweekRangeFilter).
+ */
+export async function getGameweekInPlay(): Promise<{ gw: number; played: number; total: number } | null> {
+  const { data, error } = await supabase
+    .from('fixtures')
+    .select('matchweek, status')
+    .eq('league_id', 1)
+    .eq('season_id', 13);
+  if (error) throw error;
+  const byMw = new Map<number, { played: number; total: number }>();
+  for (const r of (data ?? []) as { matchweek: number | null; status: string | null }[]) {
+    if (r.matchweek == null) continue;
+    const g = byMw.get(r.matchweek) ?? { played: 0, total: 0 };
+    g.total++;
+    if (r.status === 'played') g.played++;
+    byMw.set(r.matchweek, g);
+  }
+  const first = [...byMw.keys()].sort((a, b) => a - b).find((k) => byMw.get(k)!.played < byMw.get(k)!.total);
+  if (first == null) return null;
+  const g = byMw.get(first)!;
+  return g.played > 0 ? { gw: first, ...g } : null;
+}
+
 export type SeasonFixture = {
   fixture_id: number;
   matchweek: number;
