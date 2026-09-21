@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getLeagues, getCountries, getSeasons, getLeagueTable, type LeagueTableRow } from '../lib/api';
+import { getLeagues, getCountries, getSeasons, getLeagueTable, getPointsRace, type LeagueTableRow, type RaceSeries } from '../lib/api';
+import Timelapse from '../components/Timelapse';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
 type LeagueOption = {
@@ -103,6 +104,25 @@ export default function LeagueTable() {
 
   const anyDeductions = rows?.some((r) => r.pointsAdjustment !== 0) ?? false;
 
+  // Table or timelapse (Chris). The timelapse's data loads only when chosen,
+  // keyed by division and season so a stale race is never shown.
+  const [view, setView] = useState<'table' | 'timelapse'>(searchParams.get('view') === 'timelapse' ? 'timelapse' : 'table');
+  const raceKey = leagueId && seasonId ? `${leagueId}-${seasonId}` : null;
+  const [race, setRace] = useState<{ key: string; frames: number; series: RaceSeries[] } | { key: string; error: true } | null>(null);
+  useEffect(() => {
+    if (view !== 'timelapse' || !raceKey || !leagueId || !seasonId) return;
+    let cancelled = false;
+    getPointsRace(leagueId, seasonId)
+      .then((r) => { if (!cancelled) setRace({ key: raceKey, ...r }); })
+      .catch(() => { if (!cancelled) setRace({ key: raceKey, error: true }); });
+    return () => { cancelled = true; };
+  }, [view, raceKey, leagueId, seasonId]);
+  const raceReady = race && race.key === raceKey ? race : null;
+  function chooseView(v: 'table' | 'timelapse') {
+    setView(v);
+    const next = new URLSearchParams(searchParams); if (v === 'timelapse') next.set('view', 'timelapse'); else next.delete('view'); setSearchParams(next, { replace: true });
+  }
+
   function viewTeamFixtures(teamId: number) {
     navigate(`/fixtures?view=team&team=${teamId}&season=${seasonId}`);
   }
@@ -168,13 +188,40 @@ export default function LeagueTable() {
         <div className="border border-loss-600 bg-loss-600/10 text-loss-700 px-4 py-3 rounded">{error}</div>
       )}
 
+      {rows && rows.length > 0 && (
+        <div role="group" aria-label="View" className="flex gap-2">
+          {(['table', 'timelapse'] as const).map((v) => (
+            <button key={v} type="button" aria-pressed={view === v} onClick={() => chooseView(v)}
+              className={['text-sm rounded px-3 py-1 border', view === v ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'border-chalk-300 text-ink-700 hover:bg-chalk-200'].join(' ')}>
+              {v === 'table' ? 'Table' : 'Timelapse'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'timelapse' && rows && rows.length > 0 && (
+        <div className="border border-chalk-300 rounded-lg bg-white p-4">
+          {!raceReady && <p className="text-ink-500 font-mono text-sm">Building the timelapse&hellip;</p>}
+          {raceReady && 'error' in raceReady && <p className="text-ink-700">The timelapse could not be loaded just now.</p>}
+          {raceReady && 'series' in raceReady && (
+            <Timelapse
+              series={raceReady.series}
+              measure="Points"
+              top={raceReady.series.length}
+              stepMs={450}
+              frameLabel={(i) => `After ${i + 1} ${i === 0 ? 'game' : 'games'}`}
+            />
+          )}
+        </div>
+      )}
+
       {loading && <p className="text-ink-500 font-mono text-sm">Building table&hellip;</p>}
 
       {!loading && rows && rows.length === 0 && (
         <p className="text-ink-500">No results yet for this division/season.</p>
       )}
 
-      {!loading && rows && rows.length > 0 && (
+      {view === 'table' && !loading && rows && rows.length > 0 && (
         <div className="border border-chalk-300 rounded-lg overflow-hidden bg-white overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-pitch-900 text-chalk-100">
