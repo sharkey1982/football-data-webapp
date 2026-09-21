@@ -1,15 +1,21 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { TriviaCarousel } from '../components/TriviaCarousel';
 import type { TriviaFact } from '../lib/landingApi';
 
 const facts: TriviaFact[] = [
-  { question: 'Q1?', options: ['A', 'B', 'C'], correctIndex: 1, explanation: 'B was right.' },
-  { question: 'Q2?', options: ['D', 'E', 'F'], correctIndex: 0, explanation: 'D was right.' },
-  { question: 'Q3?', options: ['G', 'H', 'I'], correctIndex: 2, explanation: 'I was right.' },
+  { question: 'Q1?', options: ['A', 'B', 'C'], correct: [1], explanation: 'B was right.', optionDetails: ['A: 10%', 'B: 30%', 'C: 20%'], link: { to: '/results-data', label: 'Explore every result' } },
+  { question: 'Q2?', options: ['D', 'E', 'F'], correct: [0], explanation: 'D was right.' },
+  { question: 'Q3?', options: ['G', 'H', 'I'], correct: [2], explanation: 'I was right.' },
 ];
+
+// The carousel renders router Links (to the page holding each answer).
+function render(ui: React.ReactElement) {
+  return rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
+}
 
 // Always restore real timers after each test, not just at the end of a
 // passing test body -- a failed assertion mid-test would otherwise skip
@@ -54,37 +60,60 @@ describe('TriviaCarousel', () => {
     expect(screen.getByText('B was right.')).toBeInTheDocument();
   });
 
-  it('auto-advances to the next question a few seconds after a guess, resetting to unanswered', () => {
+  // CHANGED BEHAVIOUR (Trivia v2): the carousel used to auto-advance 7s
+  // after a guess, pausing on hover. With every option's figure and a link
+  // to read, that was too fast to follow, so it now waits for the reader.
+  it('stays on the answer however long the reader takes -- it never auto-advances after a guess', () => {
     vi.useFakeTimers();
     render(<TriviaCarousel facts={facts} />);
-
     fireEvent.click(screen.getByRole('button', { name: /^B/ }));
-    expect(screen.getByText('B was right.')).toBeInTheDocument();
-
     act(() => {
-      vi.advanceTimersByTime(7000);
+      vi.advanceTimersByTime(120000);
     });
-    expect(screen.getByText('Q2?')).toBeInTheDocument();
-    expect(screen.queryByText('D was right.')).not.toBeInTheDocument(); // unanswered again on the new question
+    expect(screen.getByText('Q1?')).toBeInTheDocument();
+    expect(screen.getByText('B was right.')).toBeInTheDocument();
   });
 
-  it('pauses the post-answer auto-advance while hovered', () => {
-    vi.useFakeTimers();
+  it('offers "Next question" after a guess, which moves on and resets to unanswered', () => {
     render(<TriviaCarousel facts={facts} />);
-
-    const container = screen.getByText('Q1?').closest('div')!;
-    fireEvent.mouseEnter(container);
+    expect(screen.queryByRole('button', { name: /Next question/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^B/ }));
-    act(() => {
-      vi.advanceTimersByTime(15000);
-    });
-    expect(screen.getByText('Q1?')).toBeInTheDocument(); // never advanced while hovered
-
-    fireEvent.mouseLeave(container);
-    act(() => {
-      vi.advanceTimersByTime(7000);
-    });
+    fireEvent.click(screen.getByRole('button', { name: /Next question/ }));
     expect(screen.getByText('Q2?')).toBeInTheDocument();
+    expect(screen.queryByText('D was right.')).not.toBeInTheDocument();
+  });
+
+  it('reveals every option\u2019s own figure only after a guess -- not just the right one', () => {
+    render(<TriviaCarousel facts={facts} />);
+    expect(screen.queryByText('A: 10%')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^A/ }));
+    expect(screen.getByText('A: 10%')).toBeInTheDocument();
+    expect(screen.getByText('B: 30%')).toBeInTheDocument();
+    expect(screen.getByText('C: 20%')).toBeInTheDocument();
+  });
+
+  it('links to the page that holds the answer, once answered', () => {
+    render(<TriviaCarousel facts={facts} />);
+    expect(screen.queryByRole('link', { name: /Explore every result/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^B/ }));
+    expect(screen.getByRole('link', { name: /Explore every result/ })).toHaveAttribute('href', '/results-data');
+  });
+
+  it('with a genuine tie, every tied option is correct and picking any of them counts as right', () => {
+    const tie: TriviaFact[] = [{ question: 'Tie?', options: ['X', 'Y', 'Z'], correct: [0, 2], explanation: 'X and Z tie.' }];
+    render(<TriviaCarousel facts={tie} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Z/ }));
+    expect(screen.getByText('Right')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^X/ }).textContent).toContain('\u2713');
+    expect(screen.getByRole('button', { name: /^Z/ }).textContent).toContain('\u2713');
+    expect(screen.getByRole('button', { name: /^Y/ }).textContent).not.toContain('\u2713');
+  });
+
+  it('when every option is correct, says so', () => {
+    const all: TriviaFact[] = [{ question: 'All?', options: ['P', 'Q'], correct: [0, 1], explanation: 'All of them.' }];
+    render(<TriviaCarousel facts={all} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Q/ }));
+    expect(screen.getByText(/so was every other option/)).toBeInTheDocument();
   });
 
   it('lets a person manually step forward, back, and jump via the dots -- each resetting to unanswered', async () => {
