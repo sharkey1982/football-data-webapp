@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import FormationRoleGrid from '../../components/fpl/FormationRoleGrid';
 import {
   setPieceGoals,
   setPieceGoalPct,
@@ -142,6 +143,8 @@ export default function FormationsPage() {
           per start, so formations used 30 times can be compared with ones used 250 times.
         </p>
       </header>
+
+      {slots && geometry.size > 0 && <FormationRoleGrid slots={slots} geometry={geometry} names={names} />}
 
       <div className="flex flex-wrap gap-3 items-end">
         <label className="block">
