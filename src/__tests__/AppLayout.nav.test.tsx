@@ -60,6 +60,13 @@ describe('AppLayout main nav', () => {
     expect(screen.queryByRole('button', { name: /^Optimiser$/ })).not.toBeInTheDocument();
   });
 
+  it('The Boardroom is a top-level heading holding Club finances (/finance)', async () => {
+    renderAt('/');
+    const boardroom = screen.getByRole('button', { name: /The Boardroom/ });
+    await userEvent.setup().click(boardroom);
+    expect(await screen.findByRole('link', { name: 'Club finances' })).toHaveAttribute('href', '/finance');
+  });
+
   it('the Admin menu holds operational tools only -- Optimiser is a Fantasy feature', async () => {
     renderAt('/');
     const user = userEvent.setup();

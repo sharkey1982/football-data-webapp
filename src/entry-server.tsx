@@ -21,11 +21,20 @@
 // ============================================================================
 
 import { renderToString } from 'react-dom/server';
-import { StaticRouter } from 'react-router';
-import { Route, Routes } from 'react-router-dom';
+// StaticRouter, Routes and Route all from ONE package. Importing StaticRouter
+// from 'react-router' and Routes from 'react-router-dom' worked in the
+// production bundle (which merges them) but loaded two copies of the router
+// under the test runner, so the router context did not match -- "useRoutes()
+// may be used only in the context of a <Router>". That is why these
+// renderers could not be tested until now.
+import { Route, Routes, StaticRouter } from 'react-router-dom';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
+import TeamFinancePage from './pages/football/TeamFinancePage';
+import FinanceIndexPage from './pages/FinanceIndexPage';
+import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
+import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
@@ -216,6 +225,68 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
 }
 
 export { STATIC_ROUTES };
+
+// ---- Club finances ---------------------------------------------------------
+// The finance module, re-exported as ONE namespace so the build scripts group
+// and normalise rows with exactly the code the browser uses (one bulk query
+// per view for every club) -- see scripts/lib/financeStatic.mjs.
+export * as finance from './lib/financeApi';
+
+export function renderTeamFinancePage(slug: string, data: ClubFinanceData): RenderedPage {
+  const path = `/football/teams/${slug}/finances`;
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/teams/:slug/finances" element={<TeamFinancePage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  const name = data.team.display_name;
+  const latest = latestPeriod(data.periods);
+  let description = `Statutory accounts for ${name}, from Companies House.`;
+  if (latest) {
+    const rev = scaled(latest.revenue_total, latest.unit_scale);
+    const pbt = signedMoney('profit_before_tax', scaled(latest.profit_before_tax, latest.unit_scale), 'Profit or loss before tax');
+    const first = data.periods[0];
+    description =
+      `${name}'s statutory accounts ${fyLabel(first.period_end)}\u2013${fyLabel(latest.period_end)}, from Companies House. ` +
+      `In the year to ${longDate(latest.period_end)}: revenue ${formatMoneyShort(rev)}, ${pbt.label.toLowerCase()} ${pbt.amount}.`;
+  }
+  return {
+    html,
+    title: `${name} finances \u2014 revenue, profit and loss, cash | ${BRAND_NAME}`,
+    description,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      breadcrumb([
+        { name: 'Football', path: '/football' },
+        { name: 'Teams', path: '/teams' },
+        { name, path: `/football/teams/${slug}` },
+        { name: 'Finances', path },
+      ]),
+    ],
+  };
+}
+
+export function renderFinanceIndexPage(entries: FinanceIndexEntry[]): RenderedPage {
+  const path = '/finance';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/finance" element={<FinanceIndexPage initialData={entries} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `Club finances \u2014 statutory accounts, explained | ${BRAND_NAME}`,
+    description:
+      'Football club finances from the accounts clubs file at Companies House: revenue, profit and loss, cash, borrowings and net assets, each figure traceable to its source.',
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Club finances', path }])],
+  };
+}
+
 
 /** Injects a rendered page into the built index.html shell: its markup
  * into #root, and real head tags replacing the shell's static

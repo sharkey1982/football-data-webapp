@@ -23,11 +23,16 @@ import {
   type TeamPageMatch,
 } from '../../lib/teamPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
+import { teamHasFinance } from '../../lib/financeApi';
 
-export type TeamPageData = { profile: TeamPageProfile; matches: TeamPageMatch[] };
+/** hasFinance: whether this club has published accounts. Static generation
+ *  supplies it from ONE bulk query for every team; when absent the page asks
+ *  once on the client. The Finances link appears only when it is true. */
+export type TeamPageData = { profile: TeamPageProfile; matches: TeamPageMatch[]; hasFinance?: boolean };
 
 export default function TeamPage({ initialData }: { initialData?: TeamPageData } = {}) {
   const { slug } = useParams<{ slug: string }>();
+  const [hasFinance, setHasFinance] = useState<boolean | null>(initialData?.hasFinance ?? null);
   const [profile, setProfile] = useState<TeamPageProfile | null>(initialData?.profile ?? null);
   const [matches, setMatches] = useState<TeamPageMatch[]>(initialData?.matches ?? []);
   const [loading, setLoading] = useState(!initialData);
@@ -62,6 +67,18 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
     };
   }, [slug, initialData]);
 
+  // Must sit with the other hooks, BEFORE the early returns below: a hook
+  // after a conditional return runs on some renders and not others, which
+  // React rejects.
+  useEffect(() => {
+    if (hasFinance !== null || !profile) return;
+    let cancelled = false;
+    teamHasFinance(profile.team_id)
+      .then((v) => { if (!cancelled) setHasFinance(v); })
+      .catch(() => { if (!cancelled) setHasFinance(false); });
+    return () => { cancelled = true; };
+  }, [hasFinance, profile]);
+
   useDocumentHead({
     title: profile ? `${profile.display_name} \u2014 ratings & fixtures` : 'Team',
     description: profile
@@ -95,6 +112,13 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
       <header>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">{profile.display_name}</h1>
         {profile.league_name && <p className="text-ink-700 mt-1">{profile.league_name}</p>}
+        {hasFinance && (
+          <p className="mt-2">
+            <Link to={`/football/teams/${profile.slug}/finances`} className="inline-block rounded border border-pitch-700 px-3 py-1 text-sm text-pitch-800 hover:border-amber-500">
+              Finances &rarr;
+            </Link>
+          </p>
+        )}
         {profile.fitted_at && (
           <p className="text-xs text-ink-500 font-mono mt-2">
             Ratings from the model fit of{' '}

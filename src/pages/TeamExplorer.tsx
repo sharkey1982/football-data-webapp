@@ -20,7 +20,12 @@ export default function TeamExplorer() {
   const { slug: routeSlug } = useParams<{ slug?: string }>();
 
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
-  const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
+  // Defaults to the Premier League (E0). undefined = not decided yet: the
+  // team list waits for the leagues to load, so it doesn't fetch every team
+  // and then refetch the Premier League ones (a visible flash). E0 is found
+  // by its code rather than a hard-coded id; if it is ever missing, the
+  // page falls back to all divisions. "All divisions" stays one click away.
+  const [leagueFilter, setLeagueFilter] = useState<number | null | undefined>(undefined);
 
   const [allTeams, setAllTeams] = useState<TeamOption[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
@@ -39,10 +44,17 @@ export default function TeamExplorer() {
   });
 
   useEffect(() => {
-    getLeagues().then((data) => setLeagues(data ?? []));
+    getLeagues()
+      .then((data) => {
+        setLeagues(data ?? []);
+        const e0 = (data ?? []).find((l) => l.code === 'E0');
+        setLeagueFilter((cur) => (cur === undefined ? (e0?.league_id ?? null) : cur));
+      })
+      .catch(() => setLeagueFilter((cur) => (cur === undefined ? null : cur)));
   }, []);
 
   useEffect(() => {
+    if (leagueFilter === undefined) return;
     setLoadingTeams(true);
     setError(null);
     (async () => {
@@ -127,8 +139,9 @@ export default function TeamExplorer() {
 
       <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Filter by division</label>
+          <label htmlFor="team-division" className="block text-sm font-medium text-ink-700 mb-1">Filter by division</label>
           <select
+            id="team-division"
             value={leagueFilter ?? ''}
             onChange={(e) => setLeagueFilter(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
@@ -142,8 +155,9 @@ export default function TeamExplorer() {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-1">Filter by name</label>
+          <label htmlFor="team-name" className="block text-sm font-medium text-ink-700 mb-1">Filter by name</label>
           <input
+            id="team-name"
             type="text"
             value={nameFilter}
             onChange={(e) => setNameFilter(e.target.value)}

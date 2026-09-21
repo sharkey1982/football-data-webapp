@@ -13,6 +13,8 @@ import AppLayout from './components/AppLayout';
 // it's needed immediately on every route, so lazy-loading it would only
 // add a round trip with no benefit.
 const InThePapersPage = lazy(() => import('./pages/fpl/InThePapersPage'));
+const TeamFinancePage = lazy(() => import('./pages/football/TeamFinancePage'));
+const FinanceIndexPage = lazy(() => import('./pages/FinanceIndexPage'));
 const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
 const GameweekBrowser = lazy(() => import('./pages/GameweekBrowser'));
@@ -136,6 +138,24 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TeamPage />
+              </Suspense>
+            }
+          />
+          {/* Club finances. Deliberately NOT /football/finance: that would be
+              captured by the football/:stage journey route. */}
+          <Route
+            path="football/teams/:slug/finances"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TeamFinancePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="finance"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FinanceIndexPage />
               </Suspense>
             }
           />
