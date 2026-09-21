@@ -10,7 +10,18 @@
    =========================================================================== */
 const fs=require('fs'),path=require('path');
 const GAME=process.env.GAME||path.join(__dirname,'..','index.html');
-const src=fs.readFileSync(GAME,'utf8').match(/<script>([\s\S]*)<\/script>/)[1];
+/* Load the game exactly as the browser does: every <script src> listed in
+   index.html, in order, as one shared scope. Falls back to a single inline
+   <script> so older one-file builds (and GAME=copy.html) still work. */
+function loadGame(file){
+  const html=fs.readFileSync(file,'utf8'),dir=path.dirname(file);
+  const srcs=[...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m=>m[1]);
+  if(srcs.length)return srcs.map(s=>fs.readFileSync(path.join(dir,s),'utf8')).join('\n;\n');
+  const inline=html.match(/<script>([\s\S]*)<\/script>/);
+  if(!inline)throw new Error('No game script found in '+file);
+  return inline[1];
+}
+const src=loadGame(GAME);
 global.document={getElementById:()=>({innerHTML:'',textContent:'',onclick:null,style:{},appendChild(){},classList:{add(){}},querySelectorAll:()=>[]}),
   querySelectorAll:()=>[],createElement:()=>({className:'',innerHTML:'',onclick:null,style:{}})};
 global.setTimeout=()=>{};

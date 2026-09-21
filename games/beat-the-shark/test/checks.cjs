@@ -21,13 +21,48 @@
    random, and a check that fails on sampling noise gets ignored. Ranges
    were set from 2,500-season runs; see the README for how.
    =========================================================================== */
-const { G, season } = require('./season_sim.cjs');
-
 let failures = 0;
 function check(name, ok, detail) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
   if (!ok) failures++;
 }
+
+/* ---------------------------------------------------------------- 0 ---- */
+/* The game is split across several <script src> files. A browser runs each
+   one separately, in order -- so if early top-level code needs something a
+   LATER file defines, the page breaks on load. The season simulator joins
+   the files into one block, which would hide exactly that bug, so this
+   check loads them the way a browser does instead. */
+console.log('\n0. LOADING — files load in order, as a browser runs them');
+{
+  const vm = require('vm'), fs = require('fs'), path = require('path');
+  const file = process.env.GAME || path.join(__dirname, '..', 'index.html');
+  const dir = path.dirname(file), html = fs.readFileSync(file, 'utf8');
+  const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  if (!srcs.length) check('split files load in order', true, 'single-file build, not applicable');
+  else {
+    const el = () => ({ innerHTML: '', textContent: '', onclick: null, style: {}, dataset: {},
+      appendChild() {}, classList: { add() {} }, querySelectorAll: () => [] });
+    const ctx = vm.createContext({ document: { getElementById: el, querySelectorAll: () => [], createElement: el },
+      setTimeout: () => {}, Math, JSON, Object, Array, String, Number, Date, Map, Set, console, location: { hash: '' } });
+    let failed = '';
+    for (const s of srcs) {
+      try { new vm.Script(fs.readFileSync(path.join(dir, s), 'utf8'), { filename: s }).runInContext(ctx); }
+      catch (e) { failed = `${s}: ${e.message}`; break; }
+    }
+    check(`all ${srcs.length} script files load in order without error`, !failed, failed || srcs.join(' → '));
+  }
+}
+
+/* The simulator is loaded only AFTER the load check, and only if it passed.
+   Loaded first, a broken build crashed with a raw stack trace before check
+   0 could explain what was wrong. */
+if (failures) {
+  console.log('\nThe game does not load, so the remaining checks were skipped.');
+  console.log('Fix the script order or the file named above, then run again.');
+  process.exit(1);
+}
+const { G, season } = require('./season_sim.cjs');
 
 /* ---------------------------------------------------------------- 1 ---- */
 console.log('\n1. INTEGRITY — every event renders cleanly');

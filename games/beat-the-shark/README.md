@@ -10,11 +10,21 @@ through a proxy. The two can never break each other.
 
 ```
 games/beat-the-shark/
-  index.html            the whole game — self-contained, no build step
+  index.html            markup and styles only; loads the five scripts below
+  config.js             every number that decides how the game plays
+  engine.js             seeded RNG, league, fixtures, Monte Carlo, squad, scoring
+  content.js            the writing: events, press, calls, headlines, windows
+  matchday.js           vidiprinter, half time, classified check, Sports Centre
+  ui.js                 screen flow, season plan, ending, start screens
   netlify.toml          this site's deploy config
   test/season_sim.cjs   plays full seasons of the real game code, headless
-  test/checks.cjs       integrity, stability and balance checks
+  test/checks.cjs       loading, integrity, stability and balance checks
 ```
+
+No build step: the scripts are plain files, loaded in that order. **The order
+matters** — each file can use anything declared in the ones before it, and
+`ui.js` must come last because its final lines start the game. The loading
+check fails with a clear message if the order is ever wrong.
 
 ---
 
@@ -54,6 +64,7 @@ folder.
 
 | Group | What it checks |
 |---|---|
+| Loading | The script files load in order, run separately as a browser runs them |
 | Integrity | Every event in every role renders with no `undefined`, `NaN` or `[object` text, and none throws |
 | Stability | 540 full seasons complete without a crash, under best, worst and no-decision play |
 | Balance | The design targets below still hold |
@@ -82,27 +93,33 @@ GAME=/path/to/copy.html node games/beat-the-shark/test/checks.cjs
 
 ## Changing the game
 
-Most changes are writing — event text, headlines, outcomes. About two-thirds
-of the script is prose, interleaved with the engine, which is why a wording
-change can break it. Run the checks after every change.
+| To change… | Edit |
+|---|---|
+| Event text, headlines, press conferences, calls | `content.js` |
+| How strong clubs are, what formations do, how hard consequences land | `config.js` |
+| Match simulation, scoring, the league | `engine.js` |
+| What happens on matchday | `matchday.js` |
+| Screens, the order of the season, the ending | `ui.js` |
 
-**Tuning values** live near the top of the script:
+Most changes are writing, and now land in `content.js` alone — so a wording
+change can no longer put the engine at risk of a stray brace. Run the checks
+after any change; if you touched `config.js`, the balance checks say whether
+the design still holds.
 
-- `TIERS` — the five rival clubs, their strengths and names
-- `FORMATIONS` — attack/defence trade-off per shape
-- `DELAY_AMP`, `NOISE` — how hard delayed consequences land, and how
-  uncertain immediate effects are
+### When the split was made
 
-If you change these, the balance checks will tell you whether the design
-still holds.
+The game was split out of a single 2,000-line file without changing its
+behaviour. That was verified, not assumed: 900 seeded seasons across every
+role and policy produced **identical** finishing positions before and after.
+The same technique — fingerprint the outcomes, refactor, compare — is the
+safe way to restructure it again.
 
-### A future improvement
+### A further step, if the event library grows
 
-Splitting the event text out of `index.html` into a separate content file
-would let most changes be made without touching engine code at all. Worth
-doing before the event library grows much further.
-
----
+`content.js` still holds events as functions, because each one computes its
+effects from the club's current state. Turning the simplest of them into
+pure data would remove code from the writing entirely. Not worth it yet; the
+split already isolates the writing from the engine.
 
 ## Design rules
 
