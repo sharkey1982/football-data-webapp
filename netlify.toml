@@ -36,11 +36,16 @@
   # Skip the analytics build when a push ONLY touches the game or docs.
   # The game deploys as its own Netlify site (games/beat-the-shark), so a
   # game change has no reason to run the full build, SSR and static
-  # generation here. Exit 0 = skip. Any git error (e.g. no cached commit on
-  # a first build) exits non-zero and the build proceeds -- it fails safe,
-  # which matters: a broken deploy pipeline here once took the site down
-  # for over an hour.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)games' ':(exclude)docs'"
+  # generation here. Exit 0 = skip.
+  #
+  # The first test is essential. On a build with no cache -- notably
+  # "Clear cache and deploy", the thing you reach for when something is
+  # wrong -- Netlify sets CACHED_COMMIT_REF to the SAME commit as
+  # COMMIT_REF, git diff finds nothing, and without this check the build
+  # would be cancelled. Equal refs always build. A git error also exits
+  # non-zero and builds, so the rule fails safe -- which matters: a broken
+  # deploy pipeline here once took the site down for over an hour.
+  ignore = "[ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)games' ':(exclude)docs'"
 
 [functions]
   directory = "netlify/functions"

@@ -22,9 +22,14 @@
 
   # Only redeploy when THIS folder changed. Netlify runs this from the base
   # directory, so "." means games/beat-the-shark. Exit 0 = skip the build.
-  # On any git error (e.g. the very first deploy, with no cached commit) it
-  # exits non-zero and the build proceeds, so it fails safe.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+  #
+  # The first test is essential. On a build with no cache -- the site's very
+  # first deploy, or any "Clear cache and deploy" -- Netlify sets
+  # CACHED_COMMIT_REF to the SAME commit as COMMIT_REF. Without the check,
+  # git diff compares a commit with itself, finds nothing, and the build is
+  # cancelled. (The original version of this rule claimed to fail safe on a
+  # first deploy; it did the opposite.) Equal refs now always build.
+  ignore = "[ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
 
 # The HTML must never be cached stale. The game is a single file, so a
 # cached copy would be a cached copy of the entire game.
