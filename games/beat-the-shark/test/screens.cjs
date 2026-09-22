@@ -271,12 +271,15 @@ ok("...and, smaller, goals-for and clean-sheet ranks, team health and squad qual
 const weakest=run("RIVALS.slice().sort((a,b)=>a.str-b.str)[0].n");
 ok("...and the first match is against the weakest club", ti.includes(`First match: ${weakest}`));
 els.go.onclick();
+ok("then pre-season: how it went, and the first PAY DAY announced -- cash before and after",
+  /Pre-season is done/.test(app())&&/PAY DAY/.test(app())&&/Cash £\d+k → <b>£\d+k/.test(app())&&/First match:/.test(app()));
+els.go.onclick();
 ok("the first match shows their stats against yours, then the shape question", /<th class="n">You<\/th>/.test(app())&&app().includes(weakest)&&/Goals for \(a game\)/.test(app())&&/Go for it|Pick your shape|One place/.test(app()));
 // 21. Chris's page-by-page feedback (2026-09-21)
 run(`SEED="SOC-S07";LEVEL="beginner";ROLE=ROLES.manager;boot()`);
 ok("page 2: the league as predicted finishing positions, Your Team where the Shark puts it",
   /PREDICTED FINISH/.test(app())&&(app().match(/<tr class="me"><td class="n">(\d)<\/td>/)||[])[1]===String(run("sharkPos()")));
-els.go.onclick();els.go.onclick(); // your team, then the first match
+els.go.onclick();els.go.onclick();els.go.onclick(); // your team, pre-season, then the first match
 const p4=app();
 ok("page 4: Kick off sits right under the choice, the pitch below it, and no bench",
   p4.indexOf('id="kick"')<p4.indexOf('<!--SQ-->')&&p4.indexOf('data-bc=')<p4.indexOf('id="kick"')&&!/class="benchh"/.test(p4));
@@ -334,7 +337,7 @@ ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n
 run(`SEED="BG-1";chooseRole()`);
 ok("levels: Beginner only for now -- Intermediate and Advanced marked 'Coming soon' and not selectable",
   /data-level="beginner"/.test(app())&&!/data-level="intermediate"/.test(app())&&!/data-level="guru"/.test(app())&&(app().match(/Coming soon/g)||[]).length===3); // + the owner
-run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();
+run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();els.go.onclick();
 ok("neutral venues: no home or away anywhere, and no home advantage in the model",
   !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
 ok("Shark Scout are stronger at Beginner only (they win the league most of the time)",
@@ -368,7 +371,7 @@ ok("...and the change stays visible until cash moves again", /▼ −£23k/.test
 run(`S.cash=90;paintHeader()`);
 ok("...then shows the next change, in green when it's up", /class="cashd up">▲ \+£13k/.test(els.hTwo.innerHTML));
 // pre-match decisions show their impact on this match
-els.go.onclick();els.go.onclick();
+els.go.onclick();els.go.onclick();els.go.onclick();
 ok("pre-match options show their impact: your xG and theirs for this match, compared with the other option",
   (app().match(/You \d\.\d xG/g)||[]).length===2&&(app().match(/Them \d\.\d xG/g)||[]).length===2&&/[▲▼]/.test(app())&&!/win chance/i.test(app()));
 // the window: a simple choice between two players
@@ -398,8 +401,12 @@ ok("...and then on to full time", !!(els.toTable&&els.toTable.onclick));
 // 26. Should we win? Upsets. Two cash moments. (Chris, 2026-09-22)
 run(`SEED="CM-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
 const c0=run("S.cash"),w0=run("S.wages");els.go.onclick();
-ok("pay day: the wage bill comes out before the game, shown in the page and the header alike",
-  run("S.cash")===c0-w0&&app().includes(`Pay day: wages <b style="color:var(--bad)">−£${w0}k`)&&els.hTwo.innerHTML.includes(`▼ −£${w0}k`));
+ok("the Your Team page no longer hides the pay day in its stats", !/PAY DAY|Pay day/.test(app()));
+els.go.onclick();
+ok("pay day: announced on its own, the wage bill out before the game, the page and the header alike",
+  run("S.cash")===c0-w0&&/PAY DAY/.test(app())&&app().includes(`−£${w0}k`)&&app().includes(`Cash £${c0}k → <b>£${c0-w0}k`)&&els.hTwo.innerHTML.includes(`▼ −£${w0}k`));
+run(`renderPreseasonUpdate()`);
+ok("...charged once, however often the page is drawn", run("S.cash")===c0-w0&&app().includes(`Cash £${c0}k → <b>£${c0-w0}k`));
 els.go.onclick();delete els.htBox;delete els.toTable;els.kick.onclick();
 ok("the live match headlines what should happen, then them v you -- not the old ratings block",
   /Heavy favourites|The favourites|Nobody gives you a chance|The underdogs|On a knife-edge/.test(app())&&/The model: win \d+% · draw \d+% · lose \d+%/.test(app())&&/<th class="n">You<\/th>/.test(app())&&!/rated \d+|Model odds|Team Strength<\/b>/.test(app()));

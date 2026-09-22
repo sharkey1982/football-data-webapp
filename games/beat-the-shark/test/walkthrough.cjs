@@ -56,6 +56,12 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
       // The design: the Shark predicts 3rd (Chris). Close to the top, but 3rd.
       if(model!=="3rd")problems.push(`${lvl}/${role}/${seed}: the Shark predicts ${model}, not 3rd`);
       if(!preClaim)problems.push(`${lvl}/${role}/${seed}: the Your Team page shows no expected finish`);
+      // Beginner: then the pre-season page -- the first pay day, announced, and the same prediction
+      if(run('WEEKLY_WAGES')&&els.go&&typeof els.go.onclick==='function'){els.go.onclick();scan(`${lvl}/${role} pre-season`,els.app.innerHTML);
+        const pre=txt(els.app.innerHTML);
+        if(!/PAY DAY/.test(pre))problems.push(`${lvl}/${role}/${seed}: the pre-season page doesn't announce the pay day`);
+        const says=(pre.match(/(\d+(?:st|nd|rd|th)) expected finish/)||[])[1];
+        if(says&&says!==model)problems.push(`${lvl}/${role}/${seed}: pre-season says ${says}, the model says ${model}`);}
       if((openClaim&&openClaim!==preClaim)||(preClaim&&preClaim!==model))problems.push(`${lvl}/${role}/${seed}: opening says ${openClaim}, pre-season says ${preClaim}, model says ${model}`);}
   catch(e){crashes.push(`${lvl}/${role}/${seed} start: ${e.message}`);continue}
   const plan=run('PLAN');
