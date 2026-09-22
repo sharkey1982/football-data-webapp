@@ -7677,6 +7677,19 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      get_model_xi_history: {
+        Args: { p_season_id?: number; p_league_id?: number }
+        Returns: {
+          fpl_event_id: number
+          actual_xi_points: number
+          model_xi_actual_points: number
+          model_xi_projected: number
+          overlap_count: number
+          players_projected: number
+          generated_before_deadline: boolean
+          deadline_time: string
+        }[]
+      }
       meta_refresh_flow: {
         Args: never
         Returns: { nodes: number; edges: number; changes: number }[]

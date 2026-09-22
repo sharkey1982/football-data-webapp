@@ -205,6 +205,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/model-xi',
+    title: 'Model XI accuracy',
+    description:
+      "How the eleven the model rated highest each gameweek actually scored, against its own forecast and the week's best possible XI.",
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/team-of-the-week',
     title: 'FPL team of the week',
     description: 'The highest-scoring valid XI of the gameweek, and how it compares to what the model rated highest.',
