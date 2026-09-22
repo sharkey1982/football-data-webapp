@@ -1419,6 +1419,29 @@ Full brief retained separately. Position taken 2026-09-20:
 
 ---
 
+## META: DATA AND CALCULATION FLOW (2026-09-22) — NEW
+
+meta_flow_nodes / meta_flow_edges / meta_flow_history, plus the reading view
+meta_flow_summary and meta_refresh_flow(). Structure is re-derived from the
+catalogue (211 objects, 334 links); definitions are FINGERPRINTED, so history
+records automatically when a view or function changes, appears or disappears.
+Human columns (layer, purpose, refresh_note, commentary) are never overwritten
+— write notes straight into meta_flow_nodes. Admin-only (RLS), second run
+reports 0 changes. Run after schema work:  select * from meta_refresh_flow();
+
+NOT DONE YET: nothing calls meta_refresh_flow() automatically (a nightly
+workflow step or a pg_cron job would keep history current), and there is no
+admin page for it — both easy follow-ups if wanted.
+
+## BROKEN FUNCTION FIXED (2026-09-22)
+
+get_season_player_projections_json pointed at fpl_fixture_bonus_projection_v3,
+dropped long ago; every call failed. Repointed at
+fpl_fixture_bonus_montecarlo_v1 (667 players for GW6, 526 with a bonus).
+Swept for the same problem: none. The check worth repeating after any
+drop/rename is in the migration header — Postgres does NOT validate function
+bodies when the objects they read change.
+
 ## SEARCH-PATH HARDENING 2026-09-22 — DONE
 
 All 61 public functions that lacked a pinned search_path now have one
