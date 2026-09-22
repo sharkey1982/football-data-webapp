@@ -54,6 +54,38 @@ export async function getModelXiHistory(seasonId = 13, leagueId = 1): Promise<Mo
   }));
 }
 
+export type ModelXiPlayer = {
+  fpl_player_id: number;
+  web_name: string;
+  team_name: string;
+  position_label: string;
+  element_type: number;
+  projected_points: number;
+  actual_points: number;
+  minutes: number;
+  in_perfect_xi: boolean;
+};
+
+/** The named eleven the model picked for one gameweek, with what each scored. */
+export async function getModelXiPlayers(eventId: number, seasonId = 13): Promise<ModelXiPlayer[]> {
+  const { data, error } = await supabase.rpc('get_model_xi_players', {
+    p_event_id: eventId,
+    p_season_id: seasonId,
+  });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    fpl_player_id: Number(r.fpl_player_id),
+    web_name: String(r.web_name ?? ''),
+    team_name: String(r.team_name ?? ''),
+    position_label: String(r.position_label ?? ''),
+    element_type: Number(r.element_type ?? 0),
+    projected_points: Number(r.projected_points ?? 0),
+    actual_points: Number(r.actual_points ?? 0),
+    minutes: Number(r.minutes ?? 0),
+    in_perfect_xi: Boolean(r.in_perfect_xi),
+  }));
+}
+
 const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 export function summariseModelXi(weeks: ModelXiWeek[]): ModelXiSummary {

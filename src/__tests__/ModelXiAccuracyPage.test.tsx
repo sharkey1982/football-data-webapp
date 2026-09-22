@@ -1,16 +1,20 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import ModelXiAccuracyPage from '../pages/fpl/ModelXiAccuracyPage';
 import * as api from '../lib/modelXiApi';
+import * as totw from '../lib/teamOfWeekApi';
 import { summariseModelXi, type ModelXiWeek } from '../lib/modelXiApi';
 
 vi.mock('../lib/modelXiApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/modelXiApi');
-  return { ...actual, getModelXiHistory: vi.fn() };
+  return { ...actual, getModelXiHistory: vi.fn(), getModelXiPlayers: vi.fn() };
 });
+vi.mock('../lib/teamOfWeekApi', () => ({ getTeamOfTheWeek: vi.fn() }));
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const totwApi = totw as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 const week = (over: Partial<ModelXiWeek> = {}): ModelXiWeek => ({
   fpl_event_id: 5,
@@ -24,7 +28,17 @@ const week = (over: Partial<ModelXiWeek> = {}): ModelXiWeek => ({
   ...over,
 });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocked.getModelXiPlayers.mockResolvedValue([
+    { fpl_player_id: 1, web_name: 'Raya', team_name: 'Arsenal', position_label: 'GK', element_type: 1, projected_points: 4.8, actual_points: 1, minutes: 90, in_perfect_xi: false },
+    { fpl_player_id: 2, web_name: 'Haaland', team_name: 'Man City', position_label: 'FWD', element_type: 4, projected_points: 7.2, actual_points: 6, minutes: 90, in_perfect_xi: true },
+  ]);
+  totwApi.getTeamOfTheWeek.mockResolvedValue([
+    { fpl_event_id: 5, fpl_player_id: 2, web_name: 'Haaland', slug: 'haaland', team_name: 'Man City', position_label: 'FWD', points: 6, minutes: 90, is_mandatory: true, goals: 1, assists: 0, clean_sheets: 0, bonus: 0 },
+    { fpl_event_id: 5, fpl_player_id: 9, web_name: 'Trafford', slug: 'trafford', team_name: 'Burnley', position_label: 'GK', points: 10, minutes: 90, is_mandatory: true, goals: 0, assists: 0, clean_sheets: 1, bonus: 3 },
+  ]);
+});
 
 function renderPage() {
   return render(
@@ -70,6 +84,29 @@ describe('Model XI accuracy page', () => {
     renderPage();
     expect(await screen.findByText(/No finished gameweek has projections yet/)).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('opens a week to show the model\'s eleven beside the actual best eleven', async () => {
+    const user = userEvent.setup();
+    mocked.getModelXiHistory.mockResolvedValue([week()]);
+    renderPage();
+    const table = within(await screen.findByRole('table'));
+    await user.click(table.getByText('5'));
+    expect(await screen.findByText(/The model.s XI/)).toBeInTheDocument();
+    expect(screen.getByText(/The week.s best XI/)).toBeInTheDocument();
+    // Raya is only the model's; Trafford only the actual XI
+    expect(screen.getByText(/Raya/)).toBeInTheDocument();
+    expect(screen.getByText(/Trafford/)).toBeInTheDocument();
+  });
+
+  it('marks players who appear in both elevens, and counts them', async () => {
+    const user = userEvent.setup();
+    mocked.getModelXiHistory.mockResolvedValue([week()]);
+    renderPage();
+    const table = within(await screen.findByRole('table'));
+    await user.click(table.getByText('5'));
+    expect(await screen.findByText('1 player in both, marked ✓.')).toBeInTheDocument();
+    expect(screen.getAllByText(/✓ Haaland/)).toHaveLength(2); // once on each side
   });
 
   it('summarises calibration: the model XI against its own forecast', () => {
