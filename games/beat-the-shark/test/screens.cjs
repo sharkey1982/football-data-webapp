@@ -292,7 +292,7 @@ ok("page 6: the position at the top updates once your result is in", /\d(st|nd|r
 els.toOthers.onclick();drain();
 ok("page 7: a plain headline at full time -- never 'No change for you'", !/No change for you/.test(els.asit.textContent)&&/^(Up to |Down to )?\d(st|nd|rd|th)\.$/.test(els.asit.textContent), els.asit.textContent);
 ok("the agreed Beginner season: five games, a story between each, the window and the bank before Gameweek 4",
-  run("PLAN.join()")==="match,presser,match,knock,match,window,bank,match,sponsor,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
+  run("PLAN.join()")==="match,presser,match,knock,match,sponsor,match,window,bank,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
 ok("Gameweek 2 is an even game now; the strongest club is saved for last -- the final boss",
   (()=>{const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");const f=w=>{const[h,a]=run(`myFixture(${w})`);return h===CLUB?a:h};const CLUB="Your Team";return f(1)!==st&&f(4)===st})());
 run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
@@ -344,7 +344,7 @@ ok("neutral venues: no home or away anywhere, and no home advantage in the model
   !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
 ok("Shark Scout are stronger at Beginner only (they win the league most of the time)",
   // (through the model's view, which excludes the hidden season swing)
-  run(`modelView(()=>strOf("Big Data City"))`)===run(`RIVALS.find(r=>r.n==="Big Data City").str`)+run("BEGINNER_SHARK_BOOST"));
+  run(`modelView(()=>strOf("Shark Scout United"))`)===run(`RIVALS.find(r=>r.n==="Shark Scout United").str`)+run("BEGINNER_SHARK_BOOST"));
 // weekly wages: the result's cash is gate money minus the wage bill
 run(`S.cash=100`);const wages=run("S.wages");
 run(`(()=>{const r=resolveMine(1,0,true);globalThis.__fx=r.fx})()`);
@@ -428,7 +428,7 @@ run(`S.gateBonus=0;S.gates={};S.mw=3;globalThis.__g1=gateReceipts("w");S.gates={
 ok("the sponsor's shirt deal raises every game's gate receipts", run("__g2")===run("__g1")+6);
 run(`S.paid={};const w=S.wages;apply({wages:4});globalThis.__p=payDay()-w`);
 ok("the players' bonus raises the weekly wage bill", run("__p")===4);
-ok("the Beginner plan: the sponsor calls before the final day", run("BEGINNER_PLAN.join()").includes("bank,match,sponsor,match,end"));
+ok("the Beginner plan: the big window and the bank straight before the final", run("BEGINNER_PLAN.join()").endsWith("window,bank,match,end"));
 // 27. Round 5 of Beginner feedback (2026-09-22)
 run(`SEED="R5-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
 // (how OFTEN you're predicted 3rd is the engine check's job, over 40 seasons;
@@ -472,7 +472,7 @@ delete els.htBox;delete els.htOdds;run(`S.mw=1;subHalfTime(()=>{},true,0,0)`);
   ok("the opening game is won at least 9 times in 10 (real match engine)", w/N>=0.88, `${Math.round(w/N*100)}% of ${N}`); }
 // 29. The final boss (Chris, 2026-09-22)
 run(`SEED="FB-9";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
-ok("the boss is Big Data City now (not Shark Scout United)", run(`RIVALS.some(r=>r.n==="Big Data City")&&!RIVALS.some(r=>/Shark Scout/.test(r.n))`));
+ok("the boss is Shark Scout United (Chris preferred it)", run(`RIVALS.some(r=>r.n==="Shark Scout United")`));
 els.go.onclick();els.go.onclick();
 ok("predictions come from FixtureShark, not 'the Shark'", /FixtureShark says/.test(app())&&!/The Shark (says|predict)/.test(app()));
 // the big window: marquee signings that make the final an even contest -- or no signing

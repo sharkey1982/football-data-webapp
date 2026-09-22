@@ -85,7 +85,7 @@ let ROLE=null,S=null;
    tightens by Gameweek 4. Other levels keep the ten-game season. Set by
    configureLevel() at the start of each season. */
 let MW=10,NEUTRAL=false,WEEKLY_WAGES=false;
-/* Beginner: Big Data City win the league most of the time (Chris). */
+/* Beginner: Shark Scout United win the league most of the time (Chris). */
 // 0 (was +5): at 75 even a marquee signing left the final 30/18/52; at 70 a
 // prepared side meets the boss as an equal (~42/19/39), while an unprepared
 // one still usually loses (16/16/68) and the boss still wins most leagues.

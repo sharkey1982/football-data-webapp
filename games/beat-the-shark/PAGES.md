@@ -22,16 +22,16 @@ Generated from the season plan by `test/page-index.cjs`. Refer to pages by numbe
 18. Gameweek 3 — your 12:30 kick-off: "You should win / lose / Too close to call", them v you, commentary; half time: Keep the tiring star on (he plays through it, but misses the next game) or bring on a fresher player; "An upset!" if it goes against the odds
 19. Gameweek 3 — the table; GATE RECEIPTS (cash in)
 20. Gameweek 3 — the 3pm kick-offs, live; then the table now
-21. THE BIG WINDOW — a marquee striker (goals) or centre-back (clean sheets), or no signing; each with fee, wages, cash left and its 1X2 v the final boss; the risk: the bank sells your best player, or 3 points deducted
-22. The bank calls — cash is now the issue: sell a player, or ride it out
-23. Gameweek 4 — match-day summary: position, cash, team health, expected goals, clean sheets; PAY DAY announced (wages out, cash before → after)
-24. Gameweek 4 — preview v Billy's Beane United: them v you; Shape — three options: go for it, balanced, stay compact (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch
-25. Gameweek 4 — your 12:30 kick-off: "You should win / lose / Too close to call", them v you, commentary; half time: Win it or protect it (on the score); "An upset!" if it goes against the odds
-26. Gameweek 4 — the table; GATE RECEIPTS (cash in)
-27. Gameweek 4 — the 3pm kick-offs, live; then the table now
-28. The sponsor calls — a shirt deal (+£6k at the gate every game) or a players' bonus (wages +£4k a week, the team lifted)
+21. The sponsor calls — a shirt deal (+£6k at the gate every game) or a players' bonus (wages +£4k a week, the team lifted)
+22. Gameweek 4 — match-day summary: position, cash, team health, expected goals, clean sheets; PAY DAY announced (wages out, cash before → after)
+23. Gameweek 4 — preview v Billy's Beane United: them v you; Shape — three options: go for it, balanced, stay compact (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch
+24. Gameweek 4 — your 12:30 kick-off: "You should win / lose / Too close to call", them v you, commentary; half time: Win it or protect it (on the score); "An upset!" if it goes against the odds
+25. Gameweek 4 — the table; GATE RECEIPTS (cash in)
+26. Gameweek 4 — the 3pm kick-offs, live; then the table now
+27. BEFORE THE FINAL: THE BIG WINDOW — a marquee striker (goals) or centre-back (clean sheets), or no signing; each with fee, wages, cash left and its 1X2 v the final boss; the risk: the bank sells your best player, or 3 points deducted
+28. The bank calls — cash is now the issue: sell a player, or ride it out
 29. Gameweek 5 — match-day summary: position, cash, team health, expected goals, clean sheets; PAY DAY announced (wages out, cash before → after)
-30. Gameweek 5 — preview v Big Data City: them v you; THE FINAL BOSS — 1. selection on health, 2. shape (three options) (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch
+30. Gameweek 5 — preview v Shark Scout United: them v you; THE FINAL BOSS — 1. selection on health, 2. shape (three options) (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch
 31. Gameweek 5 — your 12:30 kick-off (final day): "You should win / lose / Too close to call", them v you, commentary; half time: TWO changes — a sub at half time, then at 70': win it or protect it; "An upset!" if it goes against the odds
 32. Gameweek 5 — the table; GATE RECEIPTS (cash in)
 33. Gameweek 5 — the 3pm kick-offs, live; then the table now

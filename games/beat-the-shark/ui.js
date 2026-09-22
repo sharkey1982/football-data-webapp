@@ -36,7 +36,8 @@ const PLAN_BASE=PLAN.slice();
 /* THE BEGINNER SEASON (agreed with Chris, 2026-09-21): five games, each
    with a summary, a preview, one pre-match and one half-time decision, and
    a story between games that builds -- cash a real issue by Gameweek 4. */
-const BEGINNER_PLAN=["match","presser","match","knock","match","window","bank","match","sponsor","match","end"];
+// the big window and the bank sit straight before the FINAL (Chris: before GW4 it was confusing)
+const BEGINNER_PLAN=["match","presser","match","knock","match","sponsor","match","window","bank","match","end"];
 // The owner's five games: his own decisions around them (he doesn't pick the team).
 const BEGINNER_OWNER_PLAN=["special1","match","call","match","crisis","match","special2","match","papers","match","end"];
 function planFor(level,role){
@@ -90,7 +91,7 @@ function step(){
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
   if(b==="knock")return renderSpec(knockSpec(),"THE PHYSIO ROOM",next);
-  if(b==="window")return renderSpec(Object.assign(bigSigningSpec(),{keepFull:true,fullChoices:true}),"BEFORE GAMEWEEK 4 · THE BIG WINDOW",next);
+  if(b==="window")return renderSpec(Object.assign(bigSigningSpec(),{keepFull:true,fullChoices:true}),"BEFORE THE FINAL · THE BIG WINDOW",next);
   if(b==="bank")return renderSpec(bankSpec(),"THE BANK HAS CALLED",next);
   if(b==="sponsor")return renderSpec(sponsorSpec(),"THE SPONSOR CALLS",next);
   if(b==="physio")return renderPhysio();
