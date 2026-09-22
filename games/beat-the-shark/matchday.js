@@ -267,11 +267,13 @@ function newThisMatch(){if(ROLE.id!=="manager"||LEVEL!=="beginner")return null;
 // (set pieces dropped -- Chris: pointless. From Gameweek 4, three shapes.)
 const BEGINNER_DECISION_ORDER=["formation","formation","selection","formation3","formation3"];
 // Gameweeks 4 and 5: a selection call on health FIRST, then the shape (Chris).
-const BEGINNER_DECISIONS=[["formation"],["formation"],["selection"],["selection","formation3"],["selection","formation3"]];
+// GW3 is about health; GW4 after the big window; the boss last (Chris).
+const BEGINNER_DECISIONS=[["formation"],["formation"],["selection"],["formation3"],["selection","formation3"]];
 // ...and one half-time decision every game, alternating.
 // Gameweek 1 has NO half-time decision (Chris: the first game should be simple).
 // Gameweek 5: TWO in-game changes -- a sub at half time, then a 70th-minute call.
-const BEGINNER_HT=[null,"sub","shape","sub","sub+late"];
+// GW2: win it or protect it; GW3: health (keep or sub); GW5: two changes.
+const BEGINNER_HT=[null,"shape","sub","shape","sub+late"];
 const BEGINNER_IDEA={
   formation:["Pick your shape","Each shape trades attack for defence. Pick the one that suits this opponent."],
   formation3:["Pick your shape","Three shapes now: bold, balanced or compact."],
@@ -602,7 +604,7 @@ function renderMatch(done,quick){
         // two changes: a sub now; at 70' chase or protect, on the score then
         const secondSplit=()=>{add("46'","— second half —","");
           half(46,70,()=>{skipping=false;shapeHalfTime(()=>{add("70'","— the last twenty —","");half(71,92,finish,22/46)},mine,theirs,
-            {chip:"70 MINUTES",ask:"Chase it or protect it?",push:"Chase it",hold:"Protect it",share:22/92})},24/46)};
+            {chip:"70 MINUTES",share:22/92})},24/46)};
         return subHalfTime(secondSplit,true,mine,theirs);
       }
       return !ht?second():ht==="sub"?subHalfTime(second,true,mine,theirs):shapeHalfTime(second,mine,theirs)}
@@ -631,6 +633,7 @@ function renderMatch(done,quick){
   function finish(){
     add("FT","Full time","ft",sc());
     const hg=home?mine:theirs,ag=home?theirs:mine;
+    if(S._keepFit){const p=S.squadList[S._keepFit.i];if(p)p.fit=S._keepFit.fit;S._keepFit=null}
     const upset=NEUTRAL?upsetLine(mine>theirs?"w":mine===theirs?"d":"l",S._expect):null;
     if(upset)add("FT",`<b style="color:var(--amber)">${upset.toUpperCase()}</b>`,"");
     award(TABLE,hT,aT,hg,ag);
@@ -801,6 +804,10 @@ function subHalfTime(resume,force,mine=0,theirs=0){
   const always=force||S.mw===1,xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
   let pair=null;
   for(const x of xi){const s=S.squadList[x.i];if(!s||(!always&&s.fit>=80))continue;
+    // the dilemma is about GOAL THREAT (keep him: threat stays; sub him: it
+    // drops), so it has to be an attacker -- a tired defender swapped for
+    // another left the threat identical, and the choice meaningless
+    if(always&&s.pos!=="FW"&&s.pos!=="MF")continue;
     for(const b of available()){const j=S.squadList.indexOf(b);
       if(inXI.has(j)||b.pos!==s.pos||b.fit<=s.fit+(always?0:9))continue;
       // the dilemma needs a BETTER player tiring and a weaker, fresher one
@@ -815,7 +822,13 @@ function subHalfTime(resume,force,mine=0,theirs=0){
   // currentXI() silently discards it, which made both options preview the same)
   const was=S.manualXI?S.manualXI.map(y=>({...y})):null,wasFm=S.manualFm;
   const swapped=()=>{const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===pair.si);if(k>=0)x[k].i=pair.bi;return x};
-  const keepNow=threat(),keepNext=(()=>{pair.s.out=1;const v=nextThreat();pair.s.out=0;return v})();
+  // Keep him on and he PLAYS THROUGH IT (Chris): his goal threat stays at full
+  // strength for the second half -- the price is the injury, not his form.
+  // (The model otherwise discounts a tired player, which made keeping him on
+  // no better than the fresher, weaker man: a pointless choice.)
+  const realFit=pair.s.fit;pair.s.fit=Math.max(realFit,95);
+  const keepNow=threat();pair.s.fit=realFit;
+  const keepNext=(()=>{pair.s.out=1;const v=nextThreat();pair.s.out=0;return v})();
   S.manualXI=swapped();S.manualFm=S.formation;const subNow=threat();S.manualXI=was;S.manualFm=wasFm;const subNext=nextThreat();recalcSquadRating();
   const max=Math.max(keepNow,subNow,keepNext||0,subNext||0,.1);
   const bar=(v,good)=>v==null?"":`<div style="height:9px;border-radius:5px;background:var(--line);margin:3px 0 1px"><div style="height:9px;border-radius:5px;width:${Math.round(v/max*100)}%;background:${good?'var(--good)':'var(--amber)'}"></div></div><div style="font-family:var(--mono);font-size:11px">${v.toFixed(1)} xG</div>`;
@@ -837,13 +850,18 @@ function subHalfTime(resume,force,mine=0,theirs=0){
     </div>${GO_BUTTON}</div>`;
   wireChoiceCards(box,["subNo","subYes"],pick=>{
     if(pick==="subYes"){const x=swapped();S.manualXI=x;S.manualFm=S.formation;S._subXI=true}
-    else S._injureAfter=pair.si;
+    else{S._injureAfter=pair.si;S._keepFit={i:pair.si,fit:realFit};pair.s.fit=Math.max(realFit,95)}
     resume()},pick=>pick==="subYes"?oddsSub:oddsKeep);
 }
 /* HALF TIME: PUSH ON OR HOLD? The same card style as the sub dilemma:
    goal-threat bars for BOTH ends in the second half, for each shape. */
 function shapeHalfTime(resume,mine,theirs,o={}){
-  const chip=o.chip||"HALF TIME",ask=o.ask||"Push on or hold?",pushT=o.push||"Push on",holdT=o.hold||"Hold",share=o.share||.5;
+  // About the SCORE (Chris: win the game, or protect a lead)
+  const lead=mine>theirs,level=mine===theirs;
+  const chip=o.chip||"HALF TIME",share=o.share||.5;
+  const ask=lead?"Kill it off, or protect the lead?":level?"Go for the win, or settle for a point?":"Chase it, or keep it respectable?";
+  const pushT=lead?"Go for the second":level?"Go for the win":"Throw everything at it";
+  const holdT=lead?"Protect the lead":level?"Settle for a point":"Stay compact";
   const[hT,aT]=myFixture(S.mw),home=hT===CLUB,opp=home?aT:hT;
   const fs=Object.keys(FORMATIONS);
   const bold=fs.slice().sort((a,b)=>(FORMATIONS[b].att-FORMATIONS[b].def)-(FORMATIONS[a].att-FORMATIONS[a].def))[0];
@@ -857,7 +875,7 @@ function shapeHalfTime(resume,mine,theirs,o={}){
     <span class="t">${title}</span><span class="d">${sub}</span>
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">YOUR GOAL THREAT</div>${bar(v.us,'var(--good)')}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">THEIR GOAL THREAT</div>${bar(v.them,'var(--bad)')}</button>`;
-  const state=mine>theirs?`You lead ${mine}–${theirs}.`:mine<theirs?`You trail ${mine}–${theirs}.`:`${mine}–${theirs}.`;
+  const state=lead?`You lead ${mine}–${theirs}.`:level?`${mine}–${theirs}.`:`You trail ${mine}–${theirs}.`;
   const box=document.getElementById('htBox');
   box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">${chip}</div>
     <h2>${state} ${ask}</h2>

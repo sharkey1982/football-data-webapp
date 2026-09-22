@@ -43,11 +43,11 @@ const scan=(where,h)=>{const t=txt(h);
   const bad=[/\bundefined\b/,/\bNaN\b/,/\[object/,/\bnull\b/,/Infinity/,/\b0th\b/,/\$\{/];
   if(vm.runInContext('NEUTRAL',ctx))bad.push(/\((H|A)\)/,/\bat home\b/i,/\bAway at\b/,/\(home\)/i);
   for(const re of bad)if(re.test(t)){const i=t.search(re);problems.push(`${where}: "…${t.slice(Math.max(0,i-50),i+40)}…"`)}
-  const preds=[...t.matchAll(/The Shark predict(?:s|ed) (\w+)/g)].map(m=>m[1]);if(new Set(preds).size>1)problems.push(`${where}: two different predictions (${preds.join(', ')})`)};
+  const preds=[...t.matchAll(/(?:FixtureShark|The Shark) predict(?:s|ed) (\w+)/g)].map(m=>m[1]);if(new Set(preds).size>1)problems.push(`${where}: two different predictions (${preds.join(', ')})`)};
 for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager','owner']){
   for(const seed of ['SOC-S07','SOC-S21','SOC-S42']){
   try{run(`SEED="${seed}";LEVEL="${lvl}";chooseRole()`);scan(`${lvl}/${role} opening`,els.app.innerHTML);
-      const openClaim=(txt(els.app.innerHTML).match(/The Shark predicts (\w+)/)||[])[1];
+      const openClaim=(txt(els.app.innerHTML).match(/FixtureShark predicts (\w+)/)||[])[1];
       run(`ROLE=ROLES.${role};boot()`);scan(`${lvl}/${role} pre-season`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML);
       // ACROSS PAGES: what the opening promises, what pre-season shows, and what the model says must agree.
       // The prediction is shown on the Your Team page (after the league page).

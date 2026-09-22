@@ -86,7 +86,10 @@ let ROLE=null,S=null;
    configureLevel() at the start of each season. */
 let MW=10,NEUTRAL=false,WEEKLY_WAGES=false;
 /* Beginner: Shark Scout United win the league most of the time (Chris). */
-let BEGINNER_SHARK_BOOST=5;
+// 0 (was +5): at 75 even a marquee signing left the final 30/18/52; at 70 a
+// prepared side meets the boss as an equal (~42/19/39), while an unprepared
+// one still usually loses (16/16/68) and the boss still wins most leagues.
+let BEGINNER_SHARK_BOOST=0;
 function configureLevel(level){const b=level==="beginner";MW=b?5:10;NEUTRAL=b;WEEKLY_WAGES=b}
 const homeMult=()=>NEUTRAL?1:HOME_MULT;
 /* How a fixture is billed: neutral venues for Beginner. */
@@ -113,7 +116,11 @@ function buildFixtures(){
   // Gameweek 2 is against the STRONGEST club (Chris): a harder second match.
   const strongest=RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n;
   const r2=rounds.findIndex((wk,i)=>i>0&&wk.some(([h,a])=>(h===CLUB&&a===strongest)||(a===CLUB&&h===strongest)));
-  if(r2>1)[rounds[1],rounds[r2]]=[rounds[r2],rounds[1]];
+  // Beginner: the strongest club is saved for LAST -- a final boss (Chris);
+  // the ten-game season keeps it in Gameweek 2.
+  if(MW<=rounds.length){const last=MW-1,rl=rounds.findIndex((wk,i)=>i>0&&wk.some(([h,a])=>(h===CLUB&&a===strongest)||(a===CLUB&&h===strongest)));
+    if(rl>0&&rl!==last)[rounds[last],rounds[rl]]=[rounds[rl],rounds[last]]}
+  else if(r2>1)[rounds[1],rounds[r2]]=[rounds[r2],rounds[1]];
   // Beginner: one round (five games); otherwise home and away (ten).
   FIXTURES=MW<=rounds.length?rounds.slice(0,MW):rounds.concat(rounds.map(wk=>wk.map(([h,a])=>[a,h])));
 }
@@ -123,7 +130,7 @@ function buildFixtures(){
 /* A rival's base strength. At Beginner (Chris): Shark Scout strongest (and
    boosted), the weakest club as it is -- you play those two first -- and the
    middle three EVENLY MATCHED with you, for the final three games. */
-const BEGINNER_MID=[59,55,51]; // you predicted 3rd (30/30); final three games 31-42% win chance
+const BEGINNER_MID=[61,55,51]; // with the boss at 70: you predicted 3rd (30/30); GW2-4 win chances ~41/39/29%
 function beginnerBase(n){const r=RIVALS.find(x=>x.n===n);if(!NEUTRAL)return r.str;
   const byStr=RIVALS.slice().sort((a,b)=>b.str-a.str),i=byStr.indexOf(r);
   return i===0?r.str+BEGINNER_SHARK_BOOST:i===byStr.length-1?r.str+BEGINNER_WEAK:BEGINNER_MID[i-1]}
@@ -686,10 +693,12 @@ function scoreParts(){
      as long as eleven would still be fit to play.
    Returns what happened, for the results screen to say. */
 const CASH_RULES={deductBelow:-300,deductPts:3,minSquad:11};
+// Beginner's smaller economy: deep in the red is below -GBP60k
+function deductLine(){return NEUTRAL?-60:CASH_RULES.deductBelow}
 function cashConsequences(){
   const out=[];
   if(!S.alive)return out;
-  if(S.cash<CASH_RULES.deductBelow&&!S.deducted){
+  if(S.cash<deductLine()&&!S.deducted){
     TABLE[CLUB].pts-=CASH_RULES.deductPts;S.deducted=true;out.push({type:"deduction",pts:CASH_RULES.deductPts});
   }
   if(S.cash<0){
