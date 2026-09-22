@@ -228,3 +228,60 @@ export async function getHindsightOptimalSquad(): Promise<FplHindsightResult | n
     computed_at: data.computed_at,
   };
 }
+
+// ============================================================================
+// Weekly scores for a solved squad.
+//
+// Computed from the PLAYERS' own per-gameweek points rather than read from
+// weekly_plan.xi_xpts, so the totals row can never contradict the cells above
+// it. (Verified against the stored figures: they agree, and captain_extra_ev
+// is exactly the captain's points again -- the FPL doubling.)
+// ============================================================================
+
+export type WeeklyScore = {
+  matchweek: number;
+  /** The starting XI, before the captain is doubled. */
+  xiPoints: number;
+  /** The captain's points a second time, 0 if the captain didn't play. */
+  captainExtra: number;
+  total: number;
+};
+
+export function weeklyScores(squad: FplOptimizerPlayer[], weeklyPlan: FplOptimizerWeeklyPlan[]): WeeklyScore[] {
+  const byName = new Map(squad.map((p) => [p.name, p]));
+  return weeklyPlan.map((w) => {
+    const pointsFor = (name: string): number => Number(byName.get(name)?.gw_xpts?.[w.matchweek] ?? 0);
+    const xiPoints = w.xi.reduce((t, name) => t + pointsFor(name), 0);
+    const captainExtra = w.captain ? pointsFor(w.captain) : 0;
+    return { matchweek: w.matchweek, xiPoints, captainExtra, total: xiPoints + captainExtra };
+  });
+}
+
+export type WeeklyDistribution = {
+  weeks: number;
+  min: number;
+  max: number;
+  mean: number;
+  /** Population standard deviation: this is the whole season so far, not a sample. */
+  stdDev: number;
+  worstWeek: number | null;
+  bestWeek: number | null;
+};
+
+export function weeklyDistribution(scores: WeeklyScore[]): WeeklyDistribution | null {
+  if (scores.length === 0) return null;
+  const totals = scores.map((s) => s.total);
+  const mean = totals.reduce((a, b) => a + b, 0) / totals.length;
+  const variance = totals.reduce((a, b) => a + (b - mean) ** 2, 0) / totals.length;
+  const min = Math.min(...totals);
+  const max = Math.max(...totals);
+  return {
+    weeks: scores.length,
+    min,
+    max,
+    mean,
+    stdDev: Math.sqrt(variance),
+    worstWeek: scores.find((s) => s.total === min)?.matchweek ?? null,
+    bestWeek: scores.find((s) => s.total === max)?.matchweek ?? null,
+  };
+}

@@ -109,7 +109,6 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Player Scout', to: '/fpl/player-scout', blurb: 'Any player\u2019s season-by-season record \u2014 points, price and form.' },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
-          { label: 'Model XI Accuracy', to: '/fpl/model-xi', blurb: 'How the eleven the model rated highest actually scored, week by week.' },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
           { label: 'In the papers', to: '/fpl/in-the-papers', blurb: 'The gameweek\u2019s price moves, injuries and ownership swings, plus the seven-day transfer window.' },
