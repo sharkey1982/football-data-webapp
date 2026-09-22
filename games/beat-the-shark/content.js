@@ -72,13 +72,13 @@ function signingSpec(){
   const nextP=t=>{const was=S.squadList.length;if(t)S.squadList.push(t);recalcSquadRating();const p=matchProbs(nOpp,nHome);S.squadList.length=was;recalcSquadRating();return p};
   const impact=p=>`next game v ${nOpp}: you ${p.xgf.toFixed(1)} xG · them ${p.xga.toFixed(1)} xG · clean sheet ${Math.round(p.cs*100)}% · win ${p.w}% · draw ${p.d}% · lose ${p.l}%`;
   const opt=t=>({t:`Sign ${t.nm} (${pos}, Q${t.rt})`,
-    d:`${fmtMoney(t.fee)} now · wages +${fmtMoney(t.wage)} a week · ${fmtMoney(S.cash-t.fee)} left · squad quality ${nowQ} → ${quality(t)} · ${impact(nextP(t))}`,
+    d:`${fmtMoney(t.fee)} now · wages +${fmtMoney(t.wage)} a week · ${fmtMoney(S.cash-t.fee)} left · squad quality ${nowQ} → ${quality(t)}`,
     fx:{cash:-t.fee},after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));recalcSquadRating()},
     out:`${t.nm} signs. ${S.cash-t.fee<0?"You're in the red: the bank will be in touch.":""}`});
   return{title:"Freshen up the squad",lede:`Two ${pos==="FW"?"strikers":pos==="MF"?"midfielders":"defenders"} are available. ${fmtMoney(S.cash)} in the bank; wages are the bigger cost.`,
     choices:[opt(A),opt(B),
       // not forced to buy (Chris: "only an option between 2 players")
-      {t:"No signing: keep your money",d:`${fmtMoney(S.cash)} stays in the bank · squad quality ${nowQ} · ${impact(nextP(null))}`,out:"You keep your powder dry."}]};
+      {t:"No signing: keep your money",d:`${fmtMoney(S.cash)} stays in the bank · squad quality ${nowQ}`,out:"You keep your powder dry."}]};
 }
 /* THE SPONSOR CALLS (Beginner, before the final day): a chance scenario
    that moves the weekly cash moments -- gate receipts or the wage bill. */

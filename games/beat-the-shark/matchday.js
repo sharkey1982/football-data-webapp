@@ -385,8 +385,9 @@ function outcomeProbs(mine,theirs,us,them){
   let w=0,d=0;for(let i=0;i<=10;i++)for(let j=0;j<=10;j++){const p=pm[i]*pt[j],f=mine+i,g=theirs+j;if(f>g)w+=p;else if(f===g)d+=p}
   const W=Math.round(w*100),D=Math.round(d*100);return{w:W,d:D,l:100-W-D,cs:theirs===0?Math.round(Math.exp(-them)*100):null};
 }
-const wdlHTML=(p,ref)=>{const ar=(v,r)=>r==null||Math.abs(v-r)<1?"":` <span style="color:${v>r?'var(--good)':'var(--bad)'}">${v>r?'\u25b2':'\u25bc'}</span>`;
-  return `<span style="display:block;margin-top:3px;font-family:var(--mono);font-size:12px">Win ${p.w}%${ar(p.w,ref&&ref.w)} · Draw ${p.d}% · Lose ${p.l}%${p.cs!=null?` · Clean sheet ${p.cs}%`:""}</span>`};
+/* ONE simple 1X2 line under the fixture title (Chris: "not to bombard
+   players with stats in their option selection"); it moves as you decide. */
+const oneX2=(p,id)=>`<div class="small" id="${id||'onex2'}" style="margin:2px 0 8px;font-family:var(--mono)">The model: win ${p.w}% · draw ${p.d}% · lose ${p.l}%</div>`;
 /* What an option does to THIS match, next to the other option: your
    expected goals and theirs (Chris: show the decision's impact, as the
    half-time cards do). Goals, not win % -- Chris found win % unhelpful. */
@@ -396,8 +397,7 @@ function impactHTML(o,other){
     return ` <span style="color:${good?'var(--good)':'var(--bad)'}">${d>0?'\u25b2':'\u25bc'}</span>`};
   return `<span style="display:flex;gap:14px;margin-top:6px;font-family:var(--mono);font-size:12px">
     <span>You ${o.p.xgf.toFixed(1)} xG${arrow(o.p.xgf,other&&other.p.xgf,true)}</span>
-    <span>Them ${o.p.xga.toFixed(1)} xG${arrow(o.p.xga,other&&other.p.xga,false)}</span>
-    <span>Clean sheet ${Math.round(o.p.cs*100)}%</span></span>${wdlHTML(o.p,other&&other.p)}`;
+    <span>Them ${o.p.xga.toFixed(1)} xG${arrow(o.p.xga,other&&other.p.xga,false)}</span></span>`;
 }
 function renderBeginnerSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
@@ -416,9 +416,11 @@ function renderBeginnerSheet(done){
   function draw(){
     decs.forEach((d,i)=>d.options.forEach((o,j)=>{o.p=probs(i,j)}));
     restore(base);applyChoices();recalcSquadRating();paintHeader();
+    const current=matchProbs(opp,home);
     document.getElementById('app').innerHTML=`<div class="card">
       <div class="datechip">${kickoffChip(wk)}</div>
       <h1>${venueTitle(opp,home)}</h1>
+      ${oneX2(current)}
       ${oppCompareHTML(opp)}
       ${decs.map((dec,i)=>{const [title,idea]=BEGINNER_IDEA[dec.kind];return `
       <h2 style="margin-top:8px">${decs.length>1?`${i+1}. `:""}${title}</h2>
@@ -776,9 +778,11 @@ function pickGoal(){
 function pickScorer(){const g=pickGoal();return g?g.p:null}
 /* Half-time and 70th-minute cards: tap to choose, then "Send them out"
    (Chris: it used to act the moment a card was tapped). */
-function wireChoiceCards(box,ids,onGo){
+function wireChoiceCards(box,ids,onGo,oddsFor){
   let pick=null;
-  const paint=()=>{ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;const on=id===pick;
+  const paint=()=>{
+    // the one 1X2 line moves with the card you've picked
+    const line=document.getElementById('htOdds');if(line&&oddsFor){const p=oddsFor(pick);line.textContent=`The model: win ${p.w}% · draw ${p.d}% · lose ${p.l}%`}ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;const on=id===pick;
       el.setAttribute('aria-pressed',on);el.style.borderColor=on?'var(--amber)':'';el.style.background=on?'color-mix(in srgb,var(--amber) 14%,transparent)':''});
     const go=document.getElementById('htGo');if(go){go.disabled=!pick;go.style.opacity=pick?1:.5}};
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.onclick=()=>{pick=id;paint()}});
@@ -822,10 +826,11 @@ function subHalfTime(resume,force,mine=0,theirs=0){
     <span class="t">${title}</span>${who}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">GOAL THREAT, 2ND HALF</div>${bar(now,nowBetter)}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">GOAL THREAT, NEXT GAME</div>${bar(next,nextBetter)}
-    <div style="font-size:12px;margin-top:4px">${nextNote}</div>${wdlHTML(odds)}</button>`;
+    <div style="font-size:12px;margin-top:4px">${nextNote}</div></button>`;
   const box=document.getElementById('htBox');
   box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">HALF TIME</div>
     <h2>${pair.s.nm} is tiring</h2>
+    <div class="small" id="htOdds" style="margin:2px 0 8px;font-family:var(--mono)"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
       ${card("subNo",`Keep ${pair.s.nm} on`,health(pair.s),keepNow,keepNext,`<b style="color:var(--bad)">✗ Injured for the next game</b>`,keepNow>=subNow,false,oddsKeep)}
       ${card("subYes",`Bring on ${pair.b.nm}`,health(pair.b),subNow,subNext,`<b style="color:var(--good)">✓ ${pair.s.nm} fit next game</b>`,subNow>keepNow,true,oddsSub)}
@@ -833,7 +838,7 @@ function subHalfTime(resume,force,mine=0,theirs=0){
   wireChoiceCards(box,["subNo","subYes"],pick=>{
     if(pick==="subYes"){const x=swapped();S.manualXI=x;S.manualFm=S.formation;S._subXI=true}
     else S._injureAfter=pair.si;
-    resume()});
+    resume()},pick=>pick==="subYes"?oddsSub:oddsKeep);
 }
 /* HALF TIME: PUSH ON OR HOLD? The same card style as the sub dilemma:
    goal-threat bars for BOTH ends in the second half, for each shape. */
@@ -849,18 +854,21 @@ function shapeHalfTime(resume,mine,theirs,o={}){
   const max=Math.max(P.us,P.them,H.us,H.them,.1);
   const bar=(v,col)=>`<div style="height:9px;border-radius:5px;background:var(--line);margin:3px 0 1px"><div style="height:9px;border-radius:5px;width:${Math.round(v/max*100)}%;background:${col}"></div></div><div style="font-family:var(--mono);font-size:11px">${v.toFixed(1)} xG</div>`;
   const card=(id,title,sub,v)=>`<button class="choice" id="${id}" style="margin:0;height:100%;text-align:left">
-    <span class="t">${title}</span><span class="d">${sub}</span>${wdlHTML(outcomeProbs(mine,theirs,v.us,v.them))}
+    <span class="t">${title}</span><span class="d">${sub}</span>
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">YOUR GOAL THREAT</div>${bar(v.us,'var(--good)')}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">THEIR GOAL THREAT</div>${bar(v.them,'var(--bad)')}</button>`;
   const state=mine>theirs?`You lead ${mine}–${theirs}.`:mine<theirs?`You trail ${mine}–${theirs}.`:`${mine}–${theirs}.`;
   const box=document.getElementById('htBox');
   box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">${chip}</div>
     <h2>${state} ${ask}</h2>
+    <div class="small" id="htOdds" style="margin:2px 0 8px;font-family:var(--mono)"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
       ${card("htPush",`${pushT} (${bold})`,"More chances, both ends",P)}
       ${card("htHold",`${holdT} (${safe})`,"Tighter, fewer chances",H)}
     </div>${GO_BUTTON}</div>`;
-  wireChoiceCards(box,["htPush","htHold"],pick=>{S.formation=pick==="htPush"?bold:safe;S.manualXI=null;resume()});
+  const oddsNow=outcomeProbs(mine,theirs,(P.us+H.us)/2,(P.them+H.them)/2);
+  wireChoiceCards(box,["htPush","htHold"],pick=>{S.formation=pick==="htPush"?bold:safe;S.manualXI=null;resume()},
+    pick=>pick==="htPush"?outcomeProbs(mine,theirs,P.us,P.them):pick==="htHold"?outcomeProbs(mine,theirs,H.us,H.them):oddsNow);
 }
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');
