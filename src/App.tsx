@@ -45,6 +45,7 @@ const ResultsData = lazy(() => import('./pages/ResultsData'));
 const SourceData = lazy(() => import('./pages/SourceData'));
 const FantasyFixtures = lazy(() => import('./pages/FantasyFixtures'));
 const DataHealth = lazy(() => import('./pages/DataHealth'));
+const DataFlow = lazy(() => import('./pages/DataFlow'));
 const FplFixturesList = lazy(() => import('./pages/fpl/FplFixturesList'));
 const GameweekPage = lazy(() => import('./pages/fpl/GameweekPage'));
 const FixtureProjectionPage = lazy(() => import('./pages/fpl/FixtureProjectionPage'));
@@ -465,6 +466,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <DataHealth />
+              </Suspense>
+            }
+          />
+          <Route
+            path="data-flow"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <DataFlow />
               </Suspense>
             }
           />

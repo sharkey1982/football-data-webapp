@@ -3195,6 +3195,84 @@ export type Database = {
           },
         ]
       }
+      meta_flow_nodes: {
+        Row: {
+          commentary: string | null
+          definition_hash: string
+          first_seen: string
+          is_present: boolean
+          kind: string
+          last_seen: string
+          layer: string | null
+          node_key: string
+          obj_name: string
+          purpose: string | null
+          refresh_note: string | null
+          row_estimate: number | null
+        }
+        Insert: {
+          commentary?: string | null
+          definition_hash: string
+          first_seen?: string
+          is_present?: boolean
+          kind: string
+          last_seen?: string
+          layer?: string | null
+          node_key: string
+          obj_name: string
+          purpose?: string | null
+          refresh_note?: string | null
+          row_estimate?: number | null
+        }
+        Update: {
+          commentary?: string | null
+          definition_hash?: string
+          first_seen?: string
+          is_present?: boolean
+          kind?: string
+          last_seen?: string
+          layer?: string | null
+          node_key?: string
+          obj_name?: string
+          purpose?: string | null
+          refresh_note?: string | null
+          row_estimate?: number | null
+        }
+        Relationships: []
+      }
+      meta_flow_edges: {
+        Row: { child_key: string; parent_key: string; source: string }
+        Insert: { child_key: string; parent_key: string; source?: string }
+        Update: { child_key?: string; parent_key?: string; source?: string }
+        Relationships: []
+      }
+      meta_flow_history: {
+        Row: {
+          author: string
+          change: string
+          changed_at: string
+          detail: string | null
+          history_id: number
+          node_key: string
+        }
+        Insert: {
+          author?: string
+          change: string
+          changed_at?: string
+          detail?: string | null
+          history_id?: number
+          node_key: string
+        }
+        Update: {
+          author?: string
+          change?: string
+          changed_at?: string
+          detail?: string | null
+          history_id?: number
+          node_key?: string
+        }
+        Relationships: []
+      }
       matches: {
         Row: {
           attendance: number | null
@@ -6879,6 +6957,27 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_flow_summary: {
+        Row: {
+          commentary: string | null
+          definition_changes: number | null
+          feeds_from: number | null
+          feeds_into: number | null
+          first_seen: string | null
+          is_present: boolean | null
+          kind: string | null
+          last_definition_change: string | null
+          last_seen: string | null
+          layer: string | null
+          node_key: string | null
+          obj_name: string | null
+          purpose: string | null
+          reads_from: string | null
+          refresh_note: string | null
+          row_estimate: number | null
+        }
+        Relationships: []
+      }
       team_home_away_adjustment_v1: {
         Row: {
           as_of_date: string | null
@@ -7578,6 +7677,10 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      meta_refresh_flow: {
+        Args: never
+        Returns: { nodes: number; edges: number; changes: number }[]
+      }
       list_scout_players: {
         Args: {
           p_limit?: number
