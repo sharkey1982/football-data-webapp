@@ -30,7 +30,7 @@ drain();
 // A week with no pre-match decision gets one simple half-time choice: a sub.
 if(/is tiring/.test((els.htBox&&els.htBox.innerHTML)||"")){
   ok("a quick week with no pre-match decision offers the half-time dilemma: keep him on, or bring someone on", /Keep .+ on/.test(els.htBox.innerHTML)&&/Bring on /.test(els.htBox.innerHTML));
-  els.subYes.onclick();drain();
+  els.subYes.onclick();els.htGo.onclick();drain();
 }
 // After the whistle: three calm screens, no timers (Chris's playtest).
 ok("full time WAITS for the player -- no automatic jump to the results", /See the league table/.test(els.paceBox.innerHTML)&&q.length===0);
@@ -159,9 +159,9 @@ const kinds=[];
 for(let n=0;n<5;n++){
   const h=sheetAt("beginner",n);
   kinds.push(run(`beginnerDecision(...(()=>{const[hT,aT]=myFixture(S.mw);return[hT===CLUB?aT:hT,hT===CLUB]})()).kind`));
-  // two options for the first three games; three shapes from Gameweek 4
-  ok(`beginner match ${n+1}: ${n<3?'two':'three'} options, no win percentages, no complex controls`,
-    bc(h)===(n<3?2:3)&&!/win chance/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+  // two options for the first three games; from Gameweek 4, a selection call (2) THEN three shapes
+  ok(`beginner match ${n+1}: ${n<3?'two options':'selection then three shapes'}, win/draw/lose on every option, no complex controls`,
+    bc(h)===(n<3?2:5)&&(h.match(/Win \d+%/g)||[]).length===bc(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
   if(kinds[n]==="formation")ok(`beginner match ${n+1}: the shape choice reads the opponent (their attack and defence)`, /(attack)[\s\S]*(defence)/.test(h)&&/Go for it/.test(h)&&/Stay compact/.test(h));
 }
 ok("the Beginner order: shape, shape, selection, three shapes, three shapes -- no set pieces",
@@ -180,7 +180,7 @@ ok("the opening screen offers the three levels, plainly named", (()=>{run("choos
 run(`LEVEL="intermediate"`);
 // 17. PACING (Chris's playtest: "too fast to follow")
 run(`LEVEL="beginner";SPEED=null`);
-ok("beginners start on slow; commentary gives about 3s a line", run(`speedName()`)==="slow"&&run(`PACE.commentaryMs*speedFactor()`)>=2900);
+ok("every level starts on normal speed (Chris: fine, with the skip option)", run(`speedName()`)==="normal");
 run(`LEVEL="intermediate";SPEED=null`);
 ok("other levels start on normal: over 2s a line (was 0.8s)", run(`speedName()`)==="normal"&&run(`PACE.commentaryMs*speedFactor()`)>=2000);
 run(`SPEED="fast"`);
@@ -320,10 +320,10 @@ const xg=[...g2.ht.matchAll(/(\d+\.\d) xG/g)].map(m=>+m[1]); // keep: now, next;
 // STRICT: a tie means the preview isn't seeing the substitution (it once didn't).
 ok("the trade-off is real: keeping him gives MORE threat now and LESS next game", xg.length===4&&xg[0]>xg[2]&&xg[1]<xg[3], xg.join(" / "));
 const star=(g2.ht.match(/<h2>(.+?) is tiring<\/h2>/)||[])[1];
-els.subNo.onclick();drain(); // keep him on
+els.subNo.onclick();els.htGo.onclick();drain(); // keep him on
 ok("keep him on: he breaks down, out for the next game", run(`S.squadList.find(p=>p.nm===${JSON.stringify(star)}).out`)===1&&!run(`currentXI().some(x=>S.squadList[x.i].nm===${JSON.stringify(star)})`));
 const g2b=toGW2HalfTime("MD-1");
-els.subYes.onclick();drain(); // bring the fresher man on
+els.subYes.onclick();els.htGo.onclick();drain(); // bring the fresher man on
 ok("bring on the fresher man: the star is fit for the next game", run(`S.squadList.find(p=>p.nm===${JSON.stringify(star)}).out`)===0&&!run("S.manualXI"));
 // a quick week: the preview, then kick off
 // (quick weeks are the ten-game level's; every Beginner game has its decisions)
@@ -374,22 +374,22 @@ ok("pre-match options show their impact: your xG and theirs for this match, comp
 delete els.ch;run(`S.cash=97;renderSpec(Object.assign(signingSpec(),{keepFull:true,fullChoices:true}),"T",()=>{})`);
 const opts=els.ch.children.map(c=>c.innerHTML.replace(/<[^>]+>/g,' '));
 const num=(t,re)=>+((t.match(re)||[])[1]);
-ok("the window: exactly two players, each with fee, wages, cash left and squad quality", opts.length===2&&opts.every(t=>/£\d+k now/.test(t)&&/wages \+£\d+k a week/.test(t)&&/£-?\d+k left/.test(t)&&/squad quality [\d.]+ → [\d.]+/.test(t)));
+ok("the window: two players and 'No signing', each with its impact on the next game", opts.length===3&&/No signing: keep your money/.test(opts[2])&&opts.every(t=>/next game v .+: you [\d.]+ xG · them [\d.]+ xG · clean sheet \d+% · win \d+% · draw \d+% · lose \d+%/.test(t))&&opts.slice(0,2).every(t=>/£\d+k now/.test(t)&&/wages \+£\d+k a week/.test(t)&&/£-?\d+k left/.test(t)&&/squad quality [\d.]+ → [\d.]+/.test(t)));
 ok("...one better, one with the cash advantage",
   num(opts[0],/→ ([\d.]+)/)>num(opts[1],/→ ([\d.]+)/)&&num(opts[1],/£(-?\d+)k left/)>num(opts[0],/£(-?\d+)k left/), opts.map(t=>t.replace(/\s+/g,' ').trim()).join(' | '));
 // 25. Round 3 of Beginner feedback: no set pieces; three shapes from GW4; GW5 two changes
 run(`SEED="R3-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3;cursor=PLAN.indexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
 ok("Gameweek 4: three shapes -- go for it, balanced, stay compact -- each with its impact",
-  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&(app().match(/You \d\.\d xG/g)||[]).length===3);
+  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&/1\. One place in the side/.test(app())&&/2\. Pick your shape/.test(app())&&(app().match(/You \d\.\d xG/g)||[]).length===5);
 run(`S.mw=2;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("Gameweek 3: selection, not set pieces", /One place in the side/.test(app())&&!/set pieces/i.test(app()));
 delete els.htBox;delete els.toTable;
 run(`S.mw=4;cursor=PLAN.lastIndexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
 els.kick.onclick();drain();
 ok("Gameweek 5, change one: the half-time sub", /is tiring/.test(els.htBox.innerHTML));
-els.subYes.onclick();drain();
+els.subYes.onclick();els.htGo.onclick();drain();
 ok("Gameweek 5, change two: at 70 minutes, chase it or protect it", /70 MINUTES/.test(els.htBox.innerHTML)&&/Chase it or protect it\?/.test(els.htBox.innerHTML));
-els.htHold.onclick();drain();
+els.htHold.onclick();els.htGo.onclick();drain();
 ok("...and then on to full time", !!(els.toTable&&els.toTable.onclick));
 // splitting the second half keeps the same goals on average
 { const f=run(`(()=>{const[h,a]=myFixture(4),home=h===CLUB,opp=home?a:h;const r1=clubRates(opp,home,.62,"4-4-2"),r2=clubRates(opp,home,.62*24/46,"4-4-2"),r3=clubRates(opp,home,.62*22/46,"4-4-2");return[r1[0],r2[0]+r3[0]]})()`);
@@ -401,7 +401,7 @@ ok("pay day: the wage bill comes out before the game, shown in the page and the 
   run("S.cash")===c0-w0&&app().includes(`Pay day: wages <b style="color:var(--bad)">−£${w0}k`)&&els.hTwo.innerHTML.includes(`▼ −£${w0}k`));
 els.go.onclick();delete els.htBox;delete els.toTable;els.kick.onclick();
 ok("the live match headlines what should happen, then them v you -- not the old ratings block",
-  /You should (win|lose)|Too close to call/.test(app())&&/The model: win \d+% · draw \d+% · lose \d+%/.test(app())&&/<th class="n">You<\/th>/.test(app())&&!/rated \d+|Model odds|Team Strength<\/b>/.test(app()));
+  /Heavy favourites|The favourites|Nobody gives you a chance|The underdogs|On a knife-edge/.test(app())&&/The model: win \d+% · draw \d+% · lose \d+%/.test(app())&&/<th class="n">You<\/th>/.test(app())&&!/rated \d+|Model odds|Team Strength<\/b>/.test(app()));
 drain();const c1=run("S.cash");els.toTable.onclick();const g=run("S.cash")-c1;
 ok("gate receipts: after the game, the exact amount in the page and the header", g>0&&app().includes(`Gate receipts: <b style="color:var(--good)">+£${g}k`)&&els.hTwo.innerHTML.includes(`▲ +£${g}k`), `+£${g}k`);
 ok("pay day and receipts happen once each a week, however often the page is drawn", run("payDay()")===null&&run("gateReceipts('w')")===null);
@@ -419,5 +419,27 @@ ok("the sponsor's shirt deal raises every game's gate receipts", run("__g2")===r
 run(`S.paid={};const w=S.wages;apply({wages:4});globalThis.__p=payDay()-w`);
 ok("the players' bonus raises the weekly wage bill", run("__p")===4);
 ok("the Beginner plan: the sponsor calls before the final day", run("BEGINNER_PLAN.join()").includes("bank,match,sponsor,match,end"));
+// 27. Round 5 of Beginner feedback (2026-09-22)
+run(`SEED="R5-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
+ok("page 2's predicted table and page 3's expected finish always agree (rank, not a rounded average)",
+  run(`[CLUB].concat(RIVALS.map(r=>r.n)).sort((a,b)=>PREDICT[a].avg-PREDICT[b].avg).indexOf(CLUB)+1`)===run("sharkPos()")&&run("sharkPos()")===3);
+ok("the opponents: the weakest first, Shark Scout second, then the middle three evenly matched",
+  run(`(()=>{const o=[0,1,2,3,4].map(w=>{const[h,a]=myFixture(w);return h===CLUB?a:h});const by=RIVALS.slice().sort((a,b)=>b.str-a.str).map(r=>r.n);
+    return o[0]===by[by.length-1]&&o[1]===by[0]&&o.slice(2).every(n=>{const p=matchProbs(n,true);return p.w>=25&&p.w<=50})})()`));
+// choosing an option moves the odds on the OTHER decision too (they're worked out together)
+run(`S.mw=3;S._sheetShown=false;renderTeamSheet(()=>{})`);
+const shapeOdds=()=>(app().split('2. Pick your shape')[1]||'').match(/Win \d+%/g).join();
+const shapeBefore=shapeOdds();
+ok("from Gameweek 4 the sheet holds two decisions -- selection, then shape -- each option with its odds", !!shapeBefore&&/1\. One place in the side/.test(app()));
+// half-time cards: choose, then Send them out
+delete els.htBox;run(`S.mw=1;subHalfTime(()=>{globalThis.__resumed=1},true,0,0)`);
+ok("half time: the cards show win/draw/lose and clean sheet for each choice", (els.htBox.innerHTML.match(/Win \d+% · Draw \d+% · Lose \d+% · Clean sheet \d+%/g)||[]).length===2);
+run(`globalThis.__resumed=0`);els.subYes.onclick();
+ok("tapping a card only selects it -- nothing happens until 'Send them out'", run("__resumed")===0&&/Send them out/.test(els.htBox.innerHTML));
+els.htGo.onclick();
+ok("...then 'Send them out' plays on with that choice", run("__resumed")===1&&run("S._subXI")===true);
+ok("the odds from a half-time score: 1-0 up is better than 0-0, with the same chances to come",
+  run("outcomeProbs(1,0,.6,.6).w")>run("outcomeProbs(0,0,.6,.6).w")&&run("outcomeProbs(0,0,.6,.6).w")===run("outcomeProbs(0,0,.6,.6).l"));
+ok("the headlines are theatrical, not matter of fact", /Heavy favourites|The favourites|On a knife-edge|The underdogs|Nobody gives/.test(run(`expectationHTML(RIVALS[0].n,true)`)));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

@@ -180,7 +180,7 @@ function beginnerSeason(seed,policy,withTarget){
     G.setSeed(seed);G.pickRivals();G.buildFixtures();G.setTable(G.blankTable());
     G.setRole(G.ROLES.manager);G.setR(hashSeedJS(seed+"|manager"));G.resetRecent();
     const S=G.newState();G.setS(S);G.recalcSquadRating();
-    if(withTarget){G.setPredict(G.monteCarlo(400));G.setTable(G.blankTable());G.setR(hashSeedJS(seed+"|manager"))}
+    if(withTarget){G.setPredict(G.monteCarlo()) /* the game's own 4,000: with the middle three this close, 400 couldn't rank them reliably */;G.setTable(G.blankTable());G.setR(hashSeedJS(seed+"|manager"))}
     // the same two cash moments as the game: pay day, then gate receipts
     for(let wk=0;wk<G.getMW();wk++){G.setCursor(wk);G.payDay();playWeek(policy);G.gateReceipts(G.getS().lastRes||'l');G.cashConsequences()}
     const st=G.standings(G.T());

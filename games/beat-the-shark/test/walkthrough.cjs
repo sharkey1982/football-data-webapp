@@ -69,12 +69,17 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
     // take the first choice on decision screens, so outcome screens are checked too
     if(els.ch&&els.ch.children.length&&typeof els.ch.children[0].onclick==='function'){try{els.ch.children[0].onclick();settle();scan(`${lvl}/${role} ${plan[i]} (outcome)`,els.app.innerHTML)}catch(e){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} choice: ${e.message}`)}}
     // go: the match-day summary (from GW2) -> team sheet or quick preview; then the match.
-    for(const b of ['go','kick','subNo','goSecond','toTable','toOthers','mn']){const e=els[b];if(!e||typeof e.onclick!=='function')continue;
+    // half-time / 70' cards: choose, then "Send them out" -- up to twice (GW5 has two)
+    const answerCards=()=>{for(let n=0;n<2;n++){const c=els.subNo||els.htPush;if(!(els.htGo&&c&&typeof c.onclick==='function'))break;
+      try{c.onclick();els.htGo.onclick();settle()}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} half-time: ${x.message}`)};els.subNo=els.htPush=els.htGo=undefined}};
+    for(const b of ['go','kick','answer','goSecond','toTable','toOthers','mn']){
+      if(b==='answer'){answerCards();continue}const e=els[b];if(!e||typeof e.onclick!=='function')continue;
       const wkNow=run('S.mw');
       try{e.onclick();settle();scan(`${lvl}/${role} ${plan[i]} → ${b}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML)
         // (Chris saw "the same team playing the same opponent as me") -- at the 3pm
         // kick-offs, neither your team nor your opponent may be in the other games.
-        if(b==='toOthers'&&els.boards){const[h,a]=run(`myFixture(${wkNow})`),opp=h==='Your Team'?a:h,bt=txt(els.boards.innerHTML);
+        if(b==='toTable'&&plan[i]==='match'&&!/THE TABLE/.test(els.app.innerHTML))problems.push(`${lvl}/${role}/${seed} ${plan[i]} step ${i}: the match never reached full time`);
+      if(b==='toOthers'&&els.boards){const[h,a]=run(`myFixture(${wkNow})`),opp=h==='Your Team'?a:h,bt=txt(els.boards.innerHTML);
           if(bt.includes(opp)||bt.includes('Your Team'))problems.push(`${lvl}/${role}/${seed} GW${wkNow+1}: the 3pm games include ${bt.includes(opp)?opp:'Your Team'}: ${bt}`)}}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} → ${b}: ${x.message}`)};els[b]=undefined}
   }
   try{run('S.mw=MW;renderEnding()');scan(`${lvl}/${role} ending`,els.app.innerHTML)}catch(e){crashes.push(`${lvl}/${role}/${seed} ending: ${e.message}`)}

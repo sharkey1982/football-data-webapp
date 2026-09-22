@@ -656,7 +656,7 @@ function renderQuickPreview(){
 function renderTeamIntro(){
   const payLine=payDayHTML();
   const R=ratingsNow(0),mine=R[CLUB],cs=n=>Math.exp(-R[n].xga);
-  const quality=n=>n===CLUB?S.squad:RIVALS.find(r=>r.n===n).str;
+  const quality=n=>n===CLUB?S.squad:beginnerBase(n);
   const health=Math.round(xiStats().fit);
   const[h,a]=myFixture(0),opp=h===CLUB?a:h;
   const small=(label,big,sub)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div></div>`;

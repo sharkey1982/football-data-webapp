@@ -120,9 +120,16 @@ function buildFixtures(){
 /* A rival's strength can move mid-season through luck events (an injury to
    their star, a new signing), stored per season in S.rivalMod. Guarded
    because the pre-season model runs before a season state exists. */
+/* A rival's base strength. At Beginner (Chris): Shark Scout strongest (and
+   boosted), the weakest club as it is -- you play those two first -- and the
+   middle three EVENLY MATCHED with you, for the final three games. */
+const BEGINNER_MID=[59,55,51]; // you predicted 3rd (30/30); final three games 31-42% win chance
+function beginnerBase(n){const r=RIVALS.find(x=>x.n===n);if(!NEUTRAL)return r.str;
+  const byStr=RIVALS.slice().sort((a,b)=>b.str-a.str),i=byStr.indexOf(r);
+  return i===0?r.str+BEGINNER_SHARK_BOOST:i===byStr.length-1?r.str:BEGINNER_MID[i-1]}
 const strOf=n=>{if(n===CLUB)return null;
   const live=typeof S!=="undefined"&&S;
-  return RIVALS.find(r=>r.n===n).str+(NEUTRAL&&n==="Shark Scout United"?BEGINNER_SHARK_BOOST:0)+((live&&S.rivalMod&&S.rivalMod[n])||0)
+  return beginnerBase(n)+((live&&S.rivalMod&&S.rivalMod[n])||0)
     /* the hidden season swing -- invisible to the Shark's own simulation */
     +((live&&!S._mc&&S.swing&&S.swing[n])||0)};
 function oppFormation(n){
@@ -644,7 +651,12 @@ function predictedTableHTML(){
      THE OWNER also answers for the money: finishing the season in the red
      costs up to 30. The manager is not scored on cash -- it is the owner's
      problem, and his constraint. */
-function sharkPos(){return clamp(Math.round(PREDICT[CLUB].avg),1,6)}
+/* The predicted finish IS your rank in the predicted table (by average
+   position), so page 2's list and page 3's "Expected finish" can never
+   disagree (they did, in 31 of 40 seasons, once the middle three were
+   levelled: rounding your own average isn't the same as ranking it). */
+function sharkPos(){const clubs=[CLUB].concat(RIVALS.map(r=>r.n)).filter(n=>PREDICT[n]);
+  return clubs.sort((a,b)=>PREDICT[a].avg-PREDICT[b].avg).indexOf(CLUB)+1}
 function sharkPts(){return PREDICT[CLUB].pts}
 /* SCORING BY FINISHING POSITION (Chris: the best finishing position is the
    main thing being assessed). The target is the place a WELL-RUN club with

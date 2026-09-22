@@ -83,7 +83,7 @@ let LEVEL="beginner";
    time, while it runs -- skipping always stops at a half-time decision. */
 const PACE={commentaryMs:2200,quickCommentaryMs:1300,speeds:{slow:1.35,normal:1,fast:.45}};
 let SPEED=null; // the player's choice this session; null = the level's default
-function speedName(){return SPEED||(LEVEL==="beginner"?"slow":"normal")}
+function speedName(){return SPEED||"normal"} // normal for everyone (Chris), with the skip option
 function speedFactor(){return PACE.speeds[speedName()]}
 
 /* The main FixtureShark site. Links from the game always use this ABSOLUTE

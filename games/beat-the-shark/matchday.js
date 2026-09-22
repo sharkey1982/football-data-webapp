@@ -266,6 +266,8 @@ function newThisMatch(){if(ROLE.id!=="manager"||LEVEL!=="beginner")return null;
 // lesson now lives in its half-time dilemma.
 // (set pieces dropped -- Chris: pointless. From Gameweek 4, three shapes.)
 const BEGINNER_DECISION_ORDER=["formation","formation","selection","formation3","formation3"];
+// Gameweeks 4 and 5: a selection call on health FIRST, then the shape (Chris).
+const BEGINNER_DECISIONS=[["formation"],["formation"],["selection"],["selection","formation3"],["selection","formation3"]];
 // ...and one half-time decision every game, alternating.
 // Gameweek 1 has NO half-time decision (Chris: the first game should be simple).
 // Gameweek 5: TWO in-game changes -- a sub at half time, then a 70th-minute call.
@@ -276,7 +278,7 @@ const BEGINNER_IDEA={
   selection:["One place in the side","The better player, or the fresher one? Tired players play worse and get injured more."],
   setpieces:["Who takes the set pieces?","About a quarter of goals come from set pieces."],
   oop:["Try something different?","A defender moved into midfield still defends like a defender, and gets a midfielder's chances."]};
-function beginnerDecision(opp,home){
+function beginnerDecision(opp,home,kindOverride){
   const snap={f:S.formation,xi:S.manualXI?S.manualXI.map(x=>({...x})):null,sp:S.spTaker};
   const restore=()=>{S.formation=snap.f;S.manualXI=snap.xi?snap.xi.map(x=>({...x})):null;S.spTaker=snap.sp};
   const shape=f=>{const v=FORMATIONS[f];return v.att-v.def>=2?"attacking":v.def-v.att>=2?"defensive":"balanced"};
@@ -334,7 +336,7 @@ function beginnerDecision(opp,home){
         {title:`Move ${spareDF.nm} into midfield`,sub:`A defender, quality ${spareDF.rt}: tighter, fewer chances`,set(){S.manualXI=null;
           const x=currentXI().map(y=>({...y}));const k=x.findIndex(y=>y.i===m.x.i);if(k>=0){x[k].i=di;S.manualXI=x;S.manualFm=S.formation}}}]};
     }};
-  let kind=BEGINNER_DECISION_ORDER[Math.min(S.mw,BEGINNER_DECISION_ORDER.length-1)];
+  let kind=kindOverride||BEGINNER_DECISION_ORDER[Math.min(S.mw,BEGINNER_DECISION_ORDER.length-1)];
   let dec=build[kind]();restore();
   if(!dec){kind="formation";dec=build.formation();restore()}
   for(const o of dec.options){o.set();recalcSquadRating();o.p=matchProbs(opp,home);restore()}
@@ -348,13 +350,17 @@ function expectation(opp,home){const p=matchProbs(opp,home);
   return{w:p.w,d:p.d,l:p.l,call:p.w>=50?"win":p.l>=50?"lose":"close"}}
 function expectationHTML(opp,home){
   const e=expectation(opp,home);S._expect=e;
-  const head=e.call==="win"?"You should win":e.call==="lose"?"You should lose":"Too close to call";
-  return `<div style="margin:6px 0 2px"><div style="font-family:var(--disp);font-size:26px;font-weight:700;color:${e.call==="win"?'var(--good)':e.call==="lose"?'var(--bad)':'var(--amber)'}">${head}</div>
+  const head=e.w>=70?"Heavy favourites. Anything but a win is a stumble."
+    :e.call==="win"?"The favourites. The points are there for the taking."
+    :e.l>=70?"Nobody gives you a chance. Prove them wrong."
+    :e.call==="lose"?"The underdogs. A draw would be no disgrace."
+    :"On a knife-edge. This one could go either way.";
+  return `<div style="margin:6px 0 2px"><div style="font-family:var(--disp);font-size:22px;font-weight:700;line-height:1.15;color:${e.call==="win"?'var(--good)':e.call==="lose"?'var(--bad)':'var(--amber)'}">${head}</div>
     <div class="small">The model: win ${e.w}% · draw ${e.d}% · lose ${e.l}%</div></div>`;
 }
 function upsetLine(res,e){if(!e)return null;
-  if(e.call==="win"&&res==="l")return"An upset! Beaten when you should have won.";
-  if(e.call==="lose"&&res==="w")return"An upset! You beat the odds.";
+  if(e.call==="win"&&res==="l")return"An upset! The favourites fall.";
+  if(e.call==="lose"&&res==="w")return"An upset! Nobody saw that coming.";
   return null}
 function kickoffChip(wk){return `GAMEWEEK ${wk+1} OF ${MW} · ${wk===0?"OPENING DAY · ":wk===MW-1?"FINAL DAY · ":""}12:30 KICK-OFF`}
 /* Them v you, before the shape question: the same model numbers as
@@ -371,6 +377,16 @@ function oppCompareHTML(opp){
   return `<table class="tbl" style="margin:8px 0"><thead><tr><th></th><th class="n">${opp}</th><th class="n">You</th></tr></thead><tbody>
     ${rows.map(([l,t,y,f,hi])=>`<tr><td>${l}</td>${cell(t,y,f,hi)}${cell(y,t,f,hi)}</tr>`).join('')}</tbody></table>`;
 }
+/* Final-result odds from the current score and the goal rates still to
+   come (exact Poisson), for half-time and 70th-minute decisions. */
+function outcomeProbs(mine,theirs,us,them){
+  const pm=[],pt=[];let a=Math.exp(-us),b=Math.exp(-them);
+  for(let k=0;k<=10;k++){pm.push(a);pt.push(b);a*=us/(k+1);b*=them/(k+1)}
+  let w=0,d=0;for(let i=0;i<=10;i++)for(let j=0;j<=10;j++){const p=pm[i]*pt[j],f=mine+i,g=theirs+j;if(f>g)w+=p;else if(f===g)d+=p}
+  const W=Math.round(w*100),D=Math.round(d*100);return{w:W,d:D,l:100-W-D,cs:theirs===0?Math.round(Math.exp(-them)*100):null};
+}
+const wdlHTML=(p,ref)=>{const ar=(v,r)=>r==null||Math.abs(v-r)<1?"":` <span style="color:${v>r?'var(--good)':'var(--bad)'}">${v>r?'\u25b2':'\u25bc'}</span>`;
+  return `<span style="display:block;margin-top:3px;font-family:var(--mono);font-size:12px">Win ${p.w}%${ar(p.w,ref&&ref.w)} · Draw ${p.d}% · Lose ${p.l}%${p.cs!=null?` · Clean sheet ${p.cs}%`:""}</span>`};
 /* What an option does to THIS match, next to the other option: your
    expected goals and theirs (Chris: show the decision's impact, as the
    half-time cards do). Goals, not win % -- Chris found win % unhelpful. */
@@ -380,29 +396,40 @@ function impactHTML(o,other){
     return ` <span style="color:${good?'var(--good)':'var(--bad)'}">${d>0?'\u25b2':'\u25bc'}</span>`};
   return `<span style="display:flex;gap:14px;margin-top:6px;font-family:var(--mono);font-size:12px">
     <span>You ${o.p.xgf.toFixed(1)} xG${arrow(o.p.xgf,other&&other.p.xgf,true)}</span>
-    <span>Them ${o.p.xga.toFixed(1)} xG${arrow(o.p.xga,other&&other.p.xga,false)}</span></span>`;
+    <span>Them ${o.p.xga.toFixed(1)} xG${arrow(o.p.xga,other&&other.p.xga,false)}</span>
+    <span>Clean sheet ${Math.round(o.p.cs*100)}%</span></span>${wdlHTML(o.p,other&&other.p)}`;
 }
 function renderBeginnerSheet(done){
   const wk=S.mw,[hT,aT]=myFixture(wk),home=hT===CLUB,opp=home?aT:hT;
   if(!S.pendingOppFm)S.pendingOppFm=oppFormation(opp);
-  const dec=beginnerDecision(opp,home);
-  let chosen=0;dec.options[0].set();
+  const kinds=BEGINNER_DECISIONS[Math.min(wk,BEGINNER_DECISIONS.length-1)];
+  const decs=kinds.map(k=>beginnerDecision(opp,home,k)).filter(Boolean);
+  const chosen=decs.map(()=>0);
+  // state helpers: shape decisions are applied before selection (a hand-picked
+  // side only counts for the formation it was picked for)
+  const snap=()=>({f:S.formation,xi:S.manualXI?S.manualXI.map(x=>({...x})):null,fm:S.manualFm,sp:S.spTaker});
+  const restore=o=>{S.formation=o.f;S.manualXI=o.xi?o.xi.map(x=>({...x})):null;S.manualFm=o.fm;S.spTaker=o.sp};
+  const base=snap();
+  const order=decs.map((d,i)=>i).sort((x,y)=>(decs[x].kind.startsWith("formation")?0:1)-(decs[y].kind.startsWith("formation")?0:1));
+  const applyChoices=(over)=>{for(const i of order){const j=over&&over.d===i?over.o:chosen[i];decs[i].options[j].set()}};
+  const probs=(d,o)=>{restore(base);applyChoices({d,o});recalcSquadRating();const p=matchProbs(opp,home);restore(base);return p};
   function draw(){
-    recalcSquadRating();paintHeader();
-    const [title,idea]=BEGINNER_IDEA[dec.kind];
+    decs.forEach((d,i)=>d.options.forEach((o,j)=>{o.p=probs(i,j)}));
+    restore(base);applyChoices();recalcSquadRating();paintHeader();
     document.getElementById('app').innerHTML=`<div class="card">
       <div class="datechip">${kickoffChip(wk)}</div>
       <h1>${venueTitle(opp,home)}</h1>
       ${oppCompareHTML(opp)}
-      <h2 style="margin-top:6px">${title}</h2>
+      ${decs.map((dec,i)=>{const [title,idea]=BEGINNER_IDEA[dec.kind];return `
+      <h2 style="margin-top:8px">${decs.length>1?`${i+1}. `:""}${title}</h2>
       <p class="small">${dec.scout||idea}</p>
-      ${dec.options.map((o,i)=>`<button class="choice" data-bc="${i}" aria-pressed="${i===chosen}"
-        style="${i===chosen?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t">${i===chosen?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span>
-        ${impactHTML(o,i===chosen?null:dec.options[chosen])}</button>`).join('')}
+      ${dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}"
+        style="${j===chosen[i]?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
+        <span class="t">${j===chosen[i]?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span>
+        ${impactHTML(o,j===chosen[i]?null:dec.options[chosen[i]])}</button>`).join('')}`}).join('')}
       <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button>
       ${squadHTML({noBench:true})}</div>`;
-    document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{chosen=+b.dataset.bc;dec.options[chosen].set();draw()});
+    document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{const[i,j]=b.dataset.bc.split('-').map(Number);chosen[i]=j;draw()});
     document.getElementById('kick').onclick=()=>{S.fullMatches=(S.fullMatches||0)+1;done()};
   }
   draw();
@@ -574,10 +601,10 @@ function renderMatch(done,quick){
         const secondSplit=()=>{add("46'","— second half —","");
           half(46,70,()=>{skipping=false;shapeHalfTime(()=>{add("70'","— the last twenty —","");half(71,92,finish,22/46)},mine,theirs,
             {chip:"70 MINUTES",ask:"Chase it or protect it?",push:"Chase it",hold:"Protect it",share:22/92})},24/46)};
-        return subHalfTime(secondSplit,true);
+        return subHalfTime(secondSplit,true,mine,theirs);
       }
-      return !ht?second():ht==="sub"?subHalfTime(second,true):shapeHalfTime(second,mine,theirs)}
-    if(ROLE.id==="manager"&&(quick||S.mw===1)){skipping=false;return subHalfTime(second)}
+      return !ht?second():ht==="sub"?subHalfTime(second,true,mine,theirs):shapeHalfTime(second,mine,theirs)}
+    if(ROLE.id==="manager"&&(quick||S.mw===1)){skipping=false;return subHalfTime(second,false,mine,theirs)}
     // Beginners made their pre-match decision; no half-time one on top.
     if(ROLE.id==="manager"&&LEVEL==="beginner")return second();
     if(ROLE.id==="manager"){skipping=false;return tacticalHalfTime(mine,theirs,oFm,second)}
@@ -747,6 +774,18 @@ function pickGoal(){
 }
 /* kept for callers that only need the player */
 function pickScorer(){const g=pickGoal();return g?g.p:null}
+/* Half-time and 70th-minute cards: tap to choose, then "Send them out"
+   (Chris: it used to act the moment a card was tapped). */
+function wireChoiceCards(box,ids,onGo){
+  let pick=null;
+  const paint=()=>{ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;const on=id===pick;
+      el.setAttribute('aria-pressed',on);el.style.borderColor=on?'var(--amber)':'';el.style.background=on?'color-mix(in srgb,var(--amber) 14%,transparent)':''});
+    const go=document.getElementById('htGo');if(go){go.disabled=!pick;go.style.opacity=pick?1:.5}};
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.onclick=()=>{pick=id;paint()}});
+  document.getElementById('htGo').onclick=()=>{if(!pick)return;box.innerHTML="";onGo(pick)};
+  paint();
+}
+const GO_BUTTON=`<button class="choice primary" id="htGo" style="margin-top:8px"><span class="t">Send them out</span></button>`;
 /* HALF TIME: KEEP THE STAR, OR SAVE HIM (Chris). A better player who is
    tiring, against a fresher, weaker one in the same position:
    - keep him on: the second half's goal threat stays -- but he breaks down,
@@ -754,7 +793,7 @@ function pickScorer(){const g=pickGoal();return g?g.p:null}
    - bring the fresher man on: less goal threat now -- the star is fit next week.
    Shown as bars for this half and next week, with each player's health.
    Always asked in Gameweek 2; in other weeks only when someone is tiring. */
-function subHalfTime(resume,force){
+function subHalfTime(resume,force,mine=0,theirs=0){
   const always=force||S.mw===1,xi=currentXI(),inXI=new Set(xi.map(x=>x.i));
   let pair=null;
   for(const x of xi){const s=S.squadList[x.i];if(!s||(!always&&s.fit>=80))continue;
@@ -777,21 +816,24 @@ function subHalfTime(resume,force){
   const max=Math.max(keepNow,subNow,keepNext||0,subNext||0,.1);
   const bar=(v,good)=>v==null?"":`<div style="height:9px;border-radius:5px;background:var(--line);margin:3px 0 1px"><div style="height:9px;border-radius:5px;width:${Math.round(v/max*100)}%;background:${good?'var(--good)':'var(--amber)'}"></div></div><div style="font-family:var(--mono);font-size:11px">${v.toFixed(1)} xG</div>`;
   const health=p=>`<div style="font-size:12px;margin-top:2px">${p.nm} · Q${p.rt}</div><div style="height:6px;border-radius:3px;background:var(--line)"><div style="height:6px;border-radius:3px;width:${p.fit}%;background:${p.fit<75?'var(--bad)':p.fit<85?'var(--amber)':'var(--good)'}"></div></div><div style="font-size:11px;color:var(--mute)">${p.fit}% health</div>`;
-  const card=(id,title,who,now,next,nextNote,nowBetter,nextBetter)=>`<button class="choice" id="${id}" style="margin:0;height:100%;text-align:left">
+  const themNow=(()=>{recalcSquadRating();return matchProbs(opp,home).xga/2})();
+  const oddsKeep=outcomeProbs(mine,theirs,keepNow,themNow),oddsSub=outcomeProbs(mine,theirs,subNow,themNow);
+  const card=(id,title,who,now,next,nextNote,nowBetter,nextBetter,odds)=>`<button class="choice" id="${id}" style="margin:0;height:100%;text-align:left">
     <span class="t">${title}</span>${who}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">GOAL THREAT, 2ND HALF</div>${bar(now,nowBetter)}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">GOAL THREAT, NEXT GAME</div>${bar(next,nextBetter)}
-    <div style="font-size:12px;margin-top:4px">${nextNote}</div></button>`;
+    <div style="font-size:12px;margin-top:4px">${nextNote}</div>${wdlHTML(odds)}</button>`;
   const box=document.getElementById('htBox');
   box.innerHTML=`<div class="card" style="margin-top:10px"><div class="datechip">HALF TIME</div>
     <h2>${pair.s.nm} is tiring</h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
-      ${card("subNo",`Keep ${pair.s.nm} on`,health(pair.s),keepNow,keepNext,`<b style="color:var(--bad)">✗ Injured for the next game</b>`,keepNow>=subNow,false)}
-      ${card("subYes",`Bring on ${pair.b.nm}`,health(pair.b),subNow,subNext,`<b style="color:var(--good)">✓ ${pair.s.nm} fit next game</b>`,subNow>keepNow,true)}
-    </div></div>`;
-  document.getElementById('subYes').onclick=()=>{
-    const x=swapped();S.manualXI=x;S.manualFm=S.formation;S._subXI=true;box.innerHTML="";resume()};
-  document.getElementById('subNo').onclick=()=>{S._injureAfter=pair.si;box.innerHTML="";resume()};
+      ${card("subNo",`Keep ${pair.s.nm} on`,health(pair.s),keepNow,keepNext,`<b style="color:var(--bad)">✗ Injured for the next game</b>`,keepNow>=subNow,false,oddsKeep)}
+      ${card("subYes",`Bring on ${pair.b.nm}`,health(pair.b),subNow,subNext,`<b style="color:var(--good)">✓ ${pair.s.nm} fit next game</b>`,subNow>keepNow,true,oddsSub)}
+    </div>${GO_BUTTON}</div>`;
+  wireChoiceCards(box,["subNo","subYes"],pick=>{
+    if(pick==="subYes"){const x=swapped();S.manualXI=x;S.manualFm=S.formation;S._subXI=true}
+    else S._injureAfter=pair.si;
+    resume()});
 }
 /* HALF TIME: PUSH ON OR HOLD? The same card style as the sub dilemma:
    goal-threat bars for BOTH ends in the second half, for each shape. */
@@ -807,7 +849,7 @@ function shapeHalfTime(resume,mine,theirs,o={}){
   const max=Math.max(P.us,P.them,H.us,H.them,.1);
   const bar=(v,col)=>`<div style="height:9px;border-radius:5px;background:var(--line);margin:3px 0 1px"><div style="height:9px;border-radius:5px;width:${Math.round(v/max*100)}%;background:${col}"></div></div><div style="font-family:var(--mono);font-size:11px">${v.toFixed(1)} xG</div>`;
   const card=(id,title,sub,v)=>`<button class="choice" id="${id}" style="margin:0;height:100%;text-align:left">
-    <span class="t">${title}</span><span class="d">${sub}</span>
+    <span class="t">${title}</span><span class="d">${sub}</span>${wdlHTML(outcomeProbs(mine,theirs,v.us,v.them))}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:8px">YOUR GOAL THREAT</div>${bar(v.us,'var(--good)')}
     <div style="font-size:11px;letter-spacing:.08em;color:var(--mute);margin-top:6px">THEIR GOAL THREAT</div>${bar(v.them,'var(--bad)')}</button>`;
   const state=mine>theirs?`You lead ${mine}–${theirs}.`:mine<theirs?`You trail ${mine}–${theirs}.`:`${mine}–${theirs}.`;
@@ -817,9 +859,8 @@ function shapeHalfTime(resume,mine,theirs,o={}){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
       ${card("htPush",`${pushT} (${bold})`,"More chances, both ends",P)}
       ${card("htHold",`${holdT} (${safe})`,"Tighter, fewer chances",H)}
-    </div></div>`;
-  document.getElementById('htPush').onclick=()=>{S.formation=bold;S.manualXI=null;box.innerHTML="";resume()};
-  document.getElementById('htHold').onclick=()=>{S.formation=safe;S.manualXI=null;box.innerHTML="";resume()};
+    </div>${GO_BUTTON}</div>`;
+  wireChoiceCards(box,["htPush","htHold"],pick=>{S.formation=pick==="htPush"?bold:safe;S.manualXI=null;resume()});
 }
 function tacticalHalfTime(mg,tg,oFm,resume){
   const box=document.getElementById('htBox');
