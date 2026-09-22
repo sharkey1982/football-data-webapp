@@ -281,3 +281,60 @@ function solveUnconstrained(pool: RollingCandidate[], budget: number): SolvedXi 
   }
   return best;
 }
+
+// ============================================================================
+// Week by week for a season's set-and-forget XI.
+//
+// Eleven players, no captain, no substitutes -- that is the exercise. The
+// weekly history this reads covers 2022/23 onward; a season whose XI has not
+// been solved returns nothing, and the page says so rather than drawing an
+// empty chart.
+// ============================================================================
+
+export type SeasonXiWeek = {
+  gameweek: number;
+  total_points: number;
+  players_returning: number;
+  blanks: number;
+};
+
+export async function getSeasonXiWeekly(seasonId: number): Promise<SeasonXiWeek[]> {
+  const { data, error } = await supabase.rpc('get_season_xi_weekly', { p_season_id: seasonId });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    gameweek: Number(r.gameweek),
+    total_points: Number(r.total_points ?? 0),
+    players_returning: Number(r.players_returning ?? 0),
+    blanks: Number(r.blanks ?? 0),
+  }));
+}
+
+export type SeasonXiSpread = {
+  weeks: number;
+  total: number;
+  min: number;
+  max: number;
+  mean: number;
+  stdDev: number;
+  worstWeek: number | null;
+  bestWeek: number | null;
+};
+
+export function seasonXiSpread(weeks: SeasonXiWeek[]): SeasonXiSpread | null {
+  if (weeks.length === 0) return null;
+  const totals = weeks.map((w) => w.total_points);
+  const total = totals.reduce((a, b) => a + b, 0);
+  const mean = total / totals.length;
+  const min = Math.min(...totals);
+  const max = Math.max(...totals);
+  return {
+    weeks: weeks.length,
+    total,
+    min,
+    max,
+    mean,
+    stdDev: Math.sqrt(totals.reduce((a, b) => a + (b - mean) ** 2, 0) / totals.length),
+    worstWeek: weeks.find((w) => w.total_points === min)?.gameweek ?? null,
+    bestWeek: weeks.find((w) => w.total_points === max)?.gameweek ?? null,
+  };
+}

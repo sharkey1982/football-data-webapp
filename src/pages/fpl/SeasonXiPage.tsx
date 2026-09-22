@@ -17,6 +17,9 @@ import {
   getSeasonBestXi,
   getSeasonValueLeaders,
   getXiSeasons,
+  getSeasonXiWeekly,
+  seasonXiSpread,
+  type SeasonXiWeek,
   seasonName,
   POS_LABEL,
   type SeasonXiPlayer,
@@ -35,6 +38,8 @@ export default function SeasonXiPage() {
   // Newest season selected once the list arrives, rather than a
   // hardcoded id -- adding a season should be an insert, not an edit.
   const [seasonId, setSeasonId] = useState<number | null>(null);
+  // Week by week for the chosen season's XI: eleven players, left alone.
+  const [weekly, setWeekly] = useState<SeasonXiWeek[] | null>(null);
 
   const current = seasons.find((s) => s.season_id === seasonId);
   const label = current ? seasonName(current.slug) : '';
@@ -113,7 +118,17 @@ export default function SeasonXiPage() {
 
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (xi.length === 0) {
-    return (
+    useEffect(() => {
+    if (seasonId === null) { setWeekly(null); return; }
+    let live = true;
+    setWeekly(null);
+    getSeasonXiWeekly(seasonId)
+      .then((w) => live && setWeekly(w))
+      .catch(() => live && setWeekly([]));
+    return () => { live = false; };
+  }, [seasonId]);
+
+  return (
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">The set-and-forget XI</h1>
         <p className="text-ink-700 mt-2">No season data is available yet.</p>
@@ -219,6 +234,58 @@ export default function SeasonXiPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section>
+        <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Week by week</h2>
+        {weekly === null && <p className="text-sm text-ink-500 mt-2">Loading\u2026</p>}
+        {weekly !== null && weekly.length === 0 && (
+          <p className="text-sm text-ink-600 mt-2">
+            No weekly history for this season yet \u2014 it covers 2022/23 onward.
+          </p>
+        )}
+        {weekly !== null && weekly.length > 0 && (() => {
+          const spread = seasonXiSpread(weekly)!;
+          const max = Math.max(...weekly.map((w) => w.total_points), 1);
+          return (
+            <>
+              <p className="text-sm text-ink-600 mt-1">
+                Eleven players, no captain, no substitutes \u2014 {spread.total} points across {spread.weeks} gameweeks.
+              </p>
+              <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 mt-3">
+                {[
+                  ['Best week', `${spread.max}`, spread.bestWeek ? `GW${spread.bestWeek}` : ''],
+                  ['Worst week', `${spread.min}`, spread.worstWeek ? `GW${spread.worstWeek}` : ''],
+                  ['Average', spread.mean.toFixed(0), 'a week'],
+                  ['Spread', `\u00b1${spread.stdDev.toFixed(0)}`, 'standard deviation'],
+                ].map(([label, value, note]) => (
+                  <div key={label} className="border border-chalk-300 rounded-lg bg-white p-2">
+                    <div className="text-[11px] text-ink-500">{label}</div>
+                    <div className="font-display text-xl text-ink-900">{value}</div>
+                    <div className="text-[11px] text-ink-400">{note}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="border border-chalk-300 rounded-lg bg-white p-3 mt-3 space-y-1">
+                {weekly.map((w) => (
+                  <div key={w.gameweek} className="flex items-center gap-2">
+                    <span className="w-11 shrink-0 text-[11px] text-ink-500">GW{w.gameweek}</span>
+                    <div className="flex-1 bg-chalk-100 rounded h-3.5 overflow-hidden">
+                      <div
+                        className={w.total_points >= spread.mean ? 'h-full bg-pitch-700' : 'h-full bg-pitch-400'}
+                        style={{ width: `${(w.total_points / max) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right font-mono text-[11px] text-ink-800">{w.total_points}</span>
+                    <span className="w-16 text-right text-[11px] text-ink-400">
+                      {w.blanks > 0 ? `${w.blanks} blank${w.blanks === 1 ? '' : 's'}` : 'all played'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
       </section>
 
       <section>
