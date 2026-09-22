@@ -7677,6 +7677,10 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      get_season_xi_weekly: {
+        Args: { p_season_id: number }
+        Returns: { gameweek: number; total_points: number; players_returning: number; blanks: number }[]
+      }
       get_model_xi_players: {
         Args: { p_event_id: number; p_season_id?: number }
         Returns: {
