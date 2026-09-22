@@ -99,6 +99,22 @@ const homeMult=()=>NEUTRAL?1:HOME_MULT;
    choices can move either (fx.wages, fx.gate). */
 const GATE={w:24,d:16,l:11};
 function payDay(){S.paid=S.paid||{};if(S.paid[S.mw]!=null)return null;S.paid[S.mw]=S.wages;S.cash-=S.wages;return S.wages}
+/* PAYING THE BILLS, once a week (Chris: its own page): the wage bill plus one
+   chance card -- a bill that lands, or a few pounds that come in. Exact
+   amounts, applied once a week however often the page is drawn. */
+const BILL_CARDS=[
+  {t:"The training-ground boiler gave up",v:-8},{t:"Kit sponsor's appearance bonus",v:10},
+  {t:"Physio's bill for the month",v:-7},{t:"A youth sell-on clause paid out",v:12},
+  {t:"Fine after the touchline row",v:-5},{t:"Programme and pie sales up",v:4},
+  {t:"The coach needed a new gearbox",v:-6},{t:"Supporters' club donation",v:6}];
+function payWeek(){
+  S.bills=S.bills||{};
+  if(S.bills[S.mw])return S.bills[S.mw];
+  const before=S.cash,wages=S.wages,card=BILL_CARDS[Math.floor(rng()*BILL_CARDS.length)];
+  S.cash-=wages;S.cash+=card.v;
+  S.paid=S.paid||{};S.paid[S.mw]=wages;
+  return S.bills[S.mw]={before,wages,card,after:S.cash};
+}
 function gateReceipts(res){S.gates=S.gates||{};if(S.gates[S.mw]!=null)return null;const g=Math.max(0,GATE[res]+(S.gateBonus||0));S.gates[S.mw]=g;S.cash+=g;return g}
 function venueTitle(opp,home){return NEUTRAL?`v ${opp}`:home?`${opp}, at home`:`Away at ${opp}`}
 function venueNote(home){return NEUTRAL?"":home?"At home":"Away"}
@@ -773,6 +789,7 @@ function paintHeader(){
       <div class="v cashv${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
       ${dl?`<div class="cashd ${dl>0?'up':'down'}">${dl>0?'\u25b2 +':'\u25bc \u2212'}${fmtMoney(Math.abs(dl))}</div>`:''}
       ${S.cash<0?`<div class="pts">in the red: the bank will sell a player</div>`:''}</div>
+    ${NEUTRAL?`<div class="two"><div class="k">Matches</div><div class="v" style="font-size:22px">${Math.min(S.mw+1,MW)}/${MW}</div></div>`:""}
     ${NEUTRAL&&S.mw>=2?(()=>{const h=Math.round(xiStats().fit);return `<div class="two"><div class="k">Health</div>
       <div class="v" style="font-size:22px;color:${h>=85?'#7ee2a8':h>=70?'#ffd98a':'#ffb3ab'}">${h}%</div></div>`})():''}`;
   const tr=document.getElementById('hTrend');tr.className="trend fl";tr.textContent="";

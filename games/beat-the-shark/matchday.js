@@ -367,12 +367,14 @@ function upsetLine(res,e){if(!e)return null;
 function kickoffChip(wk){return `GAMEWEEK ${wk+1} OF ${MW} · ${wk===0?"OPENING DAY · ":wk===MW-1?"FINAL DAY · ":""}12:30 KICK-OFF`}
 /* Them v you, before the shape question: the same model numbers as
    everywhere else, better figure on each row highlighted. */
-function oppCompareHTML(opp){
-  const R=ratingsNow(0),cs=n=>Math.exp(-R[n].xga),q=n=>n===CLUB?S.squad:strOf(n);
+function oppCompareHTML(opp,p){
+  const q=n=>n===CLUB?S.squad:strOf(n);
+  if(!p){const[h,a]=myFixture(S.mw);p=matchProbs(opp,h===CLUB)}
+  // this match, as the model sees it with your current choices -- it moves
+  // when you pick an option, so the buttons don't need figures on them
   const rows=[
-    ["Goals for (a game)",R[opp].xgf,R[CLUB].xgf,v=>v.toFixed(1),true],
-    ["Goals against (a game)",R[opp].xga,R[CLUB].xga,v=>v.toFixed(1),false],
-    ["Clean sheets",cs(opp),cs(CLUB),v=>Math.round(v*100)+"%",true],
+    ["Goals (this match)",p.xga,p.xgf,v=>v.toFixed(1),true],
+    ["Clean sheet",Math.exp(-p.xgf),p.cs,v=>Math.round(v*100)+"%",true],
     ["Squad quality",q(opp),q(CLUB),v=>Math.round(v),true]];
   const cell=(v,other,fmt,hi)=>{const better=hi?v>other+1e-9:v<other-1e-9;
     return `<td class="n" style="${better?'color:var(--good);font-weight:700':''}">${fmt(v)}</td>`};
@@ -423,14 +425,22 @@ function renderBeginnerSheet(done){
       <div class="datechip">${kickoffChip(wk)}</div>
       <h1>${venueTitle(opp,home)}</h1>
       ${oneX2(current)}
-      ${oppCompareHTML(opp)}
-      ${decs.map((dec,i)=>{const [title,idea]=BEGINNER_IDEA[dec.kind];return `
+      ${oppCompareHTML(opp,current)}
+      ${decs.map((dec,i)=>{const [title,idea]=BEGINNER_IDEA[dec.kind];
+        // shapes side by side (they fit on one screen that way); the other
+        // decisions keep full-width rows, where names and detail need room
+        const cols=dec.kind.startsWith("formation");
+        const sel=j=>j===chosen[i]?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':'';
+        return `
       <h2 style="margin-top:8px">${decs.length>1?`${i+1}. `:""}${title}</h2>
       <p class="small">${dec.scout||idea}</p>
-      ${dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}"
-        style="${j===chosen[i]?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t">${j===chosen[i]?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span>
-        ${impactHTML(o,j===chosen[i]?null:dec.options[chosen[i]])}</button>`).join('')}`}).join('')}
+      ${cols?`<div style="display:grid;grid-template-columns:repeat(${dec.options.length},1fr);gap:5px;align-items:stretch">
+        ${dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}"
+          style="margin:0;height:100%;padding:9px 8px;${sel(j)}">
+          <span class="t" style="font-size:13.5px">${j===chosen[i]?"\u2713 ":""}${o.title}</span>
+          <span class="d" style="font-size:11.5px">${o.sub}</span></button>`).join('')}</div>`
+      :dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}" style="${sel(j)}">
+        <span class="t">${j===chosen[i]?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span></button>`).join('')}`}).join('')}
       <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button>
       ${squadHTML({noBench:true})}</div>`;
     document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{const[i,j]=b.dataset.bc.split('-').map(Number);chosen[i]=j;draw()});
