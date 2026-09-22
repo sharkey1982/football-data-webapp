@@ -37,7 +37,8 @@ const PLAN_BASE=PLAN.slice();
    with a summary, a preview, one pre-match and one half-time decision, and
    a story between games that builds -- cash a real issue by Gameweek 4. */
 // the big window and the bank sit straight before the FINAL (Chris: before GW4 it was confusing)
-const BEGINNER_PLAN=["match","presser","match","knock","match","sponsor","match","window","bank","match","end"];
+// (after Gameweek 2: a bid for a player, not the physio -- health calls are on the team sheet)
+const BEGINNER_PLAN=["match","presser","match","bid","match","sponsor","match","window","bank","match","end"];
 // The owner's five games: his own decisions around them (he doesn't pick the team).
 const BEGINNER_OWNER_PLAN=["special1","match","call","match","crisis","match","special2","match","papers","match","end"];
 function planFor(level,role){
@@ -91,6 +92,7 @@ function step(){
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
   if(b==="knock")return renderSpec(knockSpec(),"THE PHYSIO ROOM",next);
+  if(b==="bid")return renderSpec(Object.assign(bidSpec(),{fullChoices:true}),"A BID ARRIVES",next);
   if(b==="window")return renderSpec(Object.assign(bigSigningSpec(),{keepFull:true,fullChoices:true}),"BEFORE THE FINAL · THE BIG WINDOW",next);
   if(b==="bank")return renderSpec(bankSpec(),"THE BANK HAS CALLED",next);
   if(b==="sponsor")return renderSpec(sponsorSpec(),"THE SPONSOR CALLS",next);
@@ -411,7 +413,10 @@ function renderSpec(spec,chip,after){
       if(c.ask){pendingReveal=c.reveal();return renderSpec(spec,chip,after)}
       pendingReveal=null;if(c.after)c.after();
       const wBefore=nextWinChance();
-      const d=c.fx?apply(c.fx,true):'';
+      // exact: a choice quoting a price or an amount moves EXACTLY that
+      // (a GBP103k sale once paid GBP98k -- the random variation is for
+      // vague effects like morale, not for stated money)
+      const d=c.fx?apply(c.fx,!c.exact):'';
       if(c.delayed)later(2,c.delayed,c.delayedText);
       /* Attack and defence numbers moved, but did it matter? Say so in the
          one number anybody understands: the chance of winning next time. */
