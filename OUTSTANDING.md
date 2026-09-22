@@ -1419,6 +1419,28 @@ Full brief retained separately. Position taken 2026-09-20:
 
 ---
 
+## SEARCH-PATH HARDENING 2026-09-22 — DONE
+
+All 61 public functions that lacked a pinned search_path now have one
+(migration 20260922194500). Verified: 20 representative functions return
+results identical to a baseline taken first; the 7 trigger functions fire
+cleanly on writes; backfill_fixture_predictions still refreshes 1,807
+fixtures as owner AND as service_role. The 4 unaccent functions belong to
+the extension and were left alone.
+
+FOUND WHILE TESTING (pre-existing, not from this change):
+get_season_player_projections_json is BROKEN — it selects from
+fpl_fixture_bonus_projection_v3, which no longer exists (there is a v4).
+Nothing calls it: it appears only in the generated types, not in app code or
+workflows. Options: drop it, or repoint it at the v4 view. Needs Chris's
+call before deleting anything.
+
+Remaining advisor items (all judged acceptable): unaccent in public
+(cosmetic, moving it risks search); 25 tables with RLS and no policy
+(deny-all, correct for pipeline tables); is_admin() and fpl_gameweek_for_date
+callable without signing in (deliberately narrow). Leaked-password
+protection: ENABLED by Chris 2026-09-22.
+
 ## SECURITY ALERT 2026-09-22 (Supabase email) — CHECKED, ONE FIX
 
 The email ("Table publicly accessible", dated 19 Sep) was already resolved by
