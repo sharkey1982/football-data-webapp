@@ -1429,9 +1429,16 @@ Human columns (layer, purpose, refresh_note, commentary) are never overwritten
 — write notes straight into meta_flow_nodes. Admin-only (RLS), second run
 reports 0 changes. Run after schema work:  select * from meta_refresh_flow();
 
-NOT DONE YET: nothing calls meta_refresh_flow() automatically (a nightly
-workflow step or a pg_cron job would keep history current), and there is no
-admin page for it — both easy follow-ups if wanted.
+NOW AUTOMATIC: pg_cron job 'meta-refresh-flow-daily' at 05:45, after the
+fixture refresh (04:15) and cup ingest (05:15). Admin page at /data-flow
+(Admin menu → Data Flow): browse by layer, search, open an object for its
+lineage and history, edit purpose/refresh/commentary, or refresh on demand.
+Commentary edits are logged in the history by a trigger, with the editor's
+email.
+
+NOTE: the new tables/view/function were added to src/types/database.generated.ts
+BY HAND (the Supabase CLI can't reach the network from the agent sandbox). The
+next real regeneration will produce them from the database; nothing else to do.
 
 ## BROKEN FUNCTION FIXED (2026-09-22)
 
