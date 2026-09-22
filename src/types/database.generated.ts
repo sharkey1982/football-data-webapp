@@ -7677,6 +7677,20 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      get_model_xi_players: {
+        Args: { p_event_id: number; p_season_id?: number }
+        Returns: {
+          fpl_player_id: number
+          web_name: string
+          team_name: string
+          position_label: string
+          element_type: number
+          projected_points: number
+          actual_points: number
+          minutes: number
+          in_perfect_xi: boolean
+        }[]
+      }
       get_model_xi_history: {
         Args: { p_season_id?: number; p_league_id?: number }
         Returns: {

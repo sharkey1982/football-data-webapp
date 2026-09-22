@@ -16,10 +16,11 @@
 // forecast was calibrated, and how it fares against the week's average.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getModelXiHistory, summariseModelXi, type ModelXiWeek } from '../../lib/modelXiApi';
+import { getModelXiHistory, getModelXiPlayers, summariseModelXi, type ModelXiWeek, type ModelXiPlayer } from '../../lib/modelXiApi';
+import { getTeamOfTheWeek, type TotwPlayer } from '../../lib/teamOfWeekApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 
 function Bars({ weeks }: { weeks: ModelXiWeek[] }) {
@@ -64,8 +65,90 @@ function Bars({ weeks }: { weeks: ModelXiWeek[] }) {
   );
 }
 
+/** The model's eleven beside the week's actual best eleven. Players in both
+ *  are marked on each side, which is the quickest read of the comparison. */
+function SideBySide({ eventId }: { eventId: number }) {
+  const [model, setModel] = useState<ModelXiPlayer[] | null>(null);
+  const [actual, setActual] = useState<TotwPlayer[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    Promise.all([getModelXiPlayers(eventId), getTeamOfTheWeek(eventId)])
+      .then(([m, a]) => {
+        if (!live) return;
+        setModel(m);
+        setActual(a);
+      })
+      .catch((e) => live && setError(getErrorMessage(e, 'Could not load the elevens')));
+    return () => {
+      live = false;
+    };
+  }, [eventId]);
+
+  if (error) return <p className="text-xs text-loss-700 px-3 py-2">{error}</p>;
+  if (!model || !actual) return <p className="text-xs text-ink-500 px-3 py-2">Loading…</p>;
+
+  const modelIds = new Set(model.map((p) => p.fpl_player_id));
+  const both = actual.filter((p) => modelIds.has(p.fpl_player_id)).length;
+
+  return (
+    <div className="bg-chalk-50 border-t border-chalk-300 px-3 py-3">
+      <p className="text-xs text-ink-600 mb-2">
+        {both === 0
+          ? 'No player appears in both elevens.'
+          : `${both} player${both === 1 ? '' : 's'} in both, marked ✓.`}
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <h3 className="text-xs font-medium text-ink-800 mb-1">
+            The model&rsquo;s XI <span className="text-ink-400">({model.reduce((t, p) => t + p.actual_points, 0)} pts)</span>
+          </h3>
+          <ul className="space-y-0.5">
+            {model.map((p) => (
+              <li key={p.fpl_player_id} className="flex items-baseline gap-2 text-xs">
+                <span className="w-8 shrink-0 text-ink-400">{p.position_label}</span>
+                <span className={`flex-1 ${p.in_perfect_xi ? 'text-pitch-800 font-medium' : 'text-ink-800'}`}>
+                  {p.in_perfect_xi && '✓ '}
+                  {p.web_name}
+                  <span className="text-ink-400"> · {p.team_name}</span>
+                </span>
+                <span className="font-mono text-ink-500">{p.projected_points.toFixed(1)}</span>
+                <span className={`w-6 text-right font-mono ${p.actual_points >= 6 ? 'text-pitch-800' : p.actual_points <= 1 ? 'text-loss-700' : 'text-ink-700'}`}>
+                  {p.actual_points}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-ink-400 mt-1">projected · actual</p>
+        </div>
+        <div>
+          <h3 className="text-xs font-medium text-ink-800 mb-1">
+            The week&rsquo;s best XI <span className="text-ink-400">({actual.reduce((t, p) => t + p.points, 0)} pts)</span>
+          </h3>
+          <ul className="space-y-0.5">
+            {actual.map((p) => (
+              <li key={p.fpl_player_id} className="flex items-baseline gap-2 text-xs">
+                <span className="w-8 shrink-0 text-ink-400">{p.position_label}</span>
+                <span className={`flex-1 ${modelIds.has(p.fpl_player_id) ? 'text-pitch-800 font-medium' : 'text-ink-800'}`}>
+                  {modelIds.has(p.fpl_player_id) && '✓ '}
+                  {p.web_name}
+                  <span className="text-ink-400"> · {p.team_name}</span>
+                </span>
+                <span className="w-6 text-right font-mono text-ink-700">{p.points}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-ink-400 mt-1">chosen with hindsight</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ModelXiAccuracyPage() {
   const [weeks, setWeeks] = useState<ModelXiWeek[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useDocumentHead({
@@ -136,6 +219,7 @@ export default function ModelXiAccuracyPage() {
 
           <section className="border border-chalk-300 rounded-lg bg-white p-3">
             <h2 className="font-display uppercase tracking-wide text-sm text-ink-900 mb-3">Week by week</h2>
+            <p className="text-xs text-ink-500 mb-3">Open a row in the table below to see the elevens side by side.</p>
             <Bars weeks={weeks} />
           </section>
 
@@ -153,7 +237,11 @@ export default function ModelXiAccuracyPage() {
               </thead>
               <tbody>
                 {weeks.map((w) => (
-                  <tr key={w.fpl_event_id} className="border-t border-chalk-200">
+                  <Fragment key={w.fpl_event_id}>
+                  <tr
+                    onClick={() => setOpen(open === w.fpl_event_id ? null : w.fpl_event_id)}
+                    className="border-t border-chalk-200 cursor-pointer hover:bg-chalk-50"
+                  >
                     <td className="px-3 py-2 text-ink-900">{w.fpl_event_id}</td>
                     <td className="px-3 py-2 text-right font-mono">{w.model_xi_actual_points}</td>
                     <td className="px-3 py-2 text-right font-mono text-ink-600">{w.model_xi_projected.toFixed(0)}</td>
@@ -169,6 +257,14 @@ export default function ModelXiAccuracyPage() {
                       {w.players_projected < 300 && <span className="text-loss-700"> · partial</span>}
                     </td>
                   </tr>
+                  {open === w.fpl_event_id && (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <SideBySide eventId={w.fpl_event_id} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
