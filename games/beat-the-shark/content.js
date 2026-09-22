@@ -88,6 +88,32 @@ function sponsorSpec(){
       {t:"Shirt deal",d:"+£6k at the gate every game",fx:{gate:6},out:"The logo goes on the shirt."},
       {t:"Players' bonus",d:"Wages +£4k a week, the team lifted",fx:{wages:4,squad:6},out:"The dressing room is buzzing."}]};
 }
+/* THE BIG WINDOW (Beginner, before Gameweek 4; Chris): a signing that
+   GENUINELY changes the final-day match-up -- goals or clean sheets -- against
+   a real risk: in the red at a gameweek's end the bank sells your best
+   player; below the deduction line you're docked 3 points. Each option shows
+   its 1X2 against the final boss. */
+const BIG_FEE=110,BIG_WAGE=18;
+function bigSigningSpec(){
+  const[h,a]=myFixture(MW-1),bh=h===CLUB,boss=bh?a:h;
+  // MARQUEE signings, sized by measurement: one player plus the lift he
+  // brings (morale) takes the final from a likely defeat to an even contest.
+  const mk=(pos,nm,att,def,line)=>({pos,nm,rt:90,rtf:90,att,def,fee:BIG_FEE,wage:BIG_WAGE,fit:95,sharp:92,out:0,goals:0,gone:false,line,quirk:"",sp:0,dev:0});
+  const ST=mk("FW","The Finisher",16,-1,"scores the chances others miss");
+  const CB=mk("DF","The Wall",0,14,"nothing gets past him");
+  const LIFT=25;
+  const vsBoss=t=>{const was=S.squadList.length,m=S.morale;if(t){S.squadList.push(t);S.morale=(m==null?50:m)+LIFT}recalcSquadRating();const p=matchProbs(boss,bh);S.squadList.length=was;S.morale=m;recalcSquadRating();return p};
+  const x2=p=>`v ${boss}: win ${p.w}% · draw ${p.d}% · lose ${p.l}%`;
+  const opt=(t,what)=>{const left=S.cash-t.fee;return{t:`Sign ${t.nm} — ${what}`,
+    d:`${fmtMoney(t.fee)} now · wages +${fmtMoney(t.wage)} a week · ${fmtMoney(left)} left${left<0?" (in the red)":""} · ${x2(vsBoss(t))}`,
+    // the lift the preview promised: the star AND the morale he brings
+    fx:{cash:-t.fee},after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));S.morale=(S.morale==null?50:S.morale)+LIFT;recalcSquadRating()},
+    out:`${t.nm} signs.${left<0?" You're in the red: the bank will be in touch.":""}`}};
+  return{title:"The big window",
+    lede:`${boss} await on the final day. ${fmtMoney(S.cash)} in the bank. In the red at the end of a gameweek, the bank sells your best player; below ${fmtMoney(deductLine())}, you're docked 3 points.`,
+    choices:[opt(ST,"goals"),opt(CB,"clean sheets"),
+      {t:"No big signing",d:`${fmtMoney(S.cash)} stays in the bank · ${x2(vsBoss(null))}`,out:"You keep your powder dry."}]};
+}
 function knockSpec(){
   const xi=currentXI().map(x=>S.squadList[x.i]).filter(p=>p&&p.pos!=="GK");
   const p=xi.sort((a,b)=>b.rt-a.rt)[0];const i=S.squadList.indexOf(p);
@@ -895,7 +921,7 @@ function crisisSpec(){
   return{sig:`crisis|${S.mw}`,title:owner?`You need ${fmtMoney(need)} by Friday`:`The owner needs ${fmtMoney(need)} by Friday`,
     lede:owner?`The bank will not extend again. One of two players has to go — and you decide which.`
       :`He has to sell one of two players, and he is asking which you can live without.`,
-    body:`<div class="shark"><div><b>The Shark's view — your next ${n} games</b>
+    body:`<div class="shark"><div><b>FixtureShark's view — your next ${n} games</b>
       <table class="tbl" style="margin-top:4px"><thead><tr><th></th><th class="n">xGF</th><th class="n">Clean sheets</th><th class="n">Avg win</th></tr></thead><tbody>
         ${row("Keep both",base)}${row(`Sell ${fwd.nm} (${fwd.rt}, FW)`,oF)}${row(`Sell ${def.nm} (${def.rt}, DF)`,oD)}
       </tbody></table>

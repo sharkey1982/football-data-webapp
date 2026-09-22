@@ -257,10 +257,10 @@ console.log('\n1d. BEGINNER SEASON (five games)');
   const N = 400; const agg = {};
   for (const pol of ['best', 'none', 'worst']) { let sum = 0, mine = 0, sharks = 0;
     let top2 = 0;
-    for (let i = 1; i <= N; i++) { const r = beginnerSeason(`CHK-B-${i}`, pol); sum += r.pos; if (r.pos === 1) mine++; if (r.pos <= 2) top2++; if (r.champ === 'Shark Scout United') sharks++; }
+    for (let i = 1; i <= N; i++) { const r = beginnerSeason(`CHK-B-${i}`, pol); sum += r.pos; if (r.pos === 1) mine++; if (r.pos <= 2) top2++; if (r.champ === 'Big Data City') sharks++; }
     agg[pol] = { avg: sum / N, title: mine / N * 100, top2: top2 / N * 100, sharks: sharks / N * 100 }; }
   let third = 0; for (let i = 1; i <= 40; i++) { beginnerSeason(`CHK-B3-${i}`, 'none', true); if (G.sharkPos() === 3) third++; }
-  check('Shark Scout United win the league most of the time (55-80%)', agg.none.sharks >= 55 && agg.none.sharks <= 80, `${agg.none.sharks.toFixed(0)}%`);
+  check('Big Data City win the league most of the time (55-80%)', agg.none.sharks >= 55 && agg.none.sharks <= 80, `${agg.none.sharks.toFixed(0)}%`);
   check('the Shark predicts 3rd (at least 38 of 40 seasons)', third >= 38, `${third}/40`);
   check('decisions matter: best finishes higher on average than none, and none than worst', agg.best.avg < agg.none.avg && agg.none.avg < agg.worst.avg, `${agg.best.avg.toFixed(2)} / ${agg.none.avg.toFixed(2)} / ${agg.worst.avg.toFixed(2)}`);
   // TOP-TWO finishes, not titles: at 400 seasons titles are ~20-25 events, too

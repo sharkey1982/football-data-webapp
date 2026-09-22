@@ -128,7 +128,7 @@ run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw
 ok("team sheet shows this match's xGF, clean sheet and win chance", /This match, as the model sees it/.test(app()));
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
-ok("the ending: CHAMPIONS or your position, the Shark's prediction, and the table -- no score", /CHAMPIONS|\d(ST|ND|RD|TH)/.test(app())&&/The Shark predicted \d/.test(app())&&/class="tbl"/.test(app())&&!/\/100/.test(app()));
+ok("the ending: CHAMPIONS or your position, the Shark's prediction, and the table -- no score", /CHAMPIONS|\d(ST|ND|RD|TH)/.test(app())&&/FixtureShark predicted \d/.test(app())&&/class="tbl"/.test(app())&&!/\/100/.test(app()));
 // 14. home advantage, made visible (the ten-game level: Beginner is neutral)
 run(`configureLevel("intermediate");buildFixtures();LEVEL="intermediate";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
@@ -141,7 +141,7 @@ ok("end of season reports home and away records", /<b>Home<\/b> W1 D0 L0 — 3 p
 // 15. one consistent view: dashboard, table, labelled players
 run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.kpi=[];kpiRecord();S.mw=1;TABLE[CLUB].p=1;TABLE[CLUB].pts=3;kpiRecord();`);
 const kp=run("kpiHTML()");
-ok("dashboard shows position, points v Shark, attack xGF and defence xGA", /League position/.test(kp)&&/Points v the Shark/.test(kp)&&/Attack · xGF\/game/.test(kp)&&/Defence · xGA\/game/.test(kp));
+ok("dashboard shows position, points v FixtureShark, attack xGF and defence xGA", /League position/.test(kp)&&/Points v FixtureShark/.test(kp)&&/Attack · xGF\/game/.test(kp)&&/Defence · xGA\/game/.test(kp));
 ok("dashboard draws a sparkline for each of the four", (kp.match(/<polyline/g)||[]).length===4);
 const st=run("strengthTableHTML()");
 ok("Team Strength shows xPts and projected points, ordered by them", /<th class="n">xPts<\/th>/.test(st)&&/<th class="n">Proj<\/th>/.test(st));
@@ -161,8 +161,9 @@ for(let n=0;n<5;n++){
   kinds.push(run(`beginnerDecision(...(()=>{const[hT,aT]=myFixture(S.mw);return[hT===CLUB?aT:hT,hT===CLUB]})()).kind`));
   // two options for the first three games; from Gameweek 4, a selection call (2) THEN three shapes
   // ONE 1X2 line under the title; the options stay simple (Chris: don't bombard them)
-  ok(`beginner match ${n+1}: ${n<3?'two options':'selection then three shapes'}, one 1X2 line under the title, simple options`,
-    bc(h)===(n<3?2:5)&&(h.match(/The model: win \d+% · draw \d+% · lose \d+%/g)||[]).length===1&&!/Win \d+% · Draw/.test(h)&&!/Clean sheet \d+%/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
+  // GW1-3 two options; GW4 three shapes; GW5 (the boss) selection then three shapes
+  ok(`beginner match ${n+1}: ${n<3?'two options':n===3?'three shapes':'selection then three shapes'}, one 1X2 line under the title, simple options`,
+    bc(h)===(n<3?2:n===3?3:5)&&(h.match(/The model: win \d+% · draw \d+% · lose \d+%/g)||[]).length===1&&!/Win \d+% · Draw/.test(h)&&!/Clean sheet \d+%/.test(h)&&!/data-fm=/.test(h)&&!/data-xi=/.test(h)&&!/data-sp=/.test(h), `${bc(h)} options, kind ${kinds[n]}`);
   if(kinds[n]==="formation")ok(`beginner match ${n+1}: the shape choice reads the opponent (their attack and defence)`, /(attack)[\s\S]*(defence)/.test(h)&&/Go for it/.test(h)&&/Stay compact/.test(h));
 }
 ok("the Beginner order: shape, shape, selection, three shapes, three shapes -- no set pieces",
@@ -292,7 +293,8 @@ els.toOthers.onclick();drain();
 ok("page 7: a plain headline at full time -- never 'No change for you'", !/No change for you/.test(els.asit.textContent)&&/^(Up to |Down to )?\d(st|nd|rd|th)\.$/.test(els.asit.textContent), els.asit.textContent);
 ok("the agreed Beginner season: five games, a story between each, the window and the bank before Gameweek 4",
   run("PLAN.join()")==="match,presser,match,knock,match,window,bank,match,sponsor,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
-ok("page 8: ...against the strongest club", (()=>{const[h,a]=run("myFixture(1)");const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");return h===st||a===st})());
+ok("Gameweek 2 is an even game now; the strongest club is saved for last -- the final boss",
+  (()=>{const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");const f=w=>{const[h,a]=run(`myFixture(${w})`);return h===CLUB?a:h};const CLUB="Your Team";return f(1)!==st&&f(4)===st})());
 run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
 ok("page 8: ...with a half-time decision about a player change", /is tiring/.test(els.htBox.innerHTML)&&/Keep .+ on/.test(els.htBox.innerHTML)&&/Bring on /.test(els.htBox.innerHTML));
 // 22. MATCH DAY (Chris, 2026-09-21)
@@ -304,9 +306,9 @@ ok("page 8: ...with a half-time decision about a player change", /is tiring/.tes
   ok("a fresh season on every visit (no fixed seed replaying the same 6-0)", a!==b&&/^SOC-/.test(a)&&!/SOC-S01/.test(src), `${a} / ${b}`);
 }
 // Gameweek 2, the hard game: summary -> team sheet -> the half-time dilemma
-function toGW2HalfTime(seed){
+function toGW2HalfTime(seed){ // (now Gameweek 3: the health game carries the keep-or-sub dilemma)
   delete els.htBox;
-  run(`SEED="${seed}";LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=1;cursor=PLAN.indexOf("match",1);S._summaryShown=false;S._sheetShown=false;step()`);
+  run(`SEED="${seed}";LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=2;cursor=PLAN.indexOf("match",PLAN.indexOf("match",PLAN.indexOf("match")+1)+1);S._summaryShown=false;S._sheetShown=false;step()`);
   const summary=app();
   els.go.onclick();
   const sheet=app();
@@ -315,9 +317,9 @@ function toGW2HalfTime(seed){
 }
 const g2=toGW2HalfTime("MD-1");
 ok("before every game: a match-day summary -- position, cash, team health, expected goals, clean sheets",
-  /MATCHDAY 2 OF 5/.test(g2.summary)&&/Position/.test(g2.summary)&&/In the bank/.test(g2.summary)&&/Team health/.test(g2.summary)&&/Expected goals/.test(g2.summary)&&/Clean sheets/.test(g2.summary));
+  /MATCHDAY 3 OF 5/.test(g2.summary)&&/Position/.test(g2.summary)&&/In the bank/.test(g2.summary)&&/Team health/.test(g2.summary)&&/Expected goals/.test(g2.summary)&&/Clean sheets/.test(g2.summary));
 const strongest=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");
-ok("then the preview: them v you against the strongest club, with the shape choice", g2.sheet.includes(strongest)&&/<th class="n">You<\/th>/.test(g2.sheet)&&/Stay compact/.test(g2.sheet));
+ok("then the Gameweek 3 preview: them v you against an even side, with the selection call on health", !g2.sheet.includes(strongest)&&/<th class="n">You<\/th>/.test(g2.sheet)&&/One place in the side/.test(g2.sheet));
 ok("at half time: the dilemma, with health and goal-threat bars for this half and next game",
   /is tiring/.test(g2.ht)&&/GOAL THREAT, 2ND HALF/.test(g2.ht)&&/GOAL THREAT, NEXT GAME/.test(g2.ht)&&/% health/.test(g2.ht)&&/Injured for the next game/.test(g2.ht));
 const xg=[...g2.ht.matchAll(/(\d+\.\d) xG/g)].map(m=>+m[1]); // keep: now, next; sub: now, next
@@ -342,7 +344,7 @@ ok("neutral venues: no home or away anywhere, and no home advantage in the model
   !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
 ok("Shark Scout are stronger at Beginner only (they win the league most of the time)",
   // (through the model's view, which excludes the hidden season swing)
-  run(`modelView(()=>strOf("Shark Scout United"))`)===run(`RIVALS.find(r=>r.n==="Shark Scout United").str`)+run("BEGINNER_SHARK_BOOST"));
+  run(`modelView(()=>strOf("Big Data City"))`)===run(`RIVALS.find(r=>r.n==="Big Data City").str`)+run("BEGINNER_SHARK_BOOST"));
 // weekly wages: the result's cash is gate money minus the wage bill
 run(`S.cash=100`);const wages=run("S.wages");
 run(`(()=>{const r=resolveMine(1,0,true);globalThis.__fx=r.fx})()`);
@@ -384,7 +386,7 @@ ok("...one better, one with the cash advantage",
 // 25. Round 3 of Beginner feedback: no set pieces; three shapes from GW4; GW5 two changes
 run(`SEED="R3-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3;cursor=PLAN.indexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
 ok("Gameweek 4: three shapes -- go for it, balanced, stay compact -- each with its impact",
-  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&/1\. One place in the side/.test(app())&&/2\. Pick your shape/.test(app())&&(app().match(/You \d\.\d xG/g)||[]).length===5);
+  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&!/One place in the side/.test(app())&&(app().match(/You \d\.\d xG/g)||[]).length===3);
 run(`S.mw=2;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("Gameweek 3: selection, not set pieces", /One place in the side/.test(app())&&!/set pieces/i.test(app()));
 delete els.htBox;delete els.toTable;
@@ -392,7 +394,7 @@ run(`S.mw=4;cursor=PLAN.lastIndexOf("match");S._summaryShown=true;S._sheetShown=
 els.kick.onclick();drain();
 ok("Gameweek 5, change one: the half-time sub", /is tiring/.test(els.htBox.innerHTML));
 els.subYes.onclick();els.htGo.onclick();drain();
-ok("Gameweek 5, change two: at 70 minutes, chase it or protect it", /70 MINUTES/.test(els.htBox.innerHTML)&&/Chase it or protect it\?/.test(els.htBox.innerHTML));
+ok("Gameweek 5, change two: at 70 minutes, a call on the score -- win it or protect it", /70 MINUTES/.test(els.htBox.innerHTML)&&/Kill it off, or protect the lead\?|Go for the win, or settle for a point\?|Chase it, or keep it respectable\?/.test(els.htBox.innerHTML));
 els.htHold.onclick();els.htGo.onclick();drain();
 ok("...and then on to full time", !!(els.toTable&&els.toTable.onclick));
 // splitting the second half keeps the same goals on average
@@ -433,12 +435,12 @@ run(`SEED="R5-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
 // this checks what must hold in EVERY season)
 ok("page 2's predicted table and page 3's expected finish always agree (rank, not a rounded average)",
   run(`[CLUB].concat(RIVALS.map(r=>r.n)).sort((a,b)=>PREDICT[a].avg-PREDICT[b].avg).indexOf(CLUB)+1`)===run("sharkPos()"));
-ok("the opponents: the weakest first, Shark Scout second, then the middle three evenly matched",
+ok("the opponents: the weakest first, three evenly matched, and the strongest LAST -- the final boss",
   run(`(()=>{const o=[0,1,2,3,4].map(w=>{const[h,a]=myFixture(w);return h===CLUB?a:h});const by=RIVALS.slice().sort((a,b)=>b.str-a.str).map(r=>r.n);
-    return o[0]===by[by.length-1]&&o[1]===by[0]&&o.slice(2).every(n=>{const p=matchProbs(n,true);return p.w>=25&&p.w<=50})})()`));
+    return o[0]===by[by.length-1]&&o[4]===by[0]&&o.slice(1,4).every(n=>{const p=matchProbs(n,true);return p.w>=25&&p.w<=50})})()`));
 // choosing an option moves the odds on the OTHER decision too (they're worked out together)
-run(`S.mw=3;S._sheetShown=false;renderTeamSheet(()=>{})`);
-ok("from Gameweek 4 the sheet holds two decisions -- selection, then shape -- with one 1X2 line above them", /id="onex2"/.test(app())&&/1\. One place in the side/.test(app()));
+run(`S.mw=4;S._sheetShown=false;renderTeamSheet(()=>{})`);
+ok("Gameweek 5 (the boss): the sheet holds two decisions -- selection, then shape -- with one 1X2 line above them", /id="onex2"/.test(app())&&/1\. One place in the side/.test(app()));
 // half-time cards: choose, then Send them out
 delete els.htBox;run(`S.mw=1;subHalfTime(()=>{globalThis.__resumed=1},true,0,0)`);
 ok("half time: one 1X2 line at the top (it moves with the card you pick), none on the cards", /id="htOdds"/.test(els.htBox.innerHTML)&&!/Win \d+% · Draw/.test(els.htBox.innerHTML));
@@ -468,5 +470,37 @@ delete els.htBox;delete els.htOdds;run(`S.mw=1;subHalfTime(()=>{},true,0,0)`);
   for(let k=0;k<N;k++){run(`S=JSON.parse(__S);TABLE=JSON.parse(__T);S.mw=0;S._sheetShown=true`);delete els.paceBox;
     run(`renderMatch(()=>{},false)`);drain();const m=((els.paceBox&&els.paceBox.innerHTML)||'').match(/Your Team (\d+)–(\d+)/);if(m&&+m[1]>+m[2])w++}
   ok("the opening game is won at least 9 times in 10 (real match engine)", w/N>=0.88, `${Math.round(w/N*100)}% of ${N}`); }
+// 29. The final boss (Chris, 2026-09-22)
+run(`SEED="FB-9";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
+ok("the boss is Big Data City now (not Shark Scout United)", run(`RIVALS.some(r=>r.n==="Big Data City")&&!RIVALS.some(r=>/Shark Scout/.test(r.n))`));
+els.go.onclick();els.go.onclick();
+ok("predictions come from FixtureShark, not 'the Shark'", /FixtureShark says/.test(app())&&!/The Shark (says|predict)/.test(app()));
+// the big window: marquee signings that make the final an even contest -- or no signing
+run(`S.mw=3;S.cash=55`);delete els.ch;run(`renderSpec(Object.assign(bigSigningSpec(),{keepFull:true,fullChoices:true}),"T",()=>{})`);
+{ const o=els.ch.children.map(c=>c.innerHTML.replace(/<[^>]+>/g,' '));const x2=t=>(t.match(/win (\d+)% · draw (\d+)% · lose (\d+)%/)||[]).slice(1).map(Number);
+  const [st,cb,none]=o.map(x2);
+  ok("the big window: a star striker, a commanding centre-back, or no signing -- each with its 1X2 v the boss",
+    o.length===3&&/The Finisher — goals/.test(o[0])&&/The Wall — clean sheets/.test(o[1])&&/No big signing/.test(o[2])&&st.length===3&&none.length===3);
+  ok("a marquee signing makes the final an even contest; without one it's a likely defeat",
+    st[0]>=st[2]-5&&cb[0]>=cb[2]-5&&none[2]>=55, `striker ${st.join('/')} · centre-back ${cb.join('/')} · none ${none.join('/')}`);
+  ok("the risk is spelt out: the bank sells your best player; deep in the red, 3 points", /the bank sells your best player/.test(app())&&/docked 3 points/.test(app()));
+  const promised=st.join('/');els.ch.children[0].onclick();
+  const[h,a]=run('myFixture(4)');const now=run(`(()=>{const p=matchProbs(${JSON.stringify(h==='Your Team'?a:h)},${h==='Your Team'});return p.w+'/'+p.d+'/'+p.l})()`);
+  ok("...and the signing delivers what it promised (the star AND the lift he brings)", now===promised, `${promised} → ${now}`); }
+ok("deep in the red at Beginner is below -£60k (sized to its economy)", run("deductLine()")===-60);
+// Gameweek 2's half time: about the score -- win it or protect it
+delete els.htBox;run(`S.mw=1;shapeHalfTime(()=>{},1,0)`);
+ok("Gameweek 2's half time is about the score: 1-0 up -- kill it off, or protect the lead", /Kill it off, or protect the lead\?/.test(els.htBox.innerHTML)&&/Protect the lead/.test(els.htBox.innerHTML)&&/Go for the second/.test(els.htBox.innerHTML));
+delete els.htBox;run(`shapeHalfTime(()=>{},0,0)`);
+ok("...and level at the break: go for the win, or settle for a point", /Go for the win, or settle for a point\?/.test(els.htBox.innerHTML));
+// keep the tiring star on: full threat now, his real fitness back at full time, injured next game
+// (a fresh season, with the best forward explicitly tired: earlier tests leave state behind)
+delete els.htBox;run(`SEED="FB-KEEP";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=2;
+  (()=>{const f=currentXI().map(x=>S.squadList[x.i]).filter(p=>p.pos==="FW").sort((a,b)=>b.rt-a.rt)[0];f.fit=70})();subHalfTime(()=>{},true,0,0)`);
+{ const nm=(els.htBox.innerHTML.match(/<h2>(.+?) is tiring<\/h2>/)||[])[1];const fit0=run(`S.squadList.find(p=>p.nm===${JSON.stringify(nm)}).fit`);
+  els.subNo.onclick();els.htGo.onclick();
+  const during=run(`S.squadList.find(p=>p.nm===${JSON.stringify(nm)}).fit`);
+  ok("keep him on: he plays through it -- full strength for the second half", during>=95&&fit0<95, `${fit0}% → plays at ${during}%`);
+  ok("the star in the dilemma is an attacker (the choice is about goal threat)", /^(FW|MF)$/.test(run(`S.squadList.find(p=>p.nm===${JSON.stringify(nm)}).pos`))); }
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

@@ -90,7 +90,7 @@ function step(){
   if(b==="heatmap")return renderHeatmap();
   if(b==="stats")return renderStats();
   if(b==="knock")return renderSpec(knockSpec(),"THE PHYSIO ROOM",next);
-  if(b==="window")return renderSpec(Object.assign(signingSpec(),{keepFull:true,fullChoices:true}),"AFTER GAMEWEEK 3 · TRANSFER WINDOW",next);
+  if(b==="window")return renderSpec(Object.assign(bigSigningSpec(),{keepFull:true,fullChoices:true}),"BEFORE GAMEWEEK 4 · THE BIG WINDOW",next);
   if(b==="bank")return renderSpec(bankSpec(),"THE BANK HAS CALLED",next);
   if(b==="sponsor")return renderSpec(sponsorSpec(),"THE SPONSOR CALLS",next);
   if(b==="physio")return renderPhysio();
@@ -299,7 +299,7 @@ function kpiHTML(){
   const tile=(label,big,sub,svg)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div>${svg}</div>`;
   return `<div class="kpis">
     ${tile("League position",cur.pos?ord(cur.pos):"—",`projected ${ord(cur.proj)} · ${cur.projPts.toFixed(1)} pts ${arrow(cur.projPts-prev.projPts,false,v=>v.toFixed(1))}`,spark(k.map(x=>x.projPts),false))}
-    ${tile("Points v the Shark",`${cur.pts} pts`,`<span style="color:${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--mute)'}">${gap>=0?'+':''}${gap.toFixed(1)} v target pace</span>`,spark(k.map(x=>x.pts-x.par),false))}
+    ${tile("Points v FixtureShark",`${cur.pts} pts`,`<span style="color:${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--mute)'}">${gap>=0?'+':''}${gap.toFixed(1)} v target pace</span>`,spark(k.map(x=>x.pts-x.par),false))}
     ${tile("Attack · xGF/game",cur.xgf.toFixed(2),`${arrow(cur.xgf-prev.xgf,false,v=>v.toFixed(2))} · actual ${t.p?(t.gf/n).toFixed(1):"—"}`,spark(k.map(x=>x.xgf),false))}
     ${tile("Defence · xGA/game",cur.xga.toFixed(2),`${arrow(cur.xga-prev.xga,true,v=>v.toFixed(2))} · actual ${t.p?(t.ga/n).toFixed(1):"—"} · CS ${CLEAN[CLUB]||0}`,spark(k.map(x=>x.xga),true))}
   </div>`;
@@ -310,7 +310,7 @@ function kpiHTML(){
 function kpiLineHTML(){
   if(!S.kpi||!S.kpi.length)return "";
   const cur=S.kpi[S.kpi.length-1],gap=cur.pts-cur.par;
-  return `<div class="outcome" style="margin-top:10px">Points v the Shark: <b>${cur.pts}</b>
+  return `<div class="outcome" style="margin-top:10px">Points v FixtureShark: <b>${cur.pts}</b>
     <span style="color:${gap>0?'var(--good)':gap<0?'var(--bad)':'var(--mute)'}">(${gap>=0?'+':''}${gap.toFixed(1)} v target pace)</span>
     · projected <b>${ord(cur.proj)}</b></div>`;
 }
@@ -508,10 +508,10 @@ function realThingLinks(){
   const L=[
     ["/team-strength","Team Strength","the attack and defence ratings you just played against, for every real club"],
     ["/fpl/line-ups","Starting Lineups","the XI the model expects real clubs to field this week"],
-    ["/football/model-accuracy","Model Accuracy","how often the Shark's real predictions come true"],
+    ["/football/model-accuracy","Model Accuracy","how often FixtureShark's real predictions come true"],
     ["/fantasy","Fixture Heat Map","the heat map, with real fixtures"]];
   return `<div class="shark" style="margin-top:12px"><div><b>The real thing</b>
-    The Shark in this game is FixtureShark's actual model. See it on real football:
+    The predictions in this game come from FixtureShark's actual model. See it on real football:
     <ul style="margin:6px 0 0;padding-left:18px">${L.map(([u,t,d])=>
       `<li style="margin-bottom:3px"><a href="${SITE}${u}" style="color:var(--pitch2)">${t}</a> — ${d}</li>`).join('')}</ul></div></div>`;
 }
@@ -547,8 +547,8 @@ function renderEnding(){
   const target=sharkPos(),place=S.pos;
   let v,b;
   if(!S.alive){v="ADMINISTRATION";b="The club went under."}
-  else if(place===1){v="CHAMPIONS";b=`The Shark predicted ${ord(target)}.`}
-  else{v=ord(place).toUpperCase();b=rel?"Relegated.":`The Shark predicted ${ord(target)}.`}
+  else if(place===1){v="CHAMPIONS";b=`FixtureShark predicted ${ord(target)}.`}
+  else{v=ord(place).toUpperCase();b=rel?"Relegated.":`FixtureShark predicted ${ord(target)}.`}
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">FINAL DAY · ${ROLE.name.toUpperCase()}</div>
@@ -696,7 +696,7 @@ function renderPreseasonUpdate(){
     <div class="kpis" style="text-align:left;margin-top:12px">
       <div class="kpi"><div class="kl">Team health</div><div class="kb">${health}%</div><div class="ks">${health>=85?"fit and ready":"a few knocks"}</div></div>
       <div class="kpi"><div class="kl">Squad quality</div><div class="kb">${S.squad}</div><div class="ks">the XI you'll pick from</div></div>
-      <div class="kpi"><div class="kl">The Shark says</div><div class="kb">${ord(sharkPos())}</div><div class="ks">expected finish</div></div>
+      <div class="kpi"><div class="kl">FixtureShark says</div><div class="kb">${ord(sharkPos())}</div><div class="ks">expected finish</div></div>
       <div class="kpi"><div class="kl">Opening day</div><div class="kb" style="font-size:17px">${opp}</div><div class="ks">12:30 kick-off</div></div>
     </div>
     ${pay}

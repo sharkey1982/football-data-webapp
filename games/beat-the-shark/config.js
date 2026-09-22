@@ -100,10 +100,10 @@ const SITE="https://footballdatashark.netlify.app";
    word of explanation. Names are nods only -- no real person or company is
    portrayed or given lines.
    Two names per tier, drawn by season, so a new season is a new league
-   without diluting this one. The top tier is fixed: Shark Scout United are
+   without diluting this one. The top tier is fixed: Big Data City are
    always the benchmark. */
 const TIERS=[
-  {str:70,names:[["Shark Scout United","recruit entirely on the Shark's model"]]},
+  {str:70,names:[["Big Data City","recruit entirely on the Shark's model"]]},
   {str:62,names:[["Billy's Beane United","run on a Moneyball budget"],["Moneyball Athletic","buy what the market undervalues"]]},
   {str:52,names:[["Star Lizard","a syndicate that prices every match"],["Expected Goals Wanderers","trust the xG, eventually"]]},
   {str:44,names:[["Gut Feeling Town","sign whoever looked good on Saturday"],["Old School Rovers","do it the way it has always been done"]]},
