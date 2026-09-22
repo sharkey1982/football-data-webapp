@@ -195,7 +195,7 @@ export default function WeeklySquadView({
                               {isCaptain ? ' (C)' : isVice ? ' (V)' : ''}
                             </span>
                           ) : (
-                            <span className="text-ink-400">bench</span>
+                            <span className="text-ink-500">bench</span>
                           )}
                         </td>
                       );
@@ -231,7 +231,7 @@ export default function WeeklySquadView({
                 <div key={label} className="border border-chalk-300 rounded-lg bg-white p-2">
                   <div className="text-[11px] text-ink-500">{label}</div>
                   <div className="font-display text-xl text-ink-900">{value}</div>
-                  <div className="text-[11px] text-ink-400">{note}</div>
+                  <div className="text-[11px] text-ink-500">{note}</div>
                 </div>
               ))}
             </div>
@@ -241,7 +241,7 @@ export default function WeeklySquadView({
               const max = Math.max(...scores.map((x) => x.total), 1);
               return (
                 <div key={s.matchweek} className="flex items-center gap-2">
-                  <span className="w-12 shrink-0 text-xs text-ink-600">GW{s.matchweek}</span>
+                  <span className="w-12 shrink-0 text-xs text-ink-500">GW{s.matchweek}</span>
                   <div className="flex-1 bg-chalk-100 rounded h-5 overflow-hidden flex">
                     <div className="h-full bg-pitch-700" style={{ width: `${(s.xiPoints / max) * 100}%` }} title="starting XI" />
                     <div className="h-full bg-amber-400" style={{ width: `${(s.captainExtra / max) * 100}%` }} title="captain, doubled" />
@@ -250,7 +250,7 @@ export default function WeeklySquadView({
                 </div>
               );
             })}
-            <p className="text-[11px] text-ink-400 pt-1">
+            <p className="text-[11px] text-ink-500 pt-1">
               Green is the starting XI; amber is the captain&rsquo;s points counted a second time.
             </p>
           </div>

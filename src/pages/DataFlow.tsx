@@ -26,14 +26,15 @@ const LAYER_ORDER = ['source', 'pipeline', 'model', 'fantasy', 'finance', 'api',
 
 function layerStyle(layer: string | null): string {
   const map: Record<string, string> = {
-    source: 'bg-pitch-100 text-pitch-800',
-    pipeline: 'bg-amber-100 text-amber-800',
-    model: 'bg-sky-100 text-sky-800',
-    fantasy: 'bg-violet-100 text-violet-800',
-    finance: 'bg-emerald-100 text-emerald-800',
+    // theme colours only: pitch, chalk, amber, cup, ink, loss
+    source: 'bg-pitch-700 text-chalk-100',
+    pipeline: 'bg-amber-500 text-ink-900',
+    model: 'bg-cup-700 text-chalk-100',
+    fantasy: 'bg-cup-600 text-chalk-100',
+    finance: 'bg-pitch-600 text-chalk-100',
     api: 'bg-chalk-200 text-ink-700',
     helper: 'bg-chalk-100 text-ink-500',
-    scratch: 'bg-chalk-100 text-ink-400',
+    scratch: 'bg-chalk-100 text-ink-500',
   };
   return map[layer ?? ''] ?? 'bg-chalk-100 text-ink-500';
 }
@@ -81,7 +82,7 @@ function NodeDetail({ node, onSaved }: { node: FlowNode; onSaved: (n: FlowNode) 
 
   return (
     <div className="bg-chalk-50 border-t border-chalk-300 px-3 py-3 space-y-3">
-      <div className="text-xs text-ink-600">
+      <div className="text-xs text-ink-500">
         <span className="font-medium">Reads from:</span>{' '}
         <span className="font-mono">{node.reads_from ?? 'nothing (a source, or a function with no table reads)'}</span>
       </div>
@@ -138,11 +139,11 @@ function NodeDetail({ node, onSaved }: { node: FlowNode; onSaved: (n: FlowNode) 
           {(history ?? []).map((h) => (
             <li key={h.history_id} className="text-xs flex gap-2">
               <span className="text-ink-500 font-mono whitespace-nowrap">{when(h.changed_at)}</span>
-              <span className={h.change === 'definition changed' ? 'text-amber-700 font-medium' : h.change === 'disappeared' ? 'text-loss-700 font-medium' : 'text-ink-700'}>
+              <span className={h.change === 'definition changed' ? 'text-amber-600 font-medium' : h.change === 'disappeared' ? 'text-loss-700 font-medium' : 'text-ink-700'}>
                 {h.change}
               </span>
               {h.detail && <span className="text-ink-500">{h.detail}</span>}
-              {h.author !== 'automatic' && <span className="text-ink-400">({h.author})</span>}
+              {h.author !== 'automatic' && <span className="text-ink-500">({h.author})</span>}
             </li>
           ))}
         </ul>
@@ -206,14 +207,14 @@ export default function DataFlow() {
   }
 
   if (!isAdmin) {
-    return <p className="text-sm text-ink-600">This page is for admins.</p>;
+    return <p className="text-sm text-ink-500">This page is for admins.</p>;
   }
 
   return (
     <div className="space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-ink-900">Data flow</h1>
-        <p className="text-sm text-ink-600">
+        <p className="text-sm text-ink-500">
           Every table, view and function, where it sits in the flow and what feeds it. The structure is read from the database each night, so it
           cannot drift; the notes are yours and are kept.
         </p>
@@ -221,13 +222,13 @@ export default function DataFlow() {
 
       {recent.length > 0 && (
         <section className="border border-chalk-300 rounded-lg bg-white p-3">
-          <h2 className="text-sm font-medium text-ink-800 mb-1">Changed lately</h2>
+          <h2 className="text-sm font-medium text-ink-700 mb-1">Changed lately</h2>
           <ul className="space-y-0.5">
             {recent.slice(0, 6).map((h) => (
               <li key={h.history_id} className="text-xs flex gap-2">
                 <span className="text-ink-500 font-mono whitespace-nowrap">{when(h.changed_at)}</span>
                 <span className="font-mono text-ink-700">{h.node_key.replace(/^(object|function):/, '')}</span>
-                <span className={h.change === 'definition changed' ? 'text-amber-700' : h.change === 'disappeared' ? 'text-loss-700' : 'text-ink-500'}>
+                <span className={h.change === 'definition changed' ? 'text-amber-600' : h.change === 'disappeared' ? 'text-loss-700' : 'text-ink-500'}>
                   {h.change}
                 </span>
               </li>
@@ -262,7 +263,7 @@ export default function DataFlow() {
         </button>
       </div>
 
-      {error && <p className="text-xs text-ink-600">{error}</p>}
+      {error && <p className="text-xs text-ink-500">{error}</p>}
       {nodes === null && <p className="text-sm text-ink-500">Loading\u2026</p>}
 
       {nodes !== null && (
@@ -286,14 +287,14 @@ export default function DataFlow() {
                   >
                     <td className="px-3 py-2">
                       <span className="font-mono text-xs text-ink-900">{n.obj_name}</span>
-                      <span className="ml-2 text-[11px] text-ink-400">{n.kind}</span>
+                      <span className="ml-2 text-[11px] text-ink-500">{n.kind}</span>
                       {!n.is_present && <span className="ml-2 text-[11px] text-loss-700">gone</span>}
                     </td>
                     <td className="px-3 py-2">
                       <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${layerStyle(n.layer)}`}>{n.layer ?? 'unset'}</span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-ink-600 hidden sm:table-cell">{n.purpose ?? '\u2014'}</td>
-                    <td className="px-3 py-2 text-right text-xs text-ink-600 whitespace-nowrap">
+                    <td className="px-3 py-2 text-xs text-ink-500 hidden sm:table-cell">{n.purpose ?? '\u2014'}</td>
+                    <td className="px-3 py-2 text-right text-xs text-ink-500 whitespace-nowrap">
                       {n.feeds_from} in / {n.feeds_into} out
                     </td>
                   </tr>
