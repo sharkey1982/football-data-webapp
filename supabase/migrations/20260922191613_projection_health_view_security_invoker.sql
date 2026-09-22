@@ -1,0 +1,18 @@
+-- ============================================================================
+-- fpl_full_season_projection_health_v1: run with the CALLER's rights.
+--
+-- Prompted by a Supabase alert (email dated 19 Sep, "table publicly
+-- accessible / rls_disabled_in_public"). That issue was already fixed by the
+-- 21 Sep security work: no table in public is without row-level security, no
+-- table is readable by anon without it, and none is anon-writable.
+--
+-- The one real finding left was this view, created after that audit and left
+-- as SECURITY DEFINER. It isn't readable by anon (signed-in only) and only
+-- aggregates fixtures and fpl_player_projections -- both readable by
+-- signed-in users, each with a select policy -- so the caller's own rights
+-- are enough. Verified afterwards as a signed-in user: 38 rows, as before.
+--
+-- The two views still running as definer are the deliberate exception:
+-- team_home_away_adjustment_v1 wraps the private experimental view.
+-- ============================================================================
+alter view public.fpl_full_season_projection_health_v1 set (security_invoker = true);

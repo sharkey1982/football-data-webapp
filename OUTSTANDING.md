@@ -1419,6 +1419,20 @@ Full brief retained separately. Position taken 2026-09-20:
 
 ---
 
+## SECURITY ALERT 2026-09-22 (Supabase email) — CHECKED, ONE FIX
+
+The email ("Table publicly accessible", dated 19 Sep) was already resolved by
+the 21 Sep work: 0 tables without RLS, 0 anon-readable without RLS, 0
+anon-writable. One real finding remained: fpl_full_season_projection_health_v1
+(created after the audit) was SECURITY DEFINER — switched to invoker
+(migration 20260922191613), verified 38 rows for a signed-in user.
+
+STILL FOR CHRIS (one click, outstanding since the first audit): enable
+leaked-password protection in Supabase → Authentication settings.
+Housekeeping, unchanged: 61 functions without a pinned search_path; unaccent
+in public; 25 tables with RLS on and no policy (deny-all — safe, they're
+pipeline tables nothing should read directly).
+
 ## BEAT THE SHARK — PLAYTEST FEEDBACK (Chris, 2026-09-21)
 
 Chris played as a Beginner. More comments to come; batch them before acting.
