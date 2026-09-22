@@ -134,6 +134,10 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // slicing it rather than the other way round.
           { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          // Also listed under Discover, where the week's results live: this
+          // page is both a record of what happened and the honest check on
+          // the projections above, so it belongs in each (Chris).
+          { label: 'Model XI Accuracy', to: '/fpl/model-xi', blurb: 'How the eleven the model rated highest actually scored, week by week.' },
           // Line-ups sit with the projections because they ARE an input to
           // them: who starts, in what role, decides the minutes each
           // projection assumes. This is the read-only public page -- the
