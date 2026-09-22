@@ -13,9 +13,13 @@ export default function BenchStrip({
   bench,
   benchOrder,
   ppgByPlayer,
+  matchweek,
 }: {
   bench: FplOptimizerPlayer[];
   benchOrder: string[];
+  /** The week being shown, so each bench player's opponent can be named --
+   *  an auto-sub's fixture is the point of the bench order. */
+  matchweek?: number;
   /** Season-to-date points per game, keyed by fpl_player_id -- optional, shown alongside the existing info when provided. */
   ppgByPlayer?: Map<number, number | null>;
 }) {
@@ -44,6 +48,15 @@ export default function BenchStrip({
                 <div className="font-medium text-ink-900">{p.name}</div>
                 <div className="text-ink-500 font-mono">
                   {OPTIMIZER_POSITION_LABEL[p.position]} &middot; {p.team} &middot; &pound;{p.price.toFixed(1)}m
+                  {matchweek !== undefined && p.gw_opponent?.[matchweek] && (
+                    <>
+                      {' '}&middot;{' '}
+                      <span className="uppercase">
+                        {p.gw_opponent[matchweek].is_home ? 'v ' : '@ '}
+                        {p.gw_opponent[matchweek].team}
+                      </span>
+                    </>
+                  )}
                   {ppg !== null && <> &middot; {ppg.toFixed(1)} ppg</>} &middot; {Math.round(p.avg_appearance_probability * 100)}% app
                 </div>
               </div>

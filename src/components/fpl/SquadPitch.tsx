@@ -135,6 +135,11 @@ function PlayerToken({
       <span className="text-[8px] sm:text-[9px] leading-none text-amber-400/90 font-mono">
         {gwPoints !== undefined ? `${gwPoints.toFixed(1)} pts` : '\u2014'}
       </span>
+      {/* Price belongs on the pitch: the whole exercise is what a squad costs,
+          and it was only visible on the bench and in the table. */}
+      <span className="text-[8px] sm:text-[9px] leading-none text-chalk-100/70 font-mono">
+        &pound;{player.price.toFixed(1)}m
+      </span>
       {enrichment && (
         <>
           {enrichment.season_points_per_game !== null && (
