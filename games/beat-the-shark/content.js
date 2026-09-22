@@ -74,6 +74,14 @@ function signingSpec(){
   return{title:"Freshen up the squad",lede:`Two ${pos==="FW"?"strikers":pos==="MF"?"midfielders":"defenders"} are available. ${fmtMoney(S.cash)} in the bank; wages are the bigger cost.`,
     choices:[opt(A),opt(B)]};
 }
+/* THE SPONSOR CALLS (Beginner, before the final day): a chance scenario
+   that moves the weekly cash moments -- gate receipts or the wage bill. */
+function sponsorSpec(){
+  return{title:"The sponsor calls",lede:"A local firm wants in before the final day.",
+    choices:[
+      {t:"Shirt deal",d:"+£6k at the gate every game",fx:{gate:6},out:"The logo goes on the shirt."},
+      {t:"Players' bonus",d:"Wages +£4k a week, the team lifted",fx:{wages:4,squad:6},out:"The dressing room is buzzing."}]};
+}
 function knockSpec(){
   const xi=currentXI().map(x=>S.squadList[x.i]).filter(p=>p&&p.pos!=="GK");
   const p=xi.sort((a,b)=>b.rt-a.rt)[0];const i=S.squadList.indexOf(p);

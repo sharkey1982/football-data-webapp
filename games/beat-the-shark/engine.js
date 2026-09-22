@@ -90,6 +90,13 @@ let BEGINNER_SHARK_BOOST=5;
 function configureLevel(level){const b=level==="beginner";MW=b?5:10;NEUTRAL=b;WEEKLY_WAGES=b}
 const homeMult=()=>NEUTRAL?1:HOME_MULT;
 /* How a fixture is billed: neutral venues for Beginner. */
+/* TWO CASH MOMENTS A WEEK (Beginner, Chris): pay day before the game --
+   the wage bill out -- and gate receipts after it, by result. Exact amounts,
+   no random variation, so the header and the page always agree. Story
+   choices can move either (fx.wages, fx.gate). */
+const GATE={w:24,d:16,l:11};
+function payDay(){S.paid=S.paid||{};if(S.paid[S.mw]!=null)return null;S.paid[S.mw]=S.wages;S.cash-=S.wages;return S.wages}
+function gateReceipts(res){S.gates=S.gates||{};if(S.gates[S.mw]!=null)return null;const g=Math.max(0,GATE[res]+(S.gateBonus||0));S.gates[S.mw]=g;S.cash+=g;return g}
 function venueTitle(opp,home){return NEUTRAL?`v ${opp}`:home?`${opp}, at home`:`Away at ${opp}`}
 function venueNote(home){return NEUTRAL?"":home?"At home":"Away"}
 let FIXTURES=[],TABLE={},PREDICT={};
@@ -680,9 +687,11 @@ function cashConsequences(){
   }
   return out;
 }
-function apply(fx,noisy){const out=[];
+function apply(fx,noisy){const out=[],applied={};
   for(const[k,v0]of Object.entries(fx||{})){if(!v0)continue;
     const v=noisy?Math.round(v0*(1+(rng()*2-1)*NOISE)):v0,M=x=>fmtMoney(Math.abs(x)).replace('-','');
+    applied[k]=(applied[k]||0)+v; // the tags show THIS, not the pre-noise figure
+    if(k==='gate'){S.gateBonus=(S.gateBonus||0)+v;out.push([`Gate ${v>0?'+':'−'}${M(v)} a game`,v>0]);continue}
     if(k==='cash'){S.cash+=v;out.push([`Cash ${v>0?'+':'−'}${M(v)}`,v>0])}
     else if(k==='debt'){S.debt+=v;out.push([`Debt ${v>0?'+':'−'}${M(v)}`,v<0])}
     else if(k==='wages'){S.wages+=v;out.push([`Wages ${v>0?'+':'−'}${M(v)}/w`,v<0])}
@@ -700,7 +709,7 @@ function apply(fx,noisy){const out=[];
   // Everyone else: a few tags in football terms (Chris: "a mess of numbers").
   // Arrows show size: small, big, major. Green is good for you.
   const T={team:0,fans:0,board:0},M={cash:0,debt:0,wages:0};let interest=0;
-  for(const[k,v0]of Object.entries(fx||{})){if(!v0)continue;
+  for(const[k,v0]of Object.entries(applied)){if(!v0)continue;
     if(['squad','form','fitness','condition'].includes(k))T.team+=v0;
     else if(k==='fatigue')T.team-=v0;
     else if(k==='fans'||k==='board')T[k]+=v0;
@@ -713,6 +722,8 @@ function apply(fx,noisy){const out=[];
   // league position are what matter). Team effects still happen -- they show
   // up where they count, in results and the table.
   if(M.cash)tags.push(`<span class="tag ${M.cash>0?'up':'down'}">Cash ${M.cash>0?'+':'\u2212'}${fmtMoney(Math.abs(M.cash))}</span>`);
+  if(applied.wages)tags.push(`<span class="tag ${applied.wages<0?'up':'down'}">Wages ${applied.wages>0?'+':'\u2212'}${fmtMoney(Math.abs(applied.wages))} a week</span>`);
+  if(applied.gate)tags.push(`<span class="tag ${applied.gate>0?'up':'down'}">Gate ${applied.gate>0?'+':'\u2212'}${fmtMoney(Math.abs(applied.gate))} a game</span>`);
   return tags.join('')}
 function later(n,fx,text){if(!fx)return;const a={};for(const[k,v]of Object.entries(fx))a[k]=Math.round(v*DELAY_AMP);
   S.pending.push({at:cursor+n,fx:a,text})}
@@ -731,7 +742,9 @@ function paintHeader(){
   document.getElementById('hTwo').innerHTML=`<div class="two cash"><div class="k">Cash</div>
       <div class="v cashv${S.cash<0?' neg':''}">${fmtMoney(S.cash)}</div>
       ${dl?`<div class="cashd ${dl>0?'up':'down'}">${dl>0?'\u25b2 +':'\u25bc \u2212'}${fmtMoney(Math.abs(dl))}</div>`:''}
-      ${S.cash<0?`<div class="pts">in the red: the bank will sell a player</div>`:''}</div>`;
+      ${S.cash<0?`<div class="pts">in the red: the bank will sell a player</div>`:''}</div>
+    ${NEUTRAL&&S.mw>=2?(()=>{const h=Math.round(xiStats().fit);return `<div class="two"><div class="k">Health</div>
+      <div class="v" style="font-size:22px;color:${h>=85?'#7ee2a8':h>=70?'#ffd98a':'#ffb3ab'}">${h}%</div></div>`})():''}`;
   const tr=document.getElementById('hTrend');tr.className="trend fl";tr.textContent="";
   const left=MW-S.mw;
   let note=S.mw===0?"Pre-season · nothing played":left===0?"Season over":left<=2?`${left} to play — the run-in`:S.mw===5?"Halfway":`${left} matches left`;

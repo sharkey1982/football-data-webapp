@@ -129,8 +129,8 @@ ok("team sheet shows this match's xGF, clean sheet and win chance", /This match,
 // 13. the ending speaks in points
 run(`S.mw=MW;TABLE[CLUB].pts=20;renderEnding()`);
 ok("the ending: CHAMPIONS or your position, the Shark's prediction, and the table -- no score", /CHAMPIONS|\d(ST|ND|RD|TH)/.test(app())&&/The Shark predicted \d/.test(app())&&/class="tbl"/.test(app())&&!/\/100/.test(app()));
-// 14. home advantage, made visible
-run(`ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
+// 14. home advantage, made visible (the ten-game level: Beginner is neutral)
+run(`configureLevel("intermediate");buildFixtures();LEVEL="intermediate";ROLE=ROLES.manager;S=newState();TABLE=blankTable();recalcSquadRating();S.mw=0;S.pendingOppFm=null;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("team sheet shows the same game the other way round", /Home advantage/.test(app())&&/The same game (away|at home) would be\s+\d+% to win/.test(app()));
 run(`configureLevel("intermediate");buildFixtures()`); // home and away: the ten-game level
 run(`renderHeatmap()`);
@@ -287,7 +287,7 @@ ok("page 6: the position at the top updates once your result is in", /\d(st|nd|r
 els.toOthers.onclick();drain();
 ok("page 7: a plain headline at full time -- never 'No change for you'", !/No change for you/.test(els.asit.textContent)&&/^(Up to |Down to )?\d(st|nd|rd|th)\.$/.test(els.asit.textContent), els.asit.textContent);
 ok("the agreed Beginner season: five games, a story between each, the window and the bank before Gameweek 4",
-  run("PLAN.join()")==="match,presser,match,knock,match,window,bank,match,papers,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
+  run("PLAN.join()")==="match,presser,match,knock,match,window,bank,match,sponsor,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
 ok("page 8: ...against the strongest club", (()=>{const[h,a]=run("myFixture(1)");const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");return h===st||a===st})());
 run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
 ok("page 8: ...with a half-time decision about a player change", /is tiring/.test(els.htBox.innerHTML)&&/Keep .+ on/.test(els.htBox.innerHTML)&&/Bring on /.test(els.htBox.innerHTML));
@@ -342,7 +342,7 @@ ok("Shark Scout are stronger at Beginner only (they win the league most of the t
 // weekly wages: the result's cash is gate money minus the wage bill
 run(`S.cash=100`);const wages=run("S.wages");
 run(`(()=>{const r=resolveMine(1,0,true);globalThis.__fx=r.fx})()`);
-ok("the wage bill is paid every week at Beginner (gate money minus wages)", run("__fx.cash")<=30-wages&&run("__fx.cash")>=16-wages, `cash ${run("__fx.cash")} with wages ${wages}`);
+ok("at Beginner the match result carries no cash -- it moves in the two weekly moments (pay day, gate receipts)", run("__fx.cash")===undefined);
 // the knock
 delete els.ch;run(`renderSpec(knockSpec(),"T",()=>{})`);
 const knockName=(app().match(/<h1>(.+?) has a knock<\/h1>/)||[])[1];
@@ -394,5 +394,30 @@ ok("...and then on to full time", !!(els.toTable&&els.toTable.onclick));
 // splitting the second half keeps the same goals on average
 { const f=run(`(()=>{const[h,a]=myFixture(4),home=h===CLUB,opp=home?a:h;const r1=clubRates(opp,home,.62,"4-4-2"),r2=clubRates(opp,home,.62*24/46,"4-4-2"),r3=clubRates(opp,home,.62*22/46,"4-4-2");return[r1[0],r2[0]+r3[0]]})()`);
   ok("splitting the second half at 70' keeps the same expected goals", Math.abs(f[0]-f[1])<1e-9, `${f[0].toFixed(3)} vs ${f[1].toFixed(3)}`); }
+// 26. Should we win? Upsets. Two cash moments. (Chris, 2026-09-22)
+run(`SEED="CM-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
+const c0=run("S.cash"),w0=run("S.wages");els.go.onclick();
+ok("pay day: the wage bill comes out before the game, shown in the page and the header alike",
+  run("S.cash")===c0-w0&&app().includes(`Pay day: wages <b style="color:var(--bad)">−£${w0}k`)&&els.hTwo.innerHTML.includes(`▼ −£${w0}k`));
+els.go.onclick();delete els.htBox;delete els.toTable;els.kick.onclick();
+ok("the live match headlines what should happen, then them v you -- not the old ratings block",
+  /You should (win|lose)|Too close to call/.test(app())&&/The model: win \d+% · draw \d+% · lose \d+%/.test(app())&&/<th class="n">You<\/th>/.test(app())&&!/rated \d+|Model odds|Team Strength<\/b>/.test(app()));
+drain();const c1=run("S.cash");els.toTable.onclick();const g=run("S.cash")-c1;
+ok("gate receipts: after the game, the exact amount in the page and the header", g>0&&app().includes(`Gate receipts: <b style="color:var(--good)">+£${g}k`)&&els.hTwo.innerHTML.includes(`▲ +£${g}k`), `+£${g}k`);
+ok("pay day and receipts happen once each a week, however often the page is drawn", run("payDay()")===null&&run("gateReceipts('w')")===null);
+ok("an upset: 'should win' but lost, or 'should lose' but won", /upset/i.test(run(`upsetLine("l",{call:"win"})`))&&/upset/i.test(run(`upsetLine("w",{call:"lose"})`))&&run(`upsetLine("w",{call:"win"})`)===null);
+// tags show what was ACTUALLY applied (noise included)
+delete els.ch;run(`S.cash=100;renderSpec({title:"T",lede:"L",choices:[{t:"Spend",d:"",fx:{cash:-40},out:"Done."}]},"T",()=>{})`);els.ch.children[0].onclick();
+{ const spent=100-run("S.cash"); ok("a decision's cash tag matches the cash that actually moved (it once showed the pre-variation figure)", app().includes(`Cash −£${spent}k`), `moved £${spent}k`); }
+// team health joins the header from Gameweek 3
+run(`S.mw=1;paintHeader()`);const noHealth=!/>Health</.test(els.hTwo.innerHTML);
+run(`S.mw=2;paintHeader()`);
+ok("team health joins the header from Gameweek 3 (for rotation decisions)", noHealth&&/>Health</.test(els.hTwo.innerHTML)&&/\d+%/.test(els.hTwo.innerHTML));
+// the sponsor moves the weekly cash moments
+run(`S.gateBonus=0;S.gates={};S.mw=3;globalThis.__g1=gateReceipts("w");S.gates={};apply({gate:6});globalThis.__g2=gateReceipts("w")`);
+ok("the sponsor's shirt deal raises every game's gate receipts", run("__g2")===run("__g1")+6);
+run(`S.paid={};const w=S.wages;apply({wages:4});globalThis.__p=payDay()-w`);
+ok("the players' bonus raises the weekly wage bill", run("__p")===4);
+ok("the Beginner plan: the sponsor calls before the final day", run("BEGINNER_PLAN.join()").includes("bank,match,sponsor,match,end"));
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

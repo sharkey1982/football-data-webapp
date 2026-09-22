@@ -39,7 +39,10 @@ const txt=h=>String(h||'').replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').
 const BAD=/\bundefined\b|\bNaN\b|\[object|\bnull\b|Infinity|\b0th\b|\b-?\d+th\b(?<!1[123]th)(?=)|£NaN|\$\{/;
 const problems=[];const crashes=[];
 const scan=(where,h)=>{const t=txt(h);
-  for(const re of [/\bundefined\b/,/\bNaN\b/,/\[object/,/\bnull\b/,/Infinity/,/\b0th\b/,/\$\{/])if(re.test(t)){const i=t.search(re);problems.push(`${where}: "…${t.slice(Math.max(0,i-50),i+40)}…"`)}
+  // Beginner is played at neutral venues: no home/away wording may appear.
+  const bad=[/\bundefined\b/,/\bNaN\b/,/\[object/,/\bnull\b/,/Infinity/,/\b0th\b/,/\$\{/];
+  if(vm.runInContext('NEUTRAL',ctx))bad.push(/\((H|A)\)/,/\bat home\b/i,/\bAway at\b/,/\(home\)/i);
+  for(const re of bad)if(re.test(t)){const i=t.search(re);problems.push(`${where}: "…${t.slice(Math.max(0,i-50),i+40)}…"`)}
   const preds=[...t.matchAll(/The Shark predict(?:s|ed) (\w+)/g)].map(m=>m[1]);if(new Set(preds).size>1)problems.push(`${where}: two different predictions (${preds.join(', ')})`)};
 for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager','owner']){
   for(const seed of ['SOC-S07','SOC-S21','SOC-S42']){

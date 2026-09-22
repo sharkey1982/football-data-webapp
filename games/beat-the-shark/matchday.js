@@ -11,9 +11,9 @@ function resolveMine(hg,ag,home){
   if(mg>tg){res='w';fx={fans:7,board:7,cash:rnd(16,30)}}
   else if(mg===tg){res='d';fx={fans:1,board:1,cash:rnd(10,19)}}
   else{res='l';fx={fans:-7,board:-6,cash:rnd(8,15)}}
-  // Beginner: the wage bill is paid every week, so cash is a real
-  // consideration by Gameweek 4 (gate money alone doesn't cover it).
-  if(WEEKLY_WAGES)fx.cash-=S.wages;
+  // Beginner: cash moves in two explicit moments instead (payDay before the
+  // game, gateReceipts after it), so none rides in the result's effects.
+  if(WEEKLY_WAGES)delete fx.cash;
   S.formArr.push(res);S.lastRes=res;S.matchBoost=0;
   /* Squad fatigue now RECOVERS between matches, settling around the mid-40s
      unless decisions push it. It used to climb 5-9 every match with nothing
@@ -342,6 +342,20 @@ function beginnerDecision(opp,home){
   return{kind,...dec};
 }
 /* Your game is the early kick-off every week; Gameweek 1 is opening day. */
+/* SHOULD WE WIN? (Chris): a headline from the model's odds, kept for the
+   full-time verdict -- "An upset!" when the result goes against them. */
+function expectation(opp,home){const p=matchProbs(opp,home);
+  return{w:p.w,d:p.d,l:p.l,call:p.w>=50?"win":p.l>=50?"lose":"close"}}
+function expectationHTML(opp,home){
+  const e=expectation(opp,home);S._expect=e;
+  const head=e.call==="win"?"You should win":e.call==="lose"?"You should lose":"Too close to call";
+  return `<div style="margin:6px 0 2px"><div style="font-family:var(--disp);font-size:26px;font-weight:700;color:${e.call==="win"?'var(--good)':e.call==="lose"?'var(--bad)':'var(--amber)'}">${head}</div>
+    <div class="small">The model: win ${e.w}% · draw ${e.d}% · lose ${e.l}%</div></div>`;
+}
+function upsetLine(res,e){if(!e)return null;
+  if(e.call==="win"&&res==="l")return"An upset! Beaten when you should have won.";
+  if(e.call==="lose"&&res==="w")return"An upset! You beat the odds.";
+  return null}
 function kickoffChip(wk){return `GAMEWEEK ${wk+1} OF ${MW} · ${wk===0?"OPENING DAY · ":wk===MW-1?"FINAL DAY · ":""}12:30 KICK-OFF`}
 /* Them v you, before the shape question: the same model numbers as
    everywhere else, better figure on each row highlighted. */
@@ -427,7 +441,8 @@ function renderTeamSheet(done){
             ${q.w}% to win, with ${q.xgf.toFixed(2)} xGF instead of ${p.xgf.toFixed(2)}.`}
           Home sides score about 19% more — the same edge FixtureShark's real model measures.</div>`;
           // Beginners: folded away, so the sheet is the essentials plus this match's one new idea.
-          return LEVEL==="beginner"?why(tip,"Why does home or away matter?"):tip})()}`})()}
+          // no home advantage at neutral venues, so no tip about it
+          return NEUTRAL?"":LEVEL==="beginner"?why(tip,"Why does home or away matter?"):tip})()}`})()}
       ${squadHTML({pick:mgr&&can("rotation"),sel})}
       ${(()=>{
         // Beginners see a lesson in full in the match it is introduced; after
@@ -506,9 +521,9 @@ function renderMatch(done,quick){
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">${kickoffChip(wk)}</div>
     <h1>${NEUTRAL?`v ${opp}`:home?`${opp}, at ${STADIUM}`:`Away at ${opp}`}</h1>
-    ${quick?"":opponentPanel(opp,home)}
+    ${NEUTRAL?expectationHTML(opp,home)+oppCompareHTML(opp):quick?"":opponentPanel(opp,home)}
     <div class="vp"><div class="teams">
-      <span>${CLUB.toUpperCase()} <small style="opacity:.7">(${home?"H":"A"})</small><br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${S.formation}</span></span>
+      <span>${CLUB.toUpperCase()}${NEUTRAL?"":` <small style="opacity:.7">(${home?"H":"A"})</small>`}<br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${S.formation}</span></span>
       <span style="text-align:right">${opp.toUpperCase()}<br><span style="font-family:var(--mono);font-size:11px;color:var(--mute)">${oFm}</span></span></div>
       <div id="vpl"></div></div>
     <div id="paceBox">${paceControlsHTML("Skip to full time")}</div>
@@ -587,6 +602,8 @@ function renderMatch(done,quick){
   function finish(){
     add("FT","Full time","ft",sc());
     const hg=home?mine:theirs,ag=home?theirs:mine;
+    const upset=NEUTRAL?upsetLine(mine>theirs?"w":mine===theirs?"d":"l",S._expect):null;
+    if(upset)add("FT",`<b style="color:var(--amber)">${upset.toUpperCase()}</b>`,"");
     award(TABLE,hT,aT,hg,ag);
     const{fx,res}=resolveMine(hg,ag,home);
     S.matchAtt=0;S.matchDef=0;
@@ -614,14 +631,19 @@ function renderMatch(done,quick){
       arrows for every move since your result went in. */
 function renderTableAfterMatch(info,done){
   const{wk,fx,res,mine,theirs,opp,home,final}=info;
-  const d=apply(fx,true);myPos();paintHeader();
+  const d=apply(fx,true);
+  const gate=WEEKLY_WAGES?gateReceipts(res):null; // the second cash moment
+  myPos();paintHeader();
+  const upset=NEUTRAL?upsetLine(res,S._expect):null;
   const left=FIXTURES[wk].filter(([h,a])=>h!==CLUB&&a!==CLUB).length;
   document.getElementById('app').innerHTML=`<div class="card">
     <div class="datechip">GAMEWEEK ${wk+1} OF ${MW} · ${final?"FINAL DAY · ":""}THE TABLE</div>
-    <h1>${res==='w'?"Job done.":res==='d'?"A point on the board.":"Beaten."}</h1>
+    <h1>${upset?"An upset!":res==='w'?"Job done.":res==='d'?"A point on the board.":"Beaten."}</h1>
+    ${upset?`<p class="lede">${upset.replace("An upset! ","")}</p>`:""}
     <div class="res mine" style="font-size:15px;padding:10px">
-      <span><b>${CLUB}</b> ${mine}–${theirs} ${opp} <small style="color:var(--mute)">(${home?"H":"A"})</small></span></div>
+      <span><b>${CLUB}</b> ${mine}–${theirs} ${opp}${NEUTRAL?"":` <small style="color:var(--mute)">(${home?"H":"A"})</small>`}</span></div>
     <div class="delta" style="margin:6px 0 8px">${d}</div>
+    ${gate!=null?`<div class="outcome">Gate receipts: <b style="color:var(--good)">+${fmtMoney(gate)}</b></div>`:""}
     <div class="datechip" style="margin:8px 0 5px">AS IT STANDS · ${left} ${left===1?"GAME":"GAMES"} STILL TO PLAY</div>
     ${tableRowsHTML(null)}
     <button class="choice primary" id="toOthers" style="margin-top:11px"><span class="t">${left?"The 3pm kick-offs":"Continue"}</span>
@@ -674,6 +696,9 @@ function renderElsewhere(info,done){
   }
   function fullTime(){
     for(const g of games)award(TABLE,g.h,g.a,g.hg,g.ag);
+    // an upset elsewhere: the weaker side won
+    document.getElementById('boards').innerHTML=games.map(g=>{const up=(g.hg>g.ag&&strOf(g.h)<strOf(g.a)-3)||(g.ag>g.hg&&strOf(g.a)<strOf(g.h)-3);
+      return `<div class="res" style="margin-top:6px;font-size:15px"><span>${g.h} v ${g.a}${up?' <b style="color:var(--amber)">· Upset!</b>':''}</span><span class="sc">${g.hg}–${g.ag}</span></div>`}).join('');
     S.mw++;
     const money=cashConsequences();
     myPos();paintHeader();kpiRecord();

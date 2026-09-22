@@ -28,7 +28,7 @@ global.setTimeout=()=>{};
 const G=eval(src+`;({ROLES,SHAPES,FORMATIONS,PLAN,MW,newState,buildFixtures,blankTable,monteCarlo,recalcSquadRating,pickRivals,
   playFixture,simScore,strOf,award,standings,resolveMine,apply,later,drainPending,myStrength,clubRates,
   presserSpec,callSpec,physioSpec,preseasonSpec,winterSpec,playerSummerSpec,playerWinterSpec,makeTargets,drawEvent,
-  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,cashConsequences,sharkPos,scoreParts,configureLevel,getMW:()=>MW,ratingsNow,projectionNow,projOrder,expectedFinal,
+  available,alive,myFixture,xiStats,currentXI,autoXI,balanceAdj,squadHTML,drawLuck,getForm:()=>({FORM,CLEAN}),teamAtt,teamDef,pickGoal,setPieceTaker,roleSignal,matchProbs,bestShapeFor,crisisSpec,rng,cashConsequences,sharkPos,scoreParts,configureLevel,getMW:()=>MW,payDay,gateReceipts,ratingsNow,projectionNow,projOrder,expectedFinal,
   setSeed:v=>{SEED=v},setRole:r=>{ROLE=r},setS:x=>{S=x},getS:()=>S,setTable:t=>{TABLE=t},T:()=>TABLE,
   setPredict:p=>{PREDICT=p},setCursor:v=>{cursor=v},getR:()=>R.s,setR:v=>{R.s=v},
   resetRecent:()=>{RECENT=new Set();RECENT_Q=[]},getRivals:()=>RIVALS,getRoleId:()=>ROLE.id,
@@ -181,7 +181,8 @@ function beginnerSeason(seed,policy,withTarget){
     G.setRole(G.ROLES.manager);G.setR(hashSeedJS(seed+"|manager"));G.resetRecent();
     const S=G.newState();G.setS(S);G.recalcSquadRating();
     if(withTarget){G.setPredict(G.monteCarlo(400));G.setTable(G.blankTable());G.setR(hashSeedJS(seed+"|manager"))}
-    for(let wk=0;wk<G.getMW();wk++){G.setCursor(wk);playWeek(policy);G.cashConsequences()}
+    // the same two cash moments as the game: pay day, then gate receipts
+    for(let wk=0;wk<G.getMW();wk++){G.setCursor(wk);G.payDay();playWeek(policy);G.gateReceipts(G.getS().lastRes||'l');G.cashConsequences()}
     const st=G.standings(G.T());
     return{pos:st.findIndex(r=>r.n==="Your Team")+1,champ:st[0].n,cash:G.getS().cash};
   }finally{G.configureLevel("intermediate")}
