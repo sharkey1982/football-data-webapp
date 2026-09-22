@@ -73,7 +73,7 @@ function signingSpec(){
   const impact=p=>`next game v ${nOpp}: you ${p.xgf.toFixed(1)} xG · them ${p.xga.toFixed(1)} xG · clean sheet ${Math.round(p.cs*100)}% · win ${p.w}% · draw ${p.d}% · lose ${p.l}%`;
   const opt=t=>({t:`Sign ${t.nm} (${pos}, Q${t.rt})`,
     d:`${fmtMoney(t.fee)} now · wages +${fmtMoney(t.wage)} a week · ${fmtMoney(S.cash-t.fee)} left · squad quality ${nowQ} → ${quality(t)}`,
-    fx:{cash:-t.fee},after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));recalcSquadRating()},
+    fx:{cash:-t.fee},exact:true,after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));recalcSquadRating()},
     out:`${t.nm} signs. ${S.cash-t.fee<0?"You're in the red: the bank will be in touch.":""}`});
   return{title:"Freshen up the squad",lede:`Two ${pos==="FW"?"strikers":pos==="MF"?"midfielders":"defenders"} are available. ${fmtMoney(S.cash)} in the bank; wages are the bigger cost.`,
     choices:[opt(A),opt(B),
@@ -85,8 +85,8 @@ function signingSpec(){
 function sponsorSpec(){
   return{title:"The sponsor calls",lede:"A local firm wants in before the final day.",
     choices:[
-      {t:"Shirt deal",d:"+£6k at the gate every game",fx:{gate:6},out:"The logo goes on the shirt."},
-      {t:"Players' bonus",d:"Wages +£4k a week, the team lifted",fx:{wages:4,squad:6},out:"The dressing room is buzzing."}]};
+      {t:"Shirt deal",d:"+£6k at the gate every game",fx:{gate:6},exact:true,out:"The logo goes on the shirt."},
+      {t:"Players' bonus",d:"Wages +£4k a week, the team lifted",fx:{wages:4,squad:6},exact:true,out:"The dressing room is buzzing."}]};
 }
 /* THE BIG WINDOW (Beginner, before Gameweek 4; Chris): a signing that
    GENUINELY changes the final-day match-up -- goals or clean sheets -- against
@@ -107,12 +107,27 @@ function bigSigningSpec(){
   const opt=(t,what)=>{const left=S.cash-t.fee;return{t:`Sign ${t.nm} — ${what}`,
     d:`${fmtMoney(t.fee)} now · wages +${fmtMoney(t.wage)} a week · ${fmtMoney(left)} left${left<0?" (in the red)":""} · ${x2(vsBoss(t))}`,
     // the lift the preview promised: the star AND the morale he brings
-    fx:{cash:-t.fee},after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));S.morale=(S.morale==null?50:S.morale)+LIFT;recalcSquadRating()},
+    fx:{cash:-t.fee},exact:true,after(){S.wages+=t.wage;S.squadList.push(Object.assign({},t));S.morale=(S.morale==null?50:S.morale)+LIFT;recalcSquadRating()},
     out:`${t.nm} signs.${left<0?" You're in the red: the bank will be in touch.":""}`}};
   return{title:"The big window",
     lede:`${boss} await on the final day. ${fmtMoney(S.cash)} in the bank. In the red at the end of a gameweek, the bank sells your best player; below ${fmtMoney(deductLine())}, you're docked 3 points.`,
     choices:[opt(ST,"goals"),opt(CB,"clean sheets"),
       {t:"No big signing",d:`${fmtMoney(S.cash)} stays in the bank · ${x2(vsBoss(null))}`,out:"You keep your powder dry."}]};
+}
+/* A BID FOR ONE OF YOUR PLAYERS (Beginner, after Gameweek 2; Chris): the
+   between-games decision is about a SALE -- health calls belong on the team
+   sheet, where you can see the match they're for. A good offer for a good
+   player: money in the bank now, a weaker side for the games left. */
+function bidSpec(){
+  const outfield=alive().filter(p=>!p.gone&&p.pos!=="GK").sort((a,b)=>b.rt-a.rt);
+  const p=outfield[1]||outfield[0],fee=Math.round(saleFee(p)*1.25);
+  const was=xiStats().q;p.gone=true;recalcSquadRating();const without=xiStats().q;p.gone=false;recalcSquadRating();
+  const suitor=RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n;
+  return{title:`${suitor} want ${p.nm}`,lede:`A good offer: ${fmtMoney(fee)} for your ${p.pos==="FW"?"striker":p.pos==="MF"?"midfielder":"defender"} (quality ${p.rt}).`,
+    choices:[
+      {t:`Sell for ${fmtMoney(fee)}`,d:`Money in the bank · squad quality ${was.toFixed(1)} → ${without.toFixed(1)}`,fx:{cash:fee},exact:true,
+        after(){p.gone=true;recalcSquadRating()},out:`${p.nm} is gone. ${fmtMoney(fee)} is in the bank.`},
+      {t:`Keep ${p.nm}`,d:"The side stays as it is",fx:{squad:3},out:`${p.nm} stays. The dressing room notices.`}]};
 }
 function knockSpec(){
   const xi=currentXI().map(x=>S.squadList[x.i]).filter(p=>p&&p.pos!=="GK");
@@ -130,7 +145,7 @@ function bankSpec(){
   return{title:"The bank has called",
     lede:`${fmtMoney(S.cash)} in the bank. Wages cost about ${fmtMoney(weekly)} a week more than the gate brings in. In the red at the end of a gameweek, the bank sells your best player.`,
     choices:[
-      {t:`Sell ${p.nm} for ${fmtMoney(fee)}`,d:"Safe in the bank, a weaker team",after(){p.gone=true;recalcSquadRating()},fx:{cash:fee},out:`${p.nm} is sold. The bank is happy.`},
+      {t:`Sell ${p.nm} for ${fmtMoney(fee)}`,d:"Safe in the bank, a weaker team",after(){p.gone=true;recalcSquadRating()},fx:{cash:fee},exact:true,out:`${p.nm} is sold. The bank is happy.`},
       {t:"Ride it out",d:S.cash-2*weekly<0?"Likely in the red before the end":"Should just about get through",out:`You hold your nerve.`}]};
 }
 function renderWindow(which,after){
@@ -736,12 +751,14 @@ const PRESSERS_CLUB=[
     body:`<p>Now it is a story, and how you answer will set the price, the player's head and the supporters' mood for a fortnight.</p>`,
     choices:[
       {t:"He is not for sale at any price",d:"Strong, and it costs you leverage",
-        fx:{fans:13,board:-4},delayed:{cash:-18},
-        delayedText:`${r} withdrew entirely after the 'not for sale' line. There is no bid to negotiate against now.`,
+        // (a withdrawn bid costs nothing -- it once took cash, which made no sense)
+        fx:{fans:13,board:-4},delayed:{squad:4},
+        delayedText:`${r} withdrew entirely after the 'not for sale' line. No bid now -- but he loved hearing it, and so did the dressing room.`,
         out:`"Not for sale. Not to them, not to anyone, not in January." The away end will sing about it.`},
       {t:"Everybody has a price",d:"Invites a bigger bid, unsettles him",
-        fx:{fans:-9,squad:-5},delayed:{cash:60},
-        delayedText:`${r} came back with a substantially improved offer after your 'everybody has a price' remark. Your agent friends call it accidental genius.`,
+        // (no sale, so no money -- an improved offer isn't cash in the bank)
+        fx:{fans:-9,squad:-5},delayed:{squad:-4},
+        delayedText:`${r} came back with an improved offer after your 'everybody has a price' remark. You haven't sold him, and his head has been turned ever since.`,
         out:`You say it with a smile. The smile does not make it into the photograph.`},
       {t:"Refuse to discuss another club's business",d:"Says nothing, gives nothing",fx:{board:5,fans:-2},
         out:`"I am not talking about speculation." A short, professional, forgettable exchange.`}]}}},

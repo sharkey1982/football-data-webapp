@@ -292,7 +292,7 @@ ok("page 6: the position at the top updates once your result is in", /\d(st|nd|r
 els.toOthers.onclick();drain();
 ok("page 7: a plain headline at full time -- never 'No change for you'", !/No change for you/.test(els.asit.textContent)&&/^(Up to |Down to )?\d(st|nd|rd|th)\.$/.test(els.asit.textContent), els.asit.textContent);
 ok("the agreed Beginner season: five games, a story between each, the window and the bank before Gameweek 4",
-  run("PLAN.join()")==="match,presser,match,knock,match,sponsor,match,window,bank,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
+  run("PLAN.join()")==="match,presser,match,bid,match,sponsor,match,window,bank,match,end"&&run("MW")===5&&run("FIXTURES.length")===5, run("PLAN.join()"));
 ok("Gameweek 2 is an even game now; the strongest club is saved for last -- the final boss",
   (()=>{const st=run("RIVALS.slice().sort((a,b)=>b.str-a.str)[0].n");const f=w=>{const[h,a]=run(`myFixture(${w})`);return h===CLUB?a:h};const CLUB="Your Team";return f(1)!==st&&f(4)===st})());
 run(`S.mw=1`);els.htBox=undefined;run(`subHalfTime(()=>{})`);
@@ -502,5 +502,16 @@ delete els.htBox;run(`SEED="FB-KEEP";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.
   const during=run(`S.squadList.find(p=>p.nm===${JSON.stringify(nm)}).fit`);
   ok("keep him on: he plays through it -- full strength for the second half", during>=95&&fit0<95, `${fit0}% → plays at ${during}%`);
   ok("the star in the dilemma is an attacker (the choice is about goal threat)", /^(FW|MF)$/.test(run(`S.squadList.find(p=>p.nm===${JSON.stringify(nm)}).pos`))); }
+// 30. Scenarios that make sense (Chris, 2026-09-22)
+ok("after Gameweek 2 the story is a bid for a player, not a resting decision (health calls are on the team sheet)", run("BEGINNER_PLAN.join()").includes("match,bid,match")&&!run("BEGINNER_PLAN.join()").includes("knock"));
+run(`SEED="BID-2";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=2`);delete els.ch;
+run(`renderSpec(Object.assign(bidSpec(),{fullChoices:true}),"A BID ARRIVES",()=>{})`);
+{ const quoted=+((els.ch.children[0].innerHTML.match(/Sell for £(\d+)k/)||[])[1]);const c0=run("S.cash");
+  ok("the bid: sell (money in, squad quality down) or keep", /Sell for £\d+k/.test(els.ch.children[0].innerHTML)&&/squad quality [\d.]+ → [\d.]+/.test(els.ch.children[0].innerHTML)&&/Keep /.test(els.ch.children[1].innerHTML));
+  els.ch.children[0].onclick();
+  ok("a quoted price moves EXACTLY that much (a £103k sale once paid £98k)", run("S.cash")-c0===quoted, `quoted £${quoted}k, moved £${run("S.cash")-c0}k`); }
+{ // the rival-bid press question: no cash for a withdrawn bid, or for an offer you didn't accept
+  const src=fs.readFileSync('content.js','utf8');const st=src.indexOf('{id:"rivalbid"'),blk=src.slice(st,src.indexOf('{id:',st+10)); // this event only
+  ok("a withdrawn bid costs nothing, and an improved offer you didn't take isn't money", !/delayed:\{cash:/.test(blk)); }
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);
