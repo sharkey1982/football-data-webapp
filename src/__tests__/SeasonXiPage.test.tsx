@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SeasonXiPage from '../pages/fpl/SeasonXiPage';
@@ -7,7 +7,7 @@ import * as api from '../lib/seasonXiApi';
 
 vi.mock('../lib/seasonXiApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/seasonXiApi');
-  return { ...actual, getSeasonBestXi: vi.fn(), getSeasonValueLeaders: vi.fn(), getXiSeasons: vi.fn() };
+  return { ...actual, getSeasonBestXi: vi.fn(), getSeasonValueLeaders: vi.fn(), getXiSeasons: vi.fn(), getSeasonXiWeekly: vi.fn() };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -17,6 +17,13 @@ const p = (over: Partial<api.SeasonXiPlayer>): api.SeasonXiPlayer => ({
 });
 
 describe('SeasonXiPage', () => {
+  // The weekly section fetches on every render of this page, so every test
+  // needs it stubbed -- without it the mock returns undefined and the page
+  // fails on .then.
+  beforeEach(() => {
+    mocked.getSeasonXiWeekly.mockResolvedValue([]);
+  });
+
   it('shows August prices, not end-of-season prices', async () => {
     mocked.getSeasonValueLeaders.mockResolvedValue([]);
     mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
@@ -77,5 +84,37 @@ describe('SeasonXiPage', () => {
 // Both appear in the prose summary and again on their own bars.
     expect(screen.getAllByText(/£78\.5m/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/£80\.5m/).length).toBeGreaterThan(0);
+  });
+
+  // This section rendered "Loading" for ever in production: its useEffect had
+  // been placed AFTER the page's early return, so the hook never ran. A test
+  // that only checked the helper maths would not have caught it -- this one
+  // renders the page and waits for real numbers.
+  it('shows the week-by-week spread for the chosen season', async () => {
+    mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
+    mocked.getSeasonBestXi.mockResolvedValue([p({})]);
+    mocked.getSeasonXiWeekly.mockResolvedValue([
+      { gameweek: 1, total_points: 40, players_returning: 11, blanks: 0 },
+      { gameweek: 2, total_points: 80, players_returning: 9, blanks: 2 },
+    ]);
+
+    render(<MemoryRouter><SeasonXiPage /></MemoryRouter>);
+
+    await waitFor(() => expect(mocked.getSeasonXiWeekly).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/120 points across 2 gameweeks/)).toBeInTheDocument());
+    expect(screen.getByText('2 blanks')).toBeInTheDocument();
+    expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
+  });
+
+  it('never prints raw escape sequences in that section', async () => {
+    mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
+    mocked.getSeasonBestXi.mockResolvedValue([p({})]);
+    mocked.getSeasonXiWeekly.mockResolvedValue([{ gameweek: 1, total_points: 40, players_returning: 11, blanks: 0 }]);
+
+    const { container } = render(<MemoryRouter><SeasonXiPage /></MemoryRouter>);
+    await waitFor(() => expect(mocked.getSeasonXiWeekly).toHaveBeenCalled());
+    expect(container.textContent).not.toMatch(/\\u[0-9a-f]{4}/i);
   });
 });

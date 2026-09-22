@@ -116,9 +116,10 @@ export default function SeasonXiPage() {
     getSeasonValueLeaders(seasonId).then(setValue).catch(() => setValue([]));
   }, [seasonId, rolling]);
 
-  if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
-  if (xi.length === 0) {
-    useEffect(() => {
+  // Week by week for the chosen season. MUST sit with the other hooks, above
+  // the early return below: placed after it, this never ran and the section
+  // showed "Loading" for ever.
+  useEffect(() => {
     if (seasonId === null) { setWeekly(null); return; }
     let live = true;
     setWeekly(null);
@@ -128,6 +129,8 @@ export default function SeasonXiPage() {
     return () => { live = false; };
   }, [seasonId]);
 
+  if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
+  if (xi.length === 0) {
   return (
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">The set-and-forget XI</h1>
@@ -238,10 +241,10 @@ export default function SeasonXiPage() {
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Week by week</h2>
-        {weekly === null && <p className="text-sm text-ink-500 mt-2">Loading\u2026</p>}
+        {weekly === null && <p className="text-sm text-ink-500 mt-2">Loading&hellip;</p>}
         {weekly !== null && weekly.length === 0 && (
           <p className="text-sm text-ink-600 mt-2">
-            No weekly history for this season yet \u2014 it covers 2022/23 onward.
+            No weekly history for this season yet &mdash; it covers 2022/23 onward.
           </p>
         )}
         {weekly !== null && weekly.length > 0 && (() => {
@@ -250,7 +253,7 @@ export default function SeasonXiPage() {
           return (
             <>
               <p className="text-sm text-ink-600 mt-1">
-                Eleven players, no captain, no substitutes \u2014 {spread.total} points across {spread.weeks} gameweeks.
+                Eleven players, no captain, no substitutes &mdash; {spread.total} points across {spread.weeks} gameweeks.
               </p>
               <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 mt-3">
                 {[
