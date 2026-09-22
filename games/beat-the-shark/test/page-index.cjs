@@ -30,18 +30,19 @@ const add=(t)=>out.push(`${String(++n).padStart(2)}. ${t}`);
 add('Opening — "Your mission: Win the league!"; level; Manager / Owner');
 add('The league — predicted finishing positions; Begin');
 add('Your team — expected finish, bank balance; goals-for rank, clean-sheet rank, team health, squad quality');
-const NAME={knock:'The physio — one named player has a knock: rest him for the next game, or risk him',window:'Transfer window — a choice between two players: the better one, or the cheaper one (fee, wages, cash left, squad quality)',bank:'The bank calls — cash is now the issue: sell a player, or ride it out',special1:'A bid arrives — keep or sell your best player',heatmap:'Your next five fixtures (heat map)',presser:'Press conference (story)',
+add('Pre-season — how it went (team health, squad quality, the Shark\'s prediction, opening day), then PAY DAY announced: wages out, cash before → after');
+const NAME={sponsor:'The sponsor calls — a shirt deal (+£6k at the gate every game) or a players\' bonus (wages +£4k a week, the team lifted)',knock:'The physio — one named player has a knock: rest him for the next game, or risk him',window:'Transfer window — two players or no signing: fee, wages, cash left, squad quality',bank:'The bank calls — cash is now the issue: sell a player, or ride it out',special1:'A bid arrives — keep or sell your best player',heatmap:'Your next five fixtures (heat map)',presser:'Press conference (story)',
   crisis:'Cash crisis — sell a striker or a defender',physio:'The physio room',papers:'The Sunday papers',event:'A story decision',podcast:'The podcast clip',
   special2:'January window, then the winter break',stats:'Halfway: the numbers',luck:'A stroke of luck (or not)',call:'A phone call'};
-const PRE=["Shape: read the opponent — go for it or stay compact (each option shows your xG and theirs)","Shape v the strongest club — compact is right","Selection — the better player or the fresher one","Shape — three options: go for it, balanced, stay compact","Final day — shape, three options"];
+const PRE=["Shape: read the opponent — go for it or stay compact (each option shows your xG and theirs)","Shape v the strongest club — compact is right","Selection — the better player or the fresher one","1. Selection on health, then 2. shape — three options","Final day — 1. selection on health, then 2. shape, three options"];
 const HT=["none — the first game is kept simple","Keep the tiring star on, or bring on a fresher player?","Push on or hold?","Keep the tiring star on, or bring on a fresher player?","TWO changes — a sub at half time, then at 70': chase it or protect it?"];
 for(const b of plan){
   if(b==='match'){
     gw++;const k=gw-1,[h,a]=run(`myFixture(${k})`),opp=h==='Your Team'?a:h;
-    if(gw>1)add(`Gameweek ${gw} — match-day summary: position, cash, team health, expected goals, clean sheets`);
-    add(`Gameweek ${gw} — preview v ${opp}: them v you; ${PRE[k]}; Kick off; the pitch`);
-    add(`Gameweek ${gw} — your 12:30 kick-off${gw===1?' (opening day)':gw===5?' (final day)':''}: commentary; half time: ${HT[k]}`);
-    add(`Gameweek ${gw} — the table`);
+    if(gw>1)add(`Gameweek ${gw} — match-day summary: position, cash, team health, expected goals, clean sheets; PAY DAY announced (wages out, cash before → after)`);
+    add(`Gameweek ${gw} — preview v ${opp}: them v you; ${PRE[k]} (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch`);
+    add(`Gameweek ${gw} — your 12:30 kick-off${gw===1?' (opening day)':gw===5?' (final day)':''}: "You should win / lose / Too close to call", them v you, commentary; half time: ${HT[k]}; "An upset!" if it goes against the odds`);
+    add(`Gameweek ${gw} — the table; GATE RECEIPTS (cash in)`);
     add(`Gameweek ${gw} — the 3pm kick-offs, live; then the table now`);
   }
   else if(b==='end')add('The end — champions or your position; the final table');
