@@ -16,13 +16,13 @@
 
 import { useEffect, useState } from 'react';
 import type { FplOptimizerPlayer, FplOptimizerWeeklyPlan } from '../../lib/fplOptimizerApi';
-import { OPTIMIZER_POSITION_LABEL } from '../../lib/fplOptimizerApi';
+import { OPTIMIZER_POSITION_LABEL, weeklyScores, weeklyDistribution } from '../../lib/fplOptimizerApi';
 import SquadPitch from './SquadPitch';
 import BenchStrip from './BenchStrip';
 import type { SquadPitchEnrichment } from '../../lib/fplApi';
 import { getPlayerSeasonPpg } from '../../lib/fplApi';
 
-type ViewMode = 'pitch' | 'table';
+type ViewMode = 'pitch' | 'table' | 'weekly';
 
 export default function WeeklySquadView({
   squad,
@@ -40,6 +40,8 @@ export default function WeeklySquadView({
   fetchEnrichment?: (matchweek: number, playerIds: number[]) => Promise<Map<number, SquadPitchEnrichment>>;
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>('pitch');
+  const scores = weeklyScores(squad, weeklyPlan);
+  const dist = weeklyDistribution(scores);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [enrichmentByWeek, setEnrichmentByWeek] = useState<Map<number, Map<number, SquadPitchEnrichment>>>(new Map());
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
@@ -126,6 +128,15 @@ export default function WeeklySquadView({
           >
             Table
           </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('weekly')}
+            className={['px-3 py-1', viewMode === 'weekly' ? 'bg-pitch-700 text-chalk-100' : 'bg-white text-ink-700']
+              .filter(Boolean)
+              .join(' ')}
+          >
+            Weekly
+          </button>
         </div>
       </div>
 
@@ -192,7 +203,57 @@ export default function WeeklySquadView({
                   </tr>
                 ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-chalk-300 bg-chalk-50 font-medium">
+                <td className="px-3 py-2 text-ink-900 whitespace-nowrap sticky left-0 bg-chalk-50">Gameweek total</td>
+                <td className="px-2 py-2" />
+                {scores.map((s) => (
+                  <td key={s.matchweek} className="px-2 py-2 text-center font-mono text-xs text-ink-900">
+                    {s.total}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
           </table>
+        </div>
+      )}
+
+      {viewMode === 'weekly' && (
+        <div className="space-y-4">
+          {dist && (
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+              {[
+                ['Best week', `${dist.max}`, dist.bestWeek ? `GW${dist.bestWeek}` : ''],
+                ['Worst week', `${dist.min}`, dist.worstWeek ? `GW${dist.worstWeek}` : ''],
+                ['Average', dist.mean.toFixed(0), `over ${dist.weeks} weeks`],
+                ['Spread', `\u00b1${dist.stdDev.toFixed(0)}`, 'standard deviation'],
+              ].map(([label, value, note]) => (
+                <div key={label} className="border border-chalk-300 rounded-lg bg-white p-2">
+                  <div className="text-[11px] text-ink-500">{label}</div>
+                  <div className="font-display text-xl text-ink-900">{value}</div>
+                  <div className="text-[11px] text-ink-400">{note}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="bg-white border border-chalk-300 rounded-lg p-3 space-y-2">
+            {scores.map((s) => {
+              const max = Math.max(...scores.map((x) => x.total), 1);
+              return (
+                <div key={s.matchweek} className="flex items-center gap-2">
+                  <span className="w-12 shrink-0 text-xs text-ink-600">GW{s.matchweek}</span>
+                  <div className="flex-1 bg-chalk-100 rounded h-5 overflow-hidden flex">
+                    <div className="h-full bg-pitch-700" style={{ width: `${(s.xiPoints / max) * 100}%` }} title="starting XI" />
+                    <div className="h-full bg-amber-400" style={{ width: `${(s.captainExtra / max) * 100}%` }} title="captain, doubled" />
+                  </div>
+                  <span className="w-10 text-right font-mono text-xs text-ink-900">{s.total}</span>
+                </div>
+              );
+            })}
+            <p className="text-[11px] text-ink-400 pt-1">
+              Green is the starting XI; amber is the captain&rsquo;s points counted a second time.
+            </p>
+          </div>
         </div>
       )}
     </div>
