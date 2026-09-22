@@ -156,7 +156,7 @@ export default function WeeklySquadView({
               enrichmentByPlayer={enrichmentByWeek.get(selectedWeek.matchweek)}
             />
           </div>
-          <BenchStrip bench={benchPlayers} benchOrder={selectedWeek.bench_order} ppgByPlayer={ppgByPlayer} />
+          <BenchStrip bench={benchPlayers} benchOrder={selectedWeek.bench_order} ppgByPlayer={ppgByPlayer} matchweek={selectedWeek.matchweek} />
         </>
       )}
 
