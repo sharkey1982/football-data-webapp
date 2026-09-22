@@ -1,0 +1,84 @@
+-- Re-derives the data-flow registry from the catalogue and records what
+-- changed. Human columns (layer, purpose, refresh_note, commentary) are never
+-- overwritten. Admin or service_role only. A second run reports 0 changes.
+create or replace function public.meta_refresh_flow()
+returns table(nodes int, edges int, changes int)
+language plpgsql security definer set search_path to 'public', 'pg_temp'
+as $$
+declare n_changes int := 0;
+begin
+  if not (public.is_admin() or current_user in ('postgres','service_role')) then
+    raise exception 'admin only';
+  end if;
+
+  create temp table _now on commit drop as
+  select 'table:'||c.relname as node_key, case c.relkind when 'r' then 'table' when 'v' then 'view' when 'm' then 'matview' end as kind,
+         c.relname as obj_name,
+         md5(coalesce(pg_get_viewdef(c.oid, true),
+             (select string_agg(a.attname||':'||format_type(a.atttypid,a.atttypmod), ',' order by a.attnum)
+              from pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped))) as definition_hash,
+         (select s.n_live_tup from pg_stat_user_tables s where s.relid=c.oid) as row_estimate
+  from pg_class c
+  where c.relnamespace='public'::regnamespace and c.relkind in ('r','v','m')
+  union all
+  select 'function:'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')', 'function',
+         p.proname, md5(pg_get_functiondef(p.oid)), null
+  from pg_proc p
+  where p.pronamespace='public'::regnamespace
+    and not exists (select 1 from pg_depend d where d.objid=p.oid and d.deptype='e');
+  update _now set node_key = replace(node_key,'table:','object:') where kind in ('table','view','matview');
+
+  insert into public.meta_flow_history (node_key, change, detail)
+  select n.node_key, 'added', n.kind||' first seen' from _now n
+  left join public.meta_flow_nodes m on m.node_key=n.node_key where m.node_key is null;
+  get diagnostics n_changes = row_count;
+
+  insert into public.meta_flow_history (node_key, change, detail)
+  select n.node_key, 'definition changed', 'definition fingerprint moved'
+  from _now n join public.meta_flow_nodes m on m.node_key=n.node_key
+  where m.definition_hash <> n.definition_hash and m.is_present;
+  n_changes := n_changes + coalesce((select count(*) from _now n join public.meta_flow_nodes m on m.node_key=n.node_key
+    where m.definition_hash <> n.definition_hash and m.is_present),0);
+
+  insert into public.meta_flow_history (node_key, change, detail)
+  select m.node_key, 'disappeared', 'no longer in the database'
+  from public.meta_flow_nodes m left join _now n on n.node_key=m.node_key
+  where n.node_key is null and m.is_present;
+  n_changes := n_changes + coalesce((select count(*) from public.meta_flow_nodes m
+    left join _now n on n.node_key=m.node_key where n.node_key is null and m.is_present),0);
+
+  insert into public.meta_flow_history (node_key, change, detail)
+  select m.node_key, 'returned', 'present again'
+  from public.meta_flow_nodes m join _now n on n.node_key=m.node_key where not m.is_present;
+
+  insert into public.meta_flow_nodes (node_key, kind, obj_name, definition_hash, row_estimate)
+  select node_key, kind, obj_name, definition_hash, row_estimate from _now
+  on conflict (node_key) do update
+    set kind=excluded.kind, obj_name=excluded.obj_name, definition_hash=excluded.definition_hash,
+        row_estimate=excluded.row_estimate, last_seen=now(), is_present=true;
+  update public.meta_flow_nodes m set is_present=false
+  where m.is_present and not exists (select 1 from _now n where n.node_key=m.node_key);
+
+  delete from public.meta_flow_edges where source <> 'manual';
+  insert into public.meta_flow_edges (parent_key, child_key, source)
+  select distinct 'object:'||src.relname, 'object:'||v.relname, 'catalog'
+  from pg_rewrite r join pg_class v on v.oid=r.ev_class
+  join pg_depend d on d.objid=r.oid join pg_class src on src.oid=d.refobjid
+  where v.relnamespace='public'::regnamespace and src.relnamespace='public'::regnamespace
+    and v.relkind in ('v','m') and src.relkind in ('r','v','m') and src.oid<>v.oid
+  on conflict do nothing;
+  insert into public.meta_flow_edges (parent_key, child_key, source)
+  select distinct 'object:'||c.relname, f.node_key, 'parsed'
+  from (select 'function:'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')' node_key, pg_get_functiondef(p.oid) def
+        from pg_proc p where p.pronamespace='public'::regnamespace
+          and not exists (select 1 from pg_depend d where d.objid=p.oid and d.deptype='e')) f
+  join pg_class c on c.relnamespace='public'::regnamespace and c.relkind in ('r','v','m')
+   and f.def ~* ('(^|[^.[:alnum:]_])(public\.)?'||c.relname||'([^[:alnum:]_]|$)')
+  on conflict do nothing;
+
+  return query select (select count(*)::int from public.meta_flow_nodes where is_present),
+                      (select count(*)::int from public.meta_flow_edges), n_changes;
+end $$;
+revoke all on function public.meta_refresh_flow() from public, anon;
+grant execute on function public.meta_refresh_flow() to authenticated, service_role;
+comment on function public.meta_refresh_flow() is 'Re-derives the data-flow registry from the catalogue and records what changed. Human commentary is preserved.';
