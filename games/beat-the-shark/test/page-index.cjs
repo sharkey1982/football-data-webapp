@@ -30,7 +30,7 @@ const add=(t)=>out.push(`${String(++n).padStart(2)}. ${t}`);
 add('Opening — "Your mission: Win the league!"; level; Manager / Owner');
 add('The league — predicted finishing positions; Begin');
 add('Your team — expected finish, bank balance; goals-for rank, clean-sheet rank, team health, squad quality');
-add('Pre-season — how it went (team health, squad quality, the Shark\'s prediction, opening day), then PAY DAY announced: wages out, cash before → after');
+add("Pre-season — how it went: team health, squad quality, FixtureShark's prediction, opening day; then on to the bills");
 const NAME={bid:'A bid arrives — sell one of your players (money in, squad quality down) or keep him',sponsor:'The sponsor calls — a shirt deal (+£6k at the gate every game) or a players\' bonus (wages +£4k a week, the team lifted)',knock:'The physio — one named player has a knock: rest him for the next game, or risk him',window:'BEFORE THE FINAL: THE BIG WINDOW — a marquee striker (goals) or centre-back (clean sheets), or no signing; each with fee, wages, cash left and its 1X2 v the final boss; the risk: the bank sells your best player, or 3 points deducted',bank:'The bank calls — cash is now the issue: sell a player, or ride it out',special1:'A bid arrives — keep or sell your best player',heatmap:'Your next five fixtures (heat map)',presser:'Press conference (story)',
   crisis:'Cash crisis — sell a striker or a defender',physio:'The physio room',papers:'The Sunday papers',event:'A story decision',podcast:'The podcast clip',
   special2:'January window, then the winter break',stats:'Halfway: the numbers',luck:'A stroke of luck (or not)',call:'A phone call'};
@@ -39,11 +39,13 @@ const HT=["none — the first game is kept simple","Win it or protect it (on the
 for(const b of plan){
   if(b==='match'){
     gw++;const k=gw-1,[h,a]=run(`myFixture(${k})`),opp=h==='Your Team'?a:h;
-    if(gw>1)add(`Gameweek ${gw} — match-day summary: position, cash, team health, expected goals, clean sheets; PAY DAY announced (wages out, cash before → after)`);
-    add(`Gameweek ${gw} — preview v ${opp}: them v you; ${PRE[k]} (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch`);
+    if(gw>1)add(`Gameweek ${gw} — match-day summary: position, cash, team health, expected goals, clean sheets`);
+    add(`Gameweek ${gw} — PAYING THE BILLS: the wage bill plus a chance card (a bill that lands, or money that comes in), cash before → after`);
+    add(`Gameweek ${gw} — preview v ${opp}: them v you; ${PRE[k]} (one 1X2 line and this match's stats at the top, both moving with your choices; shapes side by side); Kick off; the pitch`);
     add(`Gameweek ${gw} — your 12:30 kick-off${gw===1?' (opening day)':gw===5?' (final day)':''}: "You should win / lose / Too close to call", them v you, commentary; half time: ${HT[k]}; "An upset!" if it goes against the odds`);
     add(`Gameweek ${gw} — the table; GATE RECEIPTS (cash in)`);
-    add(`Gameweek ${gw} — the 3pm kick-offs, live; then the table now`);
+    add(`Gameweek ${gw} — the 3pm kick-offs, live; then the table now${gw<5?' (in the red? "The bank is stepping in: a player must be sold")':''}`);
+    if(gw<5)add(`Gameweek ${gw} — ONLY IF IN THE RED: the bank's decision — sell your best attacker (fewer goals) or best defender (more conceded), with the remaining fixtures as a heat map`);
   }
   else if(b==='end')add('The end — champions or your position; the final table');
   else add(NAME[b]||b);

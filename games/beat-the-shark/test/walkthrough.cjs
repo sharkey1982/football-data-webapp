@@ -59,9 +59,13 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
       // Beginner: then the pre-season page -- the first pay day, announced, and the same prediction
       if(run('WEEKLY_WAGES')&&els.go&&typeof els.go.onclick==='function'){els.go.onclick();scan(`${lvl}/${role} pre-season`,els.app.innerHTML);
         const pre=txt(els.app.innerHTML);
-        if(!/PAY DAY/.test(pre))problems.push(`${lvl}/${role}/${seed}: the pre-season page doesn't announce the pay day`);
+        if(!/Paying the bills/.test(pre))problems.push(`${lvl}/${role}/${seed}: pre-season doesn't lead to the bills`);
         const says=(pre.match(/(\d+(?:st|nd|rd|th)) expected finish/)||[])[1];
-        if(says&&says!==model)problems.push(`${lvl}/${role}/${seed}: pre-season says ${says}, the model says ${model}`);}
+        if(says&&says!==model)problems.push(`${lvl}/${role}/${seed}: pre-season says ${says}, the model says ${model}`);
+        // then the bills: its own page, wages plus a chance card
+        if(els.go&&typeof els.go.onclick==='function'){els.go.onclick();scan(`${lvl}/${role} the bills`,els.app.innerHTML);
+          const bills=txt(els.app.innerHTML);
+          if(!/PAYING THE BILLS/.test(bills)||!/Wages/.test(bills))problems.push(`${lvl}/${role}/${seed}: no weekly bills page`);}}
       if((openClaim&&openClaim!==preClaim)||(preClaim&&preClaim!==model))problems.push(`${lvl}/${role}/${seed}: opening says ${openClaim}, pre-season says ${preClaim}, model says ${model}`);}
   catch(e){crashes.push(`${lvl}/${role}/${seed} start: ${e.message}`);continue}
   const plan=run('PLAN');
@@ -78,7 +82,8 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
     // half-time / 70' cards: choose, then "Send them out" -- up to twice (GW5 has two)
     const answerCards=()=>{for(let n=0;n<2;n++){const c=els.subNo||els.htPush;if(!(els.htGo&&c&&typeof c.onclick==='function'))break;
       try{c.onclick();els.htGo.onclick();settle()}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} half-time: ${x.message}`)};els.subNo=els.htPush=els.htGo=undefined}};
-    for(const b of ['go','kick','answer','goSecond','toTable','toOthers','mn']){
+    // fs0/fsGo: the bank's forced-sale decision, when a gameweek ends in the red
+    for(const b of ['go','kick','answer','goSecond','toTable','toOthers','mn','fs0','fsGo']){
       if(b==='answer'){answerCards();continue}const e=els[b];if(!e||typeof e.onclick!=='function')continue;
       const wkNow=run('S.mw');
       try{e.onclick();settle();scan(`${lvl}/${role} ${plan[i]} → ${b}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML)

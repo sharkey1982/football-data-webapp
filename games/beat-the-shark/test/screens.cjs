@@ -253,7 +253,13 @@ run(`LEVEL="intermediate";SPEED=null`);
 run(`LEVEL="beginner";ROLE=ROLES.manager;boot();S.cash=-50;const before=alive().length;globalThis.__before=before;
   renderElsewhere({wk:0,final:false},()=>{})`);
 drain(); // the 3pm kick-offs run live; money is settled at full time
-ok("in the red at the end of a gameweek, the bank forces a sale -- and the results screen says so", /The bank forced a sale/.test(els.lend.innerHTML)&&run("alive().length")===run("__before")-1);
+ok("in the red at a gameweek's end: announced, not done silently -- 'a player must be sold'", /The bank is stepping in: a player must be sold/.test(els.lend.innerHTML)&&run("alive().length")===run("__before")&&run("S._saleDue")===true);
+els.mn.onclick(); // "The bank's decision"
+{ const h=app();const fixtures=run("MW-S.mw");
+  ok("the bank's decision: a heat map of the remaining fixtures -- now, sell your best attacker, sell your best defender",
+    /A player must be sold/.test(h)&&(h.match(/<th class="n" style="text-align:center">GW\d/g)||[]).length===fixtures&&/Now/.test(h)&&/fewer goals/.test(h)&&/more conceded/.test(h));
+  const fee=+((h.match(/id="fs0"><span class="t">[^<]* for £(\d+)k/)||[])[1]);const c0=run("S.cash");els.fs0.onclick();
+  ok("...choose who goes: sold at the one quoted price, exactly", run("S.cash")-c0===fee&&run("alive().length")===run("__before")-1&&run("S._saleDue")===false, `£${fee}k`); }
 run(`boot();S.cash=-400;S.deducted=false;const p0=TABLE[CLUB].pts;globalThis.__p0=p0;renderElsewhere({wk:0,final:false},()=>{})`);
 drain();
 ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(els.lend.innerHTML)&&run("S.deducted")===true);
@@ -272,15 +278,17 @@ ok("...and, smaller, goals-for and clean-sheet ranks, team health and squad qual
 const weakest=run("RIVALS.slice().sort((a,b)=>a.str-b.str)[0].n");
 ok("...and the first match is against the weakest club", ti.includes(`First match: ${weakest}`));
 els.go.onclick();
-ok("then pre-season: how it went, and the first PAY DAY announced -- cash before and after",
-  /Pre-season is done/.test(app())&&/PAY DAY/.test(app())&&/Cash £\d+k → <b>£\d+k/.test(app())&&/First match:/.test(app()));
+ok("then pre-season: how it went, leading to the bills", /Pre-season is done/.test(app())&&/Team health/.test(app())&&/Paying the bills/.test(app())&&!/PAY DAY/.test(app()));
 els.go.onclick();
-ok("the first match shows their stats against yours, then the shape question", /<th class="n">You<\/th>/.test(app())&&app().includes(weakest)&&/Goals for \(a game\)/.test(app())&&/Go for it|Pick your shape|One place/.test(app()));
+ok("then PAYING THE BILLS on its own page: wages, a chance card, cash before → after",
+  /PAYING THE BILLS/.test(app())&&/Wages<\/span><span style="color:var\(--bad\)">−£\d+k/.test(app())&&/£\d+k → <b/.test(app())&&/Team news:/.test(app()));
+els.go.onclick();
+ok("the first match shows THIS MATCH's stats against yours, then the shape question", /<th class="n">You<\/th>/.test(app())&&app().includes(weakest)&&/Goals \(this match\)/.test(app())&&/Go for it|Pick your shape|One place/.test(app()));
 // 21. Chris's page-by-page feedback (2026-09-21)
 run(`SEED="SOC-S07";LEVEL="beginner";ROLE=ROLES.manager;boot()`);
 ok("page 2: the league as predicted finishing positions, Your Team where the Shark puts it",
   /PREDICTED FINISH/.test(app())&&(app().match(/<tr class="me"><td class="n">(\d)<\/td>/)||[])[1]===String(run("sharkPos()")));
-els.go.onclick();els.go.onclick();els.go.onclick(); // your team, pre-season, then the first match
+els.go.onclick();els.go.onclick();els.go.onclick();els.go.onclick(); // your team, pre-season, bills, then the first match
 const p4=app();
 ok("page 4: Kick off sits right under the choice, the pitch below it, and no bench",
   p4.indexOf('id="kick"')<p4.indexOf('<!--SQ-->')&&p4.indexOf('data-bc=')<p4.indexOf('id="kick"')&&!/class="benchh"/.test(p4));
@@ -310,6 +318,8 @@ function toGW2HalfTime(seed){ // (now Gameweek 3: the health game carries the ke
   delete els.htBox;
   run(`SEED="${seed}";LEVEL="beginner";ROLE=ROLES.manager;boot();S.mw=2;cursor=PLAN.indexOf("match",PLAN.indexOf("match",PLAN.indexOf("match")+1)+1);S._summaryShown=false;S._sheetShown=false;step()`);
   const summary=app();
+  els.go.onclick(); // the bills
+  const bills=app();
   els.go.onclick();
   const sheet=app();
   els.kick.onclick();drain();
@@ -333,13 +343,13 @@ els.subYes.onclick();els.htGo.onclick();drain(); // bring the fresher man on
 ok("bring on the fresher man: the star is fit for the next game", run(`S.squadList.find(p=>p.nm===${JSON.stringify(star)}).out`)===0&&!run("S.manualXI"));
 // a quick week: the preview, then kick off
 // (quick weeks are the ten-game level's; every Beginner game has its decisions)
-run(`SEED="MD-1";LEVEL="intermediate";ROLE=ROLES.manager;boot();const i=PLAN.indexOf("live");cursor=i;S.mw=2;S._summaryShown=true;step()`);
-ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n">You<\/th>/.test(app())&&/id="kick"/.test(app())&&/12:30 KICK-OFF/.test(app()));
+run(`SEED="MD-1";LEVEL="intermediate";ROLE=ROLES.manager;boot();const i=PLAN.indexOf("live");cursor=i;S.mw=2;S._summaryShown=true;S._billsShown=true;step()`);
+ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n">You<\/th>/.test(app())&&/Goals \(this match\)/.test(app())&&/id="kick"/.test(app())&&/12:30 KICK-OFF/.test(app()));
 // 23. THE BEGINNER SEASON (agreed 2026-09-21)
 run(`SEED="BG-1";chooseRole()`);
 ok("levels: Beginner only for now -- Intermediate and Advanced marked 'Coming soon' and not selectable",
   /data-level="beginner"/.test(app())&&!/data-level="intermediate"/.test(app())&&!/data-level="guru"/.test(app())&&(app().match(/Coming soon/g)||[]).length===3); // + the owner
-run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();els.go.onclick();
+run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();els.go.onclick();els.go.onclick();
 ok("neutral venues: no home or away anywhere, and no home advantage in the model",
   !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
 ok("Shark Scout are stronger at Beginner only (they win the league most of the time)",
@@ -372,10 +382,10 @@ run(`paintHeader()`);
 ok("...and the change stays visible until cash moves again", /▼ −£23k/.test(els.hTwo.innerHTML));
 run(`S.cash=90;paintHeader()`);
 ok("...then shows the next change, in green when it's up", /class="cashd up">▲ \+£13k/.test(els.hTwo.innerHTML));
-// pre-match decisions show their impact on this match
-els.go.onclick();els.go.onclick();els.go.onclick();
-ok("pre-match options show their impact: your xG and theirs for this match, compared with the other option",
-  (app().match(/You \d\.\d xG/g)||[]).length===2&&(app().match(/Them \d\.\d xG/g)||[]).length===2&&/[▲▼]/.test(app())&&!/win chance/i.test(app()));
+// the top section carries this match's numbers
+els.go.onclick();els.go.onclick();els.go.onclick();els.go.onclick();
+ok("the options are clean -- no figures on the buttons; the top section carries this match's numbers",
+  !/xG<\/span>/.test(app())&&/The model: win \d+%/.test(app())&&/Goals \(this match\)/.test(app()));
 // the window: a simple choice between two players
 delete els.ch;run(`S.cash=97;renderSpec(Object.assign(signingSpec(),{keepFull:true,fullChoices:true}),"T",()=>{})`);
 const opts=els.ch.children.map(c=>c.innerHTML.replace(/<[^>]+>/g,' '));
@@ -384,13 +394,13 @@ ok("the window: two players and 'No signing' -- simple: fee, wages, cash left, s
 ok("...one better, one with the cash advantage",
   num(opts[0],/→ ([\d.]+)/)>num(opts[1],/→ ([\d.]+)/)&&num(opts[1],/£(-?\d+)k left/)>num(opts[0],/£(-?\d+)k left/), opts.map(t=>t.replace(/\s+/g,' ').trim()).join(' | '));
 // 25. Round 3 of Beginner feedback: no set pieces; three shapes from GW4; GW5 two changes
-run(`SEED="R3-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3;cursor=PLAN.indexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
+run(`SEED="R3-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3;cursor=PLAN.indexOf("match");S._summaryShown=true;S._billsShown=true;S._sheetShown=false;step()`);
 ok("Gameweek 4: three shapes -- go for it, balanced, stay compact -- each with its impact",
-  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&!/One place in the side/.test(app())&&(app().match(/You \d\.\d xG/g)||[]).length===3);
+  /Go for it/.test(app())&&/Balanced \(/.test(app())&&/Stay compact/.test(app())&&!/One place in the side/.test(app())&&/grid-template-columns:repeat\(3,1fr\)/.test(app())&&!/xG<\/span>/.test(app()));
 run(`S.mw=2;S._sheetShown=false;renderTeamSheet(()=>{})`);
 ok("Gameweek 3: selection, not set pieces", /One place in the side/.test(app())&&!/set pieces/i.test(app()));
 delete els.htBox;delete els.toTable;
-run(`S.mw=4;cursor=PLAN.lastIndexOf("match");S._summaryShown=true;S._sheetShown=false;step()`);
+run(`S.mw=4;cursor=PLAN.lastIndexOf("match");S._summaryShown=true;S._billsShown=true;S._sheetShown=false;step()`);
 els.kick.onclick();drain();
 ok("Gameweek 5, change one: the half-time sub", /is tiring/.test(els.htBox.innerHTML));
 els.subYes.onclick();els.htGo.onclick();drain();
@@ -403,15 +413,15 @@ ok("...and then on to full time", !!(els.toTable&&els.toTable.onclick));
 // 26. Should we win? Upsets. Two cash moments. (Chris, 2026-09-22)
 run(`SEED="CM-1";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot()`);
 const c0=run("S.cash"),w0=run("S.wages");els.go.onclick();
-ok("the Your Team page no longer hides the pay day in its stats", !/PAY DAY|Pay day/.test(app()));
-els.go.onclick();
-ok("pay day: announced on its own, the wage bill out before the game, the page and the header alike",
-  run("S.cash")===c0-w0&&/PAY DAY/.test(app())&&app().includes(`−£${w0}k`)&&app().includes(`Cash £${c0}k → <b>£${c0-w0}k`)&&els.hTwo.innerHTML.includes(`▼ −£${w0}k`));
-run(`renderPreseasonUpdate()`);
-ok("...charged once, however often the page is drawn", run("S.cash")===c0-w0&&app().includes(`Cash £${c0}k → <b>£${c0-w0}k`));
+ok("the Your Team page no longer hides the pay day in its stats", !/PAY DAY|Paying the bills<\/div>/.test(app()));
+els.go.onclick();els.go.onclick(); // pre-season, then the bills
+ok("paying the bills: its own page -- wages plus a chance card, out before the game, page and header alike",
+  /PAYING THE BILLS/.test(app())&&run("S.cash")===c0-w0+run("S.bills[S.mw].card.v")&&els.hTwo.innerHTML.includes(`▼ −£${w0-run("S.bills[S.mw].card.v")}k`));
+{ const c=run("S.cash");run(`payWeek()`); // (the page's own call, again)
+  ok("...charged once, however often the page is drawn", run("S.cash")===c); }
 els.go.onclick();delete els.htBox;delete els.toTable;els.kick.onclick();
 ok("the live match headlines what should happen, then them v you -- not the old ratings block",
-  /Heavy favourites|The favourites|Nobody gives you a chance|The underdogs|On a knife-edge/.test(app())&&/The model: win \d+% · draw \d+% · lose \d+%/.test(app())&&/<th class="n">You<\/th>/.test(app())&&!/rated \d+|Model odds|Team Strength<\/b>/.test(app()));
+  /Heavy favourites|The favourites|Nobody gives you a chance|The underdogs|On a knife-edge/.test(app())&&/The model: win \d+% · draw \d+% · lose \d+%/.test(app())&&/Goals \(this match\)/.test(app())&&!/rated \d+|Model odds|Team Strength<\/b>/.test(app()));
 drain();const c1=run("S.cash");els.toTable.onclick();const g=run("S.cash")-c1;
 ok("gate receipts: after the game, the exact amount in the page and the header", g>0&&app().includes(`Gate receipts: <b style="color:var(--good)">+£${g}k`)&&els.hTwo.innerHTML.includes(`▲ +£${g}k`), `+£${g}k`);
 ok("pay day and receipts happen once each a week, however often the page is drawn", run("payDay()")===null&&run("gateReceipts('w')")===null);
@@ -513,5 +523,15 @@ run(`renderSpec(Object.assign(bidSpec(),{fullChoices:true}),"A BID ARRIVES",()=>
 { // the rival-bid press question: no cash for a withdrawn bid, or for an offer you didn't accept
   const src=fs.readFileSync('content.js','utf8');const st=src.indexOf('{id:"rivalbid"'),blk=src.slice(st,src.indexOf('{id:',st+10)); // this event only
   ok("a withdrawn bid costs nothing, and an improved offer you didn't take isn't money", !/delayed:\{cash:/.test(blk)); }
+// 31. The bank steps in, visibly (Chris, 2026-09-22)
+run(`SEED="FS-2";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3`);
+{ const r=run(`(()=>{const pick=pos=>alive().filter(p=>!p.gone&&!p.out&&p.pos===pos).sort((a,b)=>b.rt-a.rt)[0];const att=pick("FW"),def=pick("DF");
+    const[h,a]=myFixture(3),home=h===CLUB,opp=home?a:h;const base=matchProbs(opp,home);
+    att.gone=true;recalcSquadRating();const A=matchProbs(opp,home);att.gone=false;def.gone=true;recalcSquadRating();const D=matchProbs(opp,home);def.gone=false;recalcSquadRating();
+    return{b:[base.xgf,base.xga],a:[A.xgf,A.xga],d:[D.xgf,D.xga]}})()`);
+  ok("selling the attacker lowers your goal threat; selling the defender raises goals conceded", r.a[0]<r.b[0]&&r.d[1]>r.b[1], JSON.stringify(r)); }
+ok("the bank's forced sale uses the one sale price (it once used the ten-game formula at Beginner)", run(`(()=>{const p=alive()[3];return saleFee(p)<=Math.round((p.rt-38)*13/2)})()`));
+run(`S.mw=MW;S.cash=-20;S._saleDue=false`);
+ok("after the final, no forced sale (there are no games left for it to matter)", JSON.stringify(run("cashConsequences({deferSale:NEUTRAL&&S.mw<MW})")).indexOf("saleDue")<0);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

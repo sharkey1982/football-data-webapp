@@ -81,7 +81,8 @@ function step(){
     // Before every game (Chris): the match-day summary (from Gameweek 2 --
     // Gameweek 1 has the Your Team page), then the preview.
     if(S.mw>0&&!S._summaryShown){S._summaryShown=true;return renderMatchdaySummary(step)}
-    S._summaryShown=false;
+    if(S.mw>0&&!S._billsShown){S._billsShown=true;return renderPayDay(step)}
+    S._summaryShown=false;S._billsShown=false;
     if(b==="live")return renderQuickPreview();
   }
   if(b==="match")return renderMatch(next);
@@ -623,20 +624,29 @@ function clubRank(valueOf,higherIsBetter){
   return v.findIndex(x=>x.n===CLUB)+1;
 }
 /* Before every game: where you stand, and the side you're sending out. */
-/* PAY DAY, announced (Chris: the first one was too quick and hidden in the
-   team summary). A block of its own: the wage bill, and cash before -> after. */
-function payDayHTML(){
-  if(!WEEKLY_WAGES)return "";
-  const before=S.cash;payDay();
-  const paid=S.paid?S.paid[S.mw]:null;if(paid==null)return "";
-  const was=S.paid&&S._payShownFrom!=null&&S._payShownMw===S.mw?S._payShownFrom:before+ (S.cash===before?paid:0);
-  S._payShownFrom=was;S._payShownMw=S.mw;
-  return `<div class="payday"><div class="hero-kicker" style="color:var(--bad)">PAY DAY</div>
-    <div class="payamt">−${fmtMoney(paid)}</div><div class="biglabel">the week's wages</div>
-    <div style="font-family:var(--mono);font-size:13px;margin-top:6px">Cash ${fmtMoney(was)} → <b>${fmtMoney(S.cash)}</b></div></div>`;
+/* PAYING THE BILLS -- its own page, every week (Chris). The wage bill and
+   one chance card that adds to or takes off the spend; cash before -> after. */
+function renderPayDay(then){
+  const b=payWeek(),opp=(()=>{const[h,a]=myFixture(S.mw);return h===CLUB?a:h})();
+  const up=b.card.v>0;
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card hero">
+    <div class="hero-kicker" style="color:var(--bad)">PAYING THE BILLS</div>
+    <div class="mission">Matchday ${S.mw+1}</div>
+    <div class="payday" style="margin-top:14px">
+      <div class="payamt">${b.after-b.before>0?"+":"−"}${fmtMoney(Math.abs(b.after-b.before))}</div>
+      <div class="biglabel">this week</div>
+      <div style="margin-top:10px;text-align:left;font-family:var(--mono);font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span>Wages</span><span style="color:var(--bad)">−${fmtMoney(b.wages)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px"><span>${b.card.t}</span><span style="color:${up?'var(--good)':'var(--bad)'}">${up?"+":"−"}${fmtMoney(Math.abs(b.card.v))}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--line);padding-top:6px"><span>Cash</span><span>${fmtMoney(b.before)} → <b${S.cash<0?' style="color:var(--bad)"':''}>${fmtMoney(b.after)}</b></span></div>
+      </div>
+    </div>
+    ${S.cash<0?`<div class="outcome" style="border-left-color:var(--bad)">In the red. Win, and the gate helps; stay in the red at the end of the week and the bank steps in.</div>`:""}
+    <button class="choice primary" id="go"><span class="t">Team news: ${opp}</span></button></div>`;
+  document.getElementById('go').onclick=then;
 }
 function renderMatchdaySummary(then){
-  const payLine=payDayHTML();
   const R=ratingsNow(S.mw),mine=R[CLUB],health=Math.round(xiStats().fit);
   const[h,a]=myFixture(S.mw),opp=h===CLUB?a:h;
   const small=(label,big,sub)=>`<div class="kpi"><div class="kl">${label}</div><div class="kb">${big}</div><div class="ks">${sub}</div></div>`;
@@ -653,7 +663,6 @@ function renderMatchdaySummary(then){
       ${small("Clean sheets",`${Math.round(Math.exp(-mine.xga)*100)}%`,"of games")}
       ${small("Next",opp,venueNote(h===CLUB).toLowerCase()||"next up")}
     </div>
-    ${payLine}
     <button class="choice primary" id="go"><span class="t">Team news: ${opp}</span></button></div>`;
   document.getElementById('go').onclick=then;
 }
@@ -694,7 +703,6 @@ function renderTeamIntro(){
 /* PRE-SEASON: how it went, then the first pay day, announced. */
 function renderPreseasonUpdate(){
   const health=Math.round(xiStats().fit),[h,a]=myFixture(0),opp=h===CLUB?a:h;
-  const pay=payDayHTML();
   paintHeader();
   document.getElementById('app').innerHTML=`<div class="card hero">
     <div class="hero-kicker">PRE-SEASON</div>
@@ -705,9 +713,8 @@ function renderPreseasonUpdate(){
       <div class="kpi"><div class="kl">FixtureShark says</div><div class="kb">${ord(sharkPos())}</div><div class="ks">expected finish</div></div>
       <div class="kpi"><div class="kl">Opening day</div><div class="kb" style="font-size:17px">${opp}</div><div class="ks">12:30 kick-off</div></div>
     </div>
-    ${pay}
-    <button class="choice primary" id="go"><span class="t">First match: ${opp}</span></button></div>`;
-  document.getElementById('go').onclick=()=>{cursor=0;step()};
+    <button class="choice primary" id="go"><span class="t">Paying the bills</span></button></div>`;
+  document.getElementById('go').onclick=()=>renderPayDay(()=>{cursor=0;step()});
 }
 function boot(){
   pickRivals();

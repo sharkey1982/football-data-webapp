@@ -367,12 +367,14 @@ function upsetLine(res,e){if(!e)return null;
 function kickoffChip(wk){return `GAMEWEEK ${wk+1} OF ${MW} · ${wk===0?"OPENING DAY · ":wk===MW-1?"FINAL DAY · ":""}12:30 KICK-OFF`}
 /* Them v you, before the shape question: the same model numbers as
    everywhere else, better figure on each row highlighted. */
-function oppCompareHTML(opp){
-  const R=ratingsNow(0),cs=n=>Math.exp(-R[n].xga),q=n=>n===CLUB?S.squad:strOf(n);
+function oppCompareHTML(opp,p){
+  const q=n=>n===CLUB?S.squad:strOf(n);
+  if(!p){const[h,a]=myFixture(S.mw);p=matchProbs(opp,h===CLUB)}
+  // this match, as the model sees it with your current choices -- it moves
+  // when you pick an option, so the buttons don't need figures on them
   const rows=[
-    ["Goals for (a game)",R[opp].xgf,R[CLUB].xgf,v=>v.toFixed(1),true],
-    ["Goals against (a game)",R[opp].xga,R[CLUB].xga,v=>v.toFixed(1),false],
-    ["Clean sheets",cs(opp),cs(CLUB),v=>Math.round(v*100)+"%",true],
+    ["Goals (this match)",p.xga,p.xgf,v=>v.toFixed(1),true],
+    ["Clean sheet",Math.exp(-p.xgf),p.cs,v=>Math.round(v*100)+"%",true],
     ["Squad quality",q(opp),q(CLUB),v=>Math.round(v),true]];
   const cell=(v,other,fmt,hi)=>{const better=hi?v>other+1e-9:v<other-1e-9;
     return `<td class="n" style="${better?'color:var(--good);font-weight:700':''}">${fmt(v)}</td>`};
@@ -423,14 +425,22 @@ function renderBeginnerSheet(done){
       <div class="datechip">${kickoffChip(wk)}</div>
       <h1>${venueTitle(opp,home)}</h1>
       ${oneX2(current)}
-      ${oppCompareHTML(opp)}
-      ${decs.map((dec,i)=>{const [title,idea]=BEGINNER_IDEA[dec.kind];return `
+      ${oppCompareHTML(opp,current)}
+      ${decs.map((dec,i)=>{const [title,idea]=BEGINNER_IDEA[dec.kind];
+        // shapes side by side (they fit on one screen that way); the other
+        // decisions keep full-width rows, where names and detail need room
+        const cols=dec.kind.startsWith("formation");
+        const sel=j=>j===chosen[i]?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':'';
+        return `
       <h2 style="margin-top:8px">${decs.length>1?`${i+1}. `:""}${title}</h2>
       <p class="small">${dec.scout||idea}</p>
-      ${dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}"
-        style="${j===chosen[i]?'border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)':''}">
-        <span class="t">${j===chosen[i]?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span>
-        ${impactHTML(o,j===chosen[i]?null:dec.options[chosen[i]])}</button>`).join('')}`}).join('')}
+      ${cols?`<div style="display:grid;grid-template-columns:repeat(${dec.options.length},1fr);gap:5px;align-items:stretch">
+        ${dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}"
+          style="margin:0;height:100%;padding:9px 8px;${sel(j)}">
+          <span class="t" style="font-size:13.5px">${j===chosen[i]?"\u2713 ":""}${o.title}</span>
+          <span class="d" style="font-size:11.5px">${o.sub}</span></button>`).join('')}</div>`
+      :dec.options.map((o,j)=>`<button class="choice" data-bc="${i}-${j}" aria-pressed="${j===chosen[i]}" style="${sel(j)}">
+        <span class="t">${j===chosen[i]?"\u2713 ":""}${o.title}</span><span class="d">${o.sub}</span></button>`).join('')}`}).join('')}
       <button class="choice primary" id="kick" style="margin-top:8px"><span class="t">Kick off</span></button>
       ${squadHTML({noBench:true})}</div>`;
     document.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{const[i,j]=b.dataset.bc.split('-').map(Number);chosen[i]=j;draw()});
@@ -682,6 +692,46 @@ function renderTableAfterMatch(info,done){
       <span class="d"></span></button></div>`;
   document.getElementById('toOthers').onclick=()=>renderElsewhere(info,done);
 }
+/* THE BANK STEPS IN (Beginner; Chris): in the red at a gameweek's end, a
+   player MUST be sold -- announced, and chosen: your best attacker (goal
+   threat falls) or your best defender (goals conceded rise). The remaining
+   fixtures as a heat map show where each sale hurts: your win chance v each
+   opponent, with expected goals both ways, now and after each sale. */
+function renderForcedSale(done){
+  const alivePos=pos=>alive().filter(p=>!p.gone&&!p.out&&p.pos===pos).sort((a,b)=>b.rt-a.rt)[0];
+  const att=alivePos("FW")||alivePos("MF"),def=alivePos("DF");
+  const fixtures=[];for(let w=S.mw;w<MW;w++){const[h,a]=myFixture(w),home=h===CLUB;fixtures.push({w,opp:home?a:h,home})}
+  const without=p=>{const g=p&&p.gone;if(p)p.gone=true;recalcSquadRating();
+    const row=fixtures.map(f=>matchProbs(f.opp,f.home));if(p)p.gone=g;recalcSquadRating();return row};
+  const rows=[{label:"Now",sub:"before the sale",v:without(null)},
+    {label:`Sell ${att.nm}`,sub:`${att.pos} · Q${att.rt} · fewer goals`,v:without(att),p:att},
+    {label:`Sell ${def.nm}`,sub:`DF · Q${def.rt} · more conceded`,v:without(def),p:def}];
+  // red (poor) -> chalk -> green (good), by win chance
+  const col=w=>{const t=Math.max(0,Math.min(1,w/60)),A=[166,61,64],M=[243,240,228],B=[53,117,86];
+    const [x,y,k]=t<.5?[A,M,t/.5]:[M,B,(t-.5)/.5];return `rgb(${x.map((c,i)=>Math.round(c+(y[i]-c)*k)).join(',')})`};
+  paintHeader();
+  document.getElementById('app').innerHTML=`<div class="card">
+    <div class="datechip" style="color:var(--bad)">THE BANK HAS STEPPED IN</div>
+    <h1>A player must be sold</h1>
+    <p class="lede">You're ${fmtMoney(Math.abs(S.cash))} in the red. Choose who goes: fewer goals, or more conceded.</p>
+    <div style="overflow-x:auto;margin:10px 0"><table class="tbl" style="min-width:100%">
+      <thead><tr><th></th>${fixtures.map(f=>`<th class="n" style="text-align:center">GW${f.w+1}<br><span style="font-weight:400">${f.opp}</span></th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`<tr><td><b>${r.label}</b><br><span class="small">${r.sub}</span></td>
+        ${r.v.map(p=>`<td style="text-align:center;background:${col(p.w)};color:${p.w>=45||p.w<=12?'#f5f2e8':'inherit'}"><b style="font-size:16px">${p.w}%</b><br>
+          <span style="font-family:var(--mono);font-size:11px">${p.xgf.toFixed(1)}–${p.xga.toFixed(1)} xG</span></td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <p class="small">Win chance in each remaining game, with expected goals (you–them).</p>
+    <div id="fsOpts">${rows.slice(1).map((r,i)=>`<button class="choice" id="fs${i}"><span class="t">${r.label} for ${fmtMoney(saleFee(r.p))}</span><span class="d">${r.sub}</span></button>`).join('')}</div>
+    <div id="fsOut"></div></div>`;
+  rows.slice(1).forEach((r,i)=>document.getElementById(`fs${i}`).onclick=()=>{
+    const p=r.p,fee=saleFee(p);
+    S.cash+=fee;S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));p.gone=true;S._saleDue=false;recalcSquadRating();paintHeader();
+    document.getElementById('fsOpts').innerHTML="";
+    document.getElementById('fsOut').innerHTML=`<div class="outcome" style="border-left-color:var(--bad)"><b>${p.nm} is sold</b> for ${fmtMoney(fee)}. ${S.cash<0?"Still in the red: the bank will be back.":"You're out of the red."}</div>
+      <button class="choice primary" id="fsGo" style="margin-top:8px"><span class="t">Continue</span></button>`;
+    document.getElementById('fsGo').onclick=done;
+  });
+}
 /* THE 3PM KICK-OFFS, LIVE (Chris: make it feel like a real match day).
    A clock runs 0'-90'; each game has a scoreboard; goals flash in at a
    readable pace, with your live position "as it stands". The full table
@@ -732,7 +782,8 @@ function renderElsewhere(info,done){
     document.getElementById('boards').innerHTML=games.map(g=>{const up=(g.hg>g.ag&&strOf(g.h)<strOf(g.a)-3)||(g.ag>g.hg&&strOf(g.a)<strOf(g.h)-3);
       return `<div class="res" style="margin-top:6px;font-size:15px"><span>${g.h} v ${g.a}${up?' <b style="color:var(--amber)">· Upset!</b>':''}</span><span class="sc">${g.hg}–${g.ag}</span></div>`}).join('');
     S.mw++;
-    const money=cashConsequences();
+    // Beginner: an announced, chosen sale -- if there are games left to affect
+    const money=cashConsequences({deferSale:NEUTRAL&&S.mw<MW});
     myPos();paintHeader();kpiRecord();
     const endPos=posOf(CLUB),moved=myBefore-endPos;
     const line=final?(endPos===1?"Champions.":endPos>=5?"Relegated.":`${ord(endPos)}, and safe.`)
@@ -740,12 +791,14 @@ function renderElsewhere(info,done){
     document.getElementById('lpace').innerHTML="";
     document.getElementById('flash').textContent="Full time.";
     document.getElementById('asit').textContent=line;
-    document.getElementById('lend').innerHTML=`${money.map(ev=>ev.type==="deduction"
+    document.getElementById('lend').innerHTML=`${money.map(ev=>ev.type==="saleDue"
+      ?`<div class="outcome" style="border-left-color:var(--bad);font-size:15px"><b>You're in the red.</b> The bank is stepping in: a player must be sold.</div>`
+      :ev.type==="deduction"
       ?`<div class="outcome" style="border-left-color:var(--bad)"><b>Points deduction: −${ev.pts}.</b> The club went too far into the red.</div>`
       :`<div class="outcome" style="border-left-color:var(--bad)"><b>The bank forced a sale.</b> ${ev.nm} (${ev.pos}, quality ${ev.rt}) sold for ${fmtMoney(ev.fee)}. Your team is weaker.</div>`).join('')}
       <div class="datechip" style="margin:10px 0 5px">THE TABLE NOW</div>${tableRowsHTML(before)}
-      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${final?"To the final whistle":"Continue"}</span></button>`;
-    document.getElementById('mn').onclick=done;
+      <button class="choice primary" id="mn" style="margin-top:10px"><span class="t">${S._saleDue?"The bank's decision":final?"To the final whistle":"Continue"}</span></button>`;
+    document.getElementById('mn').onclick=S._saleDue?()=>renderForcedSale(done):done;
   }
   timer=setTimeout(()=>{timer=null;tick()},600);
 }
