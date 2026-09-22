@@ -78,7 +78,8 @@ for(const lvl of ['beginner','intermediate','guru'])for(const role of ['manager'
     // half-time / 70' cards: choose, then "Send them out" -- up to twice (GW5 has two)
     const answerCards=()=>{for(let n=0;n<2;n++){const c=els.subNo||els.htPush;if(!(els.htGo&&c&&typeof c.onclick==='function'))break;
       try{c.onclick();els.htGo.onclick();settle()}catch(x){crashes.push(`${lvl}/${role}/${seed} ${plan[i]} half-time: ${x.message}`)};els.subNo=els.htPush=els.htGo=undefined}};
-    for(const b of ['go','kick','answer','goSecond','toTable','toOthers','mn']){
+    // fs0/fsGo: the bank's forced-sale decision, when a gameweek ends in the red
+    for(const b of ['go','kick','answer','goSecond','toTable','toOthers','mn','fs0','fsGo']){
       if(b==='answer'){answerCards();continue}const e=els[b];if(!e||typeof e.onclick!=='function')continue;
       const wkNow=run('S.mw');
       try{e.onclick();settle();scan(`${lvl}/${role} ${plan[i]} → ${b}`,els.app.innerHTML+els.hScore.innerHTML+els.hTwo.innerHTML)

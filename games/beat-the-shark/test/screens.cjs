@@ -253,7 +253,13 @@ run(`LEVEL="intermediate";SPEED=null`);
 run(`LEVEL="beginner";ROLE=ROLES.manager;boot();S.cash=-50;const before=alive().length;globalThis.__before=before;
   renderElsewhere({wk:0,final:false},()=>{})`);
 drain(); // the 3pm kick-offs run live; money is settled at full time
-ok("in the red at the end of a gameweek, the bank forces a sale -- and the results screen says so", /The bank forced a sale/.test(els.lend.innerHTML)&&run("alive().length")===run("__before")-1);
+ok("in the red at a gameweek's end: announced, not done silently -- 'a player must be sold'", /The bank is stepping in: a player must be sold/.test(els.lend.innerHTML)&&run("alive().length")===run("__before")&&run("S._saleDue")===true);
+els.mn.onclick(); // "The bank's decision"
+{ const h=app();const fixtures=run("MW-S.mw");
+  ok("the bank's decision: a heat map of the remaining fixtures -- now, sell your best attacker, sell your best defender",
+    /A player must be sold/.test(h)&&(h.match(/<th class="n" style="text-align:center">GW\d/g)||[]).length===fixtures&&/Now/.test(h)&&/fewer goals/.test(h)&&/more conceded/.test(h));
+  const fee=+((h.match(/id="fs0"><span class="t">[^<]* for £(\d+)k/)||[])[1]);const c0=run("S.cash");els.fs0.onclick();
+  ok("...choose who goes: sold at the one quoted price, exactly", run("S.cash")-c0===fee&&run("alive().length")===run("__before")-1&&run("S._saleDue")===false, `£${fee}k`); }
 run(`boot();S.cash=-400;S.deducted=false;const p0=TABLE[CLUB].pts;globalThis.__p0=p0;renderElsewhere({wk:0,final:false},()=>{})`);
 drain();
 ok("deep in the red: a 3-point deduction, once", /Points deduction: −3/.test(els.lend.innerHTML)&&run("S.deducted")===true);
@@ -513,5 +519,15 @@ run(`renderSpec(Object.assign(bidSpec(),{fullChoices:true}),"A BID ARRIVES",()=>
 { // the rival-bid press question: no cash for a withdrawn bid, or for an offer you didn't accept
   const src=fs.readFileSync('content.js','utf8');const st=src.indexOf('{id:"rivalbid"'),blk=src.slice(st,src.indexOf('{id:',st+10)); // this event only
   ok("a withdrawn bid costs nothing, and an improved offer you didn't take isn't money", !/delayed:\{cash:/.test(blk)); }
+// 31. The bank steps in, visibly (Chris, 2026-09-22)
+run(`SEED="FS-2";ROLE=ROLES.manager;chooseRole();ROLE=ROLES.manager;boot();S.mw=3`);
+{ const r=run(`(()=>{const pick=pos=>alive().filter(p=>!p.gone&&!p.out&&p.pos===pos).sort((a,b)=>b.rt-a.rt)[0];const att=pick("FW"),def=pick("DF");
+    const[h,a]=myFixture(3),home=h===CLUB,opp=home?a:h;const base=matchProbs(opp,home);
+    att.gone=true;recalcSquadRating();const A=matchProbs(opp,home);att.gone=false;def.gone=true;recalcSquadRating();const D=matchProbs(opp,home);def.gone=false;recalcSquadRating();
+    return{b:[base.xgf,base.xga],a:[A.xgf,A.xga],d:[D.xgf,D.xga]}})()`);
+  ok("selling the attacker lowers your goal threat; selling the defender raises goals conceded", r.a[0]<r.b[0]&&r.d[1]>r.b[1], JSON.stringify(r)); }
+ok("the bank's forced sale uses the one sale price (it once used the ten-game formula at Beginner)", run(`(()=>{const p=alive()[3];return saleFee(p)<=Math.round((p.rt-38)*13/2)})()`));
+run(`S.mw=MW;S.cash=-20;S._saleDue=false`);
+ok("after the final, no forced sale (there are no games left for it to matter)", JSON.stringify(run("cashConsequences({deferSale:NEUTRAL&&S.mw<MW})")).indexOf("saleDue")<0);
 console.log(fails?`${fails} FAILED`:"ALL SCREEN CHECKS PASSED");
 process.exit(fails?1:0);

@@ -43,7 +43,8 @@ for(const b of plan){
     add(`Gameweek ${gw} — preview v ${opp}: them v you; ${PRE[k]} (one 1X2 line under the title, moving with your choices; each option shows xG both ways); Kick off; the pitch`);
     add(`Gameweek ${gw} — your 12:30 kick-off${gw===1?' (opening day)':gw===5?' (final day)':''}: "You should win / lose / Too close to call", them v you, commentary; half time: ${HT[k]}; "An upset!" if it goes against the odds`);
     add(`Gameweek ${gw} — the table; GATE RECEIPTS (cash in)`);
-    add(`Gameweek ${gw} — the 3pm kick-offs, live; then the table now`);
+    add(`Gameweek ${gw} — the 3pm kick-offs, live; then the table now${gw<5?' (in the red? "The bank is stepping in: a player must be sold")':''}`);
+    if(gw<5)add(`Gameweek ${gw} — ONLY IF IN THE RED: the bank's decision — sell your best attacker (fewer goals) or best defender (more conceded), with the remaining fixtures as a heat map`);
   }
   else if(b==='end')add('The end — champions or your position; the final table');
   else add(NAME[b]||b);

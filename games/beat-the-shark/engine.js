@@ -695,7 +695,10 @@ function scoreParts(){
 const CASH_RULES={deductBelow:-300,deductPts:3,minSquad:11};
 // Beginner's smaller economy: deep in the red is below -GBP60k
 function deductLine(){return NEUTRAL?-60:CASH_RULES.deductBelow}
-function cashConsequences(){
+/* opts.deferSale (the game, at Beginner): in the red, the sale is not made
+   silently -- it's announced, and the player chooses who goes (Chris). The
+   simulator keeps the automatic sale (it can't choose). */
+function cashConsequences(opts={}){
   const out=[];
   if(!S.alive)return out;
   if(S.cash<deductLine()&&!S.deducted){
@@ -703,8 +706,11 @@ function cashConsequences(){
   }
   if(S.cash<0){
     const fit=alive().filter(p=>!p.gone);
+    if(fit.length>CASH_RULES.minSquad&&opts.deferSale){S._saleDue=true;out.push({type:"saleDue"});return out}
     if(fit.length>CASH_RULES.minSquad){
-      const p=fit.slice().sort((a,b)=>b.rt-a.rt)[0],fee=Math.round((p.rt-38)*13);
+      // the one sale price (it used the ten-game formula even at Beginner:
+      // ~GBP325k for a good player -- a hidden windfall for going into the red)
+      const p=fit.slice().sort((a,b)=>b.rt-a.rt)[0],fee=typeof saleFee==="function"?saleFee(p):Math.round((p.rt-38)*13);
       S.cash+=fee;S.wages=Math.max(8,S.wages-Math.round((p.rt-40)*.5+3));p.gone=true;recalcSquadRating();
       out.push({type:"sale",nm:p.nm,pos:p.pos,rt:p.rt,fee});
     }
