@@ -37,6 +37,7 @@ const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
 const TeamOfTheWeekPage = lazy(() => import('./pages/fpl/TeamOfTheWeekPage'));
+const ModelXiAccuracyPage = lazy(() => import('./pages/fpl/ModelXiAccuracyPage'));
 const FormationsPage = lazy(() => import('./pages/fpl/FormationsPage'));
 const Login = lazy(() => import('./pages/Login'));
 const LeagueTable = lazy(() => import('./pages/LeagueTable'));
@@ -302,6 +303,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TeamOfTheWeekPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/model-xi"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ModelXiAccuracyPage />
               </Suspense>
             }
           />
