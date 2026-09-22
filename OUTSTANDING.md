@@ -1449,6 +1449,27 @@ Swept for the same problem: none. The check worth repeating after any
 drop/rename is in the migration header — Postgres does NOT validate function
 bodies when the objects they read change.
 
+## FPL WEEKLY HISTORY — DATA IS READY (2026-09-22)
+
+fpl_player_gameweek_history now covers FIVE past seasons: 2021/22 19,531 rows
+· 2022/23 19,584 · 2023/24 20,544 · 2024/25 20,217 · 2025/26 19,643, each
+37-38 gameweeks and 537-570 players. Seasons 9-12 were already imported on
+19 Sep; 2021/22 was added today once the slug bug below was fixed.
+
+FIXED: player_identity.slug was NOT NULL with no default and no trigger, so
+import_fpl_season failed for any new season. The table now fills its own slug
+(migration 20260922214500).
+
+CAUTION FOR NEXT TIME (my own error, twice in one task): pg_stat_user_tables
+reports ESTIMATES -- it said fpl_player_gameweek_history had 0 rows when it
+had 80,000. Count, don't trust n_live_tup. Likewise a multi-statement SQL call
+returns only the LAST statement's result.
+
+STILL TO BUILD: the weekly totals / distribution (min, max, mean, sd) for the
+set-and-forget XIs across past seasons on SeasonXiPage. The maths already
+exists and is tested: weeklyScores / weeklyDistribution in fplOptimizerApi,
+used by the squad pages' Weekly view for the current season.
+
 ## SEARCH-PATH HARDENING 2026-09-22 — DONE
 
 All 61 public functions that lacked a pinned search_path now have one
