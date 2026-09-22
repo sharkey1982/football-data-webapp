@@ -285,10 +285,12 @@ function solveUnconstrained(pool: RollingCandidate[], budget: number): SolvedXi 
 // ============================================================================
 // Week by week for a season's set-and-forget XI.
 //
-// Eleven players, no captain, no substitutes -- that is the exercise. The
-// weekly history this reads covers 2022/23 onward; a season whose XI has not
-// been solved returns nothing, and the page says so rather than drawing an
-// empty chart.
+// Eleven players, no captain, no substitutes -- that is the exercise.
+//
+// Takes the XI's player codes rather than looking up a stored XI, because the
+// season in progress HAS no stored XI (it is solved on read) and its weekly
+// rows live in a different table. The function unions both sources, so the
+// same call answers for a finished season and the current one.
 // ============================================================================
 
 export type SeasonXiWeek = {
@@ -298,8 +300,9 @@ export type SeasonXiWeek = {
   blanks: number;
 };
 
-export async function getSeasonXiWeekly(seasonId: number): Promise<SeasonXiWeek[]> {
-  const { data, error } = await supabase.rpc('get_season_xi_weekly', { p_season_id: seasonId });
+export async function getSeasonXiWeekly(seasonId: number, fplCodes: number[]): Promise<SeasonXiWeek[]> {
+  if (fplCodes.length === 0) return [];
+  const { data, error } = await supabase.rpc('get_xi_weekly_by_codes', { p_season_id: seasonId, p_codes: fplCodes });
   if (error) throw error;
   return (data ?? []).map((r: Record<string, unknown>) => ({
     gameweek: Number(r.gameweek),

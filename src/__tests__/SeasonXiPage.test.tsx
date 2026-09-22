@@ -21,7 +21,13 @@ describe('SeasonXiPage', () => {
   // needs it stubbed -- without it the mock returns undefined and the page
   // fails on .then.
   beforeEach(() => {
+    // implementations persist between tests here, so an earlier test's XI
+    // leaked into a later one's assertion; reset, then set the defaults.
+    vi.resetAllMocks();
     mocked.getSeasonXiWeekly.mockResolvedValue([]);
+    mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([]);
+    mocked.getSeasonBestXi.mockResolvedValue([]);
   });
 
   it('shows August prices, not end-of-season prices', async () => {
@@ -105,6 +111,23 @@ describe('SeasonXiPage', () => {
     await waitFor(() => expect(screen.getByText(/120 points across 2 gameweeks/)).toBeInTheDocument());
     expect(screen.getByText('2 blanks')).toBeInTheDocument();
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
+  });
+
+  // 2026/27 has no stored XI (it is solved on read) and its weekly rows live
+  // in a different table, so it showed nothing until the fetch took the XI's
+  // player codes instead of a season id alone.
+  it('shows weekly numbers for the season in progress too', async () => {
+    mocked.getSeasonValueLeaders.mockResolvedValue([]);
+    mocked.getXiSeasons.mockResolvedValue([{ season_id: 12, slug: '2025-26', label: '2526', points: 2141, cost: 785 }]);
+    mocked.getSeasonBestXi.mockResolvedValue([p({ fpl_code: 77 })]);
+    mocked.getSeasonXiWeekly.mockResolvedValue([{ gameweek: 1, total_points: 76, players_returning: 11, blanks: 0 }]);
+
+    render(<MemoryRouter><SeasonXiPage /></MemoryRouter>);
+
+    await waitFor(() => expect(mocked.getSeasonXiWeekly).toHaveBeenCalled());
+    // the XI's codes are passed, not just the season
+    expect(mocked.getSeasonXiWeekly).toHaveBeenCalledWith(expect.any(Number), [77]);
+    await waitFor(() => expect(screen.getByText(/76 points across 1 gameweek/)).toBeInTheDocument());
   });
 
   it('never prints raw escape sequences in that section', async () => {

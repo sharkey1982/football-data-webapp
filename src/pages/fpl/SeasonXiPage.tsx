@@ -120,14 +120,14 @@ export default function SeasonXiPage() {
   // the early return below: placed after it, this never ran and the section
   // showed "Loading" for ever.
   useEffect(() => {
-    if (seasonId === null) { setWeekly(null); return; }
+    if (seasonId === null || xi === null || xi.length === 0) { setWeekly(null); return; }
     let live = true;
     setWeekly(null);
-    getSeasonXiWeekly(seasonId)
+    getSeasonXiWeekly(seasonId, xi.map((p) => p.fpl_code))
       .then((w) => live && setWeekly(w))
       .catch(() => live && setWeekly([]));
     return () => { live = false; };
-  }, [seasonId]);
+  }, [seasonId, xi]);
 
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (xi.length === 0) {
@@ -243,8 +243,8 @@ export default function SeasonXiPage() {
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Week by week</h2>
         {weekly === null && <p className="text-sm text-ink-500 mt-2">Loading&hellip;</p>}
         {weekly !== null && weekly.length === 0 && (
-          <p className="text-sm text-ink-600 mt-2">
-            No weekly history for this season yet &mdash; it covers 2022/23 onward.
+          <p className="text-sm text-ink-500 mt-2">
+            No weekly points for this season yet.
           </p>
         )}
         {weekly !== null && weekly.length > 0 && (() => {
@@ -252,7 +252,7 @@ export default function SeasonXiPage() {
           const max = Math.max(...weekly.map((w) => w.total_points), 1);
           return (
             <>
-              <p className="text-sm text-ink-600 mt-1">
+              <p className="text-sm text-ink-500 mt-1">
                 Eleven players, no captain, no substitutes &mdash; {spread.total} points across {spread.weeks} gameweeks.
               </p>
               <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 mt-3">
@@ -265,7 +265,7 @@ export default function SeasonXiPage() {
                   <div key={label} className="border border-chalk-300 rounded-lg bg-white p-2">
                     <div className="text-[11px] text-ink-500">{label}</div>
                     <div className="font-display text-xl text-ink-900">{value}</div>
-                    <div className="text-[11px] text-ink-400">{note}</div>
+                    <div className="text-[11px] text-ink-500">{note}</div>
                   </div>
                 ))}
               </div>
@@ -275,12 +275,12 @@ export default function SeasonXiPage() {
                     <span className="w-11 shrink-0 text-[11px] text-ink-500">GW{w.gameweek}</span>
                     <div className="flex-1 bg-chalk-100 rounded h-3.5 overflow-hidden">
                       <div
-                        className={w.total_points >= spread.mean ? 'h-full bg-pitch-700' : 'h-full bg-pitch-400'}
+                        className={w.total_points >= spread.mean ? 'h-full bg-pitch-700' : 'h-full bg-pitch-600'}
                         style={{ width: `${(w.total_points / max) * 100}%` }}
                       />
                     </div>
-                    <span className="w-8 text-right font-mono text-[11px] text-ink-800">{w.total_points}</span>
-                    <span className="w-16 text-right text-[11px] text-ink-400">
+                    <span className="w-8 text-right font-mono text-[11px] text-ink-700">{w.total_points}</span>
+                    <span className="w-16 text-right text-[11px] text-ink-500">
                       {w.blanks > 0 ? `${w.blanks} blank${w.blanks === 1 ? '' : 's'}` : 'all played'}
                     </span>
                   </div>
