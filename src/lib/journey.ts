@@ -89,6 +89,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Head to Heads', to: '/preview', blurb: 'Pick any two teams for a full head-to-head and prediction.' },
           { label: 'Model Accuracy', to: '/football/model-accuracy', blurb: 'How the predictions have actually performed \u2014 calibration, hit rate and the baselines.' },
           { label: 'Model Returns', to: '/football/model-returns', blurb: 'What those predictions would have returned as bets, at real prices.' },
+          { label: 'Model Scorecard', to: '/football/model-scorecard', blurb: 'How accurate the forecasts are against the betting market, by division and season.' },
           { label: 'Team Strength', to: '/team-strength', blurb: 'Every club\u2019s attack and defence rating, with projected against actual.' },
         ],
       },

@@ -325,7 +325,8 @@ export default function ModelReturnsPage() {
             League has been retro-fitted. Prices are from Bet365, Bet&amp;Win and Pinnacle (not every match), plus football-data.co.uk&rsquo;s market best and
             market average across many more bookmakers. &ldquo;Best of the books&rdquo; takes the highest price on file;
             &ldquo;market average&rdquo; is closer to holding one account. Beating the closing price is the usual test of a real
-            edge. See also{' '}
+            edge. For how accurate the forecasts are, whether or not they&rsquo;d have made money, see the{' '}
+            <Link to="/football/model-scorecard" className="underline">model scorecard</Link>. See also{' '}
             <Link className="underline" to="/football/model-accuracy">
               Model Accuracy
             </Link>

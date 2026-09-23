@@ -34,6 +34,7 @@ const PlayerScoutPage = lazy(() => import('./pages/fpl/PlayerScoutPage'));
 const PlayerRecordPage = lazy(() => import('./pages/fpl/PlayerRecordPage'));
 const ModelAccuracyPage = lazy(() => import('./pages/football/ModelAccuracyPage'));
 const ModelReturnsPage = lazy(() => import('./pages/football/ModelReturnsPage'));
+const ModelScorecardPage = lazy(() => import('./pages/football/ModelScorecardPage'));
 const ModelChangesPage = lazy(() => import('./pages/admin/ModelChangesPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
@@ -353,6 +354,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <ModelAccuracyPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/model-scorecard"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ModelScorecardPage />
               </Suspense>
             }
           />
