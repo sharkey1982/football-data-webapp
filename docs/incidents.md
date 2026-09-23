@@ -133,3 +133,19 @@ fixing something else.
 - **Prevention:** daily guard `unique_function_names` fails if any two of our
   public functions share a name (extension functions excluded); proven by
   creating a deliberate duplicate. Before creating a function, check the name.
+
+## 2026-09-24 · Fixing one grant bug caused another
+- **Impact:** none reached the public — caught by this session's own
+  verification step (reading as `anon` immediately after any change).
+- **What happened:** fixing the `converged` vs `accepted` bug in
+  `team_strength_current` and `fpl_team_strength_current` (`CREATE OR
+  REPLACE VIEW`) silently dropped both views' `anon`/`authenticated`
+  SELECT grants. Same shape as the earlier `service_role` grant incident,
+  this time for public-facing reads instead of the pipeline role.
+- **Fix:** grants restored immediately, verified as `anon`.
+- **Prevention:** new daily guard `public_views_readable_by_anon` — an
+  explicit, extensible list of public-facing views that must stay
+  readable by `anon`. Proven by a deliberate revoke/restore, same as the
+  `unique_function_names` guard. **Lesson restated:** any `CREATE OR
+  REPLACE VIEW` or `... FUNCTION` needs a same-turn check that every role
+  that could read it before still can — this is now the second time.

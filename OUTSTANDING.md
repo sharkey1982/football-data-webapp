@@ -77,33 +77,39 @@ view, matched-betting calculator) behind an admin-only gate (see above --
 would need building), no affiliate links, no public "value bet" framing.
 
 
-### Strength views pick the latest CONVERGED fit, not the latest ACCEPTED one
-team_strength_current and fpl_team_strength_current select
-`converged = true` ordered by fitted_at. A fit that converges but fails a
-quality gate (status 'rejected') would become the live team ratings on
-every page that reads them. Every other consumer filters
-`status = 'accepted'`. Found while checking which readers of
-model_fit_runs could be affected by retro-fits (none are -- they all order
-by fitted_at, and retro-fits are past-dated). Fix: swap the filter to
-status = 'accepted' in both views.
+### Strength views picked the latest CONVERGED fit, not ACCEPTED -- FIXED 2026-09-24
+team_strength_current and fpl_team_strength_current selected
+`converged = true` ordered by fitted_at, so a fit that converges but fails
+a quality gate (status 'rejected') could become the live team ratings on
+every page that reads them. Confirmed live before fixing: 5 rejected fits
+(#2, #3, #6, #7, #38) had converged = true, including the two retired for
+the scoring-level bug. No live fit currently differed between the two
+rules, so this changed nothing today -- closed the door for next time.
+Fixing it also surfaced a second bug: CREATE OR REPLACE VIEW silently
+dropped both views' anon/authenticated grants -- caught immediately by
+verifying as anon, restored, and now covered by a new daily guard
+(public_views_readable_by_anon), proven with a deliberate revoke/restore.
 
-### Retro-fit: Premier League 2025/26
-`fit_dixon_coles.py --as-of`, `estimate_promoted_team_ratings.py --as-of`,
-the `retrofit-season` workflow and `match_predictions` are in place.
-Retro-fits are labelled (`model_fit_runs.is_retrofit`, `as_of_date`) and
-stamped `fitted_at = as-of 23:59:59 UTC`, so they serve kick-offs from the
-next day only. `get_betting_returns` reads `match_predictions` for past
-seasons; the Model Returns page has a season toggle.
-Odds for 2025/26 E0: 1X2 from FIVE bookmakers (O/U from four), not eight.
-Other leagues/seasons: rerun the workflow with different inputs; E1 and
-below would need `--above-league` passing through too (relegated teams).
+### Retro-fit: Premier League 2025/26 -- SUPERSEDED, now DONE and much wider
+Overtaken by later work: the retrofit-season workflow now takes several
+leagues and seasons in one run (scripts/retrofit_plan.py derives the
+dates per season) and fits the division above as well as below, so
+relegated teams get estimates too. All four English divisions are
+retro-fitted for 2023/24-2025/26 (5,208 matches), with model versioning
+(model_versions, model_change_log), an in-memory experiment harness that
+can never become a live fit, and a public scorecard
+(/football/model-scorecard) comparing the model to the closing market by
+division, season, team type and phase. Odds for 2025/26 E0 remain 1X2
+from FIVE bookmakers (O/U from four), not eight -- true of every season,
+not a gap.
 
-### Test run reports 3 unhandled errors outside any test
-All 382 tests pass, but vitest catches unhandled errors from
-TacticalRolesAdminPage.test.tsx (a `<Link>` rendered outside a Router) and
-TeamOfTheWeekPage (setState after teardown, `window is not defined`).
-Pre-existing; untouched by the retro-fit branch. Vitest warns these can
-mask false positives.
+### Test run reports unhandled errors outside any test (still present, now 4)
+Rechecked 2026-09-24: all 406 tests pass (up from 382), but vitest still
+catches unhandled errors from TacticalRolesAdminPage.test.tsx (a `<Link>`
+rendered outside a Router) and TeamOfTheWeekPage (setState after
+teardown, `window is not defined`) -- 4 now, was 3. Pre-existing, not
+touched by any of this session's work. Vitest warns these can mask false
+positives; worth a look next time either of those two files is open.
 
 
 ### FPL rollover: three tables still have single-column keys
@@ -1545,7 +1551,7 @@ Swept for the same problem: none. The check worth repeating after any
 drop/rename is in the migration header — Postgres does NOT validate function
 bodies when the objects they read change.
 
-## BETTING RETURNS (2026-09-22) — FUNCTION BUILT, PAGE NOT YET
+## BETTING RETURNS (2026-09-22) — SUPERSEDED, see Model Returns / Model Scorecard
 
 get_betting_returns(edge, market, closing, best_price, stake, season) returns
 bets / staked / returned / profit / ROI / hit rate / average odds / average
