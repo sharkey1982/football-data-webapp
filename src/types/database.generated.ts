@@ -7677,6 +7677,28 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      get_betting_returns: {
+        Args: {
+          p_edge?: number
+          p_market?: string
+          p_closing?: boolean
+          p_best_price?: boolean
+          p_stake?: number
+          p_season_id?: number
+        }
+        Returns: {
+          selection: string
+          bets: number
+          staked: number
+          returned: number
+          profit: number
+          roi_pct: number
+          wins: number
+          hit_rate_pct: number
+          avg_odds: number
+          avg_edge_pct: number
+        }[]
+      }
       get_xi_weekly_by_codes: {
         Args: { p_season_id: number; p_codes: number[] }
         Returns: { gameweek: number; total_points: number; players_returning: number; blanks: number }[]

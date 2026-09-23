@@ -80,6 +80,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/model-returns',
+    title: 'Model returns',
+    description:
+      "What FixtureShark's predictions would have returned as bets, against real bookmaker prices, at whatever edge you choose.",
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/football/model-accuracy',
     title: 'How accurate is the model?',
     description:
