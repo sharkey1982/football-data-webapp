@@ -24,6 +24,7 @@ import {
 } from '../../lib/teamPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { teamHasFinance } from '../../lib/financeApi';
+import TeamHistoryPanel from '../../components/TeamHistoryPanel';
 
 /** hasFinance: whether this club has published accounts. Static generation
  *  supplies it from ONE bulk query for every team; when absent the page asks
@@ -217,6 +218,8 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
           </div>
         )}
       </section>
+
+      <TeamHistoryPanel teamId={profile.team_id} teamName={profile.display_name} />
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/teams" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
