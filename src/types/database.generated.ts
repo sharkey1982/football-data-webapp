@@ -5955,6 +5955,52 @@ export type Database = {
       }
     }
     Views: {
+      league_standings: {
+        Row: {
+          away_clean_sheets: number | null
+          away_drawn: number | null
+          away_goals_against: number | null
+          away_goals_for: number | null
+          away_lost: number | null
+          away_played: number | null
+          away_points: number | null
+          away_won: number | null
+          clean_sheets: number | null
+          curtailed: boolean | null
+          deduction: number | null
+          drawn: number | null
+          failed_to_score: number | null
+          goals_against: number | null
+          goals_for: number | null
+          home_clean_sheets: number | null
+          home_drawn: number | null
+          home_goals_against: number | null
+          home_goals_for: number | null
+          home_lost: number | null
+          home_played: number | null
+          home_points: number | null
+          home_won: number | null
+          is_final: boolean | null
+          league_code: string | null
+          league_id: number | null
+          league_name: string | null
+          lost: number | null
+          played: number | null
+          points: number | null
+          points_won: number | null
+          position: number | null
+          ppg: number | null
+          pyramid_position: number | null
+          ranked_on: string | null
+          season_id: number | null
+          season_label: string | null
+          team_id: number | null
+          teams: number | null
+          tier: number | null
+          won: number | null
+        }
+        Relationships: []
+      }
       data_health: {
         Row: {
           component: string | null
@@ -7697,6 +7743,19 @@ export type Database = {
           hit_rate_pct: number
           avg_odds: number
           avg_edge_pct: number
+        }[]
+      }
+      get_team_month_profile: {
+        Args: { p_team_id: number }
+        Returns: {
+          month_num: number
+          month_label: string
+          venue: string
+          played: number
+          points: number
+          goals_for: number
+          goals_against: number
+          ppg: number
         }[]
       }
       get_betting_bets: {

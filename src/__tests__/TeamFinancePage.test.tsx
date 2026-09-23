@@ -148,6 +148,11 @@ vi.mock('../lib/financeApi', async () => {
   const actual = await vi.importActual<typeof import('../lib/financeApi')>('../lib/financeApi');
   return { ...actual, teamHasFinance: vi.fn().mockResolvedValue(false) };
 });
+// The league history panel fetches its own data; keep these tests offline.
+vi.mock('../lib/teamHistoryApi', async () => {
+  const actual = await vi.importActual<typeof import('../lib/teamHistoryApi')>('../lib/teamHistoryApi');
+  return { ...actual, getTeamStandings: vi.fn().mockResolvedValue([]), getTeamMonthProfile: vi.fn().mockResolvedValue([]) };
+});
 import TeamPage from '../pages/football/TeamPage';
 
 const teamData = (hasFinance?: boolean) => ({
