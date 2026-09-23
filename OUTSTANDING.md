@@ -10,6 +10,73 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Possible new section: casino/card-game skill tools (blackjack, poker)
+Chris is considering blackjack basic-strategy and card-counting trainers,
+and poker EV/equity tools, alongside the existing football analytics and
+the Beat the Shark fantasy game. Not started -- discussed, not scoped.
+
+**The case for it:** the existing games section (Beat the Shark) already
+uses play to teach probability concepts. Chris's view is that a blackjack
+or poker EV trainer sits on the same side of that line -- teaching how
+probability and expected value work through a game, not promoting
+gambling. On that reading it's a natural extension of what the site
+already does, not a new category of content.
+
+**My (Claude's) concerns, for balance:**
+- No staking, so nothing here is gambling under UK law, and card counting
+  itself is legal. The open question is framing and audience, not
+  legality.
+- Chris coaches children professionally; if this site is ever linked to
+  that identity, casino-themed tools are a different reputational
+  register from football stats and a fantasy points game, whatever the
+  educational framing. Worth deciding deliberately rather than by default.
+- If it ever grows into anything that names real bookmakers, links to
+  them, or frames bets as "value" (see the Model Returns / odds-feed
+  discussion elsewhere in this file), that's a different, heavier set of
+  rules (ASA gambling advertising rules, affiliate terms) that a "teaching
+  probability" framing wouldn't cover.
+
+**If it goes ahead**, suggested first step is small and self-contained: a
+blackjack basic-strategy trainer (deal a hand, check the decision against
+the standard chart) and a Hi-Lo counting drill. Poker equity/EV
+calculators (Monte Carlo, hand or range vs range) are a similarly
+contained second piece. Full GTO solving is a much bigger undertaking and
+not recommended from scratch -- a trainer built on precomputed published
+ranges/solves is the realistic version of that.
+
+**Access, if it goes ahead:** today there is no page that's actually
+hidden from a non-admin -- the existing "admin" pages (Team Strength
+Admin, Tactical Roles Admin) are publicly viewable; `isAdmin` only gates
+edit controls and writes, not viewing. Anyone can create an account at
+/login, but that grants nothing -- admin is a manual promotion in the
+database. Genuinely hiding a page (redirecting anyone not signed in as an
+admin, rather than rendering it read-only) is a new pattern, not a reuse
+of the existing one, and would need building if these tools are kept
+private.
+
+### Free odds source vs a paid feed (Betfair, etc.)
+Chris would rather not pay for an odds feed. football-data.co.uk already
+publishes a free weekly fixtures.csv with 1X2, O/U and Asian handicap
+odds from several bookmakers for the next round -- covers a market-based
+value-bet view and possibly better fantasy inputs, but only the next
+round, updated a couple of times a week, not live.
+Betfair Exchange API: delayed key is free (1-60s lag, no trading); a live
+key is currently a GBP 499 one-off activation fee per Betfair's support
+pages (some third-party pages still say GBP 299 -- may have risen), and
+explicitly does not permit read-only/display-only use -- it's issued for
+personal betting, requires a funded KYC-verified account, and any public
+or commercial use needs separate vendor approval. Live bookmaker prices
+beyond football-data.co.uk have no free source; scraping is against
+bookmaker terms and risks UK database-right issues -- not recommended.
+Compliance note: odds/probabilities shown factually are not themselves a
+licensed activity, but affiliate links, "value bet" tips, or paid tips
+bring in ASA gambling-ad rules and consumer-protection obligations --
+not legal advice, Chris should get proper advice before anything public.
+Suggested if this goes ahead: keep any betting tools (odds-vs-Pinnacle
+view, matched-betting calculator) behind an admin-only gate (see above --
+would need building), no affiliate links, no public "value bet" framing.
+
+
 ### Strength views pick the latest CONVERGED fit, not the latest ACCEPTED one
 team_strength_current and fpl_team_strength_current select
 `converged = true` ordered by fitted_at. A fit that converges but fails a
