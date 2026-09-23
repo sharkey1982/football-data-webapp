@@ -23,8 +23,10 @@ import {
   totalReturns,
   sampleIsThin,
   type BettingMarket,
+  divisionReturns,
   type BettingBet,
   type BettingReturnRow,
+  type PromotedFilter,
 } from '../../lib/bettingApi';
 
 const EDGES = [0.02, 0.05, 0.1];
@@ -34,8 +36,24 @@ const EDGES = [0.02, 0.05, 0.1];
 const SEASONS = [
   { value: '13', label: '2026/27' },
   { value: '12', label: '2025/26' },
+  { value: '11', label: '2024/25' },
+  { value: '10', label: '2023/24' },
 ];
-const RETROFIT_SEASONS = new Set([12]);
+const RETROFIT_SEASONS = new Set([10, 11, 12]);
+
+const DIVISIONS = [
+  { value: 'all', label: 'All' },
+  { value: '1', label: 'PL' },
+  { value: '2', label: 'Champ' },
+  { value: '3', label: 'L1' },
+  { value: '4', label: 'L2' },
+];
+
+const PROMOTED = [
+  { value: 'all', label: 'Include' },
+  { value: 'exclude', label: 'Exclude' },
+  { value: 'only', label: 'Only' },
+];
 
 function Toggle({
   options,
@@ -74,6 +92,8 @@ export default function ModelReturnsPage() {
   const [closing, setClosing] = useState(true);
   const [bestPrice, setBestPrice] = useState(true);
   const [seasonId, setSeasonId] = useState(13);
+  const [division, setDivision] = useState('all');
+  const [promoted, setPromoted] = useState<PromotedFilter>('all');
   const [rows, setRows] = useState<BettingReturnRow[] | null>(null);
   const [bets, setBets] = useState<BettingBet[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +109,13 @@ export default function ModelReturnsPage() {
     setRows(null);
     setBets(null);
     setError(null);
-    const opts = { edge, market, closing, bestPrice, seasonId };
-    Promise.all([getBettingReturns(opts), getBettingBets(opts)])
+    const opts = { edge, market, closing, bestPrice, seasonId, promoted };
+    // Selection table for the chosen division; bets for every division, which
+    // feed the division summary and (filtered here) the bet list.
+    Promise.all([
+      getBettingReturns({ ...opts, leagueId: division === 'all' ? null : Number(division) }),
+      getBettingBets({ ...opts, leagueId: null }),
+    ])
       .then(([r, b]) => {
         if (!live) return;
         setRows(r);
@@ -100,9 +125,14 @@ export default function ModelReturnsPage() {
     return () => {
       live = false;
     };
-  }, [edge, market, closing, bestPrice, seasonId]);
+  }, [edge, market, closing, bestPrice, seasonId, division, promoted]);
 
   const totals = useMemo(() => (rows ? totalReturns(rows) : null), [rows]);
+  const byDivision = useMemo(() => (bets ? divisionReturns(bets) : []), [bets]);
+  const shownBets = useMemo(
+    () => (bets && division !== 'all' ? bets.filter((b) => b.leagueId === Number(division)) : bets),
+    [bets, division],
+  );
 
   return (
     <div className="space-y-5">
@@ -116,7 +146,17 @@ export default function ModelReturnsPage() {
       </header>
 
       <div className="flex flex-wrap gap-4">
-        <Toggle label="Season" value={String(seasonId)} onChange={(v) => setSeasonId(Number(v))} options={SEASONS} />
+        <Toggle
+          label="Season"
+          value={String(seasonId)}
+          onChange={(v) => {
+            setSeasonId(Number(v));
+            setDivision('all');
+          }}
+          options={SEASONS}
+        />
+        <Toggle label="Division" value={division} onChange={setDivision} options={DIVISIONS} />
+        <Toggle label="Promoted teams" value={promoted} onChange={(v) => setPromoted(v as PromotedFilter)} options={PROMOTED} />
         <Toggle
           label="Edge"
           value={String(edge)}
@@ -234,15 +274,55 @@ export default function ModelReturnsPage() {
             </table>
           </section>
 
-          {bets !== null && bets.length > 0 && (
+          {division === 'all' && byDivision.length > 0 && (
+            <section className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
+              <table className="w-full text-sm" aria-label="Returns by division">
+                <thead className="bg-chalk-100 text-ink-700">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Division</th>
+                    <th className="text-right px-3 py-2 font-medium">Bets</th>
+                    <th className="text-right px-3 py-2 font-medium">Won</th>
+                    <th className="text-right px-3 py-2 font-medium">Profit</th>
+                    <th className="text-right px-3 py-2 font-medium">ROI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byDivision.map((d) => (
+                    <tr key={d.leagueId} className="border-t border-chalk-200">
+                      <td className="px-3 py-2 text-ink-900">
+                        <button type="button" className="text-left underline decoration-chalk-300" onClick={() => setDivision(String(d.leagueId))}>
+                          {d.leagueName}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">{d.bets}</td>
+                      <td className="px-3 py-2 text-right font-mono text-ink-500">
+                        {d.wins} ({(d.hitRatePct ?? 0).toFixed(0)}%)
+                      </td>
+                      <td className={`px-3 py-2 text-right font-mono ${d.profit >= 0 ? 'text-pitch-800' : 'text-loss-700'}`}>
+                        {d.profit >= 0 ? '+' : '\u2212'}&pound;{Math.abs(d.profit).toFixed(2)}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-mono ${(d.roiPct ?? 0) >= 0 ? 'text-pitch-800' : 'text-loss-700'}`}>
+                        {(d.roiPct ?? 0) >= 0 ? '+' : '\u2212'}
+                        {Math.abs(d.roiPct ?? 0).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {shownBets !== null && shownBets.length > 0 && (
             <>
               <h2 className="font-display text-lg text-ink-900">Bets</h2>
-              <BetList bets={bets} />
+              <BetList bets={shownBets} />
             </>
           )}
 
           <p className="text-xs text-ink-500">
-            Prices are from Bet365, Bet&amp;Win and Pinnacle (not every match), plus football-data.co.uk&rsquo;s market best and
+            <span className="text-amber-600" aria-hidden="true">&uarr;</span> marks a team promoted into its division that season;
+            the promoted filter includes, drops or keeps only bets on matches involving one. Before 2026/27, only the Premier
+            League has been retro-fitted. Prices are from Bet365, Bet&amp;Win and Pinnacle (not every match), plus football-data.co.uk&rsquo;s market best and
             market average across many more bookmakers. &ldquo;Best of the books&rdquo; takes the highest price on file;
             &ldquo;market average&rdquo; is closer to holding one account. Beating the closing price is the usual test of a real
             edge. See also{' '}
