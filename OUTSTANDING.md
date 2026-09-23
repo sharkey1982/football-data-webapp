@@ -1449,6 +1449,25 @@ Swept for the same problem: none. The check worth repeating after any
 drop/rename is in the migration header — Postgres does NOT validate function
 bodies when the objects they read change.
 
+## BETTING RETURNS (2026-09-22) — FUNCTION BUILT, PAGE NOT YET
+
+get_betting_returns(edge, market, closing, best_price, stake, season) returns
+bets / staked / returned / profit / ROI / hit rate / average odds / average
+edge per selection. A bet is placed when the model beats the RAW implied
+probability (margin included) by the edge threshold. Flat stakes.
+
+First numbers (this season, 153 matches with both predictions and odds):
+  1X2, 5% edge, best price, closing : 97 bets, -GBP44.70, ROI -4.6%
+  1X2, 5% edge, MEDIAN price        : 83 bets, -GBP14.35, ROI -1.7%
+  1X2, 10% edge, best price         : 24 bets, -GBP29.50, ROI -12.3%
+  Over/under 2.5, 5% edge           : 109 bets, -GBP69.50, ROI -6.4%
+NOT a verdict: ~100 bets says nothing against a bookmaker's margin.
+
+STILL TO DO: the front-end page (controls for edge/market/price basis, the
+table above, and a running profit line). And the historical refit, which is
+what would make these numbers mean something -- odds go back to 2014 (1X2,
+8 books) and 2019 (AH and OU2.5), but model fits only to June 2026.
+
 ## FPL WEEKLY HISTORY — DATA IS READY (2026-09-22)
 
 fpl_player_gameweek_history now covers FIVE past seasons: 2021/22 19,531 rows
