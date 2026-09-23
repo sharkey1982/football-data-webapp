@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import ModelReturnsPage from '../pages/football/ModelReturnsPage';
 import * as api from '../lib/bettingApi';
-import { totalReturns, sampleIsThin, orderedPrices, type BettingReturnRow, type BettingBet } from '../lib/bettingApi';
+import { totalReturns, sampleIsThin, orderedPrices, divisionReturns, type BettingReturnRow, type BettingBet } from '../lib/bettingApi';
 
 vi.mock('../lib/bettingApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/bettingApi');
@@ -44,6 +44,10 @@ const bet = (over: Partial<BettingBet> = {}): BettingBet => ({
   prices: { B365: 9, BW: 8, PS: 9.75, Max: 9.5, Avg: 8.68 },
   predictedFrom: '2025-08-14',
   retrofit: true,
+  leagueId: 1,
+  leagueName: 'Premier League',
+  homePromoted: false,
+  awayPromoted: false,
   ...over,
 });
 
@@ -52,6 +56,7 @@ beforeEach(() => {
   mocked.getBettingBets.mockResolvedValue([
     bet(),
     bet({ matchId: 2, matchDate: '2025-08-16', homeTeam: 'Aston Villa', awayTeam: 'Newcastle', homeGoals: 0, awayGoals: 0, selection: 'Draw', price: 3.4, won: true, profit: 24, prices: { B365: 3.3, Max: 3.4, Avg: 3.2 } }),
+    bet({ matchId: 3, matchDate: '2025-08-17', homeTeam: 'Hull', awayTeam: 'Millwall', homeGoals: 1, awayGoals: 1, selection: 'Home', price: 2.5, won: false, profit: -10, leagueId: 2, leagueName: 'Championship', awayPromoted: true, prices: { B365: 2.5, Avg: 2.4 } }),
   ]);
   mocked.getBettingReturns.mockResolvedValue([row(), row({ selection: 'Home', bets: 24, staked: 240, profit: -61.2, roi_pct: -25.5, wins: 7 })]);
 });
@@ -112,7 +117,7 @@ describe('Model returns page', () => {
     renderPage();
     await screen.findByRole('table', { name: 'Bets placed' });
     const rows = screen.getAllByRole('row').filter((r) => r.getAttribute('aria-expanded') !== null);
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     const first = within(rows[0]);
     expect(first.getByText(/Liverpool/)).toBeInTheDocument();
     expect(first.getByText(/Bournemouth/)).toBeInTheDocument();
@@ -150,6 +155,58 @@ describe('Model returns page', () => {
       'Market best',
       'Market average',
     ]);
+  });
+
+  it('sums returns by division from the bets, and the rows add up', () => {
+    const d = divisionReturns([
+      bet({ profit: -10 }),
+      bet({ matchId: 2, won: true, profit: 24 }),
+      bet({ matchId: 3, leagueId: 2, leagueName: 'Championship', profit: -10 }),
+    ]);
+    expect(d.map((x) => [x.leagueName, x.bets, x.wins, x.profit, x.roiPct])).toEqual([
+      ['Premier League', 2, 1, 14, 70],
+      ['Championship', 1, 0, -10, -100],
+    ]);
+    expect(d.reduce((a, x) => a + x.bets, 0)).toBe(3);
+  });
+
+  it('shows returns by division; choosing one filters the selection table and the bet list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const table = within(await screen.findByRole('table', { name: 'Returns by division' }));
+    expect(table.getByRole('button', { name: 'Premier League' })).toBeInTheDocument();
+    expect(table.getByRole('button', { name: 'Championship' })).toBeInTheDocument();
+    await user.click(table.getByRole('button', { name: 'Championship' }));
+    await waitFor(() => expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ leagueId: 2 })));
+    // bets are always fetched for every division so the summary stays whole
+    expect(mocked.getBettingBets).toHaveBeenLastCalledWith(expect.objectContaining({ leagueId: null }));
+    await screen.findByRole('table', { name: 'Bets placed' });
+    const rows = screen.getAllByRole('row').filter((r) => r.getAttribute('aria-expanded') !== null);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent('Hull');
+    expect(screen.queryByRole('table', { name: 'Returns by division' })).not.toBeInTheDocument();
+  });
+
+  it('the promoted filter is sent to both calls, and promoted teams are marked', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('table', { name: 'Bets placed' });
+    expect(screen.getAllByLabelText('promoted this season')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Exclude' }));
+    await waitFor(() => expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ promoted: 'exclude' })));
+    expect(mocked.getBettingBets).toHaveBeenLastCalledWith(expect.objectContaining({ promoted: 'exclude' }));
+  });
+
+  it('changing season resets the division to All', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('table', { name: 'Returns by selection' });
+    await user.click(screen.getByRole('button', { name: 'Champ' }));
+    await waitFor(() => expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ leagueId: 2 })));
+    await user.click(screen.getByRole('button', { name: '2024/25' }));
+    await waitFor(() =>
+      expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ seasonId: 11, leagueId: null })),
+    );
   });
 
   it('says so plainly when nothing clears the edge', async () => {

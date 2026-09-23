@@ -7731,6 +7731,8 @@ export type Database = {
           p_best_price?: boolean
           p_stake?: number
           p_season_id?: number
+          p_league_id?: number | null
+          p_promoted?: string
         }
         Returns: {
           selection: string
@@ -7766,6 +7768,8 @@ export type Database = {
           p_best_price?: boolean
           p_stake?: number
           p_season_id?: number
+          p_league_id?: number | null
+          p_promoted?: string
         }
         Returns: {
           match_id: number
@@ -7784,6 +7788,10 @@ export type Database = {
           prices: Json
           predicted_from: string | null
           retrofit: boolean
+          league_id: number
+          league_name: string
+          home_promoted: boolean
+          away_promoted: boolean
         }[]
       }
       get_xi_weekly_by_codes: {

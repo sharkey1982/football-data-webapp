@@ -33,7 +33,13 @@ export type BettingOptions = {
   bestPrice: boolean;
   stake?: number;
   seasonId?: number;
+  /** null/undefined = every division. */
+  leagueId?: number | null;
+  /** Bets involving a team promoted into its division this season. */
+  promoted?: PromotedFilter;
 };
+
+export type PromotedFilter = 'all' | 'exclude' | 'only';
 
 export async function getBettingReturns(o: BettingOptions): Promise<BettingReturnRow[]> {
   const { data, error } = await supabase.rpc('get_betting_returns', {
@@ -43,6 +49,8 @@ export async function getBettingReturns(o: BettingOptions): Promise<BettingRetur
     p_best_price: o.bestPrice,
     p_stake: o.stake ?? 10,
     p_season_id: o.seasonId ?? 13,
+    p_league_id: o.leagueId ?? null,
+    p_promoted: o.promoted ?? 'all',
   });
   if (error) throw error;
   return (data ?? []).map((r: Record<string, unknown>) => ({
@@ -98,6 +106,11 @@ export type BettingBet = {
   /** Date of the fit the prediction came from. */
   predictedFrom: string | null;
   retrofit: boolean;
+  leagueId: number;
+  leagueName: string;
+  /** Promoted into this division this season. */
+  homePromoted: boolean;
+  awayPromoted: boolean;
 };
 
 export async function getBettingBets(o: BettingOptions): Promise<BettingBet[]> {
@@ -108,6 +121,8 @@ export async function getBettingBets(o: BettingOptions): Promise<BettingBet[]> {
     p_best_price: o.bestPrice,
     p_stake: o.stake ?? 10,
     p_season_id: o.seasonId ?? 13,
+    p_league_id: o.leagueId ?? null,
+    p_promoted: o.promoted ?? 'all',
   });
   if (error) throw error;
   return (data ?? []).map((r: Record<string, unknown>) => ({
@@ -129,6 +144,10 @@ export async function getBettingBets(o: BettingOptions): Promise<BettingBet[]> {
     ),
     predictedFrom: r.predicted_from ? String(r.predicted_from) : null,
     retrofit: Boolean(r.retrofit),
+    leagueId: Number(r.league_id ?? 0),
+    leagueName: String(r.league_name ?? ''),
+    homePromoted: Boolean(r.home_promoted),
+    awayPromoted: Boolean(r.away_promoted),
   }));
 }
 
@@ -152,4 +171,40 @@ export function orderedPrices(prices: Record<string, number>): { code: string; n
   return Object.entries(prices)
     .map(([code, price]) => ({ code, name: PRICE_SOURCES[code] ?? code, price }))
     .sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name));
+}
+
+// ---------------------------------------------------------------------------
+// Returns by division, summed from the bets themselves so the rows always add
+// up to the page's totals.
+// ---------------------------------------------------------------------------
+
+export type DivisionReturn = {
+  leagueId: number;
+  leagueName: string;
+  bets: number;
+  wins: number;
+  staked: number;
+  profit: number;
+  roiPct: number | null;
+  hitRatePct: number | null;
+};
+
+export function divisionReturns(bets: BettingBet[]): DivisionReturn[] {
+  const by = new Map<number, DivisionReturn>();
+  for (const b of bets) {
+    const d = by.get(b.leagueId) ?? { leagueId: b.leagueId, leagueName: b.leagueName, bets: 0, wins: 0, staked: 0, profit: 0, roiPct: null, hitRatePct: null };
+    d.bets += 1;
+    d.wins += b.won ? 1 : 0;
+    d.staked += b.stake;
+    d.profit += b.profit;
+    by.set(b.leagueId, d);
+  }
+  return [...by.values()]
+    .sort((a, b) => a.leagueId - b.leagueId)
+    .map((d) => ({
+      ...d,
+      profit: Math.round(d.profit * 100) / 100,
+      roiPct: d.staked > 0 ? Math.round((1000 * d.profit) / d.staked) / 10 : null,
+      hitRatePct: d.bets > 0 ? Math.round((1000 * d.wins) / d.bets) / 10 : null,
+    }));
 }

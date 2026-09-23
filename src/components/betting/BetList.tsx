@@ -24,6 +24,12 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right'; hideMobil
 const fmtDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
 
+const Promoted = () => (
+  <span className="text-amber-600 ml-0.5" title="Promoted this season" aria-label="promoted this season">
+    &uarr;
+  </span>
+);
+
 const sortValue = (b: BettingBet, k: SortKey): string | number =>
   k === 'fixture' ? `${b.homeTeam} ${b.awayTeam}` : (b[k] as string | number);
 
@@ -83,7 +89,9 @@ export default function BetList({ bets }: { bets: BettingBet[] }) {
                 >
                   <td className="px-3 py-2 text-ink-500 whitespace-nowrap">{fmtDate(b.matchDate)}</td>
                   <td className="px-3 py-2 text-ink-900">
-                    {b.homeTeam} <span className="font-mono text-ink-500">{b.homeGoals}&ndash;{b.awayGoals}</span> {b.awayTeam}
+                    {b.homeTeam}
+                    {b.homePromoted && <Promoted />} <span className="font-mono text-ink-500">{b.homeGoals}&ndash;{b.awayGoals}</span> {b.awayTeam}
+                    {b.awayPromoted && <Promoted />}
                   </td>
                   <td className="px-3 py-2 text-ink-900 whitespace-nowrap">{b.selection}</td>
                   <td className="px-3 py-2 text-right font-mono text-ink-500 hidden sm:table-cell">{(b.modelP * 100).toFixed(1)}%</td>
@@ -104,7 +112,7 @@ export default function BetList({ bets }: { bets: BettingBet[] }) {
                         ))}
                       </div>
                       <div className="mt-1 text-ink-500">
-                        Model {(b.modelP * 100).toFixed(1)}% vs price {(100 / b.price).toFixed(1)}%.
+                        {b.leagueName && <>{b.leagueName}. </>}Model {(b.modelP * 100).toFixed(1)}% vs price {(100 / b.price).toFixed(1)}%.
                         {b.predictedFrom && <> Predicted from the fit of {fmtDate(b.predictedFrom)}{b.retrofit ? ' (retro-fitted)' : ''}.</>}
                       </div>
                     </td>
