@@ -73,3 +73,83 @@ export function totalReturns(rows: BettingReturnRow[]): BettingTotals {
 export function sampleIsThin(bets: number): boolean {
   return bets < 500;
 }
+
+// ---------------------------------------------------------------------------
+// The individual bets behind the totals. get_betting_returns is a summary of
+// get_betting_bets in the database, so these always reconcile with the table.
+// ---------------------------------------------------------------------------
+
+export type BettingBet = {
+  matchId: number;
+  matchDate: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeGoals: number;
+  awayGoals: number;
+  selection: string;
+  modelP: number;
+  price: number;
+  edge: number;
+  won: boolean;
+  stake: number;
+  profit: number;
+  /** Every price on file for this selection, keyed by source code (B365, PS, Max, Avg...). */
+  prices: Record<string, number>;
+  /** Date of the fit the prediction came from. */
+  predictedFrom: string | null;
+  retrofit: boolean;
+};
+
+export async function getBettingBets(o: BettingOptions): Promise<BettingBet[]> {
+  const { data, error } = await supabase.rpc('get_betting_bets', {
+    p_edge: o.edge,
+    p_market: o.market,
+    p_closing: o.closing,
+    p_best_price: o.bestPrice,
+    p_stake: o.stake ?? 10,
+    p_season_id: o.seasonId ?? 13,
+  });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    matchId: Number(r.match_id),
+    matchDate: String(r.match_date ?? ''),
+    homeTeam: String(r.home_team ?? ''),
+    awayTeam: String(r.away_team ?? ''),
+    homeGoals: Number(r.home_goals ?? 0),
+    awayGoals: Number(r.away_goals ?? 0),
+    selection: String(r.selection ?? ''),
+    modelP: Number(r.model_p ?? 0),
+    price: Number(r.price ?? 0),
+    edge: Number(r.edge ?? 0),
+    won: Boolean(r.won),
+    stake: Number(r.stake ?? 0),
+    profit: Number(r.profit ?? 0),
+    prices: Object.fromEntries(
+      Object.entries((r.prices as Record<string, unknown>) ?? {}).map(([k, v]) => [k, Number(v)]),
+    ),
+    predictedFrom: r.predicted_from ? String(r.predicted_from) : null,
+    retrofit: Boolean(r.retrofit),
+  }));
+}
+
+/** football-data.co.uk source codes. Max and Avg are market summaries across
+ *  many bookmakers, not bookmakers themselves. */
+export const PRICE_SOURCES: Record<string, string> = {
+  B365: 'Bet365',
+  BW: 'Bet&Win',
+  PS: 'Pinnacle',
+  P: 'Pinnacle',
+  WH: 'William Hill',
+  VC: 'BetVictor',
+  IW: 'Interwetten',
+  Max: 'Market best',
+  Avg: 'Market average',
+};
+
+/** Bookmakers first (alphabetical by name), then the two market summaries. */
+export function orderedPrices(prices: Record<string, number>): { code: string; name: string; price: number }[] {
+  const rank = (c: string) => (c === 'Max' ? 1 : c === 'Avg' ? 2 : 0);
+  return Object.entries(prices)
+    .map(([code, price]) => ({ code, name: PRICE_SOURCES[code] ?? code, price }))
+    .sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name));
+}

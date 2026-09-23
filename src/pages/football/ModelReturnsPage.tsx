@@ -16,11 +16,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getErrorMessage } from '../../lib/errorMessage';
+import BetList from '../../components/betting/BetList';
 import {
+  getBettingBets,
   getBettingReturns,
   totalReturns,
   sampleIsThin,
   type BettingMarket,
+  type BettingBet,
   type BettingReturnRow,
 } from '../../lib/bettingApi';
 
@@ -72,6 +75,7 @@ export default function ModelReturnsPage() {
   const [bestPrice, setBestPrice] = useState(true);
   const [seasonId, setSeasonId] = useState(13);
   const [rows, setRows] = useState<BettingReturnRow[] | null>(null);
+  const [bets, setBets] = useState<BettingBet[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useDocumentHead({
@@ -83,9 +87,15 @@ export default function ModelReturnsPage() {
   useEffect(() => {
     let live = true;
     setRows(null);
+    setBets(null);
     setError(null);
-    getBettingReturns({ edge, market, closing, bestPrice, seasonId })
-      .then((r) => live && setRows(r))
+    const opts = { edge, market, closing, bestPrice, seasonId };
+    Promise.all([getBettingReturns(opts), getBettingBets(opts)])
+      .then(([r, b]) => {
+        if (!live) return;
+        setRows(r);
+        setBets(b);
+      })
       .catch((e) => live && setError(getErrorMessage(e, 'Could not work out the returns')));
     return () => {
       live = false;
@@ -128,7 +138,7 @@ export default function ModelReturnsPage() {
           onChange={(v) => setBestPrice(v === 'best')}
           options={[
             { value: 'best', label: 'Best of the books' },
-            { value: 'median', label: 'Median' },
+            { value: 'median', label: 'Market average' },
           ]}
         />
         <Toggle
@@ -189,7 +199,7 @@ export default function ModelReturnsPage() {
           )}
 
           <section className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="Returns by selection">
               <thead className="bg-chalk-100 text-ink-700">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Selection</th>
@@ -224,9 +234,18 @@ export default function ModelReturnsPage() {
             </table>
           </section>
 
+          {bets !== null && bets.length > 0 && (
+            <>
+              <h2 className="font-display text-lg text-ink-900">Bets</h2>
+              <BetList bets={bets} />
+            </>
+          )}
+
           <p className="text-xs text-ink-500">
-            Prices come from up to eight bookmakers. &ldquo;Best of the books&rdquo; assumes an account with every one of them;
-            &ldquo;median&rdquo; is closer to holding one. Beating the closing price is the usual test of a real edge. See also{' '}
+            Prices are from Bet365, Bet&amp;Win and Pinnacle (not every match), plus football-data.co.uk&rsquo;s market best and
+            market average across many more bookmakers. &ldquo;Best of the books&rdquo; takes the highest price on file;
+            &ldquo;market average&rdquo; is closer to holding one account. Beating the closing price is the usual test of a real
+            edge. See also{' '}
             <Link className="underline" to="/football/model-accuracy">
               Model Accuracy
             </Link>
