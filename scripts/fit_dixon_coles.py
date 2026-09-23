@@ -50,6 +50,17 @@
 # Usage:
 #   python scripts/fit_dixon_coles.py --league-code E0
 #   python scripts/fit_dixon_coles.py --league-code E0 --dry-run
+#   python scripts/fit_dixon_coles.py --league-code E0 --as-of 2025-11-06
+#
+# --as-of DATE (retro-fit): fits exactly as if run at the end of DATE.
+# The match window and the recency weighting both end at DATE (matches ON
+# DATE are included), the movement check compares only against fits made
+# before it, and the row is stamped fitted_at = DATE 23:59:59 UTC,
+# as_of_date = DATE, is_retrofit = true. Because every prediction function
+# picks the newest accepted fit with fitted_at::date < kick-off date, a
+# fit as of DATE serves kick-offs from DATE+1 onward -- never a match it
+# has already seen. Re-running for a date that already has an accepted
+# retro-fit is a no-op (exit 0), so a partly-failed backfill can be rerun.
 #
 # Requires SUPABASE_URL and SUPABASE_SERVICE_KEY in the environment. Never
 # expose SUPABASE_SERVICE_KEY to the Vite frontend -- this only ever runs
@@ -139,17 +150,19 @@ def negative_log_likelihood(params, home_idx, away_idx, home_goals, away_goals, 
     return -np.sum(ll)
 
 
-def previous_accepted_ratings(supabase, league_id):
-    """Ratings from the current production fit for this league, if any -- used only for the movement check."""
-    fit_res = (
+def previous_accepted_ratings(supabase, league_id, before=None):
+    """Ratings from the production fit for this league, if any -- used only for the movement check.
+    With `before` (retro-fits), only fits made strictly before that timestamp count, so a
+    retro-fit is never compared against a fit from its own future."""
+    q = (
         supabase.table("model_fit_runs")
         .select("fit_run_id")
         .eq("league_id", league_id)
         .eq("status", "accepted")
-        .order("fitted_at", desc=True)
-        .limit(1)
-        .execute()
     )
+    if before is not None:
+        q = q.lt("fitted_at", before)
+    fit_res = q.order("fitted_at", desc=True).limit(1).execute()
     if not fit_res.data:
         return None
     prev_fit_run_id = fit_res.data[0]["fit_run_id"]
@@ -303,7 +316,7 @@ def validate_fit(
     return status, rejection_reason, warnings, checks
 
 
-def fit_league(supabase, league_code, dry_run):
+def fit_league(supabase, league_code, dry_run, as_of=None):
     league_res = supabase.table("leagues").select("league_id, code, name").eq("code", league_code).single().execute()
     league = league_res.data
     if not league:
@@ -311,8 +324,34 @@ def fit_league(supabase, league_code, dry_run):
         sys.exit(1)
     league_id = league["league_id"]
 
-    window_end_date = date.today()
+    if as_of is not None:
+        if as_of >= date.today():
+            print(f"ERROR: --as-of {as_of} must be before today -- use a normal run for today.", file=sys.stderr)
+            sys.exit(1)
+        existing = (
+            supabase.table("model_fit_runs")
+            .select("fit_run_id, fitted_at")
+            .eq("league_id", league_id)
+            .eq("is_retrofit", True)
+            .eq("status", "accepted")
+            .eq("as_of_date", as_of.isoformat())
+            .execute()
+        )
+        if existing.data:
+            print(f"{league_code} already has accepted retro-fit {existing.data[0]['fit_run_id']} as of {as_of} -- skipping.")
+            return None, existing.data[0]["fit_run_id"]
+        window_end_date = as_of
+        fitted_at = f"{as_of.isoformat()}T23:59:59+00:00"
+    else:
+        window_end_date = date.today()
+        fitted_at = None  # column default now()
     window_start_date = window_end_date - timedelta(days=WINDOW_DAYS)
+
+    def run_metadata():
+        meta = {"as_of_date": window_end_date.isoformat(), "is_retrofit": as_of is not None}
+        if fitted_at is not None:
+            meta["fitted_at"] = fitted_at
+        return meta
 
     matches = []
     page_size = 1000
@@ -347,6 +386,7 @@ def fit_league(supabase, league_code, dry_run):
             "status": "rejected",
             "rejection_reason": reason,
             "validation_checks": {"note": "fit could not be attempted -- see rejection_reason"},
+            **run_metadata(),
         }
         if dry_run:
             print(f"DRY RUN -- would write rejected fit_run for {league_code}: {reason}")
@@ -421,7 +461,7 @@ def fit_league(supabase, league_code, dry_run):
     attack = raw_attack + shift
     defence = raw_defence + shift
 
-    previous_ratings = previous_accepted_ratings(supabase, league_id)
+    previous_ratings = previous_accepted_ratings(supabase, league_id, before=fitted_at)
     status, rejection_reason, warnings, checks = validate_fit(
         converged=bool(result.success),
         optimizer_message=str(result.message),
@@ -447,6 +487,8 @@ def fit_league(supabase, league_code, dry_run):
         "window_start_date": window_start_date.isoformat(),
         "window_end_date": window_end_date.isoformat(),
         "decay_half_life_days": HALF_LIFE_DAYS,
+        "as_of_date": window_end_date.isoformat(),
+        "is_retrofit": as_of is not None,
         "rho": rho,
         "home_advantage": home_advantage,
         "log_likelihood": log_likelihood,
@@ -484,6 +526,7 @@ def fit_league(supabase, league_code, dry_run):
                 "rejection_reason": rejection_reason,
                 "validation_warnings": warnings,
                 "validation_checks": checks,
+                **run_metadata(),
             }
         )
         .execute()
@@ -526,6 +569,12 @@ def main():
     parser = argparse.ArgumentParser(description="Fit the Dixon-Coles model for one league.")
     parser.add_argument("--league-code", default="E0")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--as-of",
+        type=date.fromisoformat,
+        default=None,
+        help="Retro-fit as at the end of this past date (YYYY-MM-DD). See the header comment.",
+    )
     args = parser.parse_args()
 
     url = os.environ.get("SUPABASE_URL")
@@ -535,7 +584,7 @@ def main():
         sys.exit(1)
 
     supabase = create_client(url, key)
-    fit_league(supabase, args.league_code, args.dry_run)
+    fit_league(supabase, args.league_code, args.dry_run, as_of=args.as_of)
 
 
 if __name__ == "__main__":

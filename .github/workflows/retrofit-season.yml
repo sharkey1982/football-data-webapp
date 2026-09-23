@@ -1,0 +1,97 @@
+name: Retro-fit a past season (point-in-time Dixon-Coles)
+
+# Walks a past season week by week, fitting the model AS OF each date
+# (scripts/fit_dixon_coles.py --as-of), so every archived match can be
+# predicted from a fit that only saw earlier results. The division below is
+# fitted at the same dates so promoted teams get point-in-time estimates.
+# Then verifies every fit's stamp before predicting (retrofit_verify_and_predict.py).
+#
+# Idempotent: a date that already has an accepted retro-fit is skipped, and
+# predictions are only written for matches that have none -- rerun freely.
+#
+# Defaults: Premier League 2025/26. First match Fri 15 Aug 2025, so the
+# first fit is as of Thu 14 Aug; weekly Thursdays to the last matchweek.
+
+on:
+  workflow_dispatch:
+    inputs:
+      league:
+        description: League to retro-fit
+        default: E0
+      below_league:
+        description: Division below, for promoted-team estimates (blank for none)
+        default: E1
+      season_id:
+        description: Season to predict (seasons.season_id)
+        default: '12'
+      start_date:
+        description: First as-of date (the day before the first match)
+        default: '2025-08-14'
+      end_date:
+        description: Last as-of date
+        default: '2026-05-21'
+      step_days:
+        description: Days between fits
+        default: '7'
+
+concurrency:
+  group: retrofit-season
+  cancel-in-progress: false
+
+jobs:
+  retrofit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      LEAGUE: ${{ inputs.league }}
+      BELOW: ${{ inputs.below_league }}
+      SEASON_ID: ${{ inputs.season_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+
+      - name: Build as-of dates
+        id: dates
+        run: |
+          DATES=$(python -c "
+          from datetime import date, timedelta
+          d, end, step = date.fromisoformat('${{ inputs.start_date }}'), date.fromisoformat('${{ inputs.end_date }}'), int('${{ inputs.step_days }}')
+          out = []
+          while d <= end:
+              out.append(d.isoformat()); d += timedelta(days=step)
+          print(','.join(out))")
+          echo "dates=$DATES" >> "$GITHUB_OUTPUT"
+          echo "$(echo "$DATES" | tr ',' '\n' | wc -l) as-of dates: $DATES"
+
+      # A rejected fit for one date is not fatal (the verify step reports it
+      # and the previous week's fit serves those matches), so the loop carries
+      # on; anything else unexpected fails the job at the end.
+      - name: Fit each as-of date
+        run: |
+          set +e
+          FAILED=0
+          for D in $(echo "${{ steps.dates.outputs.dates }}" | tr ',' ' '); do
+            echo "::group::As of $D"
+            if [ -n "$BELOW" ]; then
+              python scripts/fit_dixon_coles.py --league-code "$BELOW" --as-of "$D" > /tmp/below.log 2>&1 \
+                || { echo "::warning::$BELOW fit as of $D failed or was rejected"; tail -5 /tmp/below.log; }
+            fi
+            python scripts/fit_dixon_coles.py --league-code "$LEAGUE" --as-of "$D"
+            [ $? -ne 0 ] && echo "::warning::$LEAGUE fit as of $D failed or was rejected"
+            if [ -n "$BELOW" ]; then
+              python scripts/estimate_promoted_team_ratings.py --target-league "$LEAGUE" --below-league "$BELOW" --as-of "$D"
+              EST=$?
+              if [ $EST -eq 2 ]; then echo "::warning::Unresolvable promoted team(s) as of $D"
+              elif [ $EST -ne 0 ]; then echo "::error::Estimation failed as of $D"; FAILED=1; fi
+            fi
+            echo "::endgroup::"
+          done
+          exit $FAILED
+
+      - name: Verify fit stamps, then predict and report coverage
+        run: python scripts/retrofit_verify_and_predict.py --league-code "$LEAGUE" --season-id "$SEASON_ID" --dates "${{ steps.dates.outputs.dates }}"
