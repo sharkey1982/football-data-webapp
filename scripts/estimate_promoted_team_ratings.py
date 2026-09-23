@@ -42,6 +42,13 @@
 # Usage:
 #   python scripts/estimate_promoted_team_ratings.py --target-league E1 --below-league E2 --above-league E0
 #   python scripts/estimate_promoted_team_ratings.py --target-league E0 --below-league E1 --dry-run
+#   python scripts/estimate_promoted_team_ratings.py --target-league E0 --below-league E1 --as-of 2025-08-14
+#
+# --as-of DATE (retro-fit): every fit used -- target and source -- is the
+# newest accepted one made by the end of DATE, and the target season's
+# teams come from the matches archive (the season of the league's next
+# match after DATE), since fixtures only holds the current season. Run
+# fit_dixon_coles.py with the same --as-of first for every league named.
 # ============================================================================
 
 import argparse
@@ -49,22 +56,24 @@ import os
 import statistics
 import sys
 
+from datetime import date
+
 from supabase import create_client
 
 
-def latest_fit_run(supabase, league_id):
+def latest_fit_run(supabase, league_id, as_of=None):
     """The current PRODUCTION fit for a league -- status='accepted' only.
     Never selects by fitted_at/fit_run_id alone; a rejected fit (even a
     more recent one) must never be used as a source or target basis."""
-    res = (
+    q = (
         supabase.table("model_fit_runs")
         .select("fit_run_id, fitted_at")
         .eq("league_id", league_id)
         .eq("status", "accepted")
-        .order("fitted_at", desc=True)
-        .limit(1)
-        .execute()
     )
+    if as_of is not None:
+        q = q.lte("fitted_at", f"{as_of.isoformat()}T23:59:59+00:00")
+    res = q.order("fitted_at", desc=True).limit(1).execute()
     return res.data[0] if res.data else None
 
 
@@ -76,6 +85,33 @@ def ratings_for_fit_run(supabase, fit_run_id):
         .execute()
     )
     return {r["team_id"]: r for r in (res.data or [])}
+
+
+def season_team_ids_as_of(supabase, league_id, as_of):
+    """Teams in the season of this league's next match after as_of, from the matches archive.
+    Who is in a division is known before a ball is kicked, so this uses no hindsight."""
+    nxt = (
+        supabase.table("matches")
+        .select("season_id")
+        .eq("league_id", league_id)
+        .gt("match_date", as_of.isoformat())
+        .order("match_date")
+        .limit(1)
+        .execute()
+    )
+    if not nxt.data:
+        return None, set()
+    season_id = nxt.data[0]["season_id"]
+    rows = (
+        supabase.table("matches")
+        .select("home_team_id, away_team_id")
+        .eq("league_id", league_id)
+        .eq("season_id", season_id)
+        .limit(2000)
+        .execute()
+    )
+    ids = {r["home_team_id"] for r in (rows.data or [])} | {r["away_team_id"] for r in (rows.data or [])}
+    return season_id, ids
 
 
 def current_season_team_ids(supabase, league_id):
@@ -120,6 +156,8 @@ def main():
     parser.add_argument("--below-league", default=None, help="Division below -- for teams promoted UP into --target-league.")
     parser.add_argument("--above-league", default=None, help="Division above -- for teams relegated DOWN into --target-league.")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--as-of", type=date.fromisoformat, default=None,
+                        help="Retro-fit date (YYYY-MM-DD): use only fits made by the end of it.")
     args = parser.parse_args()
 
     if not args.below_league and not args.above_league:
@@ -141,7 +179,7 @@ def main():
         return res.data["league_id"]
 
     target_league_id = league_id_for(args.target_league)
-    target_fit = latest_fit_run(supabase, target_league_id)
+    target_fit = latest_fit_run(supabase, target_league_id, args.as_of)
     if not target_fit:
         print(f"ERROR: {args.target_league} has no accepted fit run at all -- fit it first.", file=sys.stderr)
         sys.exit(1)
@@ -156,7 +194,7 @@ def main():
         if not code:
             continue
         league_id = league_id_for(code)
-        fit = latest_fit_run(supabase, league_id)
+        fit = latest_fit_run(supabase, league_id, args.as_of)
         if not fit:
             print(f"  {code} has no accepted fit run yet -- {label} estimation unavailable this run.")
             continue
@@ -166,7 +204,10 @@ def main():
         if gap is not None:
             directions.append({"code": code, "fit": fit, "ratings": ratings, "gap": gap, "label": label})
 
-    season_id, current_team_ids = current_season_team_ids(supabase, target_league_id)
+    if args.as_of is not None:
+        season_id, current_team_ids = season_team_ids_as_of(supabase, target_league_id, args.as_of)
+    else:
+        season_id, current_team_ids = current_season_team_ids(supabase, target_league_id)
     if season_id is None:
         print(
             f"SKIPPING promoted/relegated-team estimation for {args.target_league}: no fixtures found, so which "

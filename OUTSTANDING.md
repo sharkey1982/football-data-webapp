@@ -10,6 +10,35 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Strength views pick the latest CONVERGED fit, not the latest ACCEPTED one
+team_strength_current and fpl_team_strength_current select
+`converged = true` ordered by fitted_at. A fit that converges but fails a
+quality gate (status 'rejected') would become the live team ratings on
+every page that reads them. Every other consumer filters
+`status = 'accepted'`. Found while checking which readers of
+model_fit_runs could be affected by retro-fits (none are -- they all order
+by fitted_at, and retro-fits are past-dated). Fix: swap the filter to
+status = 'accepted' in both views.
+
+### Retro-fit: Premier League 2025/26
+`fit_dixon_coles.py --as-of`, `estimate_promoted_team_ratings.py --as-of`,
+the `retrofit-season` workflow and `match_predictions` are in place.
+Retro-fits are labelled (`model_fit_runs.is_retrofit`, `as_of_date`) and
+stamped `fitted_at = as-of 23:59:59 UTC`, so they serve kick-offs from the
+next day only. `get_betting_returns` reads `match_predictions` for past
+seasons; the Model Returns page has a season toggle.
+Odds for 2025/26 E0: 1X2 from FIVE bookmakers (O/U from four), not eight.
+Other leagues/seasons: rerun the workflow with different inputs; E1 and
+below would need `--above-league` passing through too (relegated teams).
+
+### Test run reports 3 unhandled errors outside any test
+All 382 tests pass, but vitest catches unhandled errors from
+TacticalRolesAdminPage.test.tsx (a `<Link>` rendered outside a Router) and
+TeamOfTheWeekPage (setState after teardown, `window is not defined`).
+Pre-existing; untouched by the retro-fit branch. Vitest warns these can
+mask false positives.
+
+
 ### FPL rollover: three tables still have single-column keys
 fpl_teams, fpl_gameweeks and fpl_fixtures conflict on fpl_team_id /
 fpl_event_id / fpl_fixture_id alone. At the 2027/28 rollover, FPL reuses

@@ -73,6 +73,17 @@ describe('Model returns page', () => {
     await waitFor(() => expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ closing: false })));
   });
 
+  it('defaults to this season and labels last season as retro-fitted', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('table');
+    expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ seasonId: 13 }));
+    expect(screen.queryByText(/Retro-fitted/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '2025/26' }));
+    await waitFor(() => expect(mocked.getBettingReturns).toHaveBeenLastCalledWith(expect.objectContaining({ seasonId: 12 })));
+    expect(screen.getByText(/Retro-fitted/)).toBeInTheDocument();
+  });
+
   it('says so plainly when nothing clears the edge', async () => {
     mocked.getBettingReturns.mockResolvedValue([]);
     renderPage();

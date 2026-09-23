@@ -26,6 +26,14 @@ import {
 
 const EDGES = [0.02, 0.05, 0.1];
 
+// 2025/26 predictions are retro-fitted: today's model code, fitted week by
+// week on only the results available before each match (match_predictions).
+const SEASONS = [
+  { value: '13', label: '2026/27' },
+  { value: '12', label: '2025/26' },
+];
+const RETROFIT_SEASONS = new Set([12]);
+
 function Toggle({
   options,
   value,
@@ -62,6 +70,7 @@ export default function ModelReturnsPage() {
   const [market, setMarket] = useState<BettingMarket>('1x2');
   const [closing, setClosing] = useState(true);
   const [bestPrice, setBestPrice] = useState(true);
+  const [seasonId, setSeasonId] = useState(13);
   const [rows, setRows] = useState<BettingReturnRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,13 +84,13 @@ export default function ModelReturnsPage() {
     let live = true;
     setRows(null);
     setError(null);
-    getBettingReturns({ edge, market, closing, bestPrice })
+    getBettingReturns({ edge, market, closing, bestPrice, seasonId })
       .then((r) => live && setRows(r))
       .catch((e) => live && setError(getErrorMessage(e, 'Could not work out the returns')));
     return () => {
       live = false;
     };
-  }, [edge, market, closing, bestPrice]);
+  }, [edge, market, closing, bestPrice, seasonId]);
 
   const totals = useMemo(() => (rows ? totalReturns(rows) : null), [rows]);
 
@@ -97,6 +106,7 @@ export default function ModelReturnsPage() {
       </header>
 
       <div className="flex flex-wrap gap-4">
+        <Toggle label="Season" value={String(seasonId)} onChange={(v) => setSeasonId(Number(v))} options={SEASONS} />
         <Toggle
           label="Edge"
           value={String(edge)}
@@ -131,6 +141,12 @@ export default function ModelReturnsPage() {
           ]}
         />
       </div>
+
+      {RETROFIT_SEASONS.has(seasonId) && (
+        <p className="text-xs text-ink-500">
+          Retro-fitted: each match is predicted by a fit made from results before it, using today&rsquo;s model.
+        </p>
+      )}
 
       {error && <p className="text-sm text-loss-700">{error}</p>}
       {rows === null && !error && <p className="text-sm text-ink-500">Working it out&hellip;</p>}
@@ -168,8 +184,7 @@ export default function ModelReturnsPage() {
           {sampleIsThin(totals.bets) && (
             <div className="border border-amber-400 bg-chalk-100 rounded-lg p-3 text-sm text-ink-700">
               <b>Too few bets to mean anything.</b> {totals.bets} bets against a bookmaker&rsquo;s margin is noise, not evidence &mdash; the
-              swing between these settings is luck at this size. Predictions only exist from August 2026, because the model&rsquo;s own fit
-              history starts then; extending it backwards is what would make these numbers readable.
+              swing between these settings is luck at this size.
             </div>
           )}
 
