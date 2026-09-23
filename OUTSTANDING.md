@@ -10,6 +10,51 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Half-life/shrinkage grid: does NOT survive proper significance testing -- don't re-run this
+scripts/model_experiment.py ran a 10-variant grid (half-life 180/270/365,
+shrinkage 0-3) across all 4 divisions, tuned on 2023/24-2024/25, held back
+2025/26. Picking each division's lowest-gap variant looked promising at
+first read (e.g. League Two: shrink 3, gap 0.0188 tune / 0.0183 holdout).
+
+Re-checked with a proper paired test (per-match log-loss vs the
+unshrunk baseline, same matches, t-statistic) rather than comparing raw
+means: none of the three candidate winners hold up on the held-back
+season. League Two, the strongest candidate, is t=-3.26 on the tuning
+seasons but only t=-0.76 on 2025/26 -- classic overfitting to the tuning
+data, not a real effect. Premier League and League One are weaker still.
+Championship never had a consistent winner across both splits in the
+first place.
+
+CONCLUSION: no version change from this. Don't re-run the same grid
+expecting a different answer -- the issue is that comparing 10 variants
+and picking the best one is close to guaranteed to find an apparent
+winner even under pure noise; a proper significance check is required
+before reading any future grid this way, not an optional extra step.
+
+### Premier League "estimated ratings" gap -- traced to one team, not a systematic flaw
+The scorecard's team-type breakdown showed a large PL log-loss gap for
+matches using an estimated (not-yet-directly-fit) rating: 1.0325 vs the
+market's 0.9007 over 55 matches. Read at face value last time as
+evidence the promoted-team estimation method needs work.
+
+Traced to the individual teams: the gap is overwhelmingly ONE case --
+Sunderland's first 10 PL games in 2025/26 (log-loss 1.65 vs market 1.23,
+gap 0.42 on its own). Sunderland finished 4th in the Championship the
+year before (76 points, well behind the automatically-promoted sides on
+100 and 90) but then won half their first 10 Premier League matches --
+a genuine surprise the betting market also underpriced (just less
+badly than the model did). Every other promoted/estimated case in the
+sample (Luton, Sheffield United, Coventry, Leeds, Burnley, Ipswich) is
+reasonably calibrated, gap small.
+
+CONCLUSION: not solid evidence of a systematic promoted-team estimation
+bug -- redesigning the estimation method (e.g. scaling the divisional
+gap by how strongly the team finished below) on the strength of one
+team's surprise start would likely be overfitting to it. Worth watching
+whether more seasons of data turn up a real pattern, not worth engineering
+against yet.
+
+
 ### Possible new section: casino/card-game skill tools (blackjack, poker)
 Chris is considering blackjack basic-strategy and card-counting trainers,
 and poker EV/equity tools, alongside the existing football analytics and
