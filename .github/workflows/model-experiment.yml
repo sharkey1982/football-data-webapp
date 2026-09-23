@@ -1,0 +1,44 @@
+name: Model experiment (point-in-time, in memory)
+
+# Runs scripts/model_experiment.py for each league in parallel: fits every
+# variant AS OF each week in memory (never written to model_fit_runs, so an
+# experiment can't become a live fit), predicts the next week's matches and
+# stores the forecasts in model_experiment_predictions. Score with
+#   select * from score_model_experiment('<experiment>');
+# Protocol: tune on 2023/24-2024/25 (seasons 10,11), confirm on 2025/26 (12).
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: Experiment name
+        default: shrink_halflife_v1
+      variants:
+        description: half_life_days:shrinkage, comma-separated (first = baseline)
+        default: '180:0,90:0,365:0,180:2,180:5,180:10'
+      leagues:
+        description: JSON list of league codes
+        default: '["E0","E1","E2","E3"]'
+      seasons:
+        description: season_ids, comma-separated
+        default: '10,11,12'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        league: ${{ fromJSON(inputs.leagues) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/model_experiment.py --experiment "${{ inputs.experiment }}" --league "${{ matrix.league }}" --seasons "${{ inputs.seasons }}" --variants "${{ inputs.variants }}"
