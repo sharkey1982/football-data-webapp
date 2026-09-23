@@ -7699,6 +7699,34 @@ export type Database = {
           avg_edge_pct: number
         }[]
       }
+      get_betting_bets: {
+        Args: {
+          p_edge?: number
+          p_market?: string
+          p_closing?: boolean
+          p_best_price?: boolean
+          p_stake?: number
+          p_season_id?: number
+        }
+        Returns: {
+          match_id: number
+          match_date: string
+          home_team: string
+          away_team: string
+          home_goals: number
+          away_goals: number
+          selection: string
+          model_p: number
+          price: number
+          edge: number
+          won: boolean
+          stake: number
+          profit: number
+          prices: Json
+          predicted_from: string | null
+          retrofit: boolean
+        }[]
+      }
       get_xi_weekly_by_codes: {
         Args: { p_season_id: number; p_codes: number[] }
         Returns: { gameweek: number; total_points: number; players_returning: number; blanks: number }[]
