@@ -87,6 +87,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/model-scorecard',
+    title: 'Model scorecard',
+    description:
+      "How FixtureShark's match forecasts compare with the betting market's closing prices, by division, season and type of team.",
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/football/model-accuracy',
     title: 'How accurate is the model?',
     description:

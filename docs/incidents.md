@@ -112,3 +112,24 @@ fixing something else.
   atomic statement, so a failure changes nothing.
 - A merged PR's deploy was assumed from PR checks -> Netlify doesn't report
   pushes to main; confirm the production deploy's commit via the Netlify API.
+
+## 2026-09-23 · Long retro-fit run spanned a rules change
+- **Impact:** none found. The lower-division run (526 fits) started ~45 min
+  before the dc_v1_1 scoring-level gate was merged, so its fits were made
+  under dc_v1 rules.
+- **Check:** applied the gate retrospectively to all 526 -- every one passes
+  (0.989-1.009).
+- **Prevention:** a workflow run uses the code as it was when it started.
+  Don't start long runs just before merging a rules change; if one spans a
+  change, re-check its output against the new rules.
+
+## 2026-09-23 · Function name collision broke a live page for ~3 minutes
+- **Impact:** the Model Accuracy page's calibration section. Creating
+  `get_model_calibration()` (for the scorecard) alongside the existing
+  `get_model_calibration(bigint DEFAULT ...)` made the site's no-argument call
+  ambiguous until the new one was dropped and renamed
+  `get_model_scorecard_calibration()`.
+- **Cause:** didn't check the name was free before creating it.
+- **Prevention:** daily guard `unique_function_names` fails if any two of our
+  public functions share a name (extension functions excluded); proven by
+  creating a deliberate duplicate. Before creating a function, check the name.
