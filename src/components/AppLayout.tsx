@@ -243,6 +243,7 @@ export default function AppLayout() {
         // Optimiser removed from Admin: it's a Fantasy feature, not an
         // operational one, and listing it twice implied two pages.
         { to: '/admin/team-ratings', label: 'Team Strength Admin', matchPrefix: '/admin/team-ratings' },
+        { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
         { to: '/data-flow', label: 'Data Flow', matchPrefix: '/data-flow' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },

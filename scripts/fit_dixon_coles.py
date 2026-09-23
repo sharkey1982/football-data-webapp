@@ -79,6 +79,14 @@ from scipy.optimize import minimize
 from scipy.special import gammaln
 from supabase import create_client
 
+# ---------------------------------------------------------------------------
+# MODEL VERSION. The settings in this file ARE the version: changing any of
+# them (window, half-life, gates, bounds, estimation) means a new version --
+# add a model_versions row and a model_change_log entry with before/after
+# evidence in the same PR, then bump MODEL_VERSION. Every fit records it.
+# ---------------------------------------------------------------------------
+MODEL_VERSION = "dc_v1"
+
 HALF_LIFE_DAYS = 180.0
 WINDOW_DAYS = 730  # "approximately the previous two years", matching the existing fit_run_id=2 window length
 RHO_BOUNDS = (-0.4, 0.4)
@@ -348,7 +356,7 @@ def fit_league(supabase, league_code, dry_run, as_of=None):
     window_start_date = window_end_date - timedelta(days=WINDOW_DAYS)
 
     def run_metadata():
-        meta = {"as_of_date": window_end_date.isoformat(), "is_retrofit": as_of is not None}
+        meta = {"as_of_date": window_end_date.isoformat(), "is_retrofit": as_of is not None, "model_version": MODEL_VERSION}
         if fitted_at is not None:
             meta["fitted_at"] = fitted_at
         return meta
@@ -489,6 +497,7 @@ def fit_league(supabase, league_code, dry_run, as_of=None):
         "decay_half_life_days": HALF_LIFE_DAYS,
         "as_of_date": window_end_date.isoformat(),
         "is_retrofit": as_of is not None,
+        "model_version": MODEL_VERSION,
         "rho": rho,
         "home_advantage": home_advantage,
         "log_likelihood": log_likelihood,

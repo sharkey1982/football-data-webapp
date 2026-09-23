@@ -1,36 +1,32 @@
-name: Retro-fit a past season (point-in-time Dixon-Coles)
+name: Retro-fit past seasons (point-in-time Dixon-Coles)
 
-# Walks a past season week by week, fitting the model AS OF each date
+# Walks past seasons week by week, fitting the model AS OF each date
 # (scripts/fit_dixon_coles.py --as-of), so every archived match can be
-# predicted from a fit that only saw earlier results. The division below is
-# fitted at the same dates so promoted teams get point-in-time estimates.
-# Then verifies every fit's stamp before predicting (retrofit_verify_and_predict.py).
+# predicted from a fit that only saw earlier results. The divisions above and
+# below are fitted at the same dates so relegated and promoted teams get
+# point-in-time estimates. Dates come from each season's fixtures
+# (scripts/retrofit_plan.py). Every fit's stamp is verified before anything is
+# predicted (retrofit_verify_and_predict.py).
 #
-# Idempotent: a date that already has an accepted retro-fit is skipped, and
-# each match's prediction is (re)set to the newest eligible fit before it --
-# rerun freely, including after a partial or single-date run.
-#
-# Defaults: Premier League 2025/26. First match Fri 15 Aug 2025, so the
-# first fit is as of Thu 14 Aug; weekly Thursdays to the last matchweek.
+# Idempotent: a date that already has an accepted retro-fit is skipped (so a
+# division fitted as "above"/"below" for another is reused), and each match's
+# prediction is (re)set to the newest eligible fit before it -- rerun freely.
 
 on:
   workflow_dispatch:
     inputs:
-      league:
-        description: League to retro-fit
+      leagues:
+        description: Leagues to retro-fit, comma-separated (E0,E1,E2,E3,EC)
         default: E0
-      below_league:
-        description: Division below, for promoted-team estimates (blank for none)
-        default: E1
-      season_id:
-        description: Season to predict (seasons.season_id)
+      seasons:
+        description: season_ids, comma-separated (10 = 2023/24, 11 = 2024/25, 12 = 2025/26)
         default: '12'
       start_date:
-        description: First as-of date (the day before the first match)
-        default: '2025-08-14'
+        description: Optional first as-of date (blank = day before the first match)
+        default: ''
       end_date:
-        description: Last as-of date
-        default: '2026-05-21'
+        description: Optional last as-of date (blank = day before the last match)
+        default: ''
       step_days:
         description: Days between fits
         default: '7'
@@ -42,13 +38,10 @@ concurrency:
 jobs:
   retrofit:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 350
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      LEAGUE: ${{ inputs.league }}
-      BELOW: ${{ inputs.below_league }}
-      SEASON_ID: ${{ inputs.season_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,43 +49,35 @@ jobs:
           python-version: '3.12'
       - run: pip install -r scripts/requirements.txt
 
-      - name: Build as-of dates
-        id: dates
+      - name: Plan
         run: |
-          DATES=$(python -c "
-          from datetime import date, timedelta
-          d, end, step = date.fromisoformat('${{ inputs.start_date }}'), date.fromisoformat('${{ inputs.end_date }}'), int('${{ inputs.step_days }}')
-          out = []
-          while d <= end:
-              out.append(d.isoformat()); d += timedelta(days=step)
-          print(','.join(out))")
-          echo "dates=$DATES" >> "$GITHUB_OUTPUT"
-          echo "$(echo "$DATES" | tr ',' '\n' | wc -l) as-of dates: $DATES"
+          python scripts/retrofit_plan.py --leagues "${{ inputs.leagues }}" --seasons "${{ inputs.seasons }}" \
+            --step-days "${{ inputs.step_days }}" --start "${{ inputs.start_date }}" --end "${{ inputs.end_date }}" | tee plan.txt
 
       # A rejected fit for one date is not fatal (the verify step reports it
-      # and the previous week's fit serves those matches), so the loop carries
-      # on; anything else unexpected fails the job at the end.
-      - name: Fit each as-of date
+      # and the previous week's fit serves those matches); an estimation error
+      # or a verify failure fails the job at the end.
+      - name: Fit, verify and predict
         run: |
           set +e
           FAILED=0
-          for D in $(echo "${{ steps.dates.outputs.dates }}" | tr ',' ' '); do
-            echo "::group::As of $D"
-            if [ -n "$BELOW" ]; then
-              python scripts/fit_dixon_coles.py --league-code "$BELOW" --as-of "$D" > /tmp/below.log 2>&1 \
-                || { echo "::warning::$BELOW fit as of $D failed or was rejected"; tail -5 /tmp/below.log; }
-            fi
-            python scripts/fit_dixon_coles.py --league-code "$LEAGUE" --as-of "$D"
-            [ $? -ne 0 ] && echo "::warning::$LEAGUE fit as of $D failed or was rejected"
-            if [ -n "$BELOW" ]; then
-              python scripts/estimate_promoted_team_ratings.py --target-league "$LEAGUE" --below-league "$BELOW" --as-of "$D"
+          fit() { python scripts/fit_dixon_coles.py --league-code "$1" --as-of "$2" > /tmp/fit.log 2>&1 || { echo "::warning::$1 fit as of $2 failed or was rejected"; tail -3 /tmp/fit.log; }; }
+          while read -r LEAGUE SEASON ABOVE BELOW DATES; do
+            case "$LEAGUE" in ''|\#*) continue;; esac
+            echo "::group::$LEAGUE season $SEASON"
+            for D in $(echo "$DATES" | tr ',' ' '); do
+              [ "$ABOVE" != "-" ] && fit "$ABOVE" "$D"
+              [ "$BELOW" != "-" ] && fit "$BELOW" "$D"
+              fit "$LEAGUE" "$D"
+              ARGS=""
+              [ "$BELOW" != "-" ] && ARGS="$ARGS --below-league $BELOW"
+              [ "$ABOVE" != "-" ] && ARGS="$ARGS --above-league $ABOVE"
+              python scripts/estimate_promoted_team_ratings.py --target-league "$LEAGUE" $ARGS --as-of "$D" > /tmp/est.log 2>&1
               EST=$?
-              if [ $EST -eq 2 ]; then echo "::warning::Unresolvable promoted team(s) as of $D"
-              elif [ $EST -ne 0 ]; then echo "::error::Estimation failed as of $D"; FAILED=1; fi
-            fi
+              if [ $EST -eq 2 ]; then echo "::warning::$LEAGUE: unresolvable promoted/relegated team(s) as of $D"
+              elif [ $EST -ne 0 ]; then echo "::error::$LEAGUE estimation failed as of $D"; tail -5 /tmp/est.log; FAILED=1; fi
+            done
+            python scripts/retrofit_verify_and_predict.py --league-code "$LEAGUE" --season-id "$SEASON" --dates "$DATES" || FAILED=1
             echo "::endgroup::"
-          done
+          done < plan.txt
           exit $FAILED
-
-      - name: Verify fit stamps, then predict and report coverage
-        run: python scripts/retrofit_verify_and_predict.py --league-code "$LEAGUE" --season-id "$SEASON_ID" --dates "${{ steps.dates.outputs.dates }}"
