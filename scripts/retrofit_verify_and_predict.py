@@ -13,7 +13,9 @@
 #      (rejected by the quality gates) is reported, not fatal -- the
 #      previous week's fit simply serves those matches.
 #   2. PREDICT: public.backfill_match_predictions(league, season), which
-#      uses the newest accepted fit with fitted_at::date < match date.
+#      uses the newest accepted fit with fitted_at::date < match date that
+#      rates both teams, and REPLACES any existing prediction from a
+#      different fit -- so reruns converge, including after a partial run.
 #   3. REPORT coverage: matches in the season vs matches predicted, and
 #      which fit dates served them.
 #

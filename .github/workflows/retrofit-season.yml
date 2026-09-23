@@ -7,7 +7,8 @@ name: Retro-fit a past season (point-in-time Dixon-Coles)
 # Then verifies every fit's stamp before predicting (retrofit_verify_and_predict.py).
 #
 # Idempotent: a date that already has an accepted retro-fit is skipped, and
-# predictions are only written for matches that have none -- rerun freely.
+# each match's prediction is (re)set to the newest eligible fit before it --
+# rerun freely, including after a partial or single-date run.
 #
 # Defaults: Premier League 2025/26. First match Fri 15 Aug 2025, so the
 # first fit is as of Thu 14 Aug; weekly Thursdays to the last matchweek.
