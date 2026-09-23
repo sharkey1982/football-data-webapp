@@ -1,0 +1,36 @@
+name: Netlify usage estimate
+
+# Daily estimate of Netlify credits used this billing cycle (starts on the
+# 10th), from the deploys GitHub can see: site-changing pushes to main and
+# build-hook rebuilds. Logs to pipeline_runs (status view) as success /
+# warning (>= 50%) / failed (>= 75%), and fails this run at 75% so it shows
+# red in Actions too. See scripts/netlify_usage_estimate.py.
+
+on:
+  schedule:
+    - cron: '30 5 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  estimate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Estimate credits
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        # Allowance: repo variable NETLIFY_CREDIT_ALLOWANCE (Settings > Secrets and
+        # variables > Actions > Variables) to include a cycle's top-ups; else 3,000.
+        run: python scripts/netlify_usage_estimate.py --log --allowance "${{ vars.NETLIFY_CREDIT_ALLOWANCE || 3000 }}"

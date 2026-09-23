@@ -20,9 +20,17 @@ name: FPL Projections Pipeline
 # not just a safety measure against ordering errors.
 on:
   schedule:
-    - cron: '0 7,19 * * *'
+    # Two entries (not '0 7,19') so the rebuild step can tell the morning run
+    # apart: only 07:00 rebuilds the site -- see "Trigger site rebuild".
+    - cron: '0 7 * * *'
+    - cron: '0 19 * * *'
   workflow_dispatch:
     inputs:
+      rebuild_site:
+        description: 'Rebuild the site afterwards (a production deploy: 15 Netlify credits)'
+        required: false
+        type: boolean
+        default: false
       from_matchweek:
         description: 'First matchweek (leave blank to auto-detect the next gameweek)'
         required: false
@@ -98,8 +106,14 @@ jobs:
       # this is safe to have in place before the secret exists. The hook
       # URL is low-privilege -- it can start a build and nothing else --
       # which is why it's used here in preference to a Netlify API token.
+      #
+      # ONCE A DAY (2026-09-23): each rebuild is a production deploy costing 15
+      # Netlify credits, and three a day (06:00, 07:00, 19:00) used ~1,350 of
+      # the 3,000 monthly credits before any code shipped; the site was
+      # suspended for running out. Only the 07:00 scheduled run rebuilds, or a
+      # manual run with rebuild_site ticked. Pages are at most a day stale.
       - name: Trigger site rebuild
-        if: always()
+        if: always() && (github.event.schedule == '0 7 * * *' || github.event.inputs.rebuild_site == 'true')
         run: |
           if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then
             echo "::notice::NETLIFY_BUILD_HOOK_URL not set -- skipping rebuild. Static pages will refresh on the next deploy."

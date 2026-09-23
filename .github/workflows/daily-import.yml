@@ -3,7 +3,13 @@ name: Daily Premier League Import
 on:
   schedule:
     - cron: '0 6 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      rebuild_site:
+        description: 'Rebuild the site afterwards (a production deploy: 15 Netlify credits)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   import:
@@ -155,8 +161,13 @@ jobs:
       # this is safe to have in place before the secret exists. The hook
       # URL is low-privilege -- it can start a build and nothing else --
       # which is why it's used here in preference to a Netlify API token.
+      #
+      # NOT ON SCHEDULE (2026-09-23): the FPL pipeline's 07:00 run rebuilds the
+      # site an hour later with this run's data included, so rebuilding here
+      # too cost 15 Netlify credits a day for nothing. Manual runs can still
+      # ask for a rebuild with rebuild_site.
       - name: Trigger site rebuild
-        if: always()
+        if: always() && github.event.inputs.rebuild_site == 'true'
         run: |
           if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then
             echo "::notice::NETLIFY_BUILD_HOOK_URL not set -- skipping rebuild. Static pages will refresh on the next deploy."
