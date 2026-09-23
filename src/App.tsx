@@ -33,6 +33,7 @@ const SeasonXiPage = lazy(() => import('./pages/fpl/SeasonXiPage'));
 const PlayerScoutPage = lazy(() => import('./pages/fpl/PlayerScoutPage'));
 const PlayerRecordPage = lazy(() => import('./pages/fpl/PlayerRecordPage'));
 const ModelAccuracyPage = lazy(() => import('./pages/football/ModelAccuracyPage'));
+const ModelReturnsPage = lazy(() => import('./pages/football/ModelReturnsPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
@@ -343,6 +344,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <ModelAccuracyPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/model-returns"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ModelReturnsPage />
               </Suspense>
             }
           />
