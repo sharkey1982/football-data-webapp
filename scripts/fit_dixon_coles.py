@@ -85,7 +85,7 @@ from supabase import create_client
 # add a model_versions row and a model_change_log entry with before/after
 # evidence in the same PR, then bump MODEL_VERSION. Every fit records it.
 # ---------------------------------------------------------------------------
-MODEL_VERSION = "dc_v1"
+MODEL_VERSION = "dc_v1_1"  # dc_v1 + scoring-level gate (2026-09-23)
 
 HALF_LIFE_DAYS = 180.0
 WINDOW_DAYS = 730  # "approximately the previous two years", matching the existing fit_run_id=2 window length
@@ -116,6 +116,12 @@ SENSIBLE_HOME_ADV_BOUNDS = (-0.5, 1.0)
 MIN_MATCHES_FOR_PRODUCTION = 50
 SENSIBLE_EXPECTED_GOALS_BOUNDS = (0.05, 6.0)
 MOVEMENT_WARNING_THRESHOLD = 1.0
+# Scoring-level gate (dc_v1_1): the fitted ratings, exactly as stored and used
+# for predictions, must reproduce the window's weighted average home and away
+# goals within this fraction. A correct Poisson/Dixon-Coles MLE lands within a
+# fraction of a percent; the June 2026 legacy fits were ~30% out (a constant
+# offset in defence), which the per-pairing bounds above could not catch.
+SCORING_LEVEL_TOLERANCE = 0.05
 
 
 def dixon_coles_tau(x, y, lambda_home, lambda_away, rho):
@@ -196,6 +202,7 @@ def validate_fit(
     matches_used,
     team_ids,
     previous_ratings,
+    scoring_level=None,
 ):
     """
     Runs every hard gate and soft (warning-only) check against a completed
@@ -298,6 +305,22 @@ def validate_fit(
             )
     else:
         checks["expected_goals_within_sensible_bounds"] = {"pass": False, "note": "skipped -- non-finite parameters"}
+
+    if all_finite and scoring_level is not None:
+        rh, ra = scoring_level["home_ratio"], scoring_level["away_ratio"]
+        lvl_ok = abs(rh - 1) <= SCORING_LEVEL_TOLERANCE and abs(ra - 1) <= SCORING_LEVEL_TOLERANCE
+        checks["scoring_level_matches_data"] = {
+            "pass": bool(lvl_ok),
+            "predicted_over_actual_home": rh,
+            "predicted_over_actual_away": ra,
+            "tolerance": SCORING_LEVEL_TOLERANCE,
+        }
+        if not lvl_ok:
+            errors.append(
+                f"fitted ratings predict {rh:.3f}x the actual home goals and {ra:.3f}x the actual away goals "
+                f"(weighted, in-window); must be within {SCORING_LEVEL_TOLERANCE:.0%} -- the stored ratings would "
+                "mis-state the scoring level"
+            )
 
     if all_finite and previous_ratings:
         movements = []
@@ -470,6 +493,14 @@ def fit_league(supabase, league_code, dry_run, as_of=None):
     defence = raw_defence + shift
 
     previous_ratings = previous_accepted_ratings(supabase, league_id, before=fitted_at)
+    scoring_level = None
+    if np.all(np.isfinite(attack)) and np.all(np.isfinite(defence)) and np.isfinite(home_advantage):
+        pred_home = np.exp(home_advantage + attack[home_idx] - defence[away_idx])
+        pred_away = np.exp(attack[away_idx] - defence[home_idx])
+        scoring_level = {
+            "home_ratio": float(np.sum(weights * pred_home) / np.sum(weights * home_goals)),
+            "away_ratio": float(np.sum(weights * pred_away) / np.sum(weights * away_goals)),
+        }
     status, rejection_reason, warnings, checks = validate_fit(
         converged=bool(result.success),
         optimizer_message=str(result.message),
@@ -482,6 +513,7 @@ def fit_league(supabase, league_code, dry_run, as_of=None):
         matches_used=len(matches),
         team_ids=team_ids,
         previous_ratings=previous_ratings,
+        scoring_level=scoring_level,
     )
 
     ratings = [

@@ -1,0 +1,25 @@
+name: Model integrity checks
+
+# Daily, after the imports, fits and the status sync: runs
+# public.check_model_integrity() (one guard per incident in docs/incidents.md),
+# logs to pipeline_runs, and fails this run if any check fails.
+
+on:
+  schedule:
+    - cron: '45 9 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Run checks
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/run_integrity_checks.py
