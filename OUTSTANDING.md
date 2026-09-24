@@ -10,6 +10,38 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### International expansion: scope set at 5 years, top flight only, no odds
+Decided: Big 5 top divisions (E0/D1/I1/SP1/F1), most recent 5 seasons
+each, no second divisions, no odds for the non-English countries, not
+going further back in time -- all "for now" / "at the moment", i.e.
+worth revisiting later rather than a permanent limit.
+
+Current coverage against that target: E0 already covers this and much
+more. D1/I1/F1 have 2025/26 only -- need 2024/25, 2023/24, 2022/23,
+2021/22. SP1 has 2023/24 only (the original trial season) -- needs
+2025/26 (the most recent, actually the most important one still
+missing) plus 2024/25, 2022/23, 2021/22.
+
+get_unmapped_alias_names(source, raw_names[]) is built and verified --
+feed it a season's distinct team names, get back only the ones needing
+a new team_aliases row, before creating anything. Use it for the
+remaining ~16 season imports (4 leagues x 4 more seasons, one of which
+is Spain's missing 2025/26) rather than re-deriving each country's
+roster from scratch again.
+
+Not done: the remaining season imports themselves; the Team Strength
+Country -> Division filter is done as the prototype (see below) but
+hasn't been rolled out to any other page yet (Results Projections'
+Division filter, Managers' Dugout, anywhere else with a bare league
+dropdown -- not yet audited for the same gap).
+
+### Team Strength: Country -> Division filter -- DONE (prototype)
+Was one flat Division dropdown sorted by an internal code (D1, E0, F1,
+I1, SP1...) with no country grouping. Now Country narrows Division
+first, same two-step pattern as the fixtures page's own Country/
+Division filters. Defaults to England, so unchanged for the common
+case. Not yet applied anywhere else -- see the entry above.
+
 ### Germany, Italy, France: 2025/26 added -- top divisions, most recent season, breadth-first
 Bundesliga (D1), Serie A (I1), Ligue 1 (F1) -- same pattern as La Liga,
 each verified independently:
