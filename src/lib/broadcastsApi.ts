@@ -117,6 +117,8 @@ export type UpcomingBroadcastFixture = {
   homeTeamName: string;
   awayTeamId: number;
   awayTeamName: string;
+  predictedHomeGoals: number | null;
+  predictedAwayGoals: number | null;
 };
 
 /** Every upcoming fixture with a confirmed broadcast, earliest first --
@@ -148,6 +150,8 @@ export async function getUpcomingBroadcastFixtures(market = 'GB'): Promise<Upcom
     homeTeamName: String(r.home_team_name),
     awayTeamId: Number(r.away_team_id),
     awayTeamName: String(r.away_team_name),
+    predictedHomeGoals: r.predicted_home_goals == null ? null : Number(r.predicted_home_goals),
+    predictedAwayGoals: r.predicted_away_goals == null ? null : Number(r.predicted_away_goals),
   }));
 }
 

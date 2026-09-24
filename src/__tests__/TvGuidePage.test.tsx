@@ -45,7 +45,7 @@ describe('TvGuidePage', () => {
     render_();
     await waitFor(() => expect(screen.getByText('Arsenal v Leeds')).toBeInTheDocument());
     expect(screen.getByText('Sky Sports Main Event')).toBeInTheDocument();
-    expect(screen.getByText(/Premier League/)).toBeInTheDocument();
+    expect(screen.getByText(/Premier League.*England/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Arsenal v Leeds' })).toHaveAttribute('href', '/football/matches/arsenal-v-leeds-2026-10-10');
   });
 

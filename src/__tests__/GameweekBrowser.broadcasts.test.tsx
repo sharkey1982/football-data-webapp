@@ -6,6 +6,8 @@ import { MemoryRouter } from 'react-router-dom';
 import GameweekBrowser from '../pages/GameweekBrowser';
 import * as api from '../lib/api';
 import * as broadcastsApi from '../lib/broadcastsApi';
+import * as commercialLinks from '../lib/commercialLinks';
+import * as analytics from '../lib/analytics';
 
 vi.mock('../lib/api', async () => ({
   getLeagues: vi.fn(),
@@ -26,9 +28,16 @@ vi.mock('../lib/broadcastsApi', async () => {
   const actual = await vi.importActual<typeof broadcastsApi>('../lib/broadcastsApi');
   return { ...actual, getFixtureBroadcasts: vi.fn() };
 });
+vi.mock('../lib/commercialLinks', async () => {
+  const actual = await vi.importActual<typeof commercialLinks>('../lib/commercialLinks');
+  return { ...actual, getActivePartners: vi.fn().mockResolvedValue([]) };
+});
+vi.mock('../lib/analytics', () => ({ trackEvent: vi.fn() }));
 
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const mockedBroadcasts = vi.mocked(broadcastsApi);
+const mockedCommercialLinks = vi.mocked(commercialLinks);
+const mockedTrackEvent = vi.mocked(analytics.trackEvent);
 const TODAY = new Date().toISOString().slice(0, 10);
 
 const FIXTURES = [
@@ -56,6 +65,7 @@ const setup = () => {
   mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
   mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
   mockedApi.getFixturesForSeason.mockResolvedValue(FIXTURES);
+  mockedCommercialLinks.getActivePartners.mockResolvedValue([]);
 };
 
 beforeEach(() => {
@@ -71,6 +81,29 @@ const renderProjections = () =>
   );
 
 describe('GameweekBrowser UK broadcast integration', () => {
+  it('a confirmed broadcast with a watchUrl gets its own Watch link, resolved through the affiliate table, without triggering the row click-through', async () => {
+    mockedBroadcasts.getFixtureBroadcasts.mockResolvedValue(
+      new Map([[1, [bet(1, { watchUrl: 'https://www.nowtv.com/watch/some-match' })]]])
+    );
+    mockedCommercialLinks.getActivePartners.mockResolvedValue([
+      { partnerId: 1, name: 'NOW', category: 'streaming', network: 'Awin', canonicalDomain: 'nowtv.com',
+        affiliateUrlTemplate: 'https://www.awin1.com/cread.php?p={url}', market: 'GB' },
+    ]);
+    const user = userEvent.setup();
+    renderProjections();
+    const link = await screen.findByRole('link', { name: 'Watch' });
+    expect(link).toHaveAttribute('href', `https://www.awin1.com/cread.php?p=${encodeURIComponent('https://www.nowtv.com/watch/some-match')}`);
+    expect(link).toHaveAttribute('rel', 'sponsored noopener noreferrer');
+    expect(screen.getByRole('link', { name: 'Ad' })).toHaveAttribute('href', '/affiliate-disclosure');
+
+    await user.click(link);
+    expect(mockedTrackEvent).toHaveBeenCalledWith('affiliate_click', expect.objectContaining({ partner: 'NOW', page: 'fixture_list' }));
+    // Clicking the link must not also fire the row's own onClick (which
+    // navigates to the fixture's own preview) -- e.stopPropagation() in
+    // the component is what this is actually testing.
+    expect(screen.queryByRole('heading', { name: /Arsenal/ })).not.toBeInTheDocument();
+  });
+
   it('badges Arsenal (Sky, subscription) and Liverpool (ITV, free-to-air); Fulham with no row is unbadged, not guessed at', async () => {
     mockedBroadcasts.getFixtureBroadcasts.mockResolvedValue(
       new Map([
