@@ -582,7 +582,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         <p className="text-sm text-ink-500 mt-1">
           {adminMode
             ? 'Each player\u2019s default tactical role and starting pecking order \u2014 used whenever no specific predicted lineup is available yet. Rows flagged \u201cgeneric\u201d only have a position-based placeholder, not a real role.'
-            : 'Who the model expects each club to start, and in which role \u2014 the lineup behind every player projection on the site. Shown by depth, so 2nd and 3rd choice are visible too, with injuries and suspensions already accounted for.'}
+            : 'Who the model expects each club to start, and in which role \u2014 the lineup behind every player projection on the site. Shown by depth, so 2nd and 3rd choice are visible too, with injuries and suspensions already accounted for. This is the settled, long-term picture, not a pick for the very next match \u2014 team news close to kickoff can still differ from it.'}
         </p>
       </div>
 
