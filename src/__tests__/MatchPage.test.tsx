@@ -6,13 +6,19 @@ import MatchPage from '../pages/football/MatchPage';
 import { mostLikelyScore } from '../lib/matchPageApi';
 import { calculateDixonColes } from '../lib/dixonColes';
 import * as matchApi from '../lib/matchPageApi';
+import * as broadcastsApi from '../lib/broadcastsApi';
 
 vi.mock('../lib/matchPageApi', async () => {
   const actual = await vi.importActual<typeof matchApi>('../lib/matchPageApi');
   return { ...actual, getMatchBySlug: vi.fn() };
 });
+vi.mock('../lib/broadcastsApi', async () => {
+  const actual = await vi.importActual<typeof broadcastsApi>('../lib/broadcastsApi');
+  return { ...actual, getFixtureBroadcast: vi.fn().mockResolvedValue([]) };
+});
 
 const mocked = matchApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedBroadcasts = vi.mocked(broadcastsApi);
 
 function renderAt(slug: string) {
   return render(
@@ -68,6 +74,7 @@ describe('match prediction maths', () => {
 
 describe('MatchPage', () => {
   const base = {
+    fixture_id: 501,
     slug: 'arsenal-v-coventry-2026-08-21',
     home_team_name: 'Arsenal',
     away_team_name: 'Coventry',
@@ -113,6 +120,40 @@ describe('MatchPage', () => {
     // Framed in the past tense -- it's explicitly what was predicted
     // beforehand, not a recomputed hindsight number.
     expect(screen.getByRole('heading', { name: 'What the model predicted beforehand' })).toBeInTheDocument();
+  });
+
+  it('shows Where to watch with channel, streaming and free-to-air, and puts it in the page metadata', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
+    mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([
+      { broadcastId: 1, fixtureId: 501, market: 'GB', status: 'confirmed_broadcast', broadcaster: 'Sky Sports',
+        channel: 'Sky Sports Main Event', streamingService: 'Sky Go', isFreeToAir: false, isSubscription: true,
+        isPpv: false, watchUrl: null, source: 'test', sourceUrl: null, verifiedAt: '2026-08-01T00:00:00Z' },
+    ]);
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Where to watch (UK)' })).toBeInTheDocument());
+    expect(screen.getByText('Sky Sports Main Event')).toBeInTheDocument();
+    expect(screen.getByText(/Sky Go/)).toBeInTheDocument();
+    expect(screen.queryByText(/Free-to-air/)).not.toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toContain('Sky Sports'));
+  });
+
+  it('states plainly when a fixture is confirmed not televised, distinct from saying nothing', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
+    mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([
+      { broadcastId: 2, fixtureId: 501, market: 'GB', status: 'confirmed_not_televised', broadcaster: null,
+        channel: null, streamingService: null, isFreeToAir: false, isSubscription: false, isPpv: false,
+        watchUrl: null, source: 'test', sourceUrl: null, verifiedAt: '2026-08-01T00:00:00Z' },
+    ]);
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByText('Confirmed not televised in the UK.')).toBeInTheDocument());
+  });
+
+  it('shows no Where to watch section at all when nothing is known yet -- not a placeholder', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
+    mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([]);
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: 'Where to watch (UK)' })).not.toBeInTheDocument();
   });
 
   it('shows a not-found state for an unknown slug', async () => {

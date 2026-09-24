@@ -10,6 +10,38 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### UK TV/streaming info: schema and display built, no data source picked yet
+Investigated before building anything (see the fixture_broadcasts migration
+for the full write-up): no free, terms-compliant, automated per-fixture
+feed of UK broadcast selections exists. Commercial APIs (e.g. Sportmonks'
+tvStations, linked directly to fixtures) exist but cost money on an
+ongoing basis. The well-known free listings sites explicitly forbid
+scraping and republishing their data, which is also what the brief asked
+not to do.
+
+Built the safe parts, which don't depend on that decision:
+- fixture_broadcasts table: normalized (a fixture can have zero, one or
+  many rows), market-aware (not hard-coded to GB), three cleanly
+  distinguished states (no row = not yet determined; a
+  confirmed_not_televised row; one or more confirmed_broadcast rows).
+  Constraints proven by trying to insert invalid rows and watching them
+  get rejected. Written by an admin (is_admin(), same RLS pattern as
+  team_strength_manual_override) -- no pipeline behind it.
+- Compact badge + All/On TV/Free-to-air filter on the fixture list
+  (GameweekBrowser, projections view only), a "Where to watch" section on
+  the individual match page (MatchPage), included in that page's search
+  metadata once real data exists.
+- Everything reads independently of the existing fixture list/prediction
+  load, so a broadcast-data problem can't take down either.
+
+Not built: an admin UI for entering rows (today that means writing them
+by hand via SQL/Supabase) -- a natural next step once there's an actual
+supply of data to enter, i.e. once you've decided whether to pay for a
+feed or maintain Premier League picks by hand every ~5-6 weeks when
+they're announced. Table is live and empty; nothing shows on the site
+until rows exist, by design.
+
+
 ### Nav: move Team Strength under Results Projections
 Football > Predict currently lists Team Strength last (src/lib/journey.ts,
 ~line 93), after Results Projections, Head to Heads, Model Accuracy,
