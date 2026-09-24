@@ -11,15 +11,25 @@
 // Market is GB today. getUpcomingBroadcastFixtures already takes a market
 // parameter -- a future per-visitor-location guide is a filter added here,
 // not new plumbing underneath it.
+//
+// The model figure next to each fixture is the same predicted_home_goals/
+// predicted_away_goals already frozen on the fixture -- deliberately shown
+// as plain expected goals, not run back through the full score grid for a
+// "most likely scoreline": this page is a scannable list, not a second
+// prediction page, and rounding raw expected goals doesn't overclaim
+// precision the way a manufactured exact score would.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { getUpcomingBroadcastFixtures, type UpcomingBroadcastFixture } from '../../lib/broadcastsApi';
 import { getActivePartners, resolveCommercialLink, type AffiliatePartner } from '../../lib/commercialLinks';
 import { trackEvent } from '../../lib/analytics';
+
+const selectClass = 'w-full sm:w-56 border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
+const labelClass = 'block text-xs font-medium text-ink-500 mb-1';
 
 function groupByDate(fixtures: UpcomingBroadcastFixture[]): { date: string; fixtures: UpcomingBroadcastFixture[] }[] {
   const groups = new Map<string, UpcomingBroadcastFixture[]>();
@@ -33,6 +43,8 @@ export default function TvGuidePage() {
   const [fixtures, setFixtures] = useState<UpcomingBroadcastFixture[] | null>(null);
   const [partners, setPartners] = useState<AffiliatePartner[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [competitionFilter, setCompetitionFilter] = useState<string>('');
+  const [broadcasterFilter, setBroadcasterFilter] = useState<string>('');
 
   useEffect(() => {
     let live = true;
@@ -63,7 +75,26 @@ export default function TvGuidePage() {
     path: '/tv-guide',
   });
 
-  const groups = fixtures ? groupByDate(fixtures) : [];
+  // Filter options are derived from what's actually loaded, not a fixed
+  // list -- a competition or broadcaster with nothing confirmed right now
+  // simply isn't offered, rather than showing an option that filters to
+  // an empty list.
+  const competitions = useMemo(
+    () => [...new Set((fixtures ?? []).map((f) => f.leagueName))].sort(),
+    [fixtures]
+  );
+  const broadcasters = useMemo(
+    () => [...new Set((fixtures ?? []).map((f) => f.broadcaster).filter((b): b is string => !!b))].sort(),
+    [fixtures]
+  );
+
+  const filtersActive = competitionFilter !== '' || broadcasterFilter !== '';
+  const filtered = (fixtures ?? []).filter(
+    (f) =>
+      (!competitionFilter || f.leagueName === competitionFilter) &&
+      (!broadcasterFilter || f.broadcaster === broadcasterFilter)
+  );
+  const groups = groupByDate(filtered);
 
   return (
     <div className="max-w-3xl">
@@ -73,10 +104,49 @@ export default function TvGuidePage() {
         mean it&rsquo;s not televised &mdash; it means we don&rsquo;t have a confirmed broadcaster for it yet.
       </p>
 
+      {fixtures && fixtures.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 mt-4">
+          <div>
+            <label className={labelClass} htmlFor="competition-filter">Competition</label>
+            <select id="competition-filter" className={selectClass} value={competitionFilter} onChange={(e) => setCompetitionFilter(e.target.value)}>
+              <option value="">All competitions</option>
+              {competitions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="broadcaster-filter">Broadcaster</label>
+            <select id="broadcaster-filter" className={selectClass} value={broadcasterFilter} onChange={(e) => setBroadcasterFilter(e.target.value)}>
+              <option value="">All broadcasters</option>
+              {broadcasters.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={() => {
+                setCompetitionFilter('');
+                setBroadcasterFilter('');
+              }}
+              className="text-xs text-ink-500 underline underline-offset-2 mb-2"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
       {error && <p className="text-loss-700 text-sm mt-4">{error}</p>}
 
       {fixtures && fixtures.length === 0 && !error && (
         <p className="text-ink-500 text-sm mt-6">No fixtures with a confirmed UK broadcast right now &mdash; check back closer to kick-off.</p>
+      )}
+
+      {fixtures && fixtures.length > 0 && filtered.length === 0 && (
+        <p className="text-ink-500 text-sm mt-6">No fixtures match that filter right now.</p>
       )}
 
       {groups.length > 0 && (
@@ -89,6 +159,7 @@ export default function TvGuidePage() {
               <ul className="divide-y divide-chalk-300">
                 {g.fixtures.map((f) => {
                   const link = f.watchUrl ? resolveCommercialLink(f.watchUrl, partners) : null;
+                  const hasPrediction = f.predictedHomeGoals != null && f.predictedAwayGoals != null;
                   return (
                     <li key={f.broadcastId} className="py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                       <span className="font-mono text-xs text-ink-500 w-16 shrink-0">
@@ -98,7 +169,15 @@ export default function TvGuidePage() {
                         <Link to={`/football/matches/${f.slug}`} className="font-medium text-ink-900 hover:underline">
                           {f.homeTeamName} v {f.awayTeamName}
                         </Link>
-                        <p className="text-[11px] text-ink-500">{f.leagueName} &middot; {f.countryName}</p>
+                        <p className="text-[11px] text-ink-500">
+                          {f.leagueName} &middot; {f.countryName}
+                          {hasPrediction && (
+                            <>
+                              {' '}
+                              &middot; Model: {f.predictedHomeGoals!.toFixed(1)}&ndash;{f.predictedAwayGoals!.toFixed(1)} expected goals
+                            </>
+                          )}
+                        </p>
                       </div>
                       <div className="text-sm text-ink-700 sm:text-right">
                         <span className="font-medium">{f.channel ?? f.broadcaster}</span>

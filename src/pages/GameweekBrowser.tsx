@@ -5,6 +5,8 @@ import type { FixtureHeadToHead } from '../lib/api';
 import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
 import BroadcastBadge from '../components/BroadcastBadge';
 import { getFixtureBroadcasts, summariseBroadcasts, type FixtureBroadcast } from '../lib/broadcastsApi';
+import { getActivePartners, resolveCommercialLink, type AffiliatePartner } from '../lib/commercialLinks';
+import { trackEvent } from '../lib/analytics';
 import {
   getLeagues,
   getFitRunRhos,
@@ -285,6 +287,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
 
   const [seasonFixtures, setSeasonFixtures] = useState<FixtureWithNames[] | null>(null);
   const [broadcasts, setBroadcasts] = useState<Map<number, FixtureBroadcast[]>>(new Map());
+  const [streamingPartners, setStreamingPartners] = useState<AffiliatePartner[]>([]);
   const [broadcastFilter, setBroadcastFilter] = useState<'all' | 'tv' | 'free'>('all');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -581,6 +584,19 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       live = false;
     };
   }, [seasonFixtures]);
+
+  // Independent of the broadcast fetch above -- a resolver problem must
+  // never take the fixture list down, it just falls back to every watch
+  // link being canonical instead of affiliate.
+  useEffect(() => {
+    let live = true;
+    getActivePartners('streaming')
+      .then((p) => live && setStreamingPartners(p))
+      .catch(() => live && setStreamingPartners([]));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // Whenever the visible groups change -- because a date got
   // selected/deselected, or (with no date selected) because the calendar
@@ -1171,6 +1187,44 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                               {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
                               <span className="block mt-0.5">
                                 <BroadcastBadge summary={summariseBroadcasts(broadcasts.get(f.fixture_id))} />
+                                {(() => {
+                                  const watchUrl = broadcasts.get(f.fixture_id)?.find((b) => b.status === 'confirmed_broadcast' && b.watchUrl)?.watchUrl;
+                                  if (!watchUrl) return null;
+                                  const link = resolveCommercialLink(watchUrl, streamingPartners);
+                                  return (
+                                    <span className="block">
+                                      <a
+                                        href={link.url}
+                                        className="text-pitch-800 underline underline-offset-2 text-[11px]"
+                                        rel={link.isAffiliate ? 'sponsored noopener noreferrer' : 'nofollow noopener noreferrer'}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (link.isAffiliate) {
+                                            trackEvent('affiliate_click', {
+                                              partner: link.partner?.name ?? '',
+                                              category: 'streaming',
+                                              fixture_id: f.fixture_id,
+                                              page: 'fixture_list',
+                                              destination: watchUrl,
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        Watch
+                                      </a>
+                                      {link.isAffiliate && (
+                                        <Link
+                                          to="/affiliate-disclosure"
+                                          className="text-[10px] text-ink-500 ml-1 underline"
+                                          onClick={(e) => e.stopPropagation()}
+                                          title="This is an affiliate link -- see our affiliate disclosure"
+                                        >
+                                          Ad
+                                        </Link>
+                                      )}
+                                    </span>
+                                  );
+                                })()}
                               </span>
                             </span>
                             <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
