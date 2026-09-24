@@ -170,16 +170,13 @@ for fpl_players. Must happen before August 2027.
 
 
 
-### Drop the pre-key-change backups when ready
-backup_fpl_players_20260919, backup_fpl_player_snapshots_20260919,
-backup_fpl_player_gameweeks_20260919,
-backup_player_availability_events_20260919 — 16MB total, RLS on, no
-grants.
-
-refresh_fpl() has run successfully against the new composite key, but
-only manually. Worth leaving until the SCHEDULED runs have gone through
-unattended for a few days, then drop.
- (blocked on a manual step)
+### Pre-key-change backups -- DROPPED 2026-09-24
+backup_fpl_players_20260919 and the other three dropped once verified:
+refresh_fpl()'s ON CONFLICT (fpl_player_id, season_id) matches the
+table's actual primary key; the 6-hourly refresh cron failed twice right
+at the change (both the same ON CONFLICT mismatch, mid-migration) then
+ran clean 15 times straight over the following 4 days; every live table
+was at or above its backup's row count, so nothing was lost.
 
 ### Netlify build hook — DONE
 Verified end to end: an FPL pipeline run produced a Netlify deploy
@@ -810,10 +807,7 @@ both columns non-null, so this was a prerequisite.
 Season rollover is no longer a risk: 2027/28 players will be inserted
 alongside 2026/27 rather than overwriting them.
 
-BACKUPS: backup_fpl_players_20260919, backup_fpl_player_snapshots_20260919,
-backup_fpl_player_gameweeks_20260919,
-backup_player_availability_events_20260919. Keep until the pipeline has
-run unattended for a few days, then drop.
+BACKUPS: dropped 2026-09-24, see "Pre-key-change backups" above.
 
 ARCHITECTURAL NOTE: anything long-lived referencing a player (saved
 comparisons, Beat the Shark entries, linked FPL teams) must reference
