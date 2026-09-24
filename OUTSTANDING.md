@@ -157,16 +157,26 @@ touched by any of this session's work. Vitest warns these can mask false
 positives; worth a look next time either of those two files is open.
 
 
-### FPL rollover: three tables still have single-column keys
-fpl_teams, fpl_gameweeks and fpl_fixtures conflict on fpl_team_id /
-fpl_event_id / fpl_fixture_id alone. At the 2027/28 rollover, FPL reuses
-those ids, so refresh_fpl's upserts will DO UPDATE this season's rows IN
-PLACE — the exact corruption already fixed for fpl_players.
+### FPL rollover keys -- FIXED 2026-09-24
+fpl_teams, fpl_gameweeks and fpl_fixtures conflicted on fpl_team_id /
+fpl_event_id / fpl_fixture_id alone -- fixed to composite (id, season_id)
+keys, backup-first, FK-aware, same pattern as fpl_players. Also included
+fpl_player_gameweeks, not in the original note: its own PK depended on
+fpl_fixture_id alone and it FKs to all three, so it had the identical
+exposure -- found while making the other three composite.
 
-Found while reading refresh_fpl in full for the consolidation job. Zero
-impact today; catastrophic at pre-season. Needs composite
-(id, season_id) keys, with the same backup-first, FK-aware approach used
-for fpl_players. Must happen before August 2027.
+private.refresh_fpl() and private.refresh_fpl_live_event() both updated
+to match (the latter also gained the same season-resolution logic
+refresh_fpl() uses, and its fixture join is now scoped to the current
+season, to avoid matching a stale season's fixture once fpl_fixtures
+holds more than one).
+
+Verified before changing: all four tables held only the current season
+(20/38/380/3216 rows), so nothing to reconcile. Verified after: both
+functions ran clean against live FPL data; proved the actual rollover
+scenario directly -- the same fpl_team_id inserted under a different
+season_id succeeded without conflict, inside a transaction rolled back
+before it could persist.
 
 
 
