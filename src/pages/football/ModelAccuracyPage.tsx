@@ -1,9 +1,15 @@
 // ============================================================================
 // src/pages/football/ModelAccuracyPage.tsx
 //
-// How accurate the model has been -- the promise Football > Predict has
-// been making since the restructure ("a prediction is only worth reading
-// next to its track record") and not keeping.
+// How accurate the model has been. Two different questions, both answered:
+// - "Is the method sound?" -- the walk-forward backtest (retro-fits: refit
+//   weekly on only past results, predict the next week, score against the
+//   closing market; 3 seasons, 4 divisions, 5,000+ matches). This is the
+//   out-of-sample evidence the page used to say didn't exist (see
+//   docs/incidents.md / OUTSTANDING.md, corrected 2026-09-24).
+// - "Are this week's live predictions on track?" -- the original live
+//   section below: every fixture frozen before kickoff since that started,
+//   a small sample that only reflects recent weeks and today's settings.
 //
 // LEADS WITH CALIBRATION, not hit rate, and the reason is substantive
 // rather than cosmetic. The model names a draw as most likely only ~6%
@@ -25,11 +31,17 @@ import {
   type ModelAccuracySummary,
   type CalibrationBand,
 } from '../../lib/modelAccuracyApi';
+import { getScorecard, score, type ScorecardRow } from '../../lib/scorecardApi';
+
+const DIVISION_NAME: Record<number, string> = { 1: 'Premier League', 2: 'Championship', 3: 'League One', 4: 'League Two' };
+const f3 = (x: number | null) => (x === null ? '\u2013' : x.toFixed(3));
+const pct = (x: number | null) => (x === null ? '\u2013' : `${(x * 100).toFixed(0)}%`);
 
 export default function ModelAccuracyPage() {
   const [summary, setSummary] = useState<ModelAccuracySummary | null>(null);
   const [bands, setBands] = useState<CalibrationBand[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scorecard, setScorecard] = useState<ScorecardRow[] | null>(null);
 
   useDocumentHead({
     title: 'How accurate is the model?',
@@ -49,6 +61,11 @@ export default function ModelAccuracyPage() {
         setBands([]);
       })
       .finally(() => setLoading(false));
+    // Fetched separately: a scorecard hiccup shouldn't take down the live
+    // section above, which has worked reliably since the restructure.
+    getScorecard()
+      .then(setScorecard)
+      .catch(() => setScorecard([]));
   }, []);
 
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
@@ -97,6 +114,66 @@ export default function ModelAccuracyPage() {
           size neither result should be over-read.
         </p>
       </section>
+
+      {scorecard !== null && scorecard.length > 0 && (
+        <section className="border border-chalk-300 rounded-lg bg-white p-4" aria-label="Out of sample backtest">
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Does the method work?</h2>
+          {(() => {
+            const t = score(scorecard);
+            const seasons = [...new Set(scorecard.map((r) => r.season_id))].length;
+            const divisions = [...new Set(scorecard.map((r) => r.league_id))]
+              .sort((a, b) => a - b)
+              .map((d) => DIVISION_NAME[d] ?? `League ${d}`);
+            return (
+              <>
+                <p className="text-ink-700 text-sm mt-1 max-w-prose">
+                  Answered properly: refit the model at each point in history using only results known then, predict the
+                  following week, and score every forecast against that week&rsquo;s closing betting price &mdash; a fair,
+                  independent judge with no stake in the answer.{' '}
+                  <strong>
+                    {t.n.toLocaleString('en-GB')} matches
+                  </strong>{' '}
+                  across {seasons} seasons and {divisions.join(', ')}, none of it hindsight.
+                </p>
+                <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                  <div className="border border-chalk-300 rounded-lg p-3">
+                    <dt className="text-xs text-ink-500">Model log-loss</dt>
+                    <dd className="font-display text-xl text-ink-900">{f3(t.model)}</dd>
+                  </div>
+                  <div className="border border-chalk-300 rounded-lg p-3">
+                    <dt className="text-xs text-ink-500">Market log-loss</dt>
+                    <dd className="font-display text-xl text-ink-900">{f3(t.market)}</dd>
+                  </div>
+                  <div className="border border-chalk-300 rounded-lg p-3">
+                    <dt className="text-xs text-ink-500">Of the market&rsquo;s skill</dt>
+                    <dd className={`font-display text-xl ${(t.skillVsMarket ?? 0) >= 1 ? 'text-pitch-800' : 'text-ink-900'}`}>
+                      {pct(t.skillVsMarket)}
+                    </dd>
+                  </div>
+                  <div className="border border-chalk-300 rounded-lg p-3">
+                    <dt className="text-xs text-ink-500">Guessing (33/33/33)</dt>
+                    <dd className="font-display text-xl text-ink-900">1.099</dd>
+                  </div>
+                </dl>
+                <p className="text-ink-700 text-sm mt-3 max-w-prose">
+                  &ldquo;Of the market&rsquo;s skill&rdquo; is how far the model gets from guessing towards the closing
+                  market&rsquo;s accuracy &mdash; lower log-loss is better, 100% would match the market, and beating it is
+                  the bar that would need clearing before the model&rsquo;s edge could be expected to show a profit. It
+                  doesn&rsquo;t clear it yet; the breakdown by division, season and time of year is on the{' '}
+                  <Link to="/football/model-scorecard" className="text-pitch-800 underline underline-offset-2">
+                    full scorecard
+                  </Link>
+                  , and every change made because of it is logged on{' '}
+                  <Link to="/admin/model" className="text-pitch-800 underline underline-offset-2">
+                    model versions and changes
+                  </Link>
+                  .
+                </p>
+              </>
+            );
+          })()}
+        </section>
+      )}
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Calibration</h2>
@@ -185,13 +262,13 @@ export default function ModelAccuracyPage() {
       </section>
 
       <section className="border border-chalk-300 rounded-lg bg-white p-4">
-        <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What this doesn&rsquo;t tell you</h2>
+        <h2 className="font-display uppercase tracking-wide text-sm text-ink-900">What the sections above don&rsquo;t tell you</h2>
         <p className="text-ink-700 text-sm mt-1 max-w-prose">
-          {summary.fixtures} fixtures over a few weeks is a small sample, and it only covers predictions made since
-          scores began being frozen at kickoff. It measures whether recent live predictions worked &mdash; not whether
-          the method works. Answering that properly means refitting the model at each point in history using only what
-          was known then, and scoring it forward across seasons. That&rsquo;s a bigger exercise and it hasn&rsquo;t been
-          done.
+          {summary.fixtures} fixtures over a few weeks is a small sample: it&rsquo;s a freshness check on live
+          predictions, not proof the method works &mdash; that&rsquo;s what the backtest above is for. The backtest has
+          its own limits: it covers the English men&rsquo;s divisions only, three seasons so far, and reflects the model
+          as it was fitted at each point in history &mdash; a settings change made today doesn&rsquo;t retroactively
+          improve it. Neither section says anything about markets or seasons outside what&rsquo;s shown.
         </p>
       </section>
 

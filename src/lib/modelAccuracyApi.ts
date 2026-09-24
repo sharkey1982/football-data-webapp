@@ -4,11 +4,12 @@
 // How the model has actually performed on predictions it MADE -- every
 // fixture whose expected goals were frozen before kickoff.
 //
-// This is deliberately not a backtest. A walk-forward backtest refits at
-// each historical point and projects forward, producing a large
-// out-of-sample record; that's a separate exercise. This answers the
-// narrower question "did our live predictions work", on a small sample
-// that grows every week.
+// This is deliberately not a backtest: it answers the narrower question
+// "did our live predictions work", on a small sample that grows every week
+// and only reflects today's settings. The walk-forward backtest (refit at
+// each historical point, project forward, score against the closing market)
+// is a separate, larger exercise -- see src/lib/scorecardApi.ts -- and both
+// are shown together on ModelAccuracyPage.
 // ============================================================================
 
 import { supabase } from './supabase';
