@@ -10,6 +10,37 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Germany, Italy, France: 2025/26 added -- top divisions, most recent season, breadth-first
+Bundesliga (D1), Serie A (I1), Ligue 1 (F1) -- same pattern as La Liga,
+each verified independently:
+- Bundesliga: 306/306 rows, zero skipped. Champion Bayern Munich, 89 pts
+  -- matches the real result.
+- Serie A: 380/380, zero skipped, all 20 team names matched on the first
+  try (sourced from Wikipedia's participant list, not the CSV -- the CSV
+  fetch was rate-limited, so this was the one league where the alias
+  guesses went in unverified against the source and turned out exactly
+  right; still worth knowing they weren't source-verified going in).
+  Champion Inter Milan, 87 pts -- matches Wikipedia's table exactly.
+- Ligue 1: 306/306, zero skipped -- 18 teams (Ligue 1 dropped from 20 to
+  18 a couple of seasons ago; the CSV confirmed this directly, 18 teams
+  seen, no need to guess). Champion PSG, 76 pts.
+
+68 new teams created across the three countries, each with a
+team_aliases row for football-data.co.uk's exact raw name. All visible
+now in the results/projections browser (Country + Division filters) --
+no frontend changes needed, same as Spain.
+
+Country filter now sorted by coverage (see the entry below) shows the
+five countries in order: England, Spain, Germany, Italy, France --
+correctly, since Spain (385 matches) still has more than any of these
+three did before today (each ~306-380).
+
+Not done, same order as before: more seasons (dispatch the same
+workflow, different season_label), then retro-fits, scorecard, frontend
+country filter for these leagues specifically. No fits or predictions
+exist for any of the four new leagues -- confirmed nothing automated
+touches them (see the country-filter-by-relevance entry for why).
+
 ### La Liga trial: 2023/24 season imported and live -- standings still need the pyramid fix
 Turned out much smaller than expected: import-daily.ts was already fully
 parametrised via env vars, so no new import code was needed at all -- just
