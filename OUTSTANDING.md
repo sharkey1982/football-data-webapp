@@ -10,30 +10,34 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
-### International expansion: scope set at 5 years, top flight only, no odds
-Decided: Big 5 top divisions (E0/D1/I1/SP1/F1), most recent 5 seasons
-each, no second divisions, no odds for the non-English countries, not
-going further back in time -- all "for now" / "at the moment", i.e.
-worth revisiting later rather than a permanent limit.
+### International expansion: 5-year Big 5 top-flight ingestion -- DONE
+E0/D1/I1/SP1/F1, 2025/26 down to 2021/22, all 25 league-season
+combinations verified present at the correct match count (380 for a
+20-team league, 306 for 18 -- Ligue 1's own 20->18 reduction in 2023/24
+shows up correctly: 380/380/306/306/306 for 2122/2223/2324/2425/2526).
+check_model_integrity() clean throughout.
 
-Current coverage against that target: E0 already covers this and much
-more. D1/I1/F1 have 2025/26 only -- need 2024/25, 2023/24, 2022/23,
-2021/22. SP1 has 2023/24 only (the original trial season) -- needs
-2025/26 (the most recent, actually the most important one still
-missing) plus 2024/25, 2022/23, 2021/22.
+44 new clubs added across the four non-English countries during this
+push (on top of the ~66 added getting each country's current season
+working originally), each confirmed against real promotion/relegation
+history rather than guessed -- Bundesliga, Serie A, Ligue 1 and La Liga
+turnover for 2021/22 through 2024/25 all checked directly. Every season
+came back at the exact right row count on the first or second dispatch;
+the "dispatch, check rows_seen vs rows_upserted, add exactly what's
+missing, re-dispatch (safe -- upsert)" loop worked cleanly throughout,
+without needing get_unmapped_alias_names in the end -- the researched
+promotion/relegation history was precise enough that it wasn't needed
+for this pass, though it remains the right tool if a discrepancy shows
+up that direct research doesn't cleanly explain.
 
-get_unmapped_alias_names(source, raw_names[]) is built and verified --
-feed it a season's distinct team names, get back only the ones needing
-a new team_aliases row, before creating anything. Use it for the
-remaining ~16 season imports (4 leagues x 4 more seasons, one of which
-is Spain's missing 2025/26) rather than re-deriving each country's
-roster from scratch again.
+Confirmed still true: nothing automated touches any of these four
+countries -- daily import, fitting, and fixture-feed refresh are all
+still hardcoded to the English competitions only.
 
-Not done: the remaining season imports themselves; the Team Strength
-Country -> Division filter is done as the prototype (see below) but
-hasn't been rolled out to any other page yet (Results Projections'
-Division filter, Managers' Dugout, anywhere else with a bare league
-dropdown -- not yet audited for the same gap).
+Not done: retro-fits, the scorecard, a frontend country filter --
+unchanged from before, next in line once wanted. No odds captured for
+the non-English countries (out of scope, per instruction). No second
+divisions (out of scope). No deeper history than 2021/22 (out of scope).
 
 ### Team Strength: Country -> Division filter -- DONE (prototype)
 Was one flat Division dropdown sorted by an internal code (D1, E0, F1,
