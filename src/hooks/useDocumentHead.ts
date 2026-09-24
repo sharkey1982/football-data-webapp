@@ -27,9 +27,13 @@ type DocumentHeadOptions = {
   description?: string;
   /** App-relative path (e.g. "/fpl/gameweek/5") for the canonical <link>. Omit to leave canonical unmanaged for this route. */
   path?: string;
+  /** A schema.org object (e.g. BroadcastEvent) to emit as a <script type="application/ld+json">.
+   * Same crawlability caveat as the rest of this hook: real browsers and JS-executing crawlers
+   * see it today; a non-JS crawler needs the prerendering pass this file's header already flags. */
+  jsonLd?: object;
 };
 
-export function useDocumentHead({ title, raw = false, description, path }: DocumentHeadOptions) {
+export function useDocumentHead({ title, raw = false, description, path, jsonLd }: DocumentHeadOptions) {
   useEffect(() => {
     const previousTitle = document.title;
     document.title = raw ? title : `${title} | ${BRAND_NAME}`;
@@ -62,6 +66,14 @@ export function useDocumentHead({ title, raw = false, description, path }: Docum
       canonicalTag.setAttribute('href', absoluteUrl(path));
     }
 
+    let jsonLdTag: HTMLScriptElement | null = null;
+    if (jsonLd) {
+      jsonLdTag = document.createElement('script');
+      jsonLdTag.setAttribute('type', 'application/ld+json');
+      jsonLdTag.textContent = JSON.stringify(jsonLd);
+      document.head.appendChild(jsonLdTag);
+    }
+
     return () => {
       document.title = previousTitle;
       if (descriptionTag) {
@@ -78,6 +90,10 @@ export function useDocumentHead({ title, raw = false, description, path }: Docum
           canonicalTag.setAttribute('href', previousCanonical);
         }
       }
+      // Always created fresh (never reuses an existing tag, unlike
+      // description/canonical), so always removed fresh -- no restore case.
+      jsonLdTag?.remove();
     };
-  }, [title, raw, description, path]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, raw, description, path, JSON.stringify(jsonLd)]);
 }

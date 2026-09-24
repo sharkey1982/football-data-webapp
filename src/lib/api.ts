@@ -39,3 +39,4 @@ export * from './modelApi';
 export * from './fixturesApi';
 export * from './healthApi';
 export * from './rawDataApi';
+export * from './commercialLinks';

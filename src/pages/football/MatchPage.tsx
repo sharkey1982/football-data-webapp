@@ -21,6 +21,8 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getMatchBySlug, mostLikelyScore, type MatchPagePrediction } from '../../lib/matchPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { getFixtureBroadcast, type FixtureBroadcast } from '../../lib/broadcastsApi';
+import { getActivePartners, resolveCommercialLink, type AffiliatePartner } from '../../lib/commercialLinks';
+import { trackEvent } from '../../lib/analytics';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -42,6 +44,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
   const [broadcasts, setBroadcasts] = useState<FixtureBroadcast[]>([]);
+  const [streamingPartners, setStreamingPartners] = useState<AffiliatePartner[]>([]);
 
   useEffect(() => {
     if (initialData) return;
@@ -82,6 +85,20 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
     };
   }, [match?.fixture_id]);
 
+  // Independent of everything else on the page, same reasoning as the
+  // broadcast fetch above: a problem resolving affiliate links must never
+  // take down the page, and with no active partners (the common case
+  // today) every watch link just falls back to its canonical URL.
+  useEffect(() => {
+    let live = true;
+    getActivePartners('streaming')
+      .then((p) => live && setStreamingPartners(p))
+      .catch(() => live && setStreamingPartners([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const title = match ? `${match.home_team_name} v ${match.away_team_name}` : 'Match prediction';
   // UK-only for now (the schema already supports other markets -- see
   // broadcastsApi.ts); shown in metadata only once real data exists, so
@@ -92,12 +109,34 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
     ? ` Watch on ${[...new Set(confirmedBroadcast.map((b) => b.broadcaster))].join(' or ')} in the UK.`
     : '';
 
+  // BroadcastEvent structured data: the same machine-readable shape
+  // streaming guides use, so both classic rich results and an AI answer
+  // engine can extract "where to watch" as a fact rather than parsing it
+  // out of prose. Only emitted once there's a real confirmed broadcast --
+  // never for "not yet determined", same rule as the visible section above.
+  const broadcastJsonLd = match && confirmedBroadcast.length > 0
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BroadcastEvent',
+        name: title,
+        startDate: match.kickoff_date,
+        isLiveBroadcast: true,
+        videoFormat: 'HD',
+        publishedOn: confirmedBroadcast.map((b) => ({
+          '@type': 'BroadcastService',
+          name: b.channel ?? b.broadcaster ?? undefined,
+          broadcastDisplayName: b.broadcaster ?? undefined,
+        })),
+      }
+    : undefined;
+
   useDocumentHead({
     title: match ? `${title} \u2014 prediction` : title,
     description: match
       ? `Model prediction for ${title} on ${formatMatchDateWithYear(match.kickoff_date)}: outcome probabilities, expected goals and the most likely scoreline.${tvSuffix}`
       : 'Football match prediction.',
     path: slug ? `/football/matches/${slug}` : '/football',
+    jsonLd: broadcastJsonLd,
   });
 
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
@@ -151,15 +190,40 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
                   <span className="font-medium text-ink-900">{b.channel ?? b.broadcaster}</span>
                   {b.streamingService && <> &middot; {b.streamingService}</>}
                   {b.isFreeToAir && <span className="text-pitch-800"> &middot; Free-to-air</span>}
-                  {b.watchUrl && (
-                    <>
-                      {' '}
-                      &middot;{' '}
-                      <a href={b.watchUrl} className="text-pitch-800 underline underline-offset-2" rel="nofollow noopener noreferrer">
-                        Watch
-                      </a>
-                    </>
-                  )}
+                  {b.watchUrl && (() => {
+                    const link = resolveCommercialLink(b.watchUrl, streamingPartners);
+                    return (
+                      <>
+                        {' '}
+                        &middot;{' '}
+                        <a
+                          href={link.url}
+                          className="text-pitch-800 underline underline-offset-2"
+                          rel={link.isAffiliate ? 'sponsored noopener noreferrer' : 'nofollow noopener noreferrer'}
+                          onClick={() => {
+                            if (link.isAffiliate) {
+                              trackEvent('affiliate_click', {
+                                partner: link.partner?.name ?? '',
+                                category: 'streaming',
+                                fixture_id: match?.fixture_id ?? '',
+                                page: 'match_page',
+                                destination: b.watchUrl ?? '',
+                              });
+                            }
+                          }}
+                        >
+                          Watch
+                        </a>
+                        {/* Required at the point of the link by affiliate network terms,
+                            not just in a footer policy page -- see /affiliate-disclosure. */}
+                        {link.isAffiliate && (
+                          <Link to="/affiliate-disclosure" className="text-[10px] text-ink-500 ml-1 underline" title="This is an affiliate link -- see our affiliate disclosure">
+                            Ad
+                          </Link>
+                        )}
+                      </>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>

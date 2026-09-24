@@ -1,12 +1,15 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import MatchPage from '../pages/football/MatchPage';
 import { mostLikelyScore } from '../lib/matchPageApi';
 import { calculateDixonColes } from '../lib/dixonColes';
 import * as matchApi from '../lib/matchPageApi';
 import * as broadcastsApi from '../lib/broadcastsApi';
+import * as commercialLinks from '../lib/commercialLinks';
+import * as analytics from '../lib/analytics';
 
 vi.mock('../lib/matchPageApi', async () => {
   const actual = await vi.importActual<typeof matchApi>('../lib/matchPageApi');
@@ -16,9 +19,16 @@ vi.mock('../lib/broadcastsApi', async () => {
   const actual = await vi.importActual<typeof broadcastsApi>('../lib/broadcastsApi');
   return { ...actual, getFixtureBroadcast: vi.fn().mockResolvedValue([]) };
 });
+vi.mock('../lib/commercialLinks', async () => {
+  const actual = await vi.importActual<typeof commercialLinks>('../lib/commercialLinks');
+  return { ...actual, getActivePartners: vi.fn().mockResolvedValue([]) };
+});
+vi.mock('../lib/analytics', () => ({ trackEvent: vi.fn() }));
 
 const mocked = matchApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const mockedBroadcasts = vi.mocked(broadcastsApi);
+const mockedCommercialLinks = vi.mocked(commercialLinks);
+const mockedTrackEvent = vi.mocked(analytics.trackEvent);
 
 function renderAt(slug: string) {
   return render(
@@ -135,6 +145,44 @@ describe('MatchPage', () => {
     expect(screen.getByText(/Sky Go/)).toBeInTheDocument();
     expect(screen.queryByText(/Free-to-air/)).not.toBeInTheDocument();
     await waitFor(() => expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toContain('Sky Sports'));
+  });
+
+  it('a canonical watchUrl with no matching partner links out plainly -- nofollow, no Ad tag, no tracking', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
+    mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([
+      { broadcastId: 3, fixtureId: 501, market: 'GB', status: 'confirmed_broadcast', broadcaster: 'BBC',
+        channel: 'BBC One', streamingService: null, isFreeToAir: true, isSubscription: false, isPpv: false,
+        watchUrl: 'https://www.bbc.co.uk/iplayer', source: 'test', sourceUrl: null, verifiedAt: '2026-08-01T00:00:00Z' },
+    ]);
+    mockedCommercialLinks.getActivePartners.mockResolvedValue([]);
+    renderAt(base.slug);
+    const link = await screen.findByRole('link', { name: 'Watch' });
+    expect(link).toHaveAttribute('href', 'https://www.bbc.co.uk/iplayer');
+    expect(link).toHaveAttribute('rel', 'nofollow noopener noreferrer');
+    expect(screen.queryByText('Ad')).not.toBeInTheDocument();
+  });
+
+  it('a watchUrl matching an active partner resolves to the affiliate link, discloses it, and tracks the click', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
+    mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([
+      { broadcastId: 4, fixtureId: 501, market: 'GB', status: 'confirmed_broadcast', broadcaster: 'NOW',
+        channel: 'NOW Sky Sports', streamingService: 'NOW', isFreeToAir: false, isSubscription: true, isPpv: false,
+        watchUrl: 'https://www.nowtv.com/watch/some-match', source: 'test', sourceUrl: null, verifiedAt: '2026-08-01T00:00:00Z' },
+    ]);
+    mockedCommercialLinks.getActivePartners.mockResolvedValue([
+      { partnerId: 1, name: 'NOW', category: 'streaming', network: 'Awin', canonicalDomain: 'nowtv.com',
+        affiliateUrlTemplate: 'https://www.awin1.com/cread.php?p={url}', market: 'GB' },
+    ]);
+    const user = userEvent.setup();
+    renderAt(base.slug);
+    const link = await screen.findByRole('link', { name: 'Watch' });
+    expect(link).toHaveAttribute('href', `https://www.awin1.com/cread.php?p=${encodeURIComponent('https://www.nowtv.com/watch/some-match')}`);
+    expect(link).toHaveAttribute('rel', 'sponsored noopener noreferrer');
+    const adTag = screen.getByRole('link', { name: 'Ad' });
+    expect(adTag).toHaveAttribute('href', '/affiliate-disclosure');
+
+    await user.click(link);
+    expect(mockedTrackEvent).toHaveBeenCalledWith('affiliate_click', expect.objectContaining({ partner: 'NOW', category: 'streaming' }));
   });
 
   it('states plainly when a fixture is confirmed not televised, distinct from saying nothing', async () => {
