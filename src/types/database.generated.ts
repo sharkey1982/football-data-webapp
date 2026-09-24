@@ -7167,6 +7167,7 @@ export type Database = {
         Returns: {
           display_name: string
           goals: number
+          seasons_covered: number
         }[]
       }
       get_best_defence_rating: {
@@ -7458,6 +7459,7 @@ export type Database = {
           home_goals: number
           occurrences: number
           total_matches: number
+          seasons_covered: number
         }[]
       }
       get_overround_trend: {

@@ -120,16 +120,16 @@ export async function upcomingGameweek(): Promise<{ matchweek: number; fixtureId
 
 export async function getMostCommonScorelineTrivia(): Promise<TriviaFact | null> {
   const { data } = await supabase.rpc('get_most_common_scoreline', { p_league_id: PL_LEAGUE_ID });
-  const rows = (data ?? []) as { home_goals: number; away_goals: number; occurrences: number; total_matches: number }[];
+  const rows = (data ?? []) as { home_goals: number; away_goals: number; occurrences: number; total_matches: number; seasons_covered: number }[];
   if (rows.length === 0) return null;
   const labels = rows.map((r) => `${r.home_goals}\u2013${r.away_goals}`);
   const details = rows.map((r) => `${formatPercent(r.occurrences, r.total_matches)} of matches`);
   const win = tiedWithFirst(rows.map((r) => r.occurrences));
   const top = rows[0];
   return {
-    question: 'Which scoreline has come up most often in the Premier League?',
+    question: `Which scoreline has come up most often in the Premier League over the last ${top.seasons_covered} seasons?`,
     ...shuffleFact(labels, win, details),
-    explanation: `${joined(win.map((i) => labels[i]))} \u2014 ${formatPercent(top.occurrences, top.total_matches)} of every match in the archive.`,
+    explanation: `${joined(win.map((i) => labels[i]))} \u2014 ${formatPercent(top.occurrences, top.total_matches)} of every match played.`,
     link: { to: '/results-data', label: 'Explore every result' },
   };
 }
@@ -523,11 +523,11 @@ export async function getOwnershipSurgeTrivia(): Promise<TriviaFact | null> {
 
 export async function getAllTimeScorersTrivia(): Promise<TriviaFact | null> {
   const { data } = await supabase.rpc('get_all_time_top_scorers');
-  const rows = (data ?? []);
+  const rows = (data ?? []) as { display_name: string; goals: number; seasons_covered: number }[];
   if (rows.length < 2) return null;
   const win = tiedWithFirst(rows.map((r) => Number(r.goals)));
   return {
-    question: 'Across all five divisions in our archive, which club has scored the most goals?',
+    question: `Across all five divisions over the last ${rows[0].seasons_covered} seasons, which club has scored the most goals?`,
     ...shuffleFact(rows.map((r) => r.display_name), win, rows.map((r) => `${Number(r.goals).toLocaleString('en-GB')} goals`)),
     explanation: `${joined(win.map((i) => rows[i].display_name))} \u2014 ${Number(rows[0].goals).toLocaleString('en-GB')} goals.`,
     link: { to: '/teams', label: 'Explore any club' },

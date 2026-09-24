@@ -28,6 +28,7 @@ import {
   upcomingGameweek, tiedWithFirst,
   getLeagueGoalsTrivia, getModelHitRateTrivia, getScoringRuleTrivia, getInjuryListTrivia,
   getPriceRiskTrivia, getCleanSheetTrivia, getSetPieceTrivia, getTopFplPickTrivia, getMostCommonScorelineTrivia,
+  getAllTimeScorersTrivia,
 } from '../lib/landingApi';
 
 beforeEach(() => {
@@ -73,15 +74,35 @@ describe('ties', () => {
 describe('every option\u2019s figure is revealed', () => {
   it('keeps each detail aligned with its option through the shuffle', async () => {
     rpcs.get_most_common_scoreline = [
-      { home_goals: 1, away_goals: 1, occurrences: 300, total_matches: 2500 },
-      { home_goals: 1, away_goals: 0, occurrences: 250, total_matches: 2500 },
-      { home_goals: 2, away_goals: 1, occurrences: 200, total_matches: 2500 },
+      { home_goals: 1, away_goals: 1, occurrences: 300, total_matches: 2500, seasons_covered: 13 },
+      { home_goals: 1, away_goals: 0, occurrences: 250, total_matches: 2500, seasons_covered: 13 },
+      { home_goals: 2, away_goals: 1, occurrences: 200, total_matches: 2500, seasons_covered: 13 },
     ];
     for (let run = 0; run < 20; run++) {
       const f = (await getMostCommonScorelineTrivia())!;
       expect(f.optionDetails![f.options.indexOf('1\u20130')]).toBe('10.0% of matches');
       expect(correctLabels(f)).toEqual(['1\u20131']);
     }
+  });
+});
+
+describe('historic questions name a season span, not the database', () => {
+  it('scoreline question and every-club goals question both say how many seasons, computed from the data', async () => {
+    rpcs.get_most_common_scoreline = [
+      { home_goals: 1, away_goals: 1, occurrences: 300, total_matches: 2500, seasons_covered: 11 },
+    ];
+    const scoreline = (await getMostCommonScorelineTrivia())!;
+    expect(scoreline.question).toBe('Which scoreline has come up most often in the Premier League over the last 11 seasons?');
+    expect(scoreline.question).not.toMatch(/archive/i);
+    expect(scoreline.explanation).not.toMatch(/archive/i);
+
+    rpcs.get_all_time_top_scorers = [
+      { display_name: 'Arsenal', goals: 1200, seasons_covered: 13 },
+      { display_name: 'Man City', goals: 1150, seasons_covered: 13 },
+    ];
+    const scorers = (await getAllTimeScorersTrivia())!;
+    expect(scorers.question).toBe('Across all five divisions over the last 13 seasons, which club has scored the most goals?');
+    expect(scorers.question).not.toMatch(/archive/i);
   });
 });
 
