@@ -121,6 +121,9 @@ describe('TeamStrengthPage', () => {
     expect(screen.getAllByText('\u2014').length).toBeGreaterThan(0);
     // Estimated rating is labelled as such.
     expect(screen.getByText('est.')).toBeInTheDocument();
+    // Arsenal's rating is directly fitted, so its projected-position cell
+    // carries no "estimated rating" marker.
+    expect(screen.getByText('1.5').parentElement?.textContent).not.toContain('\u2020');
     // Teams flagged as relegated (rated in a wider window but not in this
     // season's fixtures) are called out, not silently mixed into the table.
     expect(screen.getByText(/Relegated from 2526/)).toBeInTheDocument();
@@ -304,6 +307,12 @@ describe('TeamStrengthPage', () => {
     // shown, not just the base value: exp(-0.301+0.3) = exp(-0.001) = 1.00.
     const matches = screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.className.includes('text-amber-700') && el.textContent === '\u2192 1.00');
     expect(matches.length).toBeGreaterThan(0);
+
+    // Hull's rating is still estimated, so its projected position (19.5) carries
+    // a marker saying so, alongside (not instead of) the staleness warning.
+    const posCell = screen.getByText('19.5').closest('td');
+    expect(posCell?.textContent).toContain('\u2020');
+    expect(screen.getByTitle(/still estimated.*may not reflect its actual form this season/s)).toBeInTheDocument();
   });
 
   it('lets FPL projections be refreshed from the page, using the current default matchweek -- via a triggered workflow, not a direct RPC call', async () => {

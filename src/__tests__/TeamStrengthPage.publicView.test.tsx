@@ -94,9 +94,9 @@ describe('TeamStrengthPage as a visitor', () => {
           defence_adjustment: 0,
           override_note: null,
           override_updated_at: null,
-          projected_position_mean: null,
-          projected_position_median: null,
-          projected_points_mean: null,
+          projected_position_mean: 15.5,
+          projected_position_median: 16,
+          projected_points_mean: 44.2,
           position_simulated_at: null,
         },
       ],
@@ -108,6 +108,12 @@ describe('TeamStrengthPage as a visitor', () => {
 
     // Public identity, not the admin one.
     expect(screen.queryByRole('heading', { name: 'Adjust Team Ratings' })).not.toBeInTheDocument();
+
+    // The estimated-rating marker on the projected position column shows on
+    // the public route too, not just in admin mode -- this is the page
+    // visitors actually see.
+    expect((await screen.findByText('15.5')).closest('td')?.textContent).toContain('\u2020');
+    expect(screen.getByText('1.5').closest('td')?.textContent).not.toContain('\u2020');
 
     // Every write affordance absent. These are refused by RLS anyway, so
     // rendering them promised something the page couldn't deliver.

@@ -94,7 +94,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
     mockedApi.saveTacticalRoleCorrection.mockResolvedValue(undefined);
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
 
     await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
     // Ødegaard already has a real role assigned -- hidden under the
@@ -131,7 +131,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
     const user = userEvent.setup();
@@ -177,7 +177,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Martinelli')).toBeInTheDocument());
     expect(screen.getByText('Wissa')).toBeInTheDocument();
 
@@ -200,7 +200,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     // Switch scope to "Everyone" so the manually-set Saliba row is visible.
@@ -221,7 +221,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
     mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
@@ -253,7 +253,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map([[1, 87.5], [2, 90]]));
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
@@ -297,7 +297,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.addSetPieceTaker.mockResolvedValue(undefined);
     mockedApi.removeSetPieceTaker.mockResolvedValue(undefined);
 
-    render(<TacticalRolesAdminPage adminMode />);
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Everyone' }));
