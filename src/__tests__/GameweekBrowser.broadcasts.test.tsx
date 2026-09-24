@@ -125,14 +125,16 @@ describe('GameweekBrowser UK broadcast integration', () => {
     expect(screen.getByText('Liverpool')).toBeInTheDocument();
   });
 
-  it('the filter and badges are archive-view only -- no filter control, and no fetch, outside projections', async () => {
+  it('the filter and badges also show on the archive (fixtures) view, not just projections', async () => {
+    mockedBroadcasts.getFixtureBroadcasts.mockResolvedValue(new Map([[1, [bet(1)]]]));
     render(
       <MemoryRouter initialEntries={['/?league=1&season=13']}>
         <GameweekBrowser variant="archive" />
       </MemoryRouter>
     );
     await screen.findByText('Arsenal');
-    expect(screen.queryByRole('group', { name: 'Filter by UK broadcast' })).not.toBeInTheDocument();
-    expect(mockedBroadcasts.getFixtureBroadcasts).not.toHaveBeenCalled();
+    expect(screen.getByRole('group', { name: 'Filter by UK broadcast' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Sky Sports')).toBeInTheDocument());
+    expect(mockedBroadcasts.getFixtureBroadcasts).toHaveBeenCalled();
   });
 });
