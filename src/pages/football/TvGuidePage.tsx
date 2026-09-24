@@ -45,6 +45,7 @@ export default function TvGuidePage() {
   const [error, setError] = useState<string | null>(null);
   const [competitionFilter, setCompetitionFilter] = useState<string>('');
   const [broadcasterFilter, setBroadcasterFilter] = useState<string>('');
+  const [teamFilter, setTeamFilter] = useState<string>('');
 
   useEffect(() => {
     let live = true;
@@ -87,12 +88,17 @@ export default function TvGuidePage() {
     () => [...new Set((fixtures ?? []).map((f) => f.broadcaster).filter((b): b is string => !!b))].sort(),
     [fixtures]
   );
+  const teams = useMemo(
+    () => [...new Set((fixtures ?? []).flatMap((f) => [f.homeTeamName, f.awayTeamName]))].sort(),
+    [fixtures]
+  );
 
-  const filtersActive = competitionFilter !== '' || broadcasterFilter !== '';
+  const filtersActive = competitionFilter !== '' || broadcasterFilter !== '' || teamFilter !== '';
   const filtered = (fixtures ?? []).filter(
     (f) =>
       (!competitionFilter || f.leagueName === competitionFilter) &&
-      (!broadcasterFilter || f.broadcaster === broadcasterFilter)
+      (!broadcasterFilter || f.broadcaster === broadcasterFilter) &&
+      (!teamFilter || f.homeTeamName === teamFilter || f.awayTeamName === teamFilter)
   );
   const groups = groupByDate(filtered);
 
@@ -124,12 +130,22 @@ export default function TvGuidePage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className={labelClass} htmlFor="team-filter">Team</label>
+            <select id="team-filter" className={selectClass} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+              <option value="">All teams</option>
+              {teams.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
           {filtersActive && (
             <button
               type="button"
               onClick={() => {
                 setCompetitionFilter('');
                 setBroadcasterFilter('');
+                setTeamFilter('');
               }}
               className="text-xs text-ink-500 underline underline-offset-2 mb-2"
             >

@@ -68,6 +68,25 @@ describe('TvGuidePage', () => {
     expect(mockedTrackEvent).toHaveBeenCalledWith('affiliate_click', expect.objectContaining({ partner: 'NOW', page: 'tv_guide' }));
   });
 
+  it('filters to a single team, matching either home or away, and clears with the Clear filters control', async () => {
+    mockedBroadcasts.getUpcomingBroadcastFixtures.mockResolvedValue([
+      fixture({ broadcastId: 1, homeTeamName: 'Arsenal', awayTeamName: 'Leeds', slug: 'arsenal-v-leeds' }),
+      fixture({ broadcastId: 2, homeTeamName: 'Chelsea', awayTeamName: 'Arsenal', slug: 'chelsea-v-arsenal', kickoffDate: '2026-10-11' }),
+      fixture({ broadcastId: 3, homeTeamName: 'Everton', awayTeamName: 'Fulham', slug: 'everton-v-fulham', kickoffDate: '2026-10-12' }),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await waitFor(() => expect(screen.getByText('Everton v Fulham')).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText('Team'), 'Arsenal');
+    expect(screen.getByText('Arsenal v Leeds')).toBeInTheDocument();
+    expect(screen.getByText('Chelsea v Arsenal')).toBeInTheDocument();
+    expect(screen.queryByText('Everton v Fulham')).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Clear filters'));
+    expect(screen.getByText('Everton v Fulham')).toBeInTheDocument();
+  });
+
   it('shows an error message if the load fails, rather than a blank page', async () => {
     mockedBroadcasts.getUpcomingBroadcastFixtures.mockRejectedValue(new Error('network down'));
     render_();
