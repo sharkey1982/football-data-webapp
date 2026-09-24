@@ -10,50 +10,32 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
-### La Liga trial: scoped, one safe step taken, real import still to build
-Chris wants to trial Spain's top division before other countries.
-Investigated before building anything:
-- football-data.co.uk's SP1 (La Liga) uses the exact same CSV schema we
-  already parse for England (same columns, same DD/MM/YYYY dates), same
-  URL pattern (mmz4281/{season}/SP1.csv), same odds-bookmaker columns
-  (which vary by season the same way England's do -- e.g. 2023/24 has
-  B365/BW/IW/PS/WH/VC, 2025/26 has B365/BFD/BMGM/BV/BW/CL/LB/PS/BFE).
-  Real, already-completed seasons back to the 1990s.
-- The schema is already fully ready: Spain already existed as
-  country_id=5 (from continental-cup team data), and `leagues` is fully
-  generic (country_id, competition_type, scope, confederation, tier) --
-  no hardcoding to England anywhere in the table itself.
-- One real architectural gap found: `league_standings`'s pyramid_position
-  logic filters `league_id between 1 and 5` and stacks divisions into a
-  single pyramid -- correct for England's tiers, wrong for a second
-  country's top flight (La Liga isn't "6th" under the National League,
-  it's a separate country's own pyramid). Needs designing properly
-  (scoped per country, not a quick range-widen), not done yet.
-- Real blocker for doing the import from a chat session: football-data.co.uk
-  isn't in Claude's sandbox's allowed network domains, so the CSV can be
-  fetched via web_fetch (used for this research) but not downloaded and
-  parsed in-container the way a script normally would. The English
-  imports all run via GitHub Actions, which has full internet access --
-  the same pattern needs to be used here, not hand-transcribing CSV rows
-  into SQL.
+### La Liga trial: 2023/24 season imported and live -- standings still need the pyramid fix
+Turned out much smaller than expected: import-daily.ts was already fully
+parametrised via env vars, so no new import code was needed at all -- just
+a reusable workflow (import-historic-season.yml, league code + season
+label as inputs) that calls the exact same script the daily Premier
+League import already uses.
 
-Done: La Liga added to `leagues` (SP1, tier 1, Spain, domestic) -- safe,
-standalone, a no-op for every existing view since no matches reference it
-yet.
+Done: 20 La Liga clubs in `teams` (8 already existed from European
+competition data; 12 added), each with a team_aliases row mapping
+football-data.co.uk's own CSV names (e.g. "Ath Madrid", "Sociedad",
+"Vallecano") to the right team_id. Ran the workflow for season 2023/24
+(season_id 10): 380/380 rows imported cleanly, zero skipped -- verified
+as anon, real final-day results (Sevilla 1-2 Barcelona etc.) match what
+actually happened. `getLeagues()`/`getCountries()` and the historic-
+results query were already fully unrestricted, so this needed no
+frontend changes at all -- selecting La Liga + 2023/24 in the existing
+Country/Division filters shows it right now, live.
 
-Not done, in order:
-1. A generalised import script (league code + country as parameters,
-   reusing the English import's column-handling logic) run via a new or
-   adapted GitHub Actions workflow -- real network access, not this
-   session's sandbox.
-2. Team canonicalisation for ~20 Spanish clubs (football-data.co.uk's own
-   shorthand naming, e.g. "Ath Bilbao", "Sociedad", "Vallecano" --
-   same kind of work already done for England's clubs).
-3. Fix league_standings' pyramid logic to scope per country before
-   Spanish standings would display sensibly anywhere.
-4. Only after 1-3: consider retro-fits, the scorecard, and a country
-   filter on the frontend for La Liga specifically.
-
+Still not done, in order:
+1. Fix `league_standings`' pyramid logic to scope per country (see the
+   entry this replaces for why -- La Liga isn't "6th" under the National
+   League) -- needed before Spanish standings display sensibly anywhere.
+2. More seasons, the same way (just dispatch the workflow again with a
+   different season_label).
+3. Only after that: retro-fits, the scorecard, a country filter on the
+   frontend specifically for La Liga.
 
 ### UK TV/streaming info: schema and display built, no data source picked yet
 Investigated before building anything (see the fixture_broadcasts migration
