@@ -10,6 +10,26 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Non-English Big 5: 2026/27 live, daily import decoupled from English -- DONE
+Backfilled D1/I1/F1/SP1 to today's 2026/27 matches (6 more clubs added,
+each confirmed against real promotion/relegation results -- Serie A
+needed none, all three of this season's promoted clubs were already in
+from the 5-year backfill). New workflow, daily-import-international.yml,
+runs at 06:20 UTC daily: results only for these four leagues, decoupled
+from daily-import.yml on purpose so a problem here can never fail or
+block the English import. Verified by hand-triggering it once --
+completed clean. check_model_integrity() clean throughout.
+
+No fitting or predictions added for these leagues -- still just factual
+data, per instruction; that's a separate decision for later, not an
+oversight. No fixture-sync step either (no `fixtures` rows exist yet for
+these leagues, only `matches`).
+
+Not done: everything past "keep the results current" is unchanged from
+before -- retro-fits, the scorecard, a frontend country filter, and
+rolling the Team Strength Country -> Division pattern out to the other
+pages that need it.
+
 ### International expansion: 5-year Big 5 top-flight ingestion -- DONE
 E0/D1/I1/SP1/F1, 2025/26 down to 2021/22, all 25 league-season
 combinations verified present at the correct match count (380 for a
