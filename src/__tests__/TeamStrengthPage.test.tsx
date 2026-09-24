@@ -19,7 +19,7 @@ vi.mock('../lib/auth', () => ({
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof api>('../lib/api');
-  return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };
+  return { ...actual, getLeagues: vi.fn(), getCountries: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };
 });
 
 vi.mock('../lib/fplSeasonApi', async () => {
@@ -35,7 +35,8 @@ const mockedTriggerWorkflow = triggerWorkflow as unknown as ReturnType<typeof vi
 
 describe('TeamStrengthPage', () => {
   it('shows attack/defence, home advantage, and projected vs last-season goals', async () => {
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({
       fitRun: {
         fit_run_id: 25,
@@ -131,7 +132,8 @@ describe('TeamStrengthPage', () => {
   });
 
   it('shows a clear message when there is no accepted fit for the league', async () => {
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({
       fitRun: null,
       currentSeasonLabel: '2627',
@@ -195,7 +197,8 @@ describe('TeamStrengthPage', () => {
       relegatedTeams: [],
     };
 
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValueOnce(baseSummary).mockResolvedValueOnce({
       ...baseSummary,
       rows: [{ ...baseSummary.rows[0], attack_adjustment: 0.3, defence_adjustment: -0.1, override_note: 'signed a new striker' }],
@@ -246,7 +249,8 @@ describe('TeamStrengthPage', () => {
   });
 
   it('warns when a saved override postdates the last position simulation, and shows the effective (base + override) attack/defence value', async () => {
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({
       fitRun: {
         fit_run_id: 25,
@@ -316,7 +320,8 @@ describe('TeamStrengthPage', () => {
   });
 
   it('lets FPL projections be refreshed from the page, using the current default matchweek -- via a triggered workflow, not a direct RPC call', async () => {
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({
       fitRun: null,
       currentSeasonLabel: '2627',
@@ -346,7 +351,8 @@ describe('TeamStrengthPage', () => {
   });
 
   it('triggers the final table simulation workflow with the correct season, and the bonus simulation workflow with the current default matchweek window', async () => {
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({ fitRun: null, currentSeasonLabel: '2627', lastSeasonLabel: '2526', rows: [], relegatedTeams: [] });
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedTriggerWorkflow.mockResolvedValue(undefined);
@@ -388,7 +394,8 @@ describe('TeamStrengthPage', () => {
       projected_points_mean: 57.99,
       position_simulated_at: '2026-09-17T04:00:24.955Z',
     };
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary
       .mockResolvedValueOnce({ fitRun: null, currentSeasonLabel: '2627', lastSeasonLabel: '2526', rows: [hullRow], relegatedTeams: [] })
       .mockResolvedValueOnce({

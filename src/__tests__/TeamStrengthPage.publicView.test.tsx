@@ -16,7 +16,7 @@ vi.mock('../lib/auth', () => ({
 
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof api>('../lib/api');
-  return { ...actual, getLeagues: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };
+  return { ...actual, getLeagues: vi.fn(), getCountries: vi.fn(), getTeamStrengthSummary: vi.fn(), saveTeamStrengthOverride: vi.fn() };
 });
 vi.mock('../lib/fplSeasonApi', async () => {
   const actual = await vi.importActual<typeof seasonApi>('../lib/fplSeasonApi');
@@ -29,7 +29,8 @@ const mockedSeasonApi = seasonApi as unknown as Record<string, ReturnType<typeof
 
 describe('TeamStrengthPage as a visitor', () => {
   it('shows the ratings but none of the write controls', async () => {
-    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league' }]);
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', competition_type: 'league', country_id: 2 }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 2, name: 'England', code: null }]);
     mockedApi.getTeamStrengthSummary.mockResolvedValue({
       fitRun: {
         fit_run_id: 25,

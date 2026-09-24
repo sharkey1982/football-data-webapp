@@ -11,12 +11,13 @@
 
 import { useAuthOptional } from '../lib/auth';
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { getLeagues, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
+import { getLeagues, getCountries, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
 import { triggerWorkflow } from '../lib/workflowTrigger';
 import { getErrorMessage } from '../lib/errorMessage';
 
-type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null };
+type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null; country_id: number };
+type CountryOption = { country_id: number; name: string; code: string | null };
 type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga' | 'projected_position_mean';
 
 const selectClass = 'w-full sm:w-56 border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
@@ -39,6 +40,8 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
   // now read-only for everyone, always.
   const signedInAdmin = useAuthOptional()?.isAdmin ?? false;
   const isAdmin = adminMode && signedInAdmin;
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [countryId, setCountryId] = useState<number | null>(null);
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [leagueId, setLeagueId] = useState<number | null>(null);
   const [summary, setSummary] = useState<TeamStrengthSummary | null>(null);
@@ -60,12 +63,38 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
   const [triggerBonusResult, setTriggerBonusResult] = useState<string | null>(null);
 
   useEffect(() => {
+    getCountries().then((data) => setCountries((data ?? []) as CountryOption[]));
     getLeagues().then((data) => {
       const loaded = ((data ?? []) as LeagueOption[]).filter((l) => l.competition_type === 'league');
       setLeagues(loaded);
-      setLeagueId((current) => current ?? loaded.find((l) => l.code === 'E0')?.league_id ?? loaded[0]?.league_id ?? null);
+      // Default to England if it's there, so first load looks the same as
+      // before this filter existed; otherwise whatever country the first
+      // division belongs to.
+      const defaultLeague = loaded.find((l) => l.code === 'E0') ?? loaded[0] ?? null;
+      setCountryId((current) => current ?? defaultLeague?.country_id ?? null);
+      setLeagueId((current) => current ?? defaultLeague?.league_id ?? null);
     });
   }, []);
+
+  // Division options narrow to the selected country -- a flat list across
+  // every country quickly becomes unreadable (division codes like D1/F1/I1
+  // mean nothing at a glance, and nothing visually groups them by country).
+  const filteredLeagues = useMemo(
+    () => leagues.filter((l) => !countryId || l.country_id === countryId),
+    [leagues, countryId]
+  );
+
+  // If the current division falls outside the Country filter (or hasn't
+  // been set yet), fall back to the first division that filter still
+  // allows -- keeps the Division dropdown always showing a valid, in-filter
+  // selection rather than a stale or empty one. Same pattern as the
+  // Country/Division filters on the fixtures page.
+  useEffect(() => {
+    if (filteredLeagues.length === 0) return;
+    if (leagueId && filteredLeagues.some((l) => l.league_id === leagueId)) return;
+    setLeagueId(filteredLeagues[0].league_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredLeagues]);
 
   useEffect(() => {
     if (leagueId === null) return;
@@ -340,8 +369,26 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       </div>
 
       <div>
+        <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="country-select">
+          Country
+        </label>
+        <select
+          id="country-select"
+          className={selectClass}
+          value={countryId ?? ''}
+          onChange={(e) => setCountryId(e.target.value ? Number(e.target.value) : null)}
+        >
+          {countries.map((c) => (
+            <option key={c.country_id} value={c.country_id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
         <label className="block text-xs font-medium text-ink-500 mb-1" htmlFor="league-select">
-          League
+          Division
         </label>
         <select
           id="league-select"
@@ -349,7 +396,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
           value={leagueId ?? ''}
           onChange={(e) => setLeagueId(Number(e.target.value))}
         >
-          {leagues.map((l) => (
+          {filteredLeagues.map((l) => (
             <option key={l.league_id} value={l.league_id}>
               {l.name} ({l.code})
             </option>
