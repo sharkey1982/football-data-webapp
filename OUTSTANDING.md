@@ -10,6 +10,38 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Nav: move Team Strength under Results Projections
+Football > Predict currently lists Team Strength last (src/lib/journey.ts,
+~line 93), after Results Projections, Head to Heads, Model Accuracy,
+Model Returns and Model Scorecard. Chris wants it moved to sit directly
+under Results Projections -- second in the list, not last.
+
+### Managers' Dugout: needs a general tidy-up, plus position-contribution variance
+src/pages/fpl/FormationsPage.tsx (/fpl/formations). Two asks:
+1. General tidy-up -- not yet scoped in detail.
+2. It currently shows only the MEAN open-play goal contribution by
+   playing position, across clubs. Chris wants the spread shown too --
+   range and standard-deviation-type metrics, not just the average --
+   and is thinking this may need players in each position bucketed by
+   ability (top end / mid range / low end) rather than one blended mean
+   per position.
+
+### Tactical Roles: flag shared/contested positions with rotation risk
+src/pages/fpl/TacticalRolesAdminPage.tsx, which is also what renders at
+/fpl/line-ups (Starting Lineups) -- Chris links this to the Dugout work
+above. Currently a player is presumably just "1st choice" or not; needs
+to distinguish a nailed-on starter from a 1st choice who's actually
+sharing or fighting for the position with someone else, and so carries a
+higher rotation risk, rather than treating both the same way.
+
+### Starting Lineups: clarify it's long-term, not next-game-only
+/fpl/line-ups (TacticalRolesAdminPage.tsx). The page should say plainly
+that it reflects the club's likely lineup over the medium/long term, not
+a next-match-only pick -- readers may otherwise take a long-term XI as a
+single-gameweek prediction and get confused when it doesn't match team
+news for the very next game.
+
+
 ### Half-life/shrinkage grid: does NOT survive proper significance testing -- don't re-run this
 scripts/model_experiment.py ran a 10-variant grid (half-life 180/270/365,
 shrinkage 0-3) across all 4 divisions, tuned on 2023/24-2024/25, held back
