@@ -15,6 +15,7 @@ import AppLayout from './components/AppLayout';
 const InThePapersPage = lazy(() => import('./pages/fpl/InThePapersPage'));
 const TeamFinancePage = lazy(() => import('./pages/football/TeamFinancePage'));
 const FinanceComparePage = lazy(() => import('./pages/FinanceComparePage'));
+const AffiliateDisclosurePage = lazy(() => import('./pages/AffiliateDisclosurePage'));
 const FinanceIndexPage = lazy(() => import('./pages/FinanceIndexPage'));
 const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
@@ -178,6 +179,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <GameweekBrowser variant="projections" />
+              </Suspense>
+            }
+          />
+          <Route
+            path="affiliate-disclosure"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <AffiliateDisclosurePage />
               </Suspense>
             }
           />
