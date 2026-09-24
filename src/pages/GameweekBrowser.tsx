@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { buildModelFromLambdas, derivedMarkets } from '../lib/matchPageApi';
 import type { FixtureHeadToHead } from '../lib/api';
 import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
+import BroadcastBadge from '../components/BroadcastBadge';
+import { getFixtureBroadcasts, summariseBroadcasts, type FixtureBroadcast } from '../lib/broadcastsApi';
 import {
   getLeagues,
   getFitRunRhos,
@@ -282,6 +284,8 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
   }, [filteredLeagues]);
 
   const [seasonFixtures, setSeasonFixtures] = useState<FixtureWithNames[] | null>(null);
+  const [broadcasts, setBroadcasts] = useState<Map<number, FixtureBroadcast[]>>(new Map());
+  const [broadcastFilter, setBroadcastFilter] = useState<'all' | 'tv' | 'free'>('all');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -554,6 +558,24 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, leagueId, seasonId]);
+
+  // UK broadcast info, upcoming fixtures only -- fetched independently of the
+  // fixture list above so a hiccup here can never take down the schedule
+  // itself. See src/lib/broadcastsApi.ts: no row at all means "not yet
+  // determined", which this deliberately leaves unbadged rather than guessed.
+  useEffect(() => {
+    if (!isProjections || !seasonFixtures || seasonFixtures.length === 0) {
+      setBroadcasts(new Map());
+      return;
+    }
+    let live = true;
+    getFixtureBroadcasts(seasonFixtures.map((f) => f.fixture_id))
+      .then((m) => live && setBroadcasts(m))
+      .catch(() => live && setBroadcasts(new Map()));
+    return () => {
+      live = false;
+    };
+  }, [isProjections, seasonFixtures]);
 
   // Whenever the visible groups change -- because a date got
   // selected/deselected, or (with no date selected) because the calendar
@@ -1078,6 +1100,25 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
         <>
           {loading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
 
+          {isProjections && groups.length > 0 && (
+            <div className="inline-flex rounded-lg border border-chalk-300 overflow-hidden text-xs mb-2" role="group" aria-label="Filter by UK broadcast">
+              {([
+                { key: 'all', label: 'All' },
+                { key: 'tv', label: 'On TV' },
+                { key: 'free', label: 'Free-to-air' },
+              ] as const).map((o) => (
+                <button
+                  key={o.key}
+                  type="button"
+                  aria-pressed={broadcastFilter === o.key}
+                  onClick={() => setBroadcastFilter(o.key)}
+                  className={broadcastFilter === o.key ? 'px-3 py-1 bg-pitch-700 text-chalk-100' : 'px-3 py-1 bg-white text-ink-700'}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
           {groups.length > 0 && (
             <div className="space-y-3">
               {groups.map((g) => {
@@ -1102,7 +1143,14 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                     </button>
                     {expanded && (
                       <ul className="divide-y divide-chalk-300">
-                        {g.fixtures.map((f) => (
+                        {g.fixtures
+                          .filter((f) => {
+                            if (!isProjections || broadcastFilter === 'all') return true;
+                            const summary = summariseBroadcasts(broadcasts.get(f.fixture_id));
+                            if (broadcastFilter === 'tv') return summary.kind === 'broadcast';
+                            return summary.kind === 'broadcast' && summary.freeToAir;
+                          })
+                          .map((f) => (
                           <li
                             key={f.fixture_id}
                             className={[
@@ -1116,6 +1164,11 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                             <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
                               {formatMatchDate(f.kickoff_date)}
                               {f.kickoff_time && ` ${f.kickoff_time.slice(0, 5)}`}
+                              {isProjections && (
+                                <span className="block mt-0.5">
+                                  <BroadcastBadge summary={summariseBroadcasts(broadcasts.get(f.fixture_id))} />
+                                </span>
+                              )}
                             </span>
                             <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
                               <span className="truncate font-medium min-w-0">{f.home_team_name}</span>

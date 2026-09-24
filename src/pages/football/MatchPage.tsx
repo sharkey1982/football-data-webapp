@@ -20,6 +20,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getMatchBySlug, mostLikelyScore, type MatchPagePrediction } from '../../lib/matchPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
+import { getFixtureBroadcast, type FixtureBroadcast } from '../../lib/broadcastsApi';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -40,6 +41,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   const [match, setMatch] = useState<MatchPagePrediction | null>(initialData ?? null);
   const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
+  const [broadcasts, setBroadcasts] = useState<FixtureBroadcast[]>([]);
 
   useEffect(() => {
     if (initialData) return;
@@ -65,12 +67,35 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
     };
   }, [slug, initialData]);
 
+  // Independent of the prediction load above (and of initialData -- static
+  // generation covers the prediction only) so a broadcast-data hiccup can
+  // never take down the page's core reason for existing. No row at all
+  // means not yet determined -- rendered as no section, not a guess.
+  useEffect(() => {
+    if (!match?.fixture_id) return;
+    let live = true;
+    getFixtureBroadcast(match.fixture_id)
+      .then((b) => live && setBroadcasts(b))
+      .catch(() => live && setBroadcasts([]));
+    return () => {
+      live = false;
+    };
+  }, [match?.fixture_id]);
+
   const title = match ? `${match.home_team_name} v ${match.away_team_name}` : 'Match prediction';
+  // UK-only for now (the schema already supports other markets -- see
+  // broadcastsApi.ts); shown in metadata only once real data exists, so
+  // this never generates a page that promises a broadcaster it doesn't know.
+  const confirmedBroadcast = broadcasts.filter((b) => b.status === 'confirmed_broadcast');
+  const notTelevised = broadcasts.some((b) => b.status === 'confirmed_not_televised');
+  const tvSuffix = confirmedBroadcast.length > 0
+    ? ` Watch on ${[...new Set(confirmedBroadcast.map((b) => b.broadcaster))].join(' or ')} in the UK.`
+    : '';
 
   useDocumentHead({
     title: match ? `${title} \u2014 prediction` : title,
     description: match
-      ? `Model prediction for ${title} on ${formatMatchDateWithYear(match.kickoff_date)}: outcome probabilities, expected goals and the most likely scoreline.`
+      ? `Model prediction for ${title} on ${formatMatchDateWithYear(match.kickoff_date)}: outcome probabilities, expected goals and the most likely scoreline.${tvSuffix}`
       : 'Football match prediction.',
     path: slug ? `/football/matches/${slug}` : '/football',
   });
@@ -113,6 +138,34 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
           </p>
         )}
       </header>
+
+      {(confirmedBroadcast.length > 0 || notTelevised) && (
+        <section aria-label="Where to watch">
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Where to watch (UK)</h2>
+          {notTelevised ? (
+            <p className="text-ink-700 mt-1">Confirmed not televised in the UK.</p>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {confirmedBroadcast.map((b) => (
+                <li key={b.broadcastId} className="text-ink-700">
+                  <span className="font-medium text-ink-900">{b.channel ?? b.broadcaster}</span>
+                  {b.streamingService && <> &middot; {b.streamingService}</>}
+                  {b.isFreeToAir && <span className="text-pitch-800"> &middot; Free-to-air</span>}
+                  {b.watchUrl && (
+                    <>
+                      {' '}
+                      &middot;{' '}
+                      <a href={b.watchUrl} className="text-pitch-800 underline underline-offset-2" rel="nofollow noopener noreferrer">
+                        Watch
+                      </a>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {played && (
         <section>

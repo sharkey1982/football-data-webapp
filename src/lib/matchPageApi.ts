@@ -22,6 +22,7 @@ import { supabase } from './supabase';
 import { calculateDixonColes, type DixonColesResult } from './dixonColes';
 
 export type MatchPagePrediction = {
+  fixture_id: number;
   slug: string;
   home_team_name: string;
   away_team_name: string;
@@ -118,6 +119,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
   }
 
   return {
+    fixture_id: data.fixture_id,
     slug: data.slug,
     home_team_name: data.home_team?.display_name ?? 'Unknown',
     away_team_name: data.away_team?.display_name ?? 'Unknown',
