@@ -1,0 +1,40 @@
+name: Import a historic season (any league)
+
+# One-off import of a single already-completed season from
+# football-data.co.uk, for a league/country not covered by the daily
+# Premier League import. Reuses import-daily.ts as-is (it's already fully
+# parametrised via env vars) -- no new import code, same natural-key
+# upsert, same match_import_runs logging. Requires: the league already
+# exists in `leagues` (code must match football-data.co.uk's own code,
+# e.g. SP1), the season already exists in `seasons`, and every team the
+# CSV names has a team_aliases row (source_name='football-data.co.uk')
+# pointing at a real teams row -- otherwise those rows are silently
+# skipped (see import-daily.ts's own skip-and-warn behaviour).
+
+on:
+  workflow_dispatch:
+    inputs:
+      league_code:
+        description: 'football-data.co.uk league code, e.g. SP1 (La Liga)'
+        required: true
+      season_label:
+        description: 'Season label as stored in `seasons`, e.g. 2324 for 2023/24'
+        required: true
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - name: Import season
+        run: npm run import:daily
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          IMPORT_LEAGUE_CODE: ${{ inputs.league_code }}
+          IMPORT_SEASON_LABEL: ${{ inputs.season_label }}
+          IMPORT_CSV_URL: https://football-data.co.uk/mmz4281/${{ inputs.season_label }}/${{ inputs.league_code }}.csv
