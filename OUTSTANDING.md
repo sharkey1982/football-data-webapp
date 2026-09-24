@@ -122,64 +122,6 @@ first, same two-step pattern as the fixtures page's own Country/
 Division filters. Defaults to England, so unchanged for the common
 case. Not yet applied anywhere else -- see the entry above.
 
-### Germany, Italy, France: 2025/26 added -- top divisions, most recent season, breadth-first
-Bundesliga (D1), Serie A (I1), Ligue 1 (F1) -- same pattern as La Liga,
-each verified independently:
-- Bundesliga: 306/306 rows, zero skipped. Champion Bayern Munich, 89 pts
-  -- matches the real result.
-- Serie A: 380/380, zero skipped, all 20 team names matched on the first
-  try (sourced from Wikipedia's participant list, not the CSV -- the CSV
-  fetch was rate-limited, so this was the one league where the alias
-  guesses went in unverified against the source and turned out exactly
-  right; still worth knowing they weren't source-verified going in).
-  Champion Inter Milan, 87 pts -- matches Wikipedia's table exactly.
-- Ligue 1: 306/306, zero skipped -- 18 teams (Ligue 1 dropped from 20 to
-  18 a couple of seasons ago; the CSV confirmed this directly, 18 teams
-  seen, no need to guess). Champion PSG, 76 pts.
-
-68 new teams created across the three countries, each with a
-team_aliases row for football-data.co.uk's exact raw name. All visible
-now in the results/projections browser (Country + Division filters) --
-no frontend changes needed, same as Spain.
-
-Country filter now sorted by coverage (see the entry below) shows the
-five countries in order: England, Spain, Germany, Italy, France --
-correctly, since Spain (385 matches) still has more than any of these
-three did before today (each ~306-380).
-
-Not done, same order as before: more seasons (dispatch the same
-workflow, different season_label), then retro-fits, scorecard, frontend
-country filter for these leagues specifically. No fits or predictions
-exist for any of the four new leagues -- confirmed nothing automated
-touches them (see the country-filter-by-relevance entry for why).
-
-### La Liga trial: 2023/24 season imported and live -- standings still need the pyramid fix
-Turned out much smaller than expected: import-daily.ts was already fully
-parametrised via env vars, so no new import code was needed at all -- just
-a reusable workflow (import-historic-season.yml, league code + season
-label as inputs) that calls the exact same script the daily Premier
-League import already uses.
-
-Done: 20 La Liga clubs in `teams` (8 already existed from European
-competition data; 12 added), each with a team_aliases row mapping
-football-data.co.uk's own CSV names (e.g. "Ath Madrid", "Sociedad",
-"Vallecano") to the right team_id. Ran the workflow for season 2023/24
-(season_id 10): 380/380 rows imported cleanly, zero skipped -- verified
-as anon, real final-day results (Sevilla 1-2 Barcelona etc.) match what
-actually happened. `getLeagues()`/`getCountries()` and the historic-
-results query were already fully unrestricted, so this needed no
-frontend changes at all -- selecting La Liga + 2023/24 in the existing
-Country/Division filters shows it right now, live.
-
-Still not done, in order:
-1. Fix `league_standings`' pyramid logic to scope per country (see the
-   entry this replaces for why -- La Liga isn't "6th" under the National
-   League) -- needed before Spanish standings display sensibly anywhere.
-2. More seasons, the same way (just dispatch the workflow again with a
-   different season_label).
-3. Only after that: retro-fits, the scorecard, a country filter on the
-   frontend specifically for La Liga.
-
 ### UK TV/streaming info: schema and display built, no data source picked yet
 Investigated before building anything (see the fixture_broadcasts migration
 for the full write-up): no free, terms-compliant, automated per-fixture
@@ -368,14 +310,6 @@ can never become a live fit, and a public scorecard
 division, season, team type and phase. Odds for 2025/26 E0 remain 1X2
 from FIVE bookmakers (O/U from four), not eight -- true of every season,
 not a gap.
-
-### Test run reports unhandled errors outside any test (still present, now 4)
-Rechecked 2026-09-24: all 406 tests pass (up from 382), but vitest still
-catches unhandled errors from TacticalRolesAdminPage.test.tsx (a `<Link>`
-rendered outside a Router) and TeamOfTheWeekPage (setState after
-teardown, `window is not defined`) -- 4 now, was 3. Pre-existing, not
-touched by any of this session's work. Vitest warns these can mask false
-positives; worth a look next time either of those two files is open.
 
 
 ### FPL rollover keys -- FIXED 2026-09-24
