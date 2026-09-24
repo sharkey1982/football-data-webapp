@@ -212,12 +212,6 @@ they're announced. Table is live and empty; nothing shows on the site
 until rows exist, by design.
 
 
-### Nav: move Team Strength under Results Projections
-Football > Predict currently lists Team Strength last (src/lib/journey.ts,
-~line 93), after Results Projections, Head to Heads, Model Accuracy,
-Model Returns and Model Scorecard. Chris wants it moved to sit directly
-under Results Projections -- second in the list, not last.
-
 ### Managers' Dugout: needs a general tidy-up, plus position-contribution variance
 src/pages/fpl/FormationsPage.tsx (/fpl/formations). Two asks:
 1. General tidy-up -- not yet scoped in detail.
@@ -235,13 +229,6 @@ above. Currently a player is presumably just "1st choice" or not; needs
 to distinguish a nailed-on starter from a 1st choice who's actually
 sharing or fighting for the position with someone else, and so carries a
 higher rotation risk, rather than treating both the same way.
-
-### Starting Lineups: clarify it's long-term, not next-game-only
-/fpl/line-ups (TacticalRolesAdminPage.tsx). The page should say plainly
-that it reflects the club's likely lineup over the medium/long term, not
-a next-match-only pick -- readers may otherwise take a long-term XI as a
-single-gameweek prediction and get confused when it doesn't match team
-news for the very next game.
 
 
 ### Half-life/shrinkage grid: does NOT survive proper significance testing -- don't re-run this
