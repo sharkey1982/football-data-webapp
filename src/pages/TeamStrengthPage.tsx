@@ -514,6 +514,14 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
                       </td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-900 font-semibold" title={r.projected_position_median !== null ? `Median: ${r.projected_position_median}` : undefined}>
                         {fmt(r.projected_position_mean, 1)}
+                        {r.is_estimated && (
+                          <span
+                            className="ml-1 text-amber-700"
+                            title="This team's rating is still estimated (not enough matches yet in this competition), carried over from a related league/team -- this projection may not reflect its actual form this season until it's directly fitted."
+                          >
+                            &dagger;
+                          </span>
+                        )}
                         {isPositionStale(r) && (
                           <span
                             className="ml-1 text-amber-700"

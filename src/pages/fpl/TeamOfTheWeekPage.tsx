@@ -80,8 +80,10 @@ export default function TeamOfTheWeekPage() {
   });
 
   useEffect(() => {
+    let live = true;
     Promise.all([getTeamOfTheWeek(requestedGw), getTotwVsModel(requestedGw)])
       .then(([a, b]) => {
+        if (!live) return;
         setXi(a);
         setCmp(b);
         // Scorers need the resolved gameweek, which only the XI knows
@@ -90,15 +92,18 @@ export default function TeamOfTheWeekPage() {
         const gw = requestedGw ?? a[0]?.fpl_event_id;
         if (gw != null) {
           getGameweekScorers(gw)
-            .then(setScorers)
-            .catch(() => setScorers([]));
+            .then((s) => live && setScorers(s))
+            .catch(() => live && setScorers([]));
         }
       })
-      .catch(() => setXi([]));
+      .catch(() => live && setXi([]));
     getCompletedGameweeks()
       .then((gws) => gws.map((g) => g.fpl_event_id))
-      .then(setWeeks)
-      .catch(() => setWeeks([]));
+      .then((w) => live && setWeeks(w))
+      .catch(() => live && setWeeks([]));
+    return () => {
+      live = false;
+    };
   }, [requestedGw]);
 
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
