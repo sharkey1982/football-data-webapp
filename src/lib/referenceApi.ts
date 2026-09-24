@@ -27,14 +27,23 @@ export async function getLeagues() {
   return data;
 }
 
-/** Countries a league/team can belong to -- powers the Country filter. */
+/** Countries a league/team can belong to -- powers the Country filter.
+ * Sorted by how many of that country's teams actually have match data,
+ * not alphabetically: most "countries" here exist only because one club
+ * appeared in a single continental-cup fixture (a handful of matches at
+ * most), and alphabetical order buried England and Spain -- real leagues
+ * with real coverage -- among dozens of those. Alphabetical only breaks
+ * ties. */
 export async function getCountries() {
-  const { data, error } = await supabase
-    .from('countries')
-    .select('country_id, name, code')
-    .order('name', { ascending: true });
+  // Newer than the generated types -- see the function's own comment.
+  const rpc = (supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: unknown }> }).rpc.bind(supabase);
+  const { data, error } = await rpc('get_countries_by_relevance');
   if (error) throw error;
-  return data;
+  return ((data ?? []) as { country_id: number; name: string; code: string | null }[]).map((c) => ({
+    country_id: c.country_id,
+    name: c.name,
+    code: c.code,
+  }));
 }
 
 export async function getSeasons() {
