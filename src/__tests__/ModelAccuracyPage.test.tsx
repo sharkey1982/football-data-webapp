@@ -4,12 +4,26 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ModelAccuracyPage from '../pages/football/ModelAccuracyPage';
 import * as api from '../lib/modelAccuracyApi';
+import * as scApi from '../lib/scorecardApi';
+import type { ScorecardRow } from '../lib/scorecardApi';
 
 vi.mock('../lib/modelAccuracyApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/modelAccuracyApi');
   return { ...actual, getModelAccuracySummary: vi.fn(), getModelCalibration: vi.fn() };
 });
+vi.mock('../lib/scorecardApi', async () => {
+  const actual = await vi.importActual<typeof scApi>('../lib/scorecardApi');
+  return { ...actual, getScorecard: vi.fn() };
+});
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedSc = vi.mocked(scApi);
+
+const row = (o: Partial<ScorecardRow> = {}): ScorecardRow => ({
+  league_id: 1, season_id: 12, team_type: 'established', phase: '1 Aug-Oct', n: 100,
+  ll_model: 104, ll_market: 101, brier_model: 60, brier_market: 59, p_draw: 25, m_draw: 26, draws: 27, pred_goals: 280, goals: 275,
+  ...o,
+});
+const SCORECARD: ScorecardRow[] = [row({}), row({ league_id: 2, season_id: 11 })];
 
 // The real numbers as of the first scoring run, so the test fails if the
 // page ever starts flattering them.
@@ -30,6 +44,7 @@ describe('ModelAccuracyPage', () => {
   beforeEach(() => {
     mocked.getModelAccuracySummary.mockResolvedValue(REAL_SUMMARY);
     mocked.getModelCalibration.mockResolvedValue(REAL_BANDS);
+    mockedSc.getScorecard.mockResolvedValue(SCORECARD);
   });
 
   it('shows the home-team baseline the model fails to beat, not just its own hit rate', async () => {
@@ -57,7 +72,26 @@ describe('ModelAccuracyPage', () => {
     renderPage();
 // Stated in both the header and the caveat, deliberately.
     await waitFor(() => expect(screen.getAllByText(/166 fixtures/).length).toBeGreaterThan(0));
-    expect(screen.getByText(/not whether the method works/)).toBeInTheDocument();
+    // The old copy claimed the walk-forward backtest "hasn't been done" --
+    // it has, and the page must not say otherwise now that it's shown above.
+    expect(screen.queryByText(/hasn.t been done/)).not.toBeInTheDocument();
+    expect(screen.getByText(/freshness check/)).toBeInTheDocument();
+  });
+
+  it('shows the out-of-sample backtest with its headline numbers and a link to the full scorecard', async () => {
+    renderPage();
+    await screen.findByRole('region', { name: 'Out of sample backtest' });
+    expect(screen.getByText('200 matches')).toBeInTheDocument();
+    expect(screen.getByText('1.040')).toBeInTheDocument(); // model log-loss, weighted mean of the two rows
+    expect(screen.getByText('1.010')).toBeInTheDocument(); // market log-loss
+    expect(screen.getByLabelText('Out of sample backtest').querySelector('a[href="/football/model-scorecard"]')).toBeTruthy();
+  });
+
+  it('does not let a scorecard fetch failure take down the live accuracy section', async () => {
+    mockedSc.getScorecard.mockRejectedValue(new Error('boom'));
+    renderPage();
+    await waitFor(() => expect(screen.getByText('41%')).toBeInTheDocument());
+    expect(screen.queryByRole('region', { name: 'Out of sample backtest' })).not.toBeInTheDocument();
   });
 
   it('explains why hit rate and calibration disagree', async () => {
