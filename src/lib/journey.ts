@@ -71,6 +71,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           "Everything that has actually happened. Every match by division or by team, the full archive, and how the divisions compare. No model involved \u2014 just the record.",
         links: [
           { label: 'Fixtures & Results', to: '/fixtures', blurb: 'Every match, filterable by division, season and team.', exact: true },
+          { label: 'TV Guide', to: '/tv-guide', blurb: 'Every upcoming fixture with a confirmed UK broadcast, in order.' },
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
           { label: 'Your Team', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
           { label: 'League Insights', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
