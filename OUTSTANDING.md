@@ -122,36 +122,38 @@ first, same two-step pattern as the fixtures page's own Country/
 Division filters. Defaults to England, so unchanged for the common
 case. Not yet applied anywhere else -- see the entry above.
 
-### UK TV/streaming info: schema and display built, no data source picked yet
-Investigated before building anything (see the fixture_broadcasts migration
-for the full write-up): no free, terms-compliant, automated per-fixture
-feed of UK broadcast selections exists. Commercial APIs (e.g. Sportmonks'
-tvStations, linked directly to fixtures) exist but cost money on an
-ongoing basis. The well-known free listings sites explicitly forbid
-scraping and republishing their data, which is also what the brief asked
-not to do.
+### UK TV/streaming info: data source picked (ChatGPT-sourced), guide built -- DONE, feed ongoing
+Resolved the "no free automated feed" gap from below not with an API but
+a manual-with-AI-help pipeline: a written prompt (in chat history) asks
+ChatGPT to source UK broadcast confirmations only from real, checkable
+sources (never inferred from patterns), output as CSV matching the Airtable
+base's columns exactly. Chris pastes ChatGPT's CSV into Airtable
+("FixtureShark -- UK Broadcasts", appstYcYUotrVwbVJ) or straight into
+chat; either way I verify and write it into fixture_broadcasts myself.
+119 rows landed this way so far (Premier League + Champions League,
+zero guessed). Recurs every ~5-6 weeks when picks are announced --
+there's a refined version of the sourcing prompt in chat history asking
+explicitly for match-specific deep links too (watch_url is null on all
+119 rows so far -- a data gap, not a code one).
 
-Built the safe parts, which don't depend on that decision:
-- fixture_broadcasts table: normalized (a fixture can have zero, one or
-  many rows), market-aware (not hard-coded to GB), three cleanly
-  distinguished states (no row = not yet determined; a
-  confirmed_not_televised row; one or more confirmed_broadcast rows).
-  Constraints proven by trying to insert invalid rows and watching them
-  get rejected. Written by an admin (is_admin(), same RLS pattern as
-  team_strength_manual_override) -- no pipeline behind it.
-- Compact badge + All/On TV/Free-to-air filter on the fixture list
-  (GameweekBrowser, projections view only), a "Where to watch" section on
-  the individual match page (MatchPage), included in that page's search
-  metadata once real data exists.
-- Everything reads independently of the existing fixture list/prediction
-  load, so a broadcast-data problem can't take down either.
+Built:
+- fixture_broadcasts table (as before) plus upcoming_broadcast_fixtures
+  (a view joining it to fixtures/teams/leagues/countries, confirmed
+  fixtures only, upcoming only) plus a resolver-driven Watch link with
+  the model's expected goals shown alongside it.
+- /tv-guide: every upcoming confirmed broadcast, grouped by date, with
+  Competition/Broadcaster/Team filters (all derived from what's actually
+  loaded, never a fixed list) and a Clear filters control.
+- Affiliate links (see the entry above) now reach every place broadcast
+  info shows -- MatchPage, TvGuidePage, and the compact badge in the
+  fixture list (GameweekBrowser), which had no click-through at all
+  until this pass closed that gap.
 
-Not built: an admin UI for entering rows (today that means writing them
-by hand via SQL/Supabase) -- a natural next step once there's an actual
-supply of data to enter, i.e. once you've decided whether to pay for a
-feed or maintain Premier League picks by hand every ~5-6 weeks when
-they're announced. Table is live and empty; nothing shows on the site
-until rows exist, by design.
+Not built: an admin UI for entering rows (still direct SQL/chat) --
+same "revisit once there's a second real editor" reasoning as the
+affiliate_partners admin panel. Non-English leagues (Bundesliga etc.)
+have zero broadcast rows so far -- ChatGPT's guidance was deliberately
+to only cover what's solidly confirmable, and nothing has been yet.
 
 
 ### Managers' Dugout: needs a general tidy-up, plus position-contribution variance
