@@ -10,6 +10,62 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Affiliate link architecture -- DONE (streaming; tickets/merch/travel reuse it later)
+Schema, resolver, UI, analytics and SEO structured data all built and
+live -- see the PR for the full breakdown. What follows is what's
+actually needed from you once a programme is joined, so nothing here
+gets re-derived from scratch later.
+
+**To activate a partner once you've joined its programme**, update its
+row in `affiliate_partners` (via admin/SQL for now -- no admin UI panel
+built yet, deliberately deferred until there's a second real editor
+besides you):
+- `affiliate_url_template`: the network's deep-link format, with `{url}`
+  where the URL-encoded canonical destination goes (e.g. Awin's own
+  deep links are typically `https://www.awin1.com/cread.php?awinmid=
+  <MERCHANT_ID>&awinaffid=<YOUR_AFFILIATE_ID>&clickref=<OPTIONAL>&p=
+  {url}` -- get the exact current format from the network's own docs
+  once approved, since these do change).
+- `active`: set to true.
+- `valid_from`/`valid_to`: only if the programme itself has a fixed
+  window (most don't).
+- `last_verified`: today's date, as a marker for when to next sanity-
+  check the link still resolves correctly.
+
+**Per partner, specifically:**
+- **NOW / Sky / DAZN UK** (all via Awin): join Awin first (free), then
+  apply to each programme from inside the Awin dashboard. Awin gives you
+  one publisher ID used across all three -- that ID is what goes into
+  each `affiliate_url_template`, not a separate one per partner.
+- **Amazon Prime Video**: separate signup, Amazon Associates UK, not via
+  Awin. Amazon's own tracking format uses a `tag=<YOUR-ASSOCIATE-TAG>`
+  query parameter rather than a redirect-through-network URL -- the
+  template for this one will look different in shape from the Awin
+  three (a modified canonical URL with your tag appended, rather than a
+  wrapper URL), when you get there.
+
+**Still not done, deliberately, per the "keep it lightweight" brief:**
+- No admin UI panel for editing affiliate_partners -- direct SQL/admin
+  for now, same as team_strength_manual_override was before any UI
+  existed for it.
+- No sitewide footer -- the disclosure page exists and is linked from
+  the inline "Ad" tag, but there's no persistent footer link to it yet.
+  A footer is a bigger, separate UI decision (touches every page) worth
+  its own consideration rather than bolting on here.
+- Tickets, merchandise, travel, stadium_experiences: schema supports
+  them (the category check constraint already lists all five), nothing
+  built for them yet -- next only once actually wanted.
+- BroadcastBadge (the compact badge in fixture lists, as opposed to the
+  full Watch link on the match page) stays informational-only -- no
+  click-through or affiliate resolution added there. The match page was
+  the natural first surface for the actual link; extending the dense
+  list view is a separate decision given the volume of rows involved.
+- Team official website links: schema ready (teams.official_website_url),
+  nothing populated -- deliberately, since bulk-populating real URLs for
+  hundreds of clubs from memory carries real risk of a wrong or stale
+  link and needs the same kind of verification pass the team-alias work
+  got, not a one-shot guess.
+
 ### Non-English Big 5: 2026/27 live, daily import decoupled from English -- DONE
 Backfilled D1/I1/F1/SP1 to today's 2026/27 matches (6 more clubs added,
 each confirmed against real promotion/relegation results -- Serie A
