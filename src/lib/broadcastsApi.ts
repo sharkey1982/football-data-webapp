@@ -95,6 +95,62 @@ export type BroadcastSummary =
   | { kind: 'not_televised' }
   | { kind: 'broadcast'; freeToAir: boolean; broadcasters: string[] };
 
+export type UpcomingBroadcastFixture = {
+  broadcastId: number;
+  market: string;
+  broadcaster: string | null;
+  channel: string | null;
+  streamingService: string | null;
+  isFreeToAir: boolean;
+  isSubscription: boolean;
+  isPpv: boolean;
+  watchUrl: string | null;
+  fixtureId: number;
+  slug: string | null;
+  kickoffDate: string;
+  kickoffTime: string | null;
+  leagueId: number;
+  leagueCode: string;
+  leagueName: string;
+  countryName: string;
+  homeTeamId: number;
+  homeTeamName: string;
+  awayTeamId: number;
+  awayTeamName: string;
+};
+
+/** Every upcoming fixture with a confirmed broadcast, earliest first --
+ * powers the TV Guide page. Market defaults to GB; the view and this
+ * function both already take a market so a future per-market guide is a
+ * filter change here, not new plumbing. */
+export async function getUpcomingBroadcastFixtures(market = 'GB'): Promise<UpcomingBroadcastFixture[]> {
+  const { data, error } = await db.from('upcoming_broadcast_fixtures').select('*').eq('market', market);
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    broadcastId: Number(r.broadcast_id),
+    market: String(r.market),
+    broadcaster: (r.broadcaster as string | null) ?? null,
+    channel: (r.channel as string | null) ?? null,
+    streamingService: (r.streaming_service as string | null) ?? null,
+    isFreeToAir: Boolean(r.is_free_to_air),
+    isSubscription: Boolean(r.is_subscription),
+    isPpv: Boolean(r.is_ppv),
+    watchUrl: (r.watch_url as string | null) ?? null,
+    fixtureId: Number(r.fixture_id),
+    slug: (r.slug as string | null) ?? null,
+    kickoffDate: String(r.kickoff_date),
+    kickoffTime: (r.kickoff_time as string | null) ?? null,
+    leagueId: Number(r.league_id),
+    leagueCode: String(r.league_code),
+    leagueName: String(r.league_name),
+    countryName: String(r.country_name),
+    homeTeamId: Number(r.home_team_id),
+    homeTeamName: String(r.home_team_name),
+    awayTeamId: Number(r.away_team_id),
+    awayTeamName: String(r.away_team_name),
+  }));
+}
+
 export function summariseBroadcasts(rows: FixtureBroadcast[] | undefined): BroadcastSummary {
   if (!rows || rows.length === 0) return { kind: 'unknown' };
   if (rows[0].status === 'confirmed_not_televised') return { kind: 'not_televised' };
