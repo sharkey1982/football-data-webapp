@@ -187,3 +187,38 @@ fixing something else.
   the next run repairs the data.
 - **Still open:** true staged publication (write a generation, flip it live
   only when complete) needs a schema change.
+
+---
+
+## 2026-09-25 · Cup results silently dropped; stale fixtures only warned
+- **Impact:** 10 of 79 Carabao Cup rows skipped every day, including
+  Coventry 1-3 Aston Villa and Man United 2-3 Brighton (16 Sept), whose
+  fixtures stayed 'scheduled' for 9 days. No played FA Cup result had ever
+  been ingested (e.g. Morecambe 2-0 Southport, 19 Sept). pg_cron recorded
+  every run as "succeeded" throughout.
+- **Cause:** (1) `ingest-cup-data` matched clubs only through a hard-coded
+  name map; the source writes "Coventry City", "Brighton & Hove Albion" (map
+  had "and"), "Cambridge United", etc. Unmatched rows were skipped and
+  reported only in an HTTP response nothing stored. (2) Its row pattern
+  accepted titles "Home v Away" (unplayed) but not "Home 2-0 Away" (played
+  FA Cup rows). (3) `stale_scheduled_fixtures` existed and saw all three
+  fixtures, but returned 'warning', which neither fails the integrity
+  workflow nor emails. (4) Cron success only proves the HTTP call was queued.
+- **Also found:** the 7 "stuck" `result_ingestion_runs` rows (11-17 Sept) were
+  never a stuck feed: `ingest-football-results` is a stub that logs a
+  'running' row per call and does nothing. Closed by migration
+  `close_stub_ingestion_runs_2026_09_25`. The stub should be deleted.
+- **Fix (applied to production 2026-09-25):** migration
+  `footballwebpages_cup_team_aliases` (7 aliases); `ingest-cup-data` v6
+  (source in `supabase/functions/ingest-cup-data/`) reads `team_aliases`,
+  parses played rows, records every run with a status. Verified: run 10 --
+  Carabao Cup 79/79 stored, 0 mapping gaps; FA Cup rows read 440 -> 699;
+  all three fixtures now 'played' with correct scores;
+  `check_model_integrity()` all ok, point-in-time checks included.
+- **Prevention:** migration `integrity_stale_scheduled_fixtures_fails` -- a
+  fixture 'scheduled' 3+ days after kick-off now FAILS (postponed stays a
+  warning, as `stale_postponed_fixtures`). Migration
+  `integrity_cup_ingestion_current` adds `cup_ingestion_current`: the
+  latest cup run must be a full 'success' within 30h, so a missing alias
+  ('partial') or a dead feed fails the daily workflow.
+  *Lesson: a warning nobody is notified of is not a guard.*
