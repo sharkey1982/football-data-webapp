@@ -9,7 +9,7 @@ const row = (country: string, code: string, season: string, over: Partial<Countr
   country_id: code.length, country_name: country, league_code: code, league_name: `${country} League`, season_label: season,
   matches: 300, goals_per_game: 2.5, home_goals_per_game: 1.4, away_goals_per_game: 1.1, home_win_pct: 45, draw_pct: 25,
   away_win_pct: 30, yellows_per_game: 4, reds_per_game: 0.2, over_two_five_pct: 50, both_scored_pct: 50, nil_nil_pct: 7,
-  comeback_pct: 25, ...over,
+  comeback_pct: 25, points_spread: 0.4, bottom_not_losing_pct: 40, ...over,
 });
 
 const tenCountries = (season: string, matches: number) =>
@@ -48,6 +48,18 @@ vi.mock('../lib/countryInsightsApi', async (orig) => {
 });
 
 describe('CountryInsightsPage', () => {
+  it('shows competitiveness with its one-line definition', async () => {
+    const api = await import('../lib/countryInsightsApi');
+    const rows = [...tenCountries('2526', 300), row('Portugal', 'P1', '2526', { points_spread: 0.556 }), row('Poland', 'POL', '2526', { points_spread: 0.201 })];
+    vi.mocked(api.getCountrySummary).mockResolvedValue(rows);
+    const { default: Page } = await import('../pages/football/CountryInsightsPage');
+    render(<MemoryRouter><Page /></MemoryRouter>);
+    await screen.findByText(/12 top flights/);
+    await userEvent.selectOptions(screen.getAllByRole('combobox')[1], 'points_spread');
+    expect(screen.getByText('Highest: Portugal (0.56). Lowest: Poland (0.20).')).toBeInTheDocument();
+    expect(screen.getByText(/Higher = more one-sided/)).toBeInTheDocument();
+  });
+
   it('shows the last full season, names countries with no card data instead of plotting zero', async () => {
     const api = await import('../lib/countryInsightsApi');
     const rows = [
