@@ -24,9 +24,26 @@ Still to investigate (need Supabase access, not yet re-checked):
   - The three real ingest Edge Functions (and the stub) are verify_jwt=false
     with service-role access and no auth of their own: add a shared webhook
     secret to the cron calls and check it in each function.
-  - Supabase advisor: six owner-permission views, three anon-executable
-    functions. Review, don't assume. (model_scorecard_matches anon SELECT is
-    INTENTIONAL -- check_model_integrity() requires it.)
+  - Security review (2026-09-25), from the live advisor:
+      * FIXED in PR #89: magic-link login created an account for ANY email
+        (signInWithOtp default). No data exposure -- every write policy and
+        meta_refresh_flow() check is_admin() -- but it allowed account spam
+        and burned the email rate limit. CHRIS: also switch off "Allow new
+        users to sign up" in Supabase Auth settings (belt and braces).
+      * Any signed-in user could read get_data_integrity_report,
+        get_public_read_audit, check_auth_user_token_nulls (internal
+        diagnostics). Moot while signup is closed; add is_admin() guards.
+      * 6 SECURITY DEFINER views serve public data (standings, strength,
+        broadcasts). Not a demonstrated leak; switching to security_invoker
+        needs the underlying tables' anon grants checked first.
+      * anon-callable: is_admin() (returns caller's own flag -- fine),
+        fpl_gameweek_for_date() (harmless lookup), meta_flow_note_commentary()
+        (a trigger function -- errors if called directly). No action.
+      * model_scorecard_matches anon SELECT is INTENTIONAL
+        (check_model_integrity() requires it).
+      * 24 RLS-no-policy tables = deliberately private. BUT 4 of them are
+        backup_*_20260924 tables that the entry above records as dropped --
+        they still exist.
   - Cron audit against downstream results (cup cron only queues an HTTP call).
   - Netlify: estimator says ~151% of credits; confirm real usage in dashboard.
   - Static-route pages (e.g. /fixtures, /table) are head-only by design --

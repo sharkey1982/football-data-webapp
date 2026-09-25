@@ -122,7 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signInWithEmail(email: string) {
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: `${window.location.origin}/login` },
+          // Never create an account from the login form (2026-09-25). The
+          // default (true) let ANY email address register itself as an
+          // `authenticated` user, and each attempt spends the Supabase email
+          // rate limit the admin's own magic link depends on. Accounts are
+          // created deliberately, not by whoever types an address here.
+          options: { emailRedirectTo: `${window.location.origin}/login`, shouldCreateUser: false },
         });
         return { error: error ? describeAuthError(error) : null };
       },
