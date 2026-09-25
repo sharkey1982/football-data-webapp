@@ -73,6 +73,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/countries-compared',
+    title: 'Country Insights \u2014 top flights compared',
+    description: 'Goals, home advantage, draws and cards compared across the top division of every country on the site.',
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/football/leagues-compared',
     title: 'League Insights \u2014 the English divisions compared',
     description:
