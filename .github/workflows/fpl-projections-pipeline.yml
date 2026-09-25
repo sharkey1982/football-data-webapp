@@ -20,10 +20,15 @@ name: FPL Projections Pipeline
 # not just a safety measure against ordering errors.
 on:
   schedule:
-    # Two entries (not '0 7,19') so the rebuild step can tell the morning run
-    # apart: only 07:00 rebuilds the site -- see "Trigger site rebuild".
-    - cron: '0 7 * * *'
-    - cron: '0 19 * * *'
+    # Two entries (not '41 6,18') so the rebuild step can tell the morning
+    # run apart: only the morning run rebuilds the site -- see "Trigger site
+    # rebuild".
+    #
+    # Off the hour (2026-09-25): at '0 7'/'0 19' GitHub was starting these
+    # 3-5.5 hours late (12:40 / 21:52 UTC) -- top-of-hour schedules queue
+    # behind everyone else's. :41 also avoids the :17/:23 FPL pg_cron jobs.
+    - cron: '41 6 * * *'
+    - cron: '41 18 * * *'
   workflow_dispatch:
     inputs:
       rebuild_site:
@@ -119,7 +124,7 @@ jobs:
       # suspended for running out. Only the 07:00 scheduled run rebuilds, or a
       # manual run with rebuild_site ticked. Pages are at most a day stale.
       - name: Trigger site rebuild
-        if: success() && (github.event.schedule == '0 7 * * *' || github.event.inputs.rebuild_site == 'true')
+        if: success() && (github.event.schedule == '41 6 * * *' || github.event.inputs.rebuild_site == 'true')
         run: |
           if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then
             echo "::notice::NETLIFY_BUILD_HOOK_URL not set -- skipping rebuild. Static pages will refresh on the next deploy."
