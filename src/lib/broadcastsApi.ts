@@ -189,8 +189,13 @@ export type WatchGuideFixture = {
   leagueCode: string;
   leagueName: string;
   countryName: string;
+  /** 'league' for domestic divisions, 'cup' for European/cup competitions. */
+  competitionType: string;
+  leagueTier: number | null;
   homeTeamName: string;
   awayTeamName: string;
+  homeTeamCountry: string | null;
+  awayTeamCountry: string | null;
   predictedHomeGoals: number | null;
   predictedAwayGoals: number | null;
   offers: WatchOffer[];
@@ -211,8 +216,12 @@ export async function getWatchGuide(market = 'GB'): Promise<WatchGuideFixture[]>
         leagueCode: String(r.league_code),
         leagueName: String(r.league_name),
         countryName: String(r.country_name),
+        competitionType: String(r.competition_type ?? 'league'),
+        leagueTier: r.league_tier == null ? null : Number(r.league_tier),
         homeTeamName: String(r.home_team_name),
         awayTeamName: String(r.away_team_name),
+        homeTeamCountry: (r.home_team_country as string | null) ?? null,
+        awayTeamCountry: (r.away_team_country as string | null) ?? null,
         predictedHomeGoals: r.predicted_home_goals == null ? null : Number(r.predicted_home_goals),
         predictedAwayGoals: r.predicted_away_goals == null ? null : Number(r.predicted_away_goals),
         offers: [],
