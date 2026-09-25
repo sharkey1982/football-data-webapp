@@ -20,9 +20,9 @@ import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getMatchBySlug, mostLikelyScore, type MatchPagePrediction } from '../../lib/matchPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
-import { getFixtureBroadcast, type FixtureBroadcast } from '../../lib/broadcastsApi';
-import { getActivePartners, resolveCommercialLink, type AffiliatePartner } from '../../lib/commercialLinks';
-import { trackEvent } from '../../lib/analytics';
+import { getFixtureBroadcast, broadcastToOffer, type FixtureBroadcast } from '../../lib/broadcastsApi';
+import WatchOptions from '../../components/WatchOptions';
+import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -178,56 +178,14 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
         )}
       </header>
 
-      {(confirmedBroadcast.length > 0 || notTelevised) && (
+      {/* All three states are shown for an upcoming match -- including
+          "not yet confirmed", which is never presented as "not on TV". */}
+      {(!played || confirmedBroadcast.length > 0 || notTelevised) && (
         <section aria-label="Where to watch">
           <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Where to watch (UK)</h2>
-          {notTelevised ? (
-            <p className="text-ink-700 mt-1">Confirmed not televised in the UK.</p>
-          ) : (
-            <ul className="mt-1 space-y-1">
-              {confirmedBroadcast.map((b) => (
-                <li key={b.broadcastId} className="text-ink-700">
-                  <span className="font-medium text-ink-900">{b.channel ?? b.broadcaster}</span>
-                  {b.streamingService && <> &middot; {b.streamingService}</>}
-                  {b.isFreeToAir && <span className="text-pitch-800"> &middot; Free-to-air</span>}
-                  {b.watchUrl && (() => {
-                    const link = resolveCommercialLink(b.watchUrl, streamingPartners);
-                    return (
-                      <>
-                        {' '}
-                        &middot;{' '}
-                        <a
-                          href={link.url}
-                          className="text-pitch-800 underline underline-offset-2"
-                          rel={link.isAffiliate ? 'sponsored noopener noreferrer' : 'nofollow noopener noreferrer'}
-                          onClick={() => {
-                            if (link.isAffiliate) {
-                              trackEvent('affiliate_click', {
-                                partner: link.partner?.name ?? '',
-                                category: 'streaming',
-                                fixture_id: match?.fixture_id ?? '',
-                                page: 'match_page',
-                                destination: b.watchUrl ?? '',
-                              });
-                            }
-                          }}
-                        >
-                          Watch
-                        </a>
-                        {/* Required at the point of the link by affiliate network terms,
-                            not just in a footer policy page -- see /affiliate-disclosure. */}
-                        {link.isAffiliate && (
-                          <Link to="/affiliate-disclosure" className="text-[10px] text-ink-500 ml-1 underline" title="This is an affiliate link -- see our affiliate disclosure">
-                            Ad
-                          </Link>
-                        )}
-                      </>
-                    );
-                  })()}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="mt-1">
+            <WatchOptions offers={broadcasts.map(broadcastToOffer)} partners={streamingPartners} fixtureId={match.fixture_id} page="match_page" />
+          </div>
         </section>
       )}
 

@@ -100,6 +100,8 @@ export default function CountryInsightsPage() {
         </label>
       </div>
 
+      {metric.note && <p className="text-sm text-ink-500 -mt-3">{metric.note}</p>}
+
       {top && bottom && top !== bottom && (
         <p className="text-ink-900">
           {`Highest: ${top.country_name} (${formatValue(top[metric.key], metric.decimals, metric.unit)}). Lowest: ${bottom.country_name} (${formatValue(bottom[metric.key], metric.decimals, metric.unit)}).`}
@@ -143,6 +145,8 @@ export default function CountryInsightsPage() {
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Over 2.5</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Yellows/game</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Reds/game</th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Points spread</th>
+                <th scope="col" className="text-right font-medium text-xs px-3 py-2">Bottom v top half</th>
               </tr>
             </thead>
             <tbody>
@@ -158,6 +162,8 @@ export default function CountryInsightsPage() {
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{formatValue(r.over_two_five_pct, 1, '%')}</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{formatValue(r.yellows_per_game, 2)}</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{formatValue(r.reds_per_game, 3)}</td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{formatValue(r.points_spread, 2)}</td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{formatValue(r.bottom_not_losing_pct, 1, '%')}</td>
                 </tr>
               ))}
             </tbody>

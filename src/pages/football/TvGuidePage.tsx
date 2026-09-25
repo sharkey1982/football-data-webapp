@@ -1,55 +1,74 @@
 // ============================================================================
 // src/pages/football/TvGuidePage.tsx
 //
-// Every upcoming fixture with a confirmed UK broadcast, grouped by date --
-// "what's on TV this week" in one place, rather than checking each fixture
-// individually. Reads upcoming_broadcast_fixtures (fixture_broadcasts
-// joined to fixtures/teams/leagues), so it only ever shows fixtures with a
-// real confirmed_broadcast row -- nothing guessed, nothing for a fixture
-// whose broadcaster isn't known yet.
+// UK Watch Guide: every upcoming fixture we have broadcast evidence for,
+// answering "can I watch this live in the UK, and where/how?" per fixture.
+// Reads upcoming_watch_guide (one row per viewing offer, plus explicit
+// not-televised rows) and groups by fixture -- a match can have several
+// legitimate routes (e.g. BBC iPlayer and a free FAST channel) and each is
+// shown, cheapest first.
 //
-// Market is GB today. getUpcomingBroadcastFixtures already takes a market
-// parameter -- a future per-visitor-location guide is a filter added here,
-// not new plumbing underneath it.
-//
-// The model figure next to each fixture is the same predicted_home_goals/
-// predicted_away_goals already frozen on the fixture -- deliberately shown
-// as plain expected goals, not run back through the full score grid for a
-// "most likely scoreline": this page is a scannable list, not a second
-// prediction page, and rounding raw expected goals doesn't overclaim
-// precision the way a manufactured exact score would.
+// Only fixtures with evidence are listed: a fixture missing here is "not
+// yet confirmed", never "not on TV" (the page says so). Filter options are
+// derived from what's loaded, never a fixed list.
 // ============================================================================
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
-import { getUpcomingBroadcastFixtures, type UpcomingBroadcastFixture } from '../../lib/broadcastsApi';
-import { getActivePartners, resolveCommercialLink, type AffiliatePartner } from '../../lib/commercialLinks';
-import { trackEvent } from '../../lib/analytics';
+import { getWatchGuide, type WatchGuideFixture } from '../../lib/broadcastsApi';
+import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
+import WatchOptions from '../../components/WatchOptions';
+import {
+  fixtureWatchState,
+  isThisWeekend,
+  isTonight,
+  offerName,
+  providerKeys,
+  providerLabel,
+  tierOf,
+} from '../../lib/watchGuide';
 
-const selectClass = 'w-full sm:w-56 border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
+type Quick = 'all' | 'tonight' | 'weekend' | 'free' | 'subscription' | 'ppv' | 'not_live';
+
+const QUICK: { key: Quick; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'tonight', label: 'Tonight' },
+  { key: 'weekend', label: 'This weekend' },
+  { key: 'free', label: 'Free' },
+  { key: 'subscription', label: 'Subscription' },
+  { key: 'ppv', label: 'PPV' },
+  { key: 'not_live', label: 'Not on UK TV' },
+];
+
+const selectClass = 'w-full sm:w-52 border border-chalk-300 rounded px-2 py-1.5 text-sm bg-white focus:border-pitch-700';
 const labelClass = 'block text-xs font-medium text-ink-500 mb-1';
 
-function groupByDate(fixtures: UpcomingBroadcastFixture[]): { date: string; fixtures: UpcomingBroadcastFixture[] }[] {
-  const groups = new Map<string, UpcomingBroadcastFixture[]>();
-  for (const f of fixtures) {
-    groups.set(f.kickoffDate, [...(groups.get(f.kickoffDate) ?? []), f]);
-  }
-  return [...groups.entries()].map(([date, fs]) => ({ date, fixtures: fs }));
+function matchesQuick(f: WatchGuideFixture, q: Quick): boolean {
+  if (q === 'all') return true;
+  if (q === 'tonight') return isTonight(f.kickoffDate, f.kickoffTime);
+  if (q === 'weekend') return isThisWeekend(f.kickoffDate, f.kickoffTime);
+  const s = fixtureWatchState(f.offers);
+  if (q === 'not_live') return s.kind === 'not_live';
+  if (s.kind !== 'watch') return false;
+  const tiers = s.groups.map((g) => g.tier);
+  if (q === 'free') return tiers.includes('free') || tiers.includes('free_compatible_device');
+  return tiers.includes(q);
 }
 
 export default function TvGuidePage() {
-  const [fixtures, setFixtures] = useState<UpcomingBroadcastFixture[] | null>(null);
+  const [fixtures, setFixtures] = useState<WatchGuideFixture[] | null>(null);
   const [partners, setPartners] = useState<AffiliatePartner[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [competitionFilter, setCompetitionFilter] = useState<string>('');
-  const [broadcasterFilter, setBroadcasterFilter] = useState<string>('');
-  const [teamFilter, setTeamFilter] = useState<string>('');
+  const [quick, setQuick] = useState<Quick>('all');
+  const [competition, setCompetition] = useState('');
+  const [provider, setProvider] = useState('');
+  const [team, setTeam] = useState('');
 
   useEffect(() => {
     let live = true;
-    getUpcomingBroadcastFixtures('GB')
+    getWatchGuide('GB')
       .then((f) => live && setFixtures(f))
       .catch((e) => live && setError(e instanceof Error ? e.message : 'Failed to load the TV guide'));
     return () => {
@@ -57,9 +76,8 @@ export default function TvGuidePage() {
     };
   }, []);
 
-  // Independent of the fixture load, same reasoning as everywhere else
-  // this pairing appears: a resolver problem must never take the guide
-  // itself down, it just falls back to every link being canonical.
+  // Independent of the guide load: a resolver problem must never take the
+  // guide down, it just leaves every link canonical.
   useEffect(() => {
     let live = true;
     getActivePartners('streaming')
@@ -70,170 +88,168 @@ export default function TvGuidePage() {
     };
   }, []);
 
-  useDocumentHead({
-    title: 'TV Guide',
-    description: 'Upcoming football fixtures confirmed for UK TV or streaming, with the model\u2019s expected goals for each.',
-    path: '/tv-guide',
-  });
+  const all = fixtures ?? [];
+  const competitions = useMemo(() => [...new Set(all.map((f) => f.leagueName))].sort(), [all]);
+  const providers = useMemo(
+    () => [...new Set(all.flatMap((f) => f.offers.flatMap((o) => providerKeys(o))))].sort((a, b) => providerLabel(a).localeCompare(providerLabel(b))),
+    [all]
+  );
+  const teams = useMemo(() => [...new Set(all.flatMap((f) => [f.homeTeamName, f.awayTeamName]))].sort(), [all]);
 
-  // Filter options are derived from what's actually loaded, not a fixed
-  // list -- a competition or broadcaster with nothing confirmed right now
-  // simply isn't offered, rather than showing an option that filters to
-  // an empty list.
-  const competitions = useMemo(
-    () => [...new Set((fixtures ?? []).map((f) => f.leagueName))].sort(),
-    [fixtures]
-  );
-  const broadcasters = useMemo(
-    () => [...new Set((fixtures ?? []).map((f) => f.broadcaster).filter((b): b is string => !!b))].sort(),
-    [fixtures]
-  );
-  const teams = useMemo(
-    () => [...new Set((fixtures ?? []).flatMap((f) => [f.homeTeamName, f.awayTeamName]))].sort(),
-    [fixtures]
-  );
-
-  const filtersActive = competitionFilter !== '' || broadcasterFilter !== '' || teamFilter !== '';
-  const filtered = (fixtures ?? []).filter(
+  const filtered = all.filter(
     (f) =>
-      (!competitionFilter || f.leagueName === competitionFilter) &&
-      (!broadcasterFilter || f.broadcaster === broadcasterFilter) &&
-      (!teamFilter || f.homeTeamName === teamFilter || f.awayTeamName === teamFilter)
+      matchesQuick(f, quick) &&
+      (!competition || f.leagueName === competition) &&
+      (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
+      (!team || f.homeTeamName === team || f.awayTeamName === team)
   );
-  const groups = groupByDate(filtered);
+  const filtersActive = quick !== 'all' || competition !== '' || provider !== '' || team !== '';
+
+  const groups = useMemo(() => {
+    const m = new Map<string, WatchGuideFixture[]>();
+    for (const f of filtered) m.set(f.kickoffDate, [...(m.get(f.kickoffDate) ?? []), f]);
+    return [...m.entries()];
+  }, [filtered]);
+
+  // Structured data: each listed fixture as a BroadcastEvent naming its
+  // services, so "where to watch X v Y" is machine-readable fact. Capped so
+  // the head stays small; confirmed offers only.
+  const jsonLd = useMemo(() => {
+    const events = all
+      .filter((f) => fixtureWatchState(f.offers).kind === 'watch')
+      .slice(0, 40)
+      .map((f) => ({
+        '@type': 'BroadcastEvent',
+        name: `${f.homeTeamName} v ${f.awayTeamName}`,
+        startDate: f.kickoffTime ? `${f.kickoffDate}T${f.kickoffTime}` : f.kickoffDate,
+        isLiveBroadcast: true,
+        isAccessibleForFree: f.offers.some((o) => ['free', 'free_compatible_device'].includes(tierOf(o))),
+        publishedOn: f.offers
+          .filter((o) => o.status === 'confirmed_broadcast')
+          .map((o) => ({ '@type': 'BroadcastService', name: offerName(o), broadcastDisplayName: o.broadcaster ?? undefined })),
+      }));
+    return events.length > 0 ? { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: events } : undefined;
+  }, [all]);
+
+  useDocumentHead({
+    title: 'Football on TV \u2014 UK Watch Guide',
+    description:
+      'Which football you can watch live in the UK and how: free, subscription or pay-per-view, for the Premier League, Championship, Champions League, Scottish Premiership and more.',
+    path: '/tv-guide',
+    jsonLd,
+  });
 
   return (
     <div className="max-w-3xl">
-      <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">TV Guide</h1>
+      <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Football on TV</h1>
       <p className="text-ink-500 text-sm mt-1">
-        Every upcoming fixture with a confirmed UK broadcast, earliest first. A fixture not listed here doesn&rsquo;t
-        mean it&rsquo;s not televised &mdash; it means we don&rsquo;t have a confirmed broadcaster for it yet.
+        Upcoming matches you can watch live in the UK, and how. A match not listed hasn&rsquo;t had its UK broadcast confirmed yet.
       </p>
 
-      {fixtures && fixtures.length > 0 && (
-        <div className="flex flex-wrap items-end gap-3 mt-4">
-          <div>
-            <label className={labelClass} htmlFor="competition-filter">Competition</label>
-            <select id="competition-filter" className={selectClass} value={competitionFilter} onChange={(e) => setCompetitionFilter(e.target.value)}>
-              <option value="">All competitions</option>
-              {competitions.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+      {all.length > 0 && (
+        <>
+          <div className="flex gap-1.5 overflow-x-auto mt-4 pb-1 -mx-1 px-1" role="group" aria-label="Quick filters">
+            {QUICK.map((q) => (
+              <button
+                key={q.key}
+                type="button"
+                aria-pressed={quick === q.key}
+                onClick={() => setQuick(q.key)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs ${
+                  quick === q.key ? 'bg-pitch-700 border-pitch-700 text-chalk-100' : 'bg-white border-chalk-300 text-ink-700'
+                }`}
+              >
+                {q.label}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className={labelClass} htmlFor="broadcaster-filter">Broadcaster</label>
-            <select id="broadcaster-filter" className={selectClass} value={broadcasterFilter} onChange={(e) => setBroadcasterFilter(e.target.value)}>
-              <option value="">All broadcasters</option>
-              {broadcasters.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
+          {/* Two-across on phones so the matches start within the first screen. */}
+          <div className="grid grid-cols-2 gap-2 mt-3 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+            <div>
+              <label className={labelClass} htmlFor="provider-filter">Service</label>
+              <select id="provider-filter" className={selectClass} value={provider} onChange={(e) => setProvider(e.target.value)}>
+                <option value="">All services</option>
+                {providers.map((p) => (
+                  <option key={p} value={p}>{providerLabel(p)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="competition-filter">Competition</label>
+              <select id="competition-filter" className={selectClass} value={competition} onChange={(e) => setCompetition(e.target.value)}>
+                <option value="">All competitions</option>
+                {competitions.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="team-filter">Team</label>
+              <select id="team-filter" className={selectClass} value={team} onChange={(e) => setTeam(e.target.value)}>
+                <option value="">All teams</option>
+                {teams.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuick('all');
+                  setCompetition('');
+                  setProvider('');
+                  setTeam('');
+                }}
+                className="text-xs text-ink-500 underline underline-offset-2 mb-2"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
-          <div>
-            <label className={labelClass} htmlFor="team-filter">Team</label>
-            <select id="team-filter" className={selectClass} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
-              <option value="">All teams</option>
-              {teams.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={() => {
-                setCompetitionFilter('');
-                setBroadcasterFilter('');
-                setTeamFilter('');
-              }}
-              className="text-xs text-ink-500 underline underline-offset-2 mb-2"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+        </>
       )}
 
       {error && <p className="text-loss-700 text-sm mt-4">{error}</p>}
-
       {fixtures && fixtures.length === 0 && !error && (
-        <p className="text-ink-500 text-sm mt-6">No fixtures with a confirmed UK broadcast right now &mdash; check back closer to kick-off.</p>
+        <p className="text-ink-500 text-sm mt-6">No confirmed UK broadcasts right now.</p>
       )}
-
-      {fixtures && fixtures.length > 0 && filtered.length === 0 && (
-        <p className="text-ink-500 text-sm mt-6">No fixtures match that filter right now.</p>
-      )}
+      {all.length > 0 && filtered.length === 0 && <p className="text-ink-500 text-sm mt-6">No matches for that filter.</p>}
 
       {groups.length > 0 && (
-        <div className="mt-6 space-y-6">
-          {groups.map((g) => (
-            <div key={g.date}>
+        <div className="mt-5 space-y-6">
+          {groups.map(([date, fs]) => (
+            <section key={date} aria-label={formatMatchDateWithYear(date)}>
               <h2 className="font-display uppercase tracking-wide text-sm text-ink-500 border-b border-chalk-300 pb-1 mb-2">
-                {formatMatchDateWithYear(g.date)}
+                {formatMatchDateWithYear(date)}
               </h2>
               <ul className="divide-y divide-chalk-300">
-                {g.fixtures.map((f) => {
-                  const link = f.watchUrl ? resolveCommercialLink(f.watchUrl, partners) : null;
+                {fs.map((f) => {
                   const hasPrediction = f.predictedHomeGoals != null && f.predictedAwayGoals != null;
                   return (
-                    <li key={f.broadcastId} className="py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                      <span className="font-mono text-xs text-ink-500 w-16 shrink-0">
-                        {f.kickoffTime ? f.kickoffTime.slice(0, 5) : ''}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <Link to={`/football/matches/${f.slug}`} className="font-medium text-ink-900 hover:underline">
-                          {f.homeTeamName} v {f.awayTeamName}
-                        </Link>
-                        <p className="text-[11px] text-ink-500">
-                          {f.leagueName} &middot; {f.countryName}
-                          {hasPrediction && (
-                            <>
-                              {' '}
-                              &middot; Model: {f.predictedHomeGoals!.toFixed(1)}&ndash;{f.predictedAwayGoals!.toFixed(1)} expected goals
-                            </>
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-sm text-ink-700 sm:text-right">
-                        <span className="font-medium">{f.channel ?? f.broadcaster}</span>
-                        {f.streamingService && <span className="text-ink-500"> &middot; {f.streamingService}</span>}
-                        {f.isFreeToAir && <span className="text-pitch-800"> &middot; Free</span>}
-                        {link && (
-                          <>
-                            {' '}
-                            &middot;{' '}
-                            <a
-                              href={link.url}
-                              className="text-pitch-800 underline underline-offset-2"
-                              rel={link.isAffiliate ? 'sponsored noopener noreferrer' : 'nofollow noopener noreferrer'}
-                              onClick={() => {
-                                if (link.isAffiliate) {
-                                  trackEvent('affiliate_click', {
-                                    partner: link.partner?.name ?? '',
-                                    category: 'streaming',
-                                    fixture_id: f.fixtureId,
-                                    page: 'tv_guide',
-                                    destination: f.watchUrl ?? '',
-                                  });
-                                }
-                              }}
-                            >
-                              Watch
-                            </a>
-                            {link.isAffiliate && (
-                              <Link to="/affiliate-disclosure" className="text-[10px] text-ink-500 ml-1 underline" title="This is an affiliate link -- see our affiliate disclosure">
-                                Ad
-                              </Link>
-                            )}
-                          </>
+                    <li key={f.fixtureId} className="py-3 grid grid-cols-[3.25rem_1fr] gap-x-3">
+                      <span className="font-mono text-xs text-ink-500 pt-0.5">{f.kickoffTime ? f.kickoffTime.slice(0, 5) : 'TBC'}</span>
+                      <div className="min-w-0">
+                        {f.slug ? (
+                          <Link to={`/football/matches/${f.slug}`} className="font-medium text-ink-900 hover:underline">
+                            {f.homeTeamName} v {f.awayTeamName}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-ink-900">{f.homeTeamName} v {f.awayTeamName}</span>
                         )}
+                        <p className="text-[11px] text-ink-500">
+                          {f.leagueName}
+                          {hasPrediction && <> &middot; Model {f.predictedHomeGoals!.toFixed(1)}&ndash;{f.predictedAwayGoals!.toFixed(1)} xG</>}
+                        </p>
+                        <div className="mt-1.5">
+                          <WatchOptions offers={f.offers} partners={partners} fixtureId={f.fixtureId} page="tv_guide" />
+                        </div>
                       </div>
                     </li>
                   );
                 })}
               </ul>
-            </div>
+            </section>
           ))}
         </div>
       )}

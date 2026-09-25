@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import type { AccessTier, WatchOffer } from './watchGuide';
 
 export type BroadcastStatus = 'confirmed_broadcast' | 'confirmed_not_televised';
 
@@ -35,11 +36,20 @@ export type FixtureBroadcast = {
   source: string;
   sourceUrl: string | null;
   verifiedAt: string;
+  // Watch Guide fields (null on rows synced before they existed)
+  serviceProduct: string | null;
+  accessType: AccessTier | null;
+  deliveryMethods: string[];
+  platformDevice: string | null;
+  isFast: boolean;
+  confidence: string | null;
+  availabilityNotes: string | null;
 };
 
 const COLUMNS =
   'broadcast_id,fixture_id,market,status,broadcaster,channel,streaming_service,' +
-  'is_free_to_air,is_subscription,is_ppv,watch_url,source,source_url,verified_at';
+  'is_free_to_air,is_subscription,is_ppv,watch_url,source,source_url,verified_at,' +
+  'service_product,access_type,delivery_methods,platform_device,is_fast,confidence,availability_notes';
 
 // Newer than the generated types; the row shape above is the contract.
 const db = supabase as unknown as { from: (t: string) => any };
@@ -60,6 +70,13 @@ function toBroadcast(r: Record<string, unknown>): FixtureBroadcast {
     source: String(r.source),
     sourceUrl: (r.source_url as string | null) ?? null,
     verifiedAt: String(r.verified_at),
+    serviceProduct: (r.service_product as string | null) ?? null,
+    accessType: (r.access_type as AccessTier | null) ?? null,
+    deliveryMethods: (r.delivery_methods as string[] | null) ?? [],
+    platformDevice: (r.platform_device as string | null) ?? null,
+    isFast: Boolean(r.is_fast),
+    confidence: (r.confidence as string | null) ?? null,
+    availabilityNotes: (r.availability_notes as string | null) ?? null,
   };
 }
 
@@ -160,4 +177,79 @@ export function summariseBroadcasts(rows: FixtureBroadcast[] | undefined): Broad
   if (rows[0].status === 'confirmed_not_televised') return { kind: 'not_televised' };
   const broadcasters = [...new Set(rows.map((r) => r.broadcaster).filter((b): b is string => !!b))];
   return { kind: 'broadcast', freeToAir: rows.some((r) => r.isFreeToAir), broadcasters };
+}
+
+/** One upcoming fixture with every UK viewing offer (or its explicit
+ * not-televised row) -- the Watch Guide's unit. */
+export type WatchGuideFixture = {
+  fixtureId: number;
+  slug: string | null;
+  kickoffDate: string;
+  kickoffTime: string | null;
+  leagueCode: string;
+  leagueName: string;
+  countryName: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  predictedHomeGoals: number | null;
+  predictedAwayGoals: number | null;
+  offers: WatchOffer[];
+};
+
+export async function getWatchGuide(market = 'GB'): Promise<WatchGuideFixture[]> {
+  const { data, error } = await db.from('upcoming_watch_guide').select('*').eq('market', market);
+  if (error) throw error;
+  const byFixture = new Map<number, WatchGuideFixture>();
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const id = Number(r.fixture_id);
+    if (!byFixture.has(id)) {
+      byFixture.set(id, {
+        fixtureId: id,
+        slug: (r.slug as string | null) ?? null,
+        kickoffDate: String(r.kickoff_date),
+        kickoffTime: (r.kickoff_time as string | null) ?? null,
+        leagueCode: String(r.league_code),
+        leagueName: String(r.league_name),
+        countryName: String(r.country_name),
+        homeTeamName: String(r.home_team_name),
+        awayTeamName: String(r.away_team_name),
+        predictedHomeGoals: r.predicted_home_goals == null ? null : Number(r.predicted_home_goals),
+        predictedAwayGoals: r.predicted_away_goals == null ? null : Number(r.predicted_away_goals),
+        offers: [],
+      });
+    }
+    byFixture.get(id)!.offers.push(toWatchOffer(r));
+  }
+  return [...byFixture.values()].sort(
+    (a, b) => a.kickoffDate.localeCompare(b.kickoffDate) || (a.kickoffTime ?? '').localeCompare(b.kickoffTime ?? '')
+  );
+}
+
+export function toWatchOffer(r: Record<string, unknown>): WatchOffer {
+  return {
+    broadcastId: Number(r.broadcast_id),
+    status: r.status as WatchOffer['status'],
+    broadcaster: (r.broadcaster as string | null) ?? null,
+    channel: (r.channel as string | null) ?? null,
+    streamingService: (r.streaming_service as string | null) ?? null,
+    serviceProduct: (r.service_product as string | null) ?? null,
+    accessType: (r.access_type as AccessTier | null) ?? null,
+    deliveryMethods: (r.delivery_methods as string[] | null) ?? [],
+    platformDevice: (r.platform_device as string | null) ?? null,
+    isFast: Boolean(r.is_fast),
+    isFreeToAir: Boolean(r.is_free_to_air),
+    isSubscription: Boolean(r.is_subscription),
+    isPpv: Boolean(r.is_ppv),
+    watchUrl: (r.watch_url as string | null) ?? null,
+    confidence: (r.confidence as string | null) ?? null,
+    availabilityNotes: (r.availability_notes as string | null) ?? null,
+    source: (r.source as string | null) ?? null,
+    sourceUrl: (r.source_url as string | null) ?? null,
+    verifiedAt: (r.verified_at as string | null) ?? null,
+  };
+}
+
+/** A FixtureBroadcast (per-fixture fetch) in the Watch Guide's shape. */
+export function broadcastToOffer(b: FixtureBroadcast): WatchOffer {
+  return { ...b, serviceProduct: b.serviceProduct, verifiedAt: b.verifiedAt };
 }

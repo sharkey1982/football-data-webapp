@@ -28,11 +28,15 @@ export type CountryRow = {
   both_scored_pct: number;
   nil_nil_pct: number;
   comeback_pct: number | null;
+  /** SD of clubs' points per game; higher = more one-sided. */
+  points_spread: number | null;
+  /** % of top v bottom half matches the bottom-half club didn't lose; higher = more even. */
+  bottom_not_losing_pct: number | null;
 };
 
 type NumericKey = Exclude<keyof CountryRow, 'country_id' | 'country_name' | 'league_code' | 'league_name' | 'season_label' | 'matches'>;
 
-export type CountryMetric = { key: NumericKey; label: string; unit: string; decimals: number };
+export type CountryMetric = { key: NumericKey; label: string; unit: string; decimals: number; note?: string };
 
 export const COUNTRY_METRICS: CountryMetric[] = [
   { key: 'goals_per_game', label: 'Goals per game', unit: '', decimals: 2 },
@@ -47,6 +51,20 @@ export const COUNTRY_METRICS: CountryMetric[] = [
   { key: 'yellows_per_game', label: 'Yellow cards per game', unit: '', decimals: 2 },
   { key: 'reds_per_game', label: 'Red cards per game', unit: '', decimals: 3 },
   { key: 'comeback_pct', label: 'Half-time lead lost', unit: '%', decimals: 1 },
+  {
+    key: 'points_spread',
+    label: 'Competitiveness: points spread',
+    unit: '',
+    decimals: 2,
+    note: 'Spread of clubs\u2019 points per game. Higher = more one-sided.',
+  },
+  {
+    key: 'bottom_not_losing_pct',
+    label: 'Competitiveness: bottom half v top half',
+    unit: '%',
+    decimals: 1,
+    note: 'Share of top-half v bottom-half games the bottom-half club drew or won. Higher = more evenly matched.',
+  },
 ];
 
 const num = (v: unknown) => Number(v);
@@ -55,9 +73,15 @@ const numOrNull = (v: unknown) => (v === null || v === undefined ? null : Number
 export async function getCountrySummary(): Promise<CountryRow[]> {
   // Newer than the generated types.
   const rpc = (supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: unknown }> }).rpc.bind(supabase);
-  const { data, error } = await rpc('get_country_league_summary');
-  if (error) throw error;
-  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+  const [summary, competitiveness] = await Promise.all([rpc('get_country_league_summary'), rpc('get_country_competitiveness')]);
+  if (summary.error) throw summary.error;
+  // Competitiveness is a second, independent query: if it fails the page
+  // still shows everything else, with those two measures marked no data.
+  const comp = new Map<string, Record<string, unknown>>();
+  if (!competitiveness.error) {
+    for (const c of (competitiveness.data ?? []) as Record<string, unknown>[]) comp.set(`${c.league_code}|${c.season_label}`, c);
+  }
+  return ((summary.data ?? []) as Record<string, unknown>[]).map((r) => ({
     country_id: num(r.country_id),
     country_name: String(r.country_name),
     league_code: String(r.league_code),
@@ -76,6 +100,8 @@ export async function getCountrySummary(): Promise<CountryRow[]> {
     both_scored_pct: num(r.both_scored_pct),
     nil_nil_pct: num(r.nil_nil_pct),
     comeback_pct: numOrNull(r.comeback_pct),
+    points_spread: numOrNull(comp.get(`${r.league_code}|${r.season_label}`)?.points_spread),
+    bottom_not_losing_pct: numOrNull(comp.get(`${r.league_code}|${r.season_label}`)?.bottom_not_losing_pct),
   }));
 }
 
