@@ -1,4 +1,4 @@
-name: Daily International Import (Big 5, non-English)
+name: Daily International Import (non-English top flights)
 
 # Deliberately its own workflow file, not folded into daily-import.yml's
 # loop, per an explicit decision: these four leagues are less central to
@@ -36,11 +36,11 @@ jobs:
       # Same per-league isolation pattern as the English import loop: one
       # country's source hiccup or a not-yet-covered promoted team must
       # not stop the other three from updating.
-      - name: Import daily results (Bundesliga, Serie A, Ligue 1, La Liga)
+      - name: Import daily results (Bundesliga, Serie A, Ligue 1, La Liga, Portugal, Belgium, Turkey, Greece, Netherlands)
         run: |
           set +e
           FAILED=0
-          for LEAGUE in D1 I1 F1 SP1; do
+          for LEAGUE in D1 I1 F1 SP1 P1 B1 T1 G1 N1; do
             echo "::group::Importing $LEAGUE"
             IMPORT_LEAGUE_CODE="$LEAGUE" IMPORT_CSV_URL="https://football-data.co.uk/mmz4281/2627/$LEAGUE.csv" IMPORT_SEASON_LABEL="2627" npm run import:daily
             if [ $? -ne 0 ]; then
