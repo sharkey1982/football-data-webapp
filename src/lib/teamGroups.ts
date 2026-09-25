@@ -11,6 +11,24 @@
 
 export type TeamGroup = { label: string; teams: string[] };
 
+/** Picker values for a whole division are the group label with this prefix. */
+export const GROUP_PREFIX = 'group:';
+
+/** "England · Premier League" -> "All Premier League clubs";
+ * "Norway · European competition" -> "All Norway clubs". */
+export function groupOptionLabel(label: string): string {
+  const [country, division] = label.split(' \u00b7 ');
+  return division && division !== 'European competition' ? `All ${division} clubs` : `All ${country} clubs`;
+}
+
+/** Clubs a picker value covers: one club, or every club in a division. */
+export function teamsForValue(value: string, groups: TeamGroup[]): Set<string> {
+  if (!value) return new Set();
+  if (!value.startsWith(GROUP_PREFIX)) return new Set([value]);
+  const label = value.slice(GROUP_PREFIX.length);
+  return new Set(groups.find((g) => g.label === label)?.teams ?? []);
+}
+
 type FixtureLike = {
   leagueCode: string;
   leagueName: string;
@@ -86,13 +104,19 @@ export function normaliseForSearch(s: string): string {
 
 /** Groups filtered by a search: a club matches on its own name, or every
  * club in a group matches if the group label does ("Bundesliga"). */
-export function filterTeamGroups(groups: TeamGroup[], query: string): TeamGroup[] {
+export function filterTeamGroups(groups: TeamGroup[], query: string): (TeamGroup & { wholeGroup: boolean })[] {
   const q = normaliseForSearch(query.trim());
-  if (!q) return groups;
+  // wholeGroup: offer "All <division> clubs" only when browsing or when the
+  // search matched the division itself -- not for a single-club search.
+  if (!q) return groups.map((g) => ({ ...g, wholeGroup: true }));
   // Group labels match from the start of a word only ("bund", "champ"),
   // otherwise "man" would pull in every club under "Germany".
   const labelMatches = (label: string) => normaliseForSearch(label).split(/[^a-z0-9]+/).some((w) => w.startsWith(q));
   return groups
-    .map((g) => (labelMatches(g.label) ? g : { ...g, teams: g.teams.filter((t) => normaliseForSearch(t).includes(q)) }))
+    .map((g) =>
+      labelMatches(g.label)
+        ? { ...g, wholeGroup: true }
+        : { ...g, teams: g.teams.filter((t) => normaliseForSearch(t).includes(q)), wholeGroup: false }
+    )
     .filter((g) => g.teams.length > 0);
 }

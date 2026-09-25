@@ -40,6 +40,8 @@ describe('team groups', () => {
     expect(filterTeamGroups(groups, 'bodo').flatMap((g) => g.teams)).toEqual(['Bodø/Glimt']);
     expect(filterTeamGroups(groups, 'championship').flatMap((g) => g.teams)).toEqual(['Bristol City', 'Charlton']);
     expect(filterTeamGroups(groups, 'zzz')).toEqual([]);
+    expect(filterTeamGroups(groups, 'munchen')[0].wholeGroup).toBe(false);
+    expect(filterTeamGroups(groups, 'bundes')[0].wholeGroup).toBe(true);
     // "man" is inside "Germany" but that must not list every German club.
     expect(filterTeamGroups(groups, 'man').flatMap((g) => g.teams)).toEqual([]);
     expect(filterTeamGroups(groups, 'germ').flatMap((g) => g.teams)).toEqual(['Borussia Dortmund', 'FC Bayern München']);

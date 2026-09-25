@@ -22,7 +22,7 @@ import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLi
 import WatchOptions from '../../components/WatchOptions';
 import TeamPicker from '../../components/TeamPicker';
 import FixtureCalendarHeatmap from '../../components/FixtureCalendarHeatmap';
-import { buildTeamGroups } from '../../lib/teamGroups';
+import { buildTeamGroups, teamsForValue } from '../../lib/teamGroups';
 import {
   fixtureWatchState,
   isThisWeekend,
@@ -104,6 +104,8 @@ export default function TvGuidePage() {
     [all]
   );
   const teamGroups = useMemo(() => buildTeamGroups(all), [all]);
+  // One club or a whole division; either way their European ties count.
+  const pickedTeams = useMemo(() => teamsForValue(team, teamGroups), [team, teamGroups]);
 
   // Everything except the calendar's own date selection -- so the calendar
   // shows where the matching fixtures fall, and picking a team lights up
@@ -113,7 +115,7 @@ export default function TvGuidePage() {
       matchesQuick(f, quick) &&
       (!competition || f.leagueName === competition) &&
       (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
-      (!team || f.homeTeamName === team || f.awayTeamName === team)
+      (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))
   );
   const filtered = selectedDates.size === 0 ? beforeDates : beforeDates.filter((f) => selectedDates.has(f.kickoffDate));
   const filtersActive = quick !== 'all' || competition !== '' || provider !== '' || team !== '' || selectedDates.size > 0;

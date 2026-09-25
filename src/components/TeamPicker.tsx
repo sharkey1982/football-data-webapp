@@ -4,11 +4,13 @@
 // Searchable team picker with grouped options (country / division). A
 // plain <select> can group but not search; this is an ARIA combobox: type
 // to filter (accent-insensitive, and a division name lists its clubs),
-// arrow keys to move, Enter to choose, Escape to close.
+// arrow keys to move, Enter to choose, Escape to close. Each division
+// heading is itself choosable ("All Premier League clubs"): the value is
+// then a TeamGroup label prefixed with GROUP_PREFIX.
 // ============================================================================
 
 import { useId, useMemo, useRef, useState } from 'react';
-import { filterTeamGroups, type TeamGroup } from '../lib/teamGroups';
+import { filterTeamGroups, GROUP_PREFIX, groupOptionLabel, type TeamGroup } from '../lib/teamGroups';
 
 type Props = {
   groups: TeamGroup[];
@@ -26,7 +28,9 @@ export default function TeamPicker({ groups, value, onChange, label = 'Team' }: 
   const inputRef = useRef<HTMLInputElement>(null);
 
   const visible = useMemo(() => filterTeamGroups(groups, query), [groups, query]);
-  const flat = useMemo(() => visible.flatMap((g) => g.teams), [visible]);
+  // Each group contributes its "all clubs" option, then its clubs.
+  const flat = useMemo(() => visible.flatMap((g) => [...(g.wholeGroup ? [GROUP_PREFIX + g.label] : []), ...g.teams]), [visible]);
+  const display = (v: string) => (v.startsWith(GROUP_PREFIX) ? groupOptionLabel(v.slice(GROUP_PREFIX.length)) : v);
 
   function choose(team: string) {
     onChange(team);
@@ -67,7 +71,7 @@ export default function TeamPicker({ groups, value, onChange, label = 'Team' }: 
           aria-activedescendant={open && flat[active] ? `${id}-opt-${active}` : undefined}
           autoComplete="off"
           className="w-full min-w-0 px-2 py-1.5 text-sm bg-transparent outline-none"
-          placeholder={value || 'Search teams'}
+          placeholder={value ? display(value) : 'Search teams or divisions'}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -81,7 +85,7 @@ export default function TeamPicker({ groups, value, onChange, label = 'Team' }: 
         {value && (
           <button
             type="button"
-            aria-label={`Clear team (${value})`}
+            aria-label={`Clear team (${display(value)})`}
             className="px-2 text-ink-500 hover:text-ink-900"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
@@ -94,7 +98,7 @@ export default function TeamPicker({ groups, value, onChange, label = 'Team' }: 
           </button>
         )}
       </div>
-      {value && !open && <p className="text-[11px] text-pitch-800 mt-0.5 truncate">Showing: {value}</p>}
+      {value && !open && <p className="text-[11px] text-pitch-800 mt-0.5 truncate">Showing: {display(value)}</p>}
       {open && (
         <ul
           id={listId}
@@ -107,7 +111,7 @@ export default function TeamPicker({ groups, value, onChange, label = 'Team' }: 
             <li key={g.label} role="presentation">
               <p className="px-3 pt-2 pb-1 text-[10px] font-mono uppercase tracking-wider text-ink-500 bg-chalk-100 sticky top-0">{g.label}</p>
               <ul role="presentation">
-                {g.teams.map((t) => {
+                {[...(g.wholeGroup ? [GROUP_PREFIX + g.label] : []), ...g.teams].map((t) => {
                   optionIndex += 1;
                   const idx = optionIndex;
                   return (
@@ -121,7 +125,7 @@ export default function TeamPicker({ groups, value, onChange, label = 'Team' }: 
                       onMouseEnter={() => setActive(idx)}
                       onClick={() => choose(t)}
                     >
-                      {t}
+                      {t.startsWith(GROUP_PREFIX) ? <span className="italic">{groupOptionLabel(g.label)}</span> : t}
                     </li>
                   );
                 })}

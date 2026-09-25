@@ -183,6 +183,23 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     expect(screen.queryByRole('link', { name: 'Arsenal v Leeds' })).not.toBeInTheDocument();
   });
 
+  it('picking a whole division shows every fixture its clubs play, European ties included', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Arsenal', 'Leeds', [offer()]),
+      fixture(2, 'Arsenal', 'FC Bayern München', [offer()], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', countryName: 'Europe', competitionType: 'cup', awayTeamCountry: 'Germany' }),
+      fixture(3, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Arsenal v Leeds' });
+    await user.type(screen.getByRole('combobox', { name: 'Team' }), 'premier');
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'All Premier League clubs' }));
+    expect(screen.getByRole('link', { name: 'Arsenal v Leeds' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Arsenal v FC Bayern München' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Charlton v Bristol City' })).not.toBeInTheDocument();
+    expect(screen.getByText('Showing: All Premier League clubs')).toBeInTheDocument();
+  });
+
   it('team picker groups clubs under country and division headings', async () => {
     mockedBroadcasts.getWatchGuide.mockResolvedValue([
       fixture(1, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
