@@ -141,9 +141,10 @@ describe('MatchPage', () => {
     ]);
     renderAt(base.slug);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Where to watch (UK)' })).toBeInTheDocument());
-    expect(screen.getByText('Sky Sports Main Event')).toBeInTheDocument();
-    expect(screen.getByText(/Sky Go/)).toBeInTheDocument();
-    expect(screen.queryByText(/Free-to-air/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Sky Sports Main Event')).toBeInTheDocument();
+    expect(screen.getByText(/also via Sky Go/)).toBeInTheDocument();
+    expect(screen.getByText(/Requires Sky Sports subscription/)).toBeInTheDocument();
+    expect(screen.queryByText(/Free in the UK/)).not.toBeInTheDocument();
     await waitFor(() => expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).toContain('Sky Sports'));
   });
 
@@ -193,15 +194,16 @@ describe('MatchPage', () => {
         watchUrl: null, source: 'test', sourceUrl: null, verifiedAt: '2026-08-01T00:00:00Z' },
     ]);
     renderAt(base.slug);
-    await waitFor(() => expect(screen.getByText('Confirmed not televised in the UK.')).toBeInTheDocument());
+    expect(await screen.findByText('Not televised live in the UK')).toBeInTheDocument();
   });
 
-  it('shows no Where to watch section at all when nothing is known yet -- not a placeholder', async () => {
+  it('says "not yet confirmed" when nothing is known -- never "not televised"', async () => {
     mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
     mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([]);
     renderAt(base.slug);
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument());
-    expect(screen.queryByRole('heading', { name: 'Where to watch (UK)' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Broadcast details not yet confirmed')).toBeInTheDocument();
+    expect(screen.queryByText(/Not televised/)).not.toBeInTheDocument();
   });
 
   it('shows a not-found state for an unknown slug', async () => {

@@ -1,16 +1,17 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import TvGuidePage from '../pages/football/TvGuidePage';
 import * as broadcastsApi from '../lib/broadcastsApi';
 import * as commercialLinks from '../lib/commercialLinks';
 import * as analytics from '../lib/analytics';
+import type { WatchOffer } from '../lib/watchGuide';
 
 vi.mock('../lib/broadcastsApi', async () => {
   const actual = await vi.importActual<typeof broadcastsApi>('../lib/broadcastsApi');
-  return { ...actual, getUpcomingBroadcastFixtures: vi.fn() };
+  return { ...actual, getWatchGuide: vi.fn() };
 });
 vi.mock('../lib/commercialLinks', async () => {
   const actual = await vi.importActual<typeof commercialLinks>('../lib/commercialLinks');
@@ -21,37 +22,119 @@ vi.mock('../lib/analytics', () => ({ trackEvent: vi.fn() }));
 const mockedBroadcasts = vi.mocked(broadcastsApi);
 const mockedCommercialLinks = vi.mocked(commercialLinks);
 const mockedTrackEvent = vi.mocked(analytics.trackEvent);
-
 const render_ = () => render(<MemoryRouter><TvGuidePage /></MemoryRouter>);
 
-const fixture = (over: Partial<broadcastsApi.UpcomingBroadcastFixture> = {}): broadcastsApi.UpcomingBroadcastFixture => ({
-  broadcastId: 1, market: 'GB', broadcaster: 'Sky Sports', channel: 'Sky Sports Main Event',
-  streamingService: 'NOW', isFreeToAir: false, isSubscription: true, isPpv: false, watchUrl: null,
-  fixtureId: 501, slug: 'arsenal-v-leeds-2026-10-10', kickoffDate: '2026-10-10', kickoffTime: '12:30:00',
-  leagueId: 1, leagueCode: 'E0', leagueName: 'Premier League', countryName: 'England',
-  homeTeamId: 1, homeTeamName: 'Arsenal', awayTeamId: 2, awayTeamName: 'Leeds',
-  ...over,
+let nextId = 1;
+const offer = (over: Partial<WatchOffer> = {}): WatchOffer => ({
+  broadcastId: nextId++, status: 'confirmed_broadcast', broadcaster: 'Sky Sports', channel: 'Sky Sports Main Event',
+  streamingService: null, serviceProduct: null, accessType: 'subscription', deliveryMethods: [], platformDevice: null,
+  isFast: false, isFreeToAir: false, isSubscription: true, isPpv: false, watchUrl: null, confidence: 'confirmed_primary',
+  availabilityNotes: null, source: 'test source', sourceUrl: null, verifiedAt: new Date().toISOString(), ...over,
+});
+const fixture = (id: number, home: string, away: string, offers: WatchOffer[], over: Partial<broadcastsApi.WatchGuideFixture> = {}): broadcastsApi.WatchGuideFixture => ({
+  fixtureId: id, slug: `${home}-v-${away}`.toLowerCase().replace(/ /g, '-'), kickoffDate: '2099-10-10', kickoffTime: '20:00:00',
+  leagueCode: 'E0', leagueName: 'Premier League', countryName: 'England', homeTeamName: home, awayTeamName: away,
+  predictedHomeGoals: null, predictedAwayGoals: null, offers, ...over,
+});
+const row = (name: string) => screen.getByRole('link', { name }).closest('li')!;
+
+beforeEach(() => {
+  mockedCommercialLinks.getActivePartners.mockResolvedValue([]);
 });
 
-describe('TvGuidePage', () => {
-  it('shows nothing-yet state when no fixtures have a confirmed broadcast', async () => {
-    mockedBroadcasts.getUpcomingBroadcastFixtures.mockResolvedValue([]);
+describe('TvGuidePage -- UK Watch Guide', () => {
+  it('shows each state clearly: subscription, free, multiple free routes, PPV, not televised', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Charlton', 'Bristol City', [offer({ channel: 'Sky Sports+', serviceProduct: 'Sky Sports+ / Sky Sports app / NOW' })], { leagueName: 'Championship' }),
+      fixture(2, 'Stenhousemuir', 'Livingston', [offer({ broadcaster: 'BBC', channel: 'BBC Scotland', serviceProduct: 'BBC Scotland / BBC iPlayer', accessType: 'free', isFreeToAir: true, isSubscription: false })]),
+      fixture(3, 'Borussia Dortmund', 'Werder Bremen', [
+        offer({ broadcaster: 'BBC', channel: null, serviceProduct: 'BBC iPlayer', accessType: 'free', isFreeToAir: true, isSubscription: false }),
+        offer({ broadcaster: 'Samsung TV Plus', channel: 'Bundesliga FAST Channel', accessType: 'free_compatible_device', platformDevice: 'Samsung TV Plus compatible devices', isFast: true, isSubscription: false }),
+      ], { leagueName: 'Bundesliga' }),
+      fixture(4, 'Arsenal', 'Borussia Dortmund', [offer({ broadcaster: 'Amazon Prime Video', channel: null, streamingService: 'Prime Video', accessType: 'ppv', isPpv: true, isSubscription: false })], { leagueName: 'UEFA Champions League' }),
+      fixture(5, 'Millwall', 'Lincoln', [offer({ status: 'confirmed_not_televised', broadcaster: null, channel: null, accessType: null, isSubscription: false })], { leagueName: 'Championship' }),
+    ]);
     render_();
-    await waitFor(() => expect(screen.getByText(/No fixtures with a confirmed UK broadcast/)).toBeInTheDocument());
+    await screen.findByRole('link', { name: 'Charlton v Bristol City' });
+
+    const sub = row('Charlton v Bristol City');
+    expect(within(sub).getByText('Watch live')).toBeInTheDocument();
+    expect(within(sub).getByText('Sky Sports+')).toBeInTheDocument();
+    expect(within(sub).getByText(/Requires Sky Sports subscription/)).toBeInTheDocument();
+    expect(within(sub).getByText(/also via Sky Sports app, NOW/)).toBeInTheDocument();
+
+    const free = row('Stenhousemuir v Livingston');
+    expect(within(free).getByText(/Watch live — free/)).toBeInTheDocument();
+    expect(within(free).getByText(/Free in the UK/)).toBeInTheDocument();
+
+    const multi = row('Borussia Dortmund v Werder Bremen');
+    expect(within(multi).getByText('BBC iPlayer')).toBeInTheDocument();
+    expect(within(multi).getByText('Bundesliga FAST Channel')).toBeInTheDocument();
+    expect(within(multi).getByText(/Free on Samsung TV Plus compatible devices/)).toBeInTheDocument();
+    // Two tiers, free first, both listed rather than flattened.
+    const tiers = within(multi).getAllByText(/^Free( — compatible device)?$/).map((n) => n.textContent);
+    expect(tiers).toEqual(['Free', 'Free — compatible device']);
+
+    const ppv = row('Arsenal v Borussia Dortmund');
+    expect(within(ppv).getByText(/Watch live — pay-per-view/)).toBeInTheDocument();
+    expect(within(ppv).getByText(/Extra payment/)).toBeInTheDocument();
+
+    const notLive = row('Millwall v Lincoln');
+    expect(within(notLive).getByText('Not televised live in the UK')).toBeInTheDocument();
   });
 
-  it('groups fixtures by date and links through to the match page', async () => {
-    mockedBroadcasts.getUpcomingBroadcastFixtures.mockResolvedValue([fixture()]);
+  it('explains that an unlisted match is unconfirmed, and shows a plain empty state', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([]);
     render_();
-    await waitFor(() => expect(screen.getByText('Arsenal v Leeds')).toBeInTheDocument());
-    expect(screen.getByText('Sky Sports Main Event')).toBeInTheDocument();
-    expect(screen.getByText(/Premier League.*England/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Arsenal v Leeds' })).toHaveAttribute('href', '/football/matches/arsenal-v-leeds-2026-10-10');
+    expect(await screen.findByText('No confirmed UK broadcasts right now.')).toBeInTheDocument();
+    expect(screen.getByText(/hasn.t had its UK broadcast confirmed yet/)).toBeInTheDocument();
+  });
+
+  it('quick filters: Free, PPV and Not on UK TV narrow the list; Clear restores it', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Charlton', 'Bristol City', [offer()]),
+      fixture(2, 'Stenhousemuir', 'Livingston', [offer({ broadcaster: 'BBC', channel: 'BBC Scotland', accessType: 'free', isFreeToAir: true })]),
+      fixture(4, 'Arsenal', 'Dortmund', [offer({ broadcaster: 'Amazon Prime Video', channel: null, accessType: 'ppv', isPpv: true })]),
+      fixture(5, 'Millwall', 'Lincoln', [offer({ status: 'confirmed_not_televised', broadcaster: null, channel: null, accessType: null })]),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Charlton v Bristol City' });
+
+    await user.click(screen.getByRole('button', { name: 'Free' }));
+    expect(screen.getByRole('link', { name: 'Stenhousemuir v Livingston' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Charlton v Bristol City' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'PPV' }));
+    expect(screen.getByRole('link', { name: 'Arsenal v Dortmund' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Stenhousemuir v Livingston' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Not on UK TV' }));
+    expect(screen.getByRole('link', { name: 'Millwall v Lincoln' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Arsenal v Dortmund' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getAllByRole('link', { name: / v / })).toHaveLength(4);
+  });
+
+  it('service filter finds a match through any of its routes (e.g. NOW inside a Sky offer)', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Charlton', 'Bristol City', [offer({ serviceProduct: 'Sky Sports+ / Sky Sports app / NOW' })]),
+      fixture(2, 'Celtic', 'Hearts', [offer({ broadcaster: 'Premier Sports', channel: 'Premier Sports' })]),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Charlton v Bristol City' });
+    await user.selectOptions(screen.getByLabelText('Service'), 'now');
+    expect(screen.getByRole('link', { name: 'Charlton v Bristol City' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Celtic v Hearts' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Service'), 'premier_sports');
+    expect(screen.getByRole('link', { name: 'Celtic v Hearts' })).toBeInTheDocument();
   });
 
   it('a watchUrl matching an active partner resolves to the affiliate link, discloses it, and tracks the click', async () => {
-    mockedBroadcasts.getUpcomingBroadcastFixtures.mockResolvedValue([
-      fixture({ watchUrl: 'https://www.nowtv.com/watch/some-match', broadcaster: 'NOW' }),
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Arsenal', 'Leeds', [offer({ watchUrl: 'https://www.nowtv.com/watch/some-match', broadcaster: 'NOW' })]),
     ]);
     mockedCommercialLinks.getActivePartners.mockResolvedValue([
       { partnerId: 1, name: 'NOW', category: 'streaming', network: 'Awin', canonicalDomain: 'nowtv.com',
@@ -63,33 +146,25 @@ describe('TvGuidePage', () => {
     expect(link).toHaveAttribute('href', `https://www.awin1.com/cread.php?p=${encodeURIComponent('https://www.nowtv.com/watch/some-match')}`);
     expect(link).toHaveAttribute('rel', 'sponsored noopener noreferrer');
     expect(screen.getByRole('link', { name: 'Ad' })).toHaveAttribute('href', '/affiliate-disclosure');
-
     await user.click(link);
     expect(mockedTrackEvent).toHaveBeenCalledWith('affiliate_click', expect.objectContaining({ partner: 'NOW', page: 'tv_guide' }));
   });
 
-  it('filters to a single team, matching either home or away, and clears with the Clear filters control', async () => {
-    mockedBroadcasts.getUpcomingBroadcastFixtures.mockResolvedValue([
-      fixture({ broadcastId: 1, homeTeamName: 'Arsenal', awayTeamName: 'Leeds', slug: 'arsenal-v-leeds' }),
-      fixture({ broadcastId: 2, homeTeamName: 'Chelsea', awayTeamName: 'Arsenal', slug: 'chelsea-v-arsenal', kickoffDate: '2026-10-11' }),
-      fixture({ broadcastId: 3, homeTeamName: 'Everton', awayTeamName: 'Fulham', slug: 'everton-v-fulham', kickoffDate: '2026-10-12' }),
+  it('keeps provenance secondary: source and verified date sit behind a disclosure', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Arsenal', 'Leeds', [offer({ source: 'Premier League fixture list', sourceUrl: 'https://example.com/pl', verifiedAt: '2026-09-25T00:00:00Z' })]),
     ]);
-    const user = userEvent.setup();
     render_();
-    await waitFor(() => expect(screen.getByText('Everton v Fulham')).toBeInTheDocument());
-
-    await user.selectOptions(screen.getByLabelText('Team'), 'Arsenal');
-    expect(screen.getByText('Arsenal v Leeds')).toBeInTheDocument();
-    expect(screen.getByText('Chelsea v Arsenal')).toBeInTheDocument();
-    expect(screen.queryByText('Everton v Fulham')).not.toBeInTheDocument();
-
-    await user.click(screen.getByText('Clear filters'));
-    expect(screen.getByText('Everton v Fulham')).toBeInTheDocument();
+    await screen.findAllByText(/Verified 25 Sep/);
+    const details = document.querySelector('details')!;
+    expect(details.querySelector('summary')!.textContent).toMatch(/^Verified 25 Sep/);
+    expect(details).not.toHaveAttribute('open');
+    expect(screen.getByRole('link', { name: 'Premier League fixture list' })).toHaveAttribute('rel', 'nofollow noopener noreferrer');
   });
 
   it('shows an error message if the load fails, rather than a blank page', async () => {
-    mockedBroadcasts.getUpcomingBroadcastFixtures.mockRejectedValue(new Error('network down'));
+    mockedBroadcasts.getWatchGuide.mockRejectedValue(new Error('boom'));
     render_();
-    await waitFor(() => expect(screen.getByText('network down')).toBeInTheDocument());
+    expect(await screen.findByText('boom')).toBeInTheDocument();
   });
 });
