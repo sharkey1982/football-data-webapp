@@ -10,6 +10,52 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Launch audit (2026-09-25) -- remaining items after the site-delivery PR
+Fixed in the site-delivery PR (see docs/incidents.md, 2026-09-25): sitemap,
+SPA fallback, team/finance page generation, rebuild-after-failed-projections.
+Still to investigate (need Supabase access, not yet re-checked):
+  - DONE: "stuck" result_ingestion_runs were junk rows from the stub
+    ingest-football-results (closed). Stub NEUTRALISED 2026-09-25 (v4:
+    verify_jwt on, writes nothing; anonymous call verified 401). Deleting it
+    in the dashboard is now optional tidy-up.
+  - GW6+ projections: confirm consistency after the 24 Sept partial run;
+    design staged publication so a failed run can't mix generations.
+  - DONE: fixtures 2048, 2052, 3128 -- ingester fixed (aliases, played-row
+    parsing, run recording), integrity guards now fail. See incidents.md.
+  - The three real ingest Edge Functions (and the stub) are verify_jwt=false
+    with service-role access and no auth of their own: add a shared webhook
+    secret to the cron calls and check it in each function.
+  - Security review (2026-09-25), from the live advisor:
+      * FIXED in PR #89: magic-link login created an account for ANY email
+        (signInWithOtp default). No data exposure -- every write policy and
+        meta_refresh_flow() check is_admin() -- but it allowed account spam
+        and burned the email rate limit. ALSO ENFORCED IN THE DATABASE
+        (migration block_auth_signups_outside_allowlist): a BEFORE INSERT
+        trigger on auth.users rejects any email not in
+        public.admin_bootstrap_emails, whatever route tries. Tested: probe
+        sign-up blocked, user count unchanged. To add an account, add its
+        email to admin_bootstrap_emails first. The dashboard sign-up switch
+        is now optional.
+      * Any signed-in user could read get_data_integrity_report,
+        get_public_read_audit, check_auth_user_token_nulls (internal
+        diagnostics). Moot while signup is closed; add is_admin() guards.
+      * 6 SECURITY DEFINER views serve public data (standings, strength,
+        broadcasts). Not a demonstrated leak; switching to security_invoker
+        needs the underlying tables' anon grants checked first.
+      * anon-callable: is_admin() (returns caller's own flag -- fine),
+        fpl_gameweek_for_date() (harmless lookup), meta_flow_note_commentary()
+        (a trigger function -- errors if called directly). No action.
+      * model_scorecard_matches anon SELECT is INTENTIONAL
+        (check_model_integrity() requires it).
+      * 24 RLS-no-policy tables = deliberately private. BUT 4 of them are
+        backup_*_20260924 tables that the entry above records as dropped --
+        they still exist.
+  - Cron audit against downstream results (cup cron only queues an HTTP call).
+  - Netlify: estimator says ~151% of credits; confirm real usage in dashboard.
+  - Static-route pages (e.g. /fixtures, /table) are head-only by design --
+    body is client-rendered. Decide whether any need crawlable body content.
+
+
 ### Affiliate link architecture -- DONE (streaming; tickets/merch/travel reuse it later)
 Schema, resolver, UI, analytics and SEO structured data all built and
 live -- see the PR for the full breakdown. What follows is what's

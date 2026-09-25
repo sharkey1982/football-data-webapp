@@ -30,7 +30,7 @@
   # unconditionally -- so it cannot repeat the "finished its work but
   # never exited" hang that took deploys down for an hour. It also never
   # exits non-zero: a missing sitemap must never cost a deploy.
-  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap"
+  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/verify-dist.mjs"
   publish = "dist"
 
   # Skip the analytics build when a push ONLY touches the game or docs.
@@ -134,3 +134,23 @@
   to = "https://fixtureshark-beat-the-shark.netlify.app/:splat"
   status = 200
   force = true
+
+# ----------------------------------------------------------------------------
+# SPA fallback -- KEEP THIS LAST.
+#
+# Without it, any route with no generated file 404s on a direct visit or a
+# refresh. That was silently true of /tv-guide, /affiliate-disclosure,
+# /login, every non-Premier League match page, and every team or finance page
+# whenever static generation didn't finish (found 2026-09-25: the live
+# /football/teams/arsenal and /finance both returned 404).
+#
+# Not forced, so any real file (a generated page, an asset) always wins; this
+# only answers when nothing else exists. The target is app-shell.html, NOT
+# index.html -- index.html carries the homepage's canonical tag (see
+# scripts/write-app-shell.mjs). Unknown URLs now get 200 plus the app's
+# noindex "Page not found" route rather than a hard 404.
+# ----------------------------------------------------------------------------
+[[redirects]]
+  from = "/*"
+  to = "/app-shell.html"
+  status = 200

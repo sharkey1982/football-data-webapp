@@ -72,7 +72,7 @@ export default function TvGuidePage() {
 
   useDocumentHead({
     title: 'TV Guide',
-    description: 'Every upcoming football fixture confirmed for UK TV or streaming, in order, across the Premier League, Bundesliga, Serie A, Ligue 1 and La Liga.',
+    description: 'Upcoming football fixtures confirmed for UK TV or streaming, with the model\u2019s expected goals for each.',
     path: '/tv-guide',
   });
 

@@ -17,6 +17,7 @@ const TeamFinancePage = lazy(() => import('./pages/football/TeamFinancePage'));
 const FinanceComparePage = lazy(() => import('./pages/FinanceComparePage'));
 const AffiliateDisclosurePage = lazy(() => import('./pages/AffiliateDisclosurePage'));
 const TvGuidePage = lazy(() => import('./pages/football/TvGuidePage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FinanceIndexPage = lazy(() => import('./pages/FinanceIndexPage'));
 const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
@@ -528,6 +529,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <DataFlow />
+              </Suspense>
+            }
+          />
+          <Route
+            path="*"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NotFoundPage />
               </Suspense>
             }
           />

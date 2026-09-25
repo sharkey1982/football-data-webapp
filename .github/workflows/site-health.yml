@@ -1,0 +1,86 @@
+name: Live site health
+
+# Checks the DEPLOYED site, not the build. Every generation step in the
+# Netlify build exits 0 by design, so a deploy can succeed while missing its
+# sitemap or every team page -- exactly what happened before 2026-09-25
+# (/sitemap.xml, /football/teams/arsenal and /finance all 404 live). This job
+# is the alarm: it fails, and GitHub emails the failure.
+#
+# Runs after the 07:00 UTC rebuild has had time to finish. No Netlify
+# credits used -- it only reads the public site.
+
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE: https://footballdatashark.netlify.app
+    steps:
+      - name: Check sitemap, key pages and a sample of sitemap URLs
+        run: |
+          python3 - <<'PY'
+          import os, random, re, sys, urllib.request, urllib.error
+          site = os.environ["SITE"]
+          fails = []
+
+          def get(path):
+              url = path if path.startswith("http") else site + path
+              req = urllib.request.Request(url, headers={"User-Agent": "FixtureShark-site-health"})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return r.status, r.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as e:
+                  return e.code, ""
+              except Exception as e:
+                  return 0, str(e)
+
+          status, body = get("/sitemap.xml")
+          locs = re.findall(r"<loc>([^<]+)</loc>", body) if status == 200 else []
+          print(f"sitemap.xml: HTTP {status}, {len(locs)} URLs")
+          if status != 200:
+              fails.append(f"/sitemap.xml returned {status}")
+          elif len(locs) < 1000:
+              fails.append(f"sitemap has only {len(locs)} URLs (expected 1000+) -- a section is missing")
+          wrong_host = [u for u in locs if not u.startswith(site + "/")]
+          if wrong_host:
+              fails.append(f"{len(wrong_host)} sitemap URL(s) not on {site}, e.g. {wrong_host[0]}")
+
+          # Pages that must exist. Team and finance pages are the ones that
+          # vanished when static generation didn't finish.
+          must = ["/", "/fixtures", "/tv-guide", "/affiliate-disclosure", "/finance", "/football/teams/arsenal"]
+          for p in must:
+              s, _ = get(p)
+              print(f"{p}: HTTP {s}")
+              if s != 200:
+                  fails.append(f"{p} returned {s}")
+
+          # A generated team page must carry real content in the raw HTML,
+          # not just an empty React root (that would mean it was served by
+          # the SPA fallback because generation failed).
+          s, html = get("/football/teams/arsenal")
+          if s == 200 and re.search(r'<div id="root">\s*</div>', html):
+              fails.append("/football/teams/arsenal has an empty root in raw HTML -- static generation did not write it")
+
+          random.seed()
+          sample = random.sample(locs, min(30, len(locs)))
+          bad = []
+          for u in sample:
+              s, _ = get(u)
+              if s != 200:
+                  bad.append(f"{u} -> {s}")
+          print(f"sampled {len(sample)} sitemap URLs, {len(bad)} failed")
+          fails += bad
+
+          if fails:
+              print("\nFAILURES:")
+              for f in fails:
+                  print(" -", f)
+                  print(f"::error::{f}")
+              sys.exit(1)
+          print("All checks passed.")
+          PY
