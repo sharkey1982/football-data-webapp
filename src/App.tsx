@@ -30,6 +30,7 @@ const MatchPage = lazy(() => import('./pages/football/MatchPage'));
 const TeamPage = lazy(() => import('./pages/football/TeamPage'));
 const StagePage = lazy(() => import('./pages/StagePage'));
 const CrossLeaguePage = lazy(() => import('./pages/football/CrossLeaguePage'));
+const CountryInsightsPage = lazy(() => import('./pages/football/CountryInsightsPage'));
 const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
 const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
 const SeasonXiPage = lazy(() => import('./pages/fpl/SeasonXiPage'));
@@ -99,6 +100,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <MarketEfficiencyPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/countries-compared"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <CountryInsightsPage />
               </Suspense>
             }
           />
