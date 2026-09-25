@@ -23,10 +23,13 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database, MatchInsert, MatchResult } from '../src/types/database';
+import { csvUrlFor, selectRows } from './lib/footballDataCsv';
 
-const CSV_URL = process.env.IMPORT_CSV_URL ?? 'https://football-data.co.uk/mmz4281/2627/E0.csv';
 const LEAGUE_CODE = process.env.IMPORT_LEAGUE_CODE ?? 'E0';
 const SEASON_LABEL = process.env.IMPORT_SEASON_LABEL ?? '2627';
+// Workflows may pass the URL explicitly; otherwise it's derived from the
+// league code (3-letter codes are football-data.co.uk's all-seasons files).
+const CSV_URL = process.env.IMPORT_CSV_URL || csvUrlFor(LEAGUE_CODE, SEASON_LABEL);
 const SOURCE_NAME = 'football-data.co.uk';
 
 const STARTED_AT = new Date().toISOString();
@@ -141,8 +144,19 @@ async function main() {
     return;
   }
 
-  const rows = parseCsv(text);
-  console.log(`Parsed ${rows.length} row(s) from source file.`);
+  let format: string;
+  let selected: ReturnType<typeof selectRows>['selected'];
+  let excluded: ReturnType<typeof selectRows>['excluded'];
+  try {
+    ({ format, selected, excluded } = selectRows(parseCsv(text), SEASON_LABEL));
+  } catch (err) {
+    await fail(supabase, err instanceof Error ? err.message : String(err));
+    return;
+  }
+  // rows_seen counts only the season(s) being imported -- an extra-league
+  // file holds every season since ~2012.
+  const rows = [...selected, ...excluded];
+  console.log(`Parsed ${rows.length} row(s) for ${SEASON_LABEL} from ${format}-format source file.`);
 
   const { data: league, error: leagueErr } = await supabase
     .from('leagues')
@@ -161,6 +175,15 @@ async function main() {
   if (seasonErr || !season) {
     await fail(supabase, `Could not find season with label "${SEASON_LABEL}": ${seasonErr?.message ?? 'not found'}`, rows.length);
   }
+  // Other labels only arise from a calendar-year league's next season (see
+  // footballDataCsv.ts). A label with no seasons row yet is skipped and
+  // reported, not a failure -- the current season still imports.
+  const seasonIdByLabel = new Map<string, number>([[SEASON_LABEL, season!.season_id]]);
+  const otherLabels = [...new Set(rows.map((r) => r.seasonLabel))].filter((l) => l !== SEASON_LABEL);
+  if (otherLabels.length > 0) {
+    const { data: others } = await supabase.from('seasons').select('season_id, label').in('label', otherLabels);
+    for (const o of others ?? []) seasonIdByLabel.set(o.label, o.season_id);
+  }
 
   const { data: aliases, error: aliasErr } = await supabase
     .from('team_aliases')
@@ -173,9 +196,11 @@ async function main() {
   for (const a of aliases ?? []) teamIdByRawName.set(a.raw_name, a.team_id);
 
   const inserts: MatchInsert[] = [];
-  const skipped: string[] = [];
+  const skipped: string[] = excluded.map(
+    ({ row, reason }) => `${row.HomeTeam} vs ${row.AwayTeam} on ${toIsoDate(row.Date) ?? row.Date} -- ${reason}`
+  );
 
-  for (const row of rows) {
+  for (const { row, seasonLabel } of selected) {
     const matchDate = toIsoDate(row['Date']);
     const homeTeam = row['HomeTeam'];
     const awayTeam = row['AwayTeam'];
@@ -188,6 +213,12 @@ async function main() {
       continue;
     }
 
+    const seasonId = seasonIdByLabel.get(seasonLabel);
+    if (!seasonId) {
+      skipped.push(`${homeTeam} vs ${awayTeam} on ${matchDate} -- season ${seasonLabel} not in seasons table yet`);
+      continue;
+    }
+
     const homeTeamId = teamIdByRawName.get(homeTeam);
     const awayTeamId = teamIdByRawName.get(awayTeam);
     if (!homeTeamId || !awayTeamId) {
@@ -197,7 +228,7 @@ async function main() {
 
     inserts.push({
       league_id: league!.league_id,
-      season_id: season!.season_id,
+      season_id: seasonId,
       home_team_id: homeTeamId,
       away_team_id: awayTeamId,
       match_date: matchDate,
@@ -226,14 +257,21 @@ async function main() {
     });
   }
 
+  // Skips stay a success (one unknown club mustn't block a league's other
+  // results) but are recorded on the run, not just in the Actions log -- a
+  // club renamed mid-season or a play-off against a lower-division side
+  // shows up here. Play-off rows are deliberately left unmapped so they
+  // never enter a league table.
+  const skipNote =
+    skipped.length > 0 ? `${skipped.length} played row(s) skipped: ${skipped.slice(0, 10).join('; ')}${skipped.length > 10 ? ' ...' : ''}` : null;
   if (skipped.length > 0) {
-    console.warn(`\u26a0\ufe0f  ${skipped.length} row(s) skipped -- missing team_aliases mapping:`);
+    console.warn(`\u26a0\ufe0f  ${skipped.length} row(s) skipped:`);
     skipped.forEach((s) => console.warn('  -', s));
   }
 
   if (inserts.length === 0) {
     console.log('No complete match rows to upsert. Done.');
-    await logRun(supabase, { rowsSeen: rows.length, rowsUpserted: 0, status: 'success', errorMessage: null });
+    await logRun(supabase, { rowsSeen: rows.length, rowsUpserted: 0, status: 'success', errorMessage: skipNote });
     return;
   }
 
@@ -251,7 +289,7 @@ async function main() {
 
   const rowsUpserted = count ?? inserts.length;
   console.log(`\u2705 Upserted ${rowsUpserted} row(s).`);
-  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: 'success', errorMessage: null });
+  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: 'success', errorMessage: skipNote });
 }
 
 main().catch(async (err) => {
