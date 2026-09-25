@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getLeagues, getCountries, getSeasons, getLeagueTable, getPointsRace, type LeagueTableRow, type RaceSeries } from '../lib/api';
+import { getLeagues, getCountries, getLeagueIdsWithResults, getSeasons, getLeagueTable, getPointsRace, type LeagueTableRow, type RaceSeries } from '../lib/api';
 import Timelapse from '../components/Timelapse';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
@@ -34,6 +34,9 @@ export default function LeagueTable() {
   const [leagues, setLeagues] = useState<LeagueOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  // null = not loaded (or lookup failed): fall back to every league division
+  // rather than hiding everything.
+  const [leagueIdsWithResults, setLeagueIdsWithResults] = useState<Set<number> | null>(null);
 
   const [countryId, setCountryId] = useState<number | null>(urlCountryId);
   const [leagueId, setLeagueId] = useState<number | null>(urlLeagueId);
@@ -46,9 +49,20 @@ export default function LeagueTable() {
   // Cup competitions don't have a standings table in this app's model --
   // only ever offer proper leagues here (the Fixtures/Raw Data pages are
   // where cup fixtures/results live).
+  // Only divisions with at least one result -- a table with no matches
+  // behind it is just an empty page.
   const leagueDivisions = useMemo(
-    () => leagues.filter((l) => l.competition_type === 'league'),
-    [leagues]
+    () =>
+      leagues.filter(
+        (l) => l.competition_type === 'league' && (!leagueIdsWithResults || leagueIdsWithResults.has(l.league_id))
+      ),
+    [leagues, leagueIdsWithResults]
+  );
+  // Country options follow the divisions: a country appears only if it has
+  // a division with results (getCountries' relevance order is kept).
+  const countriesWithResults = useMemo(
+    () => countries.filter((c) => leagueDivisions.some((l) => l.country_id === c.country_id)),
+    [countries, leagueDivisions]
   );
   const filteredLeagues = useMemo(
     () => leagueDivisions.filter((l) => !countryId || l.country_id === countryId),
@@ -64,12 +78,22 @@ export default function LeagueTable() {
       );
     });
     getCountries().then((data) => setCountries(data ?? []));
+    getLeagueIdsWithResults()
+      .then((ids) => setLeagueIdsWithResults(new Set(ids)))
+      .catch(() => setLeagueIdsWithResults(null));
     getSeasons().then((data) => {
       const loaded = data ?? [];
       setSeasons(loaded);
       setSeasonId((current) => current ?? loaded[0]?.season_id ?? null);
     });
   }, []);
+
+  // A country from the URL (or an old link) with no results falls back to
+  // All countries rather than leaving an empty Division list.
+  useEffect(() => {
+    if (!countryId || countries.length === 0 || leagues.length === 0) return;
+    if (!countriesWithResults.some((c) => c.country_id === countryId)) setCountryId(null);
+  }, [countryId, countries, leagues, countriesWithResults]);
 
   // Keep the current Division valid against the Country filter, same
   // pattern as the Fixtures/Raw Data pages.
@@ -145,7 +169,7 @@ export default function LeagueTable() {
             className={selectClass}
           >
             <option value="">All countries</option>
-            {countries.map((c) => (
+            {countriesWithResults.map((c) => (
               <option key={c.country_id} value={c.country_id}>
                 {c.name}
               </option>
