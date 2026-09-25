@@ -46,6 +46,19 @@ export async function getCountries() {
   }));
 }
 
+/** league_ids with at least one row in `matches`. Lets a filter offer only
+ * options that lead to real data -- a country or division with no results
+ * would just render an empty table. */
+export async function getLeagueIdsWithResults(): Promise<number[]> {
+  // Newer than the generated types.
+  const rpc = (supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: unknown }> }).rpc.bind(supabase);
+  const { data, error } = await rpc('get_league_ids_with_results');
+  if (error) throw error;
+  return ((data ?? []) as (number | { get_league_ids_with_results: number })[]).map((r) =>
+    typeof r === 'number' ? r : r.get_league_ids_with_results
+  );
+}
+
 export async function getSeasons() {
   const { data, error } = await supabase
     .from('seasons')

@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useSearchParams } from 'react-router-dom';
@@ -10,6 +10,7 @@ vi.mock('../lib/api', async () => {
   return {
     getLeagues: vi.fn(),
     getCountries: vi.fn(),
+    getLeagueIdsWithResults: vi.fn(),
     getSeasons: vi.fn(),
     getLeagueTable: vi.fn(),
     getPointsRace: vi.fn(),
@@ -24,7 +25,71 @@ function FixturesProbe() {
   return <div data-testid="fixtures-probe">{params.toString()}</div>;
 }
 
+beforeEach(() => {
+  // Default: every mocked league has results; individual tests narrow it.
+  mockedApi.getLeagueIdsWithResults.mockResolvedValue([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+});
+
 describe('LeagueTable page', () => {
+  it('only offers countries (and divisions) that have results', async () => {
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
+      { league_id: 2, code: 'N1', name: 'Eredivisie', country_id: 11, competition_type: 'league' },
+      { league_id: 3, code: 'X1', name: 'Empty League', country_id: 7, competition_type: 'league' },
+      { league_id: 9, code: 'UCL', name: 'Champions League', country_id: 3, competition_type: 'cup' },
+    ]);
+    mockedApi.getCountries.mockResolvedValue([
+      { country_id: 1, name: 'England', code: null },
+      { country_id: 11, name: 'Netherlands', code: null },
+      { country_id: 7, name: 'Norway', code: null },
+      { country_id: 3, name: 'Europe', code: null },
+      { country_id: 29, name: 'Georgia', code: null },
+    ]);
+    mockedApi.getLeagueIdsWithResults.mockResolvedValue([1, 2, 9]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
+    mockedApi.getLeagueTable.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={['/table']}>
+        <LeagueTable />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole('option', { name: 'Netherlands' });
+    expect(screen.getByRole('option', { name: 'England' })).toBeInTheDocument();
+    // League exists but has no results / only cup results / no league at all.
+    expect(screen.queryByRole('option', { name: 'Norway' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Europe' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Georgia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Empty League/ })).not.toBeInTheDocument();
+  });
+
+  it('drops a URL country that has no results back to All countries', async () => {
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
+    ]);
+    mockedApi.getCountries.mockResolvedValue([
+      { country_id: 1, name: 'England', code: null },
+      { country_id: 29, name: 'Georgia', code: null },
+    ]);
+    mockedApi.getLeagueIdsWithResults.mockResolvedValue([1]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
+    mockedApi.getLeagueTable.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={['/table?country=29']}>
+        <LeagueTable />
+      </MemoryRouter>
+    );
+
+    // The Division list only fills once the country has fallen back to All
+    // (a select's DOM value reads '' for an unknown value, so assert on this).
+    await screen.findByRole('option', { name: /Premier League/ });
+    expect(screen.queryByRole('option', { name: 'Georgia' })).not.toBeInTheDocument();
+    const countrySelect = screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+    expect(countrySelect.value).toBe('');
+  });
+
   it('excludes cup competitions from the Division dropdown and shows deduction annotations', async () => {
     mockedApi.getLeagues.mockResolvedValue([
       { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },

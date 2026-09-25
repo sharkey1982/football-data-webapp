@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       league_code:
-        description: 'football-data.co.uk league code, e.g. SP1 (La Liga)'
+        description: 'football-data.co.uk league code, e.g. SP1 (La Liga) or NOR (Norway, extra-leagues file)'
         required: true
       season_label:
         description: 'Season label as stored in `seasons`, e.g. 2324 for 2023/24'
@@ -37,4 +37,6 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           IMPORT_LEAGUE_CODE: ${{ inputs.league_code }}
           IMPORT_SEASON_LABEL: ${{ inputs.season_label }}
-          IMPORT_CSV_URL: https://football-data.co.uk/mmz4281/${{ inputs.season_label }}/${{ inputs.league_code }}.csv
+          # No IMPORT_CSV_URL: import-daily.ts derives it from the league code
+          # (3-letter codes such as NOR are football-data.co.uk's all-seasons
+          # "extra league" files, filtered to the requested season).
