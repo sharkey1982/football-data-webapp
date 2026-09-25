@@ -33,6 +33,7 @@
 import os
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 import argparse
 
 from supabase import create_client
@@ -60,12 +61,40 @@ def main():
     # 'running') and updated at every exit path below, success or failure,
     # so a run that never finishes still shows as genuinely stuck rather
     # than just disappearing.
+    # Self-heal (2026-09-25): a run that died while the database was too
+    # slow to record its own failure is left 'running' forever (runs 276,
+    # 283), which trips the no_stuck_runs integrity check. Any earlier run
+    # still 'running' after 2 hours is closed as failed before this one
+    # starts. Best effort: never blocks the refresh itself.
+    try:
+        supabase.table("pipeline_runs").update(
+            {"finished_at": "now()", "status": "failed",
+             "error_message": "Died without recording an outcome (closed by the next run)."}
+        ).eq("job_name", "refresh_fpl_projections").eq("status", "running").lt(
+            "started_at", (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        ).execute()
+    except Exception as e:
+        print(f"::warning::Could not close earlier stuck runs ({e}); continuing.")
+
     run = (
         supabase.table("pipeline_runs")
         .insert({"job_name": "refresh_fpl_projections", "status": "running"})
         .execute()
     )
     run_id = run.data[0]["run_id"]
+
+    def record_failure(message: str) -> None:
+        # The failure record goes through the same database that just
+        # failed, so it gets its own retries rather than one attempt.
+        for attempt in range(1, 5):
+            try:
+                supabase.table("pipeline_runs").update(
+                    {"finished_at": "now()", "status": "failed", "error_message": message}
+                ).eq("run_id", run_id).execute()
+                return
+            except Exception as e:
+                print(f"::warning::Recording failure, attempt {attempt} failed ({e})")
+                time.sleep(15 * attempt)
 
     fixtures_resp = (
         supabase.table("fixtures")
@@ -101,7 +130,10 @@ def main():
         # cause that may not exist.
         rows = None
         last_error: Exception | None = None
-        for attempt in range(1, 7):
+        # Backoff up to ~4.5 minutes in total (was ~42s): the failures seen
+        # (runs 276, 283) were slow patches lasting minutes, during which
+        # the same call that normally takes ~1.3s timed out repeatedly.
+        for attempt in range(1, 8):
             try:
                 result = supabase.rpc("refresh_fpl_projection_fixture_v6", {"p_fixture_id": fixture_id}).execute()
                 rows = result.data
@@ -109,19 +141,16 @@ def main():
                 break
             except Exception as e:
                 last_error = e
-                print(f"::warning::Fixture {fixture_id}: attempt {attempt} failed ({e}), retrying...")
-                time.sleep(2 * attempt)
+                wait = min(60, 5 * 2 ** (attempt - 1))
+                print(f"::warning::Fixture {fixture_id}: attempt {attempt} failed ({e}), retrying in {wait}s...")
+                time.sleep(wait)
         if last_error is not None:
-            supabase.table("pipeline_runs").update(
-                {"finished_at": "now()", "status": "failed", "error_message": f"Fixture {fixture_id}: {last_error}"}
-            ).eq("run_id", run_id).execute()
+            record_failure(f"Fixture {fixture_id}: {last_error}")
             raise last_error
         if not isinstance(rows, int):
             msg = f"Fixture {fixture_id}: unexpected result from refresh_fpl_projection_fixture_v6: {rows!r}"
             print(f"::error::{msg}", file=sys.stderr)
-            supabase.table("pipeline_runs").update(
-                {"finished_at": "now()", "status": "failed", "error_message": msg}
-            ).eq("run_id", run_id).execute()
+            record_failure(msg)
             sys.exit(1)
         total_rows += rows
         time.sleep(1.0)  # eases off whatever's causing the intermittent per-call contention -- raised from 0.2s after confirming that wasn't enough headroom in a live run
@@ -133,9 +162,7 @@ def main():
     if len(fixture_ids) > 0 and total_rows == 0:
         msg = "No rows were refreshed despite fixtures existing in range."
         print(f"::error::{msg}", file=sys.stderr)
-        supabase.table("pipeline_runs").update(
-            {"finished_at": "now()", "status": "failed", "error_message": msg}
-        ).eq("run_id", run_id).execute()
+        record_failure(msg)
         sys.exit(1)
 
     supabase.table("pipeline_runs").update(

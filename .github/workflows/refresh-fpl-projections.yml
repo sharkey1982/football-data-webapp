@@ -22,7 +22,7 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30  # retries back off up to ~4.5 min per fixture (2026-09-25)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
