@@ -33,7 +33,8 @@ const offer = (over: Partial<WatchOffer> = {}): WatchOffer => ({
 });
 const fixture = (id: number, home: string, away: string, offers: WatchOffer[], over: Partial<broadcastsApi.WatchGuideFixture> = {}): broadcastsApi.WatchGuideFixture => ({
   fixtureId: id, slug: `${home}-v-${away}`.toLowerCase().replace(/ /g, '-'), kickoffDate: '2099-10-10', kickoffTime: '20:00:00',
-  leagueCode: 'E0', leagueName: 'Premier League', countryName: 'England', homeTeamName: home, awayTeamName: away,
+  leagueCode: 'E0', leagueName: 'Premier League', countryName: 'England', competitionType: 'league', leagueTier: null,
+  homeTeamName: home, awayTeamName: away, homeTeamCountry: 'England', awayTeamCountry: 'England',
   predictedHomeGoals: null, predictedAwayGoals: null, offers, ...over,
 });
 const row = (name: string) => screen.getByRole('link', { name }).closest('li')!;
@@ -160,6 +161,78 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     expect(details.querySelector('summary')!.textContent).toMatch(/^Verified 25 Sep/);
     expect(details).not.toHaveAttribute('open');
     expect(screen.getByRole('link', { name: 'Premier League fixture list' })).toHaveAttribute('rel', 'nofollow noopener noreferrer');
+  });
+
+  it('team picker: search by accent-free name finds the club, and European ties still show', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'FC Bayern München', 'Borussia Dortmund', [offer()], { leagueCode: 'D1', leagueName: 'Bundesliga', countryName: 'Germany', leagueTier: 1, homeTeamCountry: 'Germany', awayTeamCountry: 'Germany' }),
+      fixture(2, 'Arsenal', 'FC Bayern München', [offer()], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', countryName: 'Europe', competitionType: 'cup', awayTeamCountry: 'Germany' }),
+      fixture(3, 'Arsenal', 'Leeds', [offer()]),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Arsenal v Leeds' });
+    const box = screen.getByRole('combobox', { name: 'Team' });
+    await user.type(box, 'munchen');
+    const options = within(screen.getByRole('listbox')).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['FC Bayern München']);
+    await user.click(options[0]);
+    // Domestic and European fixtures both show; the unrelated one doesn't.
+    expect(screen.getByRole('link', { name: 'FC Bayern München v Borussia Dortmund' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Arsenal v FC Bayern München' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Arsenal v Leeds' })).not.toBeInTheDocument();
+  });
+
+  it('picking a whole division shows every fixture its clubs play, European ties included', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Arsenal', 'Leeds', [offer()]),
+      fixture(2, 'Arsenal', 'FC Bayern München', [offer()], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', countryName: 'Europe', competitionType: 'cup', awayTeamCountry: 'Germany' }),
+      fixture(3, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Arsenal v Leeds' });
+    await user.type(screen.getByRole('combobox', { name: 'Team' }), 'premier');
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'All Premier League clubs' }));
+    expect(screen.getByRole('link', { name: 'Arsenal v Leeds' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Arsenal v FC Bayern München' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Charlton v Bristol City' })).not.toBeInTheDocument();
+    expect(screen.getByText('Showing: All Premier League clubs')).toBeInTheDocument();
+  });
+
+  it('team picker groups clubs under country and division headings', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
+      fixture(2, 'Arsenal', 'Leeds', [offer()]),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Arsenal v Leeds' });
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    const list = screen.getByRole('listbox');
+    expect(within(list).getByText('England · Premier League')).toBeInTheDocument();
+    expect(within(list).getByText('England · Championship')).toBeInTheDocument();
+  });
+
+  it('calendar: selecting a date narrows the list; "Show all dates" restores it', async () => {
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const d1 = new Date(); d1.setDate(d1.getDate() + 1);
+    const d2 = new Date(); d2.setDate(d2.getDate() + 2);
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Arsenal', 'Leeds', [offer()], { kickoffDate: ymd(d1) }),
+      fixture(2, 'Charlton', 'Bristol City', [offer()], { kickoffDate: ymd(d2) }),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Arsenal v Leeds' });
+    // Only dates with fixtures are enabled; pick d2's day number.
+    const day = screen.getAllByRole('button', { name: String(d2.getDate()) }).find((b) => !b.hasAttribute('disabled'));
+    expect(day).toBeTruthy();
+    await user.click(day!);
+    expect(screen.queryByRole('link', { name: 'Arsenal v Leeds' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Charlton v Bristol City' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show all dates' }));
+    expect(screen.getByRole('link', { name: 'Arsenal v Leeds' })).toBeInTheDocument();
   });
 
   it('shows an error message if the load fails, rather than a blank page', async () => {

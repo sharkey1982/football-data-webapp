@@ -20,6 +20,9 @@ import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { getWatchGuide, type WatchGuideFixture } from '../../lib/broadcastsApi';
 import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
 import WatchOptions from '../../components/WatchOptions';
+import TeamPicker from '../../components/TeamPicker';
+import FixtureCalendarHeatmap from '../../components/FixtureCalendarHeatmap';
+import { buildTeamGroups, teamsForValue } from '../../lib/teamGroups';
 import {
   fixtureWatchState,
   isThisWeekend,
@@ -65,6 +68,12 @@ export default function TvGuidePage() {
   const [competition, setCompetition] = useState('');
   const [provider, setProvider] = useState('');
   const [team, setTeam] = useState('');
+  // Calendar: same two-month heatmap and multi-select behaviour as the
+  // fixtures page. No dates selected = no date filter.
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const today = new Date();
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
 
   useEffect(() => {
     let live = true;
@@ -94,16 +103,42 @@ export default function TvGuidePage() {
     () => [...new Set(all.flatMap((f) => f.offers.flatMap((o) => providerKeys(o))))].sort((a, b) => providerLabel(a).localeCompare(providerLabel(b))),
     [all]
   );
-  const teams = useMemo(() => [...new Set(all.flatMap((f) => [f.homeTeamName, f.awayTeamName]))].sort(), [all]);
+  const teamGroups = useMemo(() => buildTeamGroups(all), [all]);
+  // One club or a whole division; either way their European ties count.
+  const pickedTeams = useMemo(() => teamsForValue(team, teamGroups), [team, teamGroups]);
 
-  const filtered = all.filter(
+  // Everything except the calendar's own date selection -- so the calendar
+  // shows where the matching fixtures fall, and picking a team lights up
+  // that team's dates (European ties included).
+  const beforeDates = all.filter(
     (f) =>
       matchesQuick(f, quick) &&
       (!competition || f.leagueName === competition) &&
       (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
-      (!team || f.homeTeamName === team || f.awayTeamName === team)
+      (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))
   );
-  const filtersActive = quick !== 'all' || competition !== '' || provider !== '' || team !== '';
+  const filtered = selectedDates.size === 0 ? beforeDates : beforeDates.filter((f) => selectedDates.has(f.kickoffDate));
+  const filtersActive = quick !== 'all' || competition !== '' || provider !== '' || team !== '' || selectedDates.size > 0;
+
+  const { dateCounts, dateTypes } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const types: Record<string, 'league' | 'cup' | 'mixed'> = {};
+    for (const f of beforeDates) {
+      counts[f.kickoffDate] = (counts[f.kickoffDate] ?? 0) + 1;
+      const t = f.competitionType === 'league' ? 'league' : 'cup';
+      types[f.kickoffDate] = types[f.kickoffDate] && types[f.kickoffDate] !== t ? 'mixed' : t;
+    }
+    return { dateCounts: counts, dateTypes: types };
+  }, [beforeDates]);
+
+  function toggleDate(d: string) {
+    setSelectedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d);
+      else next.add(d);
+      return next;
+    });
+  }
 
   const groups = useMemo(() => {
     const m = new Map<string, WatchGuideFixture[]>();
@@ -183,14 +218,8 @@ export default function TvGuidePage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className={labelClass} htmlFor="team-filter">Team</label>
-              <select id="team-filter" className={selectClass} value={team} onChange={(e) => setTeam(e.target.value)}>
-                <option value="">All teams</option>
-                {teams.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+            <div className="col-span-2 sm:col-span-1 sm:w-64">
+              <TeamPicker groups={teamGroups} value={team} onChange={setTeam} />
             </div>
             {filtersActive && (
               <button
@@ -200,6 +229,7 @@ export default function TvGuidePage() {
                   setCompetition('');
                   setProvider('');
                   setTeam('');
+                  setSelectedDates(new Set());
                 }}
                 className="text-xs text-ink-500 underline underline-offset-2 mb-2"
               >
@@ -208,6 +238,29 @@ export default function TvGuidePage() {
             )}
           </div>
         </>
+      )}
+
+      {all.length > 0 && (
+        <div className="mt-4">
+          <FixtureCalendarHeatmap
+            dateCounts={dateCounts}
+            dateTypes={dateTypes}
+            loading={fixtures === null}
+            selectedDates={selectedDates}
+            onToggleDate={toggleDate}
+            viewYear={calYear}
+            viewMonth={calMonth}
+            onChangeMonth={(y, m) => {
+              setCalYear(y);
+              setCalMonth(m);
+            }}
+          />
+          {selectedDates.size > 0 && (
+            <button type="button" onClick={() => setSelectedDates(new Set())} className="text-xs text-ink-500 underline underline-offset-2 mt-1">
+              Show all dates
+            </button>
+          )}
+        </div>
       )}
 
       {error && <p className="text-loss-700 text-sm mt-4">{error}</p>}
