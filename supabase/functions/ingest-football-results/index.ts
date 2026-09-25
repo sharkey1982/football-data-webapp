@@ -1,4 +1,15 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
-const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-Deno.serve(async()=>{const {data:run}=await sb.from('result_ingestion_runs').insert({source_name:'football-data.co.uk'}).select().single();const id=run?.ingestion_run_id;try{const {data:cfg}=await sb.from('data_source_competitions').select('*').eq('enabled',true);return Response.json({status:'test',run_id:id,competitions:cfg?.length||0});}catch(e){return Response.json({error:String(e)},{status:500})}});
+// ingest-football-results -- RETIRED 2026-09-25.
+//
+// This was a stub: every call inserted a 'running' row into
+// result_ingestion_runs and returned {status:'test'} without ingesting
+// anything (junk rows 11-17 Sept 2026). Nothing calls it: football-data.co.uk
+// results arrive via the GitHub Actions daily import. Tooling cannot delete
+// an Edge Function, so it is neutralised instead: it now requires a JWT
+// (anonymous calls are rejected before this runs) and writes nothing.
+// Delete it in the Supabase dashboard whenever convenient.
+Deno.serve(() =>
+  Response.json(
+    { status: 'retired', message: 'ingest-football-results is retired and does nothing.' },
+    { status: 410 },
+  )
+);

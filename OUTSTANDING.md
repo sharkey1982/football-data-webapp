@@ -15,8 +15,9 @@ Fixed in the site-delivery PR (see docs/incidents.md, 2026-09-25): sitemap,
 SPA fallback, team/finance page generation, rebuild-after-failed-projections.
 Still to investigate (need Supabase access, not yet re-checked):
   - DONE: "stuck" result_ingestion_runs were junk rows from the stub
-    ingest-football-results (closed). STILL TO DO: delete that stub in the
-    Supabase dashboard -- it is an anonymous public write endpoint.
+    ingest-football-results (closed). Stub NEUTRALISED 2026-09-25 (v4:
+    verify_jwt on, writes nothing; anonymous call verified 401). Deleting it
+    in the dashboard is now optional tidy-up.
   - GW6+ projections: confirm consistency after the 24 Sept partial run;
     design staged publication so a failed run can't mix generations.
   - DONE: fixtures 2048, 2052, 3128 -- ingester fixed (aliases, played-row
@@ -28,8 +29,13 @@ Still to investigate (need Supabase access, not yet re-checked):
       * FIXED in PR #89: magic-link login created an account for ANY email
         (signInWithOtp default). No data exposure -- every write policy and
         meta_refresh_flow() check is_admin() -- but it allowed account spam
-        and burned the email rate limit. CHRIS: also switch off "Allow new
-        users to sign up" in Supabase Auth settings (belt and braces).
+        and burned the email rate limit. ALSO ENFORCED IN THE DATABASE
+        (migration block_auth_signups_outside_allowlist): a BEFORE INSERT
+        trigger on auth.users rejects any email not in
+        public.admin_bootstrap_emails, whatever route tries. Tested: probe
+        sign-up blocked, user count unchanged. To add an account, add its
+        email to admin_bootstrap_emails first. The dashboard sign-up switch
+        is now optional.
       * Any signed-in user could read get_data_integrity_report,
         get_public_read_audit, check_auth_user_token_nulls (internal
         diagnostics). Moot while signup is closed; add is_admin() guards.
