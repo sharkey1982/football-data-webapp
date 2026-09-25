@@ -37,22 +37,24 @@ const WATCHDOG_MS = 90000;
 // Absolute last line of defence: if anything below somehow stalls despite
 // the per-request timeouts, kill the process rather than let it hold a
 // production build open indefinitely.
+// Everything gathered so far. The watchdog writes THIS rather than
+// nothing: before 2026-09-25 it exited without a file, so one slow
+// Supabase response cost the whole sitemap (live /sitemap.xml was 404).
+const entries = [];
+
+function writeSitemap(label) {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
+  mkdirSync(dirname(OUT), { recursive: true });
+  writeFileSync(OUT, xml, 'utf8');
+  console.log(`Sitemap: wrote ${entries.length} URL(s) [${label}]`);
+}
+
 const watchdog = setTimeout(() => {
-  console.error('Sitemap: watchdog fired -- exiting without a sitemap rather than hanging the build.');
+  console.error('Sitemap: watchdog fired -- writing what was gathered rather than nothing.');
+  try { writeSitemap('PARTIAL: watchdog'); } catch (err) { console.error('Sitemap: partial write failed --', err?.message ?? err); }
   process.exit(0);
 }, WATCHDOG_MS);
 watchdog.unref();
-
-// Routes that are genuinely public and stable. Deliberately excludes
-// everything robots.txt disallows (source-data, results-data,
-// data-health, tactical-roles, optimal-squad*) -- listing a page in a
-// sitemap while telling crawlers not to fetch it is a contradiction
-// Search Console reports as an error.
-// Static routes come from the SSR bundle's own registry (routeMeta.ts),
-// not a second hand-maintained list here. Those two lists agreed only
-// because they were kept in step by hand -- exactly the drift that put
-// "Browse" in the nav after the hubs had moved to "Discover". The
-// sitemap runs after build:ssr in the chain, so the bundle exists.
 
 async function query(path) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
@@ -76,6 +78,23 @@ async function query(path) {
   }
 }
 
+/** PostgREST caps a response at 1,000 rows WITHOUT saying it truncated, so
+ * a single "limit=5000" quietly returns 1,000. Before 2026-09-25 that cut
+ * the match, scout and gameweek sections of this sitemap short. Pages
+ * explicitly; returns null only if the very first page fails. */
+async function queryAll(path, pageSize = 1000) {
+  const out = [];
+  for (let offset = 0; offset <= 200000; offset += pageSize) {
+    const sep = path.includes('?') ? '&' : '?';
+    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    if (page == null) return out.length > 0 ? out : null;
+    out.push(...page);
+    if (page.length < pageSize) return out;
+  }
+  console.error('Sitemap: pagination guard tripped for', path);
+  return out;
+}
+
 function xmlEscape(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
@@ -94,105 +113,62 @@ async function main() {
     mod = await import(entry);
     staticPaths = (mod.STATIC_ROUTES ?? []).map((r) => r.path);
   } catch (err) {
-    // A sitemap with only entity pages beats no sitemap, so this
-    // degrades rather than aborting.
     console.error('Sitemap: could not read static routes from the SSR bundle --', err?.message ?? err);
   }
-  const entries = staticPaths.map((r) => urlEntry(r, null));
+  for (const r of new Set(staticPaths)) entries.push(urlEntry(r, null));
+  // Written immediately: from here on a slow database can shrink the
+  // sitemap but can no longer remove it.
+  writeSitemap('static routes only');
 
-  // One URL per completed gameweek. These are stable -- gameweek 4's
-  // team of the week never changes once played -- so they accumulate
-  // rather than overwrite, unlike the single page they replaced.
-  // Uses the same REST helper as everything else here rather than a
-  // Supabase client -- this script deliberately has no client, so it can
-  // run with only a URL and anon key.
-  let gameweekCount = 0;
-  try {
-    const gwRows = await query(
-      `fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0&limit=20000`
-    );
-    // A gameweek counts only once somebody has scored: FPL creates rows
-    // for an upcoming week with zeros, and listing those would advertise
-    // a page showing an XI of blanks.
-    const played = new Set((gwRows ?? []).map((r) => r.fpl_event_id));
-    for (const gw of [...played].sort((a, b) => a - b)) {
-      entries.push(urlEntry(`/fpl/team-of-the-week/gw${gw}`, null));
-      gameweekCount++;
-    }
-  } catch (err) {
-    console.error('Sitemap: could not list completed gameweeks --', err?.message ?? err);
-  }
+  // All independent -- fetched together, so total time is the slowest
+  // request rather than the sum of a dozen serial ones.
+  const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance] = await Promise.all([
+    queryAll(`fpl_player_gameweeks?select=fpl_event_id&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0`),
+    queryAll('player_identity?select=slug&order=slug.asc'),
+    queryAll(`fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}`),
+    queryAll('teams?select=team_id,slug&slug=not.is.null'),
+    queryAll(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null`),
+    queryAll(`fixtures?select=slug,predicted_at&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&order=fixture_id.asc`),
+    mod ? fetchFinanceBulk(query).catch((err) => { console.error('Sitemap: finance fetch failed --', err?.message ?? err); return null; }) : null,
+  ]);
 
-  // Player Scout: one URL per player with real history, including those
-  // who have left the league and have no other page here.
-  let scoutCount = 0;
-  try {
-    const players = await query('player_identity?select=slug&order=slug.asc&limit=5000');
-    for (const p of players ?? []) {
-      if (!p.slug) continue;
-      entries.push(urlEntry(`/fpl/player-scout/${p.slug}`, null));
-      scoutCount++;
-    }
-  } catch (err) {
-    console.error('Sitemap: could not list players --', err?.message ?? err);
-  }
+  const counts = {};
+  const played = [...new Set((gwRows ?? []).map((r) => r.fpl_event_id))].sort((a, b) => a - b);
+  for (const gw of played) entries.push(urlEntry(`/fpl/team-of-the-week/gw${gw}`, null));
+  counts.gameweeks = played.length;
 
-  // Only teams with a generated page. The teams table holds 242 rows
-  // across every division and European competition, but pages are
-  // generated for clubs appearing in this season's EPL fixtures --
-  // listing the rest would advertise URLs that render an empty shell.
-  const eplFixtures = await query(
-    `fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}&limit=1000`
-  );
+  counts.scout = 0;
+  for (const p of scouts ?? []) if (p.slug) { entries.push(urlEntry(`/fpl/player-scout/${p.slug}`, null)); counts.scout++; }
+
   const eplTeamIds = new Set();
-  for (const f of eplFixtures ?? []) {
-    eplTeamIds.add(f.home_team_id);
-    eplTeamIds.add(f.away_team_id);
-  }
-  const teams = await query('teams?select=team_id,slug&slug=not.is.null&limit=1000');
+  for (const f of eplFixtures ?? []) { eplTeamIds.add(f.home_team_id); eplTeamIds.add(f.away_team_id); }
+  counts.teams = 0;
   for (const t of teams ?? []) {
-    if (eplTeamIds.size === 0 || eplTeamIds.has(t.team_id)) entries.push(urlEntry(`/football/teams/${t.slug}`));
+    if (eplTeamIds.size === 0 || eplTeamIds.has(t.team_id)) { entries.push(urlEntry(`/football/teams/${t.slug}`)); counts.teams++; }
   }
 
-  const players = await query(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&limit=2000`);
   for (const p of players ?? []) entries.push(urlEntry(`/fpl/players/${p.slug}`));
-
-  // lastmod from predicted_at where present -- a genuine freshness
-  // signal tied to when that fixture's prediction was actually
-  // regenerated, not the build time.
-  const fixtures = await query(
-    `fixtures?select=slug,predicted_at&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&limit=5000`
-  );
+  counts.players = (players ?? []).length;
   for (const f of fixtures ?? []) entries.push(urlEntry(`/football/matches/${f.slug}`, f.predicted_at));
+  counts.matches = (fixtures ?? []).length;
 
-  // Club finance pages: every team with published accounts (not only the
-  // Premier League), lastmod = its latest filing date. Same bulk module as
-  // static generation, so the sitemap and the pages cannot disagree.
-  let financeCount = 0;
-  if (mod) {
+  counts.finance = 0;
+  if (mod && finance) {
     try {
-      const bulk = await fetchFinanceBulk(query);
-      if (bulk) {
-        const site = buildFinanceSite(bulk, mod);
-        for (const s of site.sitemap) entries.push(urlEntry(s.path, s.lastmod));
-        financeCount = site.sitemap.length;
-        const latest = site.sitemap.map((s) => s.lastmod).filter(Boolean).sort().pop() ?? null;
-        if (!staticPaths.includes('/finance')) entries.push(urlEntry('/finance', latest));
-        if (!staticPaths.includes('/finance/compare')) entries.push(urlEntry('/finance/compare', latest));
-      }
+      const site = buildFinanceSite(finance, mod);
+      for (const s of site.sitemap) entries.push(urlEntry(s.path, s.lastmod));
+      counts.finance = site.sitemap.length;
+      const latest = site.sitemap.map((s) => s.lastmod).filter(Boolean).sort().pop() ?? null;
+      if (!staticPaths.includes('/finance')) entries.push(urlEntry('/finance', latest));
+      if (!staticPaths.includes('/finance/compare')) entries.push(urlEntry('/finance/compare', latest));
     } catch (err) {
       console.error('Sitemap: finance pages skipped --', err?.message ?? err);
     }
   }
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
-
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, xml, 'utf8');
-  console.log(
-    `Sitemap: wrote ${entries.length} URL(s) -- ${staticPaths.length} static, ${gameweekCount} gameweek, ${scoutCount} scout, ` +
-      `${(teams ?? []).length} team(s), ${(players ?? []).length} player(s), ${(fixtures ?? []).length} match(es), ${financeCount} club finance page(s).`
-  );
+  writeSitemap(`complete -- ${staticPaths.length} static, ${JSON.stringify(counts)}`);
+  const empty = Object.entries(counts).filter(([, n]) => n === 0).map(([k]) => k);
+  if (empty.length) console.error(`Sitemap: WARNING -- no URLs for: ${empty.join(', ')}. Check the Supabase queries above.`);
 }
 
 main()

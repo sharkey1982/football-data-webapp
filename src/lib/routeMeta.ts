@@ -121,6 +121,18 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/tv-guide',
+    title: 'TV Guide',
+    description: 'Upcoming football fixtures confirmed for UK TV or streaming, with the model\u2019s expected goals for each.',
+    crumbs: [FOOTBALL],
+  },
+  {
+    path: '/affiliate-disclosure',
+    title: 'Affiliate Disclosure',
+    description: 'How FixtureShark uses affiliate links, and what that does and does not affect.',
+    crumbs: [],
+  },
+  {
     path: '/preview',
     title: 'Head to Heads \u2014 compare any two teams',
     description: 'Pick any two teams for a head-to-head comparison and a Dixon-Coles prediction.',

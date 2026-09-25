@@ -10,6 +10,24 @@ Ordered roughly by value, not by effort.
 
 ## Needs you
 
+### Launch audit (2026-09-25) -- remaining items after the site-delivery PR
+Fixed in the site-delivery PR (see docs/incidents.md, 2026-09-25): sitemap,
+SPA fallback, team/finance page generation, rebuild-after-failed-projections.
+Still to investigate (need Supabase access, not yet re-checked):
+  - result_ingestion_runs: seven football-data.co.uk runs 11-17 Sept stuck
+    'running' with zero rows. Find the writer; add stale-run alert.
+  - GW6+ projections: confirm consistency after the 24 Sept partial run;
+    design staged publication so a failed run can't mix generations.
+  - Fixtures 2048, 2052 (Carabao, 16 Sept), 3128 (FA Cup, 19 Sept) still
+    'scheduled' past their dates with no matching result.
+  - Supabase advisor: six owner-permission views, three anon-executable
+    functions, model_scorecard_matches anon-selectable. Review, don't assume.
+  - Cron audit against downstream results (cup cron only queues an HTTP call).
+  - Netlify: estimator says ~151% of credits; confirm real usage in dashboard.
+  - Static-route pages (e.g. /fixtures, /table) are head-only by design --
+    body is client-rendered. Decide whether any need crawlable body content.
+
+
 ### Affiliate link architecture -- DONE (streaming; tickets/merch/travel reuse it later)
 Schema, resolver, UI, analytics and SEO structured data all built and
 live -- see the PR for the full breakdown. What follows is what's

@@ -127,9 +127,7 @@ async function main() {
   // gameweeks exist), so they sit below the credentials guard but are
   // written the same way.
   async function writeGameweekPages() {
-    const played = await queryAll(
-      `fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`
-    );
+    const played = await pending.gameweeks;
     const weeks = [...new Set((played ?? []).map((r) => r.fpl_event_id))].sort((a, b) => a - b);
     let n = 0;
     for (const gw of weeks) {
@@ -159,6 +157,37 @@ async function main() {
     return;
   }
 
+  // Every bulk fetch starts NOW, concurrently, and each section awaits
+  // only the one it needs. Serially, a dozen requests with 20s timeouts
+  // could outlast the 240s watchdog on a slow Supabase day, and the
+  // watchdog discards everything not yet written -- which is how the
+  // team and finance pages can vanish from a deploy that still succeeds.
+  const pending = {
+    gameweeks: queryAll(`fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`),
+    scouts: queryAll('player_identity?select=slug,canonical_name&order=slug.asc'),
+    finance: fetchFinanceBulk(queryAll).catch((err) => { console.error(`Static: finance fetch failed: ${err?.message ?? err}`); return null; }),
+    teams: queryAll('teams?select=team_id,display_name,slug'),
+    fits: queryAll('model_fit_runs?select=fit_run_id,rho'),
+    fixtures: queryAll(
+      `fixtures?select=fixture_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id` +
+        `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null`
+    ),
+    matches: queryAll(
+      `matches?select=home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
+        `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}`
+    ),
+    players: queryAll(
+      `fpl_players?select=fpl_player_id,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
+    ),
+    projections: queryAll(
+      `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version,${PROJECTION_DETAIL_COLUMNS}&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
+    ),
+    actuals: queryAll(`fpl_player_gameweeks?select=fpl_fixture_id,fpl_player_id,total_points&season_id=eq.${SEASON_ID}`),
+    ratings: queryAll('team_ratings?select=team_id,attack_strength,defence_strength,is_estimated,fit_run_id'),
+    overrides: queryAll('team_strength_manual_override?select=team_id,attack_adjustment,defence_adjustment'),
+    acceptedFits: queryAll('model_fit_runs?select=fit_run_id,league_id,fitted_at,status&status=eq.accepted&order=fitted_at.desc'),
+  };
+
   await writeGameweekPages();
 
   // ---- Player Scout pages ------------------------------------------
@@ -167,9 +196,7 @@ async function main() {
   // slug disappeared with them -- so they're also the ones with no
   // other route into the site.
   async function writePlayerScoutPages() {
-    const players = await queryAll(
-      'player_identity?select=slug,canonical_name&order=slug.asc'
-    );
+    const players = await pending.scouts;
     let n = 0;
     for (const p of players ?? []) {
       if (!p.slug) continue;
@@ -200,7 +227,7 @@ async function main() {
   // know which clubs have accounts (for their Finances link), and so that the
   // team block's early exit on missing fixture data cannot take these down.
   async function writeFinancePages() {
-    const bulk = await fetchFinanceBulk(queryAll);
+    const bulk = await pending.finance;
     if (!bulk) {
       console.warn('Static: finance data unavailable -- skipping finance pages.');
       return new Set();
@@ -239,12 +266,9 @@ async function main() {
   const financeTeamIds = await writeFinancePages();
 
   // Bulk fetches -- three requests total, not one per page.
-  const teams = await query('teams?select=team_id,display_name,slug&limit=1000');
-  const fits = await query('model_fit_runs?select=fit_run_id,rho&limit=1000');
-  const fixtures = await queryAll(
-    `fixtures?select=fixture_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id` +
-      `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null`
-  );
+  const teams = await pending.teams;
+  const fits = await pending.fits;
+  const fixtures = await pending.fixtures;
   if (!teams || !fixtures) {
     console.warn('Static: required data unavailable -- skipping.');
     return;
@@ -255,10 +279,7 @@ async function main() {
 
   // Actual results, for played fixtures. Keyed the same way the runtime
   // page keys them so generated and client-rendered output agree.
-  const matches = await queryAll(
-    `matches?select=home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
-      `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}`
-  );
+  const matches = await pending.matches;
   const resultKey = (h, a, d) => `${h}|${a}|${d}`;
   const resultByKey = new Map(
     (matches ?? []).map((m) => [resultKey(m.home_team_id, m.away_team_id, m.match_date), m])
@@ -320,15 +341,9 @@ async function main() {
   console.log(`Static: wrote ${written} match page(s), skipped ${skipped}, from ${fixtures.length} fixture(s).`);
 
   // ---- Player pages -------------------------------------------------
-  const players = await queryAll(
-    `fpl_players?select=fpl_player_id,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
-  );
-  const projections = await queryAll(
-    `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version,${PROJECTION_DETAIL_COLUMNS}&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
-  );
-  const actuals = await queryAll(
-    `fpl_player_gameweeks?select=fpl_fixture_id,fpl_player_id,total_points&season_id=eq.${SEASON_ID}`
-  );
+  const players = await pending.players;
+  const projections = await pending.projections;
+  const actuals = await pending.actuals;
 
   if (!players) {
     console.warn('Static: player data unavailable -- match pages still written.');
@@ -417,15 +432,9 @@ async function main() {
   // The teams table holds 242 rows across every division and European
   // competition; generating pages for clubs with no fixtures here would
   // produce empty shells and pad the sitemap with nothing.
-  const ratings = await queryAll(
-    'team_ratings?select=team_id,attack_strength,defence_strength,is_estimated,fit_run_id'
-  );
-  const overrides = await queryAll(
-    'team_strength_manual_override?select=team_id,attack_adjustment,defence_adjustment'
-  );
-  const acceptedFits = await queryAll(
-    'model_fit_runs?select=fit_run_id,league_id,fitted_at,status&status=eq.accepted&order=fitted_at.desc'
-  );
+  const ratings = await pending.ratings;
+  const overrides = await pending.overrides;
+  const acceptedFits = await pending.acceptedFits;
 
   // Current accepted fit per league -- first row wins, since the query
   // is ordered newest-first.

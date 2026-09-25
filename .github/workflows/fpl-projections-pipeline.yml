@@ -98,9 +98,15 @@ jobs:
       # stale content would make the freshness claims actively wrong
       # rather than merely old.
       #
-      # Runs even if an earlier step failed (if: always()): the pipeline
-      # writes to the database step by step, so a partial run still
-      # advanced real data that the site should show.
+      # Only after a FULLY successful run (2026-09-25; previously
+      # if: always()). Pass 1 replaces projections fixture by fixture, so a
+      # run that dies part-way leaves some fixtures on the new generation
+      # and the rest on the old one, with no bonus simulation or pass 2.
+      # Rebuilding then publishes that mixture under a fresh "Projections
+      # updated" timestamp, as happened on 2026-09-24 (run 36000353679,
+      # Supabase 522 in pass 1). Skipping it keeps yesterday's consistent
+      # pages up, costs no credits, and the next run repairs the data --
+      # each fixture's refresh is idempotent.
       #
       # No-ops silently when NETLIFY_BUILD_HOOK_URL isn't configured, so
       # this is safe to have in place before the secret exists. The hook
@@ -113,7 +119,7 @@ jobs:
       # suspended for running out. Only the 07:00 scheduled run rebuilds, or a
       # manual run with rebuild_site ticked. Pages are at most a day stale.
       - name: Trigger site rebuild
-        if: always() && (github.event.schedule == '0 7 * * *' || github.event.inputs.rebuild_site == 'true')
+        if: success() && (github.event.schedule == '0 7 * * *' || github.event.inputs.rebuild_site == 'true')
         run: |
           if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then
             echo "::notice::NETLIFY_BUILD_HOOK_URL not set -- skipping rebuild. Static pages will refresh on the next deploy."
