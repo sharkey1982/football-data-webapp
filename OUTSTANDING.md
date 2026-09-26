@@ -451,6 +451,21 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
+### League One kick-off times stored in UTC during BST (found 2026-09-26)
+Most E2 fixtures (source FixtureDownload) dated in British Summer Time are
+an hour early: all 11 Saturday games on 26 Sep at 14:00 (real 15:00), the
+Sky 12:30 games at 11:30. E0, E1 and E3 times are UK time. Effects: wrong
+kick-off shown on the site, and League One 3pm games get no Saturday 3pm
+blackout row (apply_uk_3pm_blackout() reads kickoff_time). Fix the E2 feed
+conversion and correct the stored times; the blackout rule catches up on
+its next run. See docs/incidents.md, 2026-09-26.
+
+### Watch Guide volume with Saturday 3pm rows
+Since 26 Sep 2026 the guide includes ~1,200 generated "not televised" rows
+for the whole season (about two thirds of its rows), so "All" is mostly 3pm
+games. Worth deciding whether "All" should hide them (they remain under
+"Not on UK TV" and on match pages) or limit them to the next few weeks.
+
 ### Predicted Line-ups — DONE: the public page already existed, now moved to Fantasy
 Resolved 2026-09-21 by relocating an EXISTING page, not building a new one.
 

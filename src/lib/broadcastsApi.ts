@@ -14,6 +14,11 @@
 //   no row at all                          -> not yet determined
 //   one row, confirmed_not_televised       -> definitely not on
 //   one or more confirmed_broadcast rows   -> here's where to watch
+//
+// One exception to "written by an admin": English league matches kicking off
+// on a Saturday 14:45-17:15 get a generated not-televised row (source
+// 'rule:3pm_blackout', see apply_uk_3pm_blackout()), removed as soon as any
+// real listing for the fixture exists.
 // ============================================================================
 
 import { supabase } from './supabase';
@@ -201,11 +206,28 @@ export type WatchGuideFixture = {
   offers: WatchOffer[];
 };
 
+// The API returns at most 1,000 rows per request, and the guide passed that
+// once Saturday 3pm not-televised rows were generated for the whole season
+// (26 Sep 2026), so it is read in pages with a stable order.
+const WATCH_GUIDE_PAGE = 1000;
+
 export async function getWatchGuide(market = 'GB'): Promise<WatchGuideFixture[]> {
-  const { data, error } = await db.from('upcoming_watch_guide').select('*').eq('market', market);
-  if (error) throw error;
+  const data: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += WATCH_GUIDE_PAGE) {
+    const { data: page, error } = await db
+      .from('upcoming_watch_guide')
+      .select('*')
+      .eq('market', market)
+      .order('kickoff_date')
+      .order('kickoff_time')
+      .order('broadcast_id')
+      .range(from, from + WATCH_GUIDE_PAGE - 1);
+    if (error) throw error;
+    data.push(...((page ?? []) as Record<string, unknown>[]));
+    if ((page ?? []).length < WATCH_GUIDE_PAGE) break;
+  }
   const byFixture = new Map<number, WatchGuideFixture>();
-  for (const r of (data ?? []) as Record<string, unknown>[]) {
+  for (const r of data) {
     const id = Number(r.fixture_id);
     if (!byFixture.has(id)) {
       byFixture.set(id, {
