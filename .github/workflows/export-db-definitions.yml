@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: export-db-definitions
@@ -47,6 +48,15 @@ jobs:
           git add supabase/definitions
           git commit -m "Export live database definitions ($(date -u +%Y-%m-%d))"
           git push origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" \
-            --title "Database definitions export $(date -u +%Y-%m-%d)" \
-            --body "Automated export of every live view and function (scripts/export_db_definitions.py). A diff here means the live database differs from the last committed export -- check it was intended and recorded in a migration."
+          BODY="Automated export of every live view and function (scripts/export_db_definitions.py). A diff here means the live database differs from the last committed export -- check it was intended and recorded in a migration."
+          # GitHub blocks Actions from opening PRs unless the repo setting
+          # "Allow GitHub Actions to create and approve pull requests" is on.
+          # If it's off, open an issue linking the pushed branch instead, so
+          # a drift report is never silently lost.
+          if ! gh pr create --base main --head "$BRANCH" --title "Database definitions export $(date -u +%Y-%m-%d)" --body "$BODY"; then
+            gh issue create --title "Database definitions changed $(date -u +%Y-%m-%d) -- review branch $BRANCH" \
+              --body "$BODY
+
+          Actions isn't allowed to open PRs in this repo, so the export is on branch \`$BRANCH\`.
+          Review: ${{ github.server_url }}/${{ github.repository }}/compare/main...$BRANCH"
+          fi
