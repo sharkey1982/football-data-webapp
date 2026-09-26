@@ -77,6 +77,16 @@ AS $function$
     'Fixtures postponed more than 3 days ago with no new date yet'
   from (select count(*) n from public.fixtures where status = 'postponed' and kickoff_date < current_date - 3) x
   union all
+  select 'played_without_result', case when n = 0 then 'ok' else 'failed' end, n,
+    'Fixtures PLAYED more than 3 days ago with no result in matches (no results feed for that competition, or a mapping gap): ' || coalesce(ids, '')
+  from (select count(*) n, string_agg(f.fixture_id::text, ', ' order by f.fixture_id) ids
+        from public.fixtures f
+        where f.status = 'played' and f.kickoff_date < current_date - 3
+          and not exists (select 1 from public.matches m
+                          where m.league_id = f.league_id and m.season_id = f.season_id
+                            and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
+                            and m.match_date = f.kickoff_date)) x
+  union all
   select 'cup_ingestion_current', case when n = 0 then 'ok' else 'failed' end, n,
     'Cup feed (ingest-cup-data): latest run not a full success within 30h -- ' || coalesce(why, '')
   from (select case when r.ingestion_run_id is null then 1
@@ -114,6 +124,13 @@ AS $function$
             'team_strength_current', 'fpl_team_strength_current', 'league_standings',
             'model_scorecard_matches'
           ]) v) q
-        where not has_table_privilege('anon', ('public.' || q.v)::regclass, 'SELECT')) x;
+        where not has_table_privilege('anon', ('public.' || q.v)::regclass, 'SELECT')) x
+  union all
+  -- Catalogue (2026-09-26): every live, non-scratch object has a description,
+  -- reviewed since its definition last changed. Warning, not failure.
+  select 'catalogue_current', case when n = 0 then 'ok' else 'warning' end, n,
+    'Objects undocumented or changed since their catalogue entry was reviewed (see meta_catalogue_gaps): ' || coalesce(names, '')
+  from (select count(*) n, string_agg(node_key, ', ' order by node_key) filter (where rn <= 10) names
+        from (select node_key, row_number() over (order by node_key) rn from public.meta_catalogue_gaps) g) x;
 $function$
 ;

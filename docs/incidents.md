@@ -222,3 +222,43 @@ fixing something else.
   latest cup run must be a full 'success' within 30h, so a missing alias
   ('partial') or a dead feed fails the daily workflow.
   *Lesson: a warning nobody is notified of is not a guard.*
+
+## 2026-09-26 · Europa League results never loaded
+- **Impact:** all 18 Europa League matchday 1 results (16-17 Sept, e.g.
+  Crystal Palace 4-0 Lech Poznan, Real Sociedad 1-2 Bournemouth) were
+  missing from `matches` for 9 days, while their fixtures showed 'played'.
+  Every check passed. The Conference League (no matches played yet) would
+  have gone the same way from 15 Oct.
+- **Cause:** no pipeline wrote UEFA results. `refresh_fixture_feeds()` reads
+  the FixtureDownload feeds for UCL/UEL/UECL, but only for dates and status,
+  and sets 'played' because kick-off has passed, not because a result
+  exists. `ingest-cup-data` covers only the Carabao Cup and FA Cup, and
+  `data_source_competitions` has no UEFA rows. The 18 Champions League
+  results were a one-off manual backfill (source `verified_web`, 11 Sept),
+  which made the Champions League look covered. No team mapping was
+  involved: all 18 Europa League rows map. `stale_scheduled_fixtures` could
+  not see this, because the fixtures weren't 'scheduled'.
+- **Also found:** the feed's "Man Utd" had no FixtureDownload alias, so Man
+  United's Premier League and Champions League fixtures were not being
+  refreshed (six Premier League kick-off changes, e.g. Man United v Aston
+  Villa moved 8 to 7 Nov, were applied once the alias was added).
+  The same check across the eight main feeds found 47 more unmapped names,
+  all English: "Spurs" (E0) and 46 full club names in E1-E3 (e.g.
+  "Birmingham City", "MK Dons", "Accrington Stanley"). This is the likely
+  root cause of the open 2026-09-23 "Fixture feed silently stopped updating
+  status" incident; not fixed here.
+- **Fix (applied to production 2026-09-26):** migration
+  `uefa_results_from_fixture_feed`. `refresh_fixture_feeds()` now upserts
+  results for UCL, UEL and UECL from the feed's scores (league phase only;
+  never overwrites another source's row), plus the "Man Utd" alias. The
+  feed's scores were checked against the independent Champions League
+  backfill first: all 18 agree. Backfilled by running
+  `select public.refresh_fixture_feeds();` (the cron command): 18 Europa
+  League results stored, 0 duplicates, Champions League rows unchanged.
+- **Prevention:** new daily check `played_without_result`: a fixture
+  'played' 3+ days after kick-off with no `matches` row FAILS, in any
+  competition (before the fix these 18 were the only ones). Knockout-round
+  results (extra time, penalties) are deliberately not written yet and will
+  trip this check when they arrive, so they get a decision, not a guess.
+  *Lesson: a status that is set by the clock says nothing about whether the
+  result exists. Check the thing itself.*
