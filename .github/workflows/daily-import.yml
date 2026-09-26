@@ -49,6 +49,11 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Also archive each file's new raw rows in source_match_rows and run
+          # backfill_match_odds(), so bookmaker odds arrive with the results.
+          # Before 26 Sep 2026 nothing did this and match_odds stopped at the
+          # one-off raw backfill of 11 Sep (see docs/incidents.md).
+          IMPORT_ARCHIVE_ODDS: '1'
 
       # Root cause of the earlier silent crash found and fixed: fixtures.slug
       # is NOT NULL with no default and no trigger, so any insert of a

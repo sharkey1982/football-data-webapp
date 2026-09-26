@@ -262,3 +262,57 @@ fixing something else.
   trip this check when they arrive, so they get a decision, not a guess.
   *Lesson: a status that is set by the clock says nothing about whether the
   result exists. Check the thing itself.*
+
+## 2026-09-26 · Bookmaker odds stopped at the one-off raw backfill
+- **Impact:** no bookmaker odds for any English match after 5-10 Sep 2026
+  (Premier League: last odds 6 Sep, so matchweeks 4-5 had none; 129
+  matches across E0-EC). Model Returns, market efficiency and the
+  scorecard silently ran on fewer matches.
+- **Cause:** `match_odds` is filled only by `backfill_match_odds()`, which
+  reads raw rows in `source_match_rows`. Those were loaded once, on 11 Sep,
+  by the `backfill-football-raw` edge function. The daily import
+  (`scripts/import-daily.ts`) downloads the same CSVs but only upserts
+  `matches`; nothing wrote raw rows or called `backfill_match_odds()`.
+  Scheduling the function alone would not have helped: it had no new rows
+  to read. A full pass also took 47s, too slow for an API call (8s limit).
+- **Fix:** migration `20260926190000_backfill_match_odds_incremental`
+  makes `backfill_match_odds()` skip matches that already have odds (~1s).
+  `import-daily.ts` now, for E0-EC (`IMPORT_ARCHIVE_ODDS=1` in
+  daily-import.yml), archives each file's new or changed raw rows and then
+  calls `backfill_match_odds()`; a failure fails that division's step.
+  Gap backfilled: `backfill-football-raw` re-run for 2026/27 (raw files
+  191-195, row counts equal to `matches`), then `backfill_match_odds()`:
+  619,023 -> 621,861 rows (+2,838, 22 per match), 0 duplicates on the
+  natural key, every 2026/27 E0-EC match now has odds.
+- **Prevention:** the odds step runs inside the import it depends on, and
+  its outcome is written to `match_import_runs.error_message` on every run.
+
+## 2026-09-26 · Saturday 3pm matches shown as "not yet confirmed"
+- **Impact:** English league matches in the Saturday 3pm blackout (e.g.
+  four Premier League matchweek-6 games on 10 Oct) showed "Broadcast
+  details not yet confirmed" on the TV guide and match pages instead of
+  "Not televised live in the UK".
+- **Cause:** `fixture_broadcasts` is filled from Airtable listings, and
+  nobody lists matches that are not shown. No row means "unknown" by
+  design.
+- **Fix:** migration `20260926190100_uk_3pm_blackout_rule` adds
+  `apply_uk_3pm_blackout()`: one generated not-televised row (source
+  `rule:3pm_blackout`) per scheduled E0-EC fixture kicking off Saturday
+  14:45-17:15, only where the fixture has no other row. It runs at the end
+  of every Airtable sync and daily at 04:25. Any real listing removes the
+  rule row; an Airtable "Confirmed not televised" record adopts it; a
+  fixture moved out of the window loses it. 1,216 rule rows after the
+  first runs (E0 203, E1 249, E2 205, E3 321, EC 238), none alongside
+  another row for the same fixture.
+- **Mistake caught while fixing:** the extra rows took the TV guide view
+  past the API's 1,000-row limit, which would have silently cut off later
+  fixtures (including real broadcasts). `getWatchGuide` now reads in pages.
+- **Prevention:** tests for the rule row's display (`TvGuidePage.test.tsx`);
+  the view's catalogue entry notes it must be paged. The rule follows
+  `fixtures.kickoff_time`, so wrong kick-off times give wrong rows.
+- **Open (found while fixing):** most League One (E2) fixtures in BST are
+  stored an hour early, i.e. in UTC (e.g. all 11 on 26 Sep at 14:00, the
+  Sky 12:30 games at 11:30); Premier League, Championship and League Two
+  times are UK time. Those E2 3pm games get no rule row, and the site shows
+  the wrong kick-off, until the E2 fixture times are corrected. The rule
+  picks them up on its next run once they are. Recorded in OUTSTANDING.md.

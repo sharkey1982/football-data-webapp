@@ -235,6 +235,26 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     expect(screen.getByRole('link', { name: 'Arsenal v Leeds' })).toBeInTheDocument();
   });
 
+  it('Saturday 3pm rule rows read as not televised, with the reason and no source or verified date', async () => {
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Aston Villa', 'Brentford', [offer({
+        status: 'confirmed_not_televised', broadcaster: null, channel: null, accessType: null, isSubscription: false,
+        source: 'rule:3pm_blackout', confidence: 'probable', availabilityNotes: 'Saturday 3pm kick-offs are not shown live in the UK.',
+      })], { kickoffTime: '15:00:00' }),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Aston Villa v Brentford' });
+    const r = row('Aston Villa v Brentford');
+    expect(within(r).getByText('Not televised live in the UK')).toBeInTheDocument();
+    expect(within(r).getByText('Saturday 3pm kick-offs are not shown live in the UK.')).toBeInTheDocument();
+    expect(within(r).queryByText(/rule:3pm_blackout/)).not.toBeInTheDocument();
+    expect(within(r).queryByText(/Verified/)).not.toBeInTheDocument();
+    expect(within(r).queryByText(/Broadcaster TBC/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Not on UK TV' }));
+    expect(screen.getByRole('link', { name: 'Aston Villa v Brentford' })).toBeInTheDocument();
+  });
+
   it('shows an error message if the load fails, rather than a blank page', async () => {
     mockedBroadcasts.getWatchGuide.mockRejectedValue(new Error('boom'));
     render_();

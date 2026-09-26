@@ -23,7 +23,9 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database, MatchInsert, MatchResult } from '../src/types/database';
+import { createHash } from 'node:crypto';
 import { csvUrlFor, selectRows } from './lib/footballDataCsv';
+import { rowsToArchive, type RawRow } from './lib/rawArchive';
 
 const LEAGUE_CODE = process.env.IMPORT_LEAGUE_CODE ?? 'E0';
 const SEASON_LABEL = process.env.IMPORT_SEASON_LABEL ?? '2627';
@@ -33,6 +35,10 @@ const CSV_URL = process.env.IMPORT_CSV_URL || csvUrlFor(LEAGUE_CODE, SEASON_LABE
 const SOURCE_NAME = 'football-data.co.uk';
 
 const STARTED_AT = new Date().toISOString();
+// Set by daily-import.yml for the English divisions only: archive the raw
+// rows (with their bookmaker prices) and turn them into match_odds. Off by
+// default so other callers (the international import) are unchanged.
+const ARCHIVE_ODDS = process.env.IMPORT_ARCHIVE_ODDS === '1';
 
 function splitCsvLine(line: string): string[] {
   const cells: string[] = [];
@@ -120,6 +126,99 @@ async function fail(supabase: SupabaseClient<Database> | null, message: string, 
   process.exit(1);
 }
 
+/**
+ * Archive new or changed raw rows in source_match_rows, then run
+ * backfill_match_odds() so today's results get their bookmaker odds.
+ * Returns a short note for the run log. Throws on any failure.
+ */
+async function archiveRawRowsAndOdds(supabase: SupabaseClient<Database>, text: string, fileRows: RawRow[]): Promise<string> {
+  // Latest archived copy of each row for this division and season, from
+  // any earlier file (this importer's or the backfill-football-raw edge
+  // function's).
+  const { data: files, error: filesErr } = await supabase
+    .from('raw_match_files')
+    .select('raw_file_id')
+    .eq('source_name', SOURCE_NAME)
+    .eq('competition_code', LEAGUE_CODE)
+    .eq('season_label', SEASON_LABEL);
+  if (filesErr) throw new Error(`reading raw_match_files: ${filesErr.message}`);
+  const latest = new Map<string, Record<string, unknown>>();
+  const fileIds = (files ?? []).map((f) => f.raw_file_id);
+  for (let from = 0; fileIds.length > 0; from += 1000) {
+    const { data, error } = await supabase
+      .from('source_match_rows')
+      .select('raw_file_id, source_row_key, raw_data')
+      .in('raw_file_id', fileIds)
+      .order('raw_file_id')
+      .order('source_match_row_id')
+      .range(from, from + 999);
+    if (error) throw new Error(`reading source_match_rows: ${error.message}`);
+    for (const r of data ?? []) latest.set(r.source_row_key, (r.raw_data ?? {}) as Record<string, unknown>);
+    if ((data ?? []).length < 1000) break;
+  }
+
+  const toArchive = rowsToArchive(LEAGUE_CODE, fileRows, latest);
+  let archived = 0;
+  if (toArchive.length > 0) {
+    const hash = createHash('sha256').update(text).digest('hex');
+    let { data: file } = await supabase
+      .from('raw_match_files')
+      .select('raw_file_id')
+      .eq('source_name', SOURCE_NAME)
+      .eq('source_url', CSV_URL)
+      .eq('content_hash', hash)
+      .maybeSingle();
+    if (!file) {
+      const ins = await supabase
+        .from('raw_match_files')
+        .insert({
+          source_name: SOURCE_NAME,
+          source_url: CSV_URL,
+          source_code: LEAGUE_CODE,
+          competition_code: LEAGUE_CODE,
+          season_label: SEASON_LABEL,
+          content_hash: hash,
+          row_count: fileRows.length,
+          column_names: Object.keys(fileRows[0] ?? {}),
+          file_metadata: { content_length: text.length, archived_by: 'import-daily', rows_archived: toArchive.length },
+        })
+        .select('raw_file_id')
+        .single();
+      if (ins.error) throw new Error(`inserting raw_match_files: ${ins.error.message}`);
+      file = ins.data;
+    }
+    const now = new Date().toISOString();
+    const rows = toArchive.map(({ row, key, rowNumber }) => ({
+      raw_file_id: file!.raw_file_id,
+      source_competition_id: null,
+      source_row_key: key,
+      source_row_number: rowNumber,
+      source_home_team: row.HomeTeam || null,
+      source_away_team: row.AwayTeam || null,
+      source_match_date: toIsoDate(row.Date),
+      source_kickoff_time: row.Time || null,
+      raw_data: row,
+      raw_hash: `file:${hash}:row:${rowNumber}`,
+      last_seen_at: now,
+    }));
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await supabase
+        .from('source_match_rows')
+        .upsert(rows.slice(i, i + 200), { onConflict: 'raw_file_id,source_row_key', ignoreDuplicates: true });
+      if (error) throw new Error(`inserting source_match_rows: ${error.message}`);
+    }
+    archived = rows.length;
+  }
+
+  // Insert-only on match_odds' natural key, and skips matches that already
+  // have odds, so re-running is harmless.
+  const { data: oddsRows, error: oddsErr } = await supabase.rpc('backfill_match_odds' as never);
+  if (oddsErr) throw new Error(`backfill_match_odds: ${oddsErr.message}`);
+  const note = `raw rows archived: ${archived}; odds rows added: ${Number(oddsRows ?? 0)}`;
+  console.log(note);
+  return note;
+}
+
 async function main() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
@@ -144,11 +243,13 @@ async function main() {
     return;
   }
 
+  let fileRows: Record<string, string>[];
   let format: string;
   let selected: ReturnType<typeof selectRows>['selected'];
   let excluded: ReturnType<typeof selectRows>['excluded'];
   try {
-    ({ format, selected, excluded } = selectRows(parseCsv(text), SEASON_LABEL));
+    fileRows = parseCsv(text);
+    ({ format, selected, excluded } = selectRows(fileRows, SEASON_LABEL));
   } catch (err) {
     await fail(supabase, err instanceof Error ? err.message : String(err));
     return;
@@ -289,7 +390,24 @@ async function main() {
 
   const rowsUpserted = count ?? inserts.length;
   console.log(`\u2705 Upserted ${rowsUpserted} row(s).`);
-  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: 'success', errorMessage: skipNote });
+
+  // Odds come from the raw rows (main-layout files only: the extra layout
+  // is reshaped above and carries no pre-match prices). A failure here
+  // leaves the results in place but fails the step so it is noticed.
+  let oddsNote: string | null = null;
+  let oddsFailed = false;
+  if (ARCHIVE_ODDS && format === 'main') {
+    try {
+      oddsNote = await archiveRawRowsAndOdds(supabase, text, fileRows);
+    } catch (err) {
+      oddsFailed = true;
+      oddsNote = `odds archive failed: ${err instanceof Error ? err.message : String(err)}`;
+      console.error(oddsNote);
+    }
+  }
+  const note = [skipNote, oddsNote].filter(Boolean).join(' | ') || null;
+  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: 'success', errorMessage: note });
+  if (oddsFailed) process.exit(1);
 }
 
 main().catch(async (err) => {
