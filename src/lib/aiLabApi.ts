@@ -179,38 +179,82 @@ export async function runQuestion(opts: {
   return { run_id: data.run_id };
 }
 
-export async function createBatch(b: { name: string; model: string; prompt_id: string; question_ids: string[] }): Promise<Batch> {
-  const { data, error } = await db
-    .from('ai_batches')
-    .insert({ ...b, provider: 'anthropic', toolset_version: 'ai_tools_v1' })
-    .select('*')
-    .single();
-  if (error) fail(error, 'Could not create the batch');
-  return data;
+/** Queues a batch on the server (ai_lab_enqueue_batch). A pg_cron job sends
+ * the questions to ai-lab-run a few a minute, so the page can be closed. */
+export async function enqueueBatch(b: { name: string; model: string; prompt_id: string; question_ids: string[] }): Promise<number> {
+  const { data, error } = await (supabase as any).rpc('ai_lab_enqueue_batch', {
+    p_name: b.name, p_model: b.model, p_prompt_id: b.prompt_id, p_question_ids: b.question_ids,
+  });
+  if (error) fail(error, 'Could not queue the batch');
+  return data as number;
 }
 
-export async function finishBatch(batchId: number): Promise<void> {
-  const { error } = await db.from('ai_batches').update({ status: 'finished', finished_at: new Date().toISOString() }).eq('batch_id', batchId);
-  if (error) fail(error, 'Could not close the batch');
-}
+export type BatchSummary = Batch & {
+  runs: number;
+  cost: number;
+  checks_passed: number;
+  checks_total: number;
+  items: { done: number; failed: number; waiting: number };
+};
 
-export async function getBatches(): Promise<(Batch & { runs: number; cost: number; checks_passed: number; checks_total: number })[]> {
+export async function getBatches(): Promise<BatchSummary[]> {
   const { data, error } = await db
     .from('ai_batches')
-    .select('*, ai_runs(cost_usd, ai_auto_grades(passed, total))')
+    .select('*, ai_runs(cost_usd, ai_auto_grades(passed, total)), ai_batch_items(status)')
     .order('batch_id', { ascending: false })
     .limit(20);
   if (error) fail(error, 'Could not load batches');
   return (data ?? []).map((b: any) => {
     const runs = b.ai_runs ?? [];
+    const items: { status: string }[] = b.ai_batch_items ?? [];
     return {
       ...b,
       runs: runs.length,
       cost: runs.reduce((a: number, r: any) => a + Number(r.cost_usd ?? 0), 0),
       checks_passed: runs.reduce((a: number, r: any) => a + (r.ai_auto_grades?.[0]?.passed ?? 0), 0),
       checks_total: runs.reduce((a: number, r: any) => a + (r.ai_auto_grades?.[0]?.total ?? 0), 0),
+      items: {
+        done: items.filter((i) => i.status === 'done').length,
+        failed: items.filter((i) => i.status === 'failed').length,
+        waiting: items.filter((i) => i.status === 'queued' || i.status === 'sent').length,
+      },
     };
   });
+}
+
+/** One entry per run in a batch (latest run per question), with what the
+ * review screen needs: answer, facts, checks, truth and my review. */
+export type ReviewItem = RunDetail & { reviewed: boolean };
+
+export async function getBatchForReview(batchId: number): Promise<ReviewItem[]> {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id ?? null;
+  const { data, error } = await db
+    .from('ai_runs')
+    .select('*, ai_run_steps(*), ai_run_truth(truth), ai_auto_grades(checks, passed, total), ai_human_reviews(*)')
+    .eq('batch_id', batchId)
+    .order('question_id')
+    .order('run_id', { ascending: false });
+  if (error) fail(error, 'Could not load the batch');
+  const seen = new Set<string>();
+  const out: ReviewItem[] = [];
+  for (const r of (data ?? []) as any[]) {
+    const key = r.question_id ?? `run-${r.run_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const { ai_run_steps, ai_run_truth, ai_auto_grades, ai_human_reviews, ...run } = r;
+    const truthRow = Array.isArray(ai_run_truth) ? ai_run_truth[0] : ai_run_truth;
+    const mine = (ai_human_reviews ?? []).find((h: any) => h.reviewer_id === uid) ?? null;
+    out.push({
+      run,
+      steps: [...(ai_run_steps ?? [])].sort((a: RunStep, b: RunStep) => a.step_no - b.step_no),
+      truth: truthRow?.truth ?? null,
+      grade: ai_auto_grades?.[0] ?? null,
+      review: mine,
+      reviewed: !!mine?.factually_correct,
+    });
+  }
+  return out;
 }
 
 export function formatCost(usd: number | string | null | undefined): string {

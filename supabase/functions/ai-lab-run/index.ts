@@ -10,7 +10,8 @@
 //          prompt_id?: string, batch_id?: number }
 //
 // Callers: a signed-in admin (the /admin/ai-lab page), or a holder of the
-// internal run token stored in ai_lab_settings (harness / testing). The
+// internal run token stored in ai_lab_settings (the batch queue,
+// ai_lab_process_queue(), and testing). The
 // Anthropic key never leaves this function (secret ANTHROPIC_API_KEY).
 //
 // Structure: provider adapters (only Anthropic so far) behind one interface;
@@ -284,6 +285,11 @@ Deno.serve(async (req) => {
   if (saveErr) return json({ error: `Could not save run: ${saveErr.message}`, run, steps }, 500);
   const runId = saved.run_id;
   if (steps.length) await sb.from("ai_run_steps").insert(steps.map((s) => ({ run_id: runId, ...s })));
+  // Batch queue (ai_batch_items): this question is done for its batch.
+  if (run.batch_id && run.question_id) {
+    await sb.from("ai_batch_items").update({ status: "done", run_id: runId })
+      .eq("batch_id", run.batch_id).eq("question_id", run.question_id);
+  }
 
   let truth: unknown = null;
   if (q?.ground_truth_sql) {

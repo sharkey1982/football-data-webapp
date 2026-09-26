@@ -20,6 +20,8 @@ vi.mock('../lib/aiLabApi', async () => {
     getRecentRuns: vi.fn(),
     getBatches: vi.fn(),
     getRunDetail: vi.fn(),
+    getBatchForReview: vi.fn(),
+    enqueueBatch: vi.fn(),
     runQuestion: vi.fn(),
     saveReview: vi.fn(),
   };
@@ -72,6 +74,7 @@ describe('AiLabPage', () => {
 
   it('runs a benchmark question and shows the trace, answer, checks and truth', async () => {
     renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Run' }));
     const select = await screen.findByRole('combobox', { name: /benchmark question/i });
     await waitFor(() => expect(screen.getByRole('option', { name: /A01/ })).toBeInTheDocument());
     await userEvent.selectOptions(select, 'A01');
@@ -84,17 +87,46 @@ describe('AiLabPage', () => {
     expect(screen.getByText('Ground truth at run time')).toBeInTheDocument();
     expect(screen.getByText('$0.0139')).toBeInTheDocument();
 
-    // Only the ground truth is shown as JSON until a tool call is opened.
-    expect(screen.getAllByText(/"away_team": "Leeds"/, { selector: 'pre' })).toHaveLength(1);
+    // Ground truth is shown as readable rows, not JSON; tool data only when opened.
+    expect(screen.queryAllByText(/"away_team": "Leeds"/, { selector: 'pre' })).toHaveLength(0);
     await userEvent.click(screen.getByRole('button', { name: /Show data/ }));
-    expect(screen.getAllByText(/"away_team": "Leeds"/, { selector: 'pre' })).toHaveLength(2);
+    expect(screen.getAllByText(/"away_team": "Leeds"/, { selector: 'pre' })).toHaveLength(1);
   });
 
   it('shows the function error rather than failing silently', async () => {
     api.runQuestion.mockRejectedValue(new Error('Monthly AI Lab limit reached: $20.00 of $20.'));
     renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Run' }));
     await userEvent.type(await screen.findByRole('textbox', { name: /question/i }), 'Who is top?');
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     expect(await screen.findByText('Monthly AI Lab limit reached: $20.00 of $20.')).toBeInTheDocument();
+  });
+
+  it('reviews a batch one answer at a time: first unreviewed, readable truth, Save & next', async () => {
+    const batch = { batch_id: 1, name: 'exp001', model: 'claude-sonnet-5', prompt_id: 'analyst_v1', toolset_version: 'ai_tools_v1',
+      question_ids: ['A01', 'A02'], as_of: '2026-09-26T12:25:00Z', status: 'finished', runs: 2, cost: 0.03, checks_passed: 10, checks_total: 12,
+      items: { done: 2, failed: 0, waiting: 0 } };
+    api.getBatches.mockResolvedValue([batch]);
+    const second = { ...detail, run: { ...detail.run, run_id: 2, question_id: 'A02', question: 'What was the score last time?', answer: 'Everton 1-2 Liverpool.' },
+      truth: [{ home_team: 'Everton', away_team: 'Liverpool', home_goals: 1, away_goals: 2 }] };
+    api.getBatchForReview.mockResolvedValue([
+      { ...detail, reviewed: true, review: { factually_correct: 'yes', usefulness: 4, unsupported_claims: null, comment: null, ideal_answer: null } },
+      { ...second, reviewed: false },
+    ]);
+    api.saveReview.mockResolvedValue(undefined);
+    renderPage();
+
+    // Opens on the first unreviewed answer.
+    expect(await screen.findByText('Everton 1-2 Liverpool.')).toBeInTheDocument();
+    expect(screen.getByText('1 of 2 reviewed')).toBeInTheDocument();
+    expect(screen.getByText('home goals')).toBeInTheDocument(); // truth as rows, not JSON
+
+    const save = screen.getByRole('button', { name: 'Save & next' });
+    expect(save).toBeDisabled(); // needs a correctness verdict first
+    await userEvent.click(screen.getByRole('radio', { name: 'No' }));
+    await userEvent.click(screen.getByRole('radio', { name: '2' }));
+    await userEvent.click(save);
+    expect(api.saveReview).toHaveBeenCalledWith(2, expect.objectContaining({ factually_correct: 'no', usefulness: 2 }));
+    expect(await screen.findByText('2 of 2 reviewed')).toBeInTheDocument();
   });
 });
