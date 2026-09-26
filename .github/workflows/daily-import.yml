@@ -55,22 +55,13 @@ jobs:
           # one-off raw backfill of 11 Sep (see docs/incidents.md).
           IMPORT_ARCHIVE_ODDS: '1'
 
-      # Root cause of the earlier silent crash found and fixed: fixtures.slug
-      # is NOT NULL with no default and no trigger, so any insert of a
-      # genuinely new fixture (which is this script's whole purpose) threw
-      # a constraint violation. Fixed at the table level with a trigger
-      # (auto-generates the slug on insert, so every insert path benefits,
-      # not just this one) and verified directly -- re-tested live via the
-      # same mechanism that surfaced the original bug. Scoped to EC only
-      # now (see the script's own header): refresh_fixture_feeds() already
-      # keeps E0-E3 and the Europeans current, this fills the one gap it
-      # structurally can't (inserting fixtures that don't exist yet).
-      - name: Sync EC fixtures (insert new ones; refresh_fixture_feeds covers updates elsewhere)
-        if: always()
-        run: npm run sync:fixtures
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      # EC fixtures: no step here since 2026-09-26. The old "Sync EC
+      # fixtures" step (scripts/sync-fixtures.ts) read football-data.co.uk
+      # fixtures.csv, which only ever holds the next few days, so EC had 36
+      # of 552 fixtures. The full season is now kept by
+      # public.refresh_national_league_fixtures() (pg_cron, 04:35 UTC);
+      # running both would let two sources overwrite each other's kick-off
+      # times. See docs/incidents.md.
 
       # Steps 2-3: refit every competition and estimate its promoted AND
       # relegated teams from the adjacent divisions, via one generic loop
