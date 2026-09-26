@@ -1,0 +1,52 @@
+name: Export database definitions
+
+# Snapshots every live view and function into supabase/definitions/ and opens
+# a PR if anything differs from what's committed. Weekly, it doubles as a
+# drift report: a live change that was never put in a migration shows up
+# as a diff here. Workflow/definitions-only changes: Netlify skips the build.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '35 5 * * 1' # Mondays 05:35 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: export-db-definitions
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Export definitions
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/export_db_definitions.py
+      - name: Open a PR if anything changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard supabase/definitions)" ]; then
+            echo "No changes -- live definitions match the repo."
+            exit 0
+          fi
+          BRANCH="db-definitions-$(date -u +%Y%m%d-%H%M)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add supabase/definitions
+          git commit -m "Export live database definitions ($(date -u +%Y-%m-%d))"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "Database definitions export $(date -u +%Y-%m-%d)" \
+            --body "Automated export of every live view and function (scripts/export_db_definitions.py). A diff here means the live database differs from the last committed export -- check it was intended and recorded in a migration."
