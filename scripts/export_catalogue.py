@@ -25,15 +25,16 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parent.parent / "docs" / "catalogue.md"
 
 LAYER_ORDER = ["source", "pipeline", "model", "fantasy", "finance", "broadcast",
-               "api", "helper", "admin", "meta", "scratch"]
+               "api", "ai_lab", "helper", "admin", "meta", "scratch"]
 LAYER_BLURB = {
     "source": "Raw and reference data as it arrives: results, fixtures, FPL, teams, leagues.",
     "pipeline": "Jobs, run logs and intermediate objects that move data between layers.",
     "model": "Dixon-Coles match model, its fits, predictions, scorecards and inputs.",
     "fantasy": "FPL data and FixtureShark's FPL projections.",
-    "finance": "Club accounts from Companies House (owned by the finance ingestion workstream).",
+    "finance": "Club accounts from Companies House filings: raw facts, mapped metrics and the published views the finance pages read.",
     "broadcast": "UK TV/streaming listings for the Watch Guide.",
     "api": "Functions and views the site calls to render pages.",
+    "ai_lab": "AI Lab: the benchmark questions and grading helpers. Admin-only; never readable by the AI under test.",
     "helper": "Triggers and small utilities.",
     "admin": "Admin-only checks, audits and tools.",
     "meta": "This catalogue and the schema-export machinery.",
