@@ -55,7 +55,7 @@ interface Provider {
 - The tool loop (ask → execute tools → return results → repeat, maximum 6 rounds) lives outside the adapters, so every provider is tested the same way.
 - Only the Claude adapter is built now. GPT and Gemini are later adapters plus an extra secret each, with no other changes.
 
-## 4. First tools (8)
+## 4. First tools (10)
 
 Each tool is a fixed, parameterised query over catalogued objects. The model never writes SQL. Results are small and deterministic, and each carries its **source object**, **as-of time** and whether the values are **observed** or **model estimates**.
 
@@ -68,7 +68,11 @@ Each tool is a fixed, parameterised query over catalogued objects. The model nev
 | `get_fpl_player(player)` | FPL price, points, minutes, xG/xA, status, news, this season and past seasons | `fpl_players`, `fpl_player_season_totals`, `get_player_career` |
 | `get_fpl_projections(gameweek?, position?, max_price?, team?, limit?)` | FixtureShark's projected points (**model estimates**) | `fpl_projection_frontend_feed_v6` |
 | `get_club_accounts(team, years?)` | Published club accounts and where each figure came from | `finance_published_periods`, `finance_published_provenance`, `finance_metric_dictionary` |
-| `get_data_status()` | What's covered and how fresh it is | `match_import_runs`, `fpl_ingestion_runs`, `league_fit_status`, `seasons` |
+| `get_data_status()` | What's covered and how fresh it is | `matches`, `fixtures`, `model_fit_runs`, `fpl_players`, `fpl_player_projections`, `fixture_broadcasts` |
+| `get_competition_summary(competition, season?)` | Goals per game, results split | `matches` |
+| `get_tv_listings(team?, from?, to?)` | UK TV for upcoming fixtures, incl. the 3pm blackout | `upcoming_watch_guide` |
+
+As built (toolset `ai_tools_v1`, migration `20260926211000_ai_lab_tools.sql`): `get_fixtures` covers upcoming fixtures only and `get_results` covers played matches (the head-to-head question needs past seasons, which `fixtures` doesn't hold); `get_fpl_player` became `get_fpl_players` so one call can answer "which Newcastle players are injured"; `get_competition_summary` and `get_tv_listings` were added because Experiment 001 includes B10 and I41.
 
 Deliberately left out for Experiment 001: match predictions, model internals, lineups and set pieces, the Watch Guide, and anything that recommends. These come in Experiment 002 and later, once factual retrieval is shown to work.
 
@@ -121,7 +125,7 @@ True replay of an old day's data isn't possible in general, because most tables 
 Claude Sonnet 5 is $2 per million input tokens and $10 per million output tokens (Opus 5.5 is $4 / $20, Haiku 4.5 is $1 / $5).
 
 - A factual question with 2–3 tool rounds is roughly 10–15k input tokens and about 600 output tokens: **about 3–4p on Sonnet**.
-- Experiment 001 (22 questions) costs **about 70p to £1 per batch**.
+- Experiment 001 (21 questions) costs **about 30p to £1 per batch**. The first real run (A01) cost $0.014: 2 rounds, 1 tool call, 5.6 seconds.
 - The full 50 costs about £2.
 - Prompt caching of the system prompt and tool definitions cuts repeat input cost by up to 90%.
 - The $25 cap covers roughly 20 full-benchmark batches a month on Sonnet.
@@ -130,7 +134,7 @@ Claude Sonnet 5 is $2 per million input tokens and $10 per million output tokens
 
 **Question:** can Claude answer about 20 factual FixtureShark questions reliably, using tools, without inventing anything?
 
-**Questions (22):**
+**Questions (21):**
 - Fixtures and results: A01–A05
 - Standings: B06, B09, B10
 - FPL facts: E21, E22, E23, F26 (the projection is read as a fact: "what does FixtureShark project?")
