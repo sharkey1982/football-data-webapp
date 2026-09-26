@@ -222,3 +222,167 @@ fixing something else.
   latest cup run must be a full 'success' within 30h, so a missing alias
   ('partial') or a dead feed fails the daily workflow.
   *Lesson: a warning nobody is notified of is not a guard.*
+
+## 2026-09-26 · Europa League results never loaded
+- **Impact:** all 18 Europa League matchday 1 results (16-17 Sept, e.g.
+  Crystal Palace 4-0 Lech Poznan, Real Sociedad 1-2 Bournemouth) were
+  missing from `matches` for 9 days, while their fixtures showed 'played'.
+  Every check passed. The Conference League (no matches played yet) would
+  have gone the same way from 15 Oct.
+- **Cause:** no pipeline wrote UEFA results. `refresh_fixture_feeds()` reads
+  the FixtureDownload feeds for UCL/UEL/UECL, but only for dates and status,
+  and sets 'played' because kick-off has passed, not because a result
+  exists. `ingest-cup-data` covers only the Carabao Cup and FA Cup, and
+  `data_source_competitions` has no UEFA rows. The 18 Champions League
+  results were a one-off manual backfill (source `verified_web`, 11 Sept),
+  which made the Champions League look covered. No team mapping was
+  involved: all 18 Europa League rows map. `stale_scheduled_fixtures` could
+  not see this, because the fixtures weren't 'scheduled'.
+- **Also found:** the feed's "Man Utd" had no FixtureDownload alias, so Man
+  United's Premier League and Champions League fixtures were not being
+  refreshed (six Premier League kick-off changes, e.g. Man United v Aston
+  Villa moved 8 to 7 Nov, were applied once the alias was added).
+  The same check across the eight main feeds found 47 more unmapped names,
+  all English: "Spurs" (E0) and 46 full club names in E1-E3 (e.g.
+  "Birmingham City", "MK Dons", "Accrington Stanley"). This is the likely
+  root cause of the open 2026-09-23 "Fixture feed silently stopped updating
+  status" incident; not fixed here.
+- **Fix (applied to production 2026-09-26):** migration
+  `uefa_results_from_fixture_feed`. `refresh_fixture_feeds()` now upserts
+  results for UCL, UEL and UECL from the feed's scores (league phase only;
+  never overwrites another source's row), plus the "Man Utd" alias. The
+  feed's scores were checked against the independent Champions League
+  backfill first: all 18 agree. Backfilled by running
+  `select public.refresh_fixture_feeds();` (the cron command): 18 Europa
+  League results stored, 0 duplicates, Champions League rows unchanged.
+- **Prevention:** new daily check `played_without_result`: a fixture
+  'played' 3+ days after kick-off with no `matches` row FAILS, in any
+  competition (before the fix these 18 were the only ones). Knockout-round
+  results (extra time, penalties) are deliberately not written yet and will
+  trip this check when they arrive, so they get a decision, not a guess.
+  *Lesson: a status that is set by the clock says nothing about whether the
+  result exists. Check the thing itself.*
+
+## 2026-09-26 · Bookmaker odds stopped at the one-off raw backfill
+- **Impact:** no bookmaker odds for any English match after 5-10 Sep 2026
+  (Premier League: last odds 6 Sep, so matchweeks 4-5 had none; 129
+  matches across E0-EC). Model Returns, market efficiency and the
+  scorecard silently ran on fewer matches.
+- **Cause:** `match_odds` is filled only by `backfill_match_odds()`, which
+  reads raw rows in `source_match_rows`. Those were loaded once, on 11 Sep,
+  by the `backfill-football-raw` edge function. The daily import
+  (`scripts/import-daily.ts`) downloads the same CSVs but only upserts
+  `matches`; nothing wrote raw rows or called `backfill_match_odds()`.
+  Scheduling the function alone would not have helped: it had no new rows
+  to read. A full pass also took 47s, too slow for an API call (8s limit).
+- **Fix:** migration `20260926190000_backfill_match_odds_incremental`
+  makes `backfill_match_odds()` skip matches that already have odds (~1s).
+  `import-daily.ts` now, for E0-EC (`IMPORT_ARCHIVE_ODDS=1` in
+  daily-import.yml), archives each file's new or changed raw rows and then
+  calls `backfill_match_odds()`; a failure fails that division's step.
+  Gap backfilled: `backfill-football-raw` re-run for 2026/27 (raw files
+  191-195, row counts equal to `matches`), then `backfill_match_odds()`:
+  619,023 -> 621,861 rows (+2,838, 22 per match), 0 duplicates on the
+  natural key, every 2026/27 E0-EC match now has odds.
+- **Prevention:** the odds step runs inside the import it depends on, and
+  its outcome is written to `match_import_runs.error_message` on every run.
+
+## 2026-09-26 · Saturday 3pm matches shown as "not yet confirmed"
+- **Impact:** English league matches in the Saturday 3pm blackout (e.g.
+  four Premier League matchweek-6 games on 10 Oct) showed "Broadcast
+  details not yet confirmed" on the TV guide and match pages instead of
+  "Not televised live in the UK".
+- **Cause:** `fixture_broadcasts` is filled from Airtable listings, and
+  nobody lists matches that are not shown. No row means "unknown" by
+  design.
+- **Fix:** migration `20260926190100_uk_3pm_blackout_rule` adds
+  `apply_uk_3pm_blackout()`: one generated not-televised row (source
+  `rule:3pm_blackout`) per scheduled E0-EC fixture kicking off Saturday
+  14:45-17:15, only where the fixture has no other row. It runs at the end
+  of every Airtable sync and daily at 04:25. Any real listing removes the
+  rule row; an Airtable "Confirmed not televised" record adopts it; a
+  fixture moved out of the window loses it. 1,216 rule rows after the
+  first runs (E0 203, E1 249, E2 205, E3 321, EC 238), none alongside
+  another row for the same fixture.
+- **Mistake caught while fixing:** the extra rows took the TV guide view
+  past the API's 1,000-row limit, which would have silently cut off later
+  fixtures (including real broadcasts). `getWatchGuide` now reads in pages.
+- **Prevention:** tests for the rule row's display (`TvGuidePage.test.tsx`);
+  the view's catalogue entry notes it must be paged. The rule follows
+  `fixtures.kickoff_time`, so wrong kick-off times give wrong rows.
+- **Open (found while fixing):** most League One (E2) fixtures in BST are
+  stored an hour early, i.e. in UTC (e.g. all 11 on 26 Sep at 14:00, the
+  Sky 12:30 games at 11:30); Premier League, Championship and League Two
+  times are UK time. Those E2 3pm games get no rule row, and the site shows
+  the wrong kick-off, until the E2 fixture times are corrected. The rule
+  picks them up on its next run once they are. Recorded in OUTSTANDING.md.
+
+## 2026-09-26 · National League fixture list only ever held a week
+- **Impact:** `fixtures` held 36 National League (EC) 2026/27 fixtures
+  against 108 results: nothing before 15 Sept and nothing after the coming
+  weekend. EC fixture pages, predictions and anything counting remaining
+  fixtures saw a fraction of the season.
+- **Cause:** EC fixtures came only from `scripts/sync-fixtures.ts`, which
+  reads football-data.co.uk `fixtures.csv`. That file is a rolling window of
+  the next few days (on 26 Sept: 25-28 Sept, 12 EC rows), so it can never
+  supply a season. The script first ran on 17 Sept; every EC run in
+  `fixture_refresh_runs` saw exactly 12 rows. This is also the "National
+  League feed returns 12 rows and updates none" noted under the open
+  2026-09-23 feed incident: 0 updated is normal for that script (it counts
+  only inserts and kick-off changes), not the unmatched-rows fault.
+- **Fix:** migration `national_league_full_fixture_list`: 14 FootballWebPages
+  aliases for EC clubs, and `refresh_national_league_fixtures()`, which reads
+  footballwebpages.co.uk's monthly National League pages (already the cup
+  source). Checked before loading: 552 fixtures, 552 distinct pairings, 23
+  home games per club, and all 108 played rows equal to our results (teams,
+  date, score). Loaded 516; the 36 existing rows already agreed. EC now 552
+  (108 played, 443 scheduled, 1 postponed); every EC result has its played
+  fixture. Daily pg_cron job `refresh-national-league-fixtures-daily`
+  (04:35 UTC). The `sync-fixtures.ts` step is removed from the daily
+  workflow so two sources cannot overwrite each other's kick-off times.
+- **Still open:** 107 upcoming EC fixtures have no prediction because the
+  latest accepted EC fit has no rating for Hornchurch, Kidderminster or
+  Worthing. The 91 newly loaded played fixtures carry no prediction (no
+  hindsight predictions were made).
+- **Prevention:** matching is on league, season, home and away (unique in a
+  league season), so a moved fixture updates its row. A run that parses
+  nothing, finds an unmapped club or a pairing listed twice is recorded as
+  failed in `fixture_refresh_runs` (recorded, not raised, so the record
+  survives).
+  *Lesson: check what a feed can contain (a week, a season) before relying
+  on it to fill a table.*
+
+## 2026-09-26 · Carabao Cup round-4 ties stored two and three times
+- **Impact:** seven round-4 ties appeared on both 27 and 28 Oct, and
+  Everton v Newcastle three times (27, 28, 29 Oct): 8 surplus fixtures on
+  the fixture list and calendar. No broadcast, prediction or other row
+  referenced them.
+- **Cause:** `ingest-cup-data` upserted on the fixtures natural key, which
+  includes `kickoff_date`. Each date footballwebpages.co.uk showed for a tie
+  became another row and nothing removed the old one. On 18 Sept the source's
+  round-of-16 page listed seven ties twice (27 Oct with no time, 28 Oct
+  7.45pm), stored in one run 0.4 s apart; on 19 Sept Everton v Newcastle
+  moved to 29 Oct. The source now splits round 4 across "fourth-round" and
+  "round-of-16" pages, and the round number (dropdown position) gave the
+  same round 4 on one page and 5 on the other.
+- **Fix:** migration `carabao_cup_round4_duplicates` deleted fixtures 3237,
+  3242, 3243, 3244, 3245, 3246, 3247, 3248 (references re-pointed first;
+  there were none), keeping the date the source gives today: Bradford v
+  Peterborough and Fleetwood v Arsenal 27 Oct, Everton v Newcastle 29 Oct.
+  Bournemouth v Aston Villa, Fulham v Crystal Palace, Liverpool v Chelsea
+  and Sunderland v Brentford are no longer listed on the source at all; one
+  row each is kept (27 Oct, time unset) until the source lists them again.
+  LC fixtures 92 -> 84. `ingest-cup-data` v8 finds a tie by competition,
+  season, teams and round within 60 days, updates it in place and logs
+  date/time changes to `fixture_changes`; round numbers come from a fixed
+  slug map. Verified by moving fixture 3236 to a wrong date and re-running
+  the ingest: the row moved back, one change logged, no new row.
+- **Prevention:** unique index `fixtures_cup_tie_unique` on league, season,
+  home, away and round for LC and FA Cup (checked first: no such duplicate
+  exists; replays and two-legged ties reverse home and away). Not applied
+  to UEFA competitions, where a league-phase pairing can recur the same way
+  round in the knockouts. An unknown round slug now marks the cup run
+  'partial', which fails `cup_ingestion_current`. The round filter also
+  now keeps quarter-final, semi-final and final pages, which it would have
+  skipped.
+  *Lesson: never key an upsert on a value the source is allowed to change.*

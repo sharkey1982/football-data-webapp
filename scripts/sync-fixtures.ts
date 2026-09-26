@@ -1,6 +1,13 @@
 // ============================================================================
 // scripts/sync-fixtures.ts
 //
+// SUPERSEDED 2026-09-26 -- no longer run by any workflow. fixtures.csv only
+// holds the next few days, so this could never supply a season (EC had 36 of
+// 552 fixtures). EC is now kept by public.refresh_national_league_fixtures()
+// (pg_cron refresh-national-league-fixtures-daily, 04:35 UTC). Kept for a
+// manual one-off only; running it alongside that job lets two sources
+// overwrite each other's kick-off times.
+//
 // EC (National League) fixture sync, from football-data.co.uk's combined
 // all-leagues fixtures.csv (distinct from the season-by-season results
 // CSVs import-daily.ts uses -- this one carries every division's

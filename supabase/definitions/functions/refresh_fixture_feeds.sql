@@ -35,6 +35,21 @@ begin
   mapped as (select s.*,coalesce(ha.team_id,ht.team_id) home_id,coalesce(aa.team_id,at.team_id) away_id from src s left join public.team_aliases ha on ha.source_name='FixtureDownload' and ha.raw_name=s.home_raw left join public.teams ht on ht.canonical_name=s.home_raw left join public.team_aliases aa on aa.source_name='FixtureDownload' and aa.raw_name=s.away_raw left join public.teams at on at.canonical_name=s.away_raw)
   update public.fixtures f set kickoff_date=(m.ko at time zone 'Europe/London')::date,kickoff_time=(case when (m.ko at time zone 'UTC')::time = '00:00' then null else (m.ko at time zone 'Europe/London')::time end),matchweek=coalesce(m.round_no,f.matchweek),status=case when m.ko<now() then 'played' else 'scheduled' end,source_name='FixtureDownload',source_file=v_url,updated_at=now() from mapped m where m.ko is not null and m.home_id is not null and m.away_id is not null and f.league_id=v_league_id and f.season_id=v_season_id and f.home_team_id=m.home_id and f.away_team_id=m.away_id;
   get diagnostics v_count=row_count; v_updated:=v_updated+v_count;
+  -- UEFA competitions: the feed carries the result, and nothing else ingests
+  -- these (2026-09-26). League phase only -- see migration
+  -- 20260926190000_uefa_results_from_fixture_feed.
+  if v_code in ('UCL','UEL','UECL') then
+   with src as (select elem->>'HomeTeam' home_raw,elem->>'AwayTeam' away_raw,(elem->>'DateUtc')::timestamptz ko,nullif(regexp_replace(coalesce(elem->>'RoundNumber',''),'[^0-9]','','g'),'')::int round_no,nullif(elem->>'HomeTeamScore','')::int hg,nullif(elem->>'AwayTeamScore','')::int ag from jsonb_array_elements(v_json) elem where elem ? 'DateUtc'),
+   mapped as (select s.*,coalesce(ha.team_id,ht.team_id) home_id,coalesce(aa.team_id,at.team_id) away_id from src s left join public.team_aliases ha on ha.source_name='FixtureDownload' and ha.raw_name=s.home_raw left join public.teams ht on ht.canonical_name=s.home_raw left join public.team_aliases aa on aa.source_name='FixtureDownload' and aa.raw_name=s.away_raw left join public.teams at on at.canonical_name=s.away_raw)
+   insert into public.matches as mt(league_id,season_id,home_team_id,away_team_id,match_date,kickoff_time,full_time_home_goals,full_time_away_goals,full_time_result,round_number,source_name,source_file,updated_at)
+   select v_league_id,v_season_id,m.home_id,m.away_id,(m.ko at time zone 'Europe/London')::date,(case when (m.ko at time zone 'UTC')::time = '00:00' then null else (m.ko at time zone 'Europe/London')::time end),m.hg,m.ag,case when m.hg>m.ag then 'H' when m.hg<m.ag then 'A' else 'D' end,m.round_no,'FixtureDownload',v_url,now()
+   from mapped m
+   where m.ko<now() and m.hg is not null and m.ag is not null and m.home_id is not null and m.away_id is not null and m.round_no between 1 and 8
+   on conflict (league_id,season_id,match_date,home_team_id,away_team_id) do update
+     set full_time_home_goals=excluded.full_time_home_goals,full_time_away_goals=excluded.full_time_away_goals,full_time_result=excluded.full_time_result,updated_at=now()
+     where mt.source_name='FixtureDownload'
+       and (mt.full_time_home_goals,mt.full_time_away_goals) is distinct from (excluded.full_time_home_goals,excluded.full_time_away_goals);
+  end if;
  end loop;
  -- Scotland has its own matcher (repeat home fixtures); isolated so a
  -- Scottish feed problem can never fail the English/European refresh.

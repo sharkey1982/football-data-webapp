@@ -40,6 +40,7 @@ const ModelAccuracyPage = lazy(() => import('./pages/football/ModelAccuracyPage'
 const ModelReturnsPage = lazy(() => import('./pages/football/ModelReturnsPage'));
 const ModelScorecardPage = lazy(() => import('./pages/football/ModelScorecardPage'));
 const ModelChangesPage = lazy(() => import('./pages/admin/ModelChangesPage'));
+const AiLabPage = lazy(() => import('./pages/admin/AiLabPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
@@ -238,6 +239,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <ModelChangesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/ai-lab"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <AiLabPage />
               </Suspense>
             }
           />
