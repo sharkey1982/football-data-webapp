@@ -1,0 +1,31 @@
+-- ============================================================================
+-- FPL minutes: team-sheet limits (applied live 26 Sep 2026)
+--
+-- The minutes model gave each team ~1.37 starting goalkeepers / 133 GK
+-- minutes and ~11.45 outfield starters / 984 outfield minutes (vs 1 / 90
+-- and 10 / 900), mostly from generic fallback estimates -- inflating
+-- backups' appearance and clean-sheet points (GK projections 1.52 vs 1.05
+-- actual in the GW1-5 hindsight check).
+--
+-- 1) The original logic moved unchanged to
+--    fixture_player_expected_minutes_resolved_v3_raw.
+-- 2) fixture_player_expected_minutes_resolved_v3 (same columns; the 13
+--    views built on it are untouched) now applies per-team limits:
+--      GK: the keeper the raw model rates most likely keeps his minutes
+--          and start chance; the others share what's left, and their
+--          sub-appearance chance scales with their minutes.
+--      Outfield: excess over 900 minutes / 10 starters is taken in
+--          proportion to each player's uncertain share (minutes x (1 -
+--          start chance); start chance x (1 - start chance)).
+--    A source-tier rule was tried first and rejected: similar average
+--    accuracy, but it halved genuine new starters labelled "fallback".
+--
+-- Evidence (GW4-5, vs actual FPL minutes): avg 29.6 vs actual 29.6 (raw
+-- 32.7); GK error 10.9 -> 2.8 min; overall 14.4 -> 12.9. After refresh,
+-- GW6-16 (110 fixtures): exactly 2 starting keepers / 180 GK minutes per
+-- fixture; 1,966 total minutes per fixture (was ~2,190).
+-- Cost: refresh ~1.1-1.5s per fixture (noted ~0.85s before).
+--
+-- Both view definitions: supabase/definitions/views/ (exported from live).
+-- ============================================================================
+select 1;
