@@ -33,6 +33,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/export_db_definitions.py
+      - name: Export data catalogue
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/export_catalogue.py
       - name: Open a PR if anything changed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,10 +50,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add supabase/definitions
-          git commit -m "Export live database definitions ($(date -u +%Y-%m-%d))"
+          git add supabase/definitions docs/catalogue.md
+          git commit -m "Export live database definitions and catalogue ($(date -u +%Y-%m-%d))"
           git push origin "$BRANCH"
-          BODY="Automated export of every live view and function (scripts/export_db_definitions.py). A diff here means the live database differs from the last committed export -- check it was intended and recorded in a migration."
+          BODY="Automated export of every live view and function (scripts/export_db_definitions.py) and the data catalogue (scripts/export_catalogue.py -> docs/catalogue.md). A definitions diff means the live database differs from the last committed export -- check it was intended and recorded in a migration. A changed definition whose catalogue entry did not change needs its entry re-reviewed (see meta_catalogue_gaps)."
           # GitHub blocks Actions from opening PRs unless the repo setting
           # "Allow GitHub Actions to create and approve pull requests" is on.
           # If it's off, open an issue linking the pushed branch instead, so
