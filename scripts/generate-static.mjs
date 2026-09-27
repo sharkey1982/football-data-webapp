@@ -43,6 +43,7 @@ const MODEL_VERSION = 'leaguewide_v6';
 const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
 const REQUEST_TIMEOUT_MS = 20000;
 const WATCHDOG_MS = 240000;
+const STARTED_AT = Date.now();
 
 const watchdog = setTimeout(() => {
   console.error('Static: watchdog fired -- exiting rather than hanging the build.');
@@ -310,6 +311,7 @@ async function main() {
   // /football/leagues, /football/leagues/:league and every league-season:
   // full server-rendered pages (table, story, fingerprint) from four bulk
   // queries. Any failure leaves the SPA shell, which still works.
+  let leagueBulk = null;
   async function writeLeaguePages() {
     try {
       const { assembleLeaguePages, SUMMARY_SELECT, TABLE_COLUMNS, renderLeaguesPage, renderLeagueIndexPage, renderLeagueSeasonPage } = await import(ENTRY);
@@ -325,6 +327,7 @@ async function main() {
         return;
       }
       const built = assembleLeaguePages({ leagues, summaries, tables, eraNames: eraNames ?? [], teams });
+      leagueBulk = { leagues, summaries, tables, eraNames: eraNames ?? [], teams, built };
       const write = (path, page) => {
         const dir = join(DIST, ...path.split('/').filter(Boolean));
         mkdirSync(dir, { recursive: true });
@@ -609,6 +612,86 @@ async function main() {
   }
 
   console.log(`Static: wrote ${tWritten} team page(s), skipped ${tSkipped}.`);
+
+  await writeClubSeasonPages(leagueBulk, shell, buildDocument);
+}
+
+// ---- Club seasons (/football/teams/:slug/:season) ----------------------------
+// Every English league club-season: story, position after each match,
+// points against champion/relegated bands, every result. LAST on purpose:
+// ~160 snapshot queries, so it runs after every other page is written, stops
+// at a time budget well inside the watchdog, and a failure costs only these.
+async function writeClubSeasonPages(bulk, shell, buildDocument) {
+  const BUDGET_MS = WATCHDOG_MS - 30000;
+  if (!bulk) {
+    console.warn('Static: no league data -- club-season pages stay client-rendered.');
+    return;
+  }
+  try {
+    const { buildClubSeason, SNAPSHOT_COLUMNS, renderClubSeasonPage } = await import(ENTRY);
+    const bench = await queryAll('league_pace_benchmarks?select=league_id,comparable_group,matches_played,outcome,p25,p50,p75&league_id=lte.5&outcome=in.(champion,relegated)&order=league_id.asc,comparable_group.asc,matches_played.asc,outcome.asc');
+    const english = bulk.built.leagues.filter(({ index }) => index.league.league_id <= 5);
+    const teamById = new Map(bulk.teams.map((t) => [t.team_id, { name: t.display_name, slug: t.slug }]));
+    // Every club's seasons (for prev/next links), from the bulk table rows.
+    const codeById = new Map(bulk.leagues.map((l) => [l.league_id, l.code]));
+    const startById = new Map(bulk.summaries.map((s) => [`${s.league_id}:${s.season_id}`, s.start_year]));
+    const clubSeasons = new Map();
+    for (const r of bulk.tables) {
+      const start = startById.get(`${r.league_id}:${r.season_id}`);
+      const code = codeById.get(r.league_id);
+      if (start == null || !code) continue;
+      if (!clubSeasons.has(r.team_id)) clubSeasons.set(r.team_id, []);
+      clubSeasons.get(r.team_id).push({ league_code: code, start_year: start, position: r.position });
+    }
+    for (const list of clubSeasons.values()) list.sort((a, b) => a.start_year - b.start_year);
+
+    const jobs = english.flatMap(({ seasons }) => seasons);
+    let n = 0;
+    let failed = 0;
+    let next = 0;
+    let stopped = false;
+    async function worker() {
+      while (next < jobs.length) {
+        if (Date.now() - STARTED_AT > BUDGET_MS) { stopped = true; return; }
+        const season = jobs[next++];
+        const { league } = season;
+        const snaps = await queryAll(`team_match_snapshot?select=${SNAPSHOT_COLUMNS}&league_id=eq.${league.league_id}&season_id=eq.${season.season.season_id}&order=team_id.asc,matches_played.asc`);
+        if (!snaps) { failed += season.rows.length; continue; }
+        const byTeam = new Map();
+        for (const s of snaps) {
+          if (!byTeam.has(s.team_id)) byTeam.set(s.team_id, []);
+          byTeam.get(s.team_id).push(s);
+        }
+        for (const row of season.rows) {
+          if (!row.team_slug) continue;
+          try {
+            const data = buildClubSeason({
+              team: { team_id: row.team_id, name: row.team_name, slug: row.team_slug },
+              league,
+              eraName: season.eraName,
+              row: { ...row, league_id: league.league_id, season_id: season.season.season_id, start_year: season.season.start_year, ...season.summary },
+              snaps: byTeam.get(row.team_id) ?? [],
+              names: teamById,
+              bench: bench ?? [],
+              clubSeasons: clubSeasons.get(row.team_id) ?? [],
+            });
+            const page = renderClubSeasonPage(data);
+            const dir = join(DIST, ...new URL(page.canonical).pathname.split('/').filter(Boolean));
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+            n++;
+          } catch (err) {
+            failed++;
+            if (failed <= 5) console.error(`Static: failed club season ${row.team_slug} ${season.season.start_year}: ${err?.message ?? err}`);
+          }
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: 6 }, worker));
+    console.log(`Static: wrote ${n} club-season page(s), ${failed} failed${stopped ? ', stopped at the time budget' : ''} (${Math.round((Date.now() - STARTED_AT) / 1000)}s since start).`);
+  } catch (err) {
+    console.error(`Static: failed club-season pages: ${err?.message ?? err}`);
+  }
 }
 
 main()

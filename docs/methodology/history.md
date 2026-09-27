@@ -73,6 +73,10 @@ Pages: `/football/history` (hub; reliability numbers server-rendered into the HT
 - Outside England only top flights are loaded, so a club is "not in the league next season" rather than "relegated".
 - Season-in-numbers averages use the league's complete seasons (not curtailed, not the current one); points thresholds only seasons with the same number of clubs.
 
+### Club season pages
+
+`/football/teams/:slug/:season` (e.g. `/football/teams/sunderland/1995-96`): the club's finish and record, time at the top, highest and lowest position, longest runs (wins in a row, unbeaten, without a win), position after each match (`position_on_date`), points against the middle half of champions' and relegated clubs' points at the same stage (`league_pace_benchmarks`, same league size), and every result. Static HTML and sitemap entries for English leagues (about 3,800 pages); other leagues render in the browser. Generated last, from one snapshot query per league-season, inside a time budget so a slow database only costs these pages.
+
 ## Refresh
 
 `refresh_history_derived(p_force default false)`:

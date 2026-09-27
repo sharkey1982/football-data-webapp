@@ -24,6 +24,7 @@ import {
   type LeagueSeasonData,
   type SeasonTableRow,
 } from '../../lib/leagueSeasonApi';
+import { clubSeasonPath } from '../../lib/clubSeasonApi';
 import NotFoundPage from '../NotFoundPage';
 
 type SortKey = 'position' | 'team' | 'won' | 'goals_for' | 'goals_against' | 'goal_difference' | 'points';
@@ -150,7 +151,7 @@ export default function LeagueSeasonPage({ initialData }: { initialData?: League
                         <td className="px-2 py-1.5 text-right font-mono text-xs tabular-nums">{r.position}</td>
                         <th scope="row" className="text-left px-2 py-1.5 font-normal">
                           {r.team_slug ? (
-                            <Link to={`/football/teams/${r.team_slug}`} className="hover:underline">{r.team_name}</Link>
+                            <Link to={english ? clubSeasonPath(r.team_slug, data.league.code, data.season.start_year) : `/football/teams/${r.team_slug}`} className="hover:underline">{r.team_name}</Link>
                           ) : (
                             r.team_name
                           )}

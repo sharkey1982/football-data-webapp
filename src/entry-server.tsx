@@ -39,6 +39,9 @@ import type { HistoryHubData } from './lib/historyApi';
 import LeaguesPage from './pages/football/LeaguesPage';
 import LeagueIndexPage from './pages/football/LeagueIndexPage';
 import LeagueSeasonPage from './pages/football/LeagueSeasonPage';
+import ClubSeasonPage from './pages/football/ClubSeasonPage';
+import { clubSeasonPath, clubSeasonStory, type ClubSeasonData } from './lib/clubSeasonApi';
+export { buildClubSeason, SNAPSHOT_COLUMNS, clubSeasonPath as clubSeasonPagePath } from './lib/clubSeasonApi';
 export { assembleLeaguePages, SUMMARY_SELECT, TABLE_COLUMNS, leaguePath as leaguePagePath, leagueSeasonPath as leagueSeasonPagePath } from './lib/leagueSeasonApi';
 import {
   leagueIndexSentence,
@@ -425,6 +428,40 @@ export function renderLeagueSeasonPage(data: LeagueSeasonData): RenderedPage {
         { name: 'Football', path: '/football' },
         LEAGUES_CRUMB,
         { name: data.league.name, path: leaguePath(data.league) },
+        { name: when, path },
+      ]),
+    ],
+  };
+}
+
+export function renderClubSeasonPage(data: ClubSeasonData): RenderedPage {
+  const path = clubSeasonPath(data.team.slug, data.league.code, data.season.start_year);
+  const when = seasonDisplay(data.league.code, data.season.start_year);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/teams/:slug/:season" element={<ClubSeasonPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `${data.team.name} ${when}: ${data.eraName} results and table position | ${BRAND_NAME}`,
+    description: clubSeasonStory(data),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SportsTeam',
+        name: data.team.name,
+        sport: 'Football',
+        url: `${SITE_URL}/football/teams/${data.team.slug}`,
+        memberOf: { '@type': 'SportsOrganization', name: data.league.name },
+      },
+      breadcrumb([
+        { name: 'Football', path: '/football' },
+        { name: 'Teams', path: '/teams' },
+        { name: data.team.name, path: `/football/teams/${data.team.slug}` },
         { name: when, path },
       ]),
     ],
