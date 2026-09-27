@@ -14,6 +14,7 @@ vi.mock('../lib/api', async () => {
     getSeasons: vi.fn(),
     getLeagueTable: vi.fn(),
     getPointsRace: vi.fn(),
+    getLeagueNamesForSeason: vi.fn(),
   };
 });
 
@@ -28,6 +29,8 @@ function FixturesProbe() {
 beforeEach(() => {
   // Default: every mocked league has results; individual tests narrow it.
   mockedApi.getLeagueIdsWithResults.mockResolvedValue([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  // Default: every division has today's name in the chosen season.
+  mockedApi.getLeagueNamesForSeason.mockResolvedValue(new Map());
 });
 
 describe('LeagueTable page', () => {
@@ -164,6 +167,53 @@ describe('LeagueTable page', () => {
     expect(params.get('view')).toBe('team');
     expect(params.get('team')).toBe('42');
     expect(params.get('season')).toBe('13');
+  });
+
+  it('names divisions as they were in a historic season, and as today for the current one', async () => {
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
+      { league_id: 2, code: 'E1', name: 'Championship', country_id: 1, competition_type: 'league' },
+      { league_id: 5, code: 'EC', name: 'National League', country_id: 1, competition_type: 'league' },
+    ]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
+    // season_id is not in date order: 1998/99 is id 20, after 2026/27 = 13.
+    mockedApi.getSeasons.mockResolvedValue([
+      { season_id: 13, label: '2627', start_year: 2026, end_year: 2027 },
+      { season_id: 20, label: '9899', start_year: 1998, end_year: 1999 },
+    ]);
+    mockedApi.getLeagueTable.mockResolvedValue([]);
+    mockedApi.getLeagueNamesForSeason.mockImplementation(async (seasonId: number) =>
+      seasonId === 20
+        ? new Map([[1, 'Premier League'], [2, 'First Division'], [5, 'Football Conference']])
+        : new Map([[1, 'Premier League'], [2, 'Championship'], [5, 'National League']])
+    );
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/table?league=2&season=20']}>
+        <LeagueTable />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('option', { name: 'E1 \u2014 First Division' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'EC \u2014 Football Conference' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Championship/ })).not.toBeInTheDocument();
+    expect(mockedApi.getLeagueNamesForSeason).toHaveBeenCalledWith(20);
+
+    // Back to the current season: today's names.
+    await user.selectOptions(screen.getAllByRole('combobox')[2], '13');
+    expect(await screen.findByRole('option', { name: 'E1 \u2014 Championship' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /First Division/ })).not.toBeInTheDocument();
+  });
+
+  it('falls back to today\u2019s division names if the era lookup fails', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 2, code: 'E1', name: 'Championship', country_id: 1, competition_type: 'league' }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 20, label: '9899', start_year: 1998, end_year: 1999 }]);
+    mockedApi.getLeagueTable.mockResolvedValue([]);
+    mockedApi.getLeagueNamesForSeason.mockRejectedValue(new Error('network'));
+    render(<MemoryRouter initialEntries={['/table?league=2&season=20']}><LeagueTable /></MemoryRouter>);
+    expect(await screen.findByRole('option', { name: 'E1 \u2014 Championship' })).toBeInTheDocument();
   });
 
   it('toggles between the table and a timelapse, loading the race only when asked', async () => {

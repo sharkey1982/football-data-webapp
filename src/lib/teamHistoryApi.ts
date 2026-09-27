@@ -8,15 +8,19 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { seasonNameFromLabel } from './seasonLabels';
 
 export type Venue = 'total' | 'home' | 'away';
 
 export type StandingRow = {
   league_code: string;
+  /** The division's name in that season (e.g. First Division for E1 before 2004/05). */
   league_name: string;
   tier: number;
   season_id: number;
   season_label: string;
+  /** Chronological order key. season_id is not in date order (1992/93 is 14, after 2026/27 = 13). */
+  season_start_year: number;
   position: number;
   pyramid_position: number;
   teams: number;
@@ -53,7 +57,7 @@ export type StandingRow = {
 export type MonthRow = { month_num: number; month_label: string; venue: 'home' | 'away'; played: number; points: number; ppg: number };
 
 const COLUMNS =
-  'league_code,league_name,tier,season_id,season_label,position,pyramid_position,teams,is_final,curtailed,' +
+  'league_code,league_name,tier,season_id,season_label,season_start_year,position,pyramid_position,teams,is_final,curtailed,' +
   'played,won,drawn,lost,goals_for,goals_against,clean_sheets,points_won,deduction,points,' +
   'home_played,home_won,home_drawn,home_lost,home_goals_for,home_goals_against,home_clean_sheets,home_points,' +
   'away_played,away_won,away_drawn,away_lost,away_goals_for,away_goals_against,away_clean_sheets,away_points';
@@ -63,7 +67,7 @@ export async function getTeamStandings(teamId: number): Promise<StandingRow[]> {
     .from('league_standings')
     .select(COLUMNS)
     .eq('team_id', teamId)
-    .order('season_id');
+    .order('season_start_year');
   if (error) throw error;
   return (data ?? []) as unknown as StandingRow[];
 }
@@ -81,9 +85,9 @@ export async function getTeamMonthProfile(teamId: number): Promise<MonthRow[]> {
   }));
 }
 
-/** '1415' -> '2014/15' */
+/** '1415' -> '2014/15', '9293' -> '1992/93' */
 export function seasonName(label: string): string {
-  return label.length === 4 ? `20${label.slice(0, 2)}/${label.slice(2)}` : label;
+  return seasonNameFromLabel(label);
 }
 
 export function ordinal(n: number): string {
@@ -145,6 +149,6 @@ export function summariseHistory(rows: StandingRow[], v: Venue): HistorySummary 
 export function bestAndWorst(rows: StandingRow[]): { best: StandingRow | null; worst: StandingRow | null } {
   const done = rows.filter((r) => r.is_final);
   if (done.length === 0) return { best: null, worst: null };
-  const byPyr = [...done].sort((a, b) => a.pyramid_position - b.pyramid_position || a.season_id - b.season_id);
+  const byPyr = [...done].sort((a, b) => a.pyramid_position - b.pyramid_position || a.season_start_year - b.season_start_year);
   return { best: byPyr[0], worst: byPyr[byPyr.length - 1] };
 }

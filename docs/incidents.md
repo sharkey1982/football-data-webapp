@@ -386,3 +386,31 @@ fixing something else.
   now keeps quarter-final, semi-final and final pages, which it would have
   skipped.
   *Lesson: never key an upsert on a value the source is allowed to change.*
+
+## 2026-09-27 · Season order assumed from season_id (found before the historic load)
+- **Impact:** none yet -- found and fixed before any pre-2014 data existed.
+  Once 1992/93-2013/14 rows (season_id 14-35) held data, "current season"
+  (`fpl_current_season_id`, `check_model_integrity`, `league_standings`
+  is_current, `model_scorecard_matches`, AI Lab `ai_current_season`) would
+  have become 2013/14, "last season" and every newest-first list
+  (player career, search, Team History, Season XI, raw files, Countries
+  Compared, overround trend) would have been out of order, `team_season_movement`
+  would have compared each season with the wrong one, and 1998/99 would have
+  displayed as "2098/99" (`'20' + label` in four places, and the CSV
+  importer's `parseSeasonLabel`).
+- **Cause:** season_id happened to be chronological (1 = 2014/15 ... 13 =
+  2026/27), so max/min/`<`/`- 1`/ORDER BY on it, and sorting labels as text,
+  all worked by luck.
+- **Fix:** `seasons.start_year` made unique and used everywhere
+  (helpers `season_start_year`, `previous_season_id`, `earlier_season`,
+  `later_season`); 16 functions, 2 views and the scorecard matview rewritten
+  by anchored replacement; every output fingerprinted before and after
+  (identical today), then re-proved with a rolled-back fake 1992/93 result
+  and FPL gameweek. Site code sorts by `season_start_year` / label year.
+- **Mistake while fixing:** rolled-back dry runs of the seasons insert still
+  consumed identity values (sequences are not transactional), so the real
+  insert would have started at 58, not 14. Caught from the dry-run output;
+  the migration resets the sequence to `max(season_id)` first.
+- **Prevention:** `supabase/tests/season_order_contract.sql` (helpers,
+  current season by year, division names at every boundary, anon read).
+  *Lesson: an id that "happens to" be in date order is not an order key.*

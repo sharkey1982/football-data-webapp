@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import TeamHistoryPanel from '../components/TeamHistoryPanel';
 import * as api from '../lib/teamHistoryApi';
 import { bestAndWorst, ordinal, seasonName, summariseHistory, type StandingRow } from '../lib/teamHistoryApi';
+import { labelStartYear } from '../lib/seasonLabels';
 
 vi.mock('../lib/teamHistoryApi', async () => {
   const actual = await vi.importActual<typeof import('../lib/teamHistoryApi')>('../lib/teamHistoryApi');
@@ -15,6 +16,7 @@ const mocked = vi.mocked(api);
 // Home + away columns are built so they add up to the totals, as the view guarantees.
 function season(o: Partial<StandingRow> & Pick<StandingRow, 'season_id' | 'season_label'>): StandingRow {
   return {
+    season_start_year: labelStartYear(o.season_label) ?? 0,
     league_code: 'E2', league_name: 'League One', tier: 3, position: 10, pyramid_position: 54, teams: 24,
     is_final: true, curtailed: false,
     played: 46, won: 20, drawn: 6, lost: 20, goals_for: 60, goals_against: 55, clean_sheets: 14,
@@ -50,6 +52,8 @@ beforeEach(() => {
 describe('team history helpers', () => {
   it('names seasons and positions', () => {
     expect(seasonName('1920')).toBe('2019/20');
+    expect(seasonName('9293')).toBe('1992/93');
+    expect(seasonName('0001')).toBe('2000/01');
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 112].map(ordinal)).toEqual([
       '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '112th',
     ]);
@@ -122,5 +126,46 @@ describe('TeamHistoryPanel', () => {
     expect(rows[3]).toHaveTextContent('Aug');
     expect(rows[4]).toHaveTextContent('Jan');
     expect(rows[4]).toHaveTextContent('–'); // no away games in January in this data
+  });
+});
+
+describe('TeamHistoryPanel with historic seasons', () => {
+  // season_id is not in date order: 1998/99 is id 20, 2014/15 is id 1.
+  const HISTORIC: StandingRow[] = [
+    season({ season_id: 1, season_label: '1415', league_code: 'E3', league_name: 'League Two', tier: 4, position: 5, pyramid_position: 73 }),
+    season({ season_id: 20, season_label: '9899', league_code: 'E1', league_name: 'First Division', tier: 2, position: 3, pyramid_position: 23 }),
+  ];
+
+  it('names a historic season and its division as they were', async () => {
+    mocked.getTeamStandings.mockResolvedValue(HISTORIC);
+    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    expect(await screen.findByText('23rd overall')).toBeInTheDocument();
+    expect(screen.getByText('3rd, First Division 1998/99')).toBeInTheDocument();
+    const table = within(screen.getByRole('table', { name: 'Season by season' }));
+    expect(table.getByText('1998/99')).toBeInTheDocument();
+    expect(table.queryByText('2098/99')).not.toBeInTheDocument();
+  });
+
+  it('sorts the season column by year, not by season_id', async () => {
+    mocked.getTeamStandings.mockResolvedValue(HISTORIC);
+    const user = userEvent.setup();
+    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    const table = await screen.findByRole('table', { name: 'Season by season' });
+    const firstRow = () => within(table).getAllByRole('row')[1].textContent ?? '';
+    const dir = () => within(table).getByRole('columnheader', { name: /Season/ }).getAttribute('aria-sort');
+    // Default: newest first. By id (20 v 1) 1998/99 would come first; by year it is 2014/15.
+    expect(dir()).toBe('descending');
+    expect(firstRow()).toContain('2014/15');
+    await user.click(within(table).getByRole('button', { name: /Season/ }));
+    expect(dir()).toBe('ascending');
+    expect(firstRow()).toContain('1998/99');
+  });
+
+  it('best finish tie-breaks on the earlier season by year', () => {
+    const tie = [
+      season({ season_id: 1, season_label: '1415', pyramid_position: 30 }),
+      season({ season_id: 20, season_label: '9899', pyramid_position: 30 }),
+    ];
+    expect(bestAndWorst(tie).best?.season_label).toBe('9899');
   });
 });

@@ -20,6 +20,7 @@
 
 import { supabase } from './supabase';
 import { calculateDixonColes, type DixonColesResult } from './dixonColes';
+import { getLeagueNameForSeason } from './referenceApi';
 
 export type MatchPagePrediction = {
   fixture_id: number;
@@ -77,7 +78,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     // the type level, and string concatenation defeats that, collapsing
     // every embedded column to GenericStringError.
     .select(
-      'fixture_id, slug, kickoff_date, status, matchweek, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
+      'fixture_id, slug, kickoff_date, status, matchweek, league_id, season_id, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -100,6 +101,10 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
       model = buildModelFromLambdas(lambdaHome, lambdaAway, Number(fitRun.rho));
     }
   }
+
+  // The division's name in the fixture's season (e.g. First Division before
+  // 2004/05); today's name if that lookup fails or has nothing.
+  const leagueName = await getLeagueNameForSeason(data.league_id, data.season_id).catch(() => null);
 
   let actualHome: number | null = null;
   let actualAway: number | null = null;
@@ -128,7 +133,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     kickoff_date: data.kickoff_date,
     status: data.status,
     matchweek: data.matchweek,
-    league_name: data.leagues?.name ?? 'Unknown',
+    league_name: leagueName ?? data.leagues?.name ?? 'Unknown',
     predicted_home_goals: lambdaHome,
     predicted_away_goals: lambdaAway,
     predicted_at: data.predicted_at,

@@ -68,12 +68,12 @@ export type SeasonValueLeader = Awaited<ReturnType<typeof getSeasonValueLeaders>
  *
  * Driven by the data rather than a hardcoded list, so adding a season
  * is an insert rather than a code change. */
-export type XiSeason = { season_id: number; slug: string; label: string; points: number; cost: number };
+export type XiSeason = { season_id: number; slug: string; label: string; points: number; cost: number; start_year?: number };
 
 export async function getXiSeasons(): Promise<XiSeason[]> {
   const { data, error } = await supabase
     .from('season_best_xi')
-    .select('season_id, total_points, start_cost, seasons!inner(slug, label)');
+    .select('season_id, total_points, start_cost, seasons!inner(slug, label, start_year)');
   if (error) throw error;
   const by = new Map<number, XiSeason>();
   for (const r of (data ?? [])) {
@@ -82,6 +82,7 @@ export async function getXiSeasons(): Promise<XiSeason[]> {
       season_id: id,
       slug: r.seasons?.slug ?? String(id),
       label: r.seasons?.label ?? String(id),
+      start_year: r.seasons?.start_year ?? undefined,
       points: 0,
       cost: 0,
     };
@@ -89,7 +90,8 @@ export async function getXiSeasons(): Promise<XiSeason[]> {
     cur.cost += Number(r.start_cost);
     by.set(id, cur);
   }
-  return [...by.values()].sort((a, b) => b.season_id - a.season_id);
+  // Newest first by start year, not season_id (ids are not in date order).
+  return [...by.values()].sort((a, b) => (b.start_year ?? 0) - (a.start_year ?? 0) || b.slug.localeCompare(a.slug));
 }
 
 /** Pretty form of the dataset's season slug: "2025-26" -> "2025/26". */

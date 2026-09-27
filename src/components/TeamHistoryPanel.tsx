@@ -181,7 +181,7 @@ function SeasonTable({ rows, venue }: { rows: StandingRow[]; venue: Venue }) {
     });
     const val = (o: (typeof out)[number]): number => {
       switch (sortKey) {
-        case 'season': return o.r.season_id;
+        case 'season': return o.r.season_start_year;
         case 'pyramid': return o.r.pyramid_position;
         case 'played': return o.l.played;
         case 'won': return o.l.won;

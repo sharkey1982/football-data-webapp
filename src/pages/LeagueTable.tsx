@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getLeagues, getCountries, getLeagueIdsWithResults, getSeasons, getLeagueTable, getPointsRace, type LeagueTableRow, type RaceSeries } from '../lib/api';
 import Timelapse from '../components/Timelapse';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { useLeagueSeasonNames } from '../hooks/useLeagueSeasonNames';
 
 type LeagueOption = {
   league_id: number;
@@ -126,6 +127,10 @@ export default function LeagueTable() {
       .finally(() => setLoading(false));
   }, [leagueId, seasonId]);
 
+  // Division names as they were in the chosen season (First Division, not
+  // Championship, for 1998/99); today's name until loaded.
+  const eraNames = useLeagueSeasonNames(seasonId);
+
   const anyDeductions = rows?.some((r) => r.pointsAdjustment !== 0) ?? false;
 
   // Table or timelapse (Chris). The timelapse's data loads only when chosen,
@@ -186,7 +191,7 @@ export default function LeagueTable() {
             <option value="">Select&hellip;</option>
             {filteredLeagues.map((l) => (
               <option key={l.league_id} value={l.league_id}>
-                {l.code} &mdash; {l.name}
+                {l.code} &mdash; {eraNames.get(l.league_id) ?? l.name}
               </option>
             ))}
           </select>

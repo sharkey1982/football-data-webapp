@@ -15,6 +15,7 @@ vi.mock('../lib/api', async () => {
     getSeasons: vi.fn(),
     getTeams: vi.fn(),
     getRawMatches: vi.fn(),
+    getLeagueNamesForSeason: vi.fn().mockResolvedValue(new Map()),
   };
 });
 

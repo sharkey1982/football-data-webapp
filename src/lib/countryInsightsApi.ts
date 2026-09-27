@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { compareSeasonLabels, seasonNameFromLabel } from './seasonLabels';
 
 export type CountryRow = {
   country_id: number;
@@ -107,11 +108,12 @@ export async function getCountrySummary(): Promise<CountryRow[]> {
 
 /** Seasons worth comparing: at least `minCountries` top flights with data.
  * Most countries only go back to 2025/26, so older English/Big 5-only
- * seasons would be a comparison of five. Newest first. */
+ * seasons would be a comparison of five. Newest first (by start year:
+ * labels sort wrongly as text once 1990s seasons exist). */
 export function comparableSeasons(rows: CountryRow[], minCountries = 10): string[] {
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.season_label, (counts.get(r.season_label) ?? 0) + 1);
-  return [...counts.entries()].filter(([, n]) => n >= minCountries).map(([s]) => s).sort().reverse();
+  return [...counts.entries()].filter(([, n]) => n >= minCountries).map(([s]) => s).sort((a, b) => compareSeasonLabels(b, a));
 }
 
 /** Default to the newest season in which every league has a full-ish
@@ -130,9 +132,9 @@ export function formatValue(v: number | null, decimals: number, unit = ''): stri
   return v === null ? '\u2013' : `${v.toFixed(decimals)}${unit}`;
 }
 
-/** '2526' -> '2025/26' */
+/** '2526' -> '2025/26', '9293' -> '1992/93' */
 export function seasonName(label: string): string {
-  return `20${label.slice(0, 2)}/${label.slice(2)}`;
+  return seasonNameFromLabel(label);
 }
 
 /** Rows with a value for `key`, highest first; rows without one are
