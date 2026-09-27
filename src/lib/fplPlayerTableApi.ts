@@ -31,6 +31,7 @@
 import { supabase } from './supabase';
 import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION, asElementType } from './fplApi';
 import type { FplElementType } from '../types/database';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export const PLAYER_TABLE_MODEL_VERSION = CURRENT_MODEL_VERSION;
 
@@ -150,7 +151,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     .from('fixtures')
     .select('fixture_id, matchweek')
     .eq('league_id', 1)
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .gte('matchweek', fromMatchweek)
     .lte('matchweek', toMatchweek);
   if (fixtureError) throw fixtureError;
@@ -166,7 +167,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   const { data: fplFixtureRows, error: fplFixtureError } = await supabase
     .from('fpl_fixtures')
     .select('fpl_fixture_id, canonical_fixture_id')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .in('canonical_fixture_id', fixtureIds);
   if (fplFixtureError) throw fplFixtureError;
   const matchweekByFplFixture = new Map<number, number>();
@@ -263,7 +264,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
   const { data: playerRows, error: playerError } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, web_name, slug, element_type, canonical_team_id, now_cost')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .in('fpl_player_id', [...playerIds]);
   if (playerError) throw playerError;
 
@@ -390,7 +391,7 @@ export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number,
     .from('fixtures')
     .select('fixture_id, matchweek, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)')
     .eq('league_id', 1)
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .gte('matchweek', fromMatchweek)
     .lte('matchweek', toMatchweek)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
@@ -401,7 +402,7 @@ export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number,
     .from('matches')
     .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals')
     .eq('league_id', 1)
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
   if (matchError) throw matchError;
 

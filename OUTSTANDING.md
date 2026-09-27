@@ -464,10 +464,7 @@ its next run. See docs/incidents.md, 2026-09-26.
 `league_standings` now follows the official split formats
 (`league_season_formats`; docs/history-backfill.md, "Split formats in
 `league_standings`"). Still to do:
-- The League Table page (`getLeagueTable` in src/lib/matchesApi.ts) builds
-  its own table from `matches`, so it still shows split-format seasons on
-  total points with play-off ties counted. It should read `league_standings`
-  (or share its logic); a src change.
+- ~~League Table page computed its own table~~ -- fixed 27 Sep 2026: `getLeagueTable` now reads `league_standings`.
 - Belgium 2016/17-2022/23 (except 2019/20): the files hold only the regular
   season, so the 2021/22 and 2022/23 champions are wrong. Loading the
   play-offs (with halved points) needs another source and a
@@ -1264,10 +1261,10 @@ gate and carries real regression risk for a load-time gain most visitors
 won't notice. Deliberately NOT attempted at the end of a long session.
 Worth doing deliberately, with the admin pages checked afterwards.
 
-### Duplicate season constant in the two build scripts
-generate-sitemap.mjs has CURRENT_SEASON_ID and generate-static.mjs has
-SEASON_ID, both 13, both used to pick completed gameweeks. They agree
-today; they're two places to change at the season rollover.
+### Duplicate season constant in the two build scripts -- FIXED 2026-09-27
+Both now read fpl_current_season_id() at build time. Everything else that
+hard-coded season 13 / '2627' follows the database too; the steps that are
+still manual each summer are in docs/season-rollover.md.
 
 
 
@@ -1311,8 +1308,9 @@ STILL NOT DONE:
   - ownership history (`selected` per gameweek)
 
 ### Season filters: audited, mostly NOT needed
-Season 13 is hardcoded in ~11 frontend modules, and that's CORRECT for
-almost all of them. Injuries, price risk, transfer window, set pieces
+The frontend modules that meant "this season" (formerly a hard-coded 13)
+now ask the database (src/lib/currentSeason.ts, 2026-09-27); a single
+current season is still CORRECT for almost all of them. Injuries, price risk, transfer window, set pieces
 and the digest are current-season questions — "injuries in 2023/24"
 isn't something anyone wants, and adding filters there would be work
 for nobody.

@@ -132,6 +132,9 @@ export default function LeagueTable() {
   const eraNames = useLeagueSeasonNames(seasonId);
 
   const anyDeductions = rows?.some((r) => r.pointsAdjustment !== 0) ?? false;
+  const isSplit = rows?.some((r) => r.splitGroup != null) ?? false;
+  const anyHalving = rows?.some((r) => r.splitAdjustment !== 0) ?? false;
+  const perGame = rows?.some((r) => r.rankedOn === 'points per game') ?? false;
 
   // Table or timelapse (Chris). The timelapse's data loads only when chosen,
   // keyed by division and season so a stale race is never shown.
@@ -161,7 +164,7 @@ export default function LeagueTable() {
       <div>
         <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">League Table</h1>
         <p className="text-ink-500 mt-1">
-          Standings computed from results so far, including any manual point adjustments.
+          Standings from results so far, with points deductions and each league's own ranking rules applied.
         </p>
       </div>
 
@@ -269,7 +272,13 @@ export default function LeagueTable() {
             </thead>
             <tbody className="divide-y divide-chalk-200">
               {rows.map((r, i) => (
-                <tr key={r.team_id} className="hover:bg-chalk-100 transition-colors">
+                <tr
+                  key={r.team_id}
+                  className={[
+                    'hover:bg-chalk-100 transition-colors',
+                    i > 0 && r.splitGroup != null && r.splitGroup !== rows[i - 1].splitGroup ? 'border-t-2 border-t-pitch-800' : '',
+                  ].join(' ')}
+                >
                   <td className="px-3 py-2 text-right font-mono text-xs text-ink-500">{i + 1}</td>
                   <td className="px-3 py-2 font-medium whitespace-nowrap">
                     <button
@@ -304,6 +313,19 @@ export default function LeagueTable() {
               ))}
             </tbody>
           </table>
+
+          {(isSplit || perGame) && (
+            <div className="px-4 py-3 border-t border-chalk-300 bg-chalk-100 text-xs text-ink-500 space-y-1">
+              {isSplit && (
+                <p>
+                  Split season: after the regular season the clubs play on in groups and keep their group&rsquo;s places
+                  (lines mark the groups){anyHalving ? '; points were halved at the split, as the league does' : ''}.
+                  Play-off ties for European places are not counted.
+                </p>
+              )}
+              {perGame && <p>This season was cut short, so clubs are ranked on points per game.</p>}
+            </div>
+          )}
 
           {anyDeductions && (
             <div className="px-4 py-3 border-t border-chalk-300 bg-chalk-100 text-xs text-ink-500 space-y-1">

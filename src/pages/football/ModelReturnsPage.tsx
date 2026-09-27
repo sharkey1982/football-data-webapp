@@ -16,6 +16,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { getSeasons } from '../../lib/referenceApi';
+import { getCurrentSeasonId } from '../../lib/currentSeason';
 import BetList from '../../components/betting/BetList';
 import {
   getBettingBets,
@@ -31,14 +33,12 @@ import {
 
 const EDGES = [0.02, 0.05, 0.1];
 
-// 2025/26 predictions are retro-fitted: today's model code, fitted week by
-// week on only the results available before each match (match_predictions).
-const SEASONS = [
-  { value: '13', label: '2026/27' },
-  { value: '12', label: '2025/26' },
-  { value: '11', label: '2024/25' },
-  { value: '10', label: '2023/24' },
-];
+// 2023/24-2025/26 predictions are retro-fitted: today's model code, fitted
+// week by week on only the results available before each match
+// (match_predictions). Seasons offered: 2023/24 up to the current season,
+// newest first, read from the database so a new season appears by itself
+// (docs/season-rollover.md).
+const FIRST_SEASON_START_YEAR = 2023;
 const RETROFIT_SEASONS = new Set([10, 11, 12]);
 
 const DIVISIONS = [
@@ -91,7 +91,8 @@ export default function ModelReturnsPage() {
   const [market, setMarket] = useState<BettingMarket>('1x2');
   const [closing, setClosing] = useState(true);
   const [bestPrice, setBestPrice] = useState(true);
-  const [seasonId, setSeasonId] = useState(13);
+  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const [seasonOptions, setSeasonOptions] = useState<{ value: string; label: string }[]>([]);
   const [division, setDivision] = useState('all');
   const [promoted, setPromoted] = useState<PromotedFilter>('all');
   const [rows, setRows] = useState<BettingReturnRow[] | null>(null);
@@ -105,6 +106,26 @@ export default function ModelReturnsPage() {
   });
 
   useEffect(() => {
+    let live = true;
+    Promise.all([getSeasons(), getCurrentSeasonId()])
+      .then(([seasons, cur]) => {
+        if (!live) return;
+        const curStart = (seasons ?? []).find((s) => s.season_id === cur)?.start_year ?? Infinity;
+        setSeasonOptions(
+          (seasons ?? [])
+            .filter((s) => s.start_year >= FIRST_SEASON_START_YEAR && s.start_year <= curStart)
+            .map((s) => ({ value: String(s.season_id), label: `${s.start_year}/${String(s.end_year).slice(2)}` }))
+        );
+        setSeasonId(cur);
+      })
+      .catch((e) => live && setError(getErrorMessage(e, 'Could not load the seasons')));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (seasonId === null) return;
     let live = true;
     setRows(null);
     setBets(null);
@@ -153,7 +174,7 @@ export default function ModelReturnsPage() {
             setSeasonId(Number(v));
             setDivision('all');
           }}
-          options={SEASONS}
+          options={seasonOptions}
         />
         <Toggle label="Division" value={division} onChange={setDivision} options={DIVISIONS} />
         <Toggle label="Promoted teams" value={promoted} onChange={(v) => setPromoted(v as PromotedFilter)} options={PROMOTED} />
@@ -192,7 +213,7 @@ export default function ModelReturnsPage() {
         />
       </div>
 
-      {RETROFIT_SEASONS.has(seasonId) && (
+      {seasonId !== null && RETROFIT_SEASONS.has(seasonId) && (
         <p className="text-xs text-ink-500">
           Retro-fitted: each match is predicted by a fit made from results before it, using today&rsquo;s model.
         </p>

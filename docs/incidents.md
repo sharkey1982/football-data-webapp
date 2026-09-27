@@ -508,3 +508,55 @@ fixing something else.
   a split-format league passes its split in a season without a row. Still
   open: the League Table page computes its own table from `matches` and does
   not use the view (OUTSTANDING.md).
+
+## 2026-09-27 · The 2027/28 rollover would have left the site on 2026/27 (found before it happened)
+- **Impact:** none yet. From 1 July 2027: the fixture feeds, National League
+  and cup ingestion, daily results imports, 21 function defaults, 4 build and
+  pipeline scripts and ~20 site modules would have kept reading or writing
+  2026/27 (season 13 / label '2627' / feed URLs ending -2026); new fixtures for
+  E0-E3, D1 and the UEFA competitions would never have been inserted; and once
+  FPL's 2027/28 data loaded, 12 FPL functions and views plus the two
+  team-strength views would have paired each player or team with last
+  season's holder of the same FPL id (duplicate rows, wrong names and prices).
+  The live-event refresh would have kept fetching GW38. Separately,
+  `private.refresh_fpl()` would overwrite 2026/27's FPL rows with the new game
+  in July (its season changes on 1 August).
+- **Cause:** "this season" was written as a constant in each place, and FPL
+  joins relied on only one season being loaded.
+- **Fix:** `current_season_id()` / `season_id_for_date()` (1 July boundary)
+  and `fpl_current_season_id()` used everywhere (migrations
+  20260927180000-20260927180600, `ingest-cup-data` v9, scripts, workflows,
+  `src/lib/currentSeason.ts`); FPL joins scoped to one season, results proved
+  identical before and after; feeds insert a new season's list and tolerate
+  not-yet-published feeds. `private.refresh_fpl()` not changed: its July window
+  is a manual step in docs/season-rollover.md.
+- **Prevention:** daily check `season_rollover_ready` (missing next-season row
+  from 1 March, FPL overwrite detected, reminder 15 June - 31 July);
+  `supabase/tests/season_rollover_contract.sql` fails if any public function
+  hard-codes a season again. *Lesson: "current season" is a query, never a
+  constant.*
+
+## 2026-09-27 · League Insights averaged zero cards and missing half-time scores into all-time figures
+- **Impact:** after the English history load, League Insights
+  (`/football/leagues-compared`) pooled 1992/93-2025/26 and showed 2.46
+  yellow cards a game for the Premier League (3.27 over the seasons with card
+  data), and tiers 2-4 were 0.7-0.8 too low as well. "Half-time
+  lead lost" was also too low (e.g. 20.5% against 26.9% for the Second
+  Division/League One): seasons without half-time scores counted as 0%. The
+  same load made the landing page's "this season" goals question use 1999/00:
+  it took the latest season as the last label in text order ('9900' after
+  '2627').
+- **Cause:** cards are NOT NULL and stored as 0 when the source has none
+  (England before 2000/01, National League 2004/05), and
+  `get_cross_league_summary()` averaged them anyway; the page turned a null
+  half-time share into 0 before weighting. The landing question sorted
+  season labels as text.
+- **Fix:** `get_cross_league_summary()` returns null cards for a
+  division-season without a single card (migration 20260927160000;
+  `home_shots` could not be the marker, as the National League has cards but
+  no shots from 2016/17); the page leaves null seasons out of each measure and
+  says how many seasons each figure covers. The landing question orders by
+  start year (`compareSeasonLabels`).
+- **Prevention:** tests for the null-skipping pooling and the 1990s label.
+  *Lesson (again): a has-data filter for every average over a NOT NULL 0
+  column -- and check what each marker actually marks per league.*

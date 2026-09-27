@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type SeasonXiPlayer = {
   season_id: number;
@@ -118,8 +119,8 @@ export type RollingCandidate = {
   minutes: number;
 };
 
-export async function getRollingXiCandidates(seasonId = 13): Promise<RollingCandidate[]> {
-  const { data, error } = await supabase.rpc('get_rolling_xi_candidates', { p_season_id: seasonId });
+export async function getRollingXiCandidates(seasonId?: number): Promise<RollingCandidate[]> {
+  const { data, error } = await supabase.rpc('get_rolling_xi_candidates', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return (data ?? []).map((r: Record<string, unknown>) => ({
     fpl_code: Number(r.fpl_code),

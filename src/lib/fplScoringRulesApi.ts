@@ -9,6 +9,7 @@
 
 import { supabase } from './supabase';
 import type { FplElementType } from '../types/database';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type FplScoringRule = {
   rule_id: number;
@@ -53,7 +54,7 @@ export async function getFplPlayerListLite(): Promise<FplPlayerLite[]> {
   const { data, error } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, web_name, element_type')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .not('element_type', 'is', null);
   if (error) throw error;
   return (data ?? [])

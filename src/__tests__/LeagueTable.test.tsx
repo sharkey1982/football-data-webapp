@@ -236,4 +236,27 @@ describe('LeagueTable page', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Table' }));
     expect(screen.queryByRole('list', { name: /Points,/ })).toBeNull();
   });
+
+  it('explains a split season and a season ranked on points per game', async () => {
+    mockedApi.getLeagues.mockResolvedValue([
+      { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
+    ]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
+    const base = { played: 40, won: 20, drawn: 10, lost: 10, goalsFor: 60, goalsAgainst: 40, goalDifference: 20, pointsAdjustment: 0, deductions: [], rankedOn: 'points per game' };
+    mockedApi.getLeagueTable.mockResolvedValue([
+      { ...base, team_id: 1, team_name: 'Club A', pointsBeforeAdjustment: 50, points: 50, splitGroup: 1, splitAdjustment: -25 },
+      { ...base, team_id: 2, team_name: 'Club B', pointsBeforeAdjustment: 48, points: 48, splitGroup: 2, splitAdjustment: -23 },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/table']}>
+        <LeagueTable />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/Split season/)).toHaveTextContent('points were halved at the split');
+    expect(screen.getByText(/ranked on points per game/)).toBeInTheDocument();
+    expect(screen.getByText('Club B').closest('tr')?.className).toContain('border-t-2');
+  });
 });

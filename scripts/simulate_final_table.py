@@ -177,7 +177,8 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--season-id", type=int, default=13)
+    # Default: the current season from the database (docs/season-rollover.md).
+    parser.add_argument("--season-id", type=int, default=None)
     args = parser.parse_args()
 
     url = os.environ.get("SUPABASE_URL")
@@ -186,6 +187,10 @@ def main():
         print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in the environment.", file=sys.stderr)
         sys.exit(1)
     supabase = create_client(url, key)
+    if args.season_id is None:
+        args.season_id = supabase.rpc("current_season_id").execute().data
+        if not args.season_id:
+            sys.exit("Could not resolve the current season (current_season_id() returned nothing).")
 
     # Logged to pipeline_runs so this shows up in the app's status view --
     # requested directly ("I still don't feel clear on how I actually know

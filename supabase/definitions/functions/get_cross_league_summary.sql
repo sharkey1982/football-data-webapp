@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION public.get_cross_league_summary()
  STABLE
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-  select l.code, l.name, s.label,
+  select l.code, public.league_name_for_season(l.league_id, s.season_id), s.label,
     count(*)::bigint,
     round(avg(m.full_time_home_goals + m.full_time_away_goals)::numeric, 2),
     round(avg(m.full_time_home_goals)::numeric, 2),
@@ -15,8 +15,12 @@ AS $function$
     round(100.0 * avg(case when m.full_time_result = 'H' then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_result = 'D' then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_result = 'A' then 1 else 0 end)::numeric, 1),
-    round(avg(m.home_yellow_cards + m.away_yellow_cards)::numeric, 2),
-    round(avg(m.home_red_cards + m.away_red_cards)::numeric, 3),
+    -- Cards are stored as 0 where the source has none: a division-season
+    -- without a single card has no card data and returns null.
+    round((case when max(m.home_yellow_cards + m.away_yellow_cards + m.home_red_cards + m.away_red_cards) > 0
+      then avg(m.home_yellow_cards + m.away_yellow_cards) end)::numeric, 2),
+    round((case when max(m.home_yellow_cards + m.away_yellow_cards + m.home_red_cards + m.away_red_cards) > 0
+      then avg(m.home_red_cards + m.away_red_cards) end)::numeric, 3),
     round(100.0 * avg(case when m.full_time_home_goals + m.full_time_away_goals > 2.5 then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_home_goals > 0 and m.full_time_away_goals > 0 then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_home_goals = 0 and m.full_time_away_goals = 0 then 1 else 0 end)::numeric, 1),
@@ -35,8 +39,8 @@ AS $function$
   join public.seasons s on s.season_id = m.season_id
   where l.code in ('E0', 'E1', 'E2', 'E3', 'EC')
     and m.full_time_result is not null
-  group by l.code, l.name, s.label
+  group by l.code, l.league_id, s.season_id, s.label
   having count(*) >= 100
-  order by l.code, s.label;
+  order by l.code, min(s.start_year);
 $function$
 ;

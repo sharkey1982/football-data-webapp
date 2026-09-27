@@ -28,7 +28,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SEASON_ID = 13;
+// The current FPL season, resolved in main() (docs/season-rollover.md).
+let SEASON_ID = 0;
 const LEAGUE_ID = 1;
 const MODEL_VERSION = 'leaguewide_v6';
 const SCENARIO_KEY = 'baseline';
@@ -61,6 +62,9 @@ async function main() {
   }
   const { force, from, to } = parseArgs();
   const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const { data: seasonId, error: seasonErr } = await supabase.rpc('fpl_current_season_id');
+  if (seasonErr || !seasonId) throw new Error(`Could not resolve the current FPL season: ${seasonErr?.message ?? 'none'}`);
+  SEASON_ID = seasonId as number;
 
   // Which matchweeks already have coverage -- so we can skip them by default
   // rather than regenerating hundreds of fixtures unnecessarily.

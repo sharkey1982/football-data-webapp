@@ -11,6 +11,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type ValueRow = {
   fpl_player_id: number;
@@ -29,8 +30,8 @@ export type ValueRow = {
   ownership: number | null;
 };
 
-export async function getActualValueTable(seasonId = 13): Promise<ValueRow[]> {
-  const { data, error } = await supabase.rpc('get_actual_value_table', { p_season_id: seasonId });
+export async function getActualValueTable(seasonId?: number): Promise<ValueRow[]> {
+  const { data, error } = await supabase.rpc('get_actual_value_table', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...r,

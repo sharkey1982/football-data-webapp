@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type ModelXiWeek = {
   fpl_event_id: number;
@@ -36,9 +37,9 @@ export type ModelXiSummary = {
   meanCalibrationGap: number | null;
 };
 
-export async function getModelXiHistory(seasonId = 13, leagueId = 1): Promise<ModelXiWeek[]> {
+export async function getModelXiHistory(seasonId?: number, leagueId = 1): Promise<ModelXiWeek[]> {
   const { data, error } = await supabase.rpc('get_model_xi_history', {
-    p_season_id: seasonId,
+    p_season_id: seasonId ?? (await getCurrentFplSeasonId()),
     p_league_id: leagueId,
   });
   if (error) throw error;
@@ -67,10 +68,10 @@ export type ModelXiPlayer = {
 };
 
 /** The named eleven the model picked for one gameweek, with what each scored. */
-export async function getModelXiPlayers(eventId: number, seasonId = 13): Promise<ModelXiPlayer[]> {
+export async function getModelXiPlayers(eventId: number, seasonId?: number): Promise<ModelXiPlayer[]> {
   const { data, error } = await supabase.rpc('get_model_xi_players', {
     p_event_id: eventId,
-    p_season_id: seasonId,
+    p_season_id: seasonId ?? (await getCurrentFplSeasonId()),
   });
   if (error) throw error;
   return (data ?? []).map((r: Record<string, unknown>) => ({

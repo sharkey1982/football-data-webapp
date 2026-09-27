@@ -16,6 +16,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type InjuryRow = {
   fpl_player_id: number;
@@ -44,8 +45,8 @@ export const STATUS_LABEL: Record<string, string> = {
   n: 'Not in squad',
 };
 
-export async function getInjuryReport(seasonId = 13): Promise<InjuryRow[]> {
-  const { data, error } = await supabase.rpc('get_injury_report', { p_season_id: seasonId });
+export async function getInjuryReport(seasonId?: number): Promise<InjuryRow[]> {
+  const { data, error } = await supabase.rpc('get_injury_report', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...r,
