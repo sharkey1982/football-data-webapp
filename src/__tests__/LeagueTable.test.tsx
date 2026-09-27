@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useSearchParams } from 'react-router-dom';
 import LeagueTable from '../pages/LeagueTable';
 import * as api from '../lib/api';
+import * as fixturesApi from '../lib/fixturesApi';
 
 vi.mock('../lib/api', async () => {
   return {
@@ -18,7 +19,13 @@ vi.mock('../lib/api', async () => {
   };
 });
 
+vi.mock('../lib/fixturesApi', async () => {
+  const actual = await vi.importActual<typeof import('../lib/fixturesApi')>('../lib/fixturesApi');
+  return { ...actual, getReportedUnconfirmed: vi.fn() };
+});
+
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockedReported = fixturesApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 /** Renders the Fixtures route's query string so a navigation can be asserted on. */
 function FixturesProbe() {
@@ -31,6 +38,7 @@ beforeEach(() => {
   mockedApi.getLeagueIdsWithResults.mockResolvedValue([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   // Default: every division has today's name in the chosen season.
   mockedApi.getLeagueNamesForSeason.mockResolvedValue(new Map());
+  mockedReported.getReportedUnconfirmed.mockResolvedValue([]);
 });
 
 describe('LeagueTable page', () => {
@@ -258,5 +266,27 @@ describe('LeagueTable page', () => {
     expect(await screen.findByText(/Split season/)).toHaveTextContent('points were halved at the split');
     expect(screen.getByText(/ranked on points per game/)).toBeInTheDocument();
     expect(screen.getByText('Club B').closest('tr')?.className).toContain('border-t-2');
+  });
+
+  it('lists reported results that are not yet in the table', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 5, code: 'EC', name: 'National League', country_id: 1, competition_type: 'league' }]);
+    mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
+    mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
+    mockedApi.getLeagueTable.mockResolvedValue([
+      { team_id: 70, team_name: 'Southend', played: 9, won: 5, drawn: 2, lost: 2, goalsFor: 20, goalsAgainst: 10, goalDifference: 10,
+        pointsBeforeAdjustment: 17, pointsAdjustment: 0, points: 17, deductions: [] },
+    ]);
+    mockedReported.getReportedUnconfirmed.mockResolvedValue([
+      { fixture_id: 4418, kickoff_date: '2026-09-26', home_team_name: 'Southend', away_team_name: 'Barrow', home_goals: 2, away_goals: 4 },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/table?league=5&season=13']}>
+        <LeagueTable />
+      </MemoryRouter>
+    );
+    const note = await screen.findByTestId('reported-results');
+    expect(note.textContent).toContain('1 result reported, not yet in this table');
+    expect(note.textContent).toContain('Sat 26 Sep: Southend 2\u20134 Barrow');
+    expect(mockedReported.getReportedUnconfirmed).toHaveBeenCalledWith(5, 13);
   });
 });

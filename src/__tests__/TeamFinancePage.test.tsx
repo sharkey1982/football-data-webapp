@@ -178,3 +178,26 @@ describe('team page Finances link', () => {
     expect(screen.queryByRole('link', { name: /Finances/ })).toBeNull();
   });
 });
+
+describe('team page results awaiting confirmation', () => {
+  const m = (over: object) => ({
+    slug: null, kickoff_date: '2026-09-19', opponent_name: 'Gateshead', is_home: false, status: 'played',
+    goals_for: 6, goals_against: 1, predicted_goals_for: null, predicted_goals_against: null, ...over,
+  });
+  it('keeps a played match in the results with its reported score, or as result to follow', () => {
+    renderTeam({
+      ...teamData(false),
+      matches: [
+        m({}),
+        m({ kickoff_date: '2026-09-26', opponent_name: 'Barrow', is_home: true, goals_for: null, goals_against: null, reported_goals_for: 2, reported_goals_against: 4 }),
+        m({ kickoff_date: '2026-09-27', opponent_name: 'Yeovil', goals_for: null, goals_against: null }),
+        m({ kickoff_date: '2026-09-30', opponent_name: 'Eastleigh', status: 'scheduled', goals_for: null, goals_against: null }),
+      ] as never,
+    });
+    const results = screen.getByRole('heading', { name: 'Results this season' }).parentElement!;
+    expect(results.textContent).toContain('Gateshead');
+    expect(results.textContent).toMatch(/Barrow.*2–4 \(reported\)/);
+    expect(results.textContent).toMatch(/Yeovil.*Result to follow/);
+    expect(results.textContent).not.toContain('Eastleigh');
+  });
+});

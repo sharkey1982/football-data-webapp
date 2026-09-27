@@ -198,6 +198,20 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
         </section>
       )}
 
+      {match.status === 'played' && !played && (
+        <section>
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Result</h2>
+          {match.reported_home_goals != null && match.reported_away_goals != null ? (
+            <p className="text-ink-900 mt-1 text-lg">
+              {match.home_team_name} {match.reported_home_goals}&ndash;{match.reported_away_goals} {match.away_team_name}
+              <span className="block text-sm text-ink-500">Reported score, awaiting confirmation from the results feed.</span>
+            </p>
+          ) : (
+            <p className="text-ink-700 mt-1">Played. Result to follow.</p>
+          )}
+        </section>
+      )}
+
       {match.model ? (
         <>
           <section>

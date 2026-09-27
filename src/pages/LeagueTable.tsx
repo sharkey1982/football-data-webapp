@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { seasonPathByCode } from '../lib/leagueSeasonApi';
+import { getReportedUnconfirmed } from '../lib/fixturesApi';
+import { useKeyedFetch } from '../hooks/useKeyedFetch';
+import { formatMatchDate } from '../lib/formatDate';
 import { getLeagues, getCountries, getLeagueIdsWithResults, getSeasons, getLeagueTable, getPointsRace, type LeagueTableRow, type RaceSeries } from '../lib/api';
 import Timelapse from '../components/Timelapse';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -141,6 +144,7 @@ export default function LeagueTable() {
   // keyed by division and season so a stale race is never shown.
   const selectedLeague = leagues.find((l) => l.league_id === leagueId);
   const selectedSeason = seasons.find((x) => x.season_id === seasonId);
+  const reported = useKeyedFetch(leagueId && seasonId ? `${leagueId}:${seasonId}` : null, () => getReportedUnconfirmed(leagueId as number, seasonId as number));
   const seasonPagePath = selectedLeague && selectedSeason ? seasonPathByCode(selectedLeague.code, selectedSeason.start_year) : null;
   const [view, setView] = useState<'table' | 'timelapse'>(searchParams.get('view') === 'timelapse' ? 'timelapse' : 'table');
   const raceKey = leagueId && seasonId ? `${leagueId}-${seasonId}` : null;
@@ -333,6 +337,19 @@ export default function LeagueTable() {
                 </p>
               )}
               {perGame && <p>This season was cut short, so clubs are ranked on points per game.</p>}
+            </div>
+          )}
+
+          {reported.data && reported.data.length > 0 && (
+            <div className="px-4 py-3 border-t border-chalk-300 bg-chalk-100 text-xs text-ink-700 space-y-1" data-testid="reported-results">
+              <p className="font-medium">
+                {`${reported.data.length} ${reported.data.length === 1 ? 'result' : 'results'} reported, not yet in this table (awaiting confirmation from the results feed):`}
+              </p>
+              {reported.data.map((r) => (
+                <p key={r.fixture_id}>
+                  {`${formatMatchDate(r.kickoff_date)}: ${r.home_team_name} ${r.home_goals}\u2013${r.away_goals} ${r.away_team_name}`}
+                </p>
+              ))}
             </div>
           )}
 

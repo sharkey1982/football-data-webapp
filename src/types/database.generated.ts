@@ -1496,6 +1496,10 @@ export type Database = {
           prediction_model_version: string | null
           raw_predicted_away_goals: number | null
           raw_predicted_home_goals: number | null
+          reported_at: string | null
+          reported_away_goals: number | null
+          reported_home_goals: number | null
+          reported_source: string | null
           round: string | null
           round_number: number | null
           season_id: number
@@ -1522,6 +1526,10 @@ export type Database = {
           prediction_model_version?: string | null
           raw_predicted_away_goals?: number | null
           raw_predicted_home_goals?: number | null
+          reported_at?: string | null
+          reported_away_goals?: number | null
+          reported_home_goals?: number | null
+          reported_source?: string | null
           round?: string | null
           round_number?: number | null
           season_id: number
@@ -1548,6 +1556,10 @@ export type Database = {
           prediction_model_version?: string | null
           raw_predicted_away_goals?: number | null
           raw_predicted_home_goals?: number | null
+          reported_at?: string | null
+          reported_away_goals?: number | null
+          reported_home_goals?: number | null
+          reported_source?: string | null
           round?: string | null
           round_number?: number | null
           season_id?: number
