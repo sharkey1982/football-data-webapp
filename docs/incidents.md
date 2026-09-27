@@ -437,3 +437,38 @@ fixing something else.
 - **Prevention:** docs/history-backfill.md records the timeout and how to
   rerun. *Lesson: a bulk load into a table that a scheduled function scans
   in full changes that function's run time -- time it before and after.*
+
+## 2026-09-27 · European history load pushed the Country filter over the API timeout
+- **Impact:** after ~46,000 European matches and 154 teams were loaded,
+  `get_countries_by_relevance()` (the site's Country filter, called by anon)
+  took 13.6s against the API's 8-second statement timeout, so the filter's
+  country list would have failed to load. Found by timing every anon
+  function that reads `matches` after the load, about 30 minutes after it.
+- **Cause:** the function counted each team's matches with a correlated
+  `EXISTS (... home_team_id = t.team_id or away_team_id = t.team_id)`, which
+  no index serves, so it scanned `matches` once per team. On the pre-load
+  rows the same query took ~2.3s; more rows and more teams multiplied it.
+- **Fix:** one pass over `matches` (distinct team ids joined to teams);
+  output proved identical (md5 of every row), 0.1s (migration
+  20260927140400).
+- **Prevention:** docs/history-backfill.md lists the functions timed before
+  and after the load. *Lesson: time every anon function that reads the
+  loaded table, not only the scheduled ones.*
+
+## 2026-09-27 · Country Insights showed 0 cards for seasons without match stats
+- **Impact:** for about an hour after the European history load, Country
+  Insights 2016/17 showed 0.00 yellow and 0.000 red cards per game for
+  Belgium, Greece, the Netherlands, Portugal and Turkey (their 2016/17
+  football-data.co.uk files carry no match stats). A few single rows without
+  stats (e.g. Turkey 2022/23's 29 matches awarded after two clubs withdrew)
+  also pulled other seasons' averages down slightly (Turkey 2022/23 showed
+  4.11 yellows a game instead of 4.50).
+- **Cause:** cards are NOT NULL, so a row without stats stores 0.
+  `get_country_league_summary()` skipped only the all-seasons ("/new/")
+  files, not per-season files without stats.
+- **Fix:** card averages now use only rows with match stats
+  (`home_shots is not null`); a season without stats returns null, shown as a
+  dash (migration 20260927140600).
+- **Prevention:** docs/history-backfill.md records which seasons have no
+  stats. *Lesson: a NOT NULL default of 0 is not "none happened" -- every
+  average over such a column needs the has-data filter.*

@@ -354,3 +354,259 @@ under pg_cron with no statement timeout, so this is noted, not changed.
   engsoccerdata tier 5 2004-2013).
 - `import-fd` with targets `EC`.
 - `import-esd` with `esd_codes` `EC` and `esd_years` `2004`.
+
+---
+
+# European top flights, 2011/12 and 2016/17 to 2024/25
+
+Loaded on 27 September 2026 so Country Insights and the competitiveness
+measures can compare more seasons: 46,098 matches, 46,094 from
+football-data.co.uk plus four Greek results the files lack (below).
+
+## Coverage
+
+| Leagues | Before | After | Source file |
+|---|---|---|---|
+| SP1, D1, I1, F1 | 2021/22 on | **2011/12 on** (15 seasons) | `/mmz4281/<label>/<code>.csv` |
+| P1, B1, T1, G1, N1, SC0 | 2025/26 on | **2016/17 on** (10 seasons) | `/mmz4281/<label>/<code>.csv` |
+| AUT, DNK, POL, ROU, SWZ | 2025/26 on | **2016/17 on** (10 seasons) | all-seasons `/new/<code>.csv` |
+| NOR, SWE, FIN | 2025 on | **2016 on** (10 seasons) | all-seasons `/new/<code>.csv` |
+
+Calendar-year leagues keep the existing mapping (footballDataCsv.ts): the
+2016 season is stored under the season that starts in 2016 (label 1617).
+The existing seasons were already complete (every big-five season
+2021/22-2025/26 has 380 or 306 matches; Ligue 1 has 18 clubs from 2023/24).
+
+What the files carry: the per-season files have half-time scores and match
+stats (shots, corners, fouls, cards), except **2016/17 Belgium, Greece,
+Netherlands, Portugal and Turkey (no stats at all)**; referees only for
+Scotland. The all-seasons files have full-time scores and kick-off times
+only. Cards are 0 where the file has none (NOT NULL columns); anything
+averaging cards must filter to `home_shots is not null`, as
+`get_country_league_summary()` now does.
+
+**No odds and no raw-row archive.** No European league has odds for its
+current seasons (the daily import archives raw rows for English divisions
+only), and odds for 2011-2024 alone would shift the pooled overround trend
+on the market page when the league mix changes at 2025/26. The script can
+archive raw rows and fill `match_odds` (`--with-odds`) if that is wanted
+together with the daily import and a per-league market page.
+
+## Clubs
+
+Every club name resolves through `team_aliases` (`football-data.co.uk`):
+161 spellings added and 154 teams created (migration
+`20260927140100_european_history_teams_and_aliases.sql`), after checking
+every unmapped name against the existing teams of every country. For the ten
+main-file leagues the names were also aligned with engsoccerdata's fixtures:
+one to one, except that engsoccerdata files Gazelec Ajaccio's 2015/16
+season under "AC Ajaccio".
+
+New teams: Austria 5, Belgium 7, Denmark 6, Finland 8, France 11, Germany 6,
+Greece 10, Italy 13, Netherlands 7, Norway 6, Poland 10, Portugal 10,
+Romania 14, Scotland 4, Spain 5, Sweden 11, Switzerland 3, Turkey 18.
+
+Judgement calls:
+- **Renamed clubs map to the existing team**: "Waasland-Beveren" (to 2020/21)
+  is SK Beveren; "Erzurum BB" is Erzurumspor FK; "U Craiova" (to February
+  2021) is Universitatea Craiova; "Ham-Kam" is HamKam; "Gornik Z." is Gornik
+  Zabrze; "Viitorul Constanta" (2016/17-2020/21) is Farul Constanta -- in the
+  2021 merger Viitorul's club took the Farul name and kept its Liga I place.
+- **Same-looking names, different clubs**: "Ajaccio GFCO" (Gazelec, 2015/16)
+  is not AC Ajaccio; "U Craiova 1948" (FC U Craiova 1948, 2021-2024) is not
+  Universitatea Craiova; "Gaziantepspor" (dissolved 2020) is not Gaziantep FK;
+  "Lausanne Ouchy" is Stade Lausanne-Ouchy, not Lausanne-Sport; "Zaglebie
+  Sosnowiec" is not Zaglebie Lubin; "Aves" (CD Aves, dissolved 2020) is not
+  AVS. No single spelling means two clubs within the loaded seasons, so no
+  era override was needed (`EU_ERA_OVERRIDES` is empty).
+- **Belenenses** (2016/17-2020/21) is the SAD that kept the Primeira Liga
+  place after the 2018 split (later B-SAD): team `belenenses-sad`.
+- **Play-off clubs**: promotion/relegation play-offs against lower-division
+  clubs are excluded by footballDataCsv.ts's rule (a club with under a
+  quarter of the season's median games): 98 rows, listed on the
+  `match_import_runs` rows. Neustadt, Kongsvinger, Moss, Brage, Landskrona,
+  Aarau and Schaffhausen appear only there and got no team.
+
+## Results added by hand (`source_name` `verified_web`)
+
+Migration `20260927140300_european_history_missing_results.sql`:
+- Super League Greece 2018/19, Panathinaikos 0-3 Olympiacos, 17 March 2019:
+  the file has the fixture without a score. It was suspended before kick-off
+  and awarded 0-3. Without it the season had 239 matches, so
+  `league_standings` flagged it curtailed and ranked it on points per game.
+- Super League Greece 2024/25, relegation round matchday 10 (22 May 2025),
+  missing from the file: Levadiakos 3-2 Volos, Panetolikos 1-0 Panserraikos,
+  Athens Kallithea 3-0 Lamia (ESPN, Soccerway, FIFA match centre; they
+  reproduce Wikipedia's final play-out table exactly).
+
+## Match counts and formats
+
+Every league-season was checked: no duplicate fixtures, no club playing
+twice on a day, every result letter agrees with its score, every date inside
+its season. Counts against the format:
+
+| League | Seasons | Matches | Format |
+|---|---|---|---|
+| SP1, I1 | 2011/12-2020/21 | 380 | 20 clubs, double round robin |
+| D1 | 2011/12-2020/21 | 306 | 18 clubs |
+| F1 | 2011/12-2020/21 | 380; **2019/20: 279** | 2019/20 ended in April 2020 (Covid), decided on points per game |
+| P1, N1 | 2016/17-2024/25 | 306; **N1 2019/20: 232** | Eredivisie 2019/20 abandoned: no champion, no promotion or relegation; European places from the 8 March table |
+| T1 | 2016/17-2024/25 | 306 / 420 / 380 / 342 / 380 / 342 | 18, 21, 20, 19, 20, 19 clubs; 2022/23 includes the matches awarded 3-0 after Hatayspor and Gaziantep withdrew (their records match the official table) |
+| G1 | 2016/17-2018/19 | 240 | 16 clubs, regular season only (the Europe play-offs are not in the files) |
+| G1 | 2019/20-2023/24; 2024/25 | 240; 236 | 14 clubs: 182 + top-six double round robin (30) + bottom-eight single round robin (28); 2024/25 182 + 12 + 12 + 30 |
+| B1 | 2016/17-2018/19; 2020/21-2022/23 | 240; 306 | Regular season only (16 / 18 clubs): the play-offs, with halved points, are not in the files |
+| B1 | 2019/20 | 232 | Ended after 29 of 30 rounds (Covid); decided on points, same order as points per game |
+| B1 | 2023/24-2024/25 | 312 | 240 + Champions' and Europe play-offs (30 + 30) + relegation play-off (12), halved points |
+| SC0 | 2016/17-2024/25 | 228; **2019/20: 179** | 12 clubs, 33 rounds + split (5 rounds); 2019/20 curtailed, decided on points per game |
+| AUT | 2016/17-2017/18 | 180 | 10 clubs, four rounds |
+| AUT | 2018/19-2023/24; 2024/25 | 195; 192 | 12 clubs, 22 rounds + two groups of six (60), points halved at the split; + 3 Europe play-off games (semi-final, two-leg final) |
+| DNK | 2016/17-2019/20 | 251 / 251 / 247 / 243 | 14 clubs: 182 + championship round (30) + qualification groups (24) = 236, + European play-off ties between Superliga clubs |
+| DNK | 2020/21-2023/24; 2024/25 | 193; 192 | 12 clubs: 132 + two groups of six (60), + 1 European play-off final |
+| POL | 2016/17-2019/20; 2020/21; 2021/22 on | 296; 240; 306 | 16 clubs, 30 rounds + two groups of eight (56), points halved; then no split; 18 clubs from 2021/22 |
+| ROU | 2016/17-2018/19; 2019/20 | 268; 260 | 14 clubs: 182 + play-off (30) + play-out (56), points halved; 2019/20 play-out cut short (Covid) |
+| ROU | 2020/21-2023/24; 2024/25 | 317 / 316 / 317 / 317; 315 | 16 clubs: 240 + play-off (30) + play-out (45), halved, + 1-2 Conference League play-off games |
+| NOR, SWE | 2016-2024 | 240 | 16 clubs |
+| SWZ | 2016/17-2022/23; 2023/24 on | 180; 228 | 10 clubs, four rounds; then 12 clubs, 33 rounds + split (30) |
+| FIN | 2016-2018; 2019 and 2022-2024; 2020; 2021 | 198; 167; 132; 162 | 12 clubs, 33 rounds; then 22 rounds + two groups of six (30) + 5 Conference League play-off games; 2020 shortened to 22 rounds |
+
+## Champions
+
+The top of each computed table matches the historical record except where
+the format makes `league_standings` differ from the official table:
+
+| Season | League | Computed #1 | Champion | Why |
+|---|---|---|---|---|
+| 2021/22 | Belgium | Union SG | Club Brugge | play-offs not in the file |
+| 2022/23 | Belgium | Genk | Antwerp | play-offs not in the file |
+| 2023/24 | Belgium | Union SG | Club Brugge | points halved before the play-offs |
+| 2023/24 | Austria | Salzburg (level with Sturm) | Sturm Graz | points halved at the split |
+| 2023 | Finland | VPS | HJK | VPS's two Conference League play-off games count |
+| 2019/20 | Netherlands | Ajax | none | season abandoned |
+
+Scotland 2019/20 was decided on points per game; `league_standings` ranks it
+on points (it has more games than a double round robin, so it is not
+flagged curtailed), which swaps 6th and 7th (Hibernian, St Johnstone).
+
+## How `league_standings` and Country Insights treat split formats
+
+- `league_standings` flags a finished season "curtailed" (and ranks it on
+  points per game) only when it has fewer matches than a double round robin
+  of its clubs. Split-format seasons always have more, so they are never
+  flagged: they are ranked on total points over every game in the file,
+  including play-off rounds and post-season European play-off ties. Official
+  tables lock the two halves after the split and some halve points
+  (Belgium, Austria, Poland to 2019/20, Romania), so positions -- and the
+  champions above -- can differ. Genuinely curtailed seasons are handled
+  correctly (Ligue 1, Belgium and Eredivisie 2019/20 are flagged, and for the
+  last two points per game gives the official order); only Scotland 2019/20
+  is missed. Official tie-breaks such as head-to-head are not modelled (e.g.
+  Serie A 2017/18 Inter/Lazio). **Not changed**: doing this properly needs a
+  per-league-season rule (split point, halving, ranking basis), which is a
+  design decision rather than a fix.
+- `get_country_competitiveness()` does not use `league_standings`: it ranks
+  clubs by points per game over all their games and measures the spread and
+  top-half v bottom-half results. It needs no format rules and is unaffected
+  by halving or locked halves; play-off games add a little weight to
+  top-v-top and bottom-v-bottom games only.
+- `get_country_league_summary()` averages over every game, awarded results
+  included (e.g. Turkey 2022/23's 3-0 awards).
+- Country Insights compares seasons with at least 10 top flights
+  (`comparableSeasons`): 2016/17-2025/26 now show 19 countries; 2011/12-
+  2015/16 (England and the big four only) stay hidden until the page's rule
+  changes.
+
+## Points deductions
+
+Researched season by season from each season's Wikipedia article (table
+footnotes, checked against the table's W/D/L arithmetic) for every season
+whose computed table follows the official method. Loaded (migration
+`20260927140200_european_point_deductions.sql`, 25 rows):
+
+| Season | League | Adjustment | Moves |
+|---|---|---|---|
+| 2011/12 | Serie A | Atalanta -6 | 9th -> 12th |
+| 2012/13 | Serie A | Siena -6, Atalanta -2, Sampdoria -1, Torino -1 | Siena 18th -> 19th |
+| 2014/15 | Serie A | Parma -7 | 19th -> 20th |
+| 2018/19 | Serie A | Chievo -3 | no |
+| 2022/23 | Serie A | Juventus -10 | 4th -> 7th |
+| 2012/13 | Ligue 1 | AC Ajaccio -2 | 15th -> 17th |
+| 2013/14 | Ligue 1 | Nantes -3, Bastia +3 | Nantes 2-0 Bastia was awarded to Bastia (ineligible player); the score stays as played; Bastia 10th, Nantes 13th as officially |
+| 2022/23 | Super Lig | Kayserispor -3 | no |
+| 2023/24 | Super Lig | Kayserispor -3, Istanbulspor -3 | Kayserispor 11th -> 14th |
+| 2024/25 | Super Lig | Adana Demirspor -12 | no |
+| 2023/24 | Eredivisie | Vitesse -18 | 17th -> 18th |
+| 2016/17 | Greece | PAOK -3 | no |
+| 2017/18 | Greece | Panathinaikos -8, PAOK -3, Olympiacos -3 | Panathinaikos 8th -> 11th |
+| 2018/19 | Greece | Panathinaikos -11, AEK -3, PAOK -2 | Panathinaikos 6th -> 8th; the table now equals the official one |
+| 2016/17 | Belgium (regular season) | Standard -3 (abandoned match: no points to either side, score stood) | no |
+| 2020/21 | Ekstraklasa | Cracovia -5 | 11th -> 14th |
+
+Not loaded:
+- Lazio 2017/18 -1 and 2018/19 -2: in Wikipedia's current tables, not in
+  Sporting Life's; neither moves Lazio.
+- Split-format seasons, whose official tables `league_standings` cannot
+  reproduce: Austria 2019/20 LASK (-4 in Wikipedia's table, for training
+  during the Covid lockdown); Greece 2019/20 Xanthi -12 and PAOK -7 (PAOK's
+  later quashed); Greece 2023/24 Olympiacos (a point deducted and restored by
+  CAS). Denmark, Romania, Finland and Poland to 2019/20 were not researched.
+- Awarded results already in the files as scored, e.g. IFK Goteborg 0-3
+  Malmo (Allsvenskan 2016), Bastia 0-3 Lyon (Ligue 1 2016/17), Lausanne-Sport
+  0-3 Thun (Swiss 2017/18), OH Leuven 5-0 Mechelen and Union 5-0 Beerschot
+  (Belgium 2021/22).
+
+## Checks against a second source
+
+- **engsoccerdata** covers the ten main-file leagues, but for these seasons
+  its rows are derived from football-data.co.uk (same row order, same blank
+  Panathinaikos-Olympiacos row), so it only catches transcription drift. All
+  29,531 rows pair up by fixture; one score differs (Nantes-Bastia 2013/14,
+  0-0 there), which led to the Nantes/Bastia adjustment above.
+- **Web spot checks** of randomly drawn loaded results (ESPN, FIFA match
+  centre, WhoScored, club site): AC Oulu 1-1 Haka (2023), Standard 0-1 OH
+  Leuven (2025), Zaglebie Lubin 3-1 Wisla Plock (2022), Falkenbergs 1-1 AIK
+  (2020), Djurgarden 3-1 Ostersund (2019) -- all agree.
+- **Official tables**: Greece 2018/19 and the 2024/25 play-outs, Turkey
+  2022/23 (Hatayspor, Gaziantep) and the Belgian 2016/17 regular season
+  reproduce Wikipedia's tables once the adjustments above are applied.
+
+## Effect on the model, performance and current numbers
+
+- No European league has a model fit (`league_fit_status` shows none), so no
+  fit, prediction or rating is affected. Checked before and after (md5 of
+  every row): `match_predictions` (6,253 rows), `model_fit_runs`,
+  `team_ratings`, `model_scorecard_matches`, `get_model_scorecard()`,
+  `fixtures`, and `team_season_movement` (which does not cover leagues
+  13-30) -- all identical.
+- `league_standings` for 2025/26 on is unchanged (no rows in those seasons
+  were touched). Serie A 2022/23 changed by design (Juventus -10).
+- Timed before -> after (in SQL): `refresh_model_scorecard()` 36s -> 31s
+  (pg_cron, no API limit), `backfill_match_odds()` 2.9s -> 2.4s (no rows
+  archived), `sync_fixture_status_from_results()` 0.2s,
+  `get_country_league_summary()` 0.1s -> 0.3s,
+  `get_country_competitiveness()` 0.1s -> 0.3s, the whole `league_standings`
+  view 0.6s -> 0.9s. Every other anon function that reads `matches` runs in
+  under 1s, except `get_countries_by_relevance()`, which went to 13.6s and was
+  rewritten (0.1s; migration 20260927140400, see docs/incidents.md).
+- `get_country_league_summary()` now averages cards only over matches with
+  stats (migration 20260927140600): 2016/17 Belgium, Greece, Netherlands,
+  Portugal and Turkey show no card figures instead of 0, and seasons with
+  single stat-less rows moved slightly (Turkey 2022/23 4.11 -> 4.50 yellows
+  a game).
+
+## Rerunning
+
+Script `scripts/history_backfill_europe.py` (reuses `history_backfill.py`'s
+helpers), workflow **History backfill (European top flights)**
+(`.github/workflows/history-backfill-europe.yml`, manual):
+- `stage-eu` with targets `all` or e.g. `SP1:2011-2020,AUT:2016-2024`
+  reloads `historic_source_rows_europe` (and engsoccerdata tier 1 unless
+  `--no-esd`).
+- `import-eu` with the same targets upserts on the natural key, writes one
+  `match_import_runs` row per league-season (`error_message` starts
+  `history <label>`) and refuses 2025/26 on. `--with-odds` archives raw rows
+  and runs `backfill_match_odds()` (off for this load).
+
+The load itself ran through `history-backfill.yml` on a throwaway branch
+(`european-league-history-runner`), because GitHub dispatches only workflows
+that exist on the default branch. The scratch table
+`historic_source_rows_europe` can be dropped once this load is signed off.
