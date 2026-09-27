@@ -471,38 +471,29 @@ its season. Counts against the format:
 
 ## Champions
 
-The top of each computed table matches the historical record except where
-the format makes `league_standings` differ from the official table:
+With the split-format rules below (27 September 2026), the top of every
+computed table matches the historical record except:
 
 | Season | League | Computed #1 | Champion | Why |
 |---|---|---|---|---|
-| 2021/22 | Belgium | Union SG | Club Brugge | play-offs not in the file |
-| 2022/23 | Belgium | Genk | Antwerp | play-offs not in the file |
-| 2023/24 | Belgium | Union SG | Club Brugge | points halved before the play-offs |
-| 2023/24 | Austria | Salzburg (level with Sturm) | Sturm Graz | points halved at the split |
-| 2023 | Finland | VPS | HJK | VPS's two Conference League play-off games count |
+| 2021/22 | Belgium | Union SG | Club Brugge | play-offs not in the file (regular-season table) |
+| 2022/23 | Belgium | Genk | Antwerp | play-offs not in the file (regular-season table) |
 | 2019/20 | Netherlands | Ajax | none | season abandoned |
 
-Scotland 2019/20 was decided on points per game; `league_standings` ranks it
-on points (it has more games than a double round robin, so it is not
-flagged curtailed), which swaps 6th and 7th (Hibernian, St Johnstone).
+Before the split-format rules, Belgium 2023/24 (Union SG), Austria 2023/24
+(Salzburg) and Finland 2023 (VPS) also had the wrong club top, and Scotland
+2019/20 was ranked on points instead of points per game.
 
 ## How `league_standings` and Country Insights treat split formats
 
-- `league_standings` flags a finished season "curtailed" (and ranks it on
-  points per game) only when it has fewer matches than a double round robin
-  of its clubs. Split-format seasons always have more, so they are never
-  flagged: they are ranked on total points over every game in the file,
-  including play-off rounds and post-season European play-off ties. Official
-  tables lock the two halves after the split and some halve points
-  (Belgium, Austria, Poland to 2019/20, Romania), so positions -- and the
-  champions above -- can differ. Genuinely curtailed seasons are handled
-  correctly (Ligue 1, Belgium and Eredivisie 2019/20 are flagged, and for the
-  last two points per game gives the official order); only Scotland 2019/20
-  is missed. Official tie-breaks such as head-to-head are not modelled (e.g.
-  Serie A 2017/18 Inter/Lazio). **Not changed**: doing this properly needs a
-  per-league-season rule (split point, halving, ranking basis), which is a
-  design decision rather than a fix.
+- `league_standings` follows the official method for the split and play-off
+  formats listed in `league_season_formats` (next section). Seasons without a
+  row are ranked on total points over every game, as before; the Belgian
+  files 2016/17-2022/23 hold only the regular season, so those tables are the
+  regular-season tables (rows with format `regular_season_only` record this).
+  Official tie-breaks such as head-to-head are modelled only for split
+  seasons (e.g. Serie A 2017/18 Inter/Lazio is still decided on goal
+  difference).
 - `get_country_competitiveness()` does not use `league_standings`: it ranks
   clubs by points per game over all their games and measures the spread and
   top-half v bottom-half results. It needs no format rules and is unaffected
@@ -510,10 +501,131 @@ flagged curtailed), which swaps 6th and 7th (Hibernian, St Johnstone).
   top-v-top and bottom-v-bottom games only.
 - `get_country_league_summary()` averages over every game, awarded results
   included (e.g. Turkey 2022/23's 3-0 awards).
+- The League Table page (`getLeagueTable` in src/lib/matchesApi.ts) builds its
+  own table from `matches` and does not read `league_standings`, so it still
+  shows split-format seasons on total points (follow-up in OUTSTANDING.md).
 - Country Insights compares seasons with at least 10 top flights
   (`comparableSeasons`): 2016/17-2025/26 now show 19 countries; 2011/12-
   2015/16 (England and the big four only) stay hidden until the page's rule
   changes.
+
+## Split formats in `league_standings` (27 September 2026)
+
+Migrations 20260927170000-20260927170600. One `league_season_formats` row per
+league-season whose official table is not total points over every game in
+the file: 61 `split` rows, 4 `curtailed` rows (Scotland, Belgium, France,
+Netherlands 2019/20) and 9 `regular_season_only` rows (Belgium 2016/17-
+2022/23 except 2019/20, Greece 2016/17-2018/19). Each row carries notes and
+the Wikipedia season article it was checked against.
+
+### Formats found
+
+| League | Seasons | Before the split | Groups (clubs / games each) | Points halved | Ties after points | Play-off ties in the file (left out) |
+|---|---|---|---|---|---|---|
+| Scotland | 2016/17-2025/26 except 2019/20 | 33 rounds | 6/5, 6/5 | no | goal difference, goals | none |
+| Scotland | 2019/20 | curtailed before the split | - | - | points per game | - |
+| Switzerland | 2023/24-2025/26 | 33 rounds | 6/5, 6/5 | no | goal difference, goals | none |
+| Austria | 2018/19-2025/26 | 22 rounds | 6/10, 6/10 | both groups, rounded down | head-to-head (whole season) | 3 a season to 2023/24 |
+| Belgium | 2023/24-2025/26 | 30 rounds | 6/10, 6/10, 4/6 | Champions' and Europe play-offs, rounded up | regular-season position | 1 (2023/24 Genk v Gent) |
+| Denmark | 2016/17-2019/20 | 26 rounds | 6/10, then two groups of four (6 games) ranked together as places 7-14 | no | goal difference, goals | 15, 15, 11, 7 (Europe and relegation play-offs between Superliga clubs) |
+| Denmark | 2020/21-2025/26 | 22 rounds | 6/10, 6/10 | no | goal difference, goals | 1 a season to 2023/24 |
+| Finland | 2019, 2021-2024, 2026 | 22 rounds | 6/5, 6/5 | no | goal difference, goals | 5 in 2019, 2022, 2023, 2024 |
+| Finland | 2025 | 22 rounds | 6/10, 6/5 | no | goal difference, goals | none |
+| Greece | 2019/20-2023/24 | 26 rounds | 6/10, 8/7 | no | head-to-head | none |
+| Greece | 2024/25-2025/26 | 26 rounds | 4/6, 4/6, 6/10 | Europe play-off (places 5-8), rounded up | head-to-head | none |
+| Poland | 2016/17 | 30 rounds | 8/7, 8/7 | both, rounded up | regular-season points, then head-to-head in the regular season | none |
+| Poland | 2017/18-2019/20 | 30 rounds | 8/7, 8/7 | no | as 2016/17 | none |
+| Romania | 2016/17-2019/20 | 26 rounds | 6/10, 8/14 | both, rounded up | regular-season points, then head-to-head | none |
+| Romania | 2020/21-2025/26 | 30 rounds | 6/10, 10/9 | both, rounded up | regular-season points, then head-to-head | 2, 1, 2, 2, 0, 2 (Conference League play-off) |
+
+Norway, Sweden, Portugal, the Netherlands, Turkey, the big five and Finland
+2016-2018 and 2020 have no split. 100 play-off games are left out in all.
+
+### What the view does
+
+For a `split` row: a pair of clubs' meetings beyond `regular_meetings` (in
+date order) are post-split games, so a postponed regular-season game played
+after the split still counts as regular season. Each club goes into the
+group its regular-season rank gives (`group_sizes`), then into the group most
+of its first `group_games` post-split opponents are in, so a tie at the cut
+that the view breaks differently from the league cannot misplace it. Groups
+are locked (`split_group` 1 above 2 above 3). A club's post-split games
+beyond its group's `group_games`, and any post-split game between groups, are
+play-off ties and are left out of every column. Halved groups carry half the
+regular-season points plus any deduction in force before the first
+post-split game, rounded as the league does (`split_adjustment` holds the
+points removed); ties are broken on the unrounded total, then the league's
+tie-break, then goal difference and goals. W/D/L, goals and home/away splits
+cover the regular season plus the group games. Scotland 2019/20 is ranked on
+points per game (`curtailed_on_ppg`). Every other league-season gives exactly
+the rows it gave before: the md5 of each league-season's rows (all columns
+before the change) was taken before and compared after -- all 307
+league-seasons without a row, the 9 `regular_season_only` and 3 of the 4
+`curtailed` seasons are identical, England included; only Scotland 2019/20
+and 56 of the 61 split seasons changed.
+
+### Data added for the split seasons
+
+Migration 20260927170300, found by the comparison with the official tables:
+- Deductions: Austria 2019/20 LASK -4 (after the halving, effective
+  2 June 2020), Austria 2022/23 Austria Wien -3 (before the halving); Greece
+  2019/20 Xanthi -12, Panionios -6; Poland 2016/17 Ruch Chorzow -4 (before the
+  halving), 2017/18 Lechia Gdansk -1; Romania 2016/17 CFR Cluj -6, Pandurii
+  -6, ACS Poli Timisoara -14, ASA Targu Mures -9, 2019/20 Astra -3, 2022/23
+  Hermannstadt -9 (all before the halving), 2021/22 Gaz Metan -22 (before)
+  and -50 (after), Academica Clinceni -44 (after).
+- Awarded results the files keep as played (score kept, points moved as for
+  Nantes/Bastia): Veikkausliiga 2022 AC Oulu 1-0 Inter Turku awarded 0-3 (too
+  few home-grown players): Oulu -3, Inter +3; Greece 2023/24 Kifisia 0-0
+  Volos awarded 3-0 (ESPN, WhoScored): Kifisia +2, Volos -1.
+- Missing results (`verified_web`): Belgium 2023/24 Standard Liege 0-5
+  Westerlo, Europe play-offs, 10 May 2024 (not played, awarded); Belgium
+  2025/26 Dender 2-1 La Louviere, relegation play-offs, 3 May 2026 (Sporza,
+  FIFA match centre); Romania 2019/20 Sepsi 4-0 Academica Clinceni,
+  10 December 2019 (ESPN) -- without it the pair's first play-out meeting was
+  read as a regular-season game.
+
+### Verification
+
+Each of the 61 split seasons was compared with the final table in its
+Wikipedia season article (points and club at every position; 814 rows):
+every champion, European place and relegation place matches, and every
+points total matches except one. Remaining differences:
+
+| Season | League | Computed | Official | Why |
+|---|---|---|---|---|
+| 2021/22 | Austria | 9 Ried, 10 Altach (22 points, both rounded down) | 9 Altach, 10 Ried | head-to-head over the whole season favours Ried; the league's order is not reproduced by any single rule tried (whole season, post-split games only) |
+| 2017/18 | Romania | 10 Concordia Chiajna, 11 Gaz Metan (30) | 10 Gaz Metan, 11 Chiajna | regular-season points favour Chiajna (28 v 16); 2017/18 evidently used head-to-head first |
+| 2021/22 | Romania | Academica Clinceni -37 | -43 | the article's footnote gives a 44-point deduction, which with Clinceni's 7 starting points gives -37; position (15th) is the same |
+| 2017/18 | Denmark | 9 Sonderjyske, 10 Aarhus (41) | no official order | places 7-14 are two parallel groups of four; the view ranks them together on points, which the league does not |
+
+Denmark 2016/17-2019/20: the official table leaves places 7-14 to the
+play-offs, so the view's order there (the two qualification groups together
+on points) is not an official one. Greece 2023/24: Wikipedia's table shows
+Olympiacos -1, which CAS later restored; not loaded, and the table matches
+Wikipedia's anyway.
+
+### Performance
+
+The whole view: 0.74 s before, 0.77-0.79 s after (best of three, in SQL).
+The split logic joins on single composite keys, because the planner has no
+statistics for CTEs and otherwise chose nested loops (a first version took
+5.5 s); `agg` now aggregates the home and away sides separately and joins
+them, which pays for the split logic. Readers (found through pg_depend and a
+grep of the repo): team history panels (select by team_id, 0.79 s),
+`ai_tool_get_league_table` (0.71 s; now also returns split_group and
+split_adjustment and says so in its note) and `check_model_integrity`
+(0.31 s). `get_country_competitiveness` and `get_country_league_summary` do
+not read the view.
+
+### Maintenance
+
+Every new season of a split-format league needs its own row before its split
+(formats change: the Austrian Bundesliga stops halving points from 2026/27,
+Belgium has 18 clubs in 2026/27). `check_model_integrity` warns
+(`split_formats_configured`) once a season of a league with an earlier split
+row is past its split without one. Finland 2026 (in progress, split under
+way) has its row.
 
 ## Points deductions
 
@@ -544,11 +656,9 @@ whose computed table follows the official method. Loaded (migration
 Not loaded:
 - Lazio 2017/18 -1 and 2018/19 -2: in Wikipedia's current tables, not in
   Sporting Life's; neither moves Lazio.
-- Split-format seasons, whose official tables `league_standings` cannot
-  reproduce: Austria 2019/20 LASK (-4 in Wikipedia's table, for training
-  during the Covid lockdown); Greece 2019/20 Xanthi -12 and PAOK -7 (PAOK's
-  later quashed); Greece 2023/24 Olympiacos (a point deducted and restored by
-  CAS). Denmark, Romania, Finland and Poland to 2019/20 were not researched.
+- Split-format seasons: loaded later with the split-format rules (section
+  "Split formats in `league_standings`"), except Greece 2019/20 PAOK -7
+  (quashed) and Greece 2023/24 Olympiacos -1 (restored by CAS).
 - Awarded results already in the files as scored, e.g. IFK Goteborg 0-3
   Malmo (Allsvenskan 2016), Bastia 0-3 Lyon (Ligue 1 2016/17), Lausanne-Sport
   0-3 Thun (Swiss 2017/18), OH Leuven 5-0 Mechelen and Union 5-0 Beerschot

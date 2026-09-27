@@ -472,3 +472,39 @@ fixing something else.
 - **Prevention:** docs/history-backfill.md records which seasons have no
   stats. *Lesson: a NOT NULL default of 0 is not "none happened" -- every
   average over such a column needs the has-data filter.*
+
+## 2026-09-27 · European split-format tables ranked on total points
+- **Impact:** since the European history load, `league_standings` (team
+  history panels, AI Lab get_league_table) ranked every split-format season
+  (Scotland, Switzerland, Austria, Belgium, Denmark, Greece, Poland, Romania,
+  Finland; 61 seasons) on total points over every game in the file: groups
+  not locked after the split, no halving, and 100 European and relegation
+  play-off games counted. Wrong champions in Belgium 2023/24, Austria 2023/24
+  and Finland 2023; Scotland 2019/20 ranked on points instead of points per
+  game. Deductions and awarded results in those seasons were not researched.
+- **Cause:** the view had one rule (total points, curtailed seasons on
+  points per game) and no per-league-season format; the gap was documented
+  but left as a design decision.
+- **Mistakes while fixing:** (1) groups were first inferred from who met
+  whom after the split; that failed where a postponed game or a play-off tie
+  linked the groups (Finland 2024, Denmark 2017/18 and 2018/19) and was
+  replaced by group sizes plus each club's post-split opponents. (2) The first
+  working version took 5.5 s (nested loops over CTEs, which have no planner
+  statistics); rewritten on single composite keys, 0.79 s against 0.74 s
+  before. (3) Poland and Romania were first given head-to-head over the whole
+  season as the tie-break, which the official tables contradict; they use
+  regular-season points. *Lesson: check a grouping or tie-break rule against
+  every season before generalising from two.*
+- **Fix:** `league_season_formats` (one row per league-season with format,
+  group sizes, halving and tie-break) and a rewritten `league_standings` that
+  follows it; new columns `split_group` and `split_adjustment` at the end.
+  19 deductions and awarded-result adjustments and 3 missing results added.
+  All 61 seasons checked against Wikipedia (814 rows): every points total
+  matches but one; three pairs level on points in the other order
+  (docs/history-backfill.md). Every league-season without a split row gives
+  exactly the rows it gave before (md5 per league-season). Migrations
+  20260927170000-20260927170600.
+- **Prevention:** daily guard `split_formats_configured` (warning) fires when
+  a split-format league passes its split in a season without a row. Still
+  open: the League Table page computes its own table from `matches` and does
+  not use the view (OUTSTANDING.md).
