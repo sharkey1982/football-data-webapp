@@ -1,6 +1,6 @@
 # Historical data layer
 
-Built 27 Sep 2026 (step A0 of the Historical Analytics & Data Lab design). Three objects, refreshed together by `refresh_history_derived()` (pg_cron `refresh-history-derived`, 06:50 and 12:50 UTC, after the English and international imports).
+Built 27 Sep 2026 (step A0 of the Historical Analytics & Data Lab design), extended the same day for Phase A (What Happened Next?, Historic Pace, table reliability). Five objects; the table and four views are refreshed together by `refresh_history_derived()` (pg_cron `refresh-history-derived`, 06:50 and 12:50 UTC, after the English and international imports).
 
 ## What it answers
 
@@ -15,8 +15,11 @@ Built 27 Sep 2026 (step A0 of the Historical Analytics & Data Lab design). Three
 | `team_match_snapshot` | league, season, team, matches played | table (about 278k rows) |
 | `team_season_summary` | league, season, team | materialised view over `league_standings` |
 | `league_season_summary` | league, season | materialised view |
+| `league_pace_benchmarks` | league, comparable group, matches played, outcome | materialised view |
+| `league_table_reliability` | league, comparable group, matches played | materialised view |
+| `history_what_happened_next()` | team-season after N matches | read-only RPC (security invoker, max 2,000 rows) |
 
-Anon can read all three. The two build functions are service-role only.
+Anon can read all five. The two build functions are service-role only.
 
 ## Method
 
@@ -34,7 +37,8 @@ For each league match with a full-time score, one row per side, ordered by date 
 ### `team_season_summary`
 
 `league_standings` for league competitions, plus:
-- `games_in_season`, `clubs` and `comparable_group` (e.g. `20x38`, `22x42`);
+- `games_in_season`, `clubs` and `comparable_group`: clubs x a double round robin (`20x38`, `24x46`), so the current season falls in the same group as the finished seasons it is compared with;
+- `split_format`;
 - `champion`, `top_four`, `top_six` (final seasons only);
 - `next_league_id`, `relegated` and `promoted`:
   - **England (league_id 1-5):** read from where the club plays next season. A tier 1-4 club absent from the data next season (dropped below the National League before 2004/05, expelled, or re-formed as another team such as Wimbledon in 2004) is NULL, not guessed. A National League club absent next season is relegated.
@@ -50,13 +54,23 @@ Per league-season:
 - balance: standard deviation of PPG, and Noll-Scully (standard deviation of win share with draws as half, divided by 0.5/sqrt(games));
 - flags: `is_final`, `curtailed`, `split_format`, `covid_affected` (seasons starting 2019 and 2020), `half_time_coverage`, `stats_coverage`.
 
+### Phase A: comparisons by matches played
+
+All three use complete finished seasons only: `is_final`, not `curtailed`, not `split_format`. They compare seasons of the same `comparable_group`, by matches played rather than gameweek or date.
+
+- **`league_pace_benchmarks`:** points after N matches for all clubs, champions, top four, top six and relegated clubs: count, p10/p25/p50/p75/p90, min, max, mean.
+- **`league_table_reliability`:** per season and N, the correlation between `position_at_played` and final position, the average absolute gap between them, and the share of clubs already in their final position; then averaged over seasons (seasons with fewer than 4 clubs at N are skipped).
+- **`history_what_happened_next()`:** every team-season after N matches, filtered by position range, points range, start-year range and comparable group, with how it finished.
+
+Pages: `/football/history` (hub; reliability numbers server-rendered into the HTML), `/football/history/what-happened-next` (query in the URL, every share shown as k of n), `/football/history/pace` (percentile ranks count ties as half).
+
 ## Refresh
 
 `refresh_history_derived(p_force default false)`:
 - rebuilds a league-season when its match count changed, a match was updated after the last build, or a deduction was added after it;
-- then refreshes both materialised views concurrently.
+- then refreshes the four materialised views concurrently.
 
-Timing: a no-op run takes about 13 s (mostly the view refreshes); a full rebuild of all 381 league-seasons takes about 3 minutes.
+Timing: a no-op run takes about 15 s (mostly the view refreshes); a full rebuild of all 381 league-seasons takes about 3 minutes.
 
 Run it with `true` after changing a deduction's effective date or a team mapping.
 
@@ -80,4 +94,4 @@ Checked at build:
 
 ## Source
 
-`supabase/migrations/20260927202000_history_team_match_snapshot.sql`, `20260927203000_history_refresh_schedule_integrity_catalogue.sql`.
+`supabase/migrations/20260927202000_history_team_match_snapshot.sql`, `20260927203000_history_refresh_schedule_integrity_catalogue.sql`, `20260927210000_history_phase_a_rpcs.sql`, `20260927211000_history_phase_a_catalogue.sql`.

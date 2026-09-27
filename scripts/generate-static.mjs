@@ -189,6 +189,8 @@ async function main() {
     ratings: queryAll('team_ratings?select=team_id,attack_strength,defence_strength,is_estimated,fit_run_id'),
     overrides: queryAll('team_strength_manual_override?select=team_id,attack_adjustment,defence_adjustment'),
     acceptedFits: queryAll('model_fit_runs?select=fit_run_id,league_id,fitted_at,status&status=eq.accepted&order=fitted_at.desc'),
+    // History hub (Premier League): the latest season's size fixes the comparison group.
+    historyLatest: query('team_season_summary?select=clubs,start_year&league_id=eq.1&order=start_year.desc&limit=1'),
   };
 
   await writeGameweekPages();
@@ -266,6 +268,41 @@ async function main() {
     console.log(`Static: wrote ${n} club finance page(s) and the /finance index.`);
     return site.teamIds;
   }
+
+  // ---- History hub -----------------------------------------------------------
+  // Written after the static-route loop (which gave it head tags only), so
+  // the full server-rendered page replaces that file: the numbers are in the
+  // HTML for crawlers. Any failure leaves the head-only page in place.
+  async function writeHistoryHub() {
+    try {
+      const latest = await pending.historyLatest;
+      const clubs = latest?.[0]?.clubs ?? 20;
+      const group = `${clubs}x${2 * (clubs - 1)}`;
+      const [reliability, leaders] = await Promise.all([
+        queryAll(`league_table_reliability?select=matches_played,seasons,rank_correlation,mean_abs_position_change,same_position_share&league_id=eq.1&comparable_group=eq.${group}&order=matches_played.asc`),
+        query(`rpc/history_what_happened_next?p_league_id=1&p_matches_played=10&p_position_min=1&p_position_max=1&p_comparable_group=${group}`),
+      ]);
+      if (!reliability || reliability.length === 0 || !leaders) {
+        console.warn('Static: history data unavailable -- history hub keeps head tags only.');
+        return;
+      }
+      const entry = await import(ENTRY);
+      const page = entry.renderHistoryHubPage({
+        leagueCode: 'E0',
+        comparableGroup: group,
+        reliability,
+        leadersAfter10: { champions: leaders.filter((r) => r.champion).length, teamSeasons: leaders.length },
+      });
+      const dir = join(DIST, 'football', 'history');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      console.log('Static: wrote the history hub.');
+    } catch (err) {
+      console.error(`Static: failed /football/history: ${err?.message ?? err}`);
+    }
+  }
+  await writeHistoryHub();
+
   const financeTeamIds = await writeFinancePages();
 
   // Bulk fetches -- three requests total, not one per page.

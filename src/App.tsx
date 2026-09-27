@@ -30,6 +30,9 @@ const MatchPage = lazy(() => import('./pages/football/MatchPage'));
 const TeamPage = lazy(() => import('./pages/football/TeamPage'));
 const StagePage = lazy(() => import('./pages/StagePage'));
 const CrossLeaguePage = lazy(() => import('./pages/football/CrossLeaguePage'));
+const HistoryHubPage = lazy(() => import('./pages/football/HistoryHubPage'));
+const WhatHappenedNextPage = lazy(() => import('./pages/football/WhatHappenedNextPage'));
+const HistoricPacePage = lazy(() => import('./pages/football/HistoricPacePage'));
 const CountryInsightsPage = lazy(() => import('./pages/football/CountryInsightsPage'));
 const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
 const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
@@ -117,6 +120,30 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <CrossLeaguePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/history"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <HistoryHubPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/history/what-happened-next"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <WhatHappenedNextPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/history/pace"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <HistoricPacePage />
               </Suspense>
             }
           />

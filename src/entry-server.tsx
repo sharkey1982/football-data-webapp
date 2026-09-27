@@ -34,6 +34,8 @@ import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
 import TeamFinancePage from './pages/football/TeamFinancePage';
 import FinanceIndexPage from './pages/FinanceIndexPage';
 import FinanceComparePage from './pages/FinanceComparePage';
+import HistoryHubPage from './pages/football/HistoryHubPage';
+import type { HistoryHubData } from './lib/historyApi';
 import { buildComparison } from './lib/financeCompare';
 import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
@@ -310,6 +312,35 @@ export function renderFinanceIndexPage(entries: FinanceIndexEntry[]): RenderedPa
   };
 }
 
+
+export function renderHistoryHubPage(data: HistoryHubData): RenderedPage {
+  const path = '/football/history';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/history" element={<HistoryHubPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  const at = (n: number) => data.reliability.find((r) => r.matches_played === n);
+  const r10 = at(10);
+  const r20 = at(20);
+  const seasons = data.reliability[0]?.seasons ?? 0;
+  let description =
+    'How far clubs still move after every match of the season, measured over every complete season since the 1990s.';
+  if (r10 && r20) {
+    description =
+      `After 10 matches the average Premier League club finishes ${r10.mean_abs_position_change.toFixed(1)} places from where it stands; ` +
+      `after 20, ${r20.mean_abs_position_change.toFixed(1)}. From ${seasons} complete 20-club seasons.`;
+  }
+  return {
+    html,
+    title: `When does the league table become real? | ${BRAND_NAME}`,
+    description,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'History', path }])],
+  };
+}
 
 /** Injects a rendered page into the built index.html shell: its markup
  * into #root, and real head tags replacing the shell's static

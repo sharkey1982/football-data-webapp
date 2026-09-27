@@ -81,6 +81,27 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/history',
+    title: 'When does the league table become real?',
+    description:
+      'How far clubs still move after every match of the season, from every complete season since 1992: the Premier League, Championship, League One, League Two and National League.',
+    crumbs: [FOOTBALL],
+  },
+  {
+    path: '/football/history/what-happened-next',
+    title: 'What happened next? Where teams in any position finished',
+    description:
+      'Pick a position or points total after any number of matches and see where every team in that spot went on to finish: champions, top four, relegated.',
+    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+  },
+  {
+    path: '/football/history/pace',
+    title: 'Historic pace \u2014 this season against every champion',
+    description:
+      'Each club\u2019s points after every match this season against where every champion and relegated side stood at the same stage.',
+    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+  },
+  {
     path: '/football/leagues-compared',
     title: 'League Insights \u2014 the English divisions compared',
     description:
