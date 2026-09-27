@@ -2,16 +2,19 @@
 # ============================================================================
 # scripts/history_backfill.py
 #
-# One-off load of English league history (tiers 1-4, 1992/93 to 2013/14).
+# One-off load of English league history (tiers 1-4, 1992/93 to 2013/14;
+# tier 5, the Conference / National League, 2004/05 to 2013/14).
 # Run from GitHub Actions (workflow history-backfill.yml): the sandbox that
 # plans this work cannot reach football-data.co.uk, and this needs the
 # service key. Three commands:
 #
-#   stage       Download every football-data.co.uk file (E0-E3, 1993/94 to
-#               2013/14) and engsoccerdata's england.csv (tiers 1-4, seasons
-#               1992-2013) into the scratch table historic_source_rows, so
-#               club names can be mapped and every result cross-checked in
-#               SQL. Idempotent: each file's rows are replaced.
+#   stage       Download the football-data.co.uk files named by --targets
+#               (default E0-E3, 1993/94 to 2013/14; 'EC' = tier 5 2004/05 to
+#               2013/14) and engsoccerdata's results for the same divisions
+#               (england.csv for tiers 1-4, england_nonleague.csv for tier 5)
+#               into the scratch table historic_source_rows, so club names can
+#               be mapped and every result cross-checked in SQL. Idempotent:
+#               each file's rows are replaced.
 #
 #   import-fd   Import football-data.co.uk files into matches, like
 #               scripts/import-daily.ts (same fields, same natural-key upsert,
@@ -27,7 +30,8 @@
 #                 * old files are not always UTF-8.
 #
 #   import-esd  Import engsoccerdata results (full-time scores only) for the
-#               seasons football-data.co.uk lacks (1992/93), with
+#               seasons football-data.co.uk lacks (1992/93; --esd-codes picks
+#               the divisions, e.g. EC for tier 5), with
 #               source_name 'engsoccerdata', names through team_aliases rows
 #               with source_name 'engsoccerdata'.
 #
@@ -50,9 +54,12 @@ from supabase import create_client
 FD_SOURCE = "football-data.co.uk"
 ESD_SOURCE = "engsoccerdata"
 ESD_URL = "https://raw.githubusercontent.com/jalapic/engsoccerdata/master/data-raw/england.csv"
+ESD_NONLEAGUE_URL = "https://raw.githubusercontent.com/jalapic/engsoccerdata/master/data-raw/england_nonleague.csv"
 USER_AGENT = "Mozilla/5.0 (compatible; football-data-webapp-importer/1.0)"
-LEAGUES = ["E0", "E1", "E2", "E3"]
-TIER_TO_CODE = {"1": "E0", "2": "E1", "3": "E2", "4": "E3"}
+LEAGUES = ["E0", "E1", "E2", "E3"]          # what target 'all' means
+ALL_CODES = LEAGUES + ["EC"]
+TIER_TO_CODE = {"1": "E0", "2": "E1", "3": "E2", "4": "E3", "5": "EC"}
+FIRST_HISTORIC_START_YEAR = {"E0": 1993, "E1": 1993, "E2": 1993, "E3": 1993, "EC": 2004}  # football-data.co.uk files
 LAST_HISTORIC_START_YEAR = 2013  # 2014/15 onwards belongs to the regular imports
 
 # (raw football-data.co.uk name, last season start year it means this club, team slug).
@@ -60,6 +67,14 @@ LAST_HISTORIC_START_YEAR = 2013  # 2014/15 onwards belongs to the regular import
 ERA_OVERRIDES = [
     ("Halifax", 2007, "halifax-town"),   # Halifax Town (wound up 2008); later FC Halifax Town
     ("Chester", 2009, "chester-city"),   # Chester City (expelled 2010); later Chester FC
+]
+
+# (league code, season start year, team slug): clubs whose record for that
+# division-season was expunged, so none of their matches are imported from
+# either source. Chester City were expelled from the Conference on 26 Feb 2010
+# and their 2009/10 results expunged on 8 Mar 2010.
+EXPUNGED = [
+    ("EC", 2009, "chester-city"),
 ]
 
 # football-data.co.uk results that disagree with engsoccerdata where a third
@@ -192,12 +207,17 @@ def log_pipeline(sb, status: str, summary: str, started: str, error: str | None 
 
 
 def parse_targets(spec: str | None) -> list[tuple[str, int]]:
-    """'all' -> every (code, year) newest season first; else 'E0:1314,E1:9394'."""
+    """'all' -> every E0-E3 (code, year) newest season first; a bare code
+    such as 'EC' -> every season of that division; else 'E0:1314,EC:0405'."""
     if not spec or spec == "all":
         return [(c, y) for y in range(LAST_HISTORIC_START_YEAR, 1992, -1) for c in LEAGUES]
     out = []
     for item in spec.split(","):
-        code, label = item.strip().split(":")
+        item = item.strip()
+        if item in ALL_CODES:
+            out += [(item, y) for y in range(LAST_HISTORIC_START_YEAR, FIRST_HISTORIC_START_YEAR[item] - 1, -1)]
+            continue
+        code, label = item.split(":")
         yy = int(label[:2])
         out.append((code, 1900 + yy if yy >= 50 else 2000 + yy))
     return out
@@ -235,14 +255,9 @@ def stage(sb, targets: list[tuple[str, int]], with_esd: bool) -> str:
         notes.append(f"{code} {label_for(y)}={len(staged)}")
 
     if with_esd:
-        text = decode(fetch(ESD_URL))
-        by_key: dict[tuple[str, int], list[dict]] = {}
-        for r in csv.DictReader(io.StringIO(text)):
-            y = int(r["Season"])
-            code = TIER_TO_CODE.get(str(r["tier"]).strip())
-            if code is None or not (1992 <= y <= LAST_HISTORIC_START_YEAR):
-                continue
-            by_key.setdefault((code, y), []).append(r)
+        codes = {c for c, _ in targets}
+        # tiers 1-4: every season 1992-2013 (as first staged); tier 5: the targets' seasons
+        by_key = esd_rows(codes, None if codes & set(LEAGUES) else sorted({y for _, y in targets}))
         for (code, y), rs in sorted(by_key.items()):
             staged = []
             for i, r in enumerate(rs, start=1):
@@ -274,7 +289,7 @@ def load_lookups(sb, source: str):
         if len(data) < 1000:
             break
         start += 1000
-    leagues = {l["code"]: l["league_id"] for l in sb.table("leagues").select("league_id,code").in_("code", LEAGUES).execute().data}
+    leagues = {l["code"]: l["league_id"] for l in sb.table("leagues").select("league_id,code").in_("code", ALL_CODES).execute().data}
     seasons = {s["start_year"]: s["season_id"] for s in sb.table("seasons").select("season_id,start_year").execute().data}
     return aliases, leagues, seasons
 
@@ -287,6 +302,17 @@ def resolve_overrides(sb) -> dict[str, list[tuple[int, int]]]:
         if slug not in ids:
             raise RuntimeError(f"era override team '{slug}' not found in teams")
         out.setdefault(raw, []).append((last_year, ids[slug]))
+    return out
+
+
+def resolve_expunged(sb) -> dict[tuple[str, int], set[int]]:
+    slugs = [s for _, _, s in EXPUNGED]
+    ids = {t["slug"]: t["team_id"] for t in sb.table("teams").select("team_id,slug").in_("slug", slugs).execute().data}
+    out: dict[tuple[str, int], set[int]] = {}
+    for code, y, slug in EXPUNGED:
+        if slug not in ids:
+            raise RuntimeError(f"expunged team '{slug}' not found in teams")
+        out.setdefault((code, y), set()).add(ids[slug])
     return out
 
 
@@ -345,6 +371,7 @@ def archive_rows(sb, code: str, y: int, url: str, text: str, headers: list[str],
 def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
     aliases, leagues, seasons = load_lookups(sb, FD_SOURCE)
     overrides = resolve_overrides(sb)
+    expunged = resolve_expunged(sb)
     notes, total, failures = [], 0, 0
     for code, y in targets:
         started = datetime.now(timezone.utc).isoformat()
@@ -360,7 +387,7 @@ def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
             log_import_run(sb, code, started, None, None, "failed", f"history {label_for(y)}: {e}")
             failures += 1
             continue
-        inserts, skipped, seen_keys, corrected = [], [], set(), 0
+        inserts, skipped, seen_keys, corrected, dropped = [], [], set(), 0, 0
         for r in rows:
             d, h, a = iso_date(r.get("Date")), home_team(r), away_team(r)
             fthg, ftag, ftr = to_int(r.get("FTHG")), to_int(r.get("FTAG")), to_result(r.get("FTR"))
@@ -381,6 +408,9 @@ def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
             hid, aid = team_for(h, y, aliases, overrides), team_for(a, y, aliases, overrides)
             if not hid or not aid:
                 skipped.append(f"{h} vs {a} on {d} -- no team_aliases mapping")
+                continue
+            if {hid, aid} & expunged.get((code, y), set()):
+                dropped += 1  # record expunged (EXPUNGED)
                 continue
             key = (d, hid, aid)
             if key in seen_keys:
@@ -410,6 +440,8 @@ def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
             failures += 1
             continue
         note = f"history {label_for(y)}; raw rows archived: {archived}; results corrected: {corrected}"
+        if dropped:
+            note += f"; {dropped} expunged match(es) not imported"
         if skipped:
             note += f"; {len(skipped)} played row(s) skipped: " + "; ".join(skipped[:10]) + (" ..." if len(skipped) > 10 else "")
         log_import_run(sb, code, started, len(rows), upserted, "success", note)
@@ -423,16 +455,31 @@ def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
     return f"import-fd: {total} matches upserted, {failures} file(s) failed{odds_note}; " + ", ".join(notes)
 
 
-def import_esd(sb, years: list[int]) -> str:
-    aliases, leagues, seasons = load_lookups(sb, ESD_SOURCE)
-    text = decode(fetch(ESD_URL))
-    notes, total = [], 0
+def esd_rows(codes: set[str], years: list[int] | None) -> dict[tuple[str, int], list[dict]]:
+    """engsoccerdata rows by (code, season start year): tiers 1-4 from
+    england.csv, tier 5 (division 'conference') from england_nonleague.csv.
+    years None = 1992 to LAST_HISTORIC_START_YEAR."""
     by_key: dict[tuple[str, int], list[dict]] = {}
-    for r in csv.DictReader(io.StringIO(text)):
-        y = int(r["Season"])
-        code = TIER_TO_CODE.get(str(r["tier"]).strip())
-        if code and y in years:
-            by_key.setdefault((code, y), []).append(r)
+    urls = ([ESD_URL] if codes & set(LEAGUES) else []) + ([ESD_NONLEAGUE_URL] if "EC" in codes else [])
+    for url in urls:
+        for r in csv.DictReader(io.StringIO(decode(fetch(url)))):
+            y = int(r["Season"])
+            code = TIER_TO_CODE.get(str(r["tier"]).strip())
+            if code not in codes or (code == "EC" and r.get("division") != "conference"):
+                continue
+            if (years is None and not (1992 <= y <= LAST_HISTORIC_START_YEAR)) or (years is not None and y not in years):
+                continue
+            if r["Date"] == "NA":
+                r["Date"] = ""
+            by_key.setdefault((code, y), []).append(dict(r, _url=url))
+    return by_key
+
+
+def import_esd(sb, years: list[int], codes: set[str]) -> str:
+    aliases, leagues, seasons = load_lookups(sb, ESD_SOURCE)
+    expunged = resolve_expunged(sb)
+    notes, total = [], 0
+    by_key = esd_rows(codes, years)
     for (code, y), rs in sorted(by_key.items()):
         started = datetime.now(timezone.utc).isoformat()
         if y > LAST_HISTORIC_START_YEAR or y not in seasons:
@@ -446,12 +493,14 @@ def import_esd(sb, years: list[int]) -> str:
             if not hid or not aid:
                 skipped.append(f"{r['home']} vs {r['visitor']} on {r['Date']} -- no team_aliases mapping")
                 continue
+            if {hid, aid} & expunged.get((code, y), set()):
+                continue
             inserts.append({
                 "league_id": leagues[code], "season_id": seasons[y], "home_team_id": hid, "away_team_id": aid,
                 "match_date": r["Date"], "full_time_home_goals": hg, "full_time_away_goals": ag,
                 "full_time_result": "H" if hg > ag else "A" if hg < ag else "D",
                 "home_yellow_cards": 0, "away_yellow_cards": 0, "home_red_cards": 0, "away_red_cards": 0,
-                "source_name": ESD_SOURCE, "source_file": ESD_URL,
+                "source_name": ESD_SOURCE, "source_file": r["_url"],
             })
         upserted = upsert_matches(sb, inserts)
         note = f"history {label_for(y)} from engsoccerdata"
@@ -470,6 +519,7 @@ def main() -> None:
     p.add_argument("--no-esd", action="store_true", help="stage: skip engsoccerdata")
     p.add_argument("--no-odds", action="store_true", help="import-fd: do not archive raw rows / fill match_odds")
     p.add_argument("--esd-years", default="1992", help="import-esd: comma-separated season start years")
+    p.add_argument("--esd-codes", default="E0,E1,E2,E3", help="import-esd: divisions, e.g. EC")
     args = p.parse_args()
 
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
@@ -480,7 +530,8 @@ def main() -> None:
         elif args.command == "import-fd":
             summary = import_fd(sb, parse_targets(args.targets), not args.no_odds)
         else:
-            summary = import_esd(sb, [int(x) for x in args.esd_years.split(",")])
+            summary = import_esd(sb, [int(x) for x in args.esd_years.split(",")],
+                                 {c.strip() for c in args.esd_codes.split(",")})
     except Exception as e:  # noqa: BLE001 -- logged, then the run fails
         log_pipeline(sb, "failed", f"{args.command} failed", started, str(e)[:2000])
         raise
