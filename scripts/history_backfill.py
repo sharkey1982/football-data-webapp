@@ -62,6 +62,33 @@ ERA_OVERRIDES = [
     ("Chester", 2009, "chester-city"),   # Chester City (expelled 2010); later Chester FC
 ]
 
+# football-data.co.uk results that disagree with engsoccerdata where a third
+# source (11v11.com match records, checked 2026-09-27) sides with
+# engsoccerdata. Keyed (code, season start year, ISO date, raw home, raw
+# away) -> (home goals, away goals, swap home/away). Applied on import so a
+# re-run cannot bring the wrong score back. The one disagreement where
+# 11v11 sides with football-data.co.uk (E2 1994/95 Blackpool 2-1 Oxford,
+# 1995-02-11) is left as the file has it. See docs/history-backfill.md.
+CORRECTIONS = {
+    ("E2", 1993, "1994-03-26", "Bristol Rvs", "Barnet"): (5, 2, False),
+    ("E1", 1994, "1995-03-19", "Swindon", "West Brom"): (2, 5, True),   # venue reversed in file
+    ("E1", 1994, "1994-08-31", "West Brom", "Swindon"): (0, 0, True),   # venue reversed in file
+    ("E2", 1994, "1995-04-29", "Hull", "Wrexham"): (3, 2, False),
+    ("E3", 1994, "1995-05-06", "Carlisle", "Lincoln"): (1, 3, False),
+    ("E1", 1995, "1996-02-24", "Huddersfield", "Crystal Palace"): (3, 0, False),
+    ("E2", 1995, "1996-03-09", "Blackpool", "Notts County"): (1, 0, False),
+    ("E2", 1995, "1996-05-04", "York", "Blackpool"): (0, 2, False),
+    ("E3", 1995, "1996-04-02", "Lincoln", "Scarborough"): (3, 1, False),
+    ("E3", 1995, "1996-02-24", "Northampton", "Doncaster"): (3, 3, False),
+    ("E3", 1995, "1996-03-23", "Scunthorpe", "Fulham"): (3, 1, False),
+    ("E1", 1996, "1997-04-16", "Man City", "Grimsby"): (3, 1, False),
+    ("E1", 1996, "1997-03-28", "Tranmere", "Southend"): (3, 0, False),
+    ("E2", 1996, "1996-11-30", "Wrexham", "Wycombe"): (1, 0, False),
+    ("E3", 1996, "1997-03-18", "Cardiff", "Scarborough"): (1, 1, False),
+    ("E3", 1999, "2000-04-08", "Rochdale", "Hartlepool"): (2, 0, False),
+    ("E2", 2012, "2012-10-20", "Portsmouth", "Shrewsbury"): (3, 1, False),
+}
+
 # Bookmaker home-price columns: any filled means the row carries odds.
 ODDS_HOME_COLS = ["B365H", "BWH", "IWH", "LBH", "PSH", "WHH", "SJH", "VCH", "GBH", "BSH", "SBH", "SOH",
                   "BbMxH", "BbAvH", "MaxH", "AvgH", "PSCH"]
@@ -333,12 +360,24 @@ def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
             log_import_run(sb, code, started, None, None, "failed", f"history {label_for(y)}: {e}")
             failures += 1
             continue
-        inserts, skipped, seen_keys = [], [], set()
+        inserts, skipped, seen_keys, corrected = [], [], set(), 0
         for r in rows:
             d, h, a = iso_date(r.get("Date")), home_team(r), away_team(r)
             fthg, ftag, ftr = to_int(r.get("FTHG")), to_int(r.get("FTAG")), to_result(r.get("FTR"))
             if not d or not h or not a or fthg is None or ftag is None or ftr is None:
                 continue  # blank trailing row or unplayed fixture, as import-daily.ts
+            fix = CORRECTIONS.get((code, y, d, h, a))
+            if fix:
+                fthg, ftag, swap = fix
+                ftr = "H" if fthg > ftag else "A" if fthg < ftag else "D"
+                if swap:
+                    h, a = a, h
+                    r = dict(r)
+                    for x, z in [("HTHG", "HTAG"), ("HS", "AS"), ("HST", "AST"), ("HC", "AC"), ("HF", "AF"),
+                                 ("HY", "AY"), ("HR", "AR")]:
+                        r[x], r[z] = r.get(z, ""), r.get(x, "")
+                    r["HTR"] = {"H": "A", "A": "H"}.get(r.get("HTR", ""), r.get("HTR", ""))
+                corrected += 1
             hid, aid = team_for(h, y, aliases, overrides), team_for(a, y, aliases, overrides)
             if not hid or not aid:
                 skipped.append(f"{h} vs {a} on {d} -- no team_aliases mapping")
@@ -370,7 +409,7 @@ def import_fd(sb, targets: list[tuple[str, int]], archive_odds: bool) -> str:
             log_import_run(sb, code, started, len(rows), None, "failed", f"history {label_for(y)}: {e}")
             failures += 1
             continue
-        note = f"history {label_for(y)}; raw rows archived: {archived}"
+        note = f"history {label_for(y)}; raw rows archived: {archived}; results corrected: {corrected}"
         if skipped:
             note += f"; {len(skipped)} played row(s) skipped: " + "; ".join(skipped[:10]) + (" ..." if len(skipped) > 10 else "")
         log_import_run(sb, code, started, len(rows), upserted, "success", note)
