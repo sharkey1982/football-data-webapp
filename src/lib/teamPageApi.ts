@@ -39,6 +39,10 @@ export type TeamPageMatch = {
   status: string;
   goals_for: number | null;
   goals_against: number | null;
+  /** Score published by the fixture feed before football-data confirms it
+   * (fixtures.reported_*). Display only, marked provisional. */
+  reported_goals_for?: number | null;
+  reported_goals_against?: number | null;
   predicted_goals_for: number | null;
   predicted_goals_against: number | null;
 };
@@ -130,7 +134,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
       // Single string LITERAL: supabase-js parses .select() at the type
       // level, and concatenation collapses every embedded column to
       // GenericStringError.
-      'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
+      'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
     )
     .eq('league_id', leagueId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
@@ -160,6 +164,8 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
       status: f.status,
       goals_for: res ? (isHome ? res.full_time_home_goals : res.full_time_away_goals) : null,
       goals_against: res ? (isHome ? res.full_time_away_goals : res.full_time_home_goals) : null,
+      reported_goals_for: f.reported_home_goals == null ? null : isHome ? f.reported_home_goals : f.reported_away_goals,
+      reported_goals_against: f.reported_home_goals == null ? null : isHome ? f.reported_away_goals : f.reported_home_goals,
       predicted_goals_for:
         f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
       predicted_goals_against:

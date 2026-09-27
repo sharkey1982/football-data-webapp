@@ -173,7 +173,7 @@ async function main() {
     teams: queryAll('teams?select=team_id,display_name,slug'),
     fits: queryAll('model_fit_runs?select=fit_run_id,rho'),
     fixtures: queryAll(
-      `fixtures?select=fixture_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id` +
+      `fixtures?select=fixture_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id,reported_home_goals,reported_away_goals` +
         `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null`
     ),
     matches: queryAll(
@@ -464,6 +464,8 @@ async function main() {
       model: null,
       actual_home_goals: result?.full_time_home_goals ?? null,
       actual_away_goals: result?.full_time_away_goals ?? null,
+      reported_home_goals: f.reported_home_goals ?? null,
+      reported_away_goals: f.reported_away_goals ?? null,
       __rho: rho ?? null,
     };
 
@@ -619,6 +621,8 @@ async function main() {
         status: f.status,
         goals_for: res ? (isHome ? res.full_time_home_goals : res.full_time_away_goals) : null,
         goals_against: res ? (isHome ? res.full_time_away_goals : res.full_time_home_goals) : null,
+        reported_goals_for: f.reported_home_goals == null ? null : isHome ? f.reported_home_goals : f.reported_away_goals,
+        reported_goals_against: f.reported_home_goals == null ? null : isHome ? f.reported_away_goals : f.reported_home_goals,
         predicted_goals_for:
           f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
         predicted_goals_against:

@@ -47,6 +47,10 @@ export type FixtureWithNames = {
   predicted_home_goals?: number | null;
   predicted_away_goals?: number | null;
   prediction_fit_run_id?: number | null;
+  // Score published by the fixture feed before football-data confirms it
+  // (fixtures.reported_*). Shown as provisional; never used for tables.
+  reported_home_goals?: number | null;
+  reported_away_goals?: number | null;
 };
 
 /**
@@ -151,7 +155,7 @@ export async function getFixturesForTeam(
       `
       fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status, prediction_fit_run_id,
-      predicted_home_goals, predicted_away_goals,
+      predicted_home_goals, predicted_away_goals, reported_home_goals, reported_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name, competition_type)
@@ -180,6 +184,8 @@ export async function getFixturesForTeam(
     league_name: row.league?.name,
     competition_type: row.league?.competition_type,
     predicted_home_goals: row.predicted_home_goals,
+    reported_home_goals: row.reported_home_goals ?? null,
+    reported_away_goals: row.reported_away_goals ?? null,
     predicted_away_goals: row.predicted_away_goals,
   }));
   return attachResultsForTeam(fixtures, seasonId, teamId);
@@ -439,7 +445,7 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
       `
       fixture_id, slug, league_id, season_id, home_team_id, away_team_id,
       kickoff_date, kickoff_time, matchweek, status, prediction_fit_run_id,
-      predicted_home_goals, predicted_away_goals,
+      predicted_home_goals, predicted_away_goals, reported_home_goals, reported_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)
     `
@@ -464,6 +470,8 @@ export async function getFixturesForSeason(leagueId: number, seasonId: number): 
     matchweek: row.matchweek,
     status: row.status,
     predicted_home_goals: row.predicted_home_goals,
+    reported_home_goals: row.reported_home_goals ?? null,
+    reported_away_goals: row.reported_away_goals ?? null,
     predicted_away_goals: row.predicted_away_goals,
   }));
   return attachResults(fixtures, leagueId, seasonId);
@@ -568,4 +576,30 @@ export async function getUpcomingFixtureForPairing(
     predicted_away_goals: data.predicted_away_goals,
     prediction_fit_run_id: data.prediction_fit_run_id,
   };
+}
+
+export type ReportedResult = { fixture_id: number; kickoff_date: string; home_team_name: string; away_team_name: string; home_goals: number; away_goals: number };
+
+/** Played fixtures whose score the fixture feed has published but the
+ * results feed has not yet confirmed (view fixtures_reported_unconfirmed).
+ * Display only: league tables are built from confirmed results. */
+export async function getReportedUnconfirmed(leagueId: number, seasonId: number): Promise<ReportedResult[]> {
+  const { data, error } = await supabase
+    .from('fixtures_reported_unconfirmed' as never)
+    .select('fixture_id, kickoff_date, home_team_id, away_team_id, reported_home_goals, reported_away_goals')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .order('kickoff_date');
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as { fixture_id: number; kickoff_date: string; home_team_id: number; away_team_id: number; reported_home_goals: number; reported_away_goals: number }[];
+  if (rows.length === 0) return [];
+  const ids = [...new Set(rows.flatMap((r) => [r.home_team_id, r.away_team_id]))];
+  const { data: teams, error: e2 } = await supabase.from('teams').select('team_id, display_name').in('team_id', ids);
+  if (e2) throw e2;
+  const name = new Map((teams ?? []).map((t) => [t.team_id, t.display_name]));
+  return rows.map((r) => ({
+    fixture_id: r.fixture_id, kickoff_date: r.kickoff_date,
+    home_team_name: name.get(r.home_team_id) ?? 'Unknown', away_team_name: name.get(r.away_team_id) ?? 'Unknown',
+    home_goals: r.reported_home_goals, away_goals: r.reported_away_goals,
+  }));
 }

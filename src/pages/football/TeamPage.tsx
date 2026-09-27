@@ -105,7 +105,9 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
     );
   }
 
-  const played = matches.filter((m) => m.goals_for != null);
+  // A played fixture stays in the results while its score is awaited:
+  // football-data confirms lower-league results up to three days later.
+  const played = matches.filter((m) => m.goals_for != null || m.status === 'played');
   const upcoming = matches.filter((m) => m.status !== 'played').slice(0, 5);
 
   return (
@@ -209,7 +211,16 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
                       {m.opponent_name} <span className="text-ink-500">({m.is_home ? 'H' : 'A'})</span>
                     </td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
-                      {m.goals_for}&ndash;{m.goals_against}
+                      {m.goals_for != null ? (
+                        <>{m.goals_for}&ndash;{m.goals_against}</>
+                      ) : m.reported_goals_for != null ? (
+                        <span title="Reported score, awaiting confirmation">
+                          {m.reported_goals_for}&ndash;{m.reported_goals_against}
+                          <span className="font-sans text-ink-500"> (reported)</span>
+                        </span>
+                      ) : (
+                        <span className="font-sans text-ink-500">Result to follow</span>
+                      )}
                     </td>
                   </tr>
                 ))}

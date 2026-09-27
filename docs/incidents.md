@@ -12,6 +12,27 @@ fixing something else.
 
 ---
 
+## 2026-09-27 · Played matches vanished from club pages until the result arrived
+- **Impact:** between kick-off and football-data's update (hours for the
+  Premier League, up to three days for the National League) a played match
+  appeared in neither "upcoming" nor "results" on club pages; match pages
+  showed no result or pending state, and the Fixtures page showed the
+  pre-match prediction where the score goes. Found by the owner: Southend v
+  Barrow (26 Sep) missing on 27 Sep. 15 fixtures affected at the time.
+- **Cause:** the fixture feeds mark a fixture `played` (they carry its final
+  score), but the score was discarded; pages only showed a score from
+  `matches`, and treated "played" as "not upcoming".
+- **Fix:** `fixtures.reported_*` keeps the feed's score (footballwebpages for
+  the National League, fixturedownload for the Premier League to League Two);
+  pages show it marked "reported", or "Result to follow"; the league table
+  lists reported results beneath it without counting them. Tables, the model
+  and history still read only `matches`.
+- **Prevention:** `check_model_integrity` 'reported_vs_confirmed' warns when
+  a reported score and football-data's disagree (0 of 120+ at creation);
+  'played_without_result' still catches a result missing after 3 days.
+
+---
+
 ## 2026-09-23 · Early fits predicted ~25% too few goals
 - **Impact:** 38 Premier League and 51 Championship 2026/27 predictions (and
   every bet/accuracy figure built on them) used fits #2 and #3, predicting

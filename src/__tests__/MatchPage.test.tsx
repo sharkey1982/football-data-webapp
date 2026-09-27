@@ -132,6 +132,20 @@ describe('MatchPage', () => {
     expect(screen.getByRole('heading', { name: 'What the model predicted beforehand' })).toBeInTheDocument();
   });
 
+  it('shows a reported score as provisional while the result awaits confirmation', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'played', actual_home_goals: null, actual_away_goals: null, reported_home_goals: 2, reported_away_goals: 4 });
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Result' })).toBeInTheDocument());
+    expect(screen.getByText(/Arsenal 2\u20134 Coventry/)).toBeInTheDocument();
+    expect(screen.getByText(/awaiting confirmation/)).toBeInTheDocument();
+  });
+
+  it('says the result is to follow when a played match has no score yet', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'played', actual_home_goals: null, actual_away_goals: null });
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByText('Played. Result to follow.')).toBeInTheDocument());
+  });
+
   it('shows Where to watch with channel, streaming and free-to-air, and puts it in the page metadata', async () => {
     mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
     mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([

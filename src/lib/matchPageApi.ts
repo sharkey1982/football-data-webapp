@@ -44,6 +44,10 @@ export type MatchPagePrediction = {
   /** Real result, once played. */
   actual_home_goals: number | null;
   actual_away_goals: number | null;
+  /** Score published by the fixture feed before the result is confirmed
+   * (fixtures.reported_*). Shown as provisional. */
+  reported_home_goals?: number | null;
+  reported_away_goals?: number | null;
 };
 
 /** Builds the outcome probabilities and score grid from a fixture's OWN
@@ -78,7 +82,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     // the type level, and string concatenation defeats that, collapsing
     // every embedded column to GenericStringError.
     .select(
-      'fixture_id, slug, kickoff_date, status, matchweek, league_id, season_id, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
+      'fixture_id, slug, kickoff_date, status, matchweek, league_id, season_id, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -141,6 +145,8 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     model,
     actual_home_goals: actualHome,
     actual_away_goals: actualAway,
+    reported_home_goals: data.reported_home_goals,
+    reported_away_goals: data.reported_away_goals,
   };
 }
 
