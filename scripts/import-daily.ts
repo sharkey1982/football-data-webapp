@@ -28,10 +28,13 @@ import { csvUrlFor, selectRows } from './lib/footballDataCsv';
 import { rowsToArchive, type RawRow } from './lib/rawArchive';
 
 const LEAGUE_CODE = process.env.IMPORT_LEAGUE_CODE ?? 'E0';
-const SEASON_LABEL = process.env.IMPORT_SEASON_LABEL ?? '2627';
-// Workflows may pass the URL explicitly; otherwise it's derived from the
+// Season: IMPORT_SEASON_LABEL for a one-off (e.g. a historic season);
+// otherwise the current season from the database, public.current_season_id()
+// (1 July boundary, docs/season-rollover.md) -- resolved in main().
+let SEASON_LABEL = process.env.IMPORT_SEASON_LABEL ?? '';
+// Callers may pass the URL explicitly; otherwise it's derived from the
 // league code (3-letter codes are football-data.co.uk's all-seasons files).
-const CSV_URL = process.env.IMPORT_CSV_URL || csvUrlFor(LEAGUE_CODE, SEASON_LABEL);
+let CSV_URL = process.env.IMPORT_CSV_URL || '';
 const SOURCE_NAME = 'football-data.co.uk';
 
 const STARTED_AT = new Date().toISOString();
@@ -228,12 +231,30 @@ async function main() {
 
   const supabase = createClient<Database>(url!, key!, { auth: { persistSession: false } });
 
+  if (!SEASON_LABEL) {
+    const { data: seasonId, error: curErr } = await supabase.rpc('current_season_id');
+    const { data: cur } = seasonId
+      ? await supabase.from('seasons').select('label').eq('season_id', seasonId).single()
+      : { data: null };
+    if (curErr || !cur) await fail(supabase, `Could not resolve the current season: ${curErr?.message ?? 'no seasons row'}`);
+    SEASON_LABEL = cur!.label;
+  }
+  if (!CSV_URL) CSV_URL = csvUrlFor(LEAGUE_CODE, SEASON_LABEL);
+
   console.log(`Fetching ${CSV_URL} ...`);
   let text: string;
   try {
     const res = await fetch(CSV_URL, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; football-data-webapp-importer/1.0)' },
     });
+    // A new season's file only appears once its first results are in. In July
+    // and August a 404 means "not published yet", not a failure -- otherwise
+    // the workflow's later steps (fits) would stop at every rollover.
+    const month = new Date().getUTCMonth() + 1;
+    if (res.status === 404 && (month === 7 || month === 8)) {
+      await logRun(supabase, { rowsSeen: 0, rowsUpserted: 0, status: 'success', errorMessage: `${CSV_URL} not published yet (HTTP 404)` });
+      return;
+    }
     if (!res.ok) {
       await fail(supabase, `Failed to download CSV: ${res.status} ${res.statusText}`);
     }

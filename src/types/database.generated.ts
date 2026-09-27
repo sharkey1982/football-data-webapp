@@ -7126,6 +7126,7 @@ export type Database = {
           worst_points_gap: number
         }[]
       }
+      current_season_id: { Args: never; Returns: number }
       fixture_derived_markets: {
         Args: { p_lambda_away: number; p_lambda_home: number; p_rho: number }
         Returns: {
@@ -7139,6 +7140,7 @@ export type Database = {
           under_2_5: number
         }[]
       }
+      fpl_current_season_id: { Args: never; Returns: number }
       fpl_gameweek_for_date: {
         Args: { p_date: string; p_season_id: number }
         Returns: number

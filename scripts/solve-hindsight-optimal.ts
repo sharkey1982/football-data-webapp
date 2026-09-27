@@ -26,7 +26,8 @@
 import { createClient } from '@supabase/supabase-js';
 import highsLoader from 'highs';
 
-const SEASON_ID = 13;
+// The current FPL season, resolved in main() (docs/season-rollover.md).
+let SEASON_ID = 0;
 const LEAGUE_ID = 1;
 const BUDGET = 100;
 const OPTIMISER_VERSION = 'hindsight_v1_full_pool';
@@ -122,6 +123,9 @@ async function main() {
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) { console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY.'); process.exit(1); }
   const supabase = createClient(url!, key!, { auth: { persistSession: false } });
+  const { data: seasonId, error: seasonErr } = await supabase.rpc('fpl_current_season_id');
+  if (seasonErr || !seasonId) throw new Error(`Could not resolve the current FPL season: ${seasonErr?.message ?? 'none'}`);
+  SEASON_ID = seasonId as number;
   const highs = await highsLoader();
 
   // Which matchweeks actually have real, played results -- never hard-coded.

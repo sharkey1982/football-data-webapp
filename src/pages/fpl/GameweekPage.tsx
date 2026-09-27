@@ -17,10 +17,10 @@ import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
 import SeasonActualVsProjectedTable from '../../components/fpl/season/SeasonActualVsProjectedTable';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 
 /** This whole FPL section only covers the Premier League -- matches the convention already used throughout it (no explicit league picker anywhere else here either). */
 const FPL_LEAGUE_ID = 1;
-const FPL_SEASON_ID = 13;
 
 /** A known, currently-unresolved backend performance issue -- give a calm, specific explanation instead of a raw Postgres error wall. */
 function isTimeoutError(message: string): boolean {
@@ -140,7 +140,8 @@ export default function GameweekPage() {
     let cancelled = false;
     setLoadingAvp(true);
     setAvpError(null);
-    getSeasonActualVsProjected(FPL_LEAGUE_ID, FPL_SEASON_ID)
+    getCurrentFplSeasonId()
+      .then((seasonId) => getSeasonActualVsProjected(FPL_LEAGUE_ID, seasonId))
       .then((data) => {
         if (!cancelled) setActualVsProjected(data);
       })

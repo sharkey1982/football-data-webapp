@@ -7,6 +7,21 @@ import ModelReturnsPage from '../pages/football/ModelReturnsPage';
 import * as api from '../lib/bettingApi';
 import { totalReturns, sampleIsThin, orderedPrices, divisionReturns, type BettingReturnRow, type BettingBet } from '../lib/bettingApi';
 
+// The current season comes from the database (docs/season-rollover.md).
+vi.mock('../lib/currentSeason', () => ({
+  getCurrentFplSeasonId: () => Promise.resolve(13),
+  getCurrentSeasonId: () => Promise.resolve(13),
+}));
+vi.mock('../lib/referenceApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/referenceApi')>()),
+  getSeasons: async () => [
+    { season_id: 13, label: '2627', start_year: 2026, end_year: 2027 },
+    { season_id: 12, label: '2526', start_year: 2025, end_year: 2026 },
+    { season_id: 11, label: '2425', start_year: 2024, end_year: 2025 },
+    { season_id: 10, label: '2324', start_year: 2023, end_year: 2024 },
+    { season_id: 14, label: '9293', start_year: 1992, end_year: 1993 },
+  ],
+}));
 vi.mock('../lib/bettingApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/bettingApi');
   return { ...actual, getBettingReturns: vi.fn(), getBettingBets: vi.fn() };

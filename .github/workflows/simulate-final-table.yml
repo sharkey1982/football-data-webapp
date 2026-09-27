@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       season_id:
-        description: 'Season ID'
+        description: 'Season ID (blank = current season)'
         required: false
-        default: '13'
+        default: ''
         type: string
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       - run: pip install -r scripts/requirements.txt
 
       - name: Simulate final table
-        run: python scripts/simulate_final_table.py --season-id "${{ inputs.season_id }}"
+        run: python scripts/simulate_final_table.py ${{ inputs.season_id && format('--season-id {0}', inputs.season_id) || '' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

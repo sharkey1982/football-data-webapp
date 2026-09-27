@@ -240,7 +240,8 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
     setTriggeringSim(true);
     setTriggerSimResult(null);
     try {
-      await triggerWorkflow('simulate-final-table', { season_id: '13' });
+      // No season_id: the workflow simulates the current season (docs/season-rollover.md).
+      await triggerWorkflow('simulate-final-table', {});
       setTriggerSimResult('Triggered \u2014 the simulation typically takes 1\u20132 minutes to complete. Reload this page after that to see updated Proj. Pos values.');
     } catch (e) {
       setTriggerSimResult(`Failed: ${getErrorMessage(e, 'Could not trigger the simulation')}`);

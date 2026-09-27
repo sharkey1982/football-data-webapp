@@ -19,6 +19,7 @@
 import { supabase } from './supabase';
 import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION } from './fplApi';
 import type { FplElementType } from '../types/database';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 /** FPL encodes position as 1-4 (GKP/DEF/MID/FWD). Postgres stores it as a
  * plain int, so generated types widen it to `number`; this narrows it back
@@ -91,7 +92,7 @@ export async function getDefaultMatchweek(): Promise<number> {
   // get_fpl_default_matchweek is new enough the generated Database type
   // doesn't know its params yet -- scoped `as any`, matching the
   // "deliberately untyped RPC" convention used elsewhere in this project.
-  const { data, error } = await supabase.rpc('get_fpl_default_matchweek', { p_season_id: 13, p_league_id: 1 });
+  const { data, error } = await supabase.rpc('get_fpl_default_matchweek', { p_season_id: await getCurrentFplSeasonId(), p_league_id: 1 });
   if (error) throw error;
   return typeof data === 'number' ? data : 1;
 }
@@ -107,7 +108,7 @@ export async function getGameweekInPlay(): Promise<{ gw: number; played: number;
     .from('fixtures')
     .select('matchweek, status')
     .eq('league_id', 1)
-    .eq('season_id', 13);
+    .eq('season_id', await getCurrentFplSeasonId());
   if (error) throw error;
   const byMw = new Map<number, { played: number; total: number }>();
   for (const r of (data ?? []) as { matchweek: number | null; status: string | null }[]) {
@@ -406,7 +407,7 @@ export async function getGameweekPlayerProjections(
     const { data: mapRows, error: mapError } = await supabase
       .from('fpl_fixtures')
       .select('fpl_fixture_id, canonical_fixture_id')
-      .eq('season_id', 13)
+      .eq('season_id', await getCurrentFplSeasonId())
       .in('canonical_fixture_id', fixtureIds);
     if (mapError) throw mapError;
     const canonicalByFplFixture = new Map<number, number>();

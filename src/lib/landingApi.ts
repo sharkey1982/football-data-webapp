@@ -41,9 +41,9 @@ import { getFplScoringRules } from './fplScoringRulesApi';
 import { getHindsightOptimalSquad } from './fplOptimizerApi';
 import { getFantasyFixtureDifficulty, getTeamStrengthSummary } from './modelApi';
 import { getGameweekDigest } from './digestApi';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 const PL_LEAGUE_ID = 1;
-const PL_SEASON_ID = 13;
 
 export type TriviaFact = {
   question: string;
@@ -102,7 +102,7 @@ export async function upcomingGameweek(): Promise<{ matchweek: number; fixtureId
     .from('fixtures')
     .select('fixture_id, matchweek, status')
     .eq('league_id', PL_LEAGUE_ID)
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .order('kickoff_date', { ascending: true });
   if (error) throw error;
   const rows = (data ?? []) as { fixture_id: number; matchweek: number | null; status?: string | null }[];
@@ -229,7 +229,7 @@ async function getTopFplPicks(): Promise<TopFplPick[]> {
   const { data: playerRows, error: playerError } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, web_name, canonical_team_id')
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .in('fpl_player_id', (projRows ?? []).map((p) => p.fpl_player_id));
   if (playerError) throw playerError;
 
@@ -272,7 +272,7 @@ export async function getTopFplPickTrivia(): Promise<TriviaFact | null> {
 }
 
 export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> {
-  const { data, error } = await supabase.rpc('get_top_actual_fpl_scorer', { p_season_id: PL_SEASON_ID });
+  const { data, error } = await supabase.rpc('get_top_actual_fpl_scorer', { p_season_id: await getCurrentFplSeasonId() });
   if (error) throw error;
   const rows = (data ?? []) as { web_name: string; total_points: number }[];
   if (rows.length === 0) return null;
@@ -287,7 +287,7 @@ export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> 
 
 /** Whose price is under most pressure to RISE -- the Bullpit's question. */
 export async function getPriceRiskTrivia(): Promise<TriviaFact | null> {
-  const { data, error } = await supabase.rpc('get_price_change_risk', { p_season_id: PL_SEASON_ID });
+  const { data, error } = await supabase.rpc('get_price_change_risk', { p_season_id: await getCurrentFplSeasonId() });
   if (error) throw error;
   const risers = ((data ?? []) as { web_name: string; team_name: string; direction: string; pressure: number; net_transfers: number }[])
     .filter((r) => r.direction === 'rise')
@@ -305,7 +305,7 @@ export async function getPriceRiskTrivia(): Promise<TriviaFact | null> {
 }
 
 export async function getSetPieceTrivia(): Promise<TriviaFact | null> {
-  const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: PL_SEASON_ID });
+  const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: await getCurrentFplSeasonId() });
   if (error) throw error;
   const rows = ((data ?? []) as { player_name: string; team_name: string; index_score: number; duties: number }[]).slice(0, 4);
   if (rows.length < 2) return null;
@@ -435,7 +435,7 @@ export async function getFixtureRunTrivia(): Promise<TriviaFact | null> {
   const gw = await upcomingGameweek();
   if (!gw) return null;
   const last = gw.matchweek + 4;
-  const data = await getFantasyFixtureDifficulty(PL_LEAGUE_ID, PL_SEASON_ID);
+  const data = await getFantasyFixtureDifficulty(PL_LEAGUE_ID, await getCurrentFplSeasonId());
   const totals = data.teams
     .map((t) => ({ name: t.team_name, xg: t.fixtures.filter((f) => f.matchweek != null && f.matchweek >= gw.matchweek && f.matchweek <= last).reduce((s, f) => s + Number(f.expected_goals_for), 0) }))
     .filter((t) => t.xg > 0)
@@ -485,7 +485,7 @@ export async function getHindsightSquadTrivia(): Promise<TriviaFact | null> {
 
 /** In the papers: the biggest ownership climb this gameweek. */
 export async function getOwnershipSurgeTrivia(): Promise<TriviaFact | null> {
-  const entries = (await getGameweekDigest(PL_SEASON_ID)).filter((e) => e.change_type === 'ownership');
+  const entries = (await getGameweekDigest(await getCurrentFplSeasonId())).filter((e) => e.change_type === 'ownership');
   if (!entries.length) return null;
   const gw = entries[0].gameweek;
   const pct = (v: string | null) => (v == null ? NaN : Number(String(v).replace('%', '')));

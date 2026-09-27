@@ -11,9 +11,9 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 const FPL_LEAGUE_ID = 1;
-const FPL_SEASON_ID = 13;
 
 export type ActualMatchFixture = {
   fixture_id: number;
@@ -44,7 +44,7 @@ export async function getActualMatchFixtures(matchweek: number): Promise<ActualM
     `
     )
     .eq('league_id', FPL_LEAGUE_ID)
-    .eq('season_id', FPL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('matchweek', matchweek)
     .order('kickoff_date', { ascending: true });
   if (fixtureErr) throw fixtureErr;
@@ -149,13 +149,13 @@ export async function getActualMatchDetail(fixtureId: number): Promise<ActualMat
       'fpl_player_id, minutes, total_points, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_missed, penalties_saved, saves, yellow_cards, red_cards, bonus, bps'
     )
     .eq('fpl_fixture_id', ff.fpl_fixture_id)
-    .eq('season_id', FPL_SEASON_ID);
+    .eq('season_id', await getCurrentFplSeasonId());
   if (statErr) throw statErr;
 
   const playerIds = (statRows ?? []).map((r: any) => r.fpl_player_id);
   const { data: playerRows, error: playerErr } =
     playerIds.length > 0
-      ? await supabase.from('fpl_players').select('fpl_player_id, web_name, element_type, canonical_team_id').in('fpl_player_id', playerIds).eq('season_id', FPL_SEASON_ID)
+      ? await supabase.from('fpl_players').select('fpl_player_id, web_name, element_type, canonical_team_id').in('fpl_player_id', playerIds).eq('season_id', await getCurrentFplSeasonId())
       : { data: [], error: null };
   if (playerErr) throw playerErr;
   const playerById = new Map((playerRows ?? []).map((p: any) => [p.fpl_player_id, p]));

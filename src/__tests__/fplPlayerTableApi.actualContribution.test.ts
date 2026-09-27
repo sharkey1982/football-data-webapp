@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 
+// The current season comes from the database (docs/season-rollover.md).
+vi.mock('../lib/currentSeason', () => ({
+  getCurrentFplSeasonId: () => Promise.resolve(13),
+  getCurrentSeasonId: () => Promise.resolve(13),
+}));
 vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn() } }));
 
 function makeBuilder(filteredInitial: any[]) {

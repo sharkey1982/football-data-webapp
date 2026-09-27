@@ -508,3 +508,30 @@ fixing something else.
   a split-format league passes its split in a season without a row. Still
   open: the League Table page computes its own table from `matches` and does
   not use the view (OUTSTANDING.md).
+
+## 2026-09-27 · The 2027/28 rollover would have left the site on 2026/27 (found before it happened)
+- **Impact:** none yet. From 1 July 2027: the fixture feeds, National League
+  and cup ingestion, daily results imports, 21 function defaults, 4 build and
+  pipeline scripts and ~20 site modules would have kept reading or writing
+  2026/27 (season 13 / label '2627' / feed URLs ending -2026); new fixtures for
+  E0-E3, D1 and the UEFA competitions would never have been inserted; and once
+  FPL's 2027/28 data loaded, 12 FPL functions and views plus the two
+  team-strength views would have paired each player or team with last
+  season's holder of the same FPL id (duplicate rows, wrong names and prices).
+  The live-event refresh would have kept fetching GW38. Separately,
+  `private.refresh_fpl()` would overwrite 2026/27's FPL rows with the new game
+  in July (its season changes on 1 August).
+- **Cause:** "this season" was written as a constant in each place, and FPL
+  joins relied on only one season being loaded.
+- **Fix:** `current_season_id()` / `season_id_for_date()` (1 July boundary)
+  and `fpl_current_season_id()` used everywhere (migrations
+  20260927180000-20260927180600, `ingest-cup-data` v9, scripts, workflows,
+  `src/lib/currentSeason.ts`); FPL joins scoped to one season, results proved
+  identical before and after; feeds insert a new season's list and tolerate
+  not-yet-published feeds. `private.refresh_fpl()` not changed: its July window
+  is a manual step in docs/season-rollover.md.
+- **Prevention:** daily check `season_rollover_ready` (missing next-season row
+  from 1 March, FPL overwrite detected, reminder 15 June - 31 July);
+  `supabase/tests/season_rollover_contract.sql` fails if any public function
+  hard-codes a season again. *Lesson: "current season" is a query, never a
+  constant.*

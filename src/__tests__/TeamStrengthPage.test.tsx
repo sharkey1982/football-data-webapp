@@ -12,6 +12,11 @@ import { triggerWorkflow } from '../lib/workflowTrigger';
 // for them at the database level. Mocking an admin session is the
 // honest way to test them; loosening the gate to make tests pass would
 // put dead buttons back in front of every visitor.
+// The current season comes from the database (docs/season-rollover.md).
+vi.mock('../lib/currentSeason', () => ({
+  getCurrentFplSeasonId: () => Promise.resolve(13),
+  getCurrentSeasonId: () => Promise.resolve(13),
+}));
 vi.mock('../lib/auth', () => ({
   useAuthOptional: () => ({ isAdmin: true, session: null, loading: false }),
   useAuth: () => ({ isAdmin: true, session: null, loading: false }),
@@ -362,7 +367,7 @@ describe('TeamStrengthPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Re-run Proj\. Pos simulation/ })).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: /Re-run Proj\. Pos simulation/ }));
-    await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('simulate-final-table', { season_id: '13' }));
+    await waitFor(() => expect(mockedTriggerWorkflow).toHaveBeenCalledWith('simulate-final-table', {}));
     expect(await screen.findByText(/Triggered.*1.2 minutes/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Re-run bonus simulation/ }));
