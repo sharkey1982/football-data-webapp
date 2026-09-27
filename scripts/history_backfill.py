@@ -9,7 +9,7 @@
 # service key. Three commands:
 #
 #   stage       Download the football-data.co.uk files named by --targets
-#               (default E0-E3, 1993/94 to 2013/14; 'EC' = tier 5 2004/05 to
+#               (default E0-E3, 1993/94 to 2013/14; 'EC' = tier 5 2005/06 to
 #               2013/14) and engsoccerdata's results for the same divisions
 #               (england.csv for tiers 1-4, england_nonleague.csv for tier 5)
 #               into the scratch table historic_source_rows, so club names can
@@ -59,7 +59,10 @@ USER_AGENT = "Mozilla/5.0 (compatible; football-data-webapp-importer/1.0)"
 LEAGUES = ["E0", "E1", "E2", "E3"]          # what target 'all' means
 ALL_CODES = LEAGUES + ["EC"]
 TIER_TO_CODE = {"1": "E0", "2": "E1", "3": "E2", "4": "E3", "5": "EC"}
-FIRST_HISTORIC_START_YEAR = {"E0": 1993, "E1": 1993, "E2": 1993, "E3": 1993, "EC": 2004}  # football-data.co.uk files
+# First football-data.co.uk file per division. It has no Conference file for
+# 2004/05, so that season is imported from engsoccerdata (import-esd).
+FIRST_HISTORIC_START_YEAR = {"E0": 1993, "E1": 1993, "E2": 1993, "E3": 1993, "EC": 2005}
+FIRST_EC_START_YEAR = 2004  # tier-5 history starts at 2004/05 (engsoccerdata staged from here)
 LAST_HISTORIC_START_YEAR = 2013  # 2014/15 onwards belongs to the regular imports
 
 # (raw football-data.co.uk name, last season start year it means this club, team slug).
@@ -256,8 +259,8 @@ def stage(sb, targets: list[tuple[str, int]], with_esd: bool) -> str:
 
     if with_esd:
         codes = {c for c, _ in targets}
-        # tiers 1-4: every season 1992-2013 (as first staged); tier 5: the targets' seasons
-        by_key = esd_rows(codes, None if codes & set(LEAGUES) else sorted({y for _, y in targets}))
+        # tiers 1-4: every season 1992-2013 (as first staged); tier 5: 2004-2013
+        by_key = esd_rows(codes, None if codes & set(LEAGUES) else list(range(FIRST_EC_START_YEAR, LAST_HISTORIC_START_YEAR + 1)))
         for (code, y), rs in sorted(by_key.items()):
             staged = []
             for i, r in enumerate(rs, start=1):

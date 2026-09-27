@@ -6,7 +6,7 @@ name: History backfill (English tiers 1-4 1992/93-2013/14, tier 5 2004/05-2013/1
 #               table historic_source_rows (for name mapping and cross-checks)
 #   import-fd   import football-data.co.uk files into matches (+ raw rows and
 #               odds); targets 'all' = every E0-E3 file 1993/94-2013/14,
-#               newest first, 'EC' = every tier-5 file 2004/05-2013/14, or
+#               newest first, 'EC' = every tier-5 file 2005/06-2013/14, or
 #               a list like 'E0:1314,E3:9394,EC:0405'
 #   import-esd  import engsoccerdata seasons (default 1992 = 1992/93) for the
 #               divisions in esd_codes (default E0-E3; EC = tier 5)
