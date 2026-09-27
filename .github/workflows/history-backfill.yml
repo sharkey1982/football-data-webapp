@@ -1,0 +1,56 @@
+name: History backfill (English tiers 1-4, 1992/93-2013/14)
+
+# One-off load of English league history -- see scripts/history_backfill.py
+# and docs/history-backfill.md. Manual only. Commands:
+#   stage       download football-data.co.uk + engsoccerdata into the scratch
+#               table historic_source_rows (for name mapping and cross-checks)
+#   import-fd   import football-data.co.uk files into matches (+ raw rows and
+#               odds); targets 'all' = every E0-E3 file 1993/94-2013/14,
+#               newest first, or a list like 'E0:1314,E3:9394'
+#   import-esd  import engsoccerdata seasons (default 1992 = 1992/93)
+# Every run writes a pipeline_runs row (job_name history_backfill); import-fd
+# also writes one match_import_runs row per file. Re-running is harmless:
+# every write is an upsert on a natural key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'stage | import-fd | import-esd'
+        required: true
+        default: 'stage'
+      targets:
+        description: "football-data.co.uk files: 'all' or e.g. 'E0:1314,E3:9394'"
+        required: false
+        default: 'all'
+      esd_years:
+        description: 'import-esd: season start years, comma-separated'
+        required: false
+        default: '1992'
+      extra_args:
+        description: 'extra flags, e.g. --no-esd or --no-odds'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CMD: ${{ inputs.command }}
+          TARGETS: ${{ inputs.targets }}
+          ESD_YEARS: ${{ inputs.esd_years }}
+          EXTRA: ${{ inputs.extra_args }}
+        run: python scripts/history_backfill.py "$CMD" --targets "$TARGETS" --esd-years "$ESD_YEARS" $EXTRA
