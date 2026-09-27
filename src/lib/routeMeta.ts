@@ -87,6 +87,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/records',
+    title: 'Football records: most points, longest runs, biggest wins',
+    description: 'Record books for the English leagues since 1992/93 and 18 European top flights: points, goals, title margins, biggest wins and the longest winning, unbeaten and losing runs.',
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/football/history',
     title: 'When does the league table become real?',
     description:

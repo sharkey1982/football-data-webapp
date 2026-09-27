@@ -361,6 +361,49 @@ async function main() {
   }
   await writeLeaguePages();
 
+  // ---- Record Book (/football/records, /football/records/:league) -----------
+  async function writeRecordsPages() {
+    if (!leagueBulk) return;
+    try {
+      const { buildRecords, renderRecordsPage, renderRecordsIndexPage } = await import(ENTRY);
+      const write = (path, page) => {
+        const dir = join(DIST, ...path.split('/').filter(Boolean));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      };
+      write('/football/records', renderRecordsIndexPage(leagueBulk.built.list));
+      const teams = new Map(leagueBulk.teams.map((t) => [t.team_id, { name: t.display_name, slug: t.slug }]));
+      let n = 0;
+      for (const { index } of leagueBulk.built.leagues) {
+        const league = index.league;
+        try {
+          const [streaks, matches] = await Promise.all([
+            query(`rpc/history_record_streaks?p_league_id=${league.league_id}&p_limit=10`),
+            query(`rpc/history_record_matches?p_league_id=${league.league_id}&p_limit=10`),
+          ]);
+          if (!streaks || !matches) continue;
+          const data = buildRecords({
+            league,
+            summaries: leagueBulk.summaries.filter((x) => x.league_id === league.league_id),
+            tables: leagueBulk.tables.filter((x) => x.league_id === league.league_id),
+            streaks,
+            matches,
+            teams,
+          });
+          const page = renderRecordsPage(data);
+          write(new URL(page.canonical).pathname, page);
+          n++;
+        } catch (err) {
+          console.error(`Static: failed records ${league.slug}: ${err?.message ?? err}`);
+        }
+      }
+      console.log(`Static: wrote /football/records and ${n} league record page(s).`);
+    } catch (err) {
+      console.error(`Static: failed records pages: ${err?.message ?? err}`);
+    }
+  }
+  await writeRecordsPages();
+
   const financeTeamIds = await writeFinancePages();
 
   // Bulk fetches -- three requests total, not one per page.

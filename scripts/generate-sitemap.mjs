@@ -171,6 +171,7 @@ async function main() {
       counts.leagueSeasons++;
     }
     for (const l of withSeasons) entries.push(urlEntry(mod.leaguePagePath(l), null));
+    for (const l of withSeasons) entries.push(urlEntry(`/football/records/${l.slug}`, null));
   }
 
   // Club seasons, English leagues only (the ones generated as static pages).

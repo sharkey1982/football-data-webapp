@@ -54,6 +54,9 @@ export default function LeagueIndexPage({ initialData }: { initialData?: LeagueI
       {data && (
         <>
           <p className="text-ink-900 max-w-prose" data-testid="league-summary">{leagueIndexSentence(data)}</p>
+          <p className="text-sm">
+            <Link to={`/football/records/${data.league.slug}`} className="text-pitch-800 underline underline-offset-2">{`${data.league.name} records: most points, longest runs, biggest wins`}</Link>
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
               <thead className="bg-chalk-200 text-ink-500">

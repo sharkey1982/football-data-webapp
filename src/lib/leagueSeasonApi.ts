@@ -219,6 +219,48 @@ export function leagueIndexSentence(d: LeagueIndexData): string {
   );
 }
 
+/** Where this season ranks in its league's history, as short sentences.
+ * Points comparisons only against complete seasons with the same number of
+ * clubs; goals per game against every complete season. */
+export function seasonRanks(d: Pick<LeagueSeasonData, 'league' | 'summary' | 'seasons'>): string[] {
+  const s = d.summary;
+  const out: string[] = [];
+  const complete = d.seasons.filter((x) => x.is_final && !x.curtailed);
+  const inList = complete.some((x) => x.season_id === s.season_id);
+  if (!inList) return out;
+  const nth = (n: number) => {
+    const v = n % 100;
+    return `${n}${['th', 'st', 'nd', 'rd'][(v - 20) % 10] ?? ['th', 'st', 'nd', 'rd'][v] ?? 'th'}`;
+  };
+  const place = (vals: SeasonSummary[], key: keyof SeasonSummary, desc: boolean) => {
+    const v = s[key] as number | null;
+    if (v == null) return null;
+    const others = vals.map((x) => x[key]).filter((x): x is number => typeof x === 'number');
+    const better = others.filter((x) => (desc ? x > v : x < v)).length;
+    return { rank: better + 1, of: others.length };
+  };
+  const phrase = (r: { rank: number; of: number }, word: string) =>
+    r.rank === 1 ? `the ${word} of ${r.of}` : `${nth(r.rank)} ${word} of ${r.of}`;
+  const gpg = place(complete, 'goals_per_game', true);
+  if (gpg && s.goals_per_game != null && gpg.of > 2) {
+    const low = place(complete, 'goals_per_game', false)!;
+    out.push(`${s.goals_per_game.toFixed(2)} goals per game: ${gpg.rank <= low.rank ? phrase(gpg, 'highest') : phrase(low, 'lowest')} complete ${d.league.name} seasons on file.`);
+  }
+  const same = complete.filter((x) => x.comparable_group === s.comparable_group && !x.split_format);
+  if (!s.split_format && same.length > 2) {
+    const cp = place(same, 'champion_points', true);
+    if (cp && s.champion_points != null) {
+      const low = place(same, 'champion_points', false)!;
+      out.push(`Champions’ ${s.champion_points} points: ${cp.rank <= low.rank ? phrase(cp, 'highest') : phrase(low, 'lowest')} seasons with ${s.clubs} clubs.`);
+    }
+    if (isEnglish(d.league) && s.highest_relegated_points != null) {
+      const rp = place(same, 'highest_relegated_points', true);
+      if (rp && rp.rank <= 3) out.push(`A relegated club had ${s.highest_relegated_points} points: ${phrase(rp, 'highest')} seasons with ${s.clubs} clubs for a relegated side.`);
+    }
+  }
+  return out;
+}
+
 export type FingerprintItem = { label: string; value: string; average: string | null; note?: string };
 
 /** Season fingerprint against the league's own complete seasons (same size
@@ -271,7 +313,7 @@ export const TABLE_COLUMNS =
 
 type LeagueRow = { league_id: number; code: string; name: string; slug: string; countries: { name: string } | null };
 
-async function leagueBySlug(slug: string): Promise<LeagueRef | null> {
+export async function leagueBySlug(slug: string): Promise<LeagueRef | null> {
   const { data, error } = await supabase
     .from('leagues')
     .select('league_id, code, name, slug, countries(name)')
@@ -283,7 +325,7 @@ async function leagueBySlug(slug: string): Promise<LeagueRef | null> {
   return r ? { league_id: r.league_id, code: r.code, name: r.name, slug: r.slug, country: r.countries?.name ?? null } : null;
 }
 
-async function leagueSummaries(leagueId: number): Promise<SeasonSummary[]> {
+export async function leagueSummaries(leagueId: number): Promise<SeasonSummary[]> {
   const { data, error } = await supabase
     .from('league_season_summary' as never)
     .select(SUMMARY_COLUMNS)
