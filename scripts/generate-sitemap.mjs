@@ -125,7 +125,7 @@ async function main() {
   // All independent -- fetched together, so total time is the slowest
   // request rather than the sum of a dozen serial ones.
   CURRENT_SEASON_ID = await query('rpc/fpl_current_season_id');
-  const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons] = await Promise.all([
+  const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons, clubSeasons] = await Promise.all([
     queryAll(`fpl_player_gameweeks?select=fpl_event_id&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0`),
     queryAll('player_identity?select=slug&order=slug.asc'),
     queryAll(`fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}`),
@@ -135,6 +135,7 @@ async function main() {
     mod ? fetchFinanceBulk(query).catch((err) => { console.error('Sitemap: finance fetch failed --', err?.message ?? err); return null; }) : null,
     query('leagues?select=league_id,code,slug&competition_type=eq.league&slug=not.is.null'),
     queryAll('league_season_summary?select=league_id,start_year&order=league_id.asc,start_year.asc'),
+    queryAll('team_season_summary?select=team_id,league_id,start_year&league_id=lte.5&order=league_id.asc,season_id.asc,team_id.asc'),
   ]);
 
   const counts = {};
@@ -170,6 +171,20 @@ async function main() {
       counts.leagueSeasons++;
     }
     for (const l of withSeasons) entries.push(urlEntry(mod.leaguePagePath(l), null));
+  }
+
+  // Club seasons, English leagues only (the ones generated as static pages).
+  counts.clubSeasons = 0;
+  if (mod?.clubSeasonPagePath && leagueRefs && clubSeasons && teams) {
+    const codeById = new Map(leagueRefs.map((l) => [l.league_id, l.code]));
+    const slugById = new Map(teams.map((t) => [t.team_id, t.slug]));
+    for (const r of clubSeasons) {
+      const code = codeById.get(r.league_id);
+      const slug = slugById.get(r.team_id);
+      if (!code || !slug) continue;
+      entries.push(urlEntry(mod.clubSeasonPagePath(slug, code, r.start_year), null));
+      counts.clubSeasons++;
+    }
   }
 
   counts.finance = 0;

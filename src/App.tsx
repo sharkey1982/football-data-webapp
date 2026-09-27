@@ -36,6 +36,7 @@ const HistoricPacePage = lazy(() => import('./pages/football/HistoricPacePage'))
 const LeaguesPage = lazy(() => import('./pages/football/LeaguesPage'));
 const LeagueIndexPage = lazy(() => import('./pages/football/LeagueIndexPage'));
 const LeagueSeasonPage = lazy(() => import('./pages/football/LeagueSeasonPage'));
+const ClubSeasonPage = lazy(() => import('./pages/football/ClubSeasonPage'));
 const CountryInsightsPage = lazy(() => import('./pages/football/CountryInsightsPage'));
 const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
 const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
@@ -221,6 +222,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TeamFinancePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/teams/:slug/:season"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ClubSeasonPage />
               </Suspense>
             }
           />

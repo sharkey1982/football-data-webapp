@@ -22,6 +22,7 @@ import {
 } from '../lib/teamHistoryApi';
 import { Link } from 'react-router-dom';
 import { seasonPathByCode } from '../lib/leagueSeasonApi';
+import { clubSeasonPath } from '../lib/clubSeasonApi';
 
 const VENUES: { value: Venue; label: string }[] = [
   { value: 'total', label: 'Total' },
@@ -173,7 +174,7 @@ function PairBars({ items }: { items: { key: string; label: string; home: number
 
 type SortKey = 'season' | 'pyramid' | 'played' | 'won' | 'drawn' | 'lost' | 'gf' | 'ga' | 'gd' | 'cs' | 'pts' | 'ppg';
 
-function SeasonTable({ rows, venue }: { rows: StandingRow[]; venue: Venue }) {
+function SeasonTable({ rows, venue, teamSlug }: { rows: StandingRow[]; venue: Venue; teamSlug?: string | null }) {
   const [sortKey, setSortKey] = useState<SortKey>('season');
   const [dir, setDir] = useState<'asc' | 'desc'>('desc');
   const lines = useMemo(() => {
@@ -246,15 +247,21 @@ function SeasonTable({ rows, venue }: { rows: StandingRow[]; venue: Venue }) {
           {lines.map(({ r, l, gd, ppg }) => (
             <tr key={r.season_id} className="border-t border-chalk-200">
               <td className="px-2 py-1.5 whitespace-nowrap text-ink-900">
-                {seasonPathByCode(r.league_code, r.season_start_year) ? (
-                  <Link to={seasonPathByCode(r.league_code, r.season_start_year)!} className="hover:underline">{seasonName(r.season_label)}</Link>
+                {teamSlug ? (
+                  <Link to={clubSeasonPath(teamSlug, r.league_code, r.season_start_year)} className="hover:underline">{seasonName(r.season_label)}</Link>
                 ) : (
                   seasonName(r.season_label)
                 )}
                 {!r.is_final && <span className="text-ink-500"> (so far)</span>}
                 <span className="sm:hidden block font-mono text-xs text-pitch-700">{r.league_code}</span>
               </td>
-              <td className="px-2 py-1.5 font-mono text-xs text-pitch-700 hidden sm:table-cell">{r.league_code}</td>
+              <td className="px-2 py-1.5 font-mono text-xs text-pitch-700 hidden sm:table-cell">
+                {seasonPathByCode(r.league_code, r.season_start_year) ? (
+                  <Link to={seasonPathByCode(r.league_code, r.season_start_year)!} className="hover:underline" title="League table that season">{r.league_code}</Link>
+                ) : (
+                  r.league_code
+                )}
+              </td>
               <td className="px-2 py-1.5 text-right font-mono whitespace-nowrap" title={`${ordinal(r.pyramid_position)} across the pyramid`}>
                 {r.position}
                 <span className="text-ink-500">/{r.teams}</span>
@@ -287,7 +294,7 @@ function SeasonTable({ rows, venue }: { rows: StandingRow[]; venue: Venue }) {
 
 // ---------------------------------------------------------------------------
 
-export default function TeamHistoryPanel({ teamId, teamName }: { teamId: number; teamName: string }) {
+export default function TeamHistoryPanel({ teamId, teamName, teamSlug }: { teamId: number; teamName: string; teamSlug?: string | null }) {
   const [rows, setRows] = useState<StandingRow[] | null>(null);
   const [months, setMonths] = useState<MonthRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -359,7 +366,7 @@ export default function TeamHistoryPanel({ teamId, teamName }: { teamId: number;
         <PyramidChart rows={rows} />
       </div>
 
-      <SeasonTable rows={rows} venue={venue} />
+      <SeasonTable rows={rows} venue={venue} teamSlug={teamSlug} />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="border border-chalk-300 rounded-lg bg-white p-3">

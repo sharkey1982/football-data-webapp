@@ -293,7 +293,7 @@ async function leagueSummaries(leagueId: number): Promise<SeasonSummary[]> {
   return (data ?? []) as unknown as SeasonSummary[];
 }
 
-async function eraNames(leagueId: number): Promise<Map<number, string>> {
+export async function eraNames(leagueId: number): Promise<Map<number, string>> {
   const { data, error } = await (supabase as unknown as {
     from: (t: string) => { select: (c: string) => { eq: (k: string, v: number) => PromiseLike<{ data: { season_id: number; name: string }[] | null; error: unknown }> } };
   })
@@ -304,7 +304,7 @@ async function eraNames(leagueId: number): Promise<Map<number, string>> {
   return new Map((data ?? []).map((r) => [Number(r.season_id), String(r.name)]));
 }
 
-async function teamNames(ids: number[]): Promise<Map<number, { name: string; slug: string | null }>> {
+export async function teamNames(ids: number[]): Promise<Map<number, { name: string; slug: string | null }>> {
   const out = new Map<number, { name: string; slug: string | null }>();
   if (ids.length === 0) return out;
   const { data, error } = await supabase.from('teams').select('team_id, display_name, slug').in('team_id', [...new Set(ids)]);

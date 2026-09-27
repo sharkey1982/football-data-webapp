@@ -219,7 +219,7 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
         )}
       </section>
 
-      <TeamHistoryPanel teamId={profile.team_id} teamName={profile.display_name} />
+      <TeamHistoryPanel teamId={profile.team_id} teamName={profile.display_name} teamSlug={slug} />
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/teams" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

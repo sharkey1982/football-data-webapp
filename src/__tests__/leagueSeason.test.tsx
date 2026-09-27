@@ -168,7 +168,7 @@ describe('LeagueSeasonPage', () => {
       </MemoryRouter>
     );
     expect(screen.getByTestId('season-story').textContent).toContain('Manchester United won the 1995/96 Premier League');
-    expect(screen.getByRole('link', { name: 'Newcastle United' }).getAttribute('href')).toBe('/football/teams/newcastle-united');
+    expect(screen.getByRole('link', { name: 'Newcastle United' }).getAttribute('href')).toBe('/football/teams/newcastle-united/1995-96');
     expect(screen.getByRole('link', { name: /1996\/97/ }).getAttribute('href')).toBe('/football/leagues/premier-league/1996-97');
   });
 
