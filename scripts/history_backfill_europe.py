@@ -73,7 +73,8 @@ ESD_FILE = {"SP1": "spain", "D1": "germany", "I1": "italy", "F1": "france", "P1"
 
 # (league code, raw football-data.co.uk name, last season start year it means
 # this club, team slug): same-spelling-different-club cases, as ERA_OVERRIDES
-# in history_backfill.py. Filled in after the name mapping (see the docs).
+# in history_backfill.py. None is needed for the seasons loaded so far: no
+# spelling means two clubs within them (docs/history-backfill.md).
 EU_ERA_OVERRIDES: list[tuple[str, str, int, str]] = []
 
 
