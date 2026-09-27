@@ -1,0 +1,50 @@
+name: History backfill (European top flights)
+
+# One-off load of European league history -- see
+# scripts/history_backfill_europe.py and docs/history-backfill.md
+# ("European leagues"). Manual only. Commands:
+#   stage-eu   download football-data.co.uk + engsoccerdata into the scratch
+#              table historic_source_rows_europe (name mapping, cross-checks)
+#   import-eu  import football-data.co.uk seasons into matches; targets 'all'
+#              = the planned load, or e.g. 'SP1:2011-2020,AUT:2016-2024'
+# Every run writes a pipeline_runs row (job_name history_backfill); import-eu
+# also writes one match_import_runs row per league-season. Re-running is
+# harmless: every write is an upsert on a natural key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'stage-eu | import-eu'
+        required: true
+        default: 'stage-eu'
+      targets:
+        description: "'all' or e.g. 'SP1:2011-2020,AUT:2016-2024'"
+        required: false
+        default: 'all'
+      extra_args:
+        description: 'extra flags, e.g. --no-esd or --with-odds'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CMD: ${{ inputs.command }}
+          TARGETS: ${{ inputs.targets }}
+          EXTRA: ${{ inputs.extra_args }}
+        run: python scripts/history_backfill_europe.py "$CMD" --targets "$TARGETS" $EXTRA
