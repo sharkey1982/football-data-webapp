@@ -414,3 +414,26 @@ fixing something else.
 - **Prevention:** `supabase/tests/season_order_contract.sql` (helpers,
   current season by year, division names at every boundary, anon read).
   *Lesson: an id that "happens to" be in date order is not an order key.*
+
+## 2026-09-27 · History load pushed the daily odds backfill towards its timeout
+- **Impact:** none reached production. Loading 1993/94-2013/14 archived
+  ~42,700 more raw football-data.co.uk rows; `backfill_match_odds()` went
+  from ~3s to ~6.5s per call, against the API's 8s statement timeout.
+  `import-daily.ts` calls it once per English division every morning, so the
+  next daily import would likely have failed its odds step. The history
+  importer's own final call did time out (results were already in; odds
+  were then filled in SQL by migration 20260927120200).
+- **Cause:** the function re-reads every archived row whose match has no
+  odds yet. ~13,800 of the new rows (before 2000/01) have no prices at all,
+  so they were unpivoted on every call for nothing.
+- **Mistake while fixing:** the staging table's first load failed with
+  "permission denied" -- the default privileges give `service_role` SELECT
+  only on new tables, not INSERT/DELETE. Granted in the same migration.
+- **Fix:** `backfill_match_odds()` now also requires a raw row to carry at
+  least one of the price keys it reads (anchored replacement, migration
+  20260927120400). Proved equivalent by deleting the odds of 200 random
+  matches (2001/02-2026/27) in a rolled-back transaction: all 2,236 rows
+  re-created identically. Call time now ~2.5s.
+- **Prevention:** docs/history-backfill.md records the timeout and how to
+  rerun. *Lesson: a bulk load into a table that a scheduled function scans
+  in full changes that function's run time -- time it before and after.*
