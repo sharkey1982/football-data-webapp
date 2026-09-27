@@ -219,7 +219,8 @@ export function leagueIndexSentence(d: LeagueIndexData): string {
   );
 }
 
-/** Where this season ranks in its league's history, as short sentences.
+/** Where this season ranks in its league's history, as short sentences --
+ * only when it is among the three highest or lowest, so every line is notable.
  * Points comparisons only against complete seasons with the same number of
  * clubs; goals per game against every complete season. */
 export function seasonRanks(d: Pick<LeagueSeasonData, 'league' | 'summary' | 'seasons'>): string[] {
@@ -232,30 +233,34 @@ export function seasonRanks(d: Pick<LeagueSeasonData, 'league' | 'summary' | 'se
     const v = n % 100;
     return `${n}${['th', 'st', 'nd', 'rd'][(v - 20) % 10] ?? ['th', 'st', 'nd', 'rd'][v] ?? 'th'}`;
   };
-  const place = (vals: SeasonSummary[], key: keyof SeasonSummary, desc: boolean) => {
+  /** "the highest of 31", "2nd lowest of 31", "joint highest of 31" -- or
+   * null unless the value is among the three highest or lowest and shared
+   * by at most two other seasons. */
+  const notable = (vals: SeasonSummary[], key: keyof SeasonSummary, onlyHigh = false): string | null => {
     const v = s[key] as number | null;
     if (v == null) return null;
-    const others = vals.map((x) => x[key]).filter((x): x is number => typeof x === 'number');
-    const better = others.filter((x) => (desc ? x > v : x < v)).length;
-    return { rank: better + 1, of: others.length };
+    const all = vals.map((x) => x[key]).filter((x): x is number => typeof x === 'number');
+    if (all.length < 3) return null;
+    const ties = all.filter((x) => x === v).length - 1;
+    if (ties > 2) return null;
+    const hi = all.filter((x) => x > v).length + 1;
+    const lo = all.filter((x) => x < v).length + 1;
+    const useHigh = onlyHigh || hi <= lo;
+    const rank = useHigh ? hi : lo;
+    if (rank > 3) return null;
+    const word = useHigh ? 'highest' : 'lowest';
+    const joint = ties > 0 ? 'joint ' : '';
+    return rank === 1 ? `the ${joint}${word} of ${all.length}` : `${joint}${nth(rank)} ${word} of ${all.length}`;
   };
-  const phrase = (r: { rank: number; of: number }, word: string) =>
-    r.rank === 1 ? `the ${word} of ${r.of}` : `${nth(r.rank)} ${word} of ${r.of}`;
-  const gpg = place(complete, 'goals_per_game', true);
-  if (gpg && s.goals_per_game != null && gpg.of > 2) {
-    const low = place(complete, 'goals_per_game', false)!;
-    out.push(`${s.goals_per_game.toFixed(2)} goals per game: ${gpg.rank <= low.rank ? phrase(gpg, 'highest') : phrase(low, 'lowest')} complete ${d.league.name} seasons on file.`);
-  }
+  const g = notable(complete, 'goals_per_game');
+  if (g && s.goals_per_game != null) out.push(`${s.goals_per_game.toFixed(2)} goals per game: ${g} complete ${d.league.name} seasons on file.`);
   const same = complete.filter((x) => x.comparable_group === s.comparable_group && !x.split_format);
-  if (!s.split_format && same.length > 2) {
-    const cp = place(same, 'champion_points', true);
-    if (cp && s.champion_points != null) {
-      const low = place(same, 'champion_points', false)!;
-      out.push(`Champions’ ${s.champion_points} points: ${cp.rank <= low.rank ? phrase(cp, 'highest') : phrase(low, 'lowest')} seasons with ${s.clubs} clubs.`);
-    }
+  if (!s.split_format) {
+    const c = notable(same, 'champion_points');
+    if (c && s.champion_points != null) out.push(`Champions’ ${s.champion_points} points: ${c} seasons with ${s.clubs} clubs.`);
     if (isEnglish(d.league) && s.highest_relegated_points != null) {
-      const rp = place(same, 'highest_relegated_points', true);
-      if (rp && rp.rank <= 3) out.push(`A relegated club had ${s.highest_relegated_points} points: ${phrase(rp, 'highest')} seasons with ${s.clubs} clubs for a relegated side.`);
+      const r = notable(same, 'highest_relegated_points', true);
+      if (r) out.push(`A relegated club had ${s.highest_relegated_points} points: ${r} seasons with ${s.clubs} clubs for a relegated side.`);
     }
   }
   return out;

@@ -88,6 +88,12 @@ Pages: `/football/history` (hub; reliability numbers server-rendered into the HT
 - Checked at build against known records: Arsenal 49 unbeaten (2003-04), Manchester City and Liverpool 18 wins in a row, Derby 32 without a win (2007/08), Sunderland 15 defeats (2002/03), Manchester United 14 clean sheets, Arsenal 55 matches scoring, Portsmouth 7-4 Reading, four 9-0 wins.
 - League season pages add "Where this season ranks": goals per game against every complete season, champions' points and the best relegated total against seasons with the same number of clubs.
 
+### League Lab and Scoreline Explorer
+
+- **League Lab** (`/football/history/trends`, Premier League; `/football/history/trends/:league` for the others): goals per game, home/draw/away shares, home advantage (home minus away points per game), champions' and best relegated club's points per game (English leagues; split formats left out), and Noll-Scully, season by season from `league_season_summary`. The opening compares the first and last five complete seasons on file (fewer if the league has fewer), leaving out curtailed and Covid-affected (2019/20, 2020/21) seasons.
+- **Scoreline Explorer** (`/football/history/scorelines`): `history_scorelines(league, from, to, team, venue)` counts each scoreline, goals capped at 5 ("5+"), with win/draw/loss taken from the full score. With no club it is the home side's view; with a club, that club's goals first. Filters live in the URL; only the unfiltered page is a search page.
+- League season pages show "Where this season ranks" only when the season is among the three highest or lowest, and not shared with more than two other seasons.
+
 ## Refresh
 
 `refresh_history_derived(p_force default false)`:
@@ -118,4 +124,4 @@ Checked at build:
 
 ## Source
 
-`supabase/migrations/20260927202000_history_team_match_snapshot.sql`, `20260927203000_history_refresh_schedule_integrity_catalogue.sql`, `20260927210000_history_phase_a_rpcs.sql`, `20260927211000_history_phase_a_catalogue.sql`, `20260927220000_history_streaks_and_matches.sql`, `20260927221000_history_record_rpcs.sql`.
+`supabase/migrations/20260927202000_history_team_match_snapshot.sql`, `20260927203000_history_refresh_schedule_integrity_catalogue.sql`, `20260927210000_history_phase_a_rpcs.sql`, `20260927211000_history_phase_a_catalogue.sql`, `20260927220000_history_streaks_and_matches.sql`, `20260927221000_history_record_rpcs.sql`, `20260927224000_history_scorelines.sql`, `20260927224500_history_scorelines_outcome.sql`.

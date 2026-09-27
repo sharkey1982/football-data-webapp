@@ -138,6 +138,18 @@ export default function HistoryHubPage({ initialData }: { initialData?: HistoryH
               <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Historic pace</h2>
               <p className="text-sm text-ink-700 mt-1">This season&rsquo;s points against every champion and relegated side at the same stage.</p>
             </Link>
+            <Link to="/football/history/trends" className="block border border-chalk-300 rounded-lg p-4 bg-white hover:border-pitch-700">
+              <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">How the game has changed</h2>
+              <p className="text-sm text-ink-700 mt-1">Goals, home advantage, draws and title thresholds, season by season.</p>
+            </Link>
+            <Link to="/football/records" className="block border border-chalk-300 rounded-lg p-4 bg-white hover:border-pitch-700">
+              <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Record Book</h2>
+              <p className="text-sm text-ink-700 mt-1">Most points, longest runs and biggest wins in every league.</p>
+            </Link>
+            <Link to="/football/history/scorelines" className="block border border-chalk-300 rounded-lg p-4 bg-white hover:border-pitch-700">
+              <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Scoreline Explorer</h2>
+              <p className="text-sm text-ink-700 mt-1">How often every score happens, by league, era or club.</p>
+            </Link>
           </section>
         </>
       )}

@@ -107,6 +107,18 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
   },
   {
+    path: '/football/history/trends',
+    title: 'How the Premier League has changed: goals, home advantage, draws',
+    description: 'Goals per game, home advantage, draws, title and relegation thresholds and competitive balance, season by season since 1992/93, for every league on file.',
+    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+  },
+  {
+    path: '/football/history/scorelines',
+    title: 'Scoreline Explorer: how often every score happens',
+    description: 'How often each scoreline happens in every league on file, for any span of seasons or from one club\u2019s side, home or away.',
+    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+  },
+  {
     path: '/football/history/pace',
     title: 'Historic pace \u2014 this season against every champion',
     description:
