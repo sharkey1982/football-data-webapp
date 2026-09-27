@@ -64,6 +64,15 @@ All three use complete finished seasons only: `is_final`, not `curtailed`, not `
 
 Pages: `/football/history` (hub; reliability numbers server-rendered into the HTML), `/football/history/what-happened-next` (query in the URL, every share shown as k of n), `/football/history/pace` (percentile ranks count ties as half).
 
+### League and season pages
+
+`/football/leagues`, `/football/leagues/:league` and `/football/leagues/:league/:season` read `team_season_summary` and `league_season_summary`, and are written as full static HTML at build (`generate-static.mjs`, four bulk queries) and listed in the sitemap.
+
+- Season URLs use `1995-96`; Allsvenskan, Eliteserien and Veikkausliiga are played in a calendar year, so theirs use `2024` (stored under start_year 2024). Other forms redirect to the canonical one.
+- Division names are those of the time (`league_season_display_names`): "First Division 1995/96", now the Championship.
+- Outside England only top flights are loaded, so a club is "not in the league next season" rather than "relegated".
+- Season-in-numbers averages use the league's complete seasons (not curtailed, not the current one); points thresholds only seasons with the same number of clubs.
+
 ## Refresh
 
 `refresh_history_derived(p_force default false)`:

@@ -36,6 +36,20 @@ import FinanceIndexPage from './pages/FinanceIndexPage';
 import FinanceComparePage from './pages/FinanceComparePage';
 import HistoryHubPage from './pages/football/HistoryHubPage';
 import type { HistoryHubData } from './lib/historyApi';
+import LeaguesPage from './pages/football/LeaguesPage';
+import LeagueIndexPage from './pages/football/LeagueIndexPage';
+import LeagueSeasonPage from './pages/football/LeagueSeasonPage';
+export { assembleLeaguePages, SUMMARY_SELECT, TABLE_COLUMNS, leaguePath as leaguePagePath, leagueSeasonPath as leagueSeasonPagePath } from './lib/leagueSeasonApi';
+import {
+  leagueIndexSentence,
+  leaguePath,
+  leagueSeasonPath,
+  seasonDisplay,
+  seasonStory,
+  type LeagueIndexData,
+  type LeagueSeasonData,
+  type LeaguesListEntry,
+} from './lib/leagueSeasonApi';
 import { buildComparison } from './lib/financeCompare';
 import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
@@ -339,6 +353,81 @@ export function renderHistoryHubPage(data: HistoryHubData): RenderedPage {
     description,
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'History', path }])],
+  };
+}
+
+const LEAGUES_CRUMB = { name: 'Leagues', path: '/football/leagues' };
+
+export function renderLeaguesPage(list: LeaguesListEntry[]): RenderedPage {
+  const path = '/football/leagues';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path={path} element={<LeaguesPage initialData={list} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `Leagues: every season, final table and champion | ${BRAND_NAME}`,
+    description: `Final tables, champions and season statistics for ${list.length} leagues: the English leagues since 1992/93 and European top flights.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, LEAGUES_CRUMB])],
+  };
+}
+
+export function renderLeagueIndexPage(data: LeagueIndexData): RenderedPage {
+  const path = leaguePath(data.league);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/leagues/:league" element={<LeagueIndexPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `${data.league.name}: every season, champions and tables | ${BRAND_NAME}`,
+    description: leagueIndexSentence(data) || `Every ${data.league.name} season on file.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SportsOrganization',
+        name: data.league.name,
+        sport: 'Football',
+        url: `${SITE_URL}${path}`,
+        ...(data.league.country ? { location: { '@type': 'Country', name: data.league.country } } : {}),
+      },
+      breadcrumb([{ name: 'Football', path: '/football' }, LEAGUES_CRUMB, { name: data.league.name, path }]),
+    ],
+  };
+}
+
+export function renderLeagueSeasonPage(data: LeagueSeasonData): RenderedPage {
+  const path = leagueSeasonPath(data.league, data.season.start_year);
+  const when = seasonDisplay(data.league.code, data.season.start_year);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/leagues/:league/:season" element={<LeagueSeasonPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  const kind = data.summary.is_final ? 'final table' : 'table';
+  return {
+    html,
+    title: `${data.eraName} ${when}: ${kind} and statistics | ${BRAND_NAME}`,
+    description: seasonStory(data) || `The ${when} ${data.eraName} ${kind}.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      breadcrumb([
+        { name: 'Football', path: '/football' },
+        LEAGUES_CRUMB,
+        { name: data.league.name, path: leaguePath(data.league) },
+        { name: when, path },
+      ]),
+    ],
   };
 }
 

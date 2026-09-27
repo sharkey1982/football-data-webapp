@@ -20,6 +20,8 @@ import {
   type StandingRow,
   type Venue,
 } from '../lib/teamHistoryApi';
+import { Link } from 'react-router-dom';
+import { seasonPathByCode } from '../lib/leagueSeasonApi';
 
 const VENUES: { value: Venue; label: string }[] = [
   { value: 'total', label: 'Total' },
@@ -244,7 +246,11 @@ function SeasonTable({ rows, venue }: { rows: StandingRow[]; venue: Venue }) {
           {lines.map(({ r, l, gd, ppg }) => (
             <tr key={r.season_id} className="border-t border-chalk-200">
               <td className="px-2 py-1.5 whitespace-nowrap text-ink-900">
-                {seasonName(r.season_label)}
+                {seasonPathByCode(r.league_code, r.season_start_year) ? (
+                  <Link to={seasonPathByCode(r.league_code, r.season_start_year)!} className="hover:underline">{seasonName(r.season_label)}</Link>
+                ) : (
+                  seasonName(r.season_label)
+                )}
                 {!r.is_final && <span className="text-ink-500"> (so far)</span>}
                 <span className="sm:hidden block font-mono text-xs text-pitch-700">{r.league_code}</span>
               </td>

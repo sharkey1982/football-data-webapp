@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import TeamHistoryPanel from '../components/TeamHistoryPanel';
 import * as api from '../lib/teamHistoryApi';
 import { bestAndWorst, ordinal, seasonName, summariseHistory, type StandingRow } from '../lib/teamHistoryApi';
@@ -81,7 +82,7 @@ describe('team history helpers', () => {
 
 describe('TeamHistoryPanel', () => {
   it('shows the summary, best and lowest finish, and one chart point per season', async () => {
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     expect(await screen.findByText(/League history/)).toHaveTextContent('3 seasons');
     expect(screen.getByText('30-15-45')).toBeInTheDocument();
     expect(screen.getByText('66th overall')).toBeInTheDocument();
@@ -90,7 +91,7 @@ describe('TeamHistoryPanel', () => {
   });
 
   it('marks the curtailed season, the deduction and the season in progress', async () => {
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     const table = within(await screen.findByRole('table', { name: 'Season by season' }));
     expect(table.getByTitle('Curtailed season, ranked on points per game')).toBeInTheDocument();
     expect(table.getByTitle('Points deducted')).toHaveTextContent('(-12)');
@@ -99,7 +100,7 @@ describe('TeamHistoryPanel', () => {
 
   it('the venue toggle switches the summary and table to home or away', async () => {
     const user = userEvent.setup();
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     await screen.findByText('30-15-45');
     await user.click(screen.getByRole('button', { name: 'Home' }));
     expect(screen.getByText('17-7-20')).toBeInTheDocument();
@@ -111,7 +112,7 @@ describe('TeamHistoryPanel', () => {
 
   it('season table sorts by clicking a header', async () => {
     const user = userEvent.setup();
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     const table = await screen.findByRole('table', { name: 'Season by season' });
     await user.click(within(table).getByRole('button', { name: 'GA' }));
     const first = within(table).getAllByRole('row')[1];
@@ -119,7 +120,7 @@ describe('TeamHistoryPanel', () => {
   });
 
   it('home v away bars: one row per season and one per month, in season order', async () => {
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     await screen.findByText(/League history/);
     const rows = screen.getAllByTestId('pair-row');
     expect(rows).toHaveLength(3 + 2);
@@ -138,7 +139,7 @@ describe('TeamHistoryPanel with historic seasons', () => {
 
   it('names a historic season and its division as they were', async () => {
     mocked.getTeamStandings.mockResolvedValue(HISTORIC);
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     expect(await screen.findByText('23rd overall')).toBeInTheDocument();
     expect(screen.getByText('3rd, First Division 1998/99')).toBeInTheDocument();
     const table = within(screen.getByRole('table', { name: 'Season by season' }));
@@ -149,7 +150,7 @@ describe('TeamHistoryPanel with historic seasons', () => {
   it('sorts the season column by year, not by season_id', async () => {
     mocked.getTeamStandings.mockResolvedValue(HISTORIC);
     const user = userEvent.setup();
-    render(<TeamHistoryPanel teamId={70} teamName="Southend" />);
+    render(<MemoryRouter><TeamHistoryPanel teamId={70} teamName="Southend" /></MemoryRouter>);
     const table = await screen.findByRole('table', { name: 'Season by season' });
     const firstRow = () => within(table).getAllByRole('row')[1].textContent ?? '';
     const dir = () => within(table).getByRole('columnheader', { name: /Season/ }).getAttribute('aria-sort');

@@ -191,6 +191,9 @@ async function main() {
     acceptedFits: queryAll('model_fit_runs?select=fit_run_id,league_id,fitted_at,status&status=eq.accepted&order=fitted_at.desc'),
     // History hub (Premier League): the latest season's size fixes the comparison group.
     historyLatest: query('team_season_summary?select=clubs,start_year&league_id=eq.1&order=start_year.desc&limit=1'),
+    // League and league-season pages (/football/leagues/...).
+    leagueRefs: query('leagues?select=league_id,code,name,slug,countries(name)&competition_type=eq.league'),
+    eraNames: queryAll('league_season_display_names?select=league_id,season_id,name&order=league_id.asc,season_id.asc'),
   };
 
   await writeGameweekPages();
@@ -302,6 +305,58 @@ async function main() {
     }
   }
   await writeHistoryHub();
+
+  // ---- Leagues, league histories and league seasons --------------------------
+  // /football/leagues, /football/leagues/:league and every league-season:
+  // full server-rendered pages (table, story, fingerprint) from four bulk
+  // queries. Any failure leaves the SPA shell, which still works.
+  async function writeLeaguePages() {
+    try {
+      const { assembleLeaguePages, SUMMARY_SELECT, TABLE_COLUMNS, renderLeaguesPage, renderLeagueIndexPage, renderLeagueSeasonPage } = await import(ENTRY);
+      const [leagues, summaries, tables, eraNames, teams] = await Promise.all([
+        pending.leagueRefs,
+        queryAll(`league_season_summary?select=${SUMMARY_SELECT.replace(/\s+/g, '')}&order=league_id.asc,season_id.asc`),
+        queryAll(`team_season_summary?select=${TABLE_COLUMNS.replace(/\s+/g, '')}&order=league_id.asc,season_id.asc,team_id.asc`),
+        pending.eraNames,
+        pending.teams,
+      ]);
+      if (!leagues || !summaries || !tables || !teams) {
+        console.warn('Static: league data unavailable -- league pages stay client-rendered.');
+        return;
+      }
+      const built = assembleLeaguePages({ leagues, summaries, tables, eraNames: eraNames ?? [], teams });
+      const write = (path, page) => {
+        const dir = join(DIST, ...path.split('/').filter(Boolean));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      };
+      write('/football/leagues', renderLeaguesPage(built.list));
+      let n = 0;
+      for (const { index, seasons } of built.leagues) {
+        try {
+          const page = renderLeagueIndexPage(index);
+          write(new URL(page.canonical).pathname, page);
+          n++;
+        } catch (err) {
+          console.error(`Static: failed league ${index.league.slug}: ${err?.message ?? err}`);
+        }
+        for (const season of seasons) {
+          try {
+            if (season.rows.length === 0) continue;
+            const page = renderLeagueSeasonPage(season);
+            write(new URL(page.canonical).pathname, page);
+            n++;
+          } catch (err) {
+            console.error(`Static: failed league season ${season.league.slug} ${season.season.start_year}: ${err?.message ?? err}`);
+          }
+        }
+      }
+      console.log(`Static: wrote /football/leagues and ${n} league and league-season page(s).`);
+    } catch (err) {
+      console.error(`Static: failed league pages: ${err?.message ?? err}`);
+    }
+  }
+  await writeLeaguePages();
 
   const financeTeamIds = await writeFinancePages();
 

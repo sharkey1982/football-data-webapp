@@ -81,6 +81,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/football/leagues',
+    title: 'Leagues: every season, final table and champion',
+    description: 'Final tables, champions and season statistics for the English leagues since 1992/93 and 18 European top flights.',
+    crumbs: [FOOTBALL],
+  },
+  {
     path: '/football/history',
     title: 'When does the league table become real?',
     description:
