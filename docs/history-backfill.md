@@ -165,7 +165,7 @@ backfill.
 The Football League (tiers 2-4) separated clubs level on points by goals
 scored, not goal difference, until 1998/99. `league_standings` now does the
 same for those seasons (the Premier League always used goal difference).
-This moved 68 positions, including three that matter: Wigan, not Fulham, won
+This moved 66 club positions, including three that matter: Wigan, not Fulham, won
 the 1996/97 Third Division; Brighton, not Hereford, stayed up in 1996/97; and
 Bury, not Port Vale, went down from the First Division in 1998/99.
 
