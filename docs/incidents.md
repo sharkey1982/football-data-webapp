@@ -560,3 +560,44 @@ fixing something else.
 - **Prevention:** tests for the null-skipping pooling and the 1990s label.
   *Lesson (again): a has-data filter for every average over a NOT NULL 0
   column -- and check what each marker actually marks per league.*
+
+## 2026-09-27 · Asian handicap odds stored in the wrong columns (found by the modelling audit)
+- **Impact:** all 146,816 Asian handicap rows in `match_odds` had the
+  handicap line in `price_home`, the home and away prices in
+  `price_over`/`price_under`, and `line` empty. Nothing read AH yet, so no
+  page or backtest was wrong; any market-implied goals model would have been.
+  4,142 further rows carried a line but no price (2026/27 `P` rows: Pinnacle's
+  AH columns no longer exist in the files).
+- **Cause:** the AH branch of `backfill_match_odds()` listed its values in a
+  different column order from the other two markets' branches of the same
+  UNION; the insert took them by position.
+- **Fix:** migration `20260927200000`: rows re-mapped in place, priceless
+  rows deleted, function corrected. `20260927200100` filled the line for
+  2003-05 rows, whose files give each bookmaker's own line column (`B365AH`).
+  54 rows still have no line (the file has none).
+- **Also found:** Pinnacle 1X2 odds stop on 8 Jan 2026 (the files dropped
+  Pinnacle); Betfair exchange columns (from 2024/25) were never read. BFE is
+  now loaded as the sharp benchmark and kept out of Model Returns' "best
+  price" (before commission). Every Model Returns, market-efficiency and
+  overround result was fingerprinted before and after: identical.
+- **Prevention:** a UNION feeding one INSERT must list the same columns in
+  the same order in every branch; the corrected function names every column
+  in the same order with a comment per market.
+
+## 2026-09-27 · Match xG supplied but only partly imported
+- **Impact:** football-data.co.uk has carried HxG/AxG for E0-E3 since
+  2026/27; only 219 of 312 English 2026/27 matches had xG (the ones loaded
+  before 12 Sep by an earlier path).
+- **Cause:** `import-daily.ts` never mapped the columns.
+- **Fix:** importer maps them (NULL where absent, never 0); gaps backfilled
+  from the archived raw rows (migration `20260927200200`). The 219 existing
+  values were checked against the raw rows first: all equal.
+
+## 2026-09-27 · EXPLAIN ANALYZE ran a DELETE (mistake while building the history layer)
+- **Impact:** while timing `refresh_team_match_snapshot`, an
+  `EXPLAIN ANALYZE DELETE` on the new `team_match_snapshot` table deleted
+  Premier League 2025/26's 760 rows. The table was new and not yet read by
+  anything; the next rebuild restored them (and the rebuild detects a row-count
+  mismatch on its own).
+- **Lesson:** EXPLAIN ANALYZE executes the statement. Profile DML only inside
+  `begin; ... rollback;`, or profile the SELECT that feeds it.

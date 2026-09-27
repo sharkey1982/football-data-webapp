@@ -374,6 +374,10 @@ async function main() {
       away_yellow_cards: toIntOrNull(row['AY']) ?? 0,
       home_red_cards: toIntOrNull(row['HR']) ?? 0,
       away_red_cards: toIntOrNull(row['AR']) ?? 0,
+      // Match xG (football-data.co.uk, English divisions from 2026/27). NULL
+      // where the file has no xG -- never 0. toIntOrNull keeps decimals.
+      home_xg: toIntOrNull(row['HxG']),
+      away_xg: toIntOrNull(row['AxG']),
       source_name: SOURCE_NAME,
       source_file: CSV_URL,
     });
