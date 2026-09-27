@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { seasonPathByCode } from '../lib/leagueSeasonApi';
 import { getLeagues, getCountries, getLeagueIdsWithResults, getSeasons, getLeagueTable, getPointsRace, type LeagueTableRow, type RaceSeries } from '../lib/api';
 import Timelapse from '../components/Timelapse';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -138,6 +139,9 @@ export default function LeagueTable() {
 
   // Table or timelapse (Chris). The timelapse's data loads only when chosen,
   // keyed by division and season so a stale race is never shown.
+  const selectedLeague = leagues.find((l) => l.league_id === leagueId);
+  const selectedSeason = seasons.find((x) => x.season_id === seasonId);
+  const seasonPagePath = selectedLeague && selectedSeason ? seasonPathByCode(selectedLeague.code, selectedSeason.start_year) : null;
   const [view, setView] = useState<'table' | 'timelapse'>(searchParams.get('view') === 'timelapse' ? 'timelapse' : 'table');
   const raceKey = leagueId && seasonId ? `${leagueId}-${seasonId}` : null;
   const [race, setRace] = useState<{ key: string; frames: number; series: RaceSeries[] } | { key: string; error: true } | null>(null);
@@ -228,6 +232,11 @@ export default function LeagueTable() {
               {v === 'table' ? 'Table' : 'Timelapse'}
             </button>
           ))}
+          {seasonPagePath && (
+            <Link to={seasonPagePath} className="self-center ml-auto text-sm text-pitch-800 underline underline-offset-2">
+              Season story and statistics
+            </Link>
+          )}
         </div>
       )}
 

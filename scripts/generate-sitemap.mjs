@@ -125,7 +125,7 @@ async function main() {
   // All independent -- fetched together, so total time is the slowest
   // request rather than the sum of a dozen serial ones.
   CURRENT_SEASON_ID = await query('rpc/fpl_current_season_id');
-  const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance] = await Promise.all([
+  const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons] = await Promise.all([
     queryAll(`fpl_player_gameweeks?select=fpl_event_id&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0`),
     queryAll('player_identity?select=slug&order=slug.asc'),
     queryAll(`fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}`),
@@ -133,6 +133,8 @@ async function main() {
     queryAll(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null`),
     queryAll(`fixtures?select=slug,predicted_at&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&order=fixture_id.asc`),
     mod ? fetchFinanceBulk(query).catch((err) => { console.error('Sitemap: finance fetch failed --', err?.message ?? err); return null; }) : null,
+    query('leagues?select=league_id,code,slug&competition_type=eq.league&slug=not.is.null'),
+    queryAll('league_season_summary?select=league_id,start_year&order=league_id.asc,start_year.asc'),
   ]);
 
   const counts = {};
@@ -154,6 +156,21 @@ async function main() {
   counts.players = (players ?? []).length;
   for (const f of fixtures ?? []) entries.push(urlEntry(`/football/matches/${f.slug}`, f.predicted_at));
   counts.matches = (fixtures ?? []).length;
+
+  // League histories and league seasons (/football/leagues/...).
+  counts.leagueSeasons = 0;
+  if (mod?.leagueSeasonPagePath && leagueRefs && leagueSeasons) {
+    const byId = new Map(leagueRefs.map((l) => [l.league_id, l]));
+    const withSeasons = new Set();
+    for (const s of leagueSeasons) {
+      const l = byId.get(s.league_id);
+      if (!l) continue;
+      withSeasons.add(l);
+      entries.push(urlEntry(mod.leagueSeasonPagePath(l, s.start_year), null));
+      counts.leagueSeasons++;
+    }
+    for (const l of withSeasons) entries.push(urlEntry(mod.leaguePagePath(l), null));
+  }
 
   counts.finance = 0;
   if (mod && finance) {

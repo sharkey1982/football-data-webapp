@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
+import { seasonPathByCode } from '../../lib/leagueSeasonApi';
 import {
   HISTORY_LEAGUES,
   leagueByCode,
@@ -234,7 +235,9 @@ export default function WhatHappenedNextPage() {
                     <tbody>
                       {sorted.map((r, i) => (
                         <tr key={`${r.season_id}-${r.team_id}`} className={i % 2 ? 'bg-chalk-100/60' : undefined}>
-                          <td className="px-3 py-1.5 text-xs font-mono">{seasonName(r.season_label)}</td>
+                          <td className="px-3 py-1.5 text-xs font-mono">
+                            <Link to={seasonPathByCode(league.code, r.start_year) ?? '#'} className="hover:underline">{seasonName(r.season_label)}</Link>
+                          </td>
                           <td className="px-3 py-1.5 text-xs">
                             {r.team_slug ? <Link to={`/football/teams/${r.team_slug}`} className="hover:underline">{r.team_name}</Link> : r.team_name}
                           </td>
