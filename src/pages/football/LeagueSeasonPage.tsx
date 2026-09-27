@@ -19,6 +19,7 @@ import {
   parseSeasonSegment,
   seasonDisplay,
   seasonFingerprint,
+  seasonRanks,
   seasonSegment,
   seasonStory,
   type LeagueSeasonData,
@@ -115,6 +116,9 @@ export default function LeagueSeasonPage({ initialData }: { initialData?: League
             <Link to={leaguePath(data.league)} className="text-pitch-800 underline underline-offset-2">
               {`All ${data.league.name} seasons`}
             </Link>
+            <Link to={`/football/records/${data.league.slug}`} className="text-pitch-800 underline underline-offset-2">
+              {`${data.league.name} records`}
+            </Link>
             {next && (
               <Link to={leagueSeasonPath(data.league, next.start_year)} className="text-pitch-800 underline underline-offset-2">
                 {seasonDisplay(data.league.code, next.start_year)} &rarr;
@@ -196,6 +200,15 @@ export default function LeagueSeasonPage({ initialData }: { initialData?: League
               )}
             </p>
           </section>
+
+          {seasonRanks(data).length > 0 && (
+            <section aria-labelledby="ranks-heading">
+              <h2 id="ranks-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">Where this season ranks</h2>
+              <ul className="mt-2 space-y-1 text-sm text-ink-900 list-disc pl-5 max-w-prose">
+                {seasonRanks(data).map((t) => <li key={t}>{t}</li>)}
+              </ul>
+            </section>
+          )}
 
           <section aria-labelledby="fingerprint-heading">
             <h2 id="fingerprint-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">Season in numbers</h2>

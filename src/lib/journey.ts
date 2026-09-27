@@ -76,6 +76,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Your Team', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
           { label: 'History', to: '/football/history', blurb: 'Where teams in any position finished, and this season against every champion.', matchPrefix: ['/football/history'] },
           { label: 'Past seasons', to: '/football/leagues', blurb: 'Every final table since 1992/93, with champions, promotions and relegations.', matchPrefix: ['/football/leagues'], excludePrefix: '/football/leagues-compared' },
+          { label: 'Record Book', to: '/football/records', blurb: 'Most points, longest runs and biggest wins, league by league.', matchPrefix: ['/football/records'] },
           { label: 'League Insights', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
           { label: 'Country Insights', to: '/football/countries-compared', blurb: 'Every country\u2019s top flight on one axis \u2014 goals, home advantage, cards.' },
           { label: 'Market Efficiency', to: '/football/market-efficiency', blurb: 'Where the betting market is priced sharply \u2014 and where it isn\u2019t.' },

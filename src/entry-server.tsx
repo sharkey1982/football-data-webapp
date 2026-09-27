@@ -40,6 +40,9 @@ import LeaguesPage from './pages/football/LeaguesPage';
 import LeagueIndexPage from './pages/football/LeagueIndexPage';
 import LeagueSeasonPage from './pages/football/LeagueSeasonPage';
 import ClubSeasonPage from './pages/football/ClubSeasonPage';
+import RecordsPage from './pages/football/RecordsPage';
+import { recordsPath, type RecordsData } from './lib/recordsApi';
+export { buildRecords } from './lib/recordsApi';
 import { clubSeasonPath, clubSeasonStory, type ClubSeasonData } from './lib/clubSeasonApi';
 export { buildClubSeason, SNAPSHOT_COLUMNS, clubSeasonPath as clubSeasonPagePath } from './lib/clubSeasonApi';
 export { assembleLeaguePages, SUMMARY_SELECT, TABLE_COLUMNS, leaguePath as leaguePagePath, leagueSeasonPath as leagueSeasonPagePath } from './lib/leagueSeasonApi';
@@ -465,6 +468,44 @@ export function renderClubSeasonPage(data: ClubSeasonData): RenderedPage {
         { name: when, path },
       ]),
     ],
+  };
+}
+
+const RECORDS_CRUMB = { name: 'Records', path: '/football/records' };
+
+export function renderRecordsIndexPage(list: LeaguesListEntry[]): RenderedPage {
+  const path = '/football/records';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path={path} element={<RecordsPage initialList={list} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `Football records: most points, longest runs, biggest wins | ${BRAND_NAME}`,
+    description: `Record books for ${list.length} leagues: points, goals, title margins, biggest wins and the longest winning, unbeaten and losing runs.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, RECORDS_CRUMB])],
+  };
+}
+
+export function renderRecordsPage(data: RecordsData): RenderedPage {
+  const path = recordsPath(data.league);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/records/:league" element={<RecordsPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `${data.league.name} records: most points, longest runs, biggest wins | ${BRAND_NAME}`,
+    description: data.headline || `${data.league.name} records.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, RECORDS_CRUMB, { name: data.league.name, path }])],
   };
 }
 

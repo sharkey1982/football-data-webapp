@@ -77,6 +77,17 @@ Pages: `/football/history` (hub; reliability numbers server-rendered into the HT
 
 `/football/teams/:slug/:season` (e.g. `/football/teams/sunderland/1995-96`): the club's finish and record, time at the top, highest and lowest position, longest runs (wins in a row, unbeaten, without a win), position after each match (`position_on_date`), points against the middle half of champions' and relegated clubs' points at the same stage (`league_pace_benchmarks`, same league size), and every result. Static HTML and sitemap entries for English leagues (about 3,800 pages); other leagues render in the browser. Generated last, from one snapshot query per league-season, inside a time budget so a slow database only costs these pages.
 
+### Record Book
+
+`/football/records` and `/football/records/:league` (static HTML, sitemap).
+
+- **`history_streaks`** (materialised view): every run of 3+ consecutive league matches won, unbeaten, without a win, lost, scoring, keeping a clean sheet or without scoring. Runs continue across consecutive seasons in the same league and end when the club spends a season in another division (so Sunderland's 2003 and 2005 Premier League defeats are two runs, not one). `ongoing` = still running this season; `truncated_start` = began at the club's first match of the league's first season on file, so it may be longer.
+- **`history_league_matches`** (view): one row per league match with total goals and margin.
+- **`history_record_streaks(league, limit)`** and **`history_record_matches(league, limit)`**: top N with shared ranks for ties.
+- Season records use complete seasons only (not curtailed, not split format) and rank by the per-game rate; points are after deductions. "Most points by a relegated club" is English leagues only.
+- Checked at build against known records: Arsenal 49 unbeaten (2003-04), Manchester City and Liverpool 18 wins in a row, Derby 32 without a win (2007/08), Sunderland 15 defeats (2002/03), Manchester United 14 clean sheets, Arsenal 55 matches scoring, Portsmouth 7-4 Reading, four 9-0 wins.
+- League season pages add "Where this season ranks": goals per game against every complete season, champions' points and the best relegated total against seasons with the same number of clubs.
+
 ## Refresh
 
 `refresh_history_derived(p_force default false)`:
@@ -107,4 +118,4 @@ Checked at build:
 
 ## Source
 
-`supabase/migrations/20260927202000_history_team_match_snapshot.sql`, `20260927203000_history_refresh_schedule_integrity_catalogue.sql`, `20260927210000_history_phase_a_rpcs.sql`, `20260927211000_history_phase_a_catalogue.sql`.
+`supabase/migrations/20260927202000_history_team_match_snapshot.sql`, `20260927203000_history_refresh_schedule_integrity_catalogue.sql`, `20260927210000_history_phase_a_rpcs.sql`, `20260927211000_history_phase_a_catalogue.sql`, `20260927220000_history_streaks_and_matches.sql`, `20260927221000_history_record_rpcs.sql`.
