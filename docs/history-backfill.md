@@ -40,9 +40,8 @@ Known gaps in what the site can show:
   Betbrain maximum/average columns (`BbMx*`, `BbAv*`, `BbOU`, `BbAH`), which
   `backfill_match_odds()` does not read; only the individual bookmakers above
   are stored. The same applies to the existing 2014/15-2018/19 rows.
-- **Points deductions are not applied** (no `point_deductions` rows before
-  2014/15 yet -- being researched separately). The tables below differ from
-  engsoccerdata's deduction-adjusted order only where a deduction applies.
+- **Points deductions are applied** from 1992/93 (34 deductions, migration
+  `20260927120000_historic_point_deductions.sql`; see League tables below).
 
 ## Clubs
 
@@ -151,6 +150,29 @@ engsoccerdata's list is not authoritative: it has, for example, Wrexham
 -10 in tier 3 for 2006/07, when Wrexham were in tier 4 (their 10 points
 were deducted in 2004/05), and Portsmouth's 2009/10 Premier League -9 did
 not change any position here.
+
+### Deductions and tie-breaks (applied 27 Sep 2026)
+
+34 deductions for 1992/93-2013/14 were researched season by season from the
+division articles and loaded into `point_deductions`. Not applied:
+Tottenham 1994/95 (-12, cut to -6, then quashed in Dec 1994). Leeds' 2006/07
+-10 is recorded in 2006/07 (imposed after relegation); Southampton's -10 in
+2009/10 (applied at the start of that season). engsoccerdata's Wrexham 2006/07
+entry is wrong and was not used. Conference deductions (20, including
+Chester City 2009/10, whose record was expunged) wait for the National League
+backfill.
+
+The Football League (tiers 2-4) separated clubs level on points by goals
+scored, not goal difference, until 1998/99. `league_standings` now does the
+same for those seasons (the Premier League always used goal difference).
+This moved 66 club positions, including three that matter: Wigan, not Fulham, won
+the 1996/97 Third Division; Brighton, not Hereford, stayed up in 1996/97; and
+Bury, not Port Vale, went down from the First Division in 1998/99.
+
+Checked after both changes: every champion and every relegated club in
+E0-E3 1992/93-2013/14 matches the historical record, including the five
+seasons where deductions decide the bottom three (1996/97 E0, 2006/07 E2,
+2008/09 E3, 2010/11 E2, 2011/12 E1).
 
 ## Effect on the model and current numbers
 
