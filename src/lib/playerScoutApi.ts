@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type PlayerSearchResult = {
   slug?: string | null;
@@ -119,7 +120,7 @@ export type PlayerIdentity = {
 export type ScoutTeam = { team_id: number; team_name: string; players: number };
 
 export async function listScoutTeams(): Promise<ScoutTeam[]> {
-  const { data, error } = await supabase.rpc('list_scout_teams', { p_season_id: 13 });
+  const { data, error } = await supabase.rpc('list_scout_teams', { p_season_id: await getCurrentFplSeasonId() });
   if (error) throw error;
   return (data ?? []).map((r: Record<string, unknown>) => ({
     team_id: Number(r.team_id),
@@ -239,7 +240,7 @@ export type ScoutFilters = {
 
 export async function listScoutPlayers(f: ScoutFilters = {}): Promise<ScoutListPlayer[]> {
   const { data, error } = await (supabase as any).rpc('list_scout_players', {
-    p_season_id: 13,
+    p_season_id: await getCurrentFplSeasonId(),
     p_position: f.position ?? null,
     p_team_id: f.teamId ?? null,
     p_min_minutes: f.minMinutes ?? 0,
@@ -296,7 +297,7 @@ export type GameweekBreakdown = {
 export async function getPlayerGameweekBreakdown(fplPlayerId: number): Promise<GameweekBreakdown[]> {
   const { data, error } = await (supabase as any).rpc('get_player_gameweek_breakdown', {
     p_fpl_player_id: fplPlayerId,
-    p_season_id: 13,
+    p_season_id: await getCurrentFplSeasonId(),
   });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({

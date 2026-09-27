@@ -34,6 +34,7 @@
 import { supabase } from './supabase';
 import type { FplElementType } from '../types/database';
 import { seasonContextStats, getGamesInvolvedCounts, type SetPieceRole } from './fplApi';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type TacticalRoleRow = {
   fpl_player_id: number;
@@ -80,7 +81,7 @@ export async function getTeamOptions(): Promise<TeamOption[]> {
   const { data, error } = await supabase
     .from('fpl_players')
     .select('canonical_team_id, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .not('canonical_team_id', 'is', null);
   if (error) throw error;
   const byId = new Map<number, string>();
@@ -108,12 +109,12 @@ export const FORMATION_OPTIONS = ['4-4-2', '4-3-3', '4-2-3-1', '3-4-3', '3-5-2',
  * team_tactical_defaults -- not from the consensus view, which resolves
  * overrides and fallbacks together. The editor needs to show what is
  * stored so a save is a change to a known value. */
-export async function getTeamDefaultFormation(teamId: number, seasonId = 13): Promise<{ formation: string | null; isManual: boolean }> {
+export async function getTeamDefaultFormation(teamId: number, seasonId?: number): Promise<{ formation: string | null; isManual: boolean }> {
   const { data, error } = await supabase
     .from('team_tactical_defaults')
     .select('formation, source_name')
     .eq('team_id', teamId)
-    .eq('season_id', seasonId)
+    .eq('season_id', seasonId ?? (await getCurrentFplSeasonId()))
     .maybeSingle();
   if (error) throw error;
   const row = data as { formation?: string; source_name?: string } | null;
@@ -126,10 +127,10 @@ export async function getTeamDefaultFormation(teamId: number, seasonId = 13): Pr
  * gives manual rows precedence over the scraped per-fixture lineup
  * consensus, where a non-manual default is only a fallback. So this is
  * what makes the edit actually reach the pitch and the projections. */
-export async function saveTeamFormation(teamId: number, formation: string, seasonId = 13): Promise<void> {
+export async function saveTeamFormation(teamId: number, formation: string, seasonId?: number): Promise<void> {
   const { error } = await supabase
     .from('team_tactical_defaults')
-    .upsert({ season_id: seasonId, team_id: teamId, formation, source_name: 'manual', confidence: 1, updated_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
+    .upsert({ season_id: seasonId ?? (await getCurrentFplSeasonId()), team_id: teamId, formation, source_name: 'manual', confidence: 1, updated_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
   if (error) throw error;
 }
 
@@ -142,7 +143,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   const { data: playerRows, error: playerErr } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .not('element_type', 'is', null)
     .not('canonical_team_id', 'is', null)
     .neq('status', 'u'); // left the club -- not part of the squad to review any more
@@ -151,7 +152,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   const { data: defaultRows, error: defaultErr } = await supabase
     .from('team_player_tactical_defaults')
     .select('fpl_player_id, team_id, tactical_role, source_name, confidence, depth_rank, manual_status, manual_status_note')
-    .eq('season_id', 13);
+    .eq('season_id', await getCurrentFplSeasonId());
   if (defaultErr) throw defaultErr;
   const defaultsByPlayer = new Map<number, { tactical_role: string; source_name: string; confidence: number; depth_rank: number | null; manual_status: string | null; manual_status_note: string | null }>();
   for (const d of defaultRows ?? [])
@@ -166,7 +167,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
 
   // Same merge logic as getFplFixtureProjection: corner_left/corner_right
   // collapse into one 'corner' entry at the better (lower) rank.
-  const { data: setPieceRows, error: setPieceErr } = await supabase.from('set_piece_hierarchies').select('*').eq('season_id', 13);
+  const { data: setPieceRows, error: setPieceErr } = await supabase.from('set_piece_hierarchies').select('*').eq('season_id', await getCurrentFplSeasonId());
   if (setPieceErr) throw setPieceErr;
   const setPieceRolesByPlayer = new Map<number, SetPieceRole[]>();
   for (const row of (setPieceRows ?? [])) {
@@ -222,7 +223,7 @@ export async function saveTacticalRoleCorrection(teamId: number, fplPlayerId: nu
   const { error } = await supabase
     .from('team_player_tactical_defaults')
     .upsert(
-      { season_id: 13, team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, source_name: 'manual', confidence: 1 },
+      { season_id: await getCurrentFplSeasonId(), team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, source_name: 'manual', confidence: 1 },
       { onConflict: 'season_id,team_id,fpl_player_id' }
     );
   if (error) throw error;
@@ -239,7 +240,7 @@ export async function saveDepthRankCorrection(teamId: number, fplPlayerId: numbe
   const { data: existing, error: readErr } = await supabase
     .from('team_player_tactical_defaults')
     .select('tactical_role, source_name, confidence')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('team_id', teamId)
     .eq('fpl_player_id', fplPlayerId)
     .maybeSingle();
@@ -248,7 +249,7 @@ export async function saveDepthRankCorrection(teamId: number, fplPlayerId: numbe
     .from('team_player_tactical_defaults')
     .upsert(
       {
-        season_id: 13,
+        season_id: await getCurrentFplSeasonId(),
         team_id: teamId,
         fpl_player_id: fplPlayerId,
         tactical_role: existing?.tactical_role ?? fallbackRole,
@@ -293,7 +294,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
   const { data: existing, error: readErr } = await supabase
     .from('team_player_tactical_defaults')
     .select('tactical_role, source_name, confidence, depth_rank, depth_rank_source')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('team_id', teamId)
     .eq('fpl_player_id', fplPlayerId)
     .maybeSingle();
@@ -302,7 +303,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
     .from('team_player_tactical_defaults')
     .upsert(
       {
-        season_id: 13,
+        season_id: await getCurrentFplSeasonId(),
         team_id: teamId,
         fpl_player_id: fplPlayerId,
         tactical_role: existing?.tactical_role ?? fallbackRole,
@@ -328,7 +329,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
     const { error: deleteErr } = await supabase
       .from('fpl_player_squad_state')
       .delete()
-      .eq('season_id', 13)
+      .eq('season_id', await getCurrentFplSeasonId())
       .eq('fpl_player_id', fplPlayerId)
       .eq('source_name', 'manual_tactical_override');
     if (deleteErr) throw deleteErr;
@@ -346,7 +347,7 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
 
   const { error: squadStateErr } = await supabase.from('fpl_player_squad_state').upsert(
     {
-      season_id: 13,
+      season_id: await getCurrentFplSeasonId(),
       fpl_player_id: fplPlayerId,
       team_id: teamId,
       state: mapped.state,
@@ -365,14 +366,14 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
 
 /** Last-reviewed timestamp per team, keyed by team_id -- null if never reviewed. */
 export async function getTeamReviewDates(): Promise<Map<number, string>> {
-  const { data, error } = await supabase.from('team_tactical_review_log').select('team_id, reviewed_at').eq('season_id', 13);
+  const { data, error } = await supabase.from('team_tactical_review_log').select('team_id, reviewed_at').eq('season_id', await getCurrentFplSeasonId());
   if (error) throw error;
   return new Map((data ?? []).map((r: any) => [r.team_id, r.reviewed_at]));
 }
 
 /** Marks a team's lineup as reviewed right now -- "Mark reviewed" button. */
 export async function markTeamReviewed(teamId: number): Promise<void> {
-  const { error } = await supabase.from('team_tactical_review_log').upsert({ season_id: 13, team_id: teamId, reviewed_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
+  const { error } = await supabase.from('team_tactical_review_log').upsert({ season_id: await getCurrentFplSeasonId(), team_id: teamId, reviewed_at: new Date().toISOString() }, { onConflict: 'season_id,team_id' });
   if (error) throw error;
 }
 
@@ -388,7 +389,7 @@ export async function getProjectedMinutes(matchweek: number): Promise<Map<number
     .from('fixtures')
     .select('fixture_id')
     .eq('matchweek', matchweek)
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('league_id', 1);
   if (fixtureErr) throw fixtureErr;
   const fixtureIds = (fixtureRows ?? []).map((f: any) => f.fixture_id);
@@ -433,7 +434,7 @@ export async function getSetPieceHierarchyForTeam(teamId: number): Promise<Map<S
   const { data, error } = await supabase
     .from('set_piece_hierarchies')
     .select('set_piece_hierarchy_id, set_piece_type, source_player_id, player_name, rank')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('team_id', teamId)
     .order('rank', { ascending: true });
   if (error) throw error;
@@ -455,7 +456,7 @@ export async function reorderSetPieceTaker(hierarchyId: number, teamId: number, 
   const { data: rows, error: readErr } = await supabase
     .from('set_piece_hierarchies')
     .select('set_piece_hierarchy_id, rank')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('team_id', teamId)
     .eq('set_piece_type', setPieceType)
     .order('rank', { ascending: true });
@@ -483,7 +484,7 @@ export async function addSetPieceTaker(teamId: number, setPieceType: SetPieceHie
   const { data: rows, error: readErr } = await supabase
     .from('set_piece_hierarchies')
     .select('rank')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('team_id', teamId)
     .eq('set_piece_type', setPieceType)
     .order('rank', { ascending: false })
@@ -491,7 +492,7 @@ export async function addSetPieceTaker(teamId: number, setPieceType: SetPieceHie
   if (readErr) throw readErr;
   const nextRank = ((rows ?? [])[0]?.rank ?? 0) + 1;
   const { error: insertErr } = await supabase.from('set_piece_hierarchies').insert({
-    season_id: 13,
+    season_id: await getCurrentFplSeasonId(),
     team_id: teamId,
     set_piece_type: setPieceType,
     source_name: 'manual',
@@ -536,8 +537,8 @@ export type TacticalWorklistRow = {
   priority: 'starter' | 'rotation' | 'fringe';
 };
 
-export async function getTacticalRoleWorklist(seasonId = 13): Promise<TacticalWorklistRow[]> {
-  const { data, error } = await supabase.rpc('get_tactical_role_worklist', { p_season_id: seasonId });
+export async function getTacticalRoleWorklist(seasonId?: number): Promise<TacticalWorklistRow[]> {
+  const { data, error } = await supabase.rpc('get_tactical_role_worklist', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   // priority is generated by get_tactical_role_worklist itself and is one
   // of 'starter' | 'rotation' | 'fringe' (verified against the function's

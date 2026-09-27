@@ -12,6 +12,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type TotwPlayer = {
   fpl_event_id: number;
@@ -44,7 +45,7 @@ export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> 
     // types it optional. Omitting it lets that default apply -- passing an
     // explicit null is what the removed cast was hiding.
     p_event_id: eventId,
-    p_season_id: 13,
+    p_season_id: await getCurrentFplSeasonId(),
   });
   if (error) throw error;
   return (data ?? []).map((r) => ({
@@ -64,7 +65,7 @@ export async function getTotwVsModel(eventId?: number): Promise<TotwComparison |
     // types it optional. Omitting it lets that default apply -- passing an
     // explicit null is what the removed cast was hiding.
     p_event_id: eventId,
-    p_season_id: 13,
+    p_season_id: await getCurrentFplSeasonId(),
   });
   if (error) throw error;
   const row = (data ?? [])[0];
@@ -95,8 +96,8 @@ export type CompletedGameweek = {
   best_score: number;
 };
 
-export async function getCompletedGameweeks(seasonId = 13): Promise<CompletedGameweek[]> {
-  const { data, error } = await supabase.rpc('get_completed_gameweeks', { p_season_id: seasonId });
+export async function getCompletedGameweeks(seasonId?: number): Promise<CompletedGameweek[]> {
+  const { data, error } = await supabase.rpc('get_completed_gameweeks', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     fpl_event_id: Number(r.fpl_event_id),
@@ -112,11 +113,11 @@ export async function getCompletedGameweeks(seasonId = 13): Promise<CompletedGam
  * here because one substantial page per gameweek beats two thin ones
  * competing for the same search, and because the XI only makes sense
  * beside the players who just missed it. */
-export async function getGameweekScorers(eventId: number, seasonId = 13, limit = 25) {
+export async function getGameweekScorers(eventId: number, seasonId?: number, limit = 25) {
   const { data, error } = await supabase
     .from('fpl_player_gameweeks')
     .select('fpl_player_id, total_points, minutes, goals_scored, assists, clean_sheets, bonus, fpl_players!inner(web_name, slug, element_type, canonical_team_id)')
-    .eq('season_id', seasonId)
+    .eq('season_id', seasonId ?? (await getCurrentFplSeasonId()))
     .eq('fpl_event_id', eventId)
     .order('total_points', { ascending: false })
     .limit(limit);

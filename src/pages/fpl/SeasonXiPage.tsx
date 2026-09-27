@@ -27,6 +27,8 @@ import {
   type XiSeason,
 } from '../../lib/seasonXiApi';
 import { layoutByBand } from '../../lib/pitchLayout';
+import { getSeasons } from '../../lib/referenceApi';
+import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 
 export default function SeasonXiPage() {
   const [xi, setXi] = useState<SeasonXiPlayer[] | null>(null);
@@ -38,6 +40,8 @@ export default function SeasonXiPage() {
   // Newest season selected once the list arrives, rather than a
   // hardcoded id -- adding a season should be an insert, not an edit.
   const [seasonId, setSeasonId] = useState<number | null>(null);
+  // The FPL season in progress, from the database (docs/season-rollover.md).
+  const [inPlay, setInPlay] = useState<{ season_id: number; slug: string; label: string } | null>(null);
   // Week by week for the chosen season's XI: eleven players, left alone.
   const [weekly, setWeekly] = useState<SeasonXiWeek[] | null>(null);
 
@@ -51,9 +55,18 @@ export default function SeasonXiPage() {
   });
 
   useEffect(() => {
-    getRollingXiCandidates(13)
+    getRollingXiCandidates()
       .then((pool) => setRolling(solveRollingXi(pool)))
       .catch(() => setRolling(null));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([getCurrentFplSeasonId(), getSeasons()])
+      .then(([id, list]) => {
+        const s = (list ?? []).find((x) => x.season_id === id);
+        if (s) setInPlay({ season_id: id, slug: `${s.start_year}-${String(s.end_year).slice(2)}`, label: s.label });
+      })
+      .catch(() => setInPlay(null));
   }, []);
 
   useEffect(() => {
@@ -72,14 +85,14 @@ export default function SeasonXiPage() {
   // XI is SOLVED rather than stored -- the answer moves every gameweek --
   // but it renders through exactly the same layout, so the page reads
   // the same whichever season is chosen.
-  const CURRENT_SEASON_ID = 13;
+  const CURRENT_SEASON_ID = inPlay?.season_id ?? null;
   const allSeasons: XiSeason[] =
-    rolling && rolling !== 'loading'
+    rolling && rolling !== 'loading' && inPlay
       ? [
           {
-            season_id: CURRENT_SEASON_ID,
-            slug: '2026-27',
-            label: '2627',
+            season_id: inPlay.season_id,
+            slug: inPlay.slug,
+            label: inPlay.label,
             points: rolling.points,
             cost: rolling.cost,
           },
@@ -89,13 +102,13 @@ export default function SeasonXiPage() {
 
   useEffect(() => {
     if (seasonId != null) return;
-    if (rolling && rolling !== 'loading') setSeasonId(CURRENT_SEASON_ID);
+    if (rolling && rolling !== 'loading' && CURRENT_SEASON_ID != null) setSeasonId(CURRENT_SEASON_ID);
     else if (seasons.length > 0) setSeasonId(seasons[0].season_id);
-  }, [seasonId, rolling, seasons]);
+  }, [seasonId, rolling, seasons, CURRENT_SEASON_ID]);
 
   useEffect(() => {
     if (seasonId == null) return;
-    if (seasonId === CURRENT_SEASON_ID) {
+    if (CURRENT_SEASON_ID != null && seasonId === CURRENT_SEASON_ID) {
       if (rolling && rolling !== 'loading') {
         setXi(
           rolling.players.map((p) => ({
@@ -114,7 +127,7 @@ export default function SeasonXiPage() {
     }
     getSeasonBestXi(seasonId).then(setXi).catch(() => setXi([]));
     getSeasonValueLeaders(seasonId).then(setValue).catch(() => setValue([]));
-  }, [seasonId, rolling]);
+  }, [seasonId, rolling, CURRENT_SEASON_ID]);
 
   // Week by week for the chosen season. MUST sit with the other hooks, above
   // the early return below: placed after it, this never ran and the section

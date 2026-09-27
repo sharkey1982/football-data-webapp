@@ -6,6 +6,11 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import GameweekPage from '../pages/fpl/GameweekPage';
 import * as fplSeasonApi from '../lib/fplSeasonApi';
 
+// The current season comes from the database (docs/season-rollover.md).
+vi.mock('../lib/currentSeason', () => ({
+  getCurrentFplSeasonId: () => Promise.resolve(13),
+  getCurrentSeasonId: () => Promise.resolve(13),
+}));
 vi.mock('../lib/fplSeasonApi', async () => {
   const actual = await vi.importActual<typeof fplSeasonApi>('../lib/fplSeasonApi');
   return {

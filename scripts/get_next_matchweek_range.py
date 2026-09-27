@@ -28,7 +28,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--weeks", type=int, default=3, help="How many upcoming gameweeks to cover")
     parser.add_argument("--league-code", default="E0")
-    parser.add_argument("--season-id", type=int, default=13)
+    # Default: the current season from the database (docs/season-rollover.md).
+    parser.add_argument("--season-id", type=int, default=None)
     args = parser.parse_args()
 
     url = os.environ.get("SUPABASE_URL")
@@ -38,6 +39,10 @@ def main():
         sys.exit(1)
 
     supabase = create_client(url, key)
+    if args.season_id is None:
+        args.season_id = supabase.rpc("fpl_current_season_id").execute().data
+        if not args.season_id:
+            sys.exit("Could not resolve the current season (fpl_current_season_id() returned nothing).")
 
     league = supabase.table("leagues").select("league_id").eq("code", args.league_code).single().execute()
     league_id = league.data["league_id"]

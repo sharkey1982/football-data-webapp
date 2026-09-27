@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentSeasonId } from './currentSeason';
 
 export type BettingMarket = '1x2' | 'ou25';
 
@@ -48,7 +49,7 @@ export async function getBettingReturns(o: BettingOptions): Promise<BettingRetur
     p_closing: o.closing,
     p_best_price: o.bestPrice,
     p_stake: o.stake ?? 10,
-    p_season_id: o.seasonId ?? 13,
+    p_season_id: o.seasonId ?? (await getCurrentSeasonId()),
     p_league_id: o.leagueId ?? null,
     p_promoted: o.promoted ?? 'all',
   });
@@ -120,7 +121,7 @@ export async function getBettingBets(o: BettingOptions): Promise<BettingBet[]> {
     p_closing: o.closing,
     p_best_price: o.bestPrice,
     p_stake: o.stake ?? 10,
-    p_season_id: o.seasonId ?? 13,
+    p_season_id: o.seasonId ?? (await getCurrentSeasonId()),
     p_league_id: o.leagueId ?? null,
     p_promoted: o.promoted ?? 'all',
   });

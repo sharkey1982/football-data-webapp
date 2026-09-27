@@ -61,7 +61,13 @@ Deno.serve(async()=>{
   const {data:aliases,error:ae}=await sb.from('team_aliases').select('raw_name,team_id').eq('source_name','FootballWebPages'); if(ae)throw ae;
   const aliasMap=new Map<string,number>((aliases||[]).map((a:any)=>[a.raw_name,a.team_id]));
   const resolve=(raw:string)=>aliasMap.get(raw) ?? teamMap.get(NAME[raw]||raw);
-  const {data:season}=await sb.from('seasons').select('season_id').eq('label','2627').single(); if(!season)throw new Error('season 2627 mapping missing');
+  // 2026-09-27 (v9): the season is public.current_season_id() (1 July - 30 June,
+  // docs/season-rollover.md), not label '2627'. Rows dated outside it are
+  // skipped: the source can list next season's early rounds before 1 July.
+  const {data:curSeason,error:cse}=await sb.rpc('current_season_id'); if(cse)throw cse; if(!curSeason)throw new Error('current_season_id() returned no season');
+  const {data:seasonRows,error:se}=await sb.from('seasons').select('season_id,start_year'); if(se)throw se;
+  const seasonFor=(iso:string)=>{const y=+iso.slice(0,4),m=+iso.slice(5,7);const sy=m>=7?y:y-1;return (seasonRows||[]).find((x:any)=>x.start_year===sy)?.season_id as number|undefined};
+  const season={season_id:curSeason as number};
   const results:any[]=[];
   let tSeen=0,tFix=0,tMatch=0,tDropped=0; const gaps=new Set<string>(); const tUnknownRounds:string[]=[];
   for(const comp of COMPETITIONS){
@@ -69,9 +75,9 @@ Deno.serve(async()=>{
    const {data:league}=await sb.from('leagues').select('league_id').eq('code',comp.code).single(); if(!league){results.push({competition:comp.code,error:'league mapping missing'});continue;}
    try{
     const base=await (await fetch(`${BASE}/third-round`)).text(); const slugs=[...base.matchAll(/<option value="([^"]+)"(?: selected="selected")?>[^<]+<\/option>/g)].map(x=>x[1]).filter(x=>x&&(x.includes('round')||x.includes('final'))); const rounds=[...new Set(slugs)];
-    let seen=0,fixtures=0,matches=0,dropped=0,oneSided=0,moved=0; const unmatched=new Set<string>();
+    let seen=0,fixtures=0,matches=0,dropped=0,oneSided=0,moved=0,outOfSeason=0; const unmatched=new Set<string>();
     const unknownRounds=rounds.filter(s=>ROUND[comp.code]?.[s]===undefined); if(unknownRounds.length)tUnknownRounds.push(...unknownRounds.map(s=>`${comp.code}:${s}`));
-    for(let ri=0;ri<rounds.length;ri++){const slug=rounds[ri];const roundNo=ROUND[comp.code]?.[slug];if(roundNo===undefined)continue;const html=await (await fetch(`${BASE}/${slug}`)).text(); for(const r of rows(html)){seen++;
+    for(let ri=0;ri<rounds.length;ri++){const slug=rounds[ri];const roundNo=ROUND[comp.code]?.[slug];if(roundNo===undefined)continue;const html=await (await fetch(`${BASE}/${slug}`)).text(); for(const r of rows(html)){seen++; if(seasonFor(r.date)!==season.season_id){outOfSeason++;continue;}
      const hid=resolve(r.home),aid=resolve(r.away);
      if(!hid||!aid){
       if(!hid)unmatched.add(r.home); if(!aid)unmatched.add(r.away);
@@ -99,7 +105,7 @@ Deno.serve(async()=>{
      if(played){const mp:any={league_id:league.league_id,season_id:season.season_id,home_team_id:hid,away_team_id:aid,match_date:r.date,kickoff_time:time,full_time_home_goals:r.hg,full_time_away_goals:r.ag,full_time_result:r.hg>r.ag?'H':r.hg<r.ag?'A':'D',source_name:'FootballWebPages',source_file:`${BASE}/${slug}`,updated_at:new Date().toISOString()}; const {error:me}=await sb.from('matches').upsert(mp,{onConflict:'league_id,season_id,match_date,home_team_id,away_team_id'});if(me)throw me;matches++;}
     }}
     tSeen+=seen;tFix+=fixtures;tMatch+=matches;tDropped+=dropped;
-    results.push({competition:comp.code,rounds,seen,fixtures,kickoff_changes:moved,matches,mapping_gap_rows:dropped,one_sided_rows:oneSided,unmatched:[...unmatched],unknown_rounds:unknownRounds});
+    results.push({competition:comp.code,rounds,seen,fixtures,kickoff_changes:moved,out_of_season:outOfSeason,matches,mapping_gap_rows:dropped,one_sided_rows:oneSided,unmatched:[...unmatched],unknown_rounds:unknownRounds});
    }catch(e){results.push({competition:comp.code,error:describeError(e)})}
   }
   const {data:predictions,error:pe}=await sb.rpc('backfill_fixture_predictions'); if(pe)throw pe;

@@ -45,7 +45,8 @@ jobs:
           # the code and keeps only this season's rows.
           for LEAGUE in D1 I1 F1 SP1 P1 B1 T1 G1 N1 SC0 AUT DNK NOR POL ROU SWE SWZ FIN; do
             echo "::group::Importing $LEAGUE"
-            IMPORT_LEAGUE_CODE="$LEAGUE" IMPORT_SEASON_LABEL="2627" npm run import:daily
+            # Season = public.current_season_id() (docs/season-rollover.md).
+            IMPORT_LEAGUE_CODE="$LEAGUE" npm run import:daily
             if [ $? -ne 0 ]; then
               echo "::error::Import failed for $LEAGUE"
               FAILED=1

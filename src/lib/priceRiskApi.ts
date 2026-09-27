@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 export type PriceRisk = {
   fpl_player_id: number;
@@ -33,8 +34,8 @@ export type PriceRisk = {
   direction: 'rise' | 'fall' | 'steady';
 };
 
-export async function getPriceChangeRisk(seasonId = 13): Promise<PriceRisk[]> {
-  const { data, error } = await supabase.rpc('get_price_change_risk', { p_season_id: seasonId });
+export async function getPriceChangeRisk(seasonId?: number): Promise<PriceRisk[]> {
+  const { data, error } = await supabase.rpc('get_price_change_risk', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return ((data ?? []) as any[]).map((r) => ({
     ...r,

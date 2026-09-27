@@ -15,9 +15,9 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 const PL_LEAGUE_ID = 1;
-const PL_SEASON_ID = 13;
 const MODEL_VERSION = 'leaguewide_v6';
 
 export type PlayerPageProfile = {
@@ -97,7 +97,7 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
   const { data, error } = await supabase
     .from('fpl_players')
     .select('fpl_player_id, fpl_code, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(display_name, slug)')
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -131,7 +131,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     .from('fixtures')
     .select('fixture_id, matchweek, kickoff_date, status, home_team_id, away_team_id, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)')
     .eq('league_id', PL_LEAGUE_ID)
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .not('matchweek', 'is', null)
     .order('matchweek', { ascending: true });
@@ -165,7 +165,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
   const { data: fplFixtureRows, error: mapError } = await supabase
     .from('fpl_fixtures')
     .select('fpl_fixture_id, canonical_fixture_id')
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .in('canonical_fixture_id', fixtureIds);
   if (mapError) throw mapError;
   const canonicalByFplFixture = new Map<number, number>(
@@ -179,7 +179,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     .from('fpl_player_gameweeks')
     .select('fpl_fixture_id, total_points')
     .eq('fpl_player_id', fplPlayerId)
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .in('fpl_fixture_id', [...canonicalByFplFixture.keys()]);
   if (actualError) throw actualError;
   // Keyed by CANONICAL fixture id, so the lookup below matches the
@@ -219,7 +219,7 @@ export async function getAllPlayerSlugs(): Promise<string[]> {
   const { data, error } = await supabase
     .from('fpl_players')
     .select('slug')
-    .eq('season_id', PL_SEASON_ID)
+    .eq('season_id', await getCurrentFplSeasonId())
     .not('slug', 'is', null);
   if (error) throw error;
   return (data ?? []).map((r) => r.slug);
@@ -244,10 +244,10 @@ async function quietly<T>(fn: () => Promise<T>): Promise<T | null> {
 
 export async function getPlayerContext(p: { fpl_player_id: number; web_name: string; canonical_team_id: number | null }): Promise<PlayerContext> {
   const [risk, movers, takers, injuries] = await Promise.all([
-    quietly(async () => (await supabase.rpc('get_price_change_risk', { p_season_id: PL_SEASON_ID })).data ?? []),
+    quietly(async () => (await supabase.rpc('get_price_change_risk', { p_season_id: await getCurrentFplSeasonId() })).data ?? []),
     quietly(async () => (await supabase.rpc('get_fpl_market_movers', { p_days: 7 })).data ?? []),
-    quietly(async () => (await supabase.rpc('get_set_piece_takers', { p_season_id: PL_SEASON_ID })).data ?? []),
-    quietly(async () => (await supabase.rpc('get_injury_report', { p_season_id: PL_SEASON_ID })).data ?? []),
+    quietly(async () => (await supabase.rpc('get_set_piece_takers', { p_season_id: await getCurrentFplSeasonId() })).data ?? []),
+    quietly(async () => (await supabase.rpc('get_injury_report', { p_season_id: await getCurrentFplSeasonId() })).data ?? []),
   ]);
   const r = (risk as any[] | null)?.find((x) => Number(x.fpl_player_id) === p.fpl_player_id);
   const m = (movers as any[] | null)?.find((x) => Number(x.fpl_player_id) === p.fpl_player_id);

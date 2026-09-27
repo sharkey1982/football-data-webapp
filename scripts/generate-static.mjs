@@ -35,7 +35,9 @@ const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const DIST = join(process.cwd(), 'dist');
 const SHELL = join(DIST, 'index.html');
 const ENTRY = join(process.cwd(), 'dist-ssr', 'entry-server.js');
-const SEASON_ID = 13;
+// The current FPL season, read from the database in main() (fpl_current_season_id(),
+// docs/season-rollover.md). If that read fails the season pages are skipped.
+let SEASON_ID = null;
 const EPL_LEAGUE_ID = 1;
 const MODEL_VERSION = 'leaguewide_v6';
 const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
@@ -162,6 +164,7 @@ async function main() {
   // could outlast the 240s watchdog on a slow Supabase day, and the
   // watchdog discards everything not yet written -- which is how the
   // team and finance pages can vanish from a deploy that still succeeds.
+  SEASON_ID = await query('rpc/fpl_current_season_id');
   const pending = {
     gameweeks: queryAll(`fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`),
     scouts: queryAll('player_identity?select=slug,canonical_name&order=slug.asc'),

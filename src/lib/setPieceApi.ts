@@ -9,6 +9,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 
 export type SetPieceTaker = {
@@ -110,8 +111,8 @@ export function assistSplit(b: SetPieceBreakdown): ShareRow[] {
   ].sort((a, z) => z.goals - a.goals);
 }
 
-export async function getSetPieceTakers(seasonId = 13): Promise<SetPieceTaker[]> {
-  const { data, error } = await supabase.rpc('get_set_piece_takers', { p_season_id: seasonId });
+export async function getSetPieceTakers(seasonId?: number): Promise<SetPieceTaker[]> {
+  const { data, error } = await supabase.rpc('get_set_piece_takers', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...r,
@@ -144,8 +145,8 @@ export type SetPieceIndexRow = {
   detail: string;
 };
 
-export async function getSetPieceIndex(seasonId = 13): Promise<SetPieceIndexRow[]> {
-  const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: seasonId });
+export async function getSetPieceIndex(seasonId?: number): Promise<SetPieceIndexRow[]> {
+  const { data, error } = await supabase.rpc('get_set_piece_index', { p_season_id: seasonId ?? (await getCurrentFplSeasonId()) });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     ...r,

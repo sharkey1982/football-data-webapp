@@ -115,10 +115,14 @@ def season_team_ids_as_of(supabase, league_id, as_of):
 
 
 def current_season_team_ids(supabase, league_id):
-    res = supabase.table("fixtures").select("season_id").eq("league_id", league_id).limit(1).execute()
+    # The current season (docs/season-rollover.md). fixtures holds more than
+    # one season after the rollover, so "any fixture's season" is not enough.
+    season_id = supabase.rpc("current_season_id").execute().data
+    if not season_id:
+        return None, set()
+    res = supabase.table("fixtures").select("fixture_id").eq("league_id", league_id).eq("season_id", season_id).limit(1).execute()
     if not res.data:
         return None, set()
-    season_id = res.data[0]["season_id"]
     home = supabase.table("fixtures").select("home_team_id").eq("league_id", league_id).eq("season_id", season_id).execute()
     away = supabase.table("fixtures").select("away_team_id").eq("league_id", league_id).eq("season_id", season_id).execute()
     ids = {r["home_team_id"] for r in (home.data or [])} | {r["away_team_id"] for r in (away.data or [])}

@@ -29,7 +29,9 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const SITE_URL = (process.env.VITE_SITE_URL || 'https://fixtureshark.com').replace(/\/+$/, '');
 const OUT = join(process.cwd(), 'dist', 'sitemap.xml');
-const CURRENT_SEASON_ID = 13;
+// The current FPL season, read from the database in main() (fpl_current_season_id(),
+// docs/season-rollover.md). If that read fails the season sections are skipped.
+let CURRENT_SEASON_ID = null;
 const PL_LEAGUE_ID = 1;
 const REQUEST_TIMEOUT_MS = 20000;
 const WATCHDOG_MS = 90000;
@@ -122,6 +124,7 @@ async function main() {
 
   // All independent -- fetched together, so total time is the slowest
   // request rather than the sum of a dozen serial ones.
+  CURRENT_SEASON_ID = await query('rpc/fpl_current_season_id');
   const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance] = await Promise.all([
     queryAll(`fpl_player_gameweeks?select=fpl_event_id&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0`),
     queryAll('player_identity?select=slug&order=slug.asc'),

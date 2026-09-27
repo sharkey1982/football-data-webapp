@@ -9,6 +9,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import { getSeasons } from '../../lib/referenceApi';
+import { getCurrentSeasonId } from '../../lib/currentSeason';
 import {
   calibration,
   getCalibration,
@@ -29,7 +31,6 @@ const DIVISIONS = [
   { value: '4', label: 'L2' },
 ];
 const DIVISION_NAME: Record<number, string> = { 1: 'Premier League', 2: 'Championship', 3: 'League One', 4: 'League Two', 5: 'National League' };
-const SEASON_NAME: Record<number, string> = { 10: '2023/24', 11: '2024/25', 12: '2025/26', 13: '2026/27' };
 const TEAM_TYPES: { key: ScorecardRow['team_type']; label: string; note: string }[] = [
   { key: 'estimated', label: 'Estimated rating', note: 'a team without enough matches in the division, rated from the division next door' },
   { key: 'relegated', label: 'Relegated team', note: 'came down this season, fitted from its own matches' },
@@ -105,6 +106,11 @@ export default function ModelScorecardPage() {
   const [error, setError] = useState<string | null>(null);
   const [division, setDivision] = useState('all');
   const [season, setSeason] = useState('all');
+  // Season names and chronological order come from the seasons table, and
+  // "so far" from current_season_id(): season_id is not in date order and
+  // a new one arrives every summer (docs/season-rollover.md).
+  const [seasonInfo, setSeasonInfo] = useState<Map<number, { name: string; startYear: number }>>(new Map());
+  const [currentSeasonId, setCurrentSeasonId] = useState<number | null>(null);
 
   useDocumentHead({
     title: 'Model scorecard',
@@ -113,6 +119,13 @@ export default function ModelScorecardPage() {
 
   useEffect(() => {
     let live = true;
+    Promise.all([getSeasons(), getCurrentSeasonId()])
+      .then(([seasons, cur]) => {
+        if (!live) return;
+        setSeasonInfo(new Map((seasons ?? []).map((s) => [s.season_id, { name: `${s.start_year}/${String(s.end_year).slice(2)}`, startYear: s.start_year }])));
+        setCurrentSeasonId(cur);
+      })
+      .catch(() => {});
     Promise.all([getScorecard(), getCalibration()])
       .then(([s, c]) => {
         if (!live) return;
@@ -129,16 +142,21 @@ export default function ModelScorecardPage() {
   const picked = useMemo(() => (rows ? rows.filter(matches(filter)) : []), [rows, filter]);
   const total = useMemo(() => score(picked), [picked]);
   const seasonOptions = useMemo(
-    () => [{ value: 'all', label: 'All' }, ...[...new Set((rows ?? []).map((r) => r.season_id))].sort().map((s) => ({ value: String(s), label: (SEASON_NAME[s] ?? String(s)).slice(2) }))],
-    [rows],
+    () => [
+      { value: 'all', label: 'All' },
+      ...[...new Set((rows ?? []).map((r) => r.season_id))]
+        .sort((a, b) => (seasonInfo.get(a)?.startYear ?? 0) - (seasonInfo.get(b)?.startYear ?? 0))
+        .map((s) => ({ value: String(s), label: seasonInfo.get(s)?.name.slice(2) ?? String(s) })),
+    ],
+    [rows, seasonInfo],
   );
   const byDivSeason = useMemo(
     () =>
       scoreBy(picked, (r) => `${r.league_id}|${r.season_id}`).map(({ key, s }) => {
         const [lg, sn] = key.split('|').map(Number);
-        return { key, name: DIVISION_NAME[lg] ?? `League ${lg}`, sub: `${SEASON_NAME[sn] ?? sn}${sn === 13 ? ' (so far)' : ''}`, s };
+        return { key, name: DIVISION_NAME[lg] ?? `League ${lg}`, sub: `${seasonInfo.get(sn)?.name ?? sn}${sn === currentSeasonId ? ' (so far)' : ''}`, s };
       }),
-    [picked],
+    [picked, seasonInfo, currentSeasonId],
   );
   const byType = useMemo(
     () => scoreBy(picked, (r) => r.team_type, TEAM_TYPES.map((t) => t.key)).map(({ key, s }) => {

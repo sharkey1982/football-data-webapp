@@ -1247,10 +1247,10 @@ gate and carries real regression risk for a load-time gain most visitors
 won't notice. Deliberately NOT attempted at the end of a long session.
 Worth doing deliberately, with the admin pages checked afterwards.
 
-### Duplicate season constant in the two build scripts
-generate-sitemap.mjs has CURRENT_SEASON_ID and generate-static.mjs has
-SEASON_ID, both 13, both used to pick completed gameweeks. They agree
-today; they're two places to change at the season rollover.
+### Duplicate season constant in the two build scripts -- FIXED 2026-09-27
+Both now read fpl_current_season_id() at build time. Everything else that
+hard-coded season 13 / '2627' follows the database too; the steps that are
+still manual each summer are in docs/season-rollover.md.
 
 
 
@@ -1294,8 +1294,9 @@ STILL NOT DONE:
   - ownership history (`selected` per gameweek)
 
 ### Season filters: audited, mostly NOT needed
-Season 13 is hardcoded in ~11 frontend modules, and that's CORRECT for
-almost all of them. Injuries, price risk, transfer window, set pieces
+The frontend modules that meant "this season" (formerly a hard-coded 13)
+now ask the database (src/lib/currentSeason.ts, 2026-09-27); a single
+current season is still CORRECT for almost all of them. Injuries, price risk, transfer window, set pieces
 and the digest are current-season questions — "injuries in 2023/24"
 isn't something anyone wants, and adding filters there would be work
 for nobody.

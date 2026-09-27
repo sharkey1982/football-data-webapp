@@ -28,6 +28,7 @@ import type {
   SetPieceHierarchyRow,
   PlayerSquadHierarchyRow,
 } from '../types/database';
+import { getCurrentFplSeasonId } from './currentSeason';
 
 /**
  * The model_version currently surfaced by the frontend as "the" production
@@ -131,7 +132,7 @@ export async function getGamesInvolvedCounts(playerIds: number[]): Promise<Map<n
   const { data, error } = await supabase
     .from('fpl_player_gameweeks')
     .select('fpl_player_id, minutes')
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .in('fpl_player_id', playerIds)
     .gt('minutes', 0);
   if (error) throw error;
@@ -761,7 +762,7 @@ export async function getSquadPitchEnrichment(matchweek: number, playerIds: numb
     .from('fixtures')
     .select('fixture_id, home_team_id, away_team_id')
     .eq('league_id', 1)
-    .eq('season_id', 13)
+    .eq('season_id', await getCurrentFplSeasonId())
     .eq('matchweek', matchweek);
   if (fixtureError) throw fixtureError;
   const fixtureIds = (fixtureRows ?? []).map((f) => f.fixture_id);

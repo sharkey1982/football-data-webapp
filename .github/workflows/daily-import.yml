@@ -38,7 +38,9 @@ jobs:
           FAILED=0
           for LEAGUE in E0 E1 E2 E3 EC; do
             echo "::group::Importing $LEAGUE"
-            IMPORT_LEAGUE_CODE="$LEAGUE" IMPORT_CSV_URL="https://football-data.co.uk/mmz4281/2627/$LEAGUE.csv" IMPORT_SEASON_LABEL="2627" npm run import:daily
+            # Season (and so the CSV URL) = public.current_season_id(); see
+            # docs/season-rollover.md. Nothing to change here each summer.
+            IMPORT_LEAGUE_CODE="$LEAGUE" npm run import:daily
             if [ $? -ne 0 ]; then
               echo "::error::Import failed for $LEAGUE"
               FAILED=1

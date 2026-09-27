@@ -31,6 +31,11 @@ const responses: Record<string, unknown[]> = {
   teams: [{ team_id: 43, display_name: 'Manchester City' }],
 };
 
+// The current season comes from the database (docs/season-rollover.md).
+vi.mock('../lib/currentSeason', () => ({
+  getCurrentFplSeasonId: () => Promise.resolve(13),
+  getCurrentSeasonId: () => Promise.resolve(13),
+}));
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: (table: string) => {
