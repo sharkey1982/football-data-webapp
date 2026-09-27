@@ -5994,6 +5994,9 @@ export type Database = {
           ranked_on: string | null
           season_id: number | null
           season_label: string | null
+          season_start_year: number | null
+          split_adjustment: number | null
+          split_group: number | null
           team_id: number | null
           teams: number | null
           tier: number | null

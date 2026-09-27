@@ -235,6 +235,12 @@ export type LeagueTableRow = {
   pointsAdjustment: number;
   points: number;
   deductions: PointDeduction[];
+  /** Split-format leagues: 1 = championship group, 2+ = lower groups; null otherwise. */
+  splitGroup: number | null;
+  /** Points removed (negative) or carried over at the split, e.g. halving. 0 if none. */
+  splitAdjustment: number;
+  /** 'points', or 'points per game' for a season cut short. */
+  rankedOn: string;
 };
 
 /** Manual point adjustments (deductions or corrections) for a league+season. */
@@ -249,106 +255,60 @@ export async function getPointDeductions(leagueId: number, seasonId: number): Pr
 }
 
 /**
- * Builds a standard league table (P/W/D/L/GF/GA/GD/Pts) from every match
- * played so far in a league+season, with any point_deductions applied on
- * top. Works for a fully historic season (every match played), the
- * current in-progress season (whatever's been played so far), or an
- * empty one (returns []) -- there's no dependency on `fixtures` at all,
- * since a table only needs results, not the schedule.
- *
- * Sort order: points desc, goal difference desc, goals for desc, then
- * team name -- the standard tie-break set when head-to-head records
- * aren't being modelled separately.
+ * The league table for a league+season, read from the `league_standings`
+ * view so every page shows the same, official ordering: point deductions,
+ * the Football League's goals-scored tie-break before 1999/2000, seasons cut
+ * short ranked on points per game, and split-format leagues (clubs locked
+ * into their group after the split, points halved where the league does so,
+ * European play-off ties left out). Works for the current season too
+ * (results so far) and returns [] when nothing has been played.
  */
 export async function getLeagueTable(leagueId: number, seasonId: number): Promise<LeagueTableRow[]> {
   const [{ data, error }, deductions] = await Promise.all([
     supabase
-      .from('matches')
-      .select(
-        `
-        home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, full_time_result,
-        home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
-        away_team:teams!matches_away_team_id_fkey(canonical_name:display_name)
-      `
-      )
+      .from('league_standings')
+      .select('team_id, position, played, won, drawn, lost, goals_for, goals_against, points_won, deduction, split_adjustment, split_group, points, ranked_on')
       .eq('league_id', leagueId)
-      .eq('season_id', seasonId),
+      .eq('season_id', seasonId)
+      .order('position'),
     getPointDeductions(leagueId, seasonId),
   ]);
   if (error) throw error;
+  const standings = (data ?? []) as {
+    team_id: number; position: number; played: number; won: number; drawn: number; lost: number;
+    goals_for: number; goals_against: number; points_won: number; deduction: number;
+    split_adjustment: number | null; split_group: number | null; points: number; ranked_on: string;
+  }[];
+  if (standings.length === 0) return [];
 
-  const deductionsByTeam = new Map<number, PointDeduction[]>();
-  for (const d of deductions) {
-    (deductionsByTeam.get(d.team_id) ?? deductionsByTeam.set(d.team_id, []).get(d.team_id)!).push(d);
-  }
+  const { data: teams, error: teamsError } = await supabase
+    .from('teams')
+    .select('team_id, display_name')
+    .in('team_id', standings.map((r) => r.team_id));
+  if (teamsError) throw teamsError;
+  const names = new Map((teams ?? []).map((t: { team_id: number; display_name: string }) => [t.team_id, t.display_name]));
 
-  type Accumulator = Omit<LeagueTableRow, 'goalDifference' | 'points' | 'pointsAdjustment' | 'deductions'>;
-  const rows = new Map<number, Accumulator>();
-
-  function rowFor(teamId: number, teamName: string): Accumulator {
-    let row = rows.get(teamId);
-    if (!row) {
-      row = {
-        team_id: teamId,
-        team_name: teamName,
-        played: 0,
-        won: 0,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        pointsBeforeAdjustment: 0,
-      };
-      rows.set(teamId, row);
-    }
-    return row;
-  }
-
-  for (const m of (data ?? [])) {
-    const home = rowFor(m.home_team_id, m.home_team?.canonical_name ?? 'Unknown');
-    const away = rowFor(m.away_team_id, m.away_team?.canonical_name ?? 'Unknown');
-
-    home.played++;
-    away.played++;
-    home.goalsFor += m.full_time_home_goals;
-    home.goalsAgainst += m.full_time_away_goals;
-    away.goalsFor += m.full_time_away_goals;
-    away.goalsAgainst += m.full_time_home_goals;
-
-    if (m.full_time_result === 'D') {
-      home.drawn++;
-      away.drawn++;
-      home.pointsBeforeAdjustment += 1;
-      away.pointsBeforeAdjustment += 1;
-    } else if (m.full_time_result === 'H') {
-      home.won++;
-      away.lost++;
-      home.pointsBeforeAdjustment += 3;
-    } else {
-      away.won++;
-      home.lost++;
-      away.pointsBeforeAdjustment += 3;
-    }
-  }
-
-  return [...rows.values()]
-    .map((row) => {
-      const teamDeductions = deductionsByTeam.get(row.team_id) ?? [];
-      const pointsAdjustment = teamDeductions.reduce((sum, d) => sum + d.points, 0);
-      return {
-        ...row,
-        goalDifference: row.goalsFor - row.goalsAgainst,
-        pointsAdjustment,
-        points: row.pointsBeforeAdjustment + pointsAdjustment,
-        deductions: teamDeductions,
-      };
-    })
-    .sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-      return a.team_name.localeCompare(b.team_name);
-    });
+  return standings.map((r) => {
+    const splitAdjustment = r.split_adjustment ?? 0;
+    return {
+      team_id: r.team_id,
+      team_name: names.get(r.team_id) ?? 'Unknown',
+      played: r.played,
+      won: r.won,
+      drawn: r.drawn,
+      lost: r.lost,
+      goalsFor: r.goals_for,
+      goalsAgainst: r.goals_against,
+      goalDifference: r.goals_for - r.goals_against,
+      pointsBeforeAdjustment: r.points_won + splitAdjustment,
+      pointsAdjustment: r.deduction,
+      points: r.points,
+      deductions: deductions.filter((d) => d.team_id === r.team_id),
+      splitGroup: r.split_group,
+      splitAdjustment,
+      rankedOn: r.ranked_on,
+    };
+  });
 }
 
 

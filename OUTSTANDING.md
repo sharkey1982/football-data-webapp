@@ -464,10 +464,7 @@ its next run. See docs/incidents.md, 2026-09-26.
 `league_standings` now follows the official split formats
 (`league_season_formats`; docs/history-backfill.md, "Split formats in
 `league_standings`"). Still to do:
-- The League Table page (`getLeagueTable` in src/lib/matchesApi.ts) builds
-  its own table from `matches`, so it still shows split-format seasons on
-  total points with play-off ties counted. It should read `league_standings`
-  (or share its logic); a src change.
+- ~~League Table page computed its own table~~ -- fixed 27 Sep 2026: `getLeagueTable` now reads `league_standings`.
 - Belgium 2016/17-2022/23 (except 2019/20): the files hold only the regular
   season, so the 2021/22 and 2022/23 champions are wrong. Loading the
   play-offs (with halved points) needs another source and a

@@ -505,9 +505,8 @@ Before the split-format rules, Belgium 2023/24 (Union SG), Austria 2023/24
   top-v-top and bottom-v-bottom games only.
 - `get_country_league_summary()` averages over every game, awarded results
   included (e.g. Turkey 2022/23's 3-0 awards).
-- The League Table page (`getLeagueTable` in src/lib/matchesApi.ts) builds its
-  own table from `matches` and does not read `league_standings`, so it still
-  shows split-format seasons on total points (follow-up in OUTSTANDING.md).
+- The League Table page (`getLeagueTable`) reads `league_standings`, so it
+  shows the same order, with a note and group lines for split seasons.
 - Country Insights offers every season with at least two top flights
   (`comparableSeasons`): 2011/12-2015/16 show England and the big four (the
   season picker says "5 top flights"), 2016/17 on all 19. It also pools the
