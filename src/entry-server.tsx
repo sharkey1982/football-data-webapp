@@ -41,6 +41,10 @@ import LeagueIndexPage from './pages/football/LeagueIndexPage';
 import LeagueSeasonPage from './pages/football/LeagueSeasonPage';
 import ClubSeasonPage from './pages/football/ClubSeasonPage';
 import RecordsPage from './pages/football/RecordsPage';
+import TrendsPage from './pages/football/TrendsPage';
+import ScorelinesPage from './pages/football/ScorelinesPage';
+import { scorelineSentence, summariseScorelines, type ScorelinesData } from './lib/scorelinesApi';
+import { trendsHeadline, trendsPath, type TrendsData } from './lib/trendsApi';
 import { recordsPath, type RecordsData } from './lib/recordsApi';
 export { buildRecords } from './lib/recordsApi';
 import { clubSeasonPath, clubSeasonStory, type ClubSeasonData } from './lib/clubSeasonApi';
@@ -506,6 +510,49 @@ export function renderRecordsPage(data: RecordsData): RenderedPage {
     description: data.headline || `${data.league.name} records.`,
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, RECORDS_CRUMB, { name: data.league.name, path }])],
+  };
+}
+
+export function renderTrendsPage(data: TrendsData): RenderedPage {
+  const path = trendsPath(data.league);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/football/history/trends" element={<TrendsPage initialData={data} />} />
+        <Route path="/football/history/trends/:league" element={<TrendsPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `How the ${data.league.name} has changed: goals, home advantage, draws | ${BRAND_NAME}`,
+    description: trendsHeadline(data) || `How the ${data.league.name} has changed season by season.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      breadcrumb([
+        { name: 'Football', path: '/football' },
+        { name: 'History', path: '/football/history' },
+        { name: `${data.league.name} trends`, path },
+      ]),
+    ],
+  };
+}
+
+export function renderScorelinesPage(data: ScorelinesData): RenderedPage {
+  const path = '/football/history/scorelines';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path={path} element={<ScorelinesPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `Scoreline Explorer: how often every score happens | ${BRAND_NAME}`,
+    description: scorelineSentence(summariseScorelines(data.rows), data.league.name, null) || 'How often each scoreline happens.',
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'History', path: '/football/history' }, { name: 'Scoreline Explorer', path }])],
   };
 }
 

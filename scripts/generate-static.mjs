@@ -404,6 +404,47 @@ async function main() {
   }
   await writeRecordsPages();
 
+  // ---- League Lab (/football/history/trends[/:league]) -----------------------
+  async function writeTrendsPages() {
+    if (!leagueBulk) return;
+    try {
+      const { renderTrendsPage } = await import(ENTRY);
+      let n = 0;
+      for (const { index } of leagueBulk.built.leagues) {
+        try {
+          const league = index.league;
+          const page = renderTrendsPage({ league, seasons: leagueBulk.summaries.filter((x) => x.league_id === league.league_id) });
+          const dir = join(DIST, ...new URL(page.canonical).pathname.split('/').filter(Boolean));
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+          n++;
+        } catch (err) {
+          console.error(`Static: failed trends ${index.league.slug}: ${err?.message ?? err}`);
+        }
+      }
+      console.log(`Static: wrote ${n} League Lab page(s).`);
+    } catch (err) {
+      console.error(`Static: failed League Lab pages: ${err?.message ?? err}`);
+    }
+  }
+  await writeTrendsPages();
+
+  // ---- Scoreline Explorer (one page: Premier League, all seasons) -------------
+  try {
+    const { renderScorelinesPage } = await import(ENTRY);
+    const rows = await query('rpc/history_scorelines?p_league_id=1');
+    const league = leagueBulk?.built.leagues.find(({ index }) => index.league.league_id === 1)?.index.league;
+    if (rows && league) {
+      const page = renderScorelinesPage({ league, rows: rows.map((r) => ({ ...r, matches: Number(r.matches) })) });
+      const dir = join(DIST, 'football', 'history', 'scorelines');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      console.log('Static: wrote the Scoreline Explorer.');
+    }
+  } catch (err) {
+    console.error(`Static: failed Scoreline Explorer: ${err?.message ?? err}`);
+  }
+
   const financeTeamIds = await writeFinancePages();
 
   // Bulk fetches -- three requests total, not one per page.

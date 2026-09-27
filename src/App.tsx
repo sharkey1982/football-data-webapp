@@ -38,6 +38,8 @@ const LeagueIndexPage = lazy(() => import('./pages/football/LeagueIndexPage'));
 const LeagueSeasonPage = lazy(() => import('./pages/football/LeagueSeasonPage'));
 const ClubSeasonPage = lazy(() => import('./pages/football/ClubSeasonPage'));
 const RecordsPage = lazy(() => import('./pages/football/RecordsPage'));
+const TrendsPage = lazy(() => import('./pages/football/TrendsPage'));
+const ScorelinesPage = lazy(() => import('./pages/football/ScorelinesPage'));
 const CountryInsightsPage = lazy(() => import('./pages/football/CountryInsightsPage'));
 const MarketEfficiencyPage = lazy(() => import('./pages/football/MarketEfficiencyPage'));
 const PriceRiskPage = lazy(() => import('./pages/fpl/PriceRiskPage'));
@@ -189,6 +191,30 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <RecordsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/history/trends"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TrendsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/history/trends/:league"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TrendsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/history/scorelines"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ScorelinesPage />
               </Suspense>
             }
           />
