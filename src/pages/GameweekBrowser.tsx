@@ -534,7 +534,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       .then(async (rows) => {
         if (rows.length > 0) return rows;
         // No scheduled fixtures for this division/season -- fall back to
-        // the results archive, which covers every season back to 2014/15
+        // the results archive, which covers past seasons (see dataCoverage.ts)
         // (fixtures.csv imports only ever cover the current official
         // schedule, never historic ones).
         const historicRows = await getMatchesForSeasonAsFixtures(leagueId, seasonId);

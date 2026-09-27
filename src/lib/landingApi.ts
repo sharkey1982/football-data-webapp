@@ -32,6 +32,7 @@ import { supabase } from './supabase';
 // its link opens (Trivia v3: one question per page, picked for its most
 // interesting fact).
 import { getCrossLeagueSummary } from './crossLeagueApi';
+import { compareSeasonLabels } from './seasonLabels';
 import { getMarketEfficiency } from './marketApi';
 import { getModelAccuracySummary } from './modelAccuracyApi';
 import { getCompletedGameweeks, getTeamOfTheWeek } from './teamOfWeekApi';
@@ -335,7 +336,8 @@ const DIVISION_NAME: Record<string, string> = { E0: 'Premier League', E1: 'Champ
 export async function getLeagueGoalsTrivia(): Promise<TriviaFact | null> {
   const rows = await getCrossLeagueSummary();
   if (!rows.length) return null;
-  const season = rows.map((r) => r.season_label).sort().pop()!;
+  // By start year: as text, '9900' (1999/00) sorts after '2627'.
+  const season = rows.map((r) => r.season_label).sort(compareSeasonLabels).pop()!;
   const cur = rows.filter((r) => r.season_label === season).sort((a, b) => Number(b.goals_per_game) - Number(a.goals_per_game));
   if (cur.length < 2) return null;
   const gpg = cur.map((r) => Number(r.goals_per_game));

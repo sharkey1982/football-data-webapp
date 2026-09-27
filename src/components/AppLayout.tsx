@@ -1,6 +1,7 @@
 import { THEMES, stagePath } from '../lib/journey';
 import { trackPageView } from '../lib/analytics';
 import { CookieConsent } from './CookieConsent';
+import { FOOTER_COVERAGE } from '../lib/dataCoverage';
 import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
@@ -311,7 +312,7 @@ export default function AppLayout() {
 
       <footer className="border-t border-chalk-300 py-6">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">
-          <span>Data sourced from football-data.co.uk &middot; England, 2014/15&ndash;2025/26</span>
+          <span>{FOOTER_COVERAGE}</span>
           {/* Hiding the Admin menu from visitors removed the ONLY route
               to /login -- the sign-in link lived in the gate notice on
               admin pages, which are no longer reachable from the nav.

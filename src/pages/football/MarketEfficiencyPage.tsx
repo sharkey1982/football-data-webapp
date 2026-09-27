@@ -26,6 +26,7 @@ import {
   type MarketEfficiencyRow,
   type OverroundPoint,
 } from '../../lib/marketApi';
+import { seasonRange } from '../../lib/divisionEras';
 
 const PYRAMID = ['E0', 'E1', 'E2', 'E3', 'EC'];
 
@@ -64,6 +65,12 @@ export default function MarketEfficiencyPage() {
   const sharpest = ordered.reduce((a, b) => (a.overround < b.overround ? a : b));
   const loosest = ordered.reduce((a, b) => (a.overround > b.overround ? a : b));
   const maxMargin = Math.max(...ordered.map((r) => marginPct(r.overround)));
+  // Seasons the odds cover, from the per-season trend (division names in
+  // the rows are already those of the seasons pooled).
+  const trendSeasons = overroundBySeason(trend);
+  const oddsSeasons = trendSeasons.length
+    ? seasonRange(trendSeasons[0].season, trendSeasons[trendSeasons.length - 1].season)
+    : null;
 
   return (
     <article className="space-y-6">
@@ -72,8 +79,8 @@ export default function MarketEfficiencyPage() {
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">How sharply is each division priced?</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           Bookmakers build a margin into every market. Comparing that margin across the whole English pyramid &mdash;
-          {' '}{total.toLocaleString()} matches of closing odds &mdash; shows where the market is competitive and where it
-          isn&rsquo;t.
+          {' '}{total.toLocaleString()} matches of closing odds{oddsSeasons ? `, ${oddsSeasons}` : ''} &mdash; shows where the
+          market is competitive and where it isn&rsquo;t.
         </p>
         <p className="text-ink-500 text-sm mt-2 max-w-prose">
           This is analysis of what the market did, not betting advice. No strategy below made money.

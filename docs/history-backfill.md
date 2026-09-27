@@ -66,7 +66,11 @@ Judgement calls:
   spelling, so the aliases stay on the current clubs and the history
   importer's `ERA_OVERRIDES` sends Halifax up to 2007/08 and Chester up to
   2009/10 to the old clubs. Odds for those matches were matched the same way
-  (migration `20260927120200_history_match_odds.sql`).
+  (migration `20260927120200_history_match_odds.sql`). The current clubs are
+  displayed as "FC Halifax Town" and "Chester FC" (and `telford-united` as
+  "AFC Telford United"), so they read differently from the old clubs in team
+  search and lists; slugs are unchanged (migration
+  `20260927160100_team_display_names_same_town_clubs.sql`).
 - **Hereford United** gets slug `hereford-united`, leaving `hereford` for
   Hereford FC should it ever appear.
 - **Boston United** (League 2002-2007, "Boston") is the existing team
@@ -510,10 +514,15 @@ flagged curtailed), which swaps 6th and 7th (Hibernian, St Johnstone).
   top-v-top and bottom-v-bottom games only.
 - `get_country_league_summary()` averages over every game, awarded results
   included (e.g. Turkey 2022/23's 3-0 awards).
-- Country Insights compares seasons with at least 10 top flights
-  (`comparableSeasons`): 2016/17-2025/26 now show 19 countries; 2011/12-
-  2015/16 (England and the big four only) stay hidden until the page's rule
-  changes.
+- Country Insights offers every season with at least two top flights
+  (`comparableSeasons`): 2011/12-2015/16 show England and the big four (the
+  season picker says "5 top flights"), 2016/17 on all 19. It also pools the
+  last 5, last 10 and all 15 complete seasons (`periodOptions`,
+  `poolSeasons`): each country over the seasons in the period it has data
+  for, with the coverage listed on the page (England and the big four
+  2011/12-2025/26, the rest 2016/17-2025/26). Averages are weighted by
+  matches over the seasons that have the measure; the competitiveness
+  measures are the mean of the seasons' figures.
 
 ## Points deductions
 

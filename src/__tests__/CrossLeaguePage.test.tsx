@@ -34,6 +34,33 @@ describe('aggregateByLeague', () => {
     expect(out[0].goals_per_game).toBeCloseTo(2.38, 2);
     expect(out[0].matches).toBe(1000);
   });
+
+  it('leaves seasons without cards or half-time scores out of those measures instead of counting zero', () => {
+    const out = aggregateByLeague([
+      row({ season_label: '9293', matches: 552, yellows_per_game: null, reds_per_game: null, comeback_pct: null }),
+      row({ season_label: '2526', matches: 380, yellows_per_game: 3.48, reds_per_game: 0.1, comeback_pct: 24.1 }),
+    ]);
+    expect(out[0].yellows_per_game).toBe(3.48);
+    expect(out[0].comeback_pct).toBe(24.1);
+    expect(out[0].metric_seasons).toEqual({ yellows_per_game: 1, reds_per_game: 1, comeback_pct: 1 });
+    expect(out[0].seasons).toBe(2);
+  });
+
+  it('names the division as today, with earlier names and their seasons, whatever order the rows come in', () => {
+    const out = aggregateByLeague([
+      row({ league_code: 'E1', league_name: 'Championship', season_label: '0405' }),
+      row({ league_code: 'E1', league_name: 'First Division', season_label: '9900' }),
+      row({ league_code: 'E1', league_name: 'Championship', season_label: '2526' }),
+      row({ league_code: 'E1', league_name: 'First Division', season_label: '9293' }),
+      row({ league_code: 'E1', league_name: 'First Division', season_label: '0304' }),
+    ]);
+    expect(out[0]).toMatchObject({
+      league_name: 'Championship',
+      earlier_names: 'First Division 1992/93–2003/04',
+      first_season: '9293',
+      last_season: '2526',
+    });
+  });
 });
 
 describe('CrossLeaguePage', () => {
@@ -59,5 +86,25 @@ describe('CrossLeaguePage', () => {
     const user = userEvent.setup();
     await user.selectOptions(screen.getByRole('combobox'), 'yellows_per_game');
     expect(screen.getByText(/most bookings per game/)).toBeInTheDocument();
+  });
+
+  it('shows earlier division names, the seasons covered and which seasons lack cards', async () => {
+    mocked.getCrossLeagueSummary.mockResolvedValue([
+      row({ league_code: 'E0', league_name: 'Premier League', season_label: '9293', yellows_per_game: null, reds_per_game: null }),
+      row({ league_code: 'E0', league_name: 'Premier League', season_label: '2526' }),
+      row({ league_code: 'EC', league_name: 'Conference National', season_label: '0405', yellows_per_game: null, reds_per_game: null }),
+      row({ league_code: 'EC', league_name: 'National League', season_label: '2526', goals_per_game: 2.72 }),
+    ]);
+    render(
+      <MemoryRouter>
+        <CrossLeaguePage />
+      </MemoryRouter>
+    );
+    await screen.findByText(/Premier League from 1992\/93; National League from 2004\/05/);
+    expect(screen.getByText('Conference National 2004/05')).toBeInTheDocument();
+    expect(screen.getByText('1992/93–2025/26')).toBeInTheDocument();
+
+    await userEvent.setup().selectOptions(screen.getByRole('combobox'), 'yellows_per_game');
+    expect(screen.getByText(/Only seasons with this data count: Premier League 1 of 2 seasons, National League 1 of 2 seasons/)).toBeInTheDocument();
   });
 });

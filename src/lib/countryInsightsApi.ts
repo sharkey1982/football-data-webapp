@@ -9,6 +9,7 @@
 
 import { supabase } from './supabase';
 import { compareSeasonLabels, seasonNameFromLabel } from './seasonLabels';
+import { currentAndEarlierNames } from './divisionEras';
 
 export type CountryRow = {
   country_id: number;
@@ -106,11 +107,12 @@ export async function getCountrySummary(): Promise<CountryRow[]> {
   }));
 }
 
-/** Seasons worth comparing: at least `minCountries` top flights with data.
- * Most countries only go back to 2025/26, so older English/Big 5-only
- * seasons would be a comparison of five. Newest first (by start year:
- * labels sort wrongly as text once 1990s seasons exist). */
-export function comparableSeasons(rows: CountryRow[], minCountries = 10): string[] {
+/** Seasons worth comparing: at least `minCountries` top flights with data
+ * (England alone before 2011/12 is not a comparison). Coverage differs by
+ * country, so the page states how many top flights each season has.
+ * Newest first (by start year: labels sort wrongly as text once 1990s
+ * seasons exist). */
+export function comparableSeasons(rows: CountryRow[], minCountries = 2): string[] {
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.season_label, (counts.get(r.season_label) ?? 0) + 1);
   return [...counts.entries()].filter(([, n]) => n >= minCountries).map(([s]) => s).sort((a, b) => compareSeasonLabels(b, a));
@@ -139,8 +141,140 @@ export function seasonName(label: string): string {
 
 /** Rows with a value for `key`, highest first; rows without one are
  * returned separately so the page can name them rather than plot zero. */
-export function rankBy(rows: CountryRow[], key: NumericKey): { ranked: CountryRow[]; missing: CountryRow[] } {
+export function rankBy<T extends CountryRow>(rows: T[], key: NumericKey): { ranked: T[]; missing: T[] } {
   const ranked = rows.filter((r) => r[key] !== null).sort((a, b) => (b[key] as number) - (a[key] as number) || a.country_name.localeCompare(b.country_name));
   const missing = rows.filter((r) => r[key] === null).sort((a, b) => a.country_name.localeCompare(b.country_name));
   return { ranked, missing };
+}
+
+// ---------------------------------------------------------------------------
+// Periods: one season, or several pooled. Coverage differs by country
+// (England and the big four from 2011/12, the rest from 2016/17), so a
+// pooled row covers only the seasons in the period that the country has
+// data for, and says which.
+// ---------------------------------------------------------------------------
+
+export type PeriodOption = {
+  key: string;
+  /** 'Last 5 seasons (2021/22-2025/26)', '2025/26', '2013/14 (5 top flights)' */
+  label: string;
+  /** 'Last 5 seasons'; the season for a single season */
+  name: string;
+  /** '2021/22-2025/26'; the season for a single season */
+  range: string;
+  seasons: string[];
+  kind: 'season' | 'window';
+};
+
+export type PeriodOptions = { windows: PeriodOption[]; singles: PeriodOption[]; defaultKey: string | null };
+
+/** Windows of the last 5 and 10 complete seasons and every comparable
+ * season, ending at the last full season (`defaultSeason`), then every
+ * comparable season on its own, newest first. A season with fewer top
+ * flights than the most in any season says how many. */
+export function periodOptions(rows: CountryRow[]): PeriodOptions {
+  const seasons = comparableSeasons(rows);
+  const anchor = defaultSeason(rows, seasons);
+  if (!anchor) return { windows: [], singles: [], defaultKey: null };
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.season_label, (counts.get(r.season_label) ?? 0) + 1);
+  const most = Math.max(...seasons.map((s) => counts.get(s) ?? 0));
+
+  const complete = seasons.filter((s) => compareSeasonLabels(s, anchor) <= 0); // newest first
+  const range = (list: string[]) => `${seasonName(list[list.length - 1])}–${seasonName(list[0])}`;
+  const windows: PeriodOption[] = [];
+  for (const n of [5, 10]) {
+    if (complete.length > n) {
+      const list = complete.slice(0, n);
+      const name = `Last ${n} seasons`;
+      windows.push({ key: `last-${n}`, label: `${name} (${range(list)})`, name, range: range(list), seasons: list, kind: 'window' });
+    }
+  }
+  if (complete.length > 1) {
+    const name = `All ${complete.length} seasons`;
+    windows.push({ key: 'all', label: `${name} (${range(complete)})`, name, range: range(complete), seasons: complete, kind: 'window' });
+  }
+  const singles: PeriodOption[] = seasons.map((s) => {
+    const n = counts.get(s) ?? 0;
+    const name = seasonName(s);
+    return { key: `season-${s}`, label: n < most ? `${name} (${n} top flights)` : name, name, range: name, seasons: [s], kind: 'season' };
+  });
+  return { windows, singles, defaultKey: `season-${anchor}` };
+}
+
+export type CountryPeriodRow = CountryRow & {
+  /** Seasons in the period with data for this country. */
+  seasons: number;
+  first_season: string;
+  last_season: string;
+  /** Earlier names of the league within the period, with their seasons
+   * ("First Division 1992/93–2003/04"); null if it kept one name. */
+  earlier_names: string | null;
+  /** Seasons that have a value for each measure (fewer than `seasons` where
+   * the source lacks it, e.g. cards). */
+  metric_seasons: Record<NumericKey, number>;
+};
+
+const COMPETITIVENESS: NumericKey[] = ['points_spread', 'bottom_not_losing_pct'];
+
+/** One row per country over the given seasons. Averages are weighted by
+ * matches over the seasons that have the measure; the two competitiveness
+ * measures (a figure per season's table) are the mean of the seasons'
+ * figures. League name as in the latest season, with any earlier names. */
+export function poolSeasons(rows: CountryRow[], seasons: string[]): CountryPeriodRow[] {
+  const wanted = new Set(seasons);
+  const byLeague = new Map<string, CountryRow[]>();
+  for (const r of rows) {
+    if (!wanted.has(r.season_label)) continue;
+    if (!byLeague.has(r.league_code)) byLeague.set(r.league_code, []);
+    byLeague.get(r.league_code)!.push(r);
+  }
+  return [...byLeague.values()].map((list) => {
+    const sorted = [...list].sort((a, b) => compareSeasonLabels(a.season_label, b.season_label));
+    const latest = sorted[sorted.length - 1];
+    const names = currentAndEarlierNames(sorted);
+    const out = {
+      ...latest,
+      league_name: names.name,
+      earlier_names: names.earlier,
+      matches: sorted.reduce((s, r) => s + r.matches, 0),
+      seasons: sorted.length,
+      first_season: sorted[0].season_label,
+      last_season: latest.season_label,
+      metric_seasons: {} as Record<NumericKey, number>,
+    } as CountryPeriodRow;
+    for (const m of COUNTRY_METRICS) {
+      const withValue = sorted.filter((r) => r[m.key] !== null);
+      out.metric_seasons[m.key] = withValue.length;
+      let value: number | null;
+      if (withValue.length === 0) value = null;
+      // One season: the server's figure as it is.
+      else if (withValue.length === 1) value = withValue[0][m.key] as number;
+      else if (COMPETITIVENESS.includes(m.key)) {
+        value = Number((withValue.reduce((s, r) => s + (r[m.key] as number), 0) / withValue.length).toFixed(m.decimals));
+      } else {
+        const weight = withValue.reduce((s, r) => s + r.matches, 0);
+        value = Number((withValue.reduce((s, r) => s + (r[m.key] as number) * r.matches, 0) / weight).toFixed(m.decimals));
+      }
+      (out as Record<NumericKey, number | null>)[m.key] = value;
+    }
+    return out;
+  });
+}
+
+/** Countries grouped by the seasons they cover, most seasons first:
+ * [{ range: '2011/12–2025/26', seasons: 15, countries: ['England', ...] }]. */
+export function coverageGroups(rows: CountryPeriodRow[]): { range: string; seasons: number; countries: string[] }[] {
+  const groups = new Map<string, { range: string; seasons: number; countries: string[]; first: string }>();
+  for (const r of rows) {
+    const key = `${r.first_season}|${r.last_season}|${r.seasons}`;
+    if (!groups.has(key)) {
+      const range = r.first_season === r.last_season ? seasonName(r.first_season) : `${seasonName(r.first_season)}–${seasonName(r.last_season)}`;
+      groups.set(key, { range, seasons: r.seasons, countries: [], first: r.first_season });
+    }
+    groups.get(key)!.countries.push(r.country_name);
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.seasons - a.seasons || compareSeasonLabels(a.first, b.first))
+    .map(({ range, seasons, countries }) => ({ range, seasons, countries: countries.sort((x, y) => x.localeCompare(y)) }));
 }

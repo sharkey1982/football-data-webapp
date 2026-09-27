@@ -472,3 +472,28 @@ fixing something else.
 - **Prevention:** docs/history-backfill.md records which seasons have no
   stats. *Lesson: a NOT NULL default of 0 is not "none happened" -- every
   average over such a column needs the has-data filter.*
+
+## 2026-09-27 · League Insights averaged zero cards and missing half-time scores into all-time figures
+- **Impact:** after the English history load, League Insights
+  (`/football/leagues-compared`) pooled 1992/93-2025/26 and showed 2.46
+  yellow cards a game for the Premier League (3.27 over the seasons with card
+  data), and tiers 2-4 were 0.7-0.8 too low as well. "Half-time
+  lead lost" was also too low (e.g. 20.5% against 26.9% for the Second
+  Division/League One): seasons without half-time scores counted as 0%. The
+  same load made the landing page's "this season" goals question use 1999/00:
+  it took the latest season as the last label in text order ('9900' after
+  '2627').
+- **Cause:** cards are NOT NULL and stored as 0 when the source has none
+  (England before 2000/01, National League 2004/05), and
+  `get_cross_league_summary()` averaged them anyway; the page turned a null
+  half-time share into 0 before weighting. The landing question sorted
+  season labels as text.
+- **Fix:** `get_cross_league_summary()` returns null cards for a
+  division-season without a single card (migration 20260927160000;
+  `home_shots` could not be the marker, as the National League has cards but
+  no shots from 2016/17); the page leaves null seasons out of each measure and
+  says how many seasons each figure covers. The landing question orders by
+  start year (`compareSeasonLabels`).
+- **Prevention:** tests for the null-skipping pooling and the 1990s label.
+  *Lesson (again): a has-data filter for every average over a NOT NULL 0
+  column -- and check what each marker actually marks per league.*
