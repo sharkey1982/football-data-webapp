@@ -53,4 +53,4 @@ jobs:
           TARGETS: ${{ inputs.targets }}
           ESD_YEARS: ${{ inputs.esd_years }}
           EXTRA: ${{ inputs.extra_args }}
-        run: python scripts/history_backfill.py "$CMD" --targets "$TARGETS" --esd-years "$ESD_YEARS" $EXTRA
+        run: python scripts/history_backfill_europe.py "$CMD" --targets "$TARGETS" $EXTRA
