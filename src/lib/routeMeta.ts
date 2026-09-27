@@ -16,6 +16,8 @@
 // what exists, in the same spirit as journey.ts for the nav.
 // ============================================================================
 
+import { COVERAGE } from './dataCoverage';
+
 export type RouteMeta = {
   path: string;
   title: string;
@@ -82,7 +84,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
     path: '/football/leagues-compared',
     title: 'League Insights \u2014 the English divisions compared',
     description:
-      'Goals, home advantage, draws and cards compared across all five English divisions, from 30,000+ matches.',
+      `Goals, home advantage, draws and cards compared across all five English divisions, every season since ${COVERAGE.englandLeagueFrom}.`,
     crumbs: [FOOTBALL],
   },
   {

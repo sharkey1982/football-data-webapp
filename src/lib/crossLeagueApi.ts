@@ -6,14 +6,18 @@
 // This is the thing single-league sites structurally can't produce:
 // putting the Premier League and the National League on the same axis
 // requires holding all five divisions in one schema. Aggregated
-// server-side -- the alternative is shipping ~31,000 match rows to the
-// browser to compute a handful of averages.
+// server-side -- the alternative is shipping every match row (tens of
+// thousands) to the browser to compute a handful of averages. One row per
+// division-season, named as the division was named that season.
 // ============================================================================
 
 import { supabase } from './supabase';
+import { compareSeasonLabels } from './seasonLabels';
+import { currentAndEarlierNames } from './divisionEras';
 
 export type CrossLeagueRow = {
   league_code: string;
+  /** The division's name in that season (First Division for E1 before 2004/05). */
   league_name: string;
   season_label: string;
   matches: number;
@@ -23,12 +27,25 @@ export type CrossLeagueRow = {
   home_win_pct: number;
   draw_pct: number;
   away_win_pct: number;
-  yellows_per_game: number;
-  reds_per_game: number;
+  /** Null for a division-season without card data (England before 2000/01). */
+  yellows_per_game: number | null;
+  reds_per_game: number | null;
   over_two_five_pct: number;
   both_scored_pct: number;
   nil_nil_pct: number;
-  comeback_pct: number;
+  /** Null for a division-season without half-time scores. */
+  comeback_pct: number | null;
+};
+
+/** One division pooled over every season in the archive. */
+export type CrossLeagueTotal = CrossLeagueRow & {
+  /** Earlier names with their seasons, e.g. 'First Division 1992/93-2003/04'. */
+  earlier_names: string | null;
+  first_season: string;
+  last_season: string;
+  seasons: number;
+  /** Seasons behind the measures that some seasons lack. */
+  metric_seasons: Record<'yellows_per_game' | 'reds_per_game' | 'comeback_pct', number>;
 };
 
 export type CrossLeagueMetric = {
@@ -37,7 +54,7 @@ export type CrossLeagueMetric = {
   unit: string;
   /** How to phrase the finding in prose, so the page answers the
    * question rather than only plotting it. */
-  describe: (highest: CrossLeagueRow, lowest: CrossLeagueRow) => string;
+  describe: (highest: CrossLeagueTotal, lowest: CrossLeagueTotal) => string;
 };
 
 export const CROSS_LEAGUE_METRICS: CrossLeagueMetric[] = [
@@ -138,44 +155,63 @@ export async function getCrossLeagueSummary(): Promise<CrossLeagueRow[]> {
     home_win_pct: Number(r.home_win_pct),
     draw_pct: Number(r.draw_pct),
     away_win_pct: Number(r.away_win_pct),
-    yellows_per_game: Number(r.yellows_per_game),
-    reds_per_game: Number(r.reds_per_game),
+    yellows_per_game: r.yellows_per_game === null ? null : Number(r.yellows_per_game),
+    reds_per_game: r.reds_per_game === null ? null : Number(r.reds_per_game),
     over_two_five_pct: Number(r.over_two_five_pct),
     both_scored_pct: Number(r.both_scored_pct),
     nil_nil_pct: Number(r.nil_nil_pct),
-    comeback_pct: Number(r.comeback_pct ?? 0),
+    comeback_pct: r.comeback_pct === null || r.comeback_pct === undefined ? null : Number(r.comeback_pct),
   }));
 }
 
 /** Collapses the per-season rows into one row per division, weighting by
  * matches played rather than averaging the season averages -- a season
- * with 380 matches shouldn't count the same as one with 552. */
-export function aggregateByLeague(rows: CrossLeagueRow[]): CrossLeagueRow[] {
+ * with 380 matches shouldn't count the same as one with 552. Seasons
+ * without a measure (no cards before 2000/01, no half-time scores in the
+ * early 1990s) are left out of that measure rather than counted as zero.
+ * Named as today, with the earlier names and their seasons. */
+export function aggregateByLeague(rows: CrossLeagueRow[]): CrossLeagueTotal[] {
   const byLeague = new Map<string, CrossLeagueRow[]>();
   for (const r of rows) {
     if (!byLeague.has(r.league_code)) byLeague.set(r.league_code, []);
     byLeague.get(r.league_code)!.push(r);
   }
-  const weighted = (list: CrossLeagueRow[], key: keyof CrossLeagueRow) => {
-    const total = list.reduce((s, r) => s + r.matches, 0);
-    if (total === 0) return 0;
-    return list.reduce((s, r) => s + (r[key] as number) * r.matches, 0) / total;
+  const weighted = (list: CrossLeagueRow[], key: keyof CrossLeagueRow, decimals: number): number | null => {
+    const withValue = list.filter((r) => r[key] !== null && r[key] !== undefined);
+    const total = withValue.reduce((s, r) => s + r.matches, 0);
+    if (total === 0) return null;
+    return Number((withValue.reduce((s, r) => s + (r[key] as number) * r.matches, 0) / total).toFixed(decimals));
   };
-  return [...byLeague.values()].map((list) => ({
-    ...list[0],
-    season_label: 'all',
-    matches: list.reduce((s, r) => s + r.matches, 0),
-    goals_per_game: Number(weighted(list, 'goals_per_game').toFixed(2)),
-    home_goals_per_game: Number(weighted(list, 'home_goals_per_game').toFixed(2)),
-    away_goals_per_game: Number(weighted(list, 'away_goals_per_game').toFixed(2)),
-    home_win_pct: Number(weighted(list, 'home_win_pct').toFixed(1)),
-    draw_pct: Number(weighted(list, 'draw_pct').toFixed(1)),
-    away_win_pct: Number(weighted(list, 'away_win_pct').toFixed(1)),
-    yellows_per_game: Number(weighted(list, 'yellows_per_game').toFixed(2)),
-    reds_per_game: Number(weighted(list, 'reds_per_game').toFixed(3)),
-    over_two_five_pct: Number(weighted(list, 'over_two_five_pct').toFixed(1)),
-    both_scored_pct: Number(weighted(list, 'both_scored_pct').toFixed(1)),
-    nil_nil_pct: Number(weighted(list, 'nil_nil_pct').toFixed(1)),
-    comeback_pct: Number(weighted(list, 'comeback_pct').toFixed(1)),
-  }));
+  const count = (list: CrossLeagueRow[], key: keyof CrossLeagueRow) => list.filter((r) => r[key] !== null && r[key] !== undefined).length;
+  return [...byLeague.values()].map((unsorted) => {
+    const list = [...unsorted].sort((a, b) => compareSeasonLabels(a.season_label, b.season_label));
+    const names = currentAndEarlierNames(list);
+    return {
+      ...list[list.length - 1],
+      league_name: names.name,
+      earlier_names: names.earlier,
+      first_season: list[0].season_label,
+      last_season: list[list.length - 1].season_label,
+      seasons: list.length,
+      metric_seasons: {
+        yellows_per_game: count(list, 'yellows_per_game'),
+        reds_per_game: count(list, 'reds_per_game'),
+        comeback_pct: count(list, 'comeback_pct'),
+      },
+      season_label: 'all',
+      matches: list.reduce((s, r) => s + r.matches, 0),
+      goals_per_game: weighted(list, 'goals_per_game', 2) ?? 0,
+      home_goals_per_game: weighted(list, 'home_goals_per_game', 2) ?? 0,
+      away_goals_per_game: weighted(list, 'away_goals_per_game', 2) ?? 0,
+      home_win_pct: weighted(list, 'home_win_pct', 1) ?? 0,
+      draw_pct: weighted(list, 'draw_pct', 1) ?? 0,
+      away_win_pct: weighted(list, 'away_win_pct', 1) ?? 0,
+      yellows_per_game: weighted(list, 'yellows_per_game', 2),
+      reds_per_game: weighted(list, 'reds_per_game', 3),
+      over_two_five_pct: weighted(list, 'over_two_five_pct', 1) ?? 0,
+      both_scored_pct: weighted(list, 'both_scored_pct', 1) ?? 0,
+      nil_nil_pct: weighted(list, 'nil_nil_pct', 1) ?? 0,
+      comeback_pct: weighted(list, 'comeback_pct', 1),
+    };
+  });
 }

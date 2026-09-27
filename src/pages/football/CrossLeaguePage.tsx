@@ -23,9 +23,27 @@ import {
   aggregateByLeague,
   CROSS_LEAGUE_METRICS,
   type CrossLeagueRow,
+  type CrossLeagueTotal,
 } from '../../lib/crossLeagueApi';
+import { seasonRange } from '../../lib/divisionEras';
+import { seasonNameFromLabel } from '../../lib/seasonLabels';
 
 const PYRAMID_ORDER = ['E0', 'E1', 'E2', 'E3', 'EC'];
+
+/** No data as a dash, not 0. */
+const show = (v: number | null, unit = '') => (v === null ? '\u2013' : `${v}${unit}`);
+
+/** 'Premier League, Championship, League One and League Two from 1992/93;
+ * National League from 2004/05' -- from the data, not a constant. */
+function coverageSentence(rows: CrossLeagueTotal[]): string {
+  const groups = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!groups.has(r.first_season)) groups.set(r.first_season, []);
+    groups.get(r.first_season)!.push(r.league_name);
+  }
+  const list = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]);
+  return [...groups.entries()].map(([first, names]) => `${list(names)} from ${seasonNameFromLabel(first)}`).join('; ');
+}
 
 export default function CrossLeaguePage() {
   const [rows, setRows] = useState<CrossLeagueRow[] | null>(null);
@@ -52,11 +70,16 @@ export default function CrossLeaguePage() {
     [totals]
   );
 
-  const values = ordered.map((r) => r[metric.key] as number);
+  const withValue = ordered.filter((r) => r[metric.key] !== null);
+  const values = withValue.map((r) => r[metric.key] as number);
   const max = values.length ? Math.max(...values) : 0;
-  const highest = ordered.length ? ordered.reduce((a, b) => ((a[metric.key] as number) > (b[metric.key] as number) ? a : b)) : null;
-  const lowest = ordered.length ? ordered.reduce((a, b) => ((a[metric.key] as number) < (b[metric.key] as number) ? a : b)) : null;
+  const highest = withValue.length ? withValue.reduce((a, b) => ((a[metric.key] as number) > (b[metric.key] as number) ? a : b)) : null;
+  const lowest = withValue.length ? withValue.reduce((a, b) => ((a[metric.key] as number) < (b[metric.key] as number) ? a : b)) : null;
   const totalMatches = ordered.reduce((s, r) => s + r.matches, 0);
+  // Measures some seasons lack (cards before 2000/01, early half-time scores).
+  const partial = metric.key in (ordered[0]?.metric_seasons ?? {})
+    ? ordered.filter((r) => r.metric_seasons[metric.key as keyof CrossLeagueTotal['metric_seasons']] < r.seasons)
+    : [];
 
   if (rows === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
 
@@ -77,6 +100,10 @@ export default function CrossLeaguePage() {
         <p className="text-ink-700 mt-2 max-w-prose">
           The whole English pyramid on one axis, from {totalMatches.toLocaleString()} matches. Most football sites cover one
           division, so this comparison is hard to find elsewhere &mdash; and the answer is not what most people expect.
+        </p>
+        <p className="text-ink-500 text-sm mt-2 max-w-prose">
+          Every season in the archive: {coverageSentence(ordered)}. Divisions are named as they are today; earlier names are
+          in the table.
         </p>
       </header>
 
@@ -103,7 +130,7 @@ export default function CrossLeaguePage() {
       )}
 
       <section aria-label={`${metric.label} by division`} className="space-y-2">
-        {ordered.map((r) => {
+        {withValue.map((r) => {
           const value = r[metric.key] as number;
           const pct = max > 0 ? (value / max) * 100 : 0;
           return (
@@ -119,6 +146,15 @@ export default function CrossLeaguePage() {
             </div>
           );
         })}
+        {partial.length > 0 && (
+          <p className="text-xs text-ink-500 pt-1 max-w-prose">
+            Only seasons with this data count:{' '}
+            {partial
+              .map((r) => `${r.league_name} ${r.metric_seasons[metric.key as keyof CrossLeagueTotal['metric_seasons']]} of ${r.seasons} seasons`)
+              .join(', ')}
+            .
+          </p>
+        )}
       </section>
 
       <section>
@@ -128,6 +164,7 @@ export default function CrossLeaguePage() {
             <thead className="bg-chalk-200 text-ink-500">
               <tr>
                 <th scope="col" className="text-left font-medium text-xs px-3 py-2">Division</th>
+                <th scope="col" className="text-left font-medium text-xs px-3 py-2">Seasons</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Matches</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Goals/game</th>
                 <th scope="col" className="text-right font-medium text-xs px-3 py-2">Home wins</th>
@@ -139,13 +176,17 @@ export default function CrossLeaguePage() {
             <tbody>
               {ordered.map((r, i) => (
                 <tr key={r.league_code} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
-                  <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">{r.league_name}</th>
+                  <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
+                    {r.league_name}
+                    {r.earlier_names && <span className="block text-[0.65rem] text-ink-500">{r.earlier_names}</span>}
+                  </th>
+                  <td className="px-3 py-1.5 text-xs font-mono whitespace-nowrap">{seasonRange(r.first_season, r.last_season)}</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.matches.toLocaleString()}</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.goals_per_game}</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.home_win_pct}%</td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.draw_pct}%</td>
-                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.yellows_per_game}</td>
-                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.reds_per_game}</td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{show(r.yellows_per_game)}</td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{show(r.reds_per_game)}</td>
                 </tr>
               ))}
             </tbody>

@@ -141,6 +141,9 @@ describe('one question per page, from that page\u2019s own data', () => {
       { league_code: 'EC', league_name: 'National League', season_label: '2526', goals_per_game: 2.92 },
       { league_code: 'E1', league_name: 'Championship', season_label: '2526', goals_per_game: 2.61 },
       { league_code: 'EC', league_name: 'National League', season_label: '2324', goals_per_game: 3.5 }, // older season: ignored
+      // 1999/00 sorts last as text; "this season" must go by start year.
+      { league_code: 'E0', league_name: 'Premier League', season_label: '9900', goals_per_game: 2.8 },
+      { league_code: 'E1', league_name: 'First Division', season_label: '9900', goals_per_game: 2.6 },
     ];
     const f = (await getLeagueGoalsTrivia())!;
     expect(correctLabels(f)).toEqual(['National League']);

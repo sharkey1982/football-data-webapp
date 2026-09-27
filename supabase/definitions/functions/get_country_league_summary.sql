@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION public.get_country_league_summary()
  STABLE
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-  select c.country_id, c.name, l.code, l.name, s.label,
+  select c.country_id, c.name, l.code, public.league_name_for_season(l.league_id, s.season_id), s.label,
     count(*)::bigint,
     round(avg(m.full_time_home_goals + m.full_time_away_goals)::numeric, 2),
     round(avg(m.full_time_home_goals)::numeric, 2),
@@ -15,8 +15,8 @@ AS $function$
     round(100.0 * avg(case when m.full_time_result = 'H' then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_result = 'D' then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_result = 'A' then 1 else 0 end)::numeric, 1),
-    round((avg(m.home_yellow_cards + m.away_yellow_cards) filter (where m.source_file not like '%/new/%'))::numeric, 2),
-    round((avg(m.home_red_cards + m.away_red_cards) filter (where m.source_file not like '%/new/%'))::numeric, 3),
+    round((avg(m.home_yellow_cards + m.away_yellow_cards) filter (where m.source_file not like '%/new/%' and m.home_shots is not null))::numeric, 2),
+    round((avg(m.home_red_cards + m.away_red_cards) filter (where m.source_file not like '%/new/%' and m.home_shots is not null))::numeric, 3),
     round(100.0 * avg(case when m.full_time_home_goals + m.full_time_away_goals > 2.5 then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_home_goals > 0 and m.full_time_away_goals > 0 then 1 else 0 end)::numeric, 1),
     round(100.0 * avg(case when m.full_time_home_goals = 0 and m.full_time_away_goals = 0 then 1 else 0 end)::numeric, 1),
@@ -30,7 +30,7 @@ AS $function$
   join public.seasons s on s.season_id = m.season_id
   where l.competition_type = 'league' and (l.tier = 1 or l.code = 'E0')
     and m.full_time_result is not null
-  group by c.country_id, c.name, l.code, l.name, s.label
-  order by c.name, s.label;
+  group by c.country_id, c.name, l.code, l.league_id, s.season_id, s.label
+  order by c.name, min(s.start_year);
 $function$
 ;
