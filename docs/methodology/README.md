@@ -8,6 +8,7 @@ How each model works, written from the code and the live database definitions (`
 | [expected-minutes.md](expected-minutes.md) | Start and sub probabilities and expected minutes: live view version, line-up consensus, squad state, availability, depth, team-sheet limits |
 | [fpl-projections.md](fpl-projections.md) | Expected FPL points: every xpts component, scoring rules, xG/xA shrinkage, clean sheets, defensive contributions, saves, cards and own goals, set pieces, bonus, snapshots |
 | [simulations.md](simulations.md) | Final-table Monte Carlo, bonus Monte Carlo, hindsight-optimal squad, Season XI |
+| [history.md](history.md) | Historical data layer: per-match table snapshots, season summaries and fingerprints, refresh and checks |
 
 ## Pipeline at a glance (UTC)
 
@@ -17,6 +18,7 @@ How each model works, written from the code and the live database definitions (`
 | 06:41, 18:41 | `fpl-projections-pipeline.yml` | Next 3 matchweeks: projections pass 1 → bonus Monte Carlo → projections pass 2 → final-table simulation → site rebuild (06:41, success only) |
 | 06:45 | `hindsight-optimal.yml` | Hindsight-optimal squad |
 | 09:30, 21:30 | pg_cron | `sync_fixture_status_from_results()` |
+| 06:50, 12:50 | pg_cron | `refresh_history_derived()` |
 | 10:00, 22:00 | pg_cron | `refresh_model_scorecard()` |
 | every 10 minutes | pg_cron | `snapshot_due_fpl_projections()` |
 
