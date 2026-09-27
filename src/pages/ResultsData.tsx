@@ -11,6 +11,7 @@ import {
   type MatchVenueFilter,
 } from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
+import { useLeagueSeasonNames } from '../hooks/useLeagueSeasonNames';
 
 type LeagueOption = {
   league_id: number;
@@ -45,6 +46,8 @@ export default function ResultsData() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  // Division names as they were in the chosen season; today's names for All seasons.
+  const eraNames = useLeagueSeasonNames(seasonId);
 
   useEffect(() => {
     getLeagues().then((data) => setLeagues((data ?? []) as LeagueOption[]));
@@ -185,7 +188,7 @@ export default function ResultsData() {
             <option value="">All divisions</option>
             {filteredLeagues.map((l) => (
               <option key={l.league_id} value={l.league_id}>
-                {l.code} &mdash; {l.name}
+                {l.code} &mdash; {eraNames.get(l.league_id) ?? l.name}
               </option>
             ))}
           </select>

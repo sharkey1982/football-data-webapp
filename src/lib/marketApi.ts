@@ -15,6 +15,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { compareSeasonLabels, seasonNameFromLabel } from './seasonLabels';
 
 export type MarketEfficiencyRow = {
   league_code: string;
@@ -93,11 +94,10 @@ export function overroundBySeason(points: OverroundPoint[]): { season: string; m
       const weighted = list.reduce((s, p) => s + p.overround * p.matches, 0) / (matches || 1);
       return { season, matches, margin: Number(((weighted - 1) * 100).toFixed(2)) };
     })
-    .sort((a, b) => a.season.localeCompare(b.season));
+    .sort((a, b) => compareSeasonLabels(a.season, b.season));
 }
 
-/** Formats "2425" as "2024/25". */
+/** Formats "2425" as "2024/25" and "9293" as "1992/93". */
 export function seasonLabel(raw: string): string {
-  if (raw.length !== 4) return raw;
-  return `20${raw.slice(0, 2)}/${raw.slice(2)}`;
+  return seasonNameFromLabel(raw);
 }

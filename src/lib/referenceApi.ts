@@ -113,20 +113,53 @@ export async function getTeamBySlug(slug: string): Promise<{ team_id: number; ca
 /**
  * Finds the most recent season that has fixture data for a league --
  * used to determine "the current season" for team-picker purposes without
- * hardcoding a season label.
+ * hardcoding a season label. "Most recent" is by start_year: season_id is
+ * not in date order (historic seasons 1992/93-2013/14 are ids 14-35).
  */
 export async function getMostRecentFixtureSeason(leagueId: number) {
   const { data, error } = await supabase
-    .from('fixtures')
-    .select('season_id, season:seasons(label, start_year)')
-    .eq('league_id', leagueId)
-    .order('season_id', { ascending: false })
+    .from('seasons')
+    .select('season_id, label, start_year, fixtures!inner(fixture_id)')
+    .eq('fixtures.league_id', leagueId)
+    .order('start_year', { ascending: false })
     .limit(1)
+    .limit(1, { referencedTable: 'fixtures' })
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const row = data as any;
-  return { season_id: row.season_id as number, label: row.season?.label as string };
+  return { season_id: data.season_id as number, label: data.label as string, start_year: data.start_year as number };
+}
+
+// Newer than the generated types (added 2026-09-27).
+type EraNameRow = { league_id: number; name: string };
+const eraNames = () =>
+  (supabase as unknown as {
+    from: (t: 'league_season_display_names') => {
+      select: (c: string) => {
+        eq: (col: string, v: number) => PromiseLike<{ data: EraNameRow[] | null; error: unknown }> & {
+          eq: (col: string, v: number) => { maybeSingle: () => PromiseLike<{ data: EraNameRow | null; error: unknown }> };
+        };
+      };
+    };
+  }).from('league_season_display_names');
+
+/**
+ * Every division's name in one season, keyed by league_id -- e.g. E1 in
+ * 1998/99 is "First Division", not today's "Championship". Leagues whose
+ * name never changed come back with today's name. Read from
+ * league_season_display_names (league_season_names + leagues.name).
+ */
+export async function getLeagueNamesForSeason(seasonId: number): Promise<Map<number, string>> {
+  const { data, error } = await eraNames().select('league_id, name').eq('season_id', seasonId);
+  if (error) throw error;
+  return new Map((data ?? []).map((r) => [Number(r.league_id), String(r.name)]));
+}
+
+/** One division's name in one season (null if the pair is unknown). */
+export async function getLeagueNameForSeason(leagueId: number, seasonId: number): Promise<string | null> {
+  const { data, error } = await eraNames().select('league_id, name').eq('season_id', seasonId).eq('league_id', leagueId).maybeSingle();
+  if (error) throw error;
+  return data ? String(data.name) : null;
 }
 
 /**

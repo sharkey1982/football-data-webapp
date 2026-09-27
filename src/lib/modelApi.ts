@@ -246,16 +246,17 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     }
   }
 
-  // Last season's actual GF/GA, from real results -- whichever season_id is
-  // immediately before the current one for this league.
+  // Last season's actual GF/GA, from real results -- the season immediately
+  // before the current one by start_year (season_id is not in date order:
+  // 1992/93-2013/14 are ids 14-35).
   let lastSeasonLabel: string | null = null;
   const actualByTeam = new Map<number, { gf: number; ga: number; played: number }>();
-  if (currentSeasonId !== null) {
+  if (currentSeasonId !== null && currentSeason) {
     const { data: seasonRows, error: seasonError } = await supabase
       .from('seasons')
       .select('season_id, label')
-      .lt('season_id', currentSeasonId)
-      .order('season_id', { ascending: false })
+      .lt('start_year', currentSeason.start_year)
+      .order('start_year', { ascending: false })
       .limit(1);
     if (seasonError) throw seasonError;
     const lastSeason = seasonRows?.[0] as { season_id: number; label: string } | undefined;

@@ -9,6 +9,7 @@
 import { supabase } from './supabase';
 import type { RawMatchFile, SourceMatchRow } from '../types/database';
 import type { MatchWithNames } from './matchesApi';
+import { compareSeasonLabels } from './seasonLabels';
 
 // ----------------------------------------------------------------------------
 // Raw data browser -- generic, filterable view over the matches table
@@ -171,13 +172,15 @@ export async function getRawMatchFiles(): Promise<RawMatchFile[]> {
   const { data, error } = await supabase
     .from('raw_match_files')
     .select('*')
-    .order('season_label', { ascending: false })
     .order('competition_code', { ascending: true, nullsFirst: false });
   if (error) throw error;
+  // Newest season first by start year: season_label sorts wrongly as text
+  // ('9293' after '2627'). Stable sort keeps competition order within a season.
+  const rows = [...(data ?? [])].sort((a, b) => compareSeasonLabels(b.season_label ?? '', a.season_label ?? ''));
   // column_names is jsonb, so codegen types it as Json. It is an array of
   // CSV header strings in all 190 rows; normalise here so consumers can
   // iterate it, defaulting to empty rather than crashing if that changes.
-  return (data ?? []).map((r) => ({
+  return rows.map((r) => ({
     ...r,
     column_names: Array.isArray(r.column_names) ? (r.column_names as string[]) : [],
   }));

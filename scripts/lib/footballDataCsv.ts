@@ -52,10 +52,12 @@ export function csvUrlFor(leagueCode: string, seasonLabel: string): string {
     : `https://football-data.co.uk/mmz4281/${seasonLabel}/${leagueCode}.csv`;
 }
 
-/** '2627' -> { startYear: 2026, split: '2026/2027' } */
+/** '2627' -> { startYear: 2026, split: '2026/2027' }; '9293' -> 1992 (two-digit
+ * years 50-99 are the 1900s, as in src/lib/seasonLabels.ts). */
 export function parseSeasonLabel(label: string): { startYear: number; split: string } {
   if (!/^\d{4}$/.test(label)) throw new Error(`Season label must be four digits like 2627, got "${label}"`);
-  const startYear = 2000 + Number(label.slice(0, 2));
+  const yy = Number(label.slice(0, 2));
+  const startYear = yy >= 50 ? 1900 + yy : 2000 + yy;
   return { startYear, split: `${startYear}/${startYear + 1}` };
 }
 
