@@ -92,7 +92,7 @@ function speedFactor(){return PACE.speeds[speedName()]}
    site -- and a relative link like "/team-strength" would only work in the
    first. If the site moves to a custom domain, change it here (and the
    canonical/og:url tags in index.html). */
-const SITE="https://footballdatashark.netlify.app";
+const SITE="https://fixtureshark.com";
 
 /* THE LEAGUE AS A LESSON. Every club is named for how it makes decisions,
    and its strength follows from that: the more a club uses evidence, the

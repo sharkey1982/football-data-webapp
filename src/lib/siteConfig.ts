@@ -9,11 +9,11 @@
 //
 // VITE_SITE_URL / VITE_BRAND_NAME are optional in .env.local -- the
 // defaults below keep local dev and any preview deploy working without
-// them. Set both in Netlify's environment once a canonical production
-// domain is live (see .env.local.example).
+// them. The canonical domain has been fixtureshark.com since 27 Sep 2026;
+// footballdatashark.netlify.app 301-redirects to it (netlify.toml).
 // ============================================================================
 
-const DEFAULT_SITE_URL = 'https://footballdatashark.netlify.app';
+const DEFAULT_SITE_URL = 'https://fixtureshark.com';
 const DEFAULT_BRAND_NAME = 'FixtureShark';
 
 const rawSiteUrl = (import.meta.env.VITE_SITE_URL as string | undefined) || DEFAULT_SITE_URL;
