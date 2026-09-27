@@ -19,6 +19,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { excludeThisDevice } from './analytics';
 
 type AuthState = {
   session: Session | null;
@@ -73,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // is_admin() is the same function the RLS policies use, so the UI
       // and the security boundary can never disagree about who's an admin.
       const { data, error } = await (supabase as any).rpc('is_admin');
-      if (!cancelled) setIsAdmin(!error && data === true);
+      const admin = !error && data === true;
+      // Admins' own browsing never goes into Google Analytics.
+      if (admin) excludeThisDevice();
+      if (!cancelled) setIsAdmin(admin);
     }
 
     supabase.auth.getSession().then(async ({ data }) => {

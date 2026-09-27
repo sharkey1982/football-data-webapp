@@ -11,7 +11,11 @@
 //    localhost AND Netlify deploy previews / branch deploys without
 //    needing a separate env var, because previews serve the same
 //    production build with the same env.
-// 3. Consent. UK PECR requires opt-IN for non-essential cookies, so
+// 3. Not an admin's device. Once an admin signs in on a browser, that
+//    browser is flagged (ADMIN_DEVICE_KEY) and never reports again, even
+//    after signing out -- so the owner's own browsing never pollutes the
+//    numbers, whatever they tap on the banner.
+// 4. Consent. UK PECR requires opt-IN for non-essential cookies, so
 //    Consent Mode v2 defaults everything to 'denied' and gtag.js isn't
 //    even loaded until the visitor accepts. Deny-by-default in the
 //    config alone wouldn't be enough -- the script would still be
@@ -27,6 +31,15 @@ import { SITE_URL } from './siteConfig';
 
 const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined;
 export const CONSENT_STORAGE_KEY = 'fds-analytics-consent';
+export const ADMIN_DEVICE_KEY = 'fds-analytics-admin-device';
+
+function isAdminDevice(): boolean {
+  try {
+    return window.localStorage.getItem(ADMIN_DEVICE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 type ConsentChoice = 'granted' | 'denied';
 
@@ -50,7 +63,22 @@ export function analyticsAvailable(): boolean {
   if (!MEASUREMENT_ID) return false;
   if (typeof window === 'undefined') return false;
   const host = productionHost();
-  return host != null && window.location.hostname === host;
+  if (host == null || window.location.hostname !== host) return false;
+  return !isAdminDevice();
+}
+
+/** Called when an admin signs in: this browser stops reporting for good.
+ * If gtag.js is already loaded this visit, consent is withdrawn so nothing
+ * further is sent (canSend() also stops, via analyticsAvailable()). */
+export function excludeThisDevice(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ADMIN_DEVICE_KEY, '1');
+  } catch {
+    // Storage blocked: this visit still stops below; the next visit will
+    // be excluded again as soon as the admin session resolves.
+  }
+  window.gtag?.('consent', 'update', { analytics_storage: 'denied' });
 }
 
 export function getStoredConsent(): ConsentChoice | null {

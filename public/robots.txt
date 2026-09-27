@@ -23,5 +23,8 @@ Disallow: /login
 # The editable ratings page. Same data as /team-strength, which IS
 # indexable -- this one just carries the admin controls.
 Disallow: /admin/team-ratings
+# Other admin-only pages (they show "for admins" to everyone else).
+Disallow: /admin/
+Disallow: /data-flow
 
 Sitemap: https://fixtureshark.com/sitemap.xml
