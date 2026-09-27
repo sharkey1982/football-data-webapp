@@ -190,3 +190,145 @@ large load; run `select public.backfill_match_odds();` in SQL instead.
 
 The scratch table `historic_source_rows` can be dropped once this load is
 signed off (it is catalogued as scratch).
+
+# National League (Conference), 2004/05 to 2013/14
+
+Tier 5 (league EC, league_id 5) from 2004/05, loaded on 27 September 2026
+with the same script and workflow. With the regular imports from 2014/15,
+`matches` now holds every National League game since 2004/05: 5,294
+historic matches. The division is named "Conference National" for
+2004/05-2014/15 (`league_season_names`, already in place).
+
+## Sources
+
+| Seasons | Source | `matches.source_name` | What exists |
+|---|---|---|---|
+| 2004/05 | [engsoccerdata](https://github.com/jalapic/engsoccerdata) `data-raw/england_nonleague.csv` (division `conference`, tier 5) | `engsoccerdata` | Date and full-time score only. football-data.co.uk has no Conference file before 2005/06. |
+| 2005/06 - 2013/14 | football-data.co.uk `/mmz4281/<label>/EC.csv` | `football-data.co.uk` | Half-time score, shots, shots on target, corners, fouls, cards for every match; referee for nearly all (none in 2012/13; a handful missing in 2005/06-2011/12); 1X2 odds (below). Raw rows archived in `raw_match_files` / `source_match_rows`. |
+
+| Season | Clubs x games | Matches | Odds (`match_odds`, 1X2) |
+|---|---|---|---|
+| 2004/05 | 22 x 42 | 462 | none |
+| 2005/06 | 22 x 42 | 462 | Bet365, bwin, Interwetten, VC Bet, William Hill (420 matches) |
+| 2006/07 - 2008/09 | 24 x 46 | 552 each | as above (506-537 matches a season) |
+| 2009/10 | 23 x 44 | 506 | as above (all) |
+| 2010/11 - 2011/12 | 24 x 46 | 552 each | as above (531-552) |
+| 2012/13 - 2013/14 | 24 x 46 | 552 each | adds Pinnacle, including closing prices (all) |
+
+**2009/10**: Chester City were expelled on 26 February 2010 and their record
+expunged on 8 March 2010. Neither source has their matches (both files
+have 23 clubs and 506 rows); `EXPUNGED` in the script would drop them
+anyway. Rushden & Diamonds (2010/11), Halifax Town (2007/08), Hereford
+United and Salisbury City (2013/14) left after their seasons, so all their
+games stand.
+
+## Clubs
+
+Names were matched by aligning every football-data.co.uk fixture with
+engsoccerdata's (same season, date within 3 days, same score): each name
+pairs with one engsoccerdata name by at least 5 to 1 (Halifax excepted, see
+below). Migration `20260927130100_historic_conference_teams_and_aliases.sql`.
+
+New teams (17): Bath City, Canvey Island, Droylsden, Eastbourne Borough,
+Farnborough Town, Farsley Celtic, Grays Athletic, Hayes & Yeading United,
+Histon, Hyde United, Kettering Town, Leigh RMI, Lewes, Northwich Victoria,
+Salisbury City, St Albans City, Stafford Rangers.
+
+Judgement calls:
+- **Salisbury City** (wound up 2014) and **Farsley Celtic** (wound up 2010)
+  are kept apart from the later clubs of the same towns (Salisbury FC,
+  founded 2015; the Farsley Celtic founded in 2010 as Farsley AFC): their
+  canonical names are the full old names, leaving "Salisbury"/"Farsley"
+  free. **Farnborough Town** (wound up 2007) likewise is not Farnborough FC.
+- **Leigh RMI** is named as it was in 2004/05 (engsoccerdata calls it by its
+  later name, Leigh Genesis).
+- **Hyde United** played 2012/13-2013/14 as Hyde FC; same club.
+- **Gravesend** (Gravesend & Northfleet, renamed 2007) is the existing team
+  `ebbsfleet`.
+- **AFC Telford United** (2011/12) and **Telford United** (2012/13) in
+  football-data.co.uk are both AFC Telford United, founded 2004 -- the
+  existing team `telford-united` (the old Telford United folded in 2004).
+- **Halifax**: 2005/06-2007/08 is Halifax Town (`ERA_OVERRIDES`, as for
+  tier 4); 2013/14 is FC Halifax Town (team `halifax`).
+- **Chester** 2013/14 is Chester FC (team `chester`). engsoccerdata's
+  "Chester" alias stays on Chester City (england.csv); in
+  england_nonleague.csv the same spelling is Chester FC. Only 2004/05 is
+  imported from engsoccerdata tier 5, so this matters only for
+  cross-checks.
+- Reused existing teams: Stevenage (Stevenage Borough to 2010), Oxford
+  (Oxford United), Aldershot (Aldershot Town), Dag and Red, Hereford United,
+  Rushden & Diamonds, Darlington, Scarborough, AFC Wimbledon, Fleetwood,
+  Crawley, Kidderminster, Forest Green, Woking, York and the rest already
+  aliased from 2014/15 on.
+
+## Differences between the sources
+
+All 4,832 football-data.co.uk results for 2005/06-2013/14 pair with an
+engsoccerdata fixture (same teams and season), none left over on either
+side: every score agrees and every date is within 3 days. No corrections
+were needed. 2004/05 has no second source for the match rows; its final
+table agrees with Wikipedia's 2004-05 Football Conference article in every
+row (checked below).
+
+## Points deductions
+
+Migration `20260927130200_historic_conference_point_deductions.sql`
+(clubs by slug, seasons by start year; fails if a deduction does not
+resolve to a club that played that season):
+
+| Season | Club | Points | Reason |
+|---|---|---|---|
+| 2004/05 | Tamworth | -3 | Breach of league rules |
+| 2004/05 | Northwich Victoria | -10 | Administration |
+| 2005/06 | Altrincham | -18 | Fielding an ineligible player |
+| 2006/07 | Crawley Town | -10 | Administration |
+| 2007/08 | Crawley Town | -6 | Breach of financial regulations |
+| 2007/08 | Halifax Town | -10 | Administration |
+| 2008/09 | Oxford United | -5 | Fielding an ineligible player |
+| 2008/09 | Mansfield Town | -4 | Breach of league rules |
+| 2008/09 | Crawley Town | -1 | Ineligible player (-4 cut to -1 on appeal, Feb 2009) |
+| 2009/10 | Salisbury City | -10 | Administration |
+| 2009/10 | Gateshead | -1 | Failing to fulfil a fixture |
+| 2009/10 | Grays Athletic | -2 | Fielding ineligible players |
+| 2010/11 | Kidderminster Harriers | -5 | Misleading financial information |
+| 2010/11 | Histon | -5 | Misleading financial information |
+| 2010/11 | Rushden & Diamonds | -5 | Misleading financial information |
+| 2010/11 | Kettering Town | -2 | Fielding an ineligible player |
+| 2011/12 | Darlington | -10 | Administration |
+| 2011/12 | Kettering Town | -3 | Failing to pay football creditors |
+| 2013/14 | Alfreton Town | -3 | Fielding an ineligible player |
+| 2013/14 | Aldershot Town | -10 | Administration |
+
+Not applied: Chester City 2009/10 (-25, record expunged).
+
+## League tables and checks
+
+With the deductions, `league_standings` gives every season's recorded
+final table: champions Barnet, Accrington, Dagenham & Redbridge,
+Aldershot, Burton, Stevenage, Crawley, Fleetwood, Mansfield, Luton; the
+relegation places (including clubs reprieved or demoted for off-field
+reasons) fall on the recorded clubs. 2004/05 and 2009/10 were compared
+row by row with the Wikipedia season tables (position, W/D/L, goals,
+points): identical. The Conference ranked on goal difference in this
+period, which `league_standings` does for tier 5.
+
+After the load: no duplicate fixtures, no club playing twice on a day,
+every result letter agrees with its score, every date inside its season,
+every club has 42, 44 or 46 games; `check_model_integrity()` has nothing
+failed. `team_season_movement` now has real values for EC 2014/15 (it was
+the first EC season in the data) and League Two shows two promoted clubs
+from the Conference each season from 2005/06.
+
+Performance (timed after the load, in rolled-back transactions):
+`backfill_match_odds()` 4 s, `league_standings` (all rows) 0.6 s,
+`team_season_movement` 0.15 s, `sync_fixture_status_from_results()` 0.2 s.
+`refresh_model_scorecard()` took 31-35 s against 21-27 s in the cron runs
+before any history was loaded (tiers 1-5 together); it runs twice a day
+under pg_cron with no statement timeout, so this is noted, not changed.
+
+## Rerunning (tier 5)
+
+- `stage` with targets `EC` (football-data.co.uk 2005/06-2013/14 plus
+  engsoccerdata tier 5 2004-2013).
+- `import-fd` with targets `EC`.
+- `import-esd` with `esd_codes` `EC` and `esd_years` `2004`.
