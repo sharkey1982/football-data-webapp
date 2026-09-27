@@ -460,6 +460,23 @@ blackout row (apply_uk_3pm_blackout() reads kickoff_time). Fix the E2 feed
 conversion and correct the stored times; the blackout rule catches up on
 its next run. See docs/incidents.md, 2026-09-26.
 
+### Split-format league tables: follow-ups (found 2026-09-27)
+`league_standings` now follows the official split formats
+(`league_season_formats`; docs/history-backfill.md, "Split formats in
+`league_standings`"). Still to do:
+- The League Table page (`getLeagueTable` in src/lib/matchesApi.ts) builds
+  its own table from `matches`, so it still shows split-format seasons on
+  total points with play-off ties counted. It should read `league_standings`
+  (or share its logic); a src change.
+- Belgium 2016/17-2022/23 (except 2019/20): the files hold only the regular
+  season, so the 2021/22 and 2022/23 champions are wrong. Loading the
+  play-offs (with halved points) needs another source and a
+  `league_season_formats` split row per season.
+- 2026/27: add a row for each split-format league before its split. The
+  Austrian Bundesliga stops halving points from 2026/27 and Belgium has 18
+  clubs; `check_model_integrity` warns (`split_formats_configured`) if a
+  season passes its split without one.
+
 ### Watch Guide volume with Saturday 3pm rows
 Since 26 Sep 2026 the guide includes ~1,200 generated "not televised" rows
 for the whole season (about two thirds of its rows), so "All" is mostly 3pm
