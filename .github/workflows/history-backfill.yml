@@ -1,4 +1,4 @@
-name: History backfill (English tiers 1-4, 1992/93-2013/14)
+name: History backfill (English tiers 1-4 1992/93-2013/14, tier 5 2004/05-2013/14)
 
 # One-off load of English league history -- see scripts/history_backfill.py
 # and docs/history-backfill.md. Manual only. Commands:
@@ -6,8 +6,10 @@ name: History backfill (English tiers 1-4, 1992/93-2013/14)
 #               table historic_source_rows (for name mapping and cross-checks)
 #   import-fd   import football-data.co.uk files into matches (+ raw rows and
 #               odds); targets 'all' = every E0-E3 file 1993/94-2013/14,
-#               newest first, or a list like 'E0:1314,E3:9394'
-#   import-esd  import engsoccerdata seasons (default 1992 = 1992/93)
+#               newest first, 'EC' = every tier-5 file 2005/06-2013/14, or
+#               a list like 'E0:1314,E3:9394,EC:0405'
+#   import-esd  import engsoccerdata seasons (default 1992 = 1992/93) for the
+#               divisions in esd_codes (default E0-E3; EC = tier 5)
 # Every run writes a pipeline_runs row (job_name history_backfill); import-fd
 # also writes one match_import_runs row per file. Re-running is harmless:
 # every write is an upsert on a natural key.
@@ -20,13 +22,17 @@ on:
         required: true
         default: 'stage'
       targets:
-        description: "football-data.co.uk files: 'all' or e.g. 'E0:1314,E3:9394'"
+        description: "football-data.co.uk files: 'all' (E0-E3), 'EC', or e.g. 'E0:1314,EC:0405'"
         required: false
         default: 'all'
       esd_years:
         description: 'import-esd: season start years, comma-separated'
         required: false
         default: '1992'
+      esd_codes:
+        description: 'import-esd: divisions, comma-separated (E0-E3, EC)'
+        required: false
+        default: 'E0,E1,E2,E3'
       extra_args:
         description: 'extra flags, e.g. --no-esd or --no-odds'
         required: false
@@ -52,5 +58,6 @@ jobs:
           CMD: ${{ inputs.command }}
           TARGETS: ${{ inputs.targets }}
           ESD_YEARS: ${{ inputs.esd_years }}
+          ESD_CODES: ${{ inputs.esd_codes }}
           EXTRA: ${{ inputs.extra_args }}
-        run: python scripts/history_backfill.py "$CMD" --targets "$TARGETS" --esd-years "$ESD_YEARS" $EXTRA
+        run: python scripts/history_backfill.py "$CMD" --targets "$TARGETS" --esd-years "$ESD_YEARS" --esd-codes "$ESD_CODES" $EXTRA
