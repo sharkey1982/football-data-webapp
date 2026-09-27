@@ -24,4 +24,4 @@ Disallow: /login
 # indexable -- this one just carries the admin controls.
 Disallow: /admin/team-ratings
 
-Sitemap: https://footballdatashark.netlify.app/sitemap.xml
+Sitemap: https://fixtureshark.com/sitemap.xml

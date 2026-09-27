@@ -129,6 +129,18 @@
 # guard at the top of its index.html. Link to /play/beat-the-shark/ WITH the
 # slash wherever possible.
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Canonical domain: fixtureshark.com (since 27 Sep 2026). The old Netlify
+# address redirects permanently so links and search results carry over.
+# Only this exact host: deploy previews (deploy-preview-N--footballdatashark
+# .netlify.app) are different hosts and keep working.
+# ----------------------------------------------------------------------------
+[[redirects]]
+  from = "https://footballdatashark.netlify.app/*"
+  to = "https://fixtureshark.com/:splat"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/play/beat-the-shark/*"
   to = "https://fixtureshark-beat-the-shark.netlify.app/:splat"

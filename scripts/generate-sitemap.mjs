@@ -27,7 +27,7 @@ import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const SITE_URL = (process.env.VITE_SITE_URL || 'https://footballdatashark.netlify.app').replace(/\/+$/, '');
+const SITE_URL = (process.env.VITE_SITE_URL || 'https://fixtureshark.com').replace(/\/+$/, '');
 const OUT = join(process.cwd(), 'dist', 'sitemap.xml');
 const CURRENT_SEASON_ID = 13;
 const PL_LEAGUE_ID = 1;
