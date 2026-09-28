@@ -43,6 +43,11 @@ import { getHindsightOptimalSquad } from './fplOptimizerApi';
 import { getFantasyFixtureDifficulty, getTeamStrengthSummary } from './modelApi';
 import { getGameweekDigest } from './digestApi';
 import { getCurrentFplSeasonId } from './currentSeason';
+import { comparableGroupFor, getPaceBenchmarks, HISTORY_LEAGUES, loadHistoryHubData } from './historyApi';
+import { loadTrends, periodChanges, trendsPath } from './trendsApi';
+import { getScorelines, summariseScorelines } from './scorelinesApi';
+import { loadRecords } from './recordsApi';
+import { leagueBySlug, leaguePath, leagueSummaries, seasonDisplay } from './leagueSeasonApi';
 
 const PL_LEAGUE_ID = 1;
 
@@ -536,6 +541,121 @@ export async function getAllTimeScorersTrivia(): Promise<TriviaFact | null> {
   };
 }
 
+// ---------------------------------------------------------------------
+// History pages (Position Tracking, Historic Trends, Score Explore, Past
+// seasons, Record Book): one question each, from the page's own loader.
+// ---------------------------------------------------------------------
+
+/** Position Tracking: leaders after 10 matches who went on to win the league. */
+export async function getLeadersAfter10Trivia(): Promise<TriviaFact | null> {
+  const { leadersAfter10: l } = await loadHistoryHubData('E0');
+  if (l.teamSeasons < 5) return null;
+  const pct = (l.champions / l.teamSeasons) * 100;
+  const values = [25, 45, 65, 85];
+  const nearest = values.reduce((best, v) => (Math.abs(v - pct) < Math.abs(best - pct) ? v : best), values[0]);
+  return {
+    question: 'Top of the Premier League after 10 matches: how often has that club gone on to win the title?',
+    options: values.map((v) => `About ${v}%`),
+    correct: [values.indexOf(nearest)],
+    explanation: `${l.champions} of ${l.teamSeasons} leaders (${Math.round(pct)}%) since 38-game seasons began.${pct < 50 ? ' Most leaders after 10 matches didn’t win it.' : ''}`,
+    link: { to: '/football/history/what-happened-next', label: 'See where teams in any position finished' },
+  };
+}
+
+/** Historic pace: the typical champion's points after 10 matches. */
+export async function getChampionPaceTrivia(): Promise<TriviaFact | null> {
+  const rows = await getPaceBenchmarks(PL_LEAGUE_ID, comparableGroupFor(20));
+  const at10 = (o: string) => rows.find((r) => r.matches_played === 10 && r.outcome === o);
+  const champ = at10('champion');
+  if (!champ || champ.team_seasons < 5) return null;
+  const median = Math.round(Number(champ.p50));
+  const values = [median - 6, median - 3, median, median + 3];
+  const all = at10('all');
+  return {
+    question: 'After 10 matches, how many points does the typical Premier League champion have?',
+    options: values.map((v) => `${v} points`),
+    correct: [2],
+    explanation: `${median} points (the median of ${champ.team_seasons} champions); the range runs from ${Math.round(Number(champ.p10))} to ${Math.round(Number(champ.p90))} for the middle 80%.${all ? ` The typical club has ${Math.round(Number(all.p50))}.` : ''}`,
+    link: { to: '/football/history/pace', label: 'Compare this season with every champion' },
+  };
+}
+
+/** Historic Trends: how Premier League home advantage has changed. */
+export async function getHomeAdvantageTrivia(): Promise<TriviaFact | null> {
+  const d = await loadTrends('premier-league');
+  if (!d) return null;
+  const c = periodChanges(d).find((x) => x.metric.key === 'home');
+  if (!c || c.from <= 0) return null;
+  const change = (c.to - c.from) / c.from;
+  const options = ['It has grown', 'Barely changed (within 10%)', 'Shrunk by 10–25%', 'Shrunk by more than 25%'];
+  const bucket = change > 0.1 ? 0 : change >= -0.1 ? 1 : change >= -0.25 ? 2 : 3;
+  return {
+    question: `Premier League home advantage: ${c.firstSpan} against ${c.lastSpan}. What happened?`,
+    options,
+    correct: [bucket],
+    explanation: `Home sides took ${c.from.toFixed(2)} more points a game than away sides in ${c.firstSpan}, and ${c.to.toFixed(2)} in ${c.lastSpan}: ${change < 0 ? 'down' : 'up'} ${Math.abs(Math.round(change * 100))}%. The two Covid seasons are left out.`,
+    link: { to: trendsPath(d.league), label: 'See how the game has changed' },
+  };
+}
+
+/** Score Explore: which division ends 0-0 most often. */
+export async function getGoallessTrivia(): Promise<TriviaFact | null> {
+  const leagues = await Promise.all(
+    HISTORY_LEAGUES.map(async (l) => {
+      const s = summariseScorelines(await getScorelines({ leagueId: l.id, from: null, to: null, teamId: null, venue: null }));
+      return { name: l.name, share: s.total ? s.goalless / s.total : 0, total: s.total };
+    })
+  );
+  const rows = leagues.filter((l) => l.total > 0).sort((a, b) => b.share - a.share);
+  if (rows.length < 2) return null;
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const win = tiedWithFirst(rows.map((r) => Number(pct(r.share).replace('%', ''))));
+  const last = rows[rows.length - 1];
+  return {
+    question: 'Since 1992/93, which division has had the highest share of 0–0 draws?',
+    ...shuffleFact(rows.map((r) => r.name), win, rows.map((r) => `${pct(r.share)} of matches`)),
+    explanation: `${joined(win.map((i) => rows[i].name))} — ${pct(rows[0].share)} of matches finish 0–0; the ${last.name} is lowest at ${pct(last.share)}.`,
+    link: { to: '/football/history/scorelines', label: 'Explore every scoreline' },
+  };
+}
+
+/** Past seasons: the fewest points that kept a club up (20-club seasons). */
+export async function getLowestSafeTrivia(): Promise<TriviaFact | null> {
+  const league = await leagueBySlug('premier-league');
+  if (!league) return null;
+  const rows = (await leagueSummaries(league.league_id))
+    .filter((s) => s.is_final && !s.curtailed && s.clubs === 20 && s.lowest_safe_points != null)
+    .sort((a, b) => Number(a.lowest_safe_points) - Number(b.lowest_safe_points) || a.start_year - b.start_year)
+    .slice(0, 4);
+  if (rows.length < 2) return null;
+  const label = (y: number) => seasonDisplay(league.code, y);
+  const win = tiedWithFirst(rows.map((r) => Number(r.lowest_safe_points)));
+  return {
+    question: 'In which Premier League season did the fewest points keep a club up?',
+    ...shuffleFact(rows.map((r) => label(r.start_year)), win, rows.map((r) => `${r.lowest_safe_points} points was enough`)),
+    explanation: `${joined(win.map((i) => label(rows[i].start_year)))} — ${rows[0].lowest_safe_points} points was enough to stay up.`,
+    link: { to: leaguePath(league), label: 'See every final table' },
+  };
+}
+
+/** Record Book: most Premier League defeats in a row (one entry per club). */
+export async function getLosingRunTrivia(): Promise<TriviaFact | null> {
+  const d = await loadRecords('premier-league');
+  const list = d?.lists.find((l) => l.id === 'streak_lost');
+  if (!d || !list) return null;
+  const seen = new Set<string>();
+  const rows = list.rows.filter((r) => r.team && !seen.has(r.team) && seen.add(r.team)).slice(0, 4);
+  if (rows.length < 2) return null;
+  const n = (v: string) => parseInt(v, 10);
+  const win = tiedWithFirst(rows.map((r) => n(r.value)));
+  return {
+    question: 'Which club holds the Premier League record for most defeats in a row?',
+    ...shuffleFact(rows.map((r) => r.team!), win, rows.map((r) => `${n(r.value)} in a row, ${r.season}${r.flag === 'ongoing' ? ' (ongoing)' : ''}`)),
+    explanation: `${joined(win.map((i) => rows[i].team!))} — ${n(rows[0].value)} league defeats in a row (${rows[0].detail}).`,
+    link: { to: `/football/records/${d.league.slug}`, label: 'See the Record Book' },
+  };
+}
+
 /** Each function's own failure just means that one fact is skipped -- a
  * decorative feature degrading gracefully rather than blocking the page
  * shell is the right trade-off, so every call here is wrapped
@@ -561,6 +681,12 @@ export async function getFootballTrivia(): Promise<TriviaFact[]> {
     safely(getCleanSheetTrivia),          // Team Strength
     safely(getMostCommonScorelineTrivia), // Raw Data
     safely(getAllTimeScorersTrivia),      // Your Team
+    safely(getLeadersAfter10Trivia),      // Position Tracking: What happened next
+    safely(getChampionPaceTrivia),        // Position Tracking: Historic pace
+    safely(getHomeAdvantageTrivia),       // Historic Trends
+    safely(getGoallessTrivia),            // Score Explore
+    safely(getLowestSafeTrivia),          // Past seasons
+    safely(getLosingRunTrivia),           // Record Book
   ]);
   return results.filter((f): f is TriviaFact => f !== null);
 }
