@@ -22,85 +22,17 @@ import math
 import os
 import subprocess
 
+import sys
+
 import numpy as np
 from scipy.stats import norm
 
+sys.path.insert(0, os.path.dirname(__file__))
+from exit_bands import load_starts, position_priors, predict  # noqa: E402  -- shared with the live refresh
+
 EXPERIMENT = "P2_minutes_exit_bands"
-YEAR = {9: 2022, 10: 2023, 11: 2024, 12: 2025, 13: 2026}
 KS = (2, 5, 10, 20)
 HS = (10, 20, 40, None)
-PRIOR_YEARS = (2022, 2023)
-
-
-def band(minutes):
-    return 0 if minutes < 60 else 1 if minutes < 85 else 2
-
-
-def page(sb, table, cols, filters, order):
-    out, start = [], 0
-    while True:
-        q = sb.table(table).select(cols)
-        for kind, col, val in filters:
-            q = getattr(q, kind)(col, val)
-        for col in order:   # a unique ordering, or offset paging can skip or repeat rows
-            q = q.order(col)
-        rows = q.range(start, start + 999).execute().data or []
-        out += rows
-        if len(rows) < 1000:
-            return out
-        start += 1000
-
-
-def load_starts(sb):
-    """Every recorded start: {code, pos, year, gw, fx, band}, in match order."""
-    pos = {}
-    for r in page(sb, "fpl_player_season_totals", "season_id,fpl_code,element_type", [("gte", "season_id", 9)], ["season_id", "fpl_code"]):
-        pos[(r["season_id"], r["fpl_code"])] = r["element_type"]
-    starts = []
-    for r in page(sb, "fpl_player_gameweek_history", "season_id,fpl_code,gameweek,fixture_id,minutes",
-                  [("gte", "season_id", 9), ("eq", "starts", 1)], ["season_id", "fpl_code", "gameweek", "fixture_id"]):
-        p = pos.get((r["season_id"], r["fpl_code"]))
-        if p:
-            starts.append({"code": r["fpl_code"], "pos": p, "year": YEAR[r["season_id"]], "gw": r["gameweek"],
-                           "fx": r["fixture_id"] or 0, "band": band(r["minutes"])})
-    players = {r["fpl_player_id"]: r for r in page(sb, "fpl_players", "fpl_player_id,fpl_code,element_type", [("eq", "season_id", 13)], ["fpl_player_id"])}
-    for r in page(sb, "fpl_player_gameweeks", "fpl_player_id,fpl_event_id,fpl_fixture_id,minutes,source_payload",
-                  [("eq", "season_id", 13)], ["fpl_player_id", "fpl_fixture_id"]):
-        s = (r.get("source_payload") or {}).get("stats") or {}
-        pl = players.get(r["fpl_player_id"])
-        if s.get("starts") == 1 and pl and pl.get("fpl_code") and pl.get("element_type"):
-            starts.append({"code": pl["fpl_code"], "pos": pl["element_type"], "year": 2026, "gw": r["fpl_event_id"],
-                           "fx": r["fpl_fixture_id"] or 0, "band": band(r["minutes"])})
-    starts.sort(key=lambda s: (s["year"], s["gw"], s["fx"]))
-    return starts
-
-
-def position_priors(starts):
-    counts = {}
-    for s in starts:
-        if s["year"] in PRIOR_YEARS:
-            c = counts.setdefault(s["pos"], [0, 0, 0])
-            c[s["band"]] += 1
-    return {p: np.array(c, float) / sum(c) for p, c in counts.items()}
-
-
-def predict(starts, priors, k, h):
-    """Walk-forward band probabilities for every start (list aligned with starts)."""
-    history, preds = {}, []
-    for s in starts:
-        prior = priors[s["pos"]]
-        prev = history.get(s["code"], [])
-        n = len(prev)
-        if n:
-            ages = np.arange(n - 1, -1, -1, dtype=float)
-            w = np.ones(n) if h is None else 0.5 ** (ages / h)
-            counts = np.array([w[np.array(prev) == b].sum() for b in range(3)])
-            p = (counts + k * prior) / (w.sum() + k)
-        else:
-            p = prior.copy()
-        preds.append(p)
-        history.setdefault(s["code"], []).append(s["band"])
-    return preds
 
 
 def clustered(diff, cl):
