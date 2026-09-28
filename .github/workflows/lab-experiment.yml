@@ -26,6 +26,13 @@ name: Model Lab
 #   against FPL's points for every 2026/27 player-match, using the database's
 #   rule sets. Fails on any mismatch. (The SQL engine is checked daily by
 #   check_model_integrity.)
+#
+# analysis_squad_variance: one-off analysis, not an experiment (changes
+#   nothing on the site). Next gameweek simulated 10,000 times: the optimal
+#   XI, the next 49, a template and a differential XI against an
+#   ownership-weighted field (chance of a top-1% week); and set-and-forget
+#   2025/26 (how many fixed XIs came within 1/2/3/5% of the best). Writes
+#   analysis_results.
 
 on:
   workflow_dispatch:
@@ -33,7 +40,7 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, p5, p2, fpl_scoring_verify]
+        options: [f1, f4, p5, p2, fpl_scoring_verify, analysis_squad_variance]
         default: f1
       open_holdout:
         description: "f1/f4/p5/p2 only: score the sealed holdout (once only; p2 then scores only the holdout)"
@@ -43,7 +50,7 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -82,3 +89,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/fpl_scoring.py --verify --season-id 13
+      - name: Squad variance analysis
+        if: inputs.job == 'analysis_squad_variance'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/analysis_squad_variance.py --part both

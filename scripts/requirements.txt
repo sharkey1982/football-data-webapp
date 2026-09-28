@@ -2,3 +2,4 @@ numpy
 scipy
 supabase
 lxml==6.1.1
+pulp
