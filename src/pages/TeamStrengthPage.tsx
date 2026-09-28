@@ -18,7 +18,7 @@ import { getErrorMessage } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null; country_id: number };
 type CountryOption = { country_id: number; name: string; code: string | null };
-type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga' | 'projected_position_mean';
+type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga' | 'projected_position_mean' | 'current_position' | 'current_points';
 
 const selectClass = 'w-full sm:w-56 border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
 
@@ -47,8 +47,8 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
   const [summary, setSummary] = useState<TeamStrengthSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('attack_strength');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortKey, setSortKey] = useState<SortKey>('projected_position_mean');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [editingTeamId, setEditingTeamId] = useState<number | null>(null);
   const [editAttack, setEditAttack] = useState('0');
   const [editDefence, setEditDefence] = useState('0');
@@ -273,9 +273,11 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       const av = a[sortKey];
       const bv = b[sortKey];
       if (typeof av === 'string' || typeof bv === 'string') return factor * String(av ?? '').localeCompare(String(bv ?? ''));
-      const an = av === null ? -Infinity : av;
-      const bn = bv === null ? -Infinity : bv;
-      return factor * (an - bn);
+      // Missing values (no simulation yet, not played yet) always sort last.
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return factor * ((av as number) - (bv as number));
     });
   }, [summary, sortKey, sortDir]);
 
@@ -284,12 +286,14 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDir(key === 'canonical_name' || key === 'projected_position_mean' ? 'asc' : 'desc');
+      setSortDir(key === 'canonical_name' || key === 'projected_position_mean' || key === 'current_position' ? 'asc' : 'desc');
     }
   }
 
   const columns: { key: SortKey; label: string; title?: string }[] = [
     { key: 'canonical_name', label: 'Team' },
+    { key: 'current_position', label: 'Pos', title: 'Position in the table now' },
+    { key: 'current_points', label: 'Pts', title: 'Points so far this season' },
     {
       key: 'projected_position_mean',
       label: 'Proj. Pos',
@@ -560,6 +564,8 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
                           </span>
                         )}
                       </td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{r.current_position ?? '\u2014'}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{r.current_points ?? '\u2014'}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-900 font-semibold" title={r.projected_position_median !== null ? `Median: ${r.projected_position_median}` : undefined}>
                         {fmt(r.projected_position_mean, 1)}
                         {r.is_estimated && (

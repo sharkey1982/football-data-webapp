@@ -53,30 +53,6 @@ describe('TeamStrengthPage as a visitor', () => {
       lastSeasonLabel: '2526',
       rows: [
         {
-          team_id: 1,
-          canonical_name: 'Arsenal',
-          attack_strength: 0.31,
-          defence_strength: 0.52,
-          is_estimated: false,
-          projected_gf: 68.3,
-          projected_ga: 40.1,
-          projected_fixtures_counted: 38,
-          last_season_gf: 91,
-          last_season_ga: 41,
-          last_season_played: 38,
-          this_season_actual_gf: null,
-          this_season_actual_ga: null,
-          this_season_actual_played: 0,
-          attack_adjustment: 0,
-          defence_adjustment: 0,
-          override_note: null,
-          override_updated_at: null,
-          projected_position_mean: 1.5,
-          projected_position_median: 1,
-          projected_points_mean: 82.8,
-          position_simulated_at: null,
-        },
-        {
           team_id: 2,
           canonical_name: 'Sunderland',
           attack_strength: -0.4,
@@ -98,6 +74,34 @@ describe('TeamStrengthPage as a visitor', () => {
           projected_position_mean: 15.5,
           projected_position_median: 16,
           projected_points_mean: 44.2,
+          current_position: 1,
+          current_points: 13,
+          position_simulated_at: null,
+        },
+        {
+          team_id: 1,
+          canonical_name: 'Arsenal',
+          attack_strength: 0.31,
+          defence_strength: 0.52,
+          is_estimated: false,
+          projected_gf: 68.3,
+          projected_ga: 40.1,
+          projected_fixtures_counted: 38,
+          last_season_gf: 91,
+          last_season_ga: 41,
+          last_season_played: 38,
+          this_season_actual_gf: null,
+          this_season_actual_ga: null,
+          this_season_actual_played: 0,
+          attack_adjustment: 0,
+          defence_adjustment: 0,
+          override_note: null,
+          override_updated_at: null,
+          projected_position_mean: 1.5,
+          projected_position_median: 1,
+          projected_points_mean: 82.8,
+          current_position: 4,
+          current_points: 10,
           position_simulated_at: null,
         },
       ],
@@ -115,6 +119,15 @@ describe('TeamStrengthPage as a visitor', () => {
     // visitors actually see.
     expect((await screen.findByText('15.5')).closest('td')?.textContent).toContain('\u2020');
     expect(screen.getByText('1.5').closest('td')?.textContent).not.toContain('\u2020');
+
+    // Default order is projected finish, not the order the rows arrive in,
+    // and the current table position sits beside it.
+    const bodyRows = screen.getAllByRole('row').slice(1);
+    expect(bodyRows[0].textContent).toContain('Arsenal');
+    expect(bodyRows[1].textContent).toContain('Sunderland');
+    expect(screen.getByRole('columnheader', { name: /Proj\. Pos/ }).textContent).toContain('\u25b2');
+    expect(bodyRows[1].querySelectorAll('td')[1].textContent).toBe('1');
+    expect(bodyRows[1].querySelectorAll('td')[2].textContent).toBe('13');
 
     // Every write affordance absent. These are refused by RLS anyway, so
     // rendering them promised something the page couldn't deliver.
