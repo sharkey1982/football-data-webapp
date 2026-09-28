@@ -24,9 +24,12 @@ export async function getFplScoringRules(): Promise<FplScoringRule[]> {
   // fpl_scoring_rules is new enough that the generated Database type
   // doesn't know about it yet -- scoped `as any`, matching the same
   // pattern already used for fpl_hindsight_optimal_squad.
+  // The table holds every season's rules (2021/22 on, for the scoring
+  // engine fpl_score); this page shows the current season's.
   const { data, error } = await supabase
     .from('fpl_scoring_rules')
     .select('rule_id, rule_code, player_position, points, threshold, notes')
+    .eq('season_id', await getCurrentFplSeasonId())
     .order('rule_id', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r: any) => ({
