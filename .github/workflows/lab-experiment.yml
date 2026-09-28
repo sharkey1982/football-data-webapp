@@ -1,0 +1,32 @@
+name: Model Lab experiment F1 (market + Dixon-Coles pool)
+
+# Scores experiment F1 (registered in lab_experiments before it ran) and
+# stores every result in lab_scorings. Tuning and validation by default; the
+# sealed holdout (2025/26, 2026/27) only when open_holdout is ticked, and the
+# database refuses a second holdout scoring for the experiment.
+# Needs the walk-forward forecasts first: run "Model experiment" with
+# experiment dc_walkforward_v1, variants 180:0, seasons 6,7,8,9,10,11,12,13.
+
+on:
+  workflow_dispatch:
+    inputs:
+      open_holdout:
+        description: Score the sealed holdout (once only)
+        type: boolean
+        default: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Score
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/lab_f1.py ${{ inputs.open_holdout && '--open-holdout' || '' }}
