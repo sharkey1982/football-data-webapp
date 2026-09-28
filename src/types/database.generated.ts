@@ -1488,6 +1488,9 @@ export type Database = {
           kickoff_date: string
           kickoff_time: string | null
           league_id: number
+          market_away_goals: number | null
+          market_home_goals: number | null
+          market_rated_at: string | null
           matchweek: number | null
           predicted_at: string | null
           predicted_away_goals: number | null
@@ -1518,6 +1521,9 @@ export type Database = {
           kickoff_date: string
           kickoff_time?: string | null
           league_id: number
+          market_away_goals?: number | null
+          market_home_goals?: number | null
+          market_rated_at?: string | null
           matchweek?: number | null
           predicted_at?: string | null
           predicted_away_goals?: number | null
@@ -1548,6 +1554,9 @@ export type Database = {
           kickoff_date?: string
           kickoff_time?: string | null
           league_id?: number
+          market_away_goals?: number | null
+          market_home_goals?: number | null
+          market_rated_at?: string | null
           matchweek?: number | null
           predicted_at?: string | null
           predicted_away_goals?: number | null

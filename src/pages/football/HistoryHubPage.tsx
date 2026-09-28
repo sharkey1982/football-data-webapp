@@ -35,7 +35,7 @@ export default function HistoryHubPage({ initialData }: { initialData?: HistoryH
   );
 
   useDocumentHead({
-    title: 'Football history — what the table tells you, and when',
+    title: 'Position Tracking: when does the league table become real?',
     description:
       'How quickly the league table settles, where teams in any position went on to finish, and how a season’s pace compares with every champion and relegated side since 1992.',
     path: '/football/history',
@@ -50,8 +50,9 @@ export default function HistoryHubPage({ initialData }: { initialData?: HistoryH
   return (
     <article className="space-y-6">
       <header>
-        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Football &middot; History</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">When does the table become real?</h1>
+        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Football &middot; Position Tracking</p>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Position Tracking</h1>
+        <p className="text-sm text-ink-700 mt-1 max-w-prose">When does the table become real? How far clubs still move after every match, where teams in any position went on to finish, and this season against every champion.</p>
       </header>
 
       <label className="block max-w-xs">
@@ -138,18 +139,6 @@ export default function HistoryHubPage({ initialData }: { initialData?: HistoryH
               <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Historic pace</h2>
               <p className="text-sm text-ink-700 mt-1">This season&rsquo;s points against every champion and relegated side at the same stage.</p>
             </Link>
-            <Link to="/football/history/trends" className="block border border-chalk-300 rounded-lg p-4 bg-white hover:border-pitch-700">
-              <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">How the game has changed</h2>
-              <p className="text-sm text-ink-700 mt-1">Goals, home advantage, draws and title thresholds, season by season.</p>
-            </Link>
-            <Link to="/football/records" className="block border border-chalk-300 rounded-lg p-4 bg-white hover:border-pitch-700">
-              <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Record Book</h2>
-              <p className="text-sm text-ink-700 mt-1">Most points, longest runs and biggest wins in every league.</p>
-            </Link>
-            <Link to="/football/history/scorelines" className="block border border-chalk-300 rounded-lg p-4 bg-white hover:border-pitch-700">
-              <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Scoreline Explorer</h2>
-              <p className="text-sm text-ink-700 mt-1">How often every score happens, by league, era or club.</p>
-            </Link>
           </section>
         </>
       )}
@@ -163,6 +152,15 @@ export default function HistoryHubPage({ initialData }: { initialData?: HistoryH
         </Link>
         <Link to="/teams" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
           Club histories
+        </Link>
+        <Link to="/football/history/trends" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+          Historic Trends
+        </Link>
+        <Link to="/football/history/scorelines" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+          Score Explore
+        </Link>
+        <Link to="/football/records" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+          Record Book
         </Link>
       </nav>
     </article>

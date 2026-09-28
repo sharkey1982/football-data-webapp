@@ -54,7 +54,7 @@ export default function ScorelinesPage({ initialData }: { initialData?: Scorelin
   const sentence = summary && data ? scorelineSentence(summary, subject, teamName) : '';
 
   useDocumentHead({
-    title: 'Scoreline Explorer: how often every score happens',
+    title: 'Score Explore: how often every score happens',
     description: sentence || 'How often each scoreline happens in every league on file, for any span of seasons or from one club’s side.',
     path: '/football/history/scorelines',
   });
@@ -77,9 +77,9 @@ export default function ScorelinesPage({ initialData }: { initialData?: Scorelin
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          <Link to="/football/history" className="hover:underline">Football &middot; History</Link>
+          <Link to="/football" className="hover:underline">Football &middot; Score Explore</Link>
         </p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Scoreline Explorer</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Score Explore</h1>
       </header>
 
       <form className="grid gap-3 sm:grid-cols-5 items-end" onSubmit={(e) => e.preventDefault()}>

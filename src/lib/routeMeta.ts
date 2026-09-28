@@ -100,7 +100,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/football/history',
-    title: 'When does the league table become real?',
+    title: 'Position Tracking: when does the league table become real?',
     description:
       'How far clubs still move after every match of the season, from every complete season since 1992: the Premier League, Championship, League One, League Two and National League.',
     crumbs: [FOOTBALL],
@@ -110,26 +110,26 @@ export const STATIC_ROUTES: RouteMeta[] = [
     title: 'What happened next? Where teams in any position finished',
     description:
       'Pick a position or points total after any number of matches and see where every team in that spot went on to finish: champions, top four, relegated.',
-    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+    crumbs: [FOOTBALL, { name: 'Position Tracking', path: '/football/history' }],
   },
   {
     path: '/football/history/trends',
-    title: 'How the Premier League has changed: goals, home advantage, draws',
+    title: 'Historic Trends: how the Premier League has changed',
     description: 'Goals per game, home advantage, draws, title and relegation thresholds and competitive balance, season by season since 1992/93, for every league on file.',
-    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+    crumbs: [FOOTBALL],
   },
   {
     path: '/football/history/scorelines',
-    title: 'Scoreline Explorer: how often every score happens',
+    title: 'Score Explore: how often every score happens',
     description: 'How often each scoreline happens in every league on file, for any span of seasons or from one club\u2019s side, home or away.',
-    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+    crumbs: [FOOTBALL],
   },
   {
     path: '/football/history/pace',
     title: 'Historic pace \u2014 this season against every champion',
     description:
       'Each club\u2019s points after every match this season against where every champion and relegated side stood at the same stage.',
-    crumbs: [FOOTBALL, { name: 'History', path: '/football/history' }],
+    crumbs: [FOOTBALL, { name: 'Position Tracking', path: '/football/history' }],
   },
   {
     path: '/football/leagues-compared',

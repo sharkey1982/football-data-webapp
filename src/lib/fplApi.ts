@@ -312,13 +312,20 @@ export type FplFixtureProjectionTeam = {
   is_home: boolean;
   formation: string | null;
   formation_source_count: number | null;
+  /** The expected goals the player projections use: from betting-market
+   * prices where available (fixtures.market_*_goals), else the model. */
   team_expected_goals: number | null;
+  /** This site's own model's (Dixon-Coles) expected goals, shown for
+   * comparison when the market's are the ones in use. */
+  model_expected_goals: number | null;
   clean_sheet_probability: number | null;
   players: FplFixtureProjectionPlayer[];
 };
 
 export type FplFixtureProjection = {
   fixture_id: number;
+  /** Where team_expected_goals comes from: 'market' (betting-market prices) or 'model'. */
+  team_goals_source?: 'market' | 'model';
   kickoff_date: string;
   kickoff_time: string | null;
   status: string;
@@ -395,7 +402,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     .select(
       `
       fixture_id, kickoff_date, kickoff_time, status,
-      home_team_id, away_team_id, predicted_home_goals, predicted_away_goals,
+      home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, market_home_goals, market_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(team_id, canonical_name),
       away_team:teams!fixtures_away_team_id_fkey(team_id, canonical_name)
     `
@@ -564,7 +571,8 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     teamId: number,
     teamName: string,
     isHome: boolean,
-    teamExpectedGoals: number | null
+    teamExpectedGoals: number | null,
+    modelExpectedGoals: number | null
   ): FplFixtureProjectionTeam => {
     const tactics = formationByTeam.get(teamId);
     const teamPlayers = sortPlayers(byTeam.get(teamId) ?? []);
@@ -575,12 +583,15 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
       formation: tactics?.formation ?? null,
       formation_source_count: tactics?.sources ?? null,
       team_expected_goals: teamExpectedGoals,
+      model_expected_goals: modelExpectedGoals,
       clean_sheet_probability: teamCleanSheetProbability(teamPlayers),
       players: teamPlayers,
     };
   };
 
   const f = fixture as any;
+  // Same rule as the FPL projection views: market goals when both are there.
+  const marketGoals = f.market_home_goals != null && f.market_away_goals != null;
 
   return {
     fixture_id: f.fixture_id,
@@ -588,8 +599,11 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     kickoff_time: f.kickoff_time,
     status: f.status,
     model_version: modelVersion,
-    home: buildTeam(f.home_team_id, f.home_team?.canonical_name ?? 'Unknown', true, num(f.predicted_home_goals)),
-    away: buildTeam(f.away_team_id, f.away_team?.canonical_name ?? 'Unknown', false, num(f.predicted_away_goals)),
+    team_goals_source: marketGoals ? 'market' : 'model',
+    home: buildTeam(f.home_team_id, f.home_team?.canonical_name ?? 'Unknown', true,
+      marketGoals ? num(f.market_home_goals) : num(f.predicted_home_goals), num(f.predicted_home_goals)),
+    away: buildTeam(f.away_team_id, f.away_team?.canonical_name ?? 'Unknown', false,
+      marketGoals ? num(f.market_away_goals) : num(f.predicted_away_goals), num(f.predicted_away_goals)),
   };
 }
 
