@@ -131,7 +131,12 @@ async function main() {
     queryAll(`fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}`),
     queryAll('teams?select=team_id,slug&slug=not.is.null'),
     queryAll(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null`),
-    queryAll(`fixtures?select=slug,predicted_at&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&order=fixture_id.asc`),
+    // Premier League only: generate-static writes match pages for league 1
+    // alone. Every other league's match URL is served by the bare SPA shell
+    // (generic title, no canonical, empty body), and listing ~4,000 of those
+    // told Google most of the sitemap was thin duplicates. Widen this in the
+    // same change that generates those pages.
+    queryAll(`fixtures?select=slug,predicted_at&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&order=fixture_id.asc`),
     mod ? fetchFinanceBulk(query).catch((err) => { console.error('Sitemap: finance fetch failed --', err?.message ?? err); return null; }) : null,
     query('leagues?select=league_id,code,slug&competition_type=eq.league&slug=not.is.null'),
     queryAll('league_season_summary?select=league_id,start_year&order=league_id.asc,start_year.asc'),

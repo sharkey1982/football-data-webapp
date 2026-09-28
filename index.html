@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,6 +24,23 @@
       name="description"
       content="Football fixtures, results, league tables, and Dixon-Coles model predictions, plus Fantasy Premier League projections."
     />
+    <!--
+      Social preview tags (Reddit, X, Slack, WhatsApp...). Those fetchers
+      never run JavaScript, so these must be in the static HTML.
+      buildDocument() in src/entry-server.tsx replaces everything between
+      the two markers with page-specific values; this block is what the
+      bare app shell (unknown or not-yet-generated routes) carries.
+    -->
+    <!-- social:start -->
+    <meta property="og:site_name" content="FixtureShark" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="FixtureShark" />
+    <meta property="og:description" content="Football fixtures, results, league tables, and Dixon-Coles model predictions, plus Fantasy Premier League projections." />
+    <meta property="og:image" content="https://fixtureshark.com/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- social:end -->
   </head>
   <body>
     <div id="root"></div>

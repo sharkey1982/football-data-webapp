@@ -24,6 +24,10 @@ const checks = [
   ['match pages', count('football', 'matches'), 300],
   ['player pages', count('fpl', 'players'), 300],
   ['/finance index', existsSync(join(DIST, 'finance', 'index.html')) ? 1 : 0, 1],
+  // Flat twins (fixtures.html beside fixtures/index.html) -- without them
+  // every no-slash canonical URL 301s to its slash form. See write-flat-html.
+  ['flat /fixtures.html', existsSync(join(DIST, 'fixtures.html')) ? 1 : 0, 1],
+  ['flat /football/teams/arsenal.html', existsSync(join(DIST, 'football', 'teams', 'arsenal.html')) ? 1 : 0, 1],
 ];
 let problems = 0;
 for (const [label, n, floor] of checks) {

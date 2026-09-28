@@ -30,7 +30,11 @@
   # unconditionally -- so it cannot repeat the "finished its work but
   # never exited" hang that took deploys down for an hour. It also never
   # exits non-zero: a missing sitemap must never cost a deploy.
-  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/verify-dist.mjs"
+  # write-flat-html runs after every page is generated: it adds <path>.html
+  # beside each <path>/index.html so /fixtures answers 200 instead of a 301
+  # to /fixtures/ (canonicals and the sitemap use the no-slash form). See
+  # the script's header. Exits 0 always, like the other post-build steps.
+  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/write-flat-html.mjs && node scripts/verify-dist.mjs"
   publish = "dist"
 
   # Skip the analytics build when a push ONLY touches the game or docs.
@@ -54,7 +58,12 @@
 [functions]
   directory = "netlify/functions"
 
-# Explicit no-cache on the HTML shell -- added after two separate reports
+# HTML is revalidated on every request (max-age=0, must-revalidate) rather
+# than never stored (no-store, until 2026-09-28): a revalidation still can
+# never serve a stale shell, but no-store also disabled the browser's
+# back/forward cache and forced full re-downloads for crawlers and users.
+#
+# Original note: explicit no-cache on the HTML shell -- added after two separate reports
 # of the live site visibly not matching what was just deployed. Without
 # this, a browser (or an intermediate cache) is free to hold onto an old
 # index.html indefinitely, which keeps pointing at the OLD hashed JS/CSS
@@ -67,12 +76,12 @@
 [[headers]]
   for = "/index.html"
   [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
   for = "/"
   [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 # Every other prerendered route's own index.html (/fixtures/index.html,
 # /table/index.html, etc.) -- same reasoning as the two rules above,
@@ -82,7 +91,13 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
+    Cache-Control = "public, max-age=0, must-revalidate"
+    # Baseline security headers (2026-09-28 crawl audit). SAMEORIGIN, not
+    # DENY: the Beat the Shark game is proxied onto this domain and may
+    # frame its own pages.
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
 
 [[headers]]
   for = "/assets/*"
