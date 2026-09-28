@@ -55,9 +55,12 @@ def implied_goals(p_home, p_away, p_over):
 
 def market_ratings(lines, as_of, half_life=HALF_LIFE_DAYS):
     """lines: [{d, h, a, lh, la}] for one league. Returns (idx, intercept, home, attack, defence);
-    expected goals are exp(intercept + home + attack[h] - defence[a]) and exp(intercept + attack[a] - defence[h])."""
+    expected goals are exp(intercept + home + attack[h] - defence[a]) and exp(intercept + attack[a] - defence[h]).
+    None when the window has no priced matches (e.g. before the price history starts)."""
     start = as_of - timedelta(days=WINDOW_DAYS)
     win = [r for r in lines if start < r["d"] <= as_of]
+    if not win:
+        return None
     teams = sorted({r["h"] for r in win} | {r["a"] for r in win})
     idx = {t: i for i, t in enumerate(teams)}
     n = len(teams)

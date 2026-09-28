@@ -119,6 +119,9 @@ def main():
         key = (m["league_id"], as_of)
         if key not in cache:
             cache[key] = market_ratings(lines[m["league_id"]], as_of)
+        if cache[key] is None:
+            skipped += 1
+            continue
         idx, c0, hfa, att, dfn = cache[key]
         h, a = m["home_team_id"], m["away_team_id"]
         if h not in idx or a not in idx:
@@ -144,4 +147,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback
+        for line in traceback.format_exc().splitlines():
+            print(f"::error::{line}")
+        raise
