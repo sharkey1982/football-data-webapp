@@ -78,7 +78,10 @@ def market_lambdas(supabase, league_id, season_id, fixtures, team_ids):
     short = [t for t, c in priced.items() if c < MARKET_MIN_PRICED_THIS_SEASON]
     if short:
         return None, f"{len(short)} team(s) with fewer than {MARKET_MIN_PRICED_THIS_SEASON} priced matches this season"
-    idx, c0, hfa, att, dfn = market_ratings(lines_from_rows(rows), date.today())
+    rated = market_ratings(lines_from_rows(rows), date.today())
+    if rated is None:
+        return None, "no priced matches in the window"
+    idx, c0, hfa, att, dfn = rated
     lam = {}
     for f in fixtures:
         if f["status"] == "scheduled":

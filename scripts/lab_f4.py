@@ -90,7 +90,10 @@ def evaluate(lines_by_league, matches_by_league, seasons, half_life, dc_cache):
             mses_m, mses_d, spear_m, spear_d = [], [], [], []
             for k, cut in checkpoint_dates(sm).items():
                 rem = [m for m in sm if m["d"] > cut]
-                idx, c0, hfa, att, dfn = market_ratings(lines, cut, half_life)
+                rated = market_ratings(lines, cut, half_life)
+                if rated is None:
+                    continue
+                idx, c0, hfa, att, dfn = rated
                 key = (lg, yr, k)
                 if key not in dc_cache:
                     dc_cache[key] = dc_fit(allm, cut, 180, 0.0)
