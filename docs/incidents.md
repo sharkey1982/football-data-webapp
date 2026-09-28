@@ -656,3 +656,25 @@ fixing something else.
   now fails on any redirecting sitemap URL. *Lesson: a checker that follows
   redirects can't tell whether a URL is canonical, and one pointed at an old
   host checks nothing.*
+
+## 2026-09-28 · FPL pipeline run failed during a database load spike (my dry runs)
+
+- **What happened:** a manual FPL projections run (09:21 UTC, just after
+  PR #146) failed at "Simulate fixture bonus": statement timeouts and
+  gateway errors on the per-fixture BPS query, and the script died before
+  recording its outcome (pipeline_runs row left "running"; marked failed by
+  hand). Re-run at 09:35 passed every step.
+- **Cause:** load, not the change. Minutes earlier I had sent two dry-run
+  queries that each evaluated the heaviest FPL views
+  (`fpl_projection_leaguewide_points` etc.) several times; both were cut off
+  by the SQL tool's gateway (502) but kept running server-side. At the time
+  `fpl_projection_leaguewide_points` took 48s to count; afterwards, 4.9s.
+  The BPS query per fixture: 0.4s once the spike passed.
+- **Fix:** none needed in code. The market-goals view patch was applied
+  without a dry run instead: with the new columns empty, COALESCE(market,
+  model) returns the model's value exactly, and every text replacement was
+  asserted to match an exact number of times.
+- **Prevention:** *Lesson: don't dry-run through the SQL tool anything that
+  evaluates the FPL projection views more than once; a cut-off call keeps
+  running and loads the database for everything else. Time one evaluation
+  first.*
