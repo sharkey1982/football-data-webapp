@@ -83,6 +83,16 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      # How each player's next start is likely to end (Model Lab P2): drives
+      # appearance and clean-sheet points. Falls back to the old rule for
+      # any player missing, so a failure here must not stop the pipeline.
+      - name: Refresh exit bands
+        continue-on-error: true
+        run: python scripts/refresh_exit_bands.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
       - name: Refresh FPL projections (pass 1 -- fallback bonus estimate)
         run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
         env:
