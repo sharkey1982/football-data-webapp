@@ -12,6 +12,14 @@ fixing something else.
 
 ---
 
+## 2026-09-28 · Fixture-change banners: repeated, flip-flopping and undismissable
+- **Impact:** the Fixtures and gameweek pages carried a banner of Premier League kick-off changes that returned on every page visit (dismissal lasted only for that page view). 42 changes were logged for Premier League fixtures in three days, but only 4 were real net moves: the fixture feed had reverted 17 TV-pick kick-offs to their Saturday 15:00 placeholders on 25 Sep and restored them on 27 Sep, and each hop showed as a change. Reported by the owner.
+- **Cause:** the banner listed every logged change, not the net change; dismissals were held in component state.
+- **Fix:** `fixture_changes_net` (per fixture: kick-off before its first change in 30 days against its kick-off now; moved-and-back fixtures left out); a dedicated page `/fixtures/changes`; the banner replaced by a one-line notice whose dismissal is kept in the browser until a newer change appears. The raw `fixture_changes` log is unchanged.
+- **Prevention:** notifications read the net view only; tests cover dismissal across visits and flip-flops.
+
+---
+
 ## 2026-09-27 · Played matches vanished from club pages until the result arrived
 - **Impact:** between kick-off and football-data's update (hours for the
   Premier League, up to three days for the National League) a played match

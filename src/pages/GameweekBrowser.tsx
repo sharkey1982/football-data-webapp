@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { buildModelFromLambdas, derivedMarkets } from '../lib/matchPageApi';
 import type { FixtureHeadToHead } from '../lib/api';
-import { FixtureChangeBanner } from '../components/FixtureChangeBanner';
+import { FixtureChangeNotice } from '../components/FixtureChangeNotice';
 import BroadcastBadge from '../components/BroadcastBadge';
 import { getFixtureBroadcasts, summariseBroadcasts, type FixtureBroadcast } from '../lib/broadcastsApi';
 import { getActivePartners, resolveCommercialLink, type AffiliatePartner } from '../lib/commercialLinks';
@@ -776,7 +776,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
 
   return (
     <div className="space-y-6">
-      <FixtureChangeBanner />
+      <FixtureChangeNotice />
       <div>
         <div className="flex items-baseline gap-2 flex-wrap">
           <h1 className="font-display text-3xl sm:text-4xl uppercase tracking-wide">
@@ -802,7 +802,8 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
           )}
         </div>
         <p className="text-ink-500 mt-1">
-          Browse fixtures by division or by team, then jump straight into a full stats comparison.
+          Browse fixtures by division or by team, then jump straight into a full stats comparison.{' '}
+          <Link to="/fixtures/changes" className="text-pitch-800 underline underline-offset-2">Fixture changes</Link>
         </p>
       </div>
 
