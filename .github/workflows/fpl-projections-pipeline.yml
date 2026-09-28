@@ -72,6 +72,17 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      # Market expected goals onto upcoming fixtures (Model Lab F4/P5). The
+      # projections below and the final-table simulation read them, falling
+      # back to the model where absent -- so a failure here must not stop
+      # the pipeline (it is still marked failed in pipeline_runs).
+      - name: Refresh market team goals
+        continue-on-error: true
+        run: python scripts/refresh_market_goals.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
       - name: Refresh FPL projections (pass 1 -- fallback bonus estimate)
         run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
         env:

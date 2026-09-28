@@ -18,10 +18,10 @@
 # relative to what adding it would cost in complexity.
 #
 # Two projections per league, stored side by side (method column):
-#   market       remaining fixtures from team ratings read off closing market
-#                prices (scripts/market_ratings.py) -- the headline on Team
-#                Strength since Model Lab F4 passed (28 Sep 2026). Skipped for
-#                a league until every team has 3 priced matches this season.
+#   market       remaining fixtures from fixtures.market_*_goals (market
+#                ratings, written by refresh_market_goals.py) -- the headline
+#                on Team Strength since Model Lab F4 passed (28 Sep 2026).
+#                Skipped for a league until every scheduled fixture has them.
 #   dixon_coles  remaining fixtures from fixtures.predicted_*_goals (the
 #                site's model), shown beside it as "Model".
 #
@@ -31,16 +31,11 @@
 import os
 import sys
 import argparse
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
-from datetime import date
 import numpy as np
 from supabase import create_client
 
-sys.path.insert(0, os.path.dirname(__file__))
-from market_ratings import lines_from_rows, market_ratings, WINDOW_DAYS  # noqa: E402
-
-MARKET_MIN_PRICED_THIS_SEASON = 3
 
 # Set inside main() once the client/run row exist; read by the __main__
 # exception handler at the bottom of this file so a failure can be
@@ -56,40 +51,6 @@ RNG_SEED = 20260916  # fixed seed -- reproducible runs, not a security-relevant 
 LEAGUE_IDS = [1, 2, 3, 4]
 
 
-def market_lambdas(supabase, league_id, season_id, fixtures, team_ids):
-    """Expected goals for every scheduled fixture from market ratings, or (None, reason)."""
-    since = (date.today() - timedelta(days=WINDOW_DAYS)).isoformat()
-    rows, start = [], 0
-    while True:
-        page = (supabase.table("market_closing_lines")
-                .select("match_date, season_id, home_team_id, away_team_id, p_home, p_away, p_over")
-                .eq("league_id", league_id).gte("match_date", since)
-                .order("match_date").range(start, start + 999).execute().data or [])
-        rows += page
-        if len(page) < 1000:
-            break
-        start += 1000
-    priced = {t: 0 for t in team_ids}
-    for r in rows:
-        if r["season_id"] == season_id:
-            for t in (r["home_team_id"], r["away_team_id"]):
-                if t in priced:
-                    priced[t] += 1
-    short = [t for t, c in priced.items() if c < MARKET_MIN_PRICED_THIS_SEASON]
-    if short:
-        return None, f"{len(short)} team(s) with fewer than {MARKET_MIN_PRICED_THIS_SEASON} priced matches this season"
-    rated = market_ratings(lines_from_rows(rows), date.today())
-    if rated is None:
-        return None, "no priced matches in the window"
-    idx, c0, hfa, att, dfn = rated
-    lam = {}
-    for f in fixtures:
-        if f["status"] == "scheduled":
-            h, a = idx[f["home_team_id"]], idx[f["away_team_id"]]
-            lam[f["fixture_id"]] = (float(np.exp(c0 + hfa + att[h] - dfn[a])), float(np.exp(c0 + att[a] - dfn[h])))
-    return lam, None
-
-
 def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Generator, method: str = "dixon_coles"):
     # Teams actually in this league this season (a rating fit's window can
     # span past seasons, so the fixture list -- not the ratings table -- is
@@ -97,7 +58,7 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
     # getTeamStrengthSummary).
     fixtures_resp = (
         supabase.table("fixtures")
-        .select("fixture_id, home_team_id, away_team_id, status, predicted_home_goals, predicted_away_goals")
+        .select("fixture_id, home_team_id, away_team_id, status, predicted_home_goals, predicted_away_goals, market_home_goals, market_away_goals")
         .eq("league_id", league_id)
         .eq("season_id", season_id)
         .execute()
@@ -146,12 +107,12 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
             current_points[a] += 1
 
     if method == "market":
-        lam, reason = market_lambdas(supabase, league_id, season_id, fixtures, team_ids)
-        if lam is None:
-            print(f"::notice::League {league_id}: market projection skipped -- {reason}")
+        scheduled = [f for f in fixtures if f["status"] == "scheduled"]
+        missing = sum(1 for f in scheduled if f["market_home_goals"] is None or f["market_away_goals"] is None)
+        if missing:
+            print(f"::notice::League {league_id}: market projection skipped -- {missing} scheduled fixture(s) without market goals (refresh_market_goals.py)")
             return []
-        remaining = [dict(f, predicted_home_goals=lam[f["fixture_id"]][0], predicted_away_goals=lam[f["fixture_id"]][1])
-                     for f in fixtures if f["status"] == "scheduled"]
+        remaining = [dict(f, predicted_home_goals=f["market_home_goals"], predicted_away_goals=f["market_away_goals"]) for f in scheduled]
     else:
         remaining = [f for f in fixtures if f["status"] == "scheduled" and f["predicted_home_goals"] is not None]
     n_remaining = len(remaining)

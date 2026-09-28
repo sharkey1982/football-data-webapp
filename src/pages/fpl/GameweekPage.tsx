@@ -176,8 +176,9 @@ export default function GameweekPage() {
       <div>
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Match Projections</h1>
         <p className="text-sm text-ink-500 mt-1">
-          Player-level fantasy projections built from the Dixon-Coles fixture model, predicted formations and real tactical
-          roles. Browse by gameweek, then open a fixture for the full breakdown.
+          Player-level fantasy projections built from each team&rsquo;s expected goals (read off betting-market prices, or this
+          site&rsquo;s own model where there are none), predicted formations and real tactical roles. Browse by gameweek, then
+          open a fixture for the full breakdown.
         </p>
       </div>
 
