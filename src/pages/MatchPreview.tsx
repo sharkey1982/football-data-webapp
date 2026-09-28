@@ -23,6 +23,7 @@ import { derivedMarkets } from '../lib/matchPageApi';
 import type { ModelFitRun } from '../types/database';
 import { ComparisonCard, StreakBadges } from '../components/ComparisonCard';
 import { HeadToHeadSummary } from '../components/HeadToHeadSummary';
+import { HeadToHeadHistory } from '../components/HeadToHeadHistory';
 import { MatchStatsGrid } from '../components/MatchStatsGrid';
 import { ScoreChip } from '../components/ScoreChip';
 import { formatMatchDateWithYear } from '../lib/formatDate';
@@ -76,6 +77,7 @@ export default function MatchPreview() {
     homeMatchesFull: MatchWithNames[]; // last 60 -- used for venue-specific form/streaks and the per-team tabs
     awayMatchesFull: MatchWithNames[];
     h2hMatches: MatchWithNames[];
+    h2hAll: MatchWithNames[];
     dixonColes: DixonColesResult | null;
     /** True when the numbers came from the stored production prediction
      * rather than a live recompute -- the two can differ where a manual
@@ -182,10 +184,12 @@ export default function MatchPreview() {
     setMatchResult(null);
     setActiveTab('overview');
     try {
-      const [homeMatchesFull, awayMatchesFull, h2hMatches, matchedResult] = await Promise.all([
+      const [homeMatchesFull, awayMatchesFull, h2hAll, matchedResult] = await Promise.all([
         getMatchesForTeam(homeTeamId, 60),
         getMatchesForTeam(awayTeamId, 60),
-        getHeadToHead(homeTeamId, awayTeamId, 10),
+        // Every meeting in the archive: the full record is summarised, the
+        // last 10 are listed.
+        getHeadToHead(homeTeamId, awayTeamId, 500),
         urlSeasonId && leagueId ? getMatchResult(leagueId, urlSeasonId, homeTeamId, awayTeamId) : Promise.resolve(null),
       ]);
       setMatchResult(matchedResult);
@@ -241,7 +245,7 @@ export default function MatchPreview() {
         setModelUnavailable(missing);
       }
 
-      setPreviewData({ homeMatchesFull, awayMatchesFull, h2hMatches, dixonColes, usedStoredPrediction });
+      setPreviewData({ homeMatchesFull, awayMatchesFull, h2hMatches: h2hAll.slice(0, 10), h2hAll, dixonColes, usedStoredPrediction });
     } catch (err: any) {
       setError(err.message ?? 'Failed to build match preview');
     } finally {
@@ -412,6 +416,14 @@ export default function MatchPreview() {
 
           {activeTab === 'overview' && (
             <div className="space-y-4">
+              {previewData.h2hAll.length > previewData.h2hMatches.length && (
+                <div className="border border-chalk-300 rounded-lg bg-white p-4">
+                  <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
+                    Head-to-head record
+                  </h2>
+                  <HeadToHeadHistory meetings={previewData.h2hAll} teamAId={homeTeamId!} teamAName={homeTeamName} teamBName={awayTeamName} />
+                </div>
+              )}
               <div className="border border-chalk-300 rounded-lg bg-white p-4">
                 <h2 className="font-display uppercase text-sm tracking-wide text-ink-500 mb-3">
                   Head-to-head (last {previewData.h2hMatches.length})
