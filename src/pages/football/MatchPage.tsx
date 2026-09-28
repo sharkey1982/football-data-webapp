@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getMatchBySlug, mostLikelyScore, type MatchPagePrediction } from '../../lib/matchPageApi';
+import { getMatchBySlug, marketRecordSentence, mostLikelyScore, type MatchPagePrediction } from '../../lib/matchPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { getFixtureBroadcast, broadcastToOffer, type FixtureBroadcast } from '../../lib/broadcastsApi';
 import WatchOptions from '../../components/WatchOptions';
@@ -157,6 +157,8 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   }
 
   const likely = match.model ? mostLikelyScore(match.model) : null;
+  const market = match.market ?? null;
+  const recordSentence = marketRecordSentence(match.marketRecord, match.league_name);
   const played = match.status === 'played' && match.actual_home_goals != null;
 
   return (
@@ -243,25 +245,31 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
                 <thead className="bg-chalk-200 text-ink-500">
                   <tr>
                     <th scope="col" className="text-left font-medium text-xs px-3 py-2">Outcome</th>
-                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">Probability</th>
+                    <th scope="col" className="text-right font-medium text-xs px-3 py-2">{market ? 'This model' : 'Probability'}</th>
+                    {market && <th scope="col" className="text-right font-medium text-xs px-3 py-2">Betting market</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <th scope="row" className="text-left px-3 py-1.5 font-normal text-xs">{match.home_team_name} win</th>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{match.model.homeWinPct.toFixed(1)}%</td>
-                  </tr>
-                  <tr className="bg-chalk-100/60">
-                    <th scope="row" className="text-left px-3 py-1.5 font-normal text-xs">Draw</th>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{match.model.drawPct.toFixed(1)}%</td>
-                  </tr>
-                  <tr>
-                    <th scope="row" className="text-left px-3 py-1.5 font-normal text-xs">{match.away_team_name} win</th>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{match.model.awayWinPct.toFixed(1)}%</td>
-                  </tr>
+                  {[
+                    { label: `${match.home_team_name} win`, model: match.model.homeWinPct, market: market?.home },
+                    { label: 'Draw', model: match.model.drawPct, market: market?.draw },
+                    { label: `${match.away_team_name} win`, model: match.model.awayWinPct, market: market?.away },
+                  ].map((r, i) => (
+                    <tr key={r.label} className={i === 1 ? 'bg-chalk-100/60' : undefined}>
+                      <th scope="row" className="text-left px-3 py-1.5 font-normal text-xs">{r.label}</th>
+                      <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{r.model.toFixed(1)}%</td>
+                      {market && <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{((r.market ?? 0) * 100).toFixed(1)}%</td>}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
+            {market && (
+              <p className="text-xs text-ink-500 mt-2 max-w-prose">
+                {`Betting market: the average of bookmakers' pre-match odds, with their margin removed (odds as of ${formatTimestamp(market.captured_at)}).`}
+              </p>
+            )}
+            {recordSentence && <p className="text-sm text-ink-700 mt-2 max-w-prose" data-testid="market-record">{recordSentence}</p>}
           </section>
         </>
       ) : (

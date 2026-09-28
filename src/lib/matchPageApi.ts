@@ -48,7 +48,44 @@ export type MatchPagePrediction = {
    * (fixtures.reported_*). Shown as provisional. */
   reported_home_goals?: number | null;
   reported_away_goals?: number | null;
+  /** The betting market's view: market-average pre-match odds, bookmaker
+   * margin removed (fixture_market_latest). Null when no price was captured
+   * before kick-off. */
+  market?: MarketLine | null;
+  /** How the model and the market's closing line have compared on played
+   * matches in this league (model_vs_market_by_league). */
+  marketRecord?: MarketRecord | null;
 };
+
+export type MarketLine = { home: number; draw: number; away: number; captured_at: string };
+export type MarketRecord = { matches: number; from_date: string; model_log_loss: number; market_log_loss: number };
+
+/** Minimum played matches before the page states which has been more accurate. */
+export const MARKET_RECORD_MIN_MATCHES = 100;
+
+/** The plain-English comparison under the table, or null when there is too
+ * little evidence to say. */
+export function marketRecordSentence(r: MarketRecord | null | undefined, leagueName: string): string | null {
+  if (!r || r.matches < MARKET_RECORD_MIN_MATCHES) return null;
+  const since = new Date(`${r.from_date}T12:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const m = r.model_log_loss.toFixed(3);
+  const k = r.market_log_loss.toFixed(3);
+  const who = r.market_log_loss < r.model_log_loss ? 'the betting market has been more accurate than this model' : 'this model has been at least as accurate as the betting market';
+  return `Across ${r.matches.toLocaleString('en-GB')} ${leagueName} matches since ${since}, ${who} (average log loss ${k} for the market's closing odds, ${m} for the model; lower is better).`;
+}
+
+async function getMarket(fixtureId: number, leagueId: number): Promise<{ market: MarketLine | null; marketRecord: MarketRecord | null }> {
+  const [line, record] = await Promise.all([
+    supabase.from('fixture_market_latest' as never).select('market_home, market_draw, market_away, captured_at').eq('fixture_id', fixtureId).maybeSingle(),
+    supabase.from('model_vs_market_by_league' as never).select('matches, from_date, model_log_loss, market_log_loss').eq('league_id', leagueId).maybeSingle(),
+  ]);
+  const l = (line.error ? null : line.data) as { market_home: number; market_draw: number; market_away: number; captured_at: string } | null;
+  const r = (record.error ? null : record.data) as { matches: number; from_date: string; model_log_loss: number; market_log_loss: number } | null;
+  return {
+    market: l ? { home: Number(l.market_home), draw: Number(l.market_draw), away: Number(l.market_away), captured_at: l.captured_at } : null,
+    marketRecord: r ? { matches: Number(r.matches), from_date: r.from_date, model_log_loss: Number(r.model_log_loss), market_log_loss: Number(r.market_log_loss) } : null,
+  };
+}
 
 /** Builds the outcome probabilities and score grid from a fixture's OWN
  * frozen expected goals.
@@ -147,6 +184,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     actual_away_goals: actualAway,
     reported_home_goals: data.reported_home_goals,
     reported_away_goals: data.reported_away_goals,
+    ...(await getMarket(data.fixture_id, data.league_id).catch(() => ({ market: null, marketRecord: null }))),
   };
 }
 
