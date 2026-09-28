@@ -192,6 +192,9 @@ async function main() {
     acceptedFits: queryAll('model_fit_runs?select=fit_run_id,league_id,fitted_at,status&status=eq.accepted&order=fitted_at.desc'),
     // History hub (Premier League): the latest season's size fixes the comparison group.
     historyLatest: query('team_season_summary?select=clubs,start_year&league_id=eq.1&order=start_year.desc&limit=1'),
+    // Market line beside the model on match pages.
+    marketLatest: queryAll('fixture_market_latest?select=fixture_id,market_home,market_draw,market_away,captured_at'),
+    marketRecord: query(`model_vs_market_by_league?select=matches,from_date,model_log_loss,market_log_loss&league_id=eq.${EPL_LEAGUE_ID}`),
     // League and league-season pages (/football/leagues/...).
     leagueRefs: query('leagues?select=league_id,code,name,slug,countries(name)&competition_type=eq.league'),
     eraNames: queryAll('league_season_display_names?select=league_id,season_id,name&order=league_id.asc,season_id.asc'),
@@ -457,6 +460,11 @@ async function main() {
   }
 
   const teamById = new Map(teams.map((t) => [t.team_id, t]));
+  const marketById = new Map(
+    ((await pending.marketLatest) ?? []).map((m) => [m.fixture_id, { home: Number(m.market_home), draw: Number(m.market_draw), away: Number(m.market_away), captured_at: m.captured_at }])
+  );
+  const rec = (await pending.marketRecord)?.[0];
+  const marketRecord = rec ? { matches: Number(rec.matches), from_date: rec.from_date, model_log_loss: Number(rec.model_log_loss), market_log_loss: Number(rec.market_log_loss) } : null;
   const rhoByFit = new Map((fits ?? []).map((f) => [f.fit_run_id, Number(f.rho)]));
 
   // Actual results, for played fixtures. Keyed the same way the runtime
@@ -507,6 +515,8 @@ async function main() {
       actual_away_goals: result?.full_time_away_goals ?? null,
       reported_home_goals: f.reported_home_goals ?? null,
       reported_away_goals: f.reported_away_goals ?? null,
+      market: marketById.get(f.fixture_id) ?? null,
+      marketRecord,
       __rho: rho ?? null,
     };
 

@@ -132,6 +132,29 @@ describe('MatchPage', () => {
     expect(screen.getByRole('heading', { name: 'What the model predicted beforehand' })).toBeInTheDocument();
   });
 
+  it('shows the betting market beside the model and says which has been more accurate', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({
+      ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null,
+      market: { home: 0.62, draw: 0.22, away: 0.16, captured_at: '2026-10-02T09:00:00Z' },
+      marketRecord: { matches: 1190, from_date: '2023-08-11', model_log_loss: 0.9892, market_log_loss: 0.9637 },
+    });
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Betting market' })).toBeInTheDocument());
+    expect(screen.getByRole('columnheader', { name: 'This model' })).toBeInTheDocument();
+    expect(screen.getByText('62.0%')).toBeInTheDocument();
+    expect(screen.getByTestId('market-record').textContent).toBe(
+      "Across 1,190 Premier League matches since August 2023, the betting market has been more accurate than this model (average log loss 0.964 for the market's closing odds, 0.989 for the model; lower is better)."
+    );
+  });
+
+  it('keeps a single probability column and no comparison when there is no market or too little record', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null, market: null,
+      marketRecord: { matches: 17, from_date: '2026-08-08', model_log_loss: 1.0, market_log_loss: 0.99 } });
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByRole('columnheader', { name: 'Probability' })).toBeInTheDocument());
+    expect(screen.queryByTestId('market-record')).toBeNull();
+  });
+
   it('shows a reported score as provisional while the result awaits confirmation', async () => {
     mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'played', actual_home_goals: null, actual_away_goals: null, reported_home_goals: 2, reported_away_goals: 4 });
     renderAt(base.slug);
