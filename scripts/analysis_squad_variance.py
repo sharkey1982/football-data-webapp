@@ -330,7 +330,11 @@ if __name__ == "__main__":
     try:
         main()
     except Exception:
+        # GitHub keeps only the first 10 error annotations: the exception and
+        # the innermost frames first.
         import traceback
-        for line in traceback.format_exc().splitlines():
+        exc = traceback.format_exc().splitlines()
+        print(f"::error::{exc[-1]}")
+        for line in reversed(exc[1:-1]):
             print(f"::error::{line}")
         raise
