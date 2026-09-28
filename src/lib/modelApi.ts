@@ -162,6 +162,10 @@ export interface TeamStrengthRow {
    * Null for a cup competition or if the simulation hasn't run yet. */
   projected_position_mean: number | null;
   projected_position_median: number | null;
+  /** Position and points in this season's table now (league_standings).
+   * Null before the team has played. */
+  current_position: number | null;
+  current_points: number | null;
   projected_points_mean: number | null;
   /** When the position projection was last simulated, ISO string. Null
    * if it's never run for this league/season. */
@@ -329,6 +333,21 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     (overrideRows ?? []).map((o) => [o.team_id, { attack_adjustment: Number(o.attack_adjustment), defence_adjustment: Number(o.defence_adjustment), note: o.note, updated_at: o.updated_at }])
   );
 
+  // Current table position and points (league_standings, same ranking
+  // rules as the league pages).
+  const standingByTeam = new Map<number, { position: number; points: number }>();
+  if (currentSeasonId !== null) {
+    const { data: standingRows, error: standingError } = await supabase
+      .from('league_standings')
+      .select('team_id, position, points, played')
+      .eq('league_id', leagueId)
+      .eq('season_id', currentSeasonId);
+    if (standingError) throw standingError;
+    for (const s of standingRows ?? []) {
+      if (s.team_id !== null && Number(s.played) > 0) standingByTeam.set(s.team_id, { position: Number(s.position), points: Number(s.points) });
+    }
+  }
+
   // Projected final position, requested directly -- from the Monte
   // Carlo simulation script (scripts/simulate_final_table.py), keyed by
   // league+season since it's already scoped per-league.
@@ -371,6 +390,8 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       projected_position_mean: positionByTeam.get(r.team_id)?.mean ?? null,
       projected_position_median: positionByTeam.get(r.team_id)?.median ?? null,
       projected_points_mean: positionByTeam.get(r.team_id)?.points ?? null,
+      current_position: standingByTeam.get(r.team_id)?.position ?? null,
+      current_points: standingByTeam.get(r.team_id)?.points ?? null,
       position_simulated_at: positionByTeam.get(r.team_id)?.simulated_at ?? null,
       last_season_played: actual?.played ?? 0,
     };
