@@ -269,6 +269,9 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
                 {`Betting market: the average of bookmakers' pre-match odds, with their margin removed (odds as of ${formatTimestamp(market.captured_at)}).`}
               </p>
             )}
+            {!market && match.status === 'scheduled' && (
+              <p className="text-xs text-ink-500 mt-2 max-w-prose">The betting market&rsquo;s view appears here a few days before kick-off, when bookmakers&rsquo; odds are published.</p>
+            )}
             {recordSentence && <p className="text-sm text-ink-700 mt-2 max-w-prose" data-testid="market-record">{recordSentence}</p>}
           </section>
         </>

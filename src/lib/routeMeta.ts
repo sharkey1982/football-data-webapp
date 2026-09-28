@@ -81,6 +81,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/fixtures/changes',
+    title: 'Fixture changes: kick-off moves in the last 30 days',
+    description: 'Every fixture whose kick-off date or time has changed in the last 30 days: TV picks, postponements and rearrangements, from where it was to where it is now.',
+    crumbs: [FOOTBALL, { name: 'Fixtures', path: '/fixtures' }],
+  },
+  {
     path: '/football/leagues',
     title: 'Leagues: every season, final table and champion',
     description: 'Final tables, champions and season statistics for the English leagues since 1992/93 and 18 European top flights.',

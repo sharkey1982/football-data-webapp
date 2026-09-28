@@ -21,7 +21,7 @@ vi.mock('../lib/api', async () => ({
   getMatchesForSeasonAsFixtures: vi.fn(),
   getFixturesForTeam: vi.fn(),
   getLastFixtureRefresh: vi.fn().mockResolvedValue(null),
-  getRecentEplFixtureChanges: vi.fn().mockResolvedValue([]),
+  getFixtureChanges: vi.fn().mockResolvedValue([]),
   getMatchesForTeamAsFixtures: vi.fn(),
 }));
 vi.mock('../lib/broadcastsApi', async () => {
@@ -56,11 +56,11 @@ const setup = () => {
   // vi.resetAllMocks() below also clears the .mockResolvedValue defaults
   // set inline in the vi.mock('../lib/api', ...) factory, so those need
   // restating here too -- otherwise components that call them (e.g.
-  // FixtureChangeBanner) see undefined instead of a promise.
+  // FixtureChangeNotice) see undefined instead of a promise.
   mockedApi.getMatchweekHeadToHead.mockResolvedValue(new Map());
   mockedApi.getFitRunRhos.mockResolvedValue(new Map());
   mockedApi.getLastFixtureRefresh.mockResolvedValue(null);
-  mockedApi.getRecentEplFixtureChanges.mockResolvedValue([]);
+  mockedApi.getFixtureChanges.mockResolvedValue([]);
   mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', tier: null, country_id: 1, competition_type: 'league', scope: 'domestic' }]);
   mockedApi.getCountries.mockResolvedValue([{ country_id: 1, name: 'England', code: 'EN' }]);
   mockedApi.getSeasons.mockResolvedValue([{ season_id: 13, label: '2627', start_year: 2026, end_year: 2027 }]);
