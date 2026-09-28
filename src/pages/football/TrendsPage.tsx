@@ -48,7 +48,7 @@ export default function TrendsPage({ initialData }: { initialData?: TrendsData }
   const { data, failed, loading } = useKeyedFetch(slug, () => loadTrends(slug), initialData ? { key: initialData.league.slug, data: initialData } : undefined);
 
   useDocumentHead({
-    title: data ? `How the ${data.league.name} has changed: goals, home advantage, draws` : 'League Lab: how football has changed',
+    title: data ? `Historic Trends: how the ${data.league.name} has changed` : 'Historic Trends: how football has changed',
     description: data ? trendsHeadline(data) : 'Goals, home advantage, draws, title and relegation thresholds and competitive balance, season by season.',
     path: data ? trendsPath(data.league) : '/football/history/trends',
   });
@@ -65,9 +65,9 @@ export default function TrendsPage({ initialData }: { initialData?: TrendsData }
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          <Link to="/football/history" className="hover:underline">Football &middot; History</Link>
+          <Link to="/football" className="hover:underline">Football &middot; Historic Trends</Link>
         </p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">{data ? `How the ${data.league.name} has changed` : 'League Lab'}</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">{data ? `Historic Trends: ${data.league.name}` : 'Historic Trends'}</h1>
       </header>
 
       <label className="block max-w-xs">

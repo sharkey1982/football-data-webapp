@@ -123,7 +123,7 @@ export default function WhatHappenedNextPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          <Link to="/football/history" className="hover:underline">Football &middot; History</Link>
+          <Link to="/football/history" className="hover:underline">Football &middot; Position Tracking</Link>
         </p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">What happened next?</h1>
       </header>

@@ -36,7 +36,18 @@ export default function ProjectionSummary({ projection }: { projection: FplFixtu
         </div>
       </div>
 
-      <p className="text-[11px] text-chalk-300 mt-3 max-w-2xl">
+      <p className="text-[11px] text-chalk-300 mt-3 max-w-2xl" data-testid="goals-source">
+        {projection.team_goals_source === 'market' ? (
+          <>
+            Expected goals from betting-market prices; the player numbers below use these.
+            {projection.home.model_expected_goals != null && projection.away.model_expected_goals != null &&
+              ` This site\u2019s own model has ${projection.home.model_expected_goals.toFixed(2)}\u2013${projection.away.model_expected_goals.toFixed(2)}.`}
+          </>
+        ) : (
+          <>Expected goals from this site&rsquo;s own model; the player numbers below use these.</>
+        )}
+      </p>
+      <p className="text-[11px] text-chalk-300 mt-1 max-w-2xl">
         Predicted lineups and roles are model estimates, not confirmed team news &mdash; start probabilities and formation
         source counts below show how confident the model is, not a guarantee.
       </p>

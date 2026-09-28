@@ -96,7 +96,7 @@ export default function FixtureProjectionPage() {
             <p className="text-sm text-ink-500 bg-chalk-100 border border-chalk-300 rounded-lg px-3 py-2">
               {actual
                 ? 'This fixture has been played, so there are no forward-looking player projections for it \u2014 see the actual result below instead.'
-                : "Player projections haven't been generated for this fixture yet \u2014 the Dixon-Coles scoreline above is available, but individual player numbers aren't modelled for every fixture. Try a gameweek that already has them from the "}
+                : "Player projections haven't been generated for this fixture yet \u2014 the expected goals above are available, but individual player numbers aren't modelled for every fixture. Try a gameweek that already has them from the "}
               {!actual && (
                 <>
                   <Link to="/fpl" className="underline hover:text-ink-900">

@@ -4,7 +4,7 @@ import { CookieConsent } from './CookieConsent';
 import { FOOTER_COVERAGE } from '../lib/dataCoverage';
 import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, type To } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 
 type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[] };
 /** A group's items may be split into the four journey stages
@@ -89,9 +89,9 @@ function NavDropdown({ group }: { group: NavGroup }) {
         <ul className="absolute left-0 top-full mt-1 min-w-[13rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium max-h-[75vh] overflow-y-auto">
           {group.items?.map((item) => (
             <li key={item.label}>
-              <NavLink to={item.to} className={() => navLinkClasses(isItemActive(location.pathname, item))}>
+              <Link to={item.to} className={navLinkClasses(isItemActive(location.pathname, item))} aria-current={isItemActive(location.pathname, item) ? 'page' : undefined}>
                 {item.label}
-              </NavLink>
+              </Link>
             </li>
           ))}
           {group.sections?.map((section, i) => (
@@ -122,9 +122,9 @@ function NavDropdown({ group }: { group: NavGroup }) {
               <ul>
                 {section.items.map((item) => (
                   <li key={item.label}>
-                    <NavLink to={item.to} className={() => navLinkClasses(isItemActive(location.pathname, item))}>
+                    <Link to={item.to} className={navLinkClasses(isItemActive(location.pathname, item))} aria-current={isItemActive(location.pathname, item) ? 'page' : undefined}>
                       {item.label}
-                    </NavLink>
+                    </Link>
                   </li>
                 ))}
               </ul>

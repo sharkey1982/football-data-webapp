@@ -359,10 +359,10 @@ export function renderHistoryHubPage(data: HistoryHubData): RenderedPage {
   }
   return {
     html,
-    title: `When does the league table become real? | ${BRAND_NAME}`,
+    title: `Position Tracking: when does the league table become real? | ${BRAND_NAME}`,
     description,
     canonical: `${SITE_URL}${path}`,
-    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'History', path }])],
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'Position Tracking', path }])],
   };
 }
 
@@ -525,14 +525,13 @@ export function renderTrendsPage(data: TrendsData): RenderedPage {
   );
   return {
     html,
-    title: `How the ${data.league.name} has changed: goals, home advantage, draws | ${BRAND_NAME}`,
+    title: `Historic Trends: how the ${data.league.name} has changed | ${BRAND_NAME}`,
     description: trendsHeadline(data) || `How the ${data.league.name} has changed season by season.`,
     canonical: `${SITE_URL}${path}`,
     structuredData: [
       breadcrumb([
         { name: 'Football', path: '/football' },
-        { name: 'History', path: '/football/history' },
-        { name: `${data.league.name} trends`, path },
+        { name: `Historic Trends: ${data.league.name}`, path },
       ]),
     ],
   };
@@ -549,10 +548,10 @@ export function renderScorelinesPage(data: ScorelinesData): RenderedPage {
   );
   return {
     html,
-    title: `Scoreline Explorer: how often every score happens | ${BRAND_NAME}`,
+    title: `Score Explore: how often every score happens | ${BRAND_NAME}`,
     description: scorelineSentence(summariseScorelines(data.rows), data.league.name, null) || 'How often each scoreline happens.',
     canonical: `${SITE_URL}${path}`,
-    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'History', path: '/football/history' }, { name: 'Scoreline Explorer', path }])],
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'Score Explore', path }])],
   };
 }
 
