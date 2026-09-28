@@ -25,6 +25,12 @@ jobs:
           python-version: '3.12'
       - run: pip install -r scripts/requirements.txt
 
+      - name: Refresh market team goals
+        continue-on-error: true
+        run: python scripts/refresh_market_goals.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       - name: Simulate final table
         run: python scripts/simulate_final_table.py ${{ inputs.season_id && format('--season-id {0}', inputs.season_id) || '' }}
         env:
