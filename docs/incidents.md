@@ -678,3 +678,23 @@ fixing something else.
   evaluates the FPL projection views more than once; a cut-off call keeps
   running and loads the database for everything else. Time one evaluation
   first.*
+
+## 2026-09-28 · FPL minutes: starters counted as subs; two-week-old injury flags still applied
+
+- **Reported:** gameweek 6 minutes looked wrong (Chris).
+- **What happened:** (1) `fpl_player_substitution_usage` counted a "start"
+  as any match of 60+ minutes, so starters taken off before 60 were logged
+  as substitute appearances. Ndoye (started 5 of 5) got a 0.46 start
+  probability; N. Angulo, Stroud, Kayode, Cherki alike, with inflated
+  "substitute minutes". (2) `fpl_player_squad_state` was loaded once from the
+  FPL API on 14 Sep and never refreshed; its injured/doubtful/suspended rows
+  kept overriding live availability. 16 players FPL lists as fully available
+  were still forced down (Reinildo held at 0 by "suspended until 10 Oct";
+  Doku, Baleba, Sarr, Henderson, Tonali, Gomez, Cash, Shaw ...).
+- **Fix:** starts from FPL's own per-fixture `starts` stat (60+ minutes only
+  where missing); stale rows closed (history kept) -- live FPL status and
+  chance of playing already drive availability. Projections regenerated.
+- **Prevention:** integrity check `fpl_squad_state_not_stale`. *Lesson: a
+  proxy ("60+ minutes = started") silently diverges from the fact it stands
+  for -- use the recorded fact when the source has it; and a one-off import
+  that overrides a live feed needs an expiry.*
