@@ -14,6 +14,10 @@ name: Model Lab
 #   table (registered in lab_experiments). Tuning (4 half-lives) and
 #   validation; the holdout (2025/26) only when open_holdout is ticked.
 #
+# p5: market-rating team goals v Dixon-Coles as the FPL projection's team
+#   input (registered in lab_experiments). No tuning, so the holdout can be
+#   scored in the same run.
+#
 # fpl_scoring_verify: the Python scoring engine (scripts/fpl_scoring.py)
 #   against FPL's points for every 2026/27 player-match, using the database's
 #   rule sets. Fails on any mismatch. (The SQL engine is checked daily by
@@ -25,10 +29,10 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, fpl_scoring_verify]
+        options: [f1, f4, p5, fpl_scoring_verify]
         default: f1
       open_holdout:
-        description: "f1/f4 only: score the sealed holdout (once only)"
+        description: "f1/f4/p5 only: score the sealed holdout (once only)"
         type: boolean
         default: false
 
@@ -56,6 +60,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/lab_f4.py ${{ inputs.open_holdout && '--open-holdout' || '' }}
+      - name: P5
+        if: inputs.job == 'p5'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/lab_p5.py ${{ inputs.open_holdout && '--open-holdout' || '' }}
       - name: FPL scoring engine v FPL's points
         if: inputs.job == 'fpl_scoring_verify'
         env:
