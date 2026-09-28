@@ -622,3 +622,29 @@ fixing something else.
   mismatch on its own).
 - **Lesson:** EXPLAIN ANALYZE executes the statement. Profile DML only inside
   `begin; ... rollback;`, or profile the SELECT that feeds it.
+
+## 2026-09-28 · Every sitemap URL 301'd; health check was watching the old host
+- **Impact:** found in the pre-promotion crawl audit. Every sitemap and
+  canonical URL except `/` (e.g. `/fixtures`, `/fpl/line-ups`,
+  `/football/teams/arsenal`) answered **301 → the trailing-slash form**, and
+  that page declared the no-slash URL canonical: a canonical/redirect loop
+  across ~6,800 URLs, since the pages were first generated. Separately,
+  ~4,260 non-Premier League match URLs in the sitemap served the bare SPA
+  shell (generic title, no canonical, empty body). The daily health check
+  had been testing `footballdatashark.netlify.app` since the domain move,
+  which 301s everything, and its own host check would fail on the new
+  sitemap.
+- **Cause:** static generation writes `<path>/index.html` only; Netlify's
+  Pretty URLs (default) redirect `/path` to `/path/` for folder-only pages.
+  The health check used `urllib`, which follows redirects silently, so a
+  301 on every sampled URL looked like 200.
+- **Fix:** `scripts/write-flat-html.mjs` writes `<path>.html` beside every
+  `<path>/index.html` (Netlify then serves `/path` 200 and 301s `/path/` →
+  `/path`). Sitemap match URLs limited to the Premier League, the only
+  league with generated match pages. Health check moved to
+  `https://fixtureshark.com`, no longer follows redirects, and checks
+  canonicals, noindex and the slash redirect direction.
+- **Prevention:** `verify-dist.mjs` checks flat files exist; the health check
+  now fails on any redirecting sitemap URL. *Lesson: a checker that follows
+  redirects can't tell whether a URL is canonical, and one pointed at an old
+  host checks nothing.*

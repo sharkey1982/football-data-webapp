@@ -30,7 +30,11 @@
   # unconditionally -- so it cannot repeat the "finished its work but
   # never exited" hang that took deploys down for an hour. It also never
   # exits non-zero: a missing sitemap must never cost a deploy.
-  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/verify-dist.mjs"
+  # write-flat-html runs after every page is generated: it adds <path>.html
+  # beside each <path>/index.html so /fixtures answers 200 instead of a 301
+  # to /fixtures/ (canonicals and the sitemap use the no-slash form). See
+  # the script's header. Exits 0 always, like the other post-build steps.
+  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/write-flat-html.mjs && node scripts/verify-dist.mjs"
   publish = "dist"
 
   # Skip the analytics build when a push ONLY touches the game or docs.
