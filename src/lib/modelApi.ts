@@ -166,6 +166,10 @@ export interface TeamStrengthRow {
    * Null before the team has played. */
   current_position: number | null;
   current_points: number | null;
+  /** The site's model's (Dixon-Coles) projection, shown beside the headline
+   * projection when that comes from market ratings. */
+  model_position_mean: number | null;
+  model_points_mean: number | null;
   projected_points_mean: number | null;
   /** When the position projection was last simulated, ISO string. Null
    * if it's never run for this league/season. */
@@ -177,6 +181,9 @@ export interface TeamStrengthSummary {
   currentSeasonLabel: string | null;
   lastSeasonLabel: string | null;
   rows: TeamStrengthRow[];
+  /** Where the headline projected finish comes from: 'market' (ratings read
+   * off betting-market prices), 'dixon_coles' (the model), or null (none). */
+  projectionMethod: 'market' | 'dixon_coles' | null;
   /** Teams that played in this league last season but aren't rated in it this season -- relegated (or otherwise dropped out). */
   relegatedTeams: { team_id: number; canonical_name: string }[];
 }
@@ -348,21 +355,29 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     }
   }
 
-  // Projected final position, requested directly -- from the Monte
-  // Carlo simulation script (scripts/simulate_final_table.py), keyed by
-  // league+season since it's already scoped per-league.
-  const positionByTeam = new Map<number, { mean: number; median: number; points: number; simulated_at: string }>();
+  // Projected final position -- from the Monte Carlo simulation script
+  // (scripts/simulate_final_table.py), two ways: 'market' (ratings read off
+  // betting-market prices; the headline since Model Lab F4 passed) and
+  // 'dixon_coles' (the site's model, shown beside it). The market method is
+  // used for a league only when every team has a market row.
+  type Projection = { mean: number; median: number; points: number; simulated_at: string };
+  const byMethod: Record<'market' | 'dixon_coles', Map<number, Projection>> = { market: new Map(), dixon_coles: new Map() };
   if (currentSeasonId !== null) {
     const { data: positionRows, error: positionError } = await supabase
       .from('team_finishing_position_projection')
-      .select('team_id, projected_position_mean, projected_position_median, projected_points_mean, simulated_at')
+      .select('team_id, method, projected_position_mean, projected_position_median, projected_points_mean, simulated_at')
       .eq('league_id', leagueId)
       .eq('season_id', currentSeasonId);
     if (positionError) throw positionError;
-    for (const p of (positionRows ?? [])) {
-      positionByTeam.set(p.team_id, { mean: Number(p.projected_position_mean), median: Number(p.projected_position_median), points: Number(p.projected_points_mean), simulated_at: p.simulated_at });
+    for (const p of (positionRows ?? []) as { team_id: number; method: string; projected_position_mean: number; projected_position_median: number; projected_points_mean: number; simulated_at: string }[]) {
+      const target = p.method === 'market' ? byMethod.market : p.method === 'dixon_coles' ? byMethod.dixon_coles : null;
+      target?.set(p.team_id, { mean: Number(p.projected_position_mean), median: Number(p.projected_position_median), points: Number(p.projected_points_mean), simulated_at: p.simulated_at });
     }
   }
+  const marketComplete = ratings.length > 0 && ratings.every((r) => byMethod.market.has(r.team_id));
+  const projectionMethod: 'market' | 'dixon_coles' | null = marketComplete ? 'market' : byMethod.dixon_coles.size > 0 ? 'dixon_coles' : null;
+  const positionByTeam = marketComplete ? byMethod.market : byMethod.dixon_coles;
+  const modelPositionByTeam = byMethod.dixon_coles;
 
   const rows: TeamStrengthRow[] = ratings.map((r) => {
     const proj = projectedByTeam.get(r.team_id);
@@ -392,7 +407,11 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
       projected_points_mean: positionByTeam.get(r.team_id)?.points ?? null,
       current_position: standingByTeam.get(r.team_id)?.position ?? null,
       current_points: standingByTeam.get(r.team_id)?.points ?? null,
-      position_simulated_at: positionByTeam.get(r.team_id)?.simulated_at ?? null,
+      // Overrides change the model's (Dixon-Coles) predictions, so staleness
+      // is judged against the model's simulation.
+      position_simulated_at: modelPositionByTeam.get(r.team_id)?.simulated_at ?? null,
+      model_position_mean: modelPositionByTeam.get(r.team_id)?.mean ?? null,
+      model_points_mean: modelPositionByTeam.get(r.team_id)?.points ?? null,
       last_season_played: actual?.played ?? 0,
     };
   });
@@ -403,6 +422,7 @@ export async function getTeamStrengthSummary(leagueId: number): Promise<TeamStre
     lastSeasonLabel,
     rows,
     relegatedTeams,
+    projectionMethod,
   };
 }
 

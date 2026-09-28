@@ -28,73 +28,20 @@ import argparse
 import os
 import subprocess
 import sys
-from datetime import date, timedelta
+from datetime import date
 
 import numpy as np
-from scipy.optimize import least_squares
-from scipy.special import gammaln
 from scipy.stats import norm
 
 sys.path.insert(0, os.path.dirname(__file__))
 from model_experiment import fit as dc_fit, load_matches, probs_1x2  # noqa: E402
+from market_ratings import implied_goals, market_ratings, outcome_probs  # noqa: E402  -- shared with the live projection
 
 EXPERIMENT = "F4_market_ratings_table"
 HALF_LIVES = (30, 60, 120, 240)
 CHECKPOINTS = (10, 19, 29)
-WINDOW_DAYS = 730
 LEAGUES = (1, 2, 3, 4)
 CURTAILED = {(3, 2019), (4, 2019)}
-G = np.arange(13)
-
-
-def pois(lam):
-    """Poisson pmf over 0..12 goals for an array of rates -> (n, 13)."""
-    lam = np.asarray(lam, float)[:, None]
-    return np.exp(G * np.log(lam) - lam - gammaln(G + 1))
-
-
-def outcome_probs(lh, la):
-    """Independent Poisson P(home), P(draw), P(away), P(over 2.5)."""
-    ph, pa = pois(lh), pois(la)
-    grid = ph[:, :, None] * pa[:, None, :]
-    home = np.tril(np.ones((13, 13)), -1)
-    draw = np.eye(13)
-    tot = G[:, None] + G[None, :]
-    return ((grid * home).sum((1, 2)), (grid * draw).sum((1, 2)), (grid * home.T).sum((1, 2)),
-            (grid * (tot > 2.5)).sum((1, 2)))
-
-
-def implied_goals(p_home, p_away, p_over):
-    """Expected goals (home, away) matching the market's P(home), P(away), P(over 2.5)."""
-    def resid(x):
-        h, _, a, o = outcome_probs(np.exp(x[:1]), np.exp(x[1:]))
-        return np.array([h[0] - p_home, a[0] - p_away, o[0] - p_over])
-    r = least_squares(resid, x0=np.log([1.45, 1.15]), bounds=([-3, -3], [2, 2]), xtol=1e-10, ftol=1e-12)
-    return float(np.exp(r.x[0])), float(np.exp(r.x[1])), float(np.abs(r.fun).max())
-
-
-def market_ratings(lines, as_of, half_life):
-    """Weighted least squares on log expected goals. Returns (idx, intercept, home, att, dfn)."""
-    start = as_of - timedelta(days=WINDOW_DAYS)
-    win = [r for r in lines if start < r["d"] <= as_of]
-    teams = sorted({r["h"] for r in win} | {r["a"] for r in win})
-    idx = {t: i for i, t in enumerate(teams)}
-    n = len(teams)
-    rows, y, w = [], [], []
-    for r in win:
-        wt = 0.5 ** ((as_of - r["d"]).days / half_life)
-        for home, att_t, def_t, lam in ((1, r["h"], r["a"], r["lh"]), (0, r["a"], r["h"], r["la"])):
-            x = np.zeros(2 + 2 * n)
-            x[0], x[1] = 1, home
-            x[2 + idx[att_t]] = 1
-            x[2 + n + idx[def_t]] = -1
-            rows.append(x); y.append(np.log(lam)); w.append(wt)
-    X, y, sw = np.array(rows), np.array(y), np.sqrt(np.array(w))
-    ridge = 1e-4
-    A = np.vstack([X * sw[:, None], np.sqrt(ridge) * np.hstack([np.zeros((2 * n, 2)), np.eye(2 * n)])])
-    b = np.concatenate([y * sw, np.zeros(2 * n)])
-    beta = np.linalg.lstsq(A, b, rcond=None)[0]
-    return idx, beta[0], beta[1], beta[2:2 + n], beta[2 + n:]
 
 
 def exp_points(ph, pd):

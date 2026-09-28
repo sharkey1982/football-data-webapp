@@ -18,7 +18,7 @@ import { getErrorMessage } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null; country_id: number };
 type CountryOption = { country_id: number; name: string; code: string | null };
-type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga' | 'projected_position_mean' | 'current_position' | 'current_points';
+type SortKey = 'canonical_name' | 'attack_strength' | 'defence_strength' | 'projected_gf' | 'projected_ga' | 'last_season_gf' | 'last_season_ga' | 'projected_position_mean' | 'current_position' | 'current_points' | 'projected_points_mean' | 'model_position_mean';
 
 const selectClass = 'w-full sm:w-56 border border-chalk-300 rounded px-2.5 py-2 text-sm bg-white focus:border-pitch-700';
 
@@ -286,10 +286,11 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDir(key === 'canonical_name' || key === 'projected_position_mean' || key === 'current_position' ? 'asc' : 'desc');
+      setSortDir(key === 'canonical_name' || key === 'projected_position_mean' || key === 'current_position' || key === 'model_position_mean' ? 'asc' : 'desc');
     }
   }
 
+  const marketHeadline = summary?.projectionMethod === 'market';
   const columns: { key: SortKey; label: string; title?: string }[] = [
     { key: 'canonical_name', label: 'Team' },
     { key: 'current_position', label: 'Pos', title: 'Position in the table now' },
@@ -297,8 +298,16 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
     {
       key: 'projected_position_mean',
       label: 'Proj. Pos',
-      title: 'Mean projected final league position from a 20,000-run Monte Carlo simulation of the remaining season, using the same predicted goals as everywhere else on the site',
+      title: marketHeadline
+        ? 'Mean projected final position from 20,000 simulations of the remaining season, with team ratings read off betting-market prices (closing odds of recent matches). Hover a value for the median.'
+        : 'Mean projected final position from 20,000 simulations of the remaining season, using the model\u2019s predicted goals. Hover a value for the median.',
     },
+    ...(marketHeadline
+      ? [
+          { key: 'projected_points_mean' as SortKey, label: 'Proj. Pts', title: 'Mean projected final points, market ratings' },
+          { key: 'model_position_mean' as SortKey, label: 'Model', title: 'Projected final position from the site\u2019s own model (Dixon-Coles ratings from results)' },
+        ]
+      : []),
     { key: 'attack_strength', label: 'Goals for/gm', title: 'Expected goals per game against a neutral (league-average, no home advantage) opponent. Higher = more attacking.' },
     { key: 'defence_strength', label: 'Goals against/gm', title: 'Expected goals conceded per game against a neutral (league-average, no home advantage) opponent. Lower = better defence.' },
     { key: 'projected_gf', label: 'Proj. GF', title: 'Sum of predicted goals for across every fixture this season, played and upcoming' },
@@ -568,6 +577,8 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{r.current_points ?? '\u2014'}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-900 font-semibold" title={r.projected_position_median !== null ? `Median: ${r.projected_position_median}` : undefined}>
                         {fmt(r.projected_position_mean, 1)}
+                        {!marketHeadline && (
+                          <>
                         {r.is_estimated && (
                           <span
                             className="ml-1 text-amber-700"
@@ -584,7 +595,33 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
                             &#9888;
                           </span>
                         )}
+                          </>
+                        )}
                       </td>
+                      {marketHeadline && (
+                        <>
+                          <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700">{fmt(r.projected_points_mean, 0)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-500">
+                            {fmt(r.model_position_mean, 1)}
+                        {r.is_estimated && (
+                          <span
+                            className="ml-1 text-amber-700"
+                            title="This team's rating is still estimated (not enough matches yet in this competition), carried over from a related league/team -- this projection may not reflect its actual form this season until it's directly fitted."
+                          >
+                            &dagger;
+                          </span>
+                        )}
+                        {isPositionStale(r) && (
+                          <span
+                            className="ml-1 text-amber-700"
+                            title="An override was saved after this simulation last ran -- this projected position doesn't reflect it yet. Re-run the Simulate Final Table workflow to update it."
+                          >
+                            &#9888;
+                          </span>
+                        )}
+                          </td>
+                        </>
+                      )}
                       <td className="px-3 py-1.5 text-right font-mono text-xs text-ink-700 whitespace-nowrap">
                         {r.attack_adjustment !== 0 ? (
                           <span title={`Raw Dixon-Coles: ${r.attack_strength.toFixed(3)} \u2192 ${(r.attack_strength + r.attack_adjustment).toFixed(3)} (log scale)`}>
@@ -721,8 +758,17 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
           </div>
 
           <p className="text-xs text-ink-500">
-            Proj. Pos is the mean finishing position from a 20,000-run Monte Carlo simulation of the remaining season
-            (hover for the median). Projected GF/GA sums this season&rsquo;s Dixon-Coles predicted goals across every fixture
+            {marketHeadline ? (
+              <>
+                Proj. Pos and Proj. Pts come from 20,000 simulations of the remaining season, with team ratings read off
+                betting-market prices. Model is the same simulation using this site&rsquo;s own ratings, which come from results
+                alone. Tested on 2019/20 to 2025/26 from 10 games in, the market-based projection&rsquo;s final points were
+                typically 7.6 points out against 8.5 for the model. Hover a projected position for the median.{' '}
+              </>
+            ) : (
+              <>Proj. Pos is the mean finishing position from 20,000 simulations of the remaining season (hover for the median). </>
+            )}
+            Projected GF/GA sums this season&rsquo;s Dixon-Coles predicted goals across every fixture
             (played and upcoming) for the current fit &mdash; not a live-updating in-season tally. Last season&rsquo;s GF/GA is the
             real final total; a team with no last-season figure was outside this league then (e.g. newly promoted). GF/gm
             and GA/gm show the model&rsquo;s full-season projected rate against this season&rsquo;s actual rate so far, side by side.

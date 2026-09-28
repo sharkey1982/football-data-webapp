@@ -17,16 +17,30 @@
 # for a full-season aggregate; rho's effect on the final table is small
 # relative to what adding it would cost in complexity.
 #
+# Two projections per league, stored side by side (method column):
+#   market       remaining fixtures from team ratings read off closing market
+#                prices (scripts/market_ratings.py) -- the headline on Team
+#                Strength since Model Lab F4 passed (28 Sep 2026). Skipped for
+#                a league until every team has 3 priced matches this season.
+#   dixon_coles  remaining fixtures from fixtures.predicted_*_goals (the
+#                site's model), shown beside it as "Model".
+#
 # Requires SUPABASE_URL and SUPABASE_SERVICE_KEY in the environment.
 # ============================================================================
 
 import os
 import sys
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
+from datetime import date
 import numpy as np
 from supabase import create_client
+
+sys.path.insert(0, os.path.dirname(__file__))
+from market_ratings import lines_from_rows, market_ratings, WINDOW_DAYS  # noqa: E402
+
+MARKET_MIN_PRICED_THIS_SEASON = 3
 
 # Set inside main() once the client/run row exist; read by the __main__
 # exception handler at the bottom of this file so a failure can be
@@ -42,7 +56,38 @@ RNG_SEED = 20260916  # fixed seed -- reproducible runs, not a security-relevant 
 LEAGUE_IDS = [1, 2, 3, 4]
 
 
-def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Generator):
+def market_lambdas(supabase, league_id, season_id, fixtures, team_ids):
+    """Expected goals for every scheduled fixture from market ratings, or (None, reason)."""
+    since = (date.today() - timedelta(days=WINDOW_DAYS)).isoformat()
+    rows, start = [], 0
+    while True:
+        page = (supabase.table("market_closing_lines")
+                .select("match_date, season_id, home_team_id, away_team_id, p_home, p_away, p_over")
+                .eq("league_id", league_id).gte("match_date", since)
+                .order("match_date").range(start, start + 999).execute().data or [])
+        rows += page
+        if len(page) < 1000:
+            break
+        start += 1000
+    priced = {t: 0 for t in team_ids}
+    for r in rows:
+        if r["season_id"] == season_id:
+            for t in (r["home_team_id"], r["away_team_id"]):
+                if t in priced:
+                    priced[t] += 1
+    short = [t for t, c in priced.items() if c < MARKET_MIN_PRICED_THIS_SEASON]
+    if short:
+        return None, f"{len(short)} team(s) with fewer than {MARKET_MIN_PRICED_THIS_SEASON} priced matches this season"
+    idx, c0, hfa, att, dfn = market_ratings(lines_from_rows(rows), date.today())
+    lam = {}
+    for f in fixtures:
+        if f["status"] == "scheduled":
+            h, a = idx[f["home_team_id"]], idx[f["away_team_id"]]
+            lam[f["fixture_id"]] = (float(np.exp(c0 + hfa + att[h] - dfn[a])), float(np.exp(c0 + att[a] - dfn[h])))
+    return lam, None
+
+
+def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Generator, method: str = "dixon_coles"):
     # Teams actually in this league this season (a rating fit's window can
     # span past seasons, so the fixture list -- not the ratings table -- is
     # the source of truth for who's currently in it, same pattern used in
@@ -97,7 +142,15 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
             current_points[h] += 1
             current_points[a] += 1
 
-    remaining = [f for f in fixtures if f["status"] == "scheduled" and f["predicted_home_goals"] is not None]
+    if method == "market":
+        lam, reason = market_lambdas(supabase, league_id, season_id, fixtures, team_ids)
+        if lam is None:
+            print(f"::notice::League {league_id}: market projection skipped -- {reason}")
+            return []
+        remaining = [dict(f, predicted_home_goals=lam[f["fixture_id"]][0], predicted_away_goals=lam[f["fixture_id"]][1])
+                     for f in fixtures if f["status"] == "scheduled"]
+    else:
+        remaining = [f for f in fixtures if f["status"] == "scheduled" and f["predicted_home_goals"] is not None]
     n_remaining = len(remaining)
 
     if n_remaining == 0:
@@ -162,6 +215,7 @@ def simulate_league(supabase, league_id: int, season_id: int, rng: np.random.Gen
                 "league_id": league_id,
                 "season_id": season_id,
                 "team_id": tid,
+                "method": method,
                 "projected_points_mean": round(float(final_points[:, idx].mean()), 2),
                 "projected_position_mean": round(float(positions[:, idx].mean()), 2),
                 "projected_position_median": int(np.median(positions[:, idx])),
@@ -207,36 +261,44 @@ def main():
 
     rng = np.random.default_rng(RNG_SEED)
     total_rows = 0
+    written_by_method = {}
+    market_failures = []
     for league_id in LEAGUE_IDS:
-        rows = simulate_league(supabase, league_id, args.season_id, rng)
-        if not rows:
-            print(f"League {league_id}: no fixtures found, skipped")
-            print(f"::notice::League {league_id}: no fixtures found, skipped")
-            continue
-        # The upsert's own response was previously never captured or
-        # checked -- confirmed directly as a real bug: a run reported
-        # "success" and printed "wrote N teams" while the database's
-        # simulated_at timestamps never actually changed. supabase-py can
-        # return an error inside the response object rather than raising
-        # an exception, so silently discarding .execute()'s result let
-        # that failure mode through undetected. Now checks the returned
-        # row count actually matches what was sent, and raises loudly
-        # (caught by this script's own top-level ::error:: handler) if
-        # it doesn't, rather than trusting that "didn't throw" means
-        # "wrote the data".
-        result = supabase.table("team_finishing_position_projection").upsert(rows, on_conflict="league_id,season_id,team_id").execute()
-        written = len(result.data) if result.data else 0
-        print(f"::notice::League {league_id}: upsert returned {written} rows (sent {len(rows)})")
-        if written != len(rows):
-            raise RuntimeError(f"League {league_id}: upsert returned {written} rows but {len(rows)} were sent -- write did not fully succeed")
-        total_rows += len(rows)
-        print(f"League {league_id}: wrote {len(rows)} teams")
+        for method in ("dixon_coles", "market"):
+            if method == "market":
+                # New in Sep 2026: a failure here must never cost the
+                # Dixon-Coles projection, so it is logged and skipped.
+                try:
+                    rows = simulate_league(supabase, league_id, args.season_id, rng, method)
+                except Exception as e:  # noqa: BLE001
+                    print(f"::warning::League {league_id}: market projection failed -- {e}")
+                    market_failures.append(f"league {league_id}: {e}")
+                    continue
+            else:
+                rows = simulate_league(supabase, league_id, args.season_id, rng, method)
+            if not rows:
+                print(f"League {league_id} ({method}): nothing written")
+                continue
+            # The upsert's own response is checked: supabase-py can return an
+            # error inside the response rather than raising, and a run once
+            # reported success while nothing was written.
+            result = (supabase.table("team_finishing_position_projection")
+                      .upsert(rows, on_conflict="league_id,season_id,team_id,method").execute())
+            written = len(result.data) if result.data else 0
+            print(f"::notice::League {league_id} ({method}): upsert returned {written} rows (sent {len(rows)})")
+            if written != len(rows):
+                raise RuntimeError(f"League {league_id} ({method}): upsert returned {written} rows but {len(rows)} were sent -- write did not fully succeed")
+            total_rows += len(rows)
+            written_by_method[method] = written_by_method.get(method, 0) + len(rows)
 
-    summary = f"{total_rows} team row(s) written across {len(LEAGUE_IDS)} league(s)"
+    summary = (f"{total_rows} team row(s) written across {len(LEAGUE_IDS)} league(s): "
+               + ", ".join(f"{m} {n}" for m, n in sorted(written_by_method.items())))
     print(f"Wrote {total_rows} rows total.")
     print(f"::notice::{summary}")
+    if market_failures:
+        summary += "; market projection failed for " + "; ".join(market_failures)
     supabase.table("pipeline_runs").update(
-        {"finished_at": "now()", "status": "success", "summary": summary}
+        {"finished_at": "now()", "status": "warning" if market_failures else "success", "summary": summary}
     ).eq("run_id", _pipeline_run_id).execute()
 
 
