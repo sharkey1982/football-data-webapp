@@ -561,6 +561,26 @@ export function renderScorelinesPage(data: ScorelinesData): RenderedPage {
  * placeholders. Without the head replacement every generated page would
  * carry the same generic title and description, which is most of the
  * value of doing this at all. */
+/** The default share card (public/og-default.png, 1200x630). */
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-default.png`;
+
+/** Open Graph + Twitter card tags for a page, wrapped in the same markers
+ * index.html uses so a second pass can never stack a duplicate block. */
+export function socialTags(page: RenderedPage): string {
+  const tags = [
+    `<meta property="og:site_name" content="${escapeAttr(BRAND_NAME)}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:title" content="${escapeAttr(page.title)}" />`,
+    `<meta property="og:description" content="${escapeAttr(page.description)}" />`,
+    `<meta property="og:url" content="${escapeAttr(page.canonical)}" />`,
+    `<meta property="og:image" content="${escapeAttr(DEFAULT_OG_IMAGE)}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+  ];
+  return `<!-- social:start -->\n    ${tags.join('\n    ')}\n    <!-- social:end -->`;
+}
+
 export function buildDocument(shell: string, page: RenderedPage): string {
   // Empty html means head-only generation: leave the root div alone so
   // the SPA boots normally rather than being handed an empty string.
@@ -584,5 +604,12 @@ export function buildDocument(shell: string, page: RenderedPage): string {
     '</head>',
     `  <link rel="canonical" href="${escapeAttr(page.canonical)}" />\n${ld}\n  </head>`
   );
+  // Social preview tags, page-specific. Replaces the shell's default block
+  // (index.html, between the social markers); link-preview fetchers never
+  // run JS, so this is the only place they can come from.
+  const social = socialTags(page);
+  out = /<!-- social:start -->[\s\S]*?<!-- social:end -->/.test(out)
+    ? out.replace(/<!-- social:start -->[\s\S]*?<!-- social:end -->/, social)
+    : out.replace('</head>', `  ${social}\n  </head>`);
   return out;
 }
