@@ -5376,6 +5376,7 @@ export type Database = {
           current_actual_points: number
           current_played: number
           league_id: number
+          method: string
           n_simulations: number
           position_distribution: Json
           projected_points_mean: number
@@ -5389,6 +5390,7 @@ export type Database = {
           current_actual_points: number
           current_played: number
           league_id: number
+          method?: string
           n_simulations: number
           position_distribution: Json
           projected_points_mean: number
@@ -5402,6 +5404,7 @@ export type Database = {
           current_actual_points?: number
           current_played?: number
           league_id?: number
+          method?: string
           n_simulations?: number
           position_distribution?: Json
           projected_points_mean?: number
