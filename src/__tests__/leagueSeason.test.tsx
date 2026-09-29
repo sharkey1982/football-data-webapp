@@ -200,4 +200,15 @@ describe('server rendering', () => {
     expect(page.html).toContain('href="/football/leagues/premier-league/1995-96"');
     expect(page.description).toContain('Most titles: Manchester United');
   });
+
+  it('server-renders the title-race summary (lists; the chart loads in the browser)', () => {
+    // Needs three finished seasons; the fixture has two.
+    expect(renderLeagueIndexPage(pl.index).html).not.toContain('data-testid="title-race"');
+    const finished = pl.index.seasons.find((x) => x.is_final)!;
+    const index = { ...pl.index, seasons: [...pl.index.seasons, { ...finished, season_id: 9001, start_year: 1994 }] };
+    const page = renderLeagueIndexPage(index);
+    expect(page.html).toContain('data-testid="title-race"');
+    expect(page.html).toContain('Most titles');
+    expect(page.html).toContain('Loading chart');
+  });
 });
