@@ -243,12 +243,13 @@ export default function AppLayout() {
       items: [
         // Optimiser removed from Admin: it's a Fantasy feature, not an
         // operational one, and listing it twice implied two pages.
+        // Editing tools first (Chris), then the operational views.
         { to: '/admin/team-ratings', label: 'Team Strength Admin', matchPrefix: '/admin/team-ratings' },
-        { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
+        { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
         { to: '/admin/ai-lab', label: 'AI Lab', matchPrefix: '/admin/ai-lab' },
+        { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
         { to: '/data-flow', label: 'Data Flow', matchPrefix: '/data-flow' },
-        { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
       ],
     },
