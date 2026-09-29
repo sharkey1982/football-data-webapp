@@ -19,6 +19,7 @@ import {
   type LeagueIndexData,
 } from '../../lib/leagueSeasonApi';
 import NotFoundPage from '../NotFoundPage';
+import LeagueTitleRace from '../../components/history/LeagueTitleRace';
 
 export default function LeagueIndexPage({ initialData }: { initialData?: LeagueIndexData }) {
   const { league: slug = '' } = useParams();
@@ -57,6 +58,8 @@ export default function LeagueIndexPage({ initialData }: { initialData?: LeagueI
           <p className="text-sm">
             <Link to={`/football/records/${data.league.slug}`} className="text-pitch-800 underline underline-offset-2">{`${data.league.name} records: most points, longest runs, biggest wins`}</Link>
           </p>
+          <LeagueTitleRace key={data.league.slug} data={data} />
+          <h2 className="font-display uppercase tracking-wide text-xl text-ink-900">Every season</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
               <thead className="bg-chalk-200 text-ink-500">
