@@ -31,8 +31,8 @@ import {
 } from '../../lib/squadCheck';
 
 const STORAGE_KEY = 'fixtureshark.fplId';
-const HORIZONS = [1, 3, 5];
-const MIN_GAINS = [0.5, 1, 2, 3];
+const HORIZONS = [1, 5, 10];
+const MIN_GAINS = [0.5, 1, 2, 3, 5];
 
 function readStoredId(): string {
   try {
@@ -76,7 +76,7 @@ export default function SquadCheckPage() {
   const [params, setParams] = useSearchParams();
   const urlId = params.get('id') ?? '';
   const [input, setInput] = useState(urlId || readStoredId());
-  const [horizon, setHorizon] = useState(3);
+  const [horizon, setHorizon] = useState(10);
   const [minGain, setMinGain] = useState(1);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,8 +98,11 @@ export default function SquadCheckPage() {
       setError(null);
       try {
         const from = await getDefaultMatchweek();
-        const to = Math.min(38, from + horizon - 1);
-        const [entry, pool] = await Promise.all([fetchFplEntry(Number(urlId)), loadPool(from, to)]);
+        const asked = Math.min(38, from + horizon - 1);
+        const [entry, pool] = await Promise.all([fetchFplEntry(Number(urlId)), loadPool(from, asked)]);
+        // Projections run a fixed number of gameweeks ahead; stop the range at the last one there is.
+        const covered = [...pool.values()].flatMap((p) => Object.keys(p.gw).map(Number));
+        const to = covered.length ? Math.min(asked, Math.max(...covered)) : from;
         const squad = await buildSquad(entry, pool);
         if (!live) return;
         setLoaded({ entry, squad, pool, from, to });
