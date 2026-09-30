@@ -1,6 +1,6 @@
 import { AuthProvider } from './lib/auth';
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 
 // Every page is lazy-loaded rather than bundled into one upfront chunk --
@@ -71,6 +71,11 @@ const GameweekPage = lazy(() => import('./pages/fpl/GameweekPage'));
 const FixtureProjectionPage = lazy(() => import('./pages/fpl/FixtureProjectionPage'));
 const OptimalSquadPage = lazy(() => import('./pages/fpl/OptimalSquadPage'));
 const SquadCheckPage = lazy(() => import('./pages/fpl/SquadCheckPage'));
+// Squad Check was renamed Rate My Team (30 Sep 2026); keep ?id= on old links.
+function SquadCheckRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/fpl/rate-my-team${search}`} replace />;
+}
 const HindsightOptimalSquadPage = lazy(() => import('./pages/fpl/HindsightOptimalSquadPage'));
 const PlayerProjectionsTablePage = lazy(() => import('./pages/fpl/PlayerProjectionsTablePage'));
 const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
@@ -423,7 +428,7 @@ export default function App() {
             }
           />
           <Route
-            path="fpl/squad-check"
+            path="fpl/rate-my-team"
             element={
               <Suspense fallback={<RouteFallback />}>
                 <SquadCheckPage />
@@ -578,6 +583,7 @@ export default function App() {
             }
           />
           <Route path="fpl/market" element={<Navigate to="/fpl/in-the-papers" replace />} />
+          <Route path="fpl/squad-check" element={<SquadCheckRedirect />} />
           <Route
             path="fpl/players/:slug"
             element={

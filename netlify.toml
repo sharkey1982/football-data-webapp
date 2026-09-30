@@ -129,6 +129,13 @@
   status = 301
   force = true
 
+# Squad Check renamed Rate My Team (30 Sep 2026). Netlify keeps ?id= on the way.
+[[redirects]]
+  from = "/fpl/squad-check"
+  to = "/fpl/rate-my-team"
+  status = 301
+  force = true
+
 # ----------------------------------------------------------------------------
 # /play/beat-the-shark/ -> the separately deployed game.
 #

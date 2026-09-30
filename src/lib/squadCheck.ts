@@ -1,7 +1,7 @@
 // ============================================================================
 // src/lib/squadCheck.ts
 //
-// Squad Check (/fpl/squad-check): a manager's real FPL squad, by FPL ID,
+// Rate My Team (/fpl/rate-my-team; was Squad Check): a manager's real FPL squad, by FPL ID,
 // against the model.
 //
 //  - The squad comes from fpl_entry_fetch() (the FPL API's public endpoints,
@@ -57,7 +57,7 @@ export type RawEntry = {
 
 const MESSAGES: Record<Exclude<RawEntry['status'], 'ok'>, string> = {
   bad_id: 'Your FPL ID is a number, up to 8 digits.',
-  busy: 'Squad Check is busy. Try again in a minute.',
+  busy: 'Rate My Team is busy. Try again in a minute.',
   not_found: 'No FPL team with that ID.',
   not_started: 'This team hasn’t played a gameweek yet.',
   unavailable: 'The FPL site isn’t responding. Try again in a minute.',
