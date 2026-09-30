@@ -168,9 +168,49 @@ export function bestXi(squad: CheckPlayer[], gw: number): { xi: number[]; captai
   return { xi: chosen.map((p) => p.id), captain: captain?.id ?? null, points };
 }
 
+/**
+ * Best XI + captain points for one week from parallel arrays -- the fast path
+ * for searches that score thousands of squads. One pass down the players in
+ * points order: take the best keeper, then an outfield player whenever his
+ * position has room and taking him still leaves enough places for the other
+ * positions' minimums. Gives the same total as bestXi().
+ */
+function xiPoints(pts: number[], pos: Position[]): number {
+  const order = pts.map((_, i) => i).sort((a, b) => pts[b] - pts[a]);
+  const need: Record<number, number> = { 2: XI_MIN[2], 3: XI_MIN[3], 4: XI_MIN[4] };
+  const cnt: Record<number, number> = { 2: 0, 3: 0, 4: 0 };
+  let slots = 10;
+  let sum = 0;
+  let cap = -Infinity;
+  let keeper = false;
+  for (const i of order) {
+    const p = pos[i];
+    if (p === 1) {
+      if (!keeper) {
+        keeper = true;
+        sum += pts[i];
+        cap = Math.max(cap, pts[i]);
+      }
+      continue;
+    }
+    if (slots === 0 || cnt[p] >= XI_MAX[p]) continue;
+    let unmet = 0;
+    for (const q of [2, 3, 4]) unmet += Math.max(0, need[q] - cnt[q] - (q === p ? 1 : 0));
+    if (slots - 1 < unmet) continue;
+    cnt[p]++;
+    slots--;
+    sum += pts[i];
+    cap = Math.max(cap, pts[i]);
+  }
+  return sum + (cap === -Infinity ? 0 : cap);
+}
+
 /** A squad's projected score over a range: each week's best XI plus captain. */
 export function squadScore(squad: CheckPlayer[], weeks: number[]): number {
-  return weeks.reduce((s, w) => s + bestXi(squad, w).points, 0);
+  const pos = squad.map((p) => p.pos);
+  let total = 0;
+  for (const w of weeks) total += xiPoints(squad.map((p) => p.gw[w] ?? 0), pos);
+  return total;
 }
 
 /** The manager's own line-up (slots 1-11, their captain) projected for one gameweek. */
@@ -211,6 +251,87 @@ export function quickWins(squad: SquadPlayer[], pool: CheckPlayer[], bank: numbe
   best.sort((a, b) => b.gain - a.gain);
   const seen = new Set<number>();
   return best.filter((w) => (seen.has(w.in.id) ? false : (seen.add(w.in.id), true)));
+}
+
+/** The squad after one transfer; the new player's selling price is what he costs now. */
+export function applySwap(squad: SquadPlayer[], out: SquadPlayer, incoming: CheckPlayer): SquadPlayer[] {
+  return squad.map((p) => (p === out ? { ...incoming, sell: incoming.price, slot: out.slot, isCaptain: false, purchaseKnown: true } : p));
+}
+
+export type PlanMove = QuickWin & {
+  when: 'now' | 'next';
+  /** For a next-week move: what it would add in the first gameweek if made now instead (what a -4 hit would buy). */
+  firstWeekValue?: number;
+};
+
+/**
+ * A transfer plan: the best single swap, then the best one on the new squad,
+ * and so on, for each free transfer this week; then one more for next week's
+ * free transfer, scored over the rest of the range, with its first-week value
+ * so the page can say whether taking it now for a hit would pay (only if that
+ * one week's gain is over 4).
+ */
+export function transferPlan(squad: SquadPlayer[], pool: CheckPlayer[], bank: number, weeks: number[], freeTransfers: number, minGain: number): PlanMove[] {
+  const moves: PlanMove[] = [];
+  let sq = squad;
+  let money = bank;
+  for (let i = 0; i < freeTransfers; i++) {
+    const w = quickWins(sq, pool, money, minGain, weeks)[0];
+    if (!w) break;
+    moves.push({ ...w, when: 'now' });
+    sq = applySwap(sq, w.out, w.in);
+    money -= w.cost;
+  }
+  if (weeks.length > 1) {
+    const later = weeks.slice(1);
+    const w = quickWins(sq, pool, money, minGain, later)[0];
+    if (w) {
+      const first = [weeks[0]];
+      moves.push({ ...w, when: 'next', firstWeekValue: squadScore(applySwap(sq, w.out, w.in), first) - squadScore(sq, first) });
+    }
+  }
+  return moves;
+}
+
+export type PairMove = { outs: [SquadPlayer, SquadPlayer]; ins: [CheckPlayer, CheckPlayer]; gain: number; cost: number };
+
+/**
+ * The best two-transfer move made together, searched over each position's
+ * top players (by points over the range) and best value for money, so a
+ * downgrade that pays for an upgrade is found. Same rules as single swaps,
+ * on the combined budget.
+ */
+export function bestPair(squad: SquadPlayer[], pool: CheckPlayer[], bank: number, weeks: number[], perPosition = 10, valuePicks = 5): PairMove | null {
+  const owned = new Set(squad.map((p) => p.id));
+  const base = squadScore(squad, weeks);
+  const cands = new Map<Position, CheckPlayer[]>();
+  for (const pos of [1, 2, 3, 4] as Position[]) {
+    const all = pool.filter((c) => c.pos === pos && !owned.has(c.id) && c.total > 0);
+    const byPoints = [...all].sort((a, b) => b.total - a.total).slice(0, perPosition);
+    const byValue = [...all].sort((a, b) => b.total / Math.max(a.price, 40) - a.total / Math.max(b.price, 40)).slice(0, valuePicks);
+    cands.set(pos, [...new Map([...byPoints, ...byValue].map((c) => [c.id, c])).values()]);
+  }
+  let best: PairMove | null = null;
+  for (let i = 0; i < squad.length; i++) {
+    for (let j = i + 1; j < squad.length; j++) {
+      const a = squad[i];
+      const b = squad[j];
+      const budget = a.sell + b.sell + bank;
+      const rest = squad.filter((p) => p !== a && p !== b);
+      const clubs = new Map<number, number>();
+      for (const p of rest) clubs.set(p.teamId, (clubs.get(p.teamId) ?? 0) + 1);
+      for (const ca of cands.get(a.pos)!) {
+        if (ca.price > budget || (clubs.get(ca.teamId) ?? 0) >= 3) continue;
+        for (const cb of cands.get(b.pos)!) {
+          if (cb === ca || ca.price + cb.price > budget) continue;
+          if ((clubs.get(cb.teamId) ?? 0) + (cb.teamId === ca.teamId ? 1 : 0) >= 3) continue;
+          const gain = squadScore([...rest, ca, cb], weeks) - base;
+          if (!best || gain > best.gain) best = { outs: [a, b], ins: [ca, cb], gain, cost: ca.price + cb.price - a.sell - b.sell };
+        }
+      }
+    }
+  }
+  return best;
 }
 
 /** Every player's projections over the range, keyed by FPL id. */
