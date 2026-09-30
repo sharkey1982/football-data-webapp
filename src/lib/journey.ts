@@ -155,7 +155,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // you pick a squad, not after.
           { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
-          { label: 'Squad Check', to: '/fpl/squad-check', blurb: 'Your own FPL squad against the model, with the swaps it rates most.' },
+          { label: 'Rate My Team', to: '/fpl/rate-my-team', blurb: 'Enter your FPL ID: your squad against the model, and the transfers it rates most.' },
           { label: 'Optimiser', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
         ],
       },

@@ -323,10 +323,10 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
-    path: '/fpl/squad-check',
-    title: 'Squad Check \u2014 your FPL team against the model',
+    path: '/fpl/rate-my-team',
+    title: 'FPL Rate My Team (RMT) \u2014 your squad against the model',
     description:
-      'Enter your FPL ID to see your squad\u2019s projected points, the model\u2019s best squad at your budget, and the transfers it rates most.',
+      'Rate my team: enter your FPL ID for your squad\u2019s projected points over the next 10 gameweeks, the model\u2019s best squad at your budget, and a transfer plan.',
     crumbs: [FPL],
   },
   {

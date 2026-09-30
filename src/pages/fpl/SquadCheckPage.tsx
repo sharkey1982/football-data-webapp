@@ -1,7 +1,7 @@
 // ============================================================================
 // src/pages/fpl/SquadCheckPage.tsx
 //
-// /fpl/squad-check?id=1234567 -- a manager's real FPL squad against the
+// /fpl/rate-my-team?id=1234567 (Rate My Team; was Squad Check) -- a manager's real FPL squad against the
 // model: projected points for their squad and line-up, the model's own squad
 // at the same budget, and quick-win swaps. See src/lib/squadCheck.ts.
 // The FPL ID lives in the URL (shareable) and, as a convenience, in this
@@ -89,9 +89,9 @@ export default function SquadCheckPage() {
   const [model, setModel] = useState<{ key: string; score: number; budget: number } | { key: string; failed: true } | null>(null);
 
   useDocumentHead({
-    title: 'Squad Check — your FPL team against the model',
-    description: 'Enter your FPL ID: your squad’s projected points, the model’s best squad at your budget, and the swaps it rates most.',
-    path: '/fpl/squad-check',
+    title: 'FPL Rate My Team (RMT) — your squad against the model',
+    description: 'Rate my team: enter your FPL ID for your squad’s projected points over the next 10 gameweeks, the model’s best squad at your budget, and a transfer plan.',
+    path: '/fpl/rate-my-team',
   });
 
   // Load whenever the id in the URL or the range changes.
@@ -197,7 +197,7 @@ export default function SquadCheckPage() {
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
           <Link to="/fpl" className="hover:underline">Fantasy</Link>
         </p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Squad Check</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Rate My Team</h1>
         <p className="text-ink-700 mt-1 max-w-prose">Your FPL squad against the model: projected points, the model&rsquo;s squad at your budget, and the swaps it rates most.</p>
       </header>
 
