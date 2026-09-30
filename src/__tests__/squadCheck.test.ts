@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn(), functions: { invoke: vi.fn() } } }));
 
-import { bestXi, lineupScore, quickWins, sellingPrice, squadScore, type CheckPlayer, type Position, type SquadPlayer } from '../lib/squadCheck';
+import { applySwap, bestPair, bestXi, lineupScore, quickWins, sellingPrice, squadScore, transferPlan, type CheckPlayer, type Position, type SquadPlayer } from '../lib/squadCheck';
 
 let nextId = 1;
 const player = (pos: Position, pts: number, o: Partial<CheckPlayer> = {}): CheckPlayer => {
@@ -140,5 +140,52 @@ describe('assembling the squad from FPL', () => {
   it('turns FPL failures into plain messages', () => {
     expect(() => assembleEntry({ status: 'not_found' })).toThrow('No FPL team with that ID.');
     expect(() => assembleEntry({ status: 'unavailable', fpl_status: 403 })).toThrow(/isn’t responding/);
+  });
+});
+
+describe('fast squad scoring', () => {
+  it('matches bestXi on 1,000 random squads', () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let n = 0; n < 1000; n++) {
+      const sq = ([[1, 2], [2, 5], [3, 5], [4, 3]] as [Position, number][]).flatMap(([pos, k]) =>
+        Array.from({ length: k }, () => player(pos, Math.round(rnd() * 120) / 10))
+      );
+      expect(squadScore(sq, [6])).toBeCloseTo(bestXi(sq, 6).points, 9);
+    }
+  });
+});
+
+describe('transfer plan', () => {
+  const twoWeeks = (p: CheckPlayer, a: number, b: number): CheckPlayer => ({ ...p, gw: { 6: a, 7: b }, total: a + b });
+
+  it('makes the best move now, then the best one on the new squad next week, with its first-week value', () => {
+    const s = squad().map((p) => ({ ...p, gw: { 6: p.gw[6], 7: p.gw[6] }, total: p.gw[6] * 2 }));
+    const mid = twoWeeks(player(3, 0), 9, 9); // replaces the 0.5 bench midfielder
+    const fwd = twoWeeks(player(4, 0), 5, 5); // replaces the 0.2 bench forward
+    const plan = transferPlan(s, [...s, mid, fwd], 0, [6, 7], 1, 0.1);
+    expect(plan.map((m) => [m.when, m.in.id])).toEqual([['now', mid.id], ['next', fwd.id]]);
+    expect(plan[1].firstWeekValue).toBeGreaterThan(0);
+    expect(plan[1].firstWeekValue).toBeLessThan(4); // not worth a hit
+  });
+
+  it('uses every free transfer this week', () => {
+    const s = squad().map((p) => ({ ...p, gw: { 6: p.gw[6], 7: p.gw[6] }, total: p.gw[6] * 2 }));
+    const mid = twoWeeks(player(3, 0), 9, 9);
+    const fwd = twoWeeks(player(4, 0), 5, 5);
+    const plan = transferPlan(s, [...s, mid, fwd], 0, [6, 7], 2, 0.1);
+    expect(plan.filter((m) => m.when === 'now')).toHaveLength(2);
+  });
+});
+
+describe('two transfers together', () => {
+  it('finds a downgrade that pays for an unaffordable upgrade', () => {
+    const s = squad(); // every player costs 5.0, bank 0
+    const star = player(4, 15, { price: 90 }); // needs 4.0 more than any forward sells for
+    const cheapDef = player(2, 1, { price: 10 }); // frees 4.0 by replacing a 1-point defender
+    expect(quickWins(s, [...s, star, cheapDef], 0, 0.1, [6]).some((w) => w.in.id === star.id)).toBe(false);
+    const pair = bestPair(s, [...s, star, cheapDef], 0, [6])!;
+    expect(pair.ins.map((c) => c.id).sort()).toEqual([star.id, cheapDef.id].sort());
+    expect(pair.gain).toBeGreaterThan(0);
   });
 });

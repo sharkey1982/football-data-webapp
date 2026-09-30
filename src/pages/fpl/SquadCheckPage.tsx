@@ -15,6 +15,7 @@ import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import { optimizeFplSquad } from '../../lib/fplOptimizerApi';
 import { trackEvent } from '../../lib/analytics';
 import {
+  bestPair,
   bestXi,
   buildSquad,
   fetchFplEntry,
@@ -24,7 +25,9 @@ import {
   POSITION_LABEL,
   quickWins,
   squadScore,
+  transferPlan,
   type CheckPlayer,
+  type PairMove,
   type FplEntry,
   type Position,
   type SquadPlayer,
@@ -81,6 +84,8 @@ export default function SquadCheckPage() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [freeTransfers, setFreeTransfers] = useState(1);
+  const [pairCheck, setPairCheck] = useState<{ key: string; pair: PairMove | null; singles: number } | null>(null);
   const [model, setModel] = useState<{ key: string; score: number; budget: number } | { key: string; failed: true } | null>(null);
 
   useDocumentHead({
@@ -152,9 +157,26 @@ export default function SquadCheckPage() {
     const next = bestXi(squad, from);
     const asPicked = lineupScore(squad, from);
     const wins = quickWins(squad, [...pool.values()], entry.bank, minGain, weeks);
+    const plan = transferPlan(squad, [...pool.values()], entry.bank, weeks, freeTransfers, minGain);
     const ordered = [...squad].sort((a, b) => a.pos - b.pos || b.total - a.total);
-    return { mine, next, asPicked, wins, ordered };
-  }, [loaded, weeks, minGain]);
+    return { mine, next, asPicked, wins, plan, ordered };
+  }, [loaded, weeks, minGain, freeTransfers]);
+
+  // Two transfers together: thousands of squads to score, so it runs after the
+  // page has drawn. Compared with making the two best single moves in turn.
+  const pairKey = loaded ? `${modelKey}:${minGain}` : '';
+  useEffect(() => {
+    if (!loaded || pairCheck?.key === pairKey) return;
+    const t = setTimeout(() => {
+      const pool = [...loaded.pool.values()];
+      const pair = bestPair(loaded.squad, pool, loaded.entry.bank, weeks);
+      const singles = transferPlan(loaded.squad, pool, loaded.entry.bank, weeks, 2, 0)
+        .filter((m) => m.when === 'now')
+        .reduce((sum, m) => sum + m.gain, 0);
+      setPairCheck({ key: pairKey, pair, singles });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [loaded, weeks, pairKey, pairCheck?.key]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,6 +254,55 @@ export default function SquadCheckPage() {
             <Tile value={view.asPicked.toFixed(1)} label={`Your GW${loaded.entry.squad_event} line-up in GW${loaded.from}`} detail="As you last picked it" />
             <Tile value={view.next.points.toFixed(1)} label={`Best line-up from your squad, GW${loaded.from}`} detail={`${(view.next.points - view.asPicked).toFixed(1)} more than as picked`} />
           </div>
+
+          <section className="space-y-2" data-testid="transfer-plan">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display uppercase tracking-wide text-xl text-ink-900 mr-2">Transfer plan</h2>
+              <label className="text-sm flex items-center gap-2">
+                <span className="text-xs font-mono uppercase tracking-widest text-ink-500">Free transfers</span>
+                <select value={freeTransfers} onChange={(e) => setFreeTransfers(Number(e.target.value))} className="border border-chalk-300 rounded px-2 py-1 text-sm bg-white">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {view.plan.length === 0 ? (
+              <p className="text-sm text-ink-700">{`No transfer gains ${minGain} points or more over ${range}: keep your transfer.`}</p>
+            ) : (
+              <ol className="space-y-2">
+                {view.plan.map((m, i) => (
+                  <li key={`${m.when}${i}`} className="border border-chalk-300 rounded-lg bg-white px-3 py-2 text-sm">
+                    <p className="text-xs font-mono uppercase tracking-widest text-ink-500">
+                      {m.when === 'now' ? `This week${freeTransfers > 1 ? `, free transfer ${i + 1}` : ''}` : 'Next week, with that week\u2019s free transfer'}
+                    </p>
+                    <p className="mt-0.5">
+                      <PlayerLink p={m.out} /> <span aria-hidden="true">&rarr;</span> <PlayerLink p={m.in} />{' '}
+                      <span className="text-xs text-ink-500">{m.in.team}</span>
+                    </p>
+                    <p className="text-xs text-ink-700 mt-0.5">
+                      <span className="font-mono text-pitch-800">{`+${m.gain.toFixed(1)}`}</span>
+                      {` over ${m.when === 'now' ? range : `GW${loaded.from + 1}\u2013${loaded.to}`} \u00b7 ${m.cost > 0 ? `costs ${money(m.cost)} more` : m.cost < 0 ? `frees ${money(-m.cost)}` : 'same price'}`}
+                    </p>
+                    {m.when === 'next' && m.firstWeekValue != null && (
+                      <p className="text-xs text-ink-500 mt-0.5">
+                        {m.firstWeekValue >= 0.05
+                          ? `Making it now for a \u22124 hit would add ${m.firstWeekValue.toFixed(1)} in GW${loaded.from}: ${m.firstWeekValue > 4 ? 'worth it.' : 'not worth it \u2013 wait a week.'}`
+                          : `Making it now for a \u22124 hit would add nothing in GW${loaded.from}: wait a week.`}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="text-xs text-ink-500 max-w-prose" data-testid="pair-check">
+              {!pairCheck || pairCheck.key !== pairKey
+                ? 'Checking two-transfer moves\u2026'
+                : pairCheck.pair && pairCheck.pair.gain - pairCheck.singles >= 2
+                  ? `Two transfers together: ${pairCheck.pair.outs.map((p) => p.name).join(' and ')} \u2192 ${pairCheck.pair.ins.map((p) => p.name).join(' and ')}, +${pairCheck.pair.gain.toFixed(1)} over ${range}: ${(pairCheck.pair.gain - pairCheck.singles).toFixed(1)} more than the two best single moves, because the money works out. Needs two free transfers.`
+                  : `No two-transfer move beats making the two best single moves in turn by 2 points or more.`}
+            </p>
+          </section>
 
           <section className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
