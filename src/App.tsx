@@ -70,6 +70,7 @@ const FplFixturesList = lazy(() => import('./pages/fpl/FplFixturesList'));
 const GameweekPage = lazy(() => import('./pages/fpl/GameweekPage'));
 const FixtureProjectionPage = lazy(() => import('./pages/fpl/FixtureProjectionPage'));
 const OptimalSquadPage = lazy(() => import('./pages/fpl/OptimalSquadPage'));
+const SquadCheckPage = lazy(() => import('./pages/fpl/SquadCheckPage'));
 const HindsightOptimalSquadPage = lazy(() => import('./pages/fpl/HindsightOptimalSquadPage'));
 const PlayerProjectionsTablePage = lazy(() => import('./pages/fpl/PlayerProjectionsTablePage'));
 const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
@@ -418,6 +419,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <OptimalSquadPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/squad-check"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <SquadCheckPage />
               </Suspense>
             }
           />
