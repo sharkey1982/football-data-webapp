@@ -19,6 +19,7 @@ import {
   NFL_FIXTURES_PATH,
   NFL_HUB_PATH,
   NFL_TV_PATH,
+  favourLabel,
   lineLabel,
   loadNflWeek,
   nflSeasonPath,
@@ -29,6 +30,7 @@ import {
   ukKickoff,
   weekSentence,
   type NflGame,
+  type NflGameModel,
   type NflWeekData,
 } from '../../lib/nflApi';
 import NflWatchLine from '../../components/nfl/NflWatchLine';
@@ -38,7 +40,7 @@ function intParam(v: string | null): number | null {
   return Number(v);
 }
 
-function GameRow({ g }: { g: NflGame }) {
+function GameRow({ g, model }: { g: NflGame; model?: NflGameModel }) {
   const done = g.home_score != null && g.away_score != null;
   const awayWon = done && g.away_score! > g.home_score!;
   const homeWon = done && g.home_score! > g.away_score!;
@@ -57,6 +59,11 @@ function GameRow({ g }: { g: NflGame }) {
       <div className="text-xs text-ink-500 font-mono text-right ml-auto">
         <div>{done ? `Final${g.overtime ? ' (OT)' : ''}` : ukKickoff(g)}</div>
         {line && <div>{`${done ? 'Closing line' : 'Line'}: ${line}${g.total_line != null ? `, O/U ${g.total_line}` : ''}`}</div>}
+        {model && (
+          <div className="text-ink-700" data-testid="nfl-model-line">
+            {`Model: ${favourLabel(g, model.p_home)}${model.market_p_home != null ? ` \u00b7 market ${favourLabel(g, model.market_p_home)}` : ''}`}
+          </div>
+        )}
         {g.neutral_site && g.stadium && <div className="text-pitch-700">{g.stadium}</div>}
         {!done && <NflWatchLine g={g} />}
       </div>
@@ -204,12 +211,15 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
               <div key={day}>
                 <h3 className="font-mono text-xs uppercase tracking-widest text-ink-500 mb-2">{day}</h3>
                 <ul className="space-y-2">
-                  {games.map((g) => <GameRow key={g.game_id} g={g} />)}
+                  {games.map((g) => <GameRow key={g.game_id} g={g} model={data.model[g.game_id]} />)}
                 </ul>
               </div>
             ))}
             <p className="text-xs text-ink-500 max-w-prose">
               Line: the point spread, favourite first (KC &minus;3.5 means Kansas City are expected to win by 3.5). For finished games it is the closing line. O/U is the total-points line.
+            </p>
+            <p className="text-xs text-ink-500 max-w-prose">
+              Model: FixtureShark&rsquo;s team rating (an Elo rating built from every result since 2002) and the chance it gives the side it favours, made before kick-off and never changed afterwards; market: the same from the betting odds. Tested on seasons it never saw (2025 and 2026), the model called results clearly better than home advantage alone but less well than the betting market, so it is shown beside the market rather than instead of it.
             </p>
           </section>
 

@@ -99,6 +99,7 @@ export {
   GAME_COLUMNS as NFL_GAME_COLUMNS,
   STANDING_COLUMNS as NFL_STANDING_COLUMNS,
   TEAM_COLUMNS as NFL_TEAM_COLUMNS,
+  MODEL_COLUMNS as NFL_MODEL_COLUMNS,
   nflSeasonPath,
   nflTeamPath,
 } from './lib/nflApi';

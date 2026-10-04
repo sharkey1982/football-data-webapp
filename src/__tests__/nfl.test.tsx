@@ -77,7 +77,9 @@ const weekGames = [
   }),
 ];
 const seasonGames = [...weekGames, game({ game_id: 'c', week: 5, gameday: '2026-10-11', kickoff_at: '2026-10-11T17:00:00Z' }), game({ game_id: 'z', week: 3, home_score: 10, away_score: 13 })];
-const weekData = api.buildWeek(2026, api.seasonRange(2026), seasonGames, null, teams)!;
+const weekData = api.buildWeek(2026, api.seasonRange(2026), seasonGames, null, teams, [
+  { game_id: 'b', predicted_at: '2026-10-03T06:20:00Z', p_home: 0.36, predicted_margin: -2.3, market_p_home: 0.41 },
+])!;
 
 // 2008-shaped season: Team 1-0 (T10) beat Team 4-0 (T40) in the Super Bowl.
 const g08 = (over: Partial<api.NflGame>) => game({ season: 2008, kickoff_at: '2008-10-05T17:00:00Z', gameday: '2008-10-05', div_game: false, ...over });
@@ -188,6 +190,8 @@ describe('NFL pages', () => {
     // The unplayed London game: 5 free first, then Sky and DAZN.
     expect(screen.getByTestId('nfl-watch-line').textContent).toBe('Watch: 5 (free), DAZN NFL Game Pass, Sky Sports NFL');
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Fixtures & Results');
+    // The model beside the market, favoured side first (p_home 0.36 -> away side 64%).
+    expect(screen.getByTestId('nfl-model-line').textContent).toBe('Model: T11 64% · market T11 59%');
   });
 
   it('Fixtures & Results has the football calendar: tap a day to list just that day', async () => {
@@ -418,6 +422,13 @@ describe('NFL fantasy maths', () => {
     expect(positionRank(d, 'p', 'ppr')).toBe(1);
     expect(positionRank(d, 'p', 'std')).toBe(2);
     expect(playerSentence(d, 'ppr')).toBe('Joe Example has scored 62.0 PPR points in 4 games in 2026 (15.5 a game), the most among WRs. Over his last three games he averaged 19.0, up on his season average.');
+  });
+});
+
+describe('NFL model display', () => {
+  it('labels the favoured side from a home-win probability', () => {
+    expect(api.favourLabel({ home_franchise: 'KC', away_franchise: 'LV' }, 0.64)).toBe('KC 64%');
+    expect(api.favourLabel({ home_franchise: 'KC', away_franchise: 'LV' }, 0.3)).toBe('LV 70%');
   });
 });
 

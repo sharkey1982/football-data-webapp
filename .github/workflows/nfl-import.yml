@@ -3,8 +3,9 @@ name: NFL import (nflverse games and team names)
 # Daily NFL load -- see scripts/nfl_import.py. Separate from the football
 # imports on purpose. 06:20 UTC: after Monday Night Football has finished and
 # before the 07:00 FPL run rebuilds the site, so the static NFL pages carry
-# the latest results, then the latest season's player stats. Writes one
-# pipeline_runs row (job_name nfl_import).
+# the latest results, then the latest season's player stats; then the model's
+# predictions for the next 8 days (scripts/nfl_elo.py, append-only). Writes
+# pipeline_runs rows (job_name nfl_import, nfl_elo).
 
 on:
   schedule:
@@ -32,7 +33,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install supabase
+      - run: pip install -r scripts/requirements.txt
       - name: Import
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -40,3 +41,8 @@ jobs:
           SEASONS: ${{ inputs.seasons }}
           PLAYER_SEASONS: ${{ inputs.player_seasons }}
         run: python scripts/nfl_import.py --seasons "$SEASONS" --player-seasons "$PLAYER_SEASONS"
+      - name: Model predictions (Elo, experiment N1)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/nfl_elo.py
