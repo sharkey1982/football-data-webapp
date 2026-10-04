@@ -1,0 +1,29 @@
+name: Club grounds verify (postcodes.io)
+
+# Checks public.club_grounds against postcodes.io -- see
+# scripts/verify_club_grounds.py. Run by hand after loading or editing grounds,
+# and monthly to catch postcode changes. Logs pipeline_runs (verify_club_grounds).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 1 * *'
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Verify
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/verify_club_grounds.py
