@@ -181,10 +181,10 @@ export default function AppLayout() {
   // which it previously did (the nav said "Browse" after the hubs had
   // moved to "Discover"). Adding a destination is now one config edit
   // that updates the nav, the hub and the stage page together.
-  const themeGroups: NavGroup[] = (['football', 'fpl', 'nfl'] as const).map((key) => {
+  const themeGroups: NavGroup[] = (['football', 'fpl', 'nfl', 'tennis'] as const).map((key) => {
     const theme = THEMES[key];
     return {
-      label: key === 'football' ? 'Football' : key === 'fpl' ? 'Fantasy' : 'NFL',
+      label: key === 'football' ? 'Football' : key === 'fpl' ? 'Fantasy' : key === 'nfl' ? 'NFL' : 'Tennis',
       // Overview sits above the stage headings as a plain item, not an
       // empty section -- a heading with nothing under it reads as a
       // rendering bug.
@@ -264,13 +264,16 @@ export default function AppLayout() {
   const onFootballPage = location.pathname !== '/football' && groupItems(footballGroup).some((item) => isItemActive(location.pathname, item));
   const onFantasyPage = location.pathname !== '/fpl/start' && groupItems(fantasyGroup).some((item) => isItemActive(location.pathname, item));
   const onNflPage = location.pathname !== '/nfl' && (location.pathname.startsWith('/nfl/') || groupItems(nflGroup).some((item) => isItemActive(location.pathname, item)));
+  const onTennisPage = location.pathname !== '/tennis' && location.pathname.startsWith('/tennis/');
   const backToHub = onFootballPage
     ? { to: '/football', label: 'Football' }
     : onFantasyPage
       ? { to: '/fpl/start', label: 'Fantasy Premier League' }
       : onNflPage
         ? { to: '/nfl', label: 'NFL' }
-        : null;
+        : onTennisPage
+          ? { to: '/tennis', label: 'Tennis' }
+          : null;
 
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">

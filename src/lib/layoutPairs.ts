@@ -152,3 +152,64 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     note: 'Football gets a postcode finder (Your Local Clubs) instead: you support your local club.',
   },
 ];
+
+// ----------------------------------------------------------------------------
+// Other sports (Oct 2026: tennis). The same rule as LAYOUT_PAIRS, keyed by
+// sport rather than written for the NFL only: every menu page of the sport's
+// theme is listed with its Football counterpart and what they share.
+// src/__tests__/layoutPairs.test.ts checks these too.
+// ----------------------------------------------------------------------------
+export type SportLayoutPair = {
+  sport: 'tennis';
+  label: string;
+  /** The sport's route (as in journey.ts). */
+  path: string;
+  footballFile: string | null;
+  file: string;
+  shared: string[];
+  status: LayoutStatus | 'sport-only';
+  note: string;
+};
+
+export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
+  {
+    sport: 'tennis',
+    label: 'Hub',
+    path: '/tennis',
+    footballFile: 'src/pages/FootballHub.tsx',
+    file: 'src/pages/tennis/TennisHub.tsx',
+    shared: ['ThemeHub'],
+    status: 'shared',
+    note: 'ThemeHub from the journey config; trivia has one question per tennis page, each linking to it.',
+  },
+  {
+    sport: 'tennis',
+    label: 'Results (Fixtures & Results)',
+    path: '/tennis/results',
+    footballFile: 'src/pages/GameweekBrowser.tsx',
+    file: 'src/pages/tennis/TennisResultsPage.tsx',
+    shared: ['FixtureCalendarHeatmap'],
+    status: 'partial',
+    note: 'Calendar shared. "Results" because the source has no upcoming matches; a day’s matches by tournament and round.',
+  },
+  {
+    sport: 'tennis',
+    label: 'Your Player (Your Team)',
+    path: '/tennis/players',
+    footballFile: 'src/pages/TeamExplorer.tsx',
+    file: 'src/pages/tennis/TennisPlayersPage.tsx',
+    shared: [],
+    status: 'separate',
+    note: 'A searchable, sortable list of every player; each player page holds the record, titles, splits and best wins.',
+  },
+  {
+    sport: 'tennis',
+    label: 'Past seasons',
+    path: '/tennis/seasons',
+    footballFile: 'src/pages/football/LeaguesPage.tsx',
+    file: 'src/pages/tennis/TennisSeasonsPage.tsx',
+    shared: [],
+    status: 'separate',
+    note: 'Every season with its Grand Slam champions and title leader, each linking to its season page (as NFL Past seasons).',
+  },
+];

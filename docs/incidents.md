@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-04 · Tennis first load: two near-misses caught before writing, and a slow view
+- **Impact:** none reached the site. Found while profiling all 47 tennis files (ATP 2000-2026, WTA 2007-2026) before the first backfill: (1) two finals with a blank date (WTA 2010 Guangzhou, WTA 2012 Cincinnati) would have failed both tour-years; one final dated a year early (ATP 2006 Paris, 2005-11-05); (2) about 90 player-name variants (punctuation, case, accents, short forms such as "Querry S.", "Bautista R.") would each have become a separate player. During phase 2 the new `tennis_players` view timed out as anon (3 s limit) on its first version.
+- **Cause:** (1) `pd.NaT` passes `isinstance(v, datetime)`, so a blank date became the text "NaT"; (2) the source has no player ids; the writer makes a player per new spelling; (3) a correlated sub-query ("tour's latest year") re-ran per row.
+- **Fix:** importer repairs blank and wrong-year dates and prints each repair; maps every source name to one display name (`ALIASES` + `name_key`) across the run and the database (PR #175). View rewritten with a join (0.4 s per tour).
+- **Prevention:** `scripts/test_tennis_import.py`; every tour-year reconciles on count, games and key hash (all 47 matched after the backfill, also checked independently); every new tennis view timed as anon before a page uses it.
+- **Process mistakes on the way (owner's time):** the first PC run used a stale importer: the PC's git checkout had not been used for site work for months and `git pull` had stopped on untracked files; a command was given with PowerShell redirection (`*>`) to a Command Prompt. Now: Claude copies importer updates straight into the PC folder (no git on the PC) and gives Command Prompt syntax.
+
+---
+
 ## 2026-09-28 · Fixture-change banners: repeated, flip-flopping and undismissable
 - **Impact:** the Fixtures and gameweek pages carried a banner of Premier League kick-off changes that returned on every page visit (dismissal lasted only for that page view). 42 changes were logged for Premier League fixtures in three days, but only 4 were real net moves: the fixture feed had reverted 17 TV-pick kick-offs to their Saturday 15:00 placeholders on 25 Sep and restored them on 27 Sep, and each hop showed as a change. Reported by the owner.
 - **Cause:** the banner listed every logged change, not the net change; dismissals were held in component state.
