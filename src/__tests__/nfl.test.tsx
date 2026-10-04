@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as api from '../lib/nflApi';
 import NflFixturesPage from '../pages/nfl/NflFixturesPage';
@@ -8,7 +8,9 @@ import NflTablePage from '../pages/nfl/NflTablePage';
 import NflTeamPage from '../pages/nfl/NflTeamPage';
 import NflSeasonPage from '../pages/nfl/NflSeasonPage';
 import StagePage from '../pages/StagePage';
-import { renderNflFixturesPage, renderNflSeasonPage, renderNflTablePage, renderNflTeamPage } from '../entry-server';
+import { renderNflFixturesPage, renderNflGamePage, renderNflSeasonPage, renderNflTablePage, renderNflTeamPage } from '../entry-server';
+import NflGamePage from '../pages/nfl/NflGamePage';
+import { buildGamePreview, formOf, gameSentence, headToHead, headToHeadSentence, marginLabel, seasonSoFar } from '../lib/nflGame';
 import { THEMES } from '../lib/journey';
 import { againstSpread, seasonStory, teamSeasonStory, upsetSize, winStreaks, type NflSeasonSummary } from '../lib/nflStory';
 import { nflGuideItem, nflWatch } from '../lib/nflWatch';
@@ -21,6 +23,10 @@ vi.mock('../lib/nflApi', async () => {
 vi.mock('../lib/nflFantasyApi', async () => {
   const actual = await vi.importActual<typeof import('../lib/nflFantasyApi')>('../lib/nflFantasyApi');
   return { ...actual, loadTeamFantasyLeaders: vi.fn().mockResolvedValue([]) };
+});
+vi.mock('../lib/commercialLinks', async () => {
+  const actual = await vi.importActual<typeof import('../lib/commercialLinks')>('../lib/commercialLinks');
+  return { ...actual, getActivePartners: vi.fn().mockResolvedValue([]) };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -365,6 +371,11 @@ describe('NFL TV rules', () => {
     expect(names(at('2026-10-05T00:20:00Z'))).toEqual(['DAZN NFL Game Pass', 'Sky Sports NFL']); // Sun night, 01:20 BST
     expect(at('2026-10-05T00:20:00Z').pickedWeekly).toBeNull();
   });
+  it('a Jaguars "home" game in London is still a London game', () => {
+    const jax = nflWatch(game({ neutral_site: false, stadium: 'Tottenham Hotspur Stadium', kickoff_at: '2026-10-11T13:30:00Z' }));
+    expect(jax.offers.map((o) => o.broadcaster)).toEqual(['DAZN', 'Sky Sports', '5']);
+  });
+
   it('London games are on Sky and free on 5', () => {
     const w = at('2026-10-04T13:30:00Z', { neutral_site: true, stadium: 'Tottenham Hotspur Stadium' });
     expect(names(w)).toEqual(['DAZN NFL Game Pass', 'Sky Sports NFL', '5']);
@@ -428,7 +439,7 @@ describe('NFL fantasy maths', () => {
 describe('NFL TV Guide rows (shared football layout)', () => {
   it('maps a game into the football guide shape, UK date and time, model and weekly-pick note', () => {
     const item = nflGuideItem(weekData.games[1], { game_id: 'b', predicted_at: '', p_home: 0.36, predicted_margin: -2, market_p_home: null });
-    expect(item).toMatchObject({ kickoffDate: '2026-10-04', kickoffTime: '14:30', leagueName: 'NFL', competitionType: 'league', homeTeamName: 'Team 1-0', awayTeamName: 'Team 1-1', href: '/nfl/fixtures?season=2026&week=4' });
+    expect(item).toMatchObject({ kickoffDate: '2026-10-04', kickoffTime: '14:30', leagueName: 'NFL', competitionType: 'league', homeTeamName: 'Team 1-0', awayTeamName: 'Team 1-1', href: '/nfl/games/b' });
     expect(item.subtitle).toBe('Week 4 · Tottenham Hotspur Stadium · Model T11 64%');
     expect(item.offers.map((o) => o.channel ?? o.serviceProduct)).toEqual(['DAZN NFL Game Pass', 'Sky Sports NFL', '5']);
     const sunday = nflGuideItem(game({ kickoff_at: '2026-10-11T17:00:00Z', gameday: '2026-10-11' }));
@@ -451,5 +462,77 @@ describe('NFL journey', () => {
     for (const label of nfl) expect(football).toContain(label);
     const fpl = THEMES.fpl.stages.flatMap((st) => st.links.map((l) => l.label));
     for (const label of THEMES.nfl.stages[1].links.map((l) => l.label)) expect(fpl).toContain(label);
+  });
+});
+
+describe('NFL game page (head-to-head, form, prediction)', () => {
+  // NE host MIA in week 6 of 2026. Earlier: three meetings and other games.
+  const target = game({ game_id: '2026_06_MIA_NE', week: 6, gameday: '2026-10-18', kickoff_at: '2026-10-18T17:00:00Z', spread_line: 3 });
+  const pool = [
+    target,
+    game({ game_id: '2025_02_NE_MIA', season: 2025, week: 2, gameday: '2025-09-14', home_franchise: 'MIA', home_slug: 'miami-dolphins', home_name: 'Miami Dolphins', home_short: 'Dolphins', away_franchise: 'NE', away_slug: 'new-england-patriots', away_name: 'New England Patriots', away_short: 'Patriots', home_score: 20, away_score: 31, spread_line: 1 }),
+    game({ game_id: '2025_12_MIA_NE', season: 2025, week: 12, gameday: '2025-11-30', home_score: 17, away_score: 10, spread_line: 6 }),
+    game({ game_id: '2026_01_MIA_NE', week: 1, gameday: '2026-09-13', home_score: 21, away_score: 24, spread_line: 2.5 }),
+    // NE's other 2026 games.
+    game({ game_id: '2026_02_NE_T10', week: 2, gameday: '2026-09-20', home_franchise: 'T10', home_slug: 'team-1-0', home_name: 'Team 1-0', home_short: 'T10', away_franchise: 'NE', away_slug: 'new-england-patriots', away_name: 'New England Patriots', away_short: 'Patriots', home_score: 14, away_score: 14, spread_line: -1 }),
+    game({ game_id: '2026_03_T11_NE', week: 3, gameday: '2026-09-27', away_franchise: 'T11', away_slug: 'team-1-1', away_name: 'Team 1-1', away_short: 'T11', home_score: 30, away_score: 3, spread_line: 7 }),
+    // After the target: never counted.
+    game({ game_id: '2026_07_T11_NE', week: 7, gameday: '2026-10-25', away_franchise: 'T11', away_slug: 'team-1-1', away_name: 'Team 1-1', away_short: 'T11', home_score: 50, away_score: 0 }),
+  ];
+  const model = { game_id: target.game_id, predicted_at: '2026-10-12T06:00:00Z', p_home: 0.62, predicted_margin: 3.4, market_p_home: 0.6 };
+  const preview = buildGamePreview(target, pool, model);
+
+  it('counts only games before kick-off, most recent first', () => {
+    expect(preview.meetings.map((g) => g.game_id)).toEqual(['2026_01_MIA_NE', '2025_12_MIA_NE', '2025_02_NE_MIA']);
+    expect(preview.homeRecent.map((g) => g.game_id)).toEqual(['2026_03_T11_NE', '2026_02_NE_T10', '2026_01_MIA_NE', '2025_12_MIA_NE', '2025_02_NE_MIA']);
+    expect(preview.awayRecent).toHaveLength(3);
+  });
+
+  it('head-to-head from the home side: record, at home, run, biggest wins, spread', () => {
+    const h = headToHead(preview);
+    expect(h).toMatchObject({ played: 3, homeWins: 2, awayWins: 1, ties: 0, since: 2025 });
+    expect(h.atHome).toEqual({ played: 2, homeWins: 1, awayWins: 1, ties: 0 });
+    expect(h.run).toEqual({ franchise: 'MIA', name: 'Miami Dolphins', length: 1 });
+    expect(h.biggestHomeWin?.game_id).toBe('2025_02_NE_MIA');
+    expect(h.biggestAwayWin?.game_id).toBe('2026_01_MIA_NE');
+    // NE: covered as 1-pt road dogs (won by 11), covered -6 (won by 7), missed -2.5 (lost).
+    expect(h.homeAts).toEqual({ cover: 2, miss: 1, push: 0 });
+    expect(headToHeadSentence(preview, h)).toBe('New England Patriots lead 2–1 in 3 meetings since 2025.');
+  });
+
+  it('form and season so far, ties shown as T', () => {
+    expect(formOf(preview.homeRecent, 'NE', 3).map((e) => `${e.letter} ${e.score}`)).toEqual(['W 30–3', 'T 14–14', 'L 21–24']);
+    expect(seasonSoFar(preview.homeRecent, 'NE', 2026)).toMatchObject({ played: 3, won: 1, lost: 1, tied: 1, pointsFor: 65, pointsAgainst: 41 });
+    expect(marginLabel(target, -2.04)).toBe('MIA by 2.0');
+  });
+
+  it('renders head-to-head, form, the model against the market and where to watch', async () => {
+    render(
+      <MemoryRouter initialEntries={['/nfl/games/2026_06_MIA_NE']}>
+        <Routes>
+          <Route path="/nfl/games/:gameId" element={<NflGamePage initialData={preview} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await act(async () => {}); // the streaming-partners lookup settles
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Miami Dolphins at New England Patriots');
+    expect(screen.getByText('Where to watch (UK)')).toBeInTheDocument();
+    expect(screen.getByTestId('nfl-game-prediction').textContent).toContain('New England Patriots a 62.0% chance of winning and Miami Dolphins 38.0%, with a predicted margin of NE by 3.4');
+    expect(screen.getByTestId('nfl-game-prediction').textContent).toContain('NE −3');
+    expect(screen.getByTestId('nfl-h2h-record').textContent).toContain('New England Patriots lead 2–1');
+    expect(screen.getByTestId('nfl-h2h-meetings').querySelectorAll('li')).toHaveLength(3);
+    expect(screen.getByTestId('nfl-season-so-far').textContent).toContain('1-1-1');
+    expect(screen.getAllByTitle(/^T 14–14 at Team 1-0/)).toHaveLength(1);
+  });
+
+  it('a played game says what the model predicted beforehand and who covered; server render has an event', () => {
+    const played = buildGamePreview({ ...target, home_score: 27, away_score: 20 }, pool, model);
+    const page = renderNflGamePage(played);
+    expect(page.canonical).toBe('https://fixtureshark.com/nfl/games/2026_06_MIA_NE');
+    expect(page.html).toContain('What the model predicted beforehand');
+    expect(page.html).toContain('New England Patriots covered.');
+    expect(page.html).toContain('The model’s favourite won.');
+    expect(page.structuredData[0]).toMatchObject({ '@type': 'SportsEvent', name: 'Miami Dolphins at New England Patriots' });
+    expect(gameSentence(played)).toBe('Miami Dolphins at New England Patriots, Week 6 of the 2026 season: New England Patriots won 27–20.');
   });
 });

@@ -18,6 +18,7 @@ import {
   NFL_HUB_PATH,
   NFL_TEAMS_PATH,
   byeWeeks,
+  nflGamePath,
   nflPlayerPath,
   lineLabel,
   loadNflTeam,
@@ -165,10 +166,10 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
                         </th>
                         <td className="px-2 py-1.5 font-mono text-xs tabular-nums">
                           {r.letter ? (
-                            <span className={r.letter === 'W' ? 'font-semibold' : r.letter === 'L' ? 'text-loss-600' : undefined}>{`${r.letter} ${r.score}`}</span>
+                            <Link to={nflGamePath(g.game_id)} className={`hover:underline ${r.letter === 'W' ? 'font-semibold' : r.letter === 'L' ? 'text-loss-600' : ''}`}>{`${r.letter} ${r.score}`}</Link>
                           ) : (
                             <>
-                              {ukKickoff(g)}
+                              <Link to={nflGamePath(g.game_id)} className="hover:underline">{ukKickoff(g)}</Link>
                               <span className="block font-sans text-[11px]"><NflWatchLine g={g} /></span>
                             </>
                           )}
