@@ -194,6 +194,18 @@ async function main() {
     }
   }
 
+  // NFL: /nfl is a static route; standings per season and the 32 team pages.
+  counts.nfl = 0;
+  if (mod?.nflTeamPath) {
+    const [nflTeams, nflLatest] = await Promise.all([
+      query('nfl_teams?select=slug&order=slug.asc'),
+      query('nfl_standings?select=season&order=season.desc&limit=1'),
+    ]);
+    const latest = nflLatest?.[0]?.season;
+    if (latest != null) for (const season of mod.nflSeasonRange(latest)) { entries.push(urlEntry(mod.nflStandingsPath(season), null)); counts.nfl++; }
+    for (const t of nflTeams ?? []) { entries.push(urlEntry(mod.nflTeamPath(t.slug), null)); counts.nfl++; }
+  }
+
   counts.finance = 0;
   if (mod && finance) {
     try {

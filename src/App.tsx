@@ -82,6 +82,9 @@ const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
 const ActualMatchesPage = lazy(() => import('./pages/fpl/ActualMatchesPage'));
 const ActualMatchDetailPage = lazy(() => import('./pages/fpl/ActualMatchDetailPage'));
 const TacticalRolesAdminPage = lazy(() => import('./pages/fpl/TacticalRolesAdminPage'));
+const NflHubPage = lazy(() => import('./pages/nfl/NflHubPage'));
+const NflStandingsPage = lazy(() => import('./pages/nfl/NflStandingsPage'));
+const NflTeamPage = lazy(() => import('./pages/nfl/NflTeamPage'));
 
 /** Matches this app's existing "Loading..." convention (font-mono,
  * text-ink-500) used throughout individual pages' own data-loading
@@ -645,6 +648,39 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TacticalRolesAdminPage adminMode />
+              </Suspense>
+            }
+          />
+          {/* NFL (phase 1, Oct 2026): schedule, standings, teams. */}
+          <Route
+            path="nfl"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflHubPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/standings"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflStandingsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/standings/:season"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflStandingsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/teams/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflTeamPage />
               </Suspense>
             }
           />

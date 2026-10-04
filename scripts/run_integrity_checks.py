@@ -2,7 +2,8 @@
 # ============================================================================
 # scripts/run_integrity_checks.py
 #
-# Runs public.check_model_integrity() -- one guard per incident in
+# Runs public.check_model_integrity() and public.check_nfl_integrity() --
+# one guard per incident in
 # docs/incidents.md -- prints each result, logs a pipeline_runs row
 # (success / warning / failed) and exits 1 if any check failed, so the daily
 # workflow goes red instead of a problem sitting unnoticed.
@@ -20,6 +21,12 @@ def main() -> None:
     if not rows:
         print("::error::check_model_integrity returned nothing")
         sys.exit(1)
+    # NFL checks live in their own function so football's stays untouched.
+    nfl = sb.rpc("check_nfl_integrity", {}).execute().data or []
+    if not nfl:
+        print("::error::check_nfl_integrity returned nothing")
+        sys.exit(1)
+    rows += nfl
     for r in rows:
         mark = {"ok": "ok  ", "warning": "WARN", "failed": "FAIL"}.get(r["status"], r["status"])
         print(f"[{mark}] {r['check_name']}: {r['found']} -- {r['detail']}")

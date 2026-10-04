@@ -364,6 +364,64 @@ async function main() {
   }
   await writeLeaguePages();
 
+  // ---- NFL (/nfl, /nfl/standings/:season, /nfl/teams/:slug) ------------------
+  // ~60 pages from three bulk queries: the hub at the current week, every
+  // season's standings and all 32 teams. Any failure leaves the SPA shell.
+  async function writeNflPages() {
+    try {
+      const entry = await import(ENTRY);
+      const latestRow = await query('nfl_games?select=season&order=season.desc&limit=1');
+      const latest = latestRow?.[0]?.season;
+      if (latest == null) {
+        console.warn('Static: NFL data unavailable -- NFL pages stay client-rendered.');
+        return;
+      }
+      const [teams, standings, games] = await Promise.all([
+        query(`nfl_teams?select=${entry.NFL_TEAM_COLUMNS}&order=name.asc`),
+        queryAll(`nfl_standings?select=${entry.NFL_STANDING_COLUMNS}&order=season.asc,franchise.asc`),
+        queryAll(`nfl_games?select=${entry.NFL_GAME_COLUMNS}&season=eq.${latest}&order=week.asc,game_id.asc`),
+      ]);
+      if (!teams || !standings || !games) {
+        console.warn('Static: NFL data unavailable -- NFL pages stay client-rendered.');
+        return;
+      }
+      const seasons = entry.nflSeasonRange(latest);
+      const write = (page) => {
+        const dir = join(DIST, ...new URL(page.canonical).pathname.split('/').filter(Boolean));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      };
+      let n = 0;
+      const week = entry.buildNflWeek(latest, seasons, games, null, teams);
+      if (week) {
+        write(entry.renderNflHubPage(week));
+        n++;
+      }
+      for (const season of seasons) {
+        const rows = standings.filter((r) => r.season === season);
+        if (rows.length === 0) continue;
+        try {
+          write(entry.renderNflStandingsPage({ season, seasons, rows }));
+          n++;
+        } catch (err) {
+          console.error(`Static: failed NFL standings ${season}: ${err?.message ?? err}`);
+        }
+      }
+      for (const team of teams) {
+        try {
+          write(entry.renderNflTeamPage(entry.buildNflTeam(team, standings, games, latest)));
+          n++;
+        } catch (err) {
+          console.error(`Static: failed NFL team ${team.slug}: ${err?.message ?? err}`);
+        }
+      }
+      console.log(`Static: wrote ${n} NFL page(s).`);
+    } catch (err) {
+      console.error(`Static: failed NFL pages: ${err?.message ?? err}`);
+    }
+  }
+  await writeNflPages();
+
   // ---- Record Book (/football/records, /football/records/:league) -----------
   async function writeRecordsPages() {
     if (!leagueBulk) return;

@@ -1,0 +1,36 @@
+name: NFL import (nflverse games and team names)
+
+# Daily NFL load -- see scripts/nfl_import.py. Separate from the football
+# imports on purpose. 06:20 UTC: after Monday Night Football has finished and
+# before the 07:00 FPL run rebuilds the site, so the static NFL pages carry
+# the latest results. Writes one pipeline_runs row (job_name nfl_import).
+
+on:
+  schedule:
+    - cron: '20 6 * * *'
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: 'Seasons, comma-separated (blank = all from 2002)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install supabase
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SEASONS: ${{ inputs.seasons }}
+        run: python scripts/nfl_import.py --seasons "$SEASONS"
