@@ -65,6 +65,21 @@ import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './li
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
+import NflHubPage from './pages/nfl/NflHubPage';
+import NflStandingsPage from './pages/nfl/NflStandingsPage';
+import NflTeamPage from './pages/nfl/NflTeamPage';
+import {
+  NFL_HUB_PATH,
+  nflStandingsPath,
+  nflTeamPath,
+  standingsSentence,
+  teamSentence,
+  weekSentence,
+  type NflStandingsData,
+  type NflTeamData,
+  type NflWeekData,
+} from './lib/nflApi';
+export { buildTeam as buildNflTeam, buildWeek as buildNflWeek, seasonRange as nflSeasonRange, GAME_COLUMNS as NFL_GAME_COLUMNS, STANDING_COLUMNS as NFL_STANDING_COLUMNS, TEAM_COLUMNS as NFL_TEAM_COLUMNS, nflStandingsPath, nflTeamPath } from './lib/nflApi';
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
 
 export type RenderedPage = {
@@ -552,6 +567,73 @@ export function renderScorelinesPage(data: ScorelinesData): RenderedPage {
     description: scorelineSentence(summariseScorelines(data.rows), data.league.name, null) || 'How often each scoreline happens.',
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'Score Explore', path }])],
+  };
+}
+
+// ---- NFL --------------------------------------------------------------------
+
+const NFL_CRUMB = { name: 'NFL', path: NFL_HUB_PATH };
+
+export function renderNflHubPage(data: NflWeekData): RenderedPage {
+  const html = renderToString(
+    <StaticRouter location={NFL_HUB_PATH}>
+      <Routes>
+        <Route path={NFL_HUB_PATH} element={<NflHubPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `NFL schedule, results and standings in UK time | ${BRAND_NAME}`,
+    description: weekSentence(data),
+    canonical: `${SITE_URL}${NFL_HUB_PATH}`,
+    structuredData: [breadcrumb([NFL_CRUMB])],
+  };
+}
+
+export function renderNflStandingsPage(data: NflStandingsData): RenderedPage {
+  const path = nflStandingsPath(data.season);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/nfl/standings/:season" element={<NflStandingsPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `${data.season} NFL standings | ${BRAND_NAME}`,
+    description: standingsSentence(data),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([NFL_CRUMB, { name: `${data.season} standings`, path }])],
+  };
+}
+
+export function renderNflTeamPage(data: NflTeamData): RenderedPage {
+  const path = nflTeamPath(data.team.slug);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/nfl/teams/:slug" element={<NflTeamPage initialData={data} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `${data.team.name}: ${data.season} schedule, results and history | ${BRAND_NAME}`,
+    description: teamSentence(data),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SportsTeam',
+        name: data.team.name,
+        sport: 'American football',
+        memberOf: { '@type': 'SportsOrganization', name: 'National Football League' },
+        url: `${SITE_URL}${path}`,
+      },
+      breadcrumb([NFL_CRUMB, { name: data.team.name, path }]),
+    ],
   };
 }
 

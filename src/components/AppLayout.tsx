@@ -217,6 +217,16 @@ export default function AppLayout() {
   const navGroups: NavGroup[] = [
     ...themeGroups,
     {
+      // NFL (Oct 2026): American football, the same results-and-history
+      // approach as the football section. Team pages are reached from the
+      // schedule page and the standings.
+      label: 'NFL',
+      items: [
+        { to: '/nfl', label: 'Schedule & results', matchPrefix: '/nfl', excludePrefix: '/nfl/standings' },
+        { to: '/nfl/standings', label: 'Standings', matchPrefix: '/nfl/standings' },
+      ],
+    },
+    {
       // The Boardroom: club finances from statutory accounts -- the third
       // pillar alongside Football and Fantasy. A dropdown like the others,
       // though it holds one destination today; each club's own page lives

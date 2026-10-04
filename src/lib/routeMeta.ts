@@ -348,4 +348,9 @@ export const STATIC_ROUTES: RouteMeta[] = [
     description: 'Which teams have the kindest run of upcoming fixtures.',
     crumbs: [FPL],
   },
+  {
+    path: '/nfl',
+    title: 'NFL schedule, results and standings in UK time',
+    description: 'NFL results and upcoming games with UK kick-off times and the line, standings for every season since 2002 and a page for every team.',
+  },
 ];

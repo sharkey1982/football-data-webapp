@@ -2,7 +2,8 @@
 # ============================================================================
 # scripts/run_integrity_checks.py
 #
-# Runs public.check_model_integrity() -- one guard per incident in
+# Runs public.check_model_integrity() and public.check_nfl_integrity() --
+# one guard per incident in
 # docs/incidents.md -- prints each result, logs a pipeline_runs row
 # (success / warning / failed) and exits 1 if any check failed, so the daily
 # workflow goes red instead of a problem sitting unnoticed.
