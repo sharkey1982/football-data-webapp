@@ -378,8 +378,9 @@ async function loadSeasonGames(season: number): Promise<NflGame[]> {
 }
 
 async function loadSeasonModel(season: number): Promise<NflGameModel[]> {
+  // The model is an extra: if it can't be read, the fixtures still show.
   const { data, error } = await supabase.from('nfl_game_model' as never).select(MODEL_COLUMNS).like('game_id', `${season}_%`).limit(1000);
-  if (error) throw error;
+  if (error) return [];
   return (data ?? []) as unknown as NflGameModel[];
 }
 

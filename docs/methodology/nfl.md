@@ -74,6 +74,7 @@ source, so both teams played 16 games.
 | `nfl_division_winners` | a completed division-season lacks exactly one bracket winner |
 | `nfl_fantasy_points_match` | our standard or PPR points differ from nflverse on a non-kicking player-week |
 | `nfl_player_stats_fresh` | a scored game (2016+) older than 3 days has no player stats |
+| `nfl_model_fresh` | a game kicking off in the next 48 hours has no model prediction from the last 36 hours |
 
 ## Structure (phase 2)
 
@@ -157,6 +158,38 @@ previous season. Player pages are client-rendered and not in the sitemap
 (about 2,000 players; the page-count policy).
 
 Not yet: team defences (DST), injury reports, snap counts, projections.
+
+## Modelling (Model Lab, from 4 Oct 2026)
+
+Same protocol as football: experiments are registered in `lab_experiments`
+(question, benchmark, decision rule, splits) before they run; results go to
+append-only `lab_scorings`; the sealed holdout is scored once. NFL splits:
+tuning 2010-2023, validation 2024, holdout 2025 + 2026; 2002-2009 is Elo
+burn-in only. Scorer: `scripts/lab_nfl.py` (workflow Model Lab, jobs
+`nfl_n0`, `nfl_n1`; `--dry` never computes the holdout). Results in
+`docs/experiments.md`.
+
+- **N0** fixed the benchmark: the closing moneyline, margin removed (basic).
+- **N1** margin Elo: beats a home-field guess on the holdout (passes the
+  display test), trails the market by about 0.02 nats a game and adds no
+  information to it (null result as a market signal).
+
+On the site: `scripts/nfl_elo.py` runs after the daily import with N1's
+chosen settings (`nfl_elo_v1`: K 20, home advantage 45, regression 0.5) and
+the experiment's own code (`lab_nfl.elo_walk`). Every unplayed game in the
+next 8 days gets a row in append-only `nfl.model_predictions`, with the
+market at that moment; Fixtures & Results shows the latest prediction made
+before kick-off (`public.nfl_game_model`) beside the market. There are no
+hindsight predictions: games before 4 Oct 2026 have none. The stored market
+snapshots build the opening-to-closing line record for later work.
+
+New game fields for modelling (in `nfl.games`; `public.nfl_lab_games`,
+service role only): rest days, starting QB ids, temperature and wind, and the
+prices on both sides of the spread and total.
+
+Next candidates (each a registered experiment): a starting-QB adjustment,
+efficiency ratings from nflverse play-by-play (EPA), rest and travel, weather
+for totals.
 
 ## Static pages
 
