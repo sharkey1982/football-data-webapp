@@ -10,12 +10,16 @@
 # <folder> is obscured and may change, so links are read from alldata.php.
 # Cloudflare refuses these downloads from cloud machines (GitHub Actions,
 # tested 4 Oct 2026), so this runs on Chris's PC, daily via Windows Task
-# Scheduler (scripts/tennis_import.bat). If the site refuses Python as well,
-# download the files in a browser and point --files-dir at them.
+# Scheduler (task "FixtureShark tennis import", --log). If the site refuses
+# Python as well, download the files in a browser and point --files-dir at them.
 #
-# What it does, per tour-year:
-#   1. reads the workbook; refuses it if a required column is missing or two
-#      rows share a match key (tour|year|tournament|round|winner|loser);
+# What it does:
+#   0. reads every requested tour-year first, repairs blank and wrong-year
+#      dates (repair_dates) and maps each source name to one display name
+#      across all of them and the database (build_name_map); then per
+#      tour-year:
+#   1. refuses it if a required column is missing or two rows share a match
+#      key (tour|year|tournament|round|winner|loser, display names);
 #   2. upserts through public.tennis_upsert_matches (service_role), which
 #      creates tournaments, players and name aliases on first sight; a row
 #      whose source data is unchanged is not rewritten;
@@ -72,6 +76,7 @@ BATCH = 500
 REQUIRED = ["Tournament", "Date", "Round", "Winner", "Loser"]
 MAX_SETS = 5
 ODDS = {"b365": "B365", "ps": "PS", "max": "Max", "avg": "Avg", "bfe": "BFE"}
+NOTES: list[str] = []  # data repairs made in this run (dates, names)
 APP_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "fixtureshark"
 
 
@@ -105,8 +110,18 @@ def as_int(v):
     return int(n) if n is not None else None
 
 
+def is_blank(v) -> bool:
+    """None, NaN or NaT (pd.NaT passes isinstance(v, datetime), so test it first)."""
+    if v is None or v is pd.NaT:
+        return True
+    try:
+        return bool(pd.isna(v))
+    except (TypeError, ValueError):
+        return False
+
+
 def as_date(v) -> str | None:
-    if v is None or (isinstance(v, float) and math.isnan(v)):
+    if is_blank(v):
         return None
     if isinstance(v, (pd.Timestamp, dt.datetime, dt.date)):
         return pd.Timestamp(v).date().isoformat()
@@ -117,7 +132,7 @@ def as_date(v) -> str | None:
 
 
 def jsonable(v):
-    if v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v))):
+    if is_blank(v) or (isinstance(v, float) and math.isinf(v)):
         return None
     if isinstance(v, (pd.Timestamp, dt.datetime, dt.date)):
         return pd.Timestamp(v).isoformat()
@@ -131,6 +146,123 @@ def jsonable(v):
 def slugify(s: str) -> str:
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+# ---------------------------------------------------------------------------
+# Player names
+# ---------------------------------------------------------------------------
+# The source has no player ids, only names like "Sinner J.", and spells some
+# players several ways. Each source name is mapped to one display name
+# before loading, so a player is one row in tennis.players:
+#   1. ALIASES below: spelling variants checked by hand (profile of
+#      2000-2026, 4 Oct 2026). A tuple limits the alias to a range of years
+#      where the short form meant someone else in other years.
+#   2. Names equal apart from case, spaces, hyphens, dots, commas,
+#      apostrophes or accents ("Del Potro J. M." / "Del Potro J.M.") share a
+#      name_key and get one spelling: the alias target if any, else the name
+#      already in the database, else the spelling used most in this run.
+# The source spelling stays in raw.Winner / raw.Loser. Not merged on purpose
+# (different people or unsure): Sousa J./Souza J., Gil F./Gill F., Meligeni
+# F./Meligeni Alves F., Peer S./Peers S., Stefani L./Stefanini L., Zhang
+# S./Chang S., Yan Z./Yang Z., Samsonova L./Samson L.
+ALIASES: dict[str, dict[str, str | tuple[str, int, int]]] = {
+    "ATP": {
+        "Bautista R.": "Bautista Agut R.",
+        "Bogomolov Jr. A.": "Bogomolov A.",
+        "Dutra Da Silva R.": "Dutra Silva R.",
+        "Estrella V.": "Estrella Burgos V.",
+        "Gimeno D.": "Gimeno-Traver D.",
+        "Granollers-Pujol G.": "Granollers G.",
+        "Granollers-Pujol M.": "Granollers M.",
+        "Haider-Mauer A.": "Haider-Maurer A.",
+        "March O.": "Marach O.",
+        "Mpetshi G.": "Mpetshi Perricard G.",
+        "Nadal-Parera R.": "Nadal R.",
+        "Querry S.": "Querrey S.",
+        "Ramos A.": ("Ramos-Vinolas A.", 2010, 2014),
+        "Riba-Madrid P.": "Riba P.",
+        "Van D. Merwe I.": "Van Der Merwe I.",
+        "Zayed M. S.": "Zayid M.S.",
+        "Zayed M.S.": "Zayid M.S.",
+    },
+    "WTA": {
+        "Arruabarrena-Vecino L.": "Arruabarrena L.",
+        "Badosa Gibert P.": "Badosa P.",
+        "Badosa Gibert. P.": "Badosa P.",
+        "Bolsova Zadoinov A.": "Bolsova A.",
+        "Date K.": "Date Krumm K.",
+        "Duque M. M.": "Duque Marino M.",
+        "El Allami Zhara F.": "El Allami Zahra F.",
+        "Karatancheva S.": "Karatantcheva S.",
+        "Kostanic J.": "Kostanic Tosic J.",
+        "Kostanic T. J.": "Kostanic Tosic J.",
+        "Lucic M.": "Lucic-Baroni M.",
+        "Mattek B.": "Mattek-Sands B.",
+        "Medina G. A.": "Medina Garrigues A.",
+        "Muguruza Blanco G.": "Muguruza G.",
+        "Pavlyuchen. A.": "Pavlyuchenkova A.",
+        "Petersson R.": "Peterson R.",
+        "Poutchkova O.": "Puchkova O.",
+        "Pous-T L.": "Pous Tio L.",
+        "Pous-T. L.": "Pous Tio L.",
+        "Riske-Amritraj A.": "Riske A.",
+        "Saidkhodj. D.": "Saidkhodjaeva D.",
+        "Soler-E. S.": "Soler Espinosa S.",
+        "Vogele S.": "Voegele S.",
+    },
+}
+
+
+def name_key(name: str) -> str:
+    """Letters only, lower case, accents dropped."""
+    return re.sub(r"[^a-z]", "", unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower())
+
+
+def tidy_name(name: str) -> str:
+    """Cosmetic only (the name_key is unchanged): "Choi J-H." -> "Choi J.H.",
+    "Del Potro J. M." -> "Del Potro J.M.", "Kim K" -> "Kim K.",
+    "Mccabe J." -> "McCabe J.", "Sharapova, M." -> "Sharapova M."."""
+    n = re.sub(r"\.{2,}", ".", name.replace(",", ""))
+    n = re.sub(r"\b([A-Z])-(?=[A-Z]\.?(\s|$))", r"\1.", n)
+    n = re.sub(r"(?<=\b[A-Z]\.) (?=[A-Z]\.?$)", "", n)
+    n = re.sub(r"\b([A-Z])$", r"\1.", n)
+    n = re.sub(r"\bMc([a-z])", lambda m: "Mc" + m.group(1).upper(), n)
+    return re.sub(r"\s+", " ", n).strip()
+
+
+def alias_of(tour: str, name: str, year: int) -> str:
+    a = ALIASES.get(tour, {}).get(name)
+    if isinstance(a, tuple):
+        return a[0] if a[1] <= year <= a[2] else name
+    return a or name
+
+
+def build_name_map(tour: str, rows: list[dict], known: list[str]) -> dict[tuple[str, int], str]:
+    """(source name, year) -> display name for every name in rows."""
+    forced = {name_key(t if isinstance(t, str) else t[0]): (t if isinstance(t, str) else t[0])
+              for t in ALIASES.get(tour, {}).values()}
+    in_db = {}
+    for n in known:
+        in_db.setdefault(name_key(n), n)
+    used = defaultdict(Counter)
+    pairs = set()
+    for x in rows:
+        for n in (x["winner"], x["loser"]):
+            a = alias_of(tour, n, x["year"])
+            used[name_key(a)][a] += 1
+            pairs.add((n, x["year"]))
+    pick = {}
+    for k, c in used.items():
+        pick[k] = forced.get(k) or in_db.get(k) or tidy_name(sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))[0][0])
+    return {(n, y): pick[name_key(alias_of(tour, n, y))] for n, y in pairs}
+
+
+def apply_names(tour: str, year: int, rows: list[dict], names: dict[tuple[str, int], str]) -> list[dict]:
+    for x in rows:
+        x["winner"], x["loser"] = names[(x["winner"], year)], names[(x["loser"], year)]
+        x["source_key"] = "|".join([tour, str(year), x["tournament"], x["round"], x["winner"], x["loser"]])
+    check_unique(tour, year, rows)
+    return rows
 
 
 def fetch(url: str) -> bytes:
@@ -219,9 +351,9 @@ def to_rows(tour: str, year: int, df: pd.DataFrame) -> list[dict]:
     for i, r in enumerate(df.to_dict("records")):
         tournament, rnd, winner, loser = clean(r["Tournament"]), clean(r["Round"]), clean(r["Winner"]), clean(r["Loser"])
         date = as_date(r["Date"])
-        if not all((tournament, rnd, winner, loser, date)):
-            raise ValueError(f"{tour} {year} row {i + 2}: blank tournament/round/winner/loser/date: "
-                             f"{[tournament, rnd, winner, loser, r['Date']]}")
+        if not all((tournament, rnd, winner, loser)):
+            raise ValueError(f"{tour} {year} row {i + 2}: blank tournament/round/winner/loser: "
+                             f"{[tournament, rnd, winner, loser]}")
         w_games, l_games = [], []
         for k in range(1, MAX_SETS + 1):
             w, l = as_int(r.get(f"W{k}")), as_int(r.get(f"L{k}"))
@@ -247,10 +379,45 @@ def to_rows(tour: str, year: int, df: pd.DataFrame) -> list[dict]:
         for key, col in ODDS.items():
             row[f"{key}_w"], row[f"{key}_l"] = num(r.get(f"{col}W")), num(r.get(f"{col}L"))
         rows.append(row)
+    repair_dates(tour, year, rows)
+    check_unique(tour, year, rows)
+    return rows
+
+
+def check_unique(tour: str, year: int, rows: list[dict]) -> None:
     dups = [k for k, n in Counter(x["source_key"] for x in rows).items() if n > 1]
     if dups:
         raise ValueError(f"{tour} {year}: {len(dups)} duplicate match keys, nothing written: {dups[:20]}")
-    return rows
+
+
+def repair_dates(tour: str, year: int, rows: list[dict]) -> None:
+    """Two kinds of bad date seen in the source (profile, 4 Oct 2026):
+    - blank: WTA 2010 Guangzhou final, WTA 2012 Cincinnati final. Use the
+      tournament's latest date in the file (the semi-final day).
+    - wrong year: ATP 2006 Paris final dated 2005-11-05. A season file runs
+      from late December of the year before to December; a date outside that
+      takes the file's year if that puts it inside.
+    Each repair is listed in NOTES (printed by --profile and by the load).
+    The source value stays in raw.Date."""
+    lo, hi = f"{year - 1}-12-01", f"{year}-12-31"
+    for x in rows:
+        d = x["match_date"]
+        if d and not lo <= d <= hi:
+            fixed = f"{year}{d[4:]}"
+            if not lo <= fixed <= hi:
+                raise ValueError(f"{tour} {year}: date {d} outside the season and not a year typo: {x['source_key']}")
+            NOTES.append(f"{tour} {year}: date {d} -> {fixed} (year typo) {x['source_key']}")
+            x["match_date"] = fixed
+    latest = defaultdict(str)
+    for x in rows:
+        if x["match_date"]:
+            latest[x["tournament"]] = max(latest[x["tournament"]], x["match_date"])
+    for x in rows:
+        if not x["match_date"]:
+            if not latest[x["tournament"]]:
+                raise ValueError(f"{tour} {year}: blank date and no other date for the tournament: {x['source_key']}")
+            x["match_date"] = latest[x["tournament"]]
+            NOTES.append(f"{tour} {year}: blank date -> {x['match_date']} (tournament's latest) {x['source_key']}")
 
 
 def totals(rows: list[dict]) -> tuple[int, int, str]:
@@ -283,18 +450,18 @@ def profile(tour: str, year: int, src: str, df: pd.DataFrame, rows: list[dict] |
     print(f"  completed matches whose set scores disagree with sets won: {len(bad)} {bad[:5]}")
 
 
-def name_review(rows_by_tour: dict[str, list[dict]]) -> None:
-    """Different source strings that look like one player (accents, spacing, case)."""
-    for tour, rows in rows_by_tour.items():
-        by_slug = defaultdict(set)
-        for x in rows:
-            for n in (x["winner"], x["loser"]):
-                by_slug[slugify(n)].add(n)
-        clashes = {k: sorted(v) for k, v in by_slug.items() if len(v) > 1}
-        names = {n for v in by_slug.values() for n in v}
-        print(f"\n=== {tour} names: {len(names)} distinct; {len(clashes)} groups that differ only by accents/case/spacing")
-        for k, v in list(clashes.items())[:40]:
-            print("   ", v)
+def name_review(names_by_tour: dict[str, dict[tuple[str, int], str]]) -> None:
+    """Source spellings that will be loaded under a different display name."""
+    for tour, names in names_by_tour.items():
+        changed = defaultdict(set)
+        for (src, _), disp in names.items():
+            if src != disp:
+                changed[disp].add(src)
+        shown = {n for n in names.values()}
+        print(f"\n=== {tour} names: {len({s for s, _ in names})} source spellings -> {len(shown)} players; "
+              f"{len(changed)} players with merged spellings")
+        for disp in sorted(changed):
+            print(f"    {disp}  <-  {sorted(changed[disp])}")
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +474,17 @@ def read_env_file() -> None:
             if "=" in line and not line.lstrip().startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip().strip('"'))
+
+
+def db_player_names(sb, tour: str) -> list[str]:
+    names, start = [], 0
+    while True:
+        page = (sb.table("tennis_players").select("name").eq("tour", tour)
+                .order("player_id").range(start, start + 999).execute().data)
+        names += [p["name"] for p in page]
+        if len(page) < 1000:
+            return names
+        start += 1000
 
 
 def db_keys(sb, tour: str, year: int) -> set[str]:
@@ -364,32 +542,57 @@ def main() -> int:
     files_dir = Path(args.files_dir) if args.files_dir else None
     jobs = [(t, y) for t in tours for y in parse_years(args.years, today) if FIRST_YEAR[t] <= y <= today.year]
 
-    if args.profile:
-        by_tour = defaultdict(list)
-        for tour, year in jobs:
-            try:
-                src, df = load_workbook(tour, year, files_dir, today.year)
-            except Exception as e:  # noqa: BLE001
-                print(f"\n=== {tour} {year}: NOT READ -- {e}")
-                continue
-            try:
-                rows, err = to_rows(tour, year, df), None
-                by_tour[tour] += rows
-            except Exception as e:  # noqa: BLE001
-                rows, err = None, str(e)
-            profile(tour, year, src, df, rows, err)
-        name_review(by_tour)
-        return 0
-
-    read_env_file()
-    from supabase import create_client
-    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    run = sb.table("pipeline_runs").insert({"job_name": "tennis_import", "status": "running"}).execute().data[0]
-    done, failures = [], []
+    # Read everything first: names are settled across all the years in the
+    # run (and the database) before anything is written.
+    read, failures = {}, []
     for tour, year in jobs:
         try:
             src, df = load_workbook(tour, year, files_dir, today.year)
-            done.append(load(sb, tour, year, to_rows(tour, year, df)))
+        except Exception as e:  # noqa: BLE001
+            failures.append(str(e))
+            print(f"\n=== {tour} {year}: NOT READ -- {e}")
+            continue
+        try:
+            rows, err = to_rows(tour, year, df), None
+            read[(tour, year)] = (src, rows)
+        except Exception as e:  # noqa: BLE001
+            rows, err = None, str(e)
+            failures.append(err)
+        if args.profile:
+            profile(tour, year, src, df, rows, err)
+
+    sb = None
+    if not args.profile:
+        read_env_file()
+        from supabase import create_client
+        sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+    names_by_tour = {}
+    for tour in tours:
+        rows = [x for (t, _), (_, r) in read.items() if t == tour for x in r]
+        names_by_tour[tour] = build_name_map(tour, rows, db_player_names(sb, tour) if sb else [])
+    for (tour, year), (src, rows) in list(read.items()):
+        try:
+            apply_names(tour, year, rows, names_by_tour[tour])
+        except Exception as e:  # noqa: BLE001
+            failures.append(str(e))
+            print(f"FAILED {e}")
+            del read[(tour, year)]
+
+    if args.profile:
+        name_review(names_by_tour)
+        print(f"\n=== data repairs: {len(NOTES)}")
+        for n in NOTES:
+            print("   ", n)
+        print("\n" + ("PROBLEMS: " + " || ".join(failures) if failures else "OK: nothing refused"))
+        return 0
+
+    for n in NOTES:
+        print("repair:", n)
+    run = sb.table("pipeline_runs").insert({"job_name": "tennis_import", "status": "running"}).execute().data[0]
+    done = []
+    for (tour, year), (src, rows) in read.items():
+        try:
+            done.append(load(sb, tour, year, rows))
             print(done[-1], f"[{src}]")
         except Exception as e:  # noqa: BLE001
             failures.append(str(e))
