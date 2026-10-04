@@ -27,6 +27,13 @@ name: Model Lab
 #   rule sets. Fails on any mismatch. (The SQL engine is checked daily by
 #   check_model_integrity.)
 #
+# nfl_n0: NFL market benchmark (registered as N0): closing moneyline v
+#   spread-implied win probability; fixes the NFL benchmark.
+#
+# nfl_n1: NFL margin-of-victory Elo (registered as N1) v the N0 benchmark and
+#   a home-field baseline. Tuning (36 variants) and validation; with
+#   open_holdout ticked, only the holdout (2025 + 2026), once, then concludes.
+#
 # analysis_squad_variance: one-off analysis, not an experiment (changes
 #   nothing on the site). Next gameweek simulated 10,000 times: the optimal
 #   XI, the next 49, a template and a differential XI against an
@@ -40,10 +47,10 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, p5, p2, fpl_scoring_verify, analysis_squad_variance]
+        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance]
         default: f1
       open_holdout:
-        description: "f1/f4/p5/p2 only: score the sealed holdout (once only; p2 then scores only the holdout)"
+        description: "f1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
         type: boolean
         default: false
 
@@ -83,6 +90,18 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/lab_p2.py ${{ inputs.open_holdout && '--holdout-only' || '' }}
+      - name: NFL N0
+        if: inputs.job == 'nfl_n0'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/lab_nfl.py n0
+      - name: NFL N1
+        if: inputs.job == 'nfl_n1'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/lab_nfl.py n1 ${{ inputs.open_holdout && '--open-holdout' || '' }}
       - name: FPL scoring engine v FPL's points
         if: inputs.job == 'fpl_scoring_verify'
         env:

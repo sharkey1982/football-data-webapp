@@ -97,6 +97,17 @@ def game_row(g: dict) -> dict:
         "home_qb_name": g.get("home_qb_name") or None,
         "away_coach": g.get("away_coach") or None,
         "home_coach": g.get("home_coach") or None,
+        # Modelling inputs (2026-10-04): rest days, starting QBs, weather, both prices.
+        "away_rest": num(g.get("away_rest", "")),
+        "home_rest": num(g.get("home_rest", "")),
+        "temp": num(g.get("temp", "")),
+        "wind": num(g.get("wind", "")),
+        "away_qb_id": g.get("away_qb_id") or None,
+        "home_qb_id": g.get("home_qb_id") or None,
+        "away_spread_odds": num(g.get("away_spread_odds", "")),
+        "home_spread_odds": num(g.get("home_spread_odds", "")),
+        "over_odds": num(g.get("over_odds", "")),
+        "under_odds": num(g.get("under_odds", "")),
     }
 
 
