@@ -89,6 +89,8 @@ const NflTablePage = lazy(() => import('./pages/nfl/NflTablePage'));
 const NflTeamsPage = lazy(() => import('./pages/nfl/NflTeamsPage'));
 const NflTeamPage = lazy(() => import('./pages/nfl/NflTeamPage'));
 const NflGamePage = lazy(() => import('./pages/nfl/NflGamePage'));
+const NflRoadTripsPage = lazy(() => import('./pages/nfl/NflRoadTripsPage'));
+const NflPickMyTeamPage = lazy(() => import('./pages/nfl/NflPickMyTeamPage'));
 const NflSeasonsPage = lazy(() => import('./pages/nfl/NflSeasonsPage'));
 const NflSeasonPage = lazy(() => import('./pages/nfl/NflSeasonPage'));
 const NflPlayersPage = lazy(() => import('./pages/nfl/NflPlayersPage'));
@@ -714,6 +716,22 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <NflTeamPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/road-trips"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflRoadTripsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/pick-my-team"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflPickMyTeamPage />
               </Suspense>
             }
           />

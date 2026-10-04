@@ -18,15 +18,21 @@ describe('layout pairs (consistent page layouts across sports)', () => {
   });
 
   it.each(LAYOUT_PAIRS.map((p) => [p.label, p] as const))('%s: both pages exist and use the shared components', (_label, p) => {
-    expect(existsSync(join(root, p.footballFile)), p.footballFile).toBe(true);
     expect(existsSync(join(root, p.nflFile)), p.nflFile).toBe(true);
+    if (p.status === 'nfl-only') {
+      expect(p.footballFile, `${p.label} is nfl-only but names a football file`).toBeNull();
+      expect(p.shared).toEqual([]);
+      return;
+    }
+    expect(p.footballFile, `${p.label} needs a football file`).not.toBeNull();
+    expect(existsSync(join(root, p.footballFile!)), p.footballFile!).toBe(true);
     if (p.status === 'separate') {
       expect(p.shared).toEqual([]);
       return;
     }
     expect(p.shared.length, `${p.label} is '${p.status}' but lists no shared component`).toBeGreaterThan(0);
     for (const name of p.shared) {
-      expect(imports(source(p.footballFile), name), `${p.footballFile} no longer uses ${name}`).toBe(true);
+      expect(imports(source(p.footballFile!), name), `${p.footballFile} no longer uses ${name}`).toBe(true);
       expect(imports(source(p.nflFile), name), `${p.nflFile} no longer uses ${name}`).toBe(true);
     }
   });

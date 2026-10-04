@@ -9,13 +9,15 @@
 //                   loads its data and passes the words. They cannot drift.
 //   * 'partial'  -- some pieces are shared (listed); the rest is per sport.
 //   * 'separate' -- not shared yet. These are the to-do list.
+//   * 'nfl-only' -- no Football counterpart yet (footballFile null); the
+//                   note says what would pair with it.
 //
 // src/__tests__/layoutPairs.test.ts fails if a listed shared component stops
 // being used by either page, or if an NFL menu page is missing from this
 // list -- so a new page can't be added without deciding how it matches.
 // ============================================================================
 
-export type LayoutStatus = 'shared' | 'partial' | 'separate';
+export type LayoutStatus = 'shared' | 'partial' | 'separate' | 'nfl-only';
 
 export type LayoutPair = {
   /** The page name both menus use. */
@@ -23,7 +25,7 @@ export type LayoutPair = {
   /** NFL route (as in journey.ts). */
   nflPath: string;
   /** Source files, from the repo root. */
-  footballFile: string;
+  footballFile: string | null;
   nflFile: string;
   /** Components both files must import. */
   shared: string[];
@@ -130,5 +132,23 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     shared: [],
     status: 'separate',
     note: 'Static rule tables.',
+  },
+  {
+    label: 'Road Trips',
+    nflPath: '/nfl/road-trips',
+    footballFile: null,
+    nflFile: 'src/pages/nfl/NflRoadTripsPage.tsx',
+    shared: [],
+    status: 'nfl-only',
+    note: 'Pairs with a Football away-travel or Your Local Clubs map once club ground locations exist.',
+  },
+  {
+    label: 'Pick My Team',
+    nflPath: '/nfl/pick-my-team',
+    footballFile: null,
+    nflFile: 'src/pages/nfl/NflPickMyTeamPage.tsx',
+    shared: [],
+    status: 'nfl-only',
+    note: 'Football gets a postcode finder (Your Local Clubs) instead: you support your local club.',
   },
 ];

@@ -204,7 +204,7 @@ async function main() {
       query('nfl_standings?select=season&order=season.desc&limit=1'),
     ]);
     const latest = nflLatest?.[0]?.season;
-    for (const p of ['/nfl/fixtures', '/nfl/table', '/nfl/teams', '/nfl/seasons', '/nfl/scoring-rules']) {
+    for (const p of ['/nfl/fixtures', '/nfl/table', '/nfl/teams', '/nfl/seasons', '/nfl/scoring-rules', '/nfl/road-trips', '/nfl/pick-my-team']) {
       if (!staticPaths.includes(p)) { entries.push(urlEntry(p, null)); counts.nfl++; }
     }
     if (latest != null) for (const season of mod.nflSeasonRange(latest)) { entries.push(urlEntry(mod.nflSeasonPath(season), null)); counts.nfl++; }

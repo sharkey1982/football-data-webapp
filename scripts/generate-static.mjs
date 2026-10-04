@@ -426,6 +426,12 @@ async function main() {
         n += attempt(`season ${season}`, () => entry.renderNflSeasonPage({ season, seasons, rows, games: gamesBy.get(season) ?? [], summaries }));
       }
       for (const team of teams) n += attempt(`team ${team.slug}`, () => entry.renderNflTeamPage(entry.buildNflTeam(team, standings, latestGames, latest)));
+      // Road Trips and Pick My Team: from this season's games, the last
+      // complete season's standings and every London game since 2007.
+      n += attempt('road trips', () => entry.renderNflRoadTripsPage(entry.buildNflRoadTrips(latest, latestGames, teams)));
+      const lastComplete = Math.max(...standings.filter((r) => r.season_complete).map((r) => r.season));
+      const londonGames = games.filter((g) => entry.NFL_LONDON_STADIUM.test(g.stadium ?? ''));
+      n += attempt('pick my team', () => entry.renderNflPickPage(entry.buildNflPicker(latest, latestGames, standings.filter((r) => r.season === lastComplete), londonGames, teams)));
       // Game pages for the latest season (every game since 2002 is the pool
       // for head-to-head and form; older games render in the browser).
       const modelBy = new Map(model.map((m) => [m.game_id, m]));
