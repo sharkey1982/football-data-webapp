@@ -190,6 +190,23 @@ describe('NFL pages', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Fixtures & Results');
   });
 
+  it('Fixtures & Results has the football calendar: tap a day to list just that day', async () => {
+    mocked.loadNflWeek.mockResolvedValue(weekData);
+    render(
+      <MemoryRouter initialEntries={['/nfl/fixtures']}>
+        <Routes><Route path="/nfl/fixtures" element={<NflFixturesPage />} /></Routes>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByTestId('nfl-calendar-help')).toBeTruthy());
+    expect(screen.getAllByTestId('nfl-game')).toHaveLength(2); // week 4
+    const oct11 = screen.getAllByRole('button', { name: '11' }).find((b) => !(b as HTMLButtonElement).disabled)!;
+    fireEvent.click(oct11); // week 5's game, UK date 11 Oct
+    expect(screen.getAllByTestId('nfl-game')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: '2026: selected day' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Week 4' }));
+    expect(screen.getAllByTestId('nfl-game')).toHaveLength(2);
+  });
+
   it('Fixtures & Results reads season and week from the URL', async () => {
     mocked.loadNflWeek.mockResolvedValue(weekData);
     render(

@@ -147,6 +147,14 @@ export function ukKickoff(g: Pick<NflGame, 'kickoff_at' | 'gameday'>): string {
   return `${UK_DAY.format(d)}, ${UK_TIME.format(d)}`;
 }
 
+const UK_ISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** UK calendar date of a game as 'YYYY-MM-DD' (the calendar's key). A game
+ * with no kick-off time yet falls on its US date. */
+export function ukDateKey(g: Pick<NflGame, 'kickoff_at' | 'gameday'>): string {
+  return g.kickoff_at ? UK_ISO.format(new Date(g.kickoff_at)) : g.gameday;
+}
+
 /** UK calendar day of a game, for grouping a week's games by day. */
 export function ukDay(g: Pick<NflGame, 'kickoff_at' | 'gameday'>): string {
   return g.kickoff_at ? UK_DAY.format(new Date(g.kickoff_at)) : UK_DAY.format(new Date(`${g.gameday}T12:00:00Z`));
@@ -192,6 +200,8 @@ export type NflWeekData = {
   currentWeek: number;
   /** Every franchise, for the teams directory under the schedule. */
   teams: NflTeam[];
+  /** The whole season, for the calendar. */
+  seasonGames: NflGame[];
 };
 
 export function buildWeek(season: number, seasons: number[], seasonGames: NflGame[], week: number | null, teams: NflTeam[]): NflWeekData | null {
@@ -205,7 +215,7 @@ export function buildWeek(season: number, seasons: number[], seasonGames: NflGam
   const games = seasonGames
     .filter((g) => g.week === chosen)
     .sort((a, b) => (a.kickoff_at ?? a.gameday).localeCompare(b.kickoff_at ?? b.gameday) || a.game_id.localeCompare(b.game_id));
-  return { season, seasons, week: chosen, weeks, games, currentWeek, teams };
+  return { season, seasons, week: chosen, weeks, games, currentWeek, teams, seasonGames };
 }
 
 /** One plain sentence about the week, for the page and its description. */
