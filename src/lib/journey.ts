@@ -1,8 +1,8 @@
 // ============================================================================
 // src/lib/journey.ts
 //
-// Single source of truth for the site's structure: three themes (Football,
-// Fantasy Premier League, NFL), each a hub with its stages.
+// Single source of truth for the site's structure: four themes (Football,
+// Fantasy Premier League, NFL, Tennis), each a hub with its stages.
 //
 // Everything that needs to know "what is this page, and where does it
 // sit" reads from here -- the hub pages, the stage landing pages, and
@@ -16,7 +16,7 @@
 // ============================================================================
 
 export type StageKey = 'discover' | 'predict' | 'fantasy';
-export type ThemeKey = 'football' | 'fpl' | 'nfl';
+export type ThemeKey = 'football' | 'fpl' | 'nfl' | 'tennis';
 
 export type JourneyLink = {
   label: string;
@@ -206,6 +206,31 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       },
     ],
   },
+  // Tennis (Oct 2026): ATP from 2000 and WTA from 2007, results only. Same page
+  // names as Football and NFL where the job matches (Results ~ Fixtures &
+  // Results, Your Player ~ Your Team, Past seasons). One page per section with
+  // an ATP/WTA toggle (Chris, 4 Oct).
+  tennis: {
+    key: 'tennis',
+    title: 'Tennis',
+    eyebrow: 'FixtureShark \u00b7 Tennis',
+    hubPath: '/tennis',
+    intro: 'Every ATP result since 2000 and every WTA result since 2007: day by day, player by player and season by season.',
+    stages: [
+      {
+        key: 'discover',
+        title: 'Discover',
+        tagline: 'Results, players, the archive.',
+        intro:
+          'Everything that has happened at tour level: every result with the rankings and the pre-match favourite, each player\u2019s record and titles, and the story of every season.',
+        links: [
+          { label: 'Results', to: '/tennis/results', blurb: 'Every match day by day, with rankings and the upsets.' },
+          { label: 'Your Player', to: '/tennis/players', blurb: 'Any player\u2019s record by season, surface and level, their titles and best wins.', matchPrefix: ['/tennis/players'] },
+          { label: 'Past seasons', to: '/tennis/seasons', blurb: 'Grand Slam champions, title leaders, upsets and streaks for every season.', matchPrefix: ['/tennis/seasons'] },
+        ],
+      },
+    ],
+  },
 };
 
 /** Path for a stage page, derived rather than written out, so the hub
@@ -214,7 +239,7 @@ export function stagePath(theme: JourneyTheme, stage: JourneyStage): string {
   return `${theme.hubPath}/${stage.key}`;
 }
 
-/** Every page in the header menu, in menu order (Football, Fantasy, NFL). */
+/** Every page in the header menu, in menu order (Football, Fantasy, NFL, Tennis). */
 export function menuOrder(): string[] {
   return Object.values(THEMES).flatMap((t) => t.stages.flatMap((s) => s.links.map((l) => l.to)));
 }

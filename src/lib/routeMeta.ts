@@ -29,6 +29,7 @@ export type RouteMeta = {
 const FOOTBALL = { name: 'Football', path: '/football' };
 const FPL = { name: 'Fantasy Premier League', path: '/fpl/start' };
 const NFL = { name: 'NFL', path: '/nfl' };
+const TENNIS = { name: 'Tennis', path: '/tennis' };
 
 export const STATIC_ROUTES: RouteMeta[] = [
   {
@@ -383,5 +384,16 @@ export const STATIC_ROUTES: RouteMeta[] = [
     title: 'NFL fantasy fixture heat map: kindest and toughest matchups',
     description: 'Every NFL team\u2019s next six games coloured by how many fantasy points each opponent gives up to each position.',
     crumbs: [NFL],
+  },
+  {
+    path: '/tennis',
+    title: 'Tennis \u2014 ATP and WTA results, players and seasons',
+    description: 'Every ATP result since 2000 and every WTA result since 2007: day by day, player by player and season by season.',
+  },
+  {
+    path: '/tennis/discover',
+    title: 'Discover \u2014 Tennis',
+    description: 'Every tour-level result with rankings and the pre-match favourite, each player\u2019s record and titles, and the story of every season.',
+    crumbs: [TENNIS],
   },
 ];

@@ -98,6 +98,12 @@ const NflPlayersPage = lazy(() => import('./pages/nfl/NflPlayersPage'));
 const NflPlayerPage = lazy(() => import('./pages/nfl/NflPlayerPage'));
 const NflHeatMapPage = lazy(() => import('./pages/nfl/NflHeatMapPage'));
 const NflScoringRulesPage = lazy(() => import('./pages/nfl/NflScoringRulesPage'));
+const TennisHub = lazy(() => import('./pages/tennis/TennisHub'));
+const TennisResultsPage = lazy(() => import('./pages/tennis/TennisResultsPage'));
+const TennisPlayersPage = lazy(() => import('./pages/tennis/TennisPlayersPage'));
+const TennisPlayerPage = lazy(() => import('./pages/tennis/TennisPlayerPage'));
+const TennisSeasonsPage = lazy(() => import('./pages/tennis/TennisSeasonsPage'));
+const TennisSeasonPage = lazy(() => import('./pages/tennis/TennisSeasonPage'));
 // The NFL section's first URLs (4 Oct 2026), moved the same day to match
 // Football's structure; netlify.toml 301s them too.
 function NflOldStandingsRedirect() {
@@ -805,6 +811,63 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <StagePage themeKey="nfl" />
+              </Suspense>
+            }
+          />
+          {/* Tennis: the same hub -> stage -> page structure (journey.ts). */}
+          <Route
+            path="tennis"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisHub />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/results"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisResultsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/players"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisPlayersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/players/:tour/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisPlayerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/seasons"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisSeasonsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/seasons/:tour/:year"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisSeasonPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/:stage"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <StagePage themeKey="tennis" />
               </Suspense>
             }
           />

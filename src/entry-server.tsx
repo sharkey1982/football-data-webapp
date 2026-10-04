@@ -119,6 +119,35 @@ export { buildGamePreview as buildNflGamePreview };
 export { buildLocalClubs, LOCAL_CLUBS_TIERS };
 export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
+import TennisResultsPage from './pages/tennis/TennisResultsPage';
+import TennisPlayersPage from './pages/tennis/TennisPlayersPage';
+import TennisPlayerPage from './pages/tennis/TennisPlayerPage';
+import TennisSeasonsPage from './pages/tennis/TennisSeasonsPage';
+import TennisSeasonPage from './pages/tennis/TennisSeasonPage';
+import {
+  TENNIS_HUB_PATH,
+  TENNIS_PLAYERS_PATH,
+  TENNIS_RESULTS_PATH,
+  TENNIS_SEASONS_PATH,
+  tennisPlayerPath,
+  tennisSeasonPath,
+  type TennisPlayerData,
+  type TennisPlayersData,
+  type TennisResultsData,
+  type TennisSeasonData,
+  type TennisSeasonIndexData,
+} from './lib/tennisApi';
+import { FIRST_YEAR as TENNIS_FIRST_YEAR, groupByTournament as tennisGroupByTournament, resultsSentence as tennisResultsSentence, seasonsSentence as tennisSeasonsSentence, playerSentence as tennisPlayerSentence, seasonSentence as tennisSeasonSentence } from './lib/tennisStats';
+export {
+  MATCH_COLUMNS as TENNIS_MATCH_COLUMNS,
+  PLAYER_COLUMNS as TENNIS_PLAYER_COLUMNS,
+  buildTennisPlayer,
+  resultsWindow as tennisResultsWindow,
+  tennisPlayerPath,
+  tennisSeasonPath,
+  tennisYears,
+} from './lib/tennisApi';
+export { STATIC_PLAYER_MIN as TENNIS_STATIC_PLAYER_MIN, seasonIndex as tennisSeasonIndex, seasonSummary as tennisSeasonSummary } from './lib/tennisStats';
 
 export type RenderedPage = {
   html: string;
@@ -768,6 +797,64 @@ export function renderNflScoringPage(): RenderedPage {
     description: 'How NFL fantasy points are scored on FixtureShark: standard, half-PPR and PPR for passing, rushing, receiving and turnovers, and the kicker rules.',
     canonical: `${SITE_URL}${NFL_SCORING_PATH}`,
     structuredData: [breadcrumb([NFL_CRUMB, { name: 'Fantasy', path: '/nfl/fantasy' }, { name: 'Scoring Rules', path: NFL_SCORING_PATH }])],
+  };
+}
+
+// ---- Tennis -----------------------------------------------------------------
+const TENNIS_CRUMB = { name: 'Tennis', path: TENNIS_HUB_PATH };
+const TENNIS_DISCOVER_CRUMB = { name: 'Discover', path: '/tennis/discover' };
+
+export function renderTennisResultsPage(data: TennisResultsData): RenderedPage {
+  const day = data.matches.filter((m) => m.match_date === data.latestDate);
+  return {
+    html: nflPage(TENNIS_RESULTS_PATH, TENNIS_RESULTS_PATH, <TennisResultsPage initialData={data} />),
+    title: `${data.tour} tennis results by day | ${BRAND_NAME}`,
+    description: tennisResultsSentence(data.tour, data.latestDate, day.length, tennisGroupByTournament(day).length),
+    canonical: `${SITE_URL}${TENNIS_RESULTS_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Results', path: TENNIS_RESULTS_PATH }])],
+  };
+}
+
+export function renderTennisPlayersPage(data: TennisPlayersData): RenderedPage {
+  return {
+    html: nflPage(TENNIS_PLAYERS_PATH, TENNIS_PLAYERS_PATH, <TennisPlayersPage initialData={data} />),
+    title: `${data.tour} players: records, titles and seasons since ${TENNIS_FIRST_YEAR[data.tour]} | ${BRAND_NAME}`,
+    description: `Every ${data.tour} player at tour level since ${TENNIS_FIRST_YEAR[data.tour]}: win-loss record, titles, finals and the years they played.`,
+    canonical: `${SITE_URL}${TENNIS_PLAYERS_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Your Player', path: TENNIS_PLAYERS_PATH }])],
+  };
+}
+
+export function renderTennisPlayerPage(data: TennisPlayerData): RenderedPage {
+  const path = tennisPlayerPath(data.player.tour, data.player.slug);
+  return {
+    html: nflPage(path, '/tennis/players/:tour/:slug', <TennisPlayerPage initialData={data} />),
+    title: `${data.player.name}: ${data.player.tour} record, titles and results | ${BRAND_NAME}`,
+    description: tennisPlayerSentence(data.summary),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Your Player', path: TENNIS_PLAYERS_PATH }, { name: data.player.name, path }])],
+  };
+}
+
+export function renderTennisSeasonsPage(data: TennisSeasonIndexData): RenderedPage {
+  return {
+    html: nflPage(TENNIS_SEASONS_PATH, TENNIS_SEASONS_PATH, <TennisSeasonsPage initialData={data} />),
+    title: `Every ${data.tour} season since ${TENNIS_FIRST_YEAR[data.tour]}: Grand Slam champions | ${BRAND_NAME}`,
+    description: tennisSeasonsSentence(data.tour, data.rows),
+    canonical: `${SITE_URL}${TENNIS_SEASONS_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Past seasons', path: TENNIS_SEASONS_PATH }])],
+  };
+}
+
+export function renderTennisSeasonPage(data: TennisSeasonData): RenderedPage {
+  const { tour, year } = data.summary;
+  const path = tennisSeasonPath(tour, year);
+  return {
+    html: nflPage(path, '/tennis/seasons/:tour/:year', <TennisSeasonPage initialData={data} />),
+    title: `The ${year} ${tour} season: champions, upsets and streaks | ${BRAND_NAME}`,
+    description: tennisSeasonSentence(data.summary),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Past seasons', path: TENNIS_SEASONS_PATH }, { name: `${year} ${tour}`, path }])],
   };
 }
 

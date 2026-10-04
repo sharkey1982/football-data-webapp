@@ -217,6 +217,22 @@ async function main() {
     }
   }
 
+  // Tennis: the three list pages (hub and stage are static routes), a page per
+  // tour-year, and players with 50+ matches in the tour's last three seasons
+  // (the ones the static build writes; the rest are noindex).
+  counts.tennis = 0;
+  if (mod?.tennisSeasonPath) {
+    for (const p of ['/tennis/results', '/tennis/players', '/tennis/seasons']) {
+      if (!staticPaths.includes(p)) { entries.push(urlEntry(p, null)); counts.tennis++; }
+    }
+    for (const tour of ['ATP', 'WTA']) {
+      const latest = (await query(`tennis_matches?select=year&tour=eq.${tour}&order=match_date.desc&limit=1`))?.[0]?.year;
+      if (latest != null) for (const y of mod.tennisYears(tour, latest)) { entries.push(urlEntry(mod.tennisSeasonPath(tour, y), null)); counts.tennis++; }
+      const players = (await query(`tennis_players?select=slug&tour=eq.${tour}&recent_matches=gte.${mod.TENNIS_STATIC_PLAYER_MIN}&order=slug.asc`)) ?? [];
+      for (const p of players) { entries.push(urlEntry(mod.tennisPlayerPath(tour, p.slug), null)); counts.tennis++; }
+    }
+  }
+
   counts.finance = 0;
   if (mod && finance) {
     try {

@@ -466,6 +466,82 @@ async function main() {
     console.error(`Static: failed Your Local Clubs: ${err?.message ?? err}`);
   }
 
+  // ---- Tennis ----------------------------------------------------------------
+  // Results (latest day), Your Player, Past seasons (ATP: the list pages'
+  // default tour), a season page per tour-year, and a page per player with 50+
+  // matches in the tour's last three seasons. Each tour's matches are fetched
+  // once (~70k ATP, ~48k WTA rows) and every page is built from them. Any
+  // failure leaves the SPA shell, which still works.
+  async function writeTennisPages() {
+    try {
+      const entry = await import(ENTRY);
+      const write = (page) => {
+        const dir = join(DIST, ...new URL(page.canonical).pathname.split('/').filter(Boolean));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      };
+      let n = 0;
+      const attempt = (label, fn) => {
+        try {
+          write(fn());
+          n++;
+        } catch (err) {
+          console.error(`Static: failed tennis ${label}: ${err?.message ?? err}`);
+        }
+      };
+      for (const tour of ['ATP', 'WTA']) {
+        // By year: deep offsets over a whole tour take ~1s a page; a year is 3 small pages.
+        const latestRow = await query(`tennis_matches?select=year&tour=eq.${tour}&order=match_date.desc&limit=1`);
+        const players = await queryAll(`tennis_players?select=${entry.TENNIS_PLAYER_COLUMNS}&tour=eq.${tour}&order=player_id.asc`);
+        const matches = [];
+        let missing = latestRow?.[0]?.year == null;
+        for (const y of missing ? [] : entry.tennisYears(tour, latestRow[0].year)) {
+          const rows = await queryAll(`tennis_matches?select=${entry.TENNIS_MATCH_COLUMNS}&tour=eq.${tour}&year=eq.${y}&order=source_key.asc`);
+          if (rows == null) missing = true;
+          else matches.push(...rows);
+        }
+        if (missing || !matches.length || !players?.length) {
+          console.warn(`Static: tennis ${tour} data unavailable -- its pages stay client-rendered.`);
+          continue;
+        }
+        matches.sort((a, b) => a.match_date.localeCompare(b.match_date) || a.source_key.localeCompare(b.source_key));
+        const latestDate = matches[matches.length - 1].match_date;
+        const latestYear = Number(latestDate.slice(0, 4));
+        const years = entry.tennisYears(tour, latestYear);
+        if (tour === 'ATP') {
+          const y = Number(latestDate.slice(0, 4));
+          const m = Number(latestDate.slice(5, 7)) - 1;
+          const { from, to } = entry.tennisResultsWindow(m === 0 ? y - 1 : y, m === 0 ? 11 : m - 1);
+          attempt('results', () => entry.renderTennisResultsPage({ tour, latestDate, from, to, matches: matches.filter((x) => x.match_date >= from && x.match_date <= to) }));
+          attempt('players', () => entry.renderTennisPlayersPage({ tour, players }));
+          attempt('seasons', () => entry.renderTennisSeasonsPage({ tour, rows: entry.tennisSeasonIndex(matches.filter((x) => x.round === 'The Final')) }));
+        }
+        const byYear = new Map();
+        for (const x of matches) {
+          if (!byYear.has(x.year)) byYear.set(x.year, []);
+          byYear.get(x.year).push(x);
+        }
+        for (const year of years) {
+          const rows = byYear.get(year);
+          if (rows?.length) attempt(`season ${tour} ${year}`, () => entry.renderTennisSeasonPage({ summary: entry.tennisSeasonSummary(tour, year, rows), years }));
+        }
+        const byPlayer = new Map();
+        for (const x of matches) for (const id of [x.winner_id, x.loser_id]) {
+          if (!byPlayer.has(id)) byPlayer.set(id, []);
+          byPlayer.get(id).push(x);
+        }
+        for (const p of players) {
+          if (p.recent_matches < entry.TENNIS_STATIC_PLAYER_MIN) continue;
+          attempt(`player ${tour} ${p.slug}`, () => entry.renderTennisPlayerPage(entry.buildTennisPlayer(p, byPlayer.get(p.player_id) ?? [])));
+        }
+      }
+      console.log(`Static: wrote ${n} tennis page(s).`);
+    } catch (err) {
+      console.error(`Static: failed tennis pages: ${err?.message ?? err}`);
+    }
+  }
+  await writeTennisPages();
+
   // ---- Record Book (/football/records, /football/records/:league) -----------
   async function writeRecordsPages() {
     if (!leagueBulk) return;
