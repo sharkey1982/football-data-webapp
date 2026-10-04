@@ -3,7 +3,8 @@ name: NFL import (nflverse games and team names)
 # Daily NFL load -- see scripts/nfl_import.py. Separate from the football
 # imports on purpose. 06:20 UTC: after Monday Night Football has finished and
 # before the 07:00 FPL run rebuilds the site, so the static NFL pages carry
-# the latest results. Writes one pipeline_runs row (job_name nfl_import).
+# the latest results, then the latest season's player stats. Writes one
+# pipeline_runs row (job_name nfl_import).
 
 on:
   schedule:
@@ -11,7 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       seasons:
-        description: 'Seasons, comma-separated (blank = all from 2002)'
+        description: 'Game seasons, comma-separated (blank = all from 2002)'
+        required: false
+        default: ''
+      player_seasons:
+        description: 'Player-stat seasons, e.g. 2016-2026 (blank = latest season only)'
         required: false
         default: ''
 
@@ -33,4 +38,5 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SEASONS: ${{ inputs.seasons }}
-        run: python scripts/nfl_import.py --seasons "$SEASONS"
+          PLAYER_SEASONS: ${{ inputs.player_seasons }}
+        run: python scripts/nfl_import.py --seasons "$SEASONS" --player-seasons "$PLAYER_SEASONS"
