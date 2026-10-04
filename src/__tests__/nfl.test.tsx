@@ -10,6 +10,7 @@ import NflSeasonPage from '../pages/nfl/NflSeasonPage';
 import StagePage from '../pages/StagePage';
 import { renderNflFixturesPage, renderNflGamePage, renderNflSeasonPage, renderNflTablePage, renderNflTeamPage } from '../entry-server';
 import NflGamePage from '../pages/nfl/NflGamePage';
+import { favouriteCoverProb, likeliestMargins, marginBuckets, marginDistribution } from '../lib/nflMargin';
 import { buildGamePreview, formOf, gameSentence, headToHead, headToHeadSentence, marginLabel, seasonSoFar } from '../lib/nflGame';
 import { THEMES } from '../lib/journey';
 import { againstSpread, seasonStory, teamSeasonStory, upsetSize, winStreaks, type NflSeasonSummary } from '../lib/nflStory';
@@ -523,6 +524,33 @@ describe('NFL game page (head-to-head, form, prediction)', () => {
     expect(screen.getByTestId('nfl-h2h-meetings').querySelectorAll('li')).toHaveLength(3);
     expect(screen.getByTestId('nfl-season-so-far').textContent).toContain('1-1-1');
     expect(screen.getAllByTitle(/^T 14–14 at Team 1-0/)).toHaveLength(1);
+    // Who they played and the scores, linking to each game.
+    const recent = screen.getByTestId('nfl-recent-games');
+    expect(recent.textContent).toContain('Team 1-1');
+    expect(recent.textContent).toContain('30–3');
+    expect(recent.querySelector('a[href="/nfl/games/2026_03_T11_NE"]')).not.toBeNull();
+    // The spread of likely results.
+    expect(screen.getByTestId('nfl-margin-chart').textContent).toContain('NE win by');
+    expect(screen.getByTestId('nfl-likeliest-margins').textContent).toMatch(/^Most likely exact margins: NE by 3/);
+    expect(screen.getByTestId('nfl-cover-chance').textContent).toMatch(/New England Patriots are \d+\.\d% to cover the line \(NE −3\)/);
+  });
+
+  it('margin distribution: sums to 1, bunches on key numbers, agrees with the expected margin', () => {
+    const d = marginDistribution(3);
+    const total = [...d.values()].reduce((a, b) => a + b, 0);
+    expect(total).toBeCloseTo(1, 6);
+    expect(d.get(3)!).toBeGreaterThan(2 * d.get(2)!);
+    expect(d.get(7)!).toBeGreaterThan(d.get(8)!);
+    expect(d.get(0)!).toBeLessThan(0.01);
+    const homeWin = [...d.entries()].filter(([m]) => m > 0).reduce((a, [, p]) => a + p, 0);
+    expect(homeWin).toBeGreaterThan(0.55);
+    expect(homeWin).toBeLessThan(0.62);
+    const b = marginBuckets(d);
+    expect(b.map((x) => x.key)).toEqual(['away-15', 'away-8', 'away-4', 'away-1', 'tie', 'home-1', 'home-4', 'home-8', 'home-15']);
+    expect(b.reduce((a, x) => a + x.p, 0)).toBeCloseTo(1, 6);
+    expect(likeliestMargins(d)[0].margin).toBe(3);
+    // A pick'em is symmetric; an away favourite's cover counts margins below the line.
+    expect(favouriteCoverProb(marginDistribution(-6.5), -6.5)).toBeCloseTo(favouriteCoverProb(marginDistribution(6.5), 6.5), 6);
   });
 
   it('a played game says what the model predicted beforehand and who covered; server render has an event', () => {

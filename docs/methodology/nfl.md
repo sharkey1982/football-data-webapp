@@ -191,6 +191,30 @@ Next candidates (each a registered experiment): a starting-QB adjustment,
 efficiency ratings from nflverse play-by-play (EPA), rest and travel, weather
 for totals.
 
+## Game pages and the margin curve (PR #170, #171)
+
+`/nfl/games/:gameId` (src/pages/nfl/NflGamePage.tsx, lib nflGame.ts) shows, as of
+kick-off: where to watch, the result, the Elo prediction against the market, each
+team's recent games (opponent, score, line and cover), season so far, and the
+head-to-head since 2002.
+
+"How it might finish" is the NFL counterpart of the Dixon-Coles scoreline grid.
+Final home margin ~ Normal(expected margin, sd) (Stern 1991, *The American
+Statistician* 45(3)), discretised to whole points and multiplied by a key-number
+weight w(k) = observed / expected for each absolute margin k <= 30, then
+renormalised. `scripts/nfl_margin_shape.py` fits sd and w on 2002-2023 around the
+closing spread and writes `src/lib/nflMarginShape.ts`; it never reads 2025+.
+
+| Check (2024, 285 games) | Exact-margin log loss |
+|---|---|
+| Plain normal, sd 13.26 | 3.964 |
+| Key-number weighted | 3.863 |
+
+Biggest weights: 3 (2.8x), 7 (1.9x), 14 (1.5x), 10 and 6 (1.3x); ties 0.09x. The
+curve is centred on the Elo expected margin, so its win share can differ by a few
+points from Elo's own probability, which stays the scored figure. Exact *scores*
+(Baker & McHale 2013, *IJF* 29(1)) are not modelled.
+
 ## Static pages
 
 About 62 server-rendered pages: Fixtures & Results, League Table, Your Team
