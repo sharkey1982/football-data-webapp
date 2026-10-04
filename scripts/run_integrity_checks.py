@@ -2,7 +2,7 @@
 # ============================================================================
 # scripts/run_integrity_checks.py
 #
-# Runs public.check_model_integrity() and public.check_nfl_integrity() --
+# Runs public.check_model_integrity(), check_nfl_integrity() and check_tennis_integrity() --
 # one guard per incident in
 # docs/incidents.md -- prints each result, logs a pipeline_runs row
 # (success / warning / failed) and exits 1 if any check failed, so the daily
@@ -27,6 +27,12 @@ def main() -> None:
         print("::error::check_nfl_integrity returned nothing")
         sys.exit(1)
     rows += nfl
+    # Tennis (results imported from Chris's PC; see scripts/tennis_import.py).
+    tennis = sb.rpc("check_tennis_integrity", {}).execute().data or []
+    if not tennis:
+        print("::error::check_tennis_integrity returned nothing")
+        sys.exit(1)
+    rows += tennis
     for r in rows:
         mark = {"ok": "ok  ", "warning": "WARN", "failed": "FAIL"}.get(r["status"], r["status"])
         print(f"[{mark}] {r['check_name']}: {r['found']} -- {r['detail']}")
