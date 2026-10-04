@@ -88,6 +88,7 @@ const NflTvGuidePage = lazy(() => import('./pages/nfl/NflTvGuidePage'));
 const NflTablePage = lazy(() => import('./pages/nfl/NflTablePage'));
 const NflTeamsPage = lazy(() => import('./pages/nfl/NflTeamsPage'));
 const NflTeamPage = lazy(() => import('./pages/nfl/NflTeamPage'));
+const NflGamePage = lazy(() => import('./pages/nfl/NflGamePage'));
 const NflSeasonsPage = lazy(() => import('./pages/nfl/NflSeasonsPage'));
 const NflSeasonPage = lazy(() => import('./pages/nfl/NflSeasonPage'));
 const NflPlayersPage = lazy(() => import('./pages/nfl/NflPlayersPage'));
@@ -713,6 +714,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <NflTeamPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/games/:gameId"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflGamePage />
               </Suspense>
             }
           />

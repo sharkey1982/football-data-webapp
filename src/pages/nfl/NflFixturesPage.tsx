@@ -24,6 +24,7 @@ import {
   loadNflWeek,
   nflSeasonPath,
   nflTablePath,
+  nflGamePath,
   nflTeamPath,
   ukDateKey,
   ukDay,
@@ -58,6 +59,11 @@ function GameRow({ g, model }: { g: NflGame; model?: NflGameModel }) {
       </div>
       <div className="text-xs text-ink-500 font-mono text-right ml-auto">
         <div>{done ? `Final${g.overtime ? ' (OT)' : ''}` : ukKickoff(g)}</div>
+        <div>
+          <Link to={nflGamePath(g.game_id)} className="text-pitch-800 underline underline-offset-2" data-testid="nfl-game-link">
+            {done ? 'Result, head-to-head & form' : 'Preview: head-to-head, form & prediction'}
+          </Link>
+        </div>
         {line && <div>{`${done ? 'Closing line' : 'Line'}: ${line}${g.total_line != null ? `, O/U ${g.total_line}` : ''}`}</div>}
         {model && (
           <div className="text-ink-700" data-testid="nfl-model-line">

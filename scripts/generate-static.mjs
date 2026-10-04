@@ -426,6 +426,10 @@ async function main() {
         n += attempt(`season ${season}`, () => entry.renderNflSeasonPage({ season, seasons, rows, games: gamesBy.get(season) ?? [], summaries }));
       }
       for (const team of teams) n += attempt(`team ${team.slug}`, () => entry.renderNflTeamPage(entry.buildNflTeam(team, standings, latestGames, latest)));
+      // Game pages for the latest season (every game since 2002 is the pool
+      // for head-to-head and form; older games render in the browser).
+      const modelBy = new Map(model.map((m) => [m.game_id, m]));
+      for (const g of latestGames) n += attempt(`game ${g.game_id}`, () => entry.renderNflGamePage(entry.buildNflGamePreview(g, games, modelBy.get(g.game_id) ?? null)));
       console.log(`Static: wrote ${n} NFL page(s).`);
     } catch (err) {
       console.error(`Static: failed NFL pages: ${err?.message ?? err}`);

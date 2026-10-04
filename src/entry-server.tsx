@@ -69,6 +69,8 @@ import NflFixturesPage from './pages/nfl/NflFixturesPage';
 import NflTablePage from './pages/nfl/NflTablePage';
 import NflTeamsPage from './pages/nfl/NflTeamsPage';
 import NflTeamPage from './pages/nfl/NflTeamPage';
+import NflGamePage from './pages/nfl/NflGamePage';
+import { buildGamePreview, gameSentence, type NflGamePreview } from './lib/nflGame';
 import NflSeasonsPage from './pages/nfl/NflSeasonsPage';
 import NflSeasonPage from './pages/nfl/NflSeasonPage';
 import NflScoringRulesPage from './pages/nfl/NflScoringRulesPage';
@@ -79,6 +81,7 @@ import {
   NFL_SEASONS_PATH,
   NFL_TABLE_PATH,
   NFL_TEAMS_PATH,
+  nflGamePath,
   nflSeasonPath,
   nflTeamPath,
   standingsSentence,
@@ -100,10 +103,12 @@ export {
   STANDING_COLUMNS as NFL_STANDING_COLUMNS,
   TEAM_COLUMNS as NFL_TEAM_COLUMNS,
   MODEL_COLUMNS as NFL_MODEL_COLUMNS,
+  nflGamePath,
   nflSeasonPath,
   nflTeamPath,
 } from './lib/nflApi';
 export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
+export { buildGamePreview as buildNflGamePreview };
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
 
 export type RenderedPage = {
@@ -658,6 +663,32 @@ export function renderNflSeasonPage(data: NflSeasonData): RenderedPage {
     description: story.headline,
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([NFL_CRUMB, { name: 'Past seasons', path: NFL_SEASONS_PATH }, { name: `${data.season} season`, path }])],
+  };
+}
+
+export function renderNflGamePage(data: NflGamePreview): RenderedPage {
+  const g = data.game;
+  const path = nflGamePath(g.game_id);
+  const name = `${g.away_name} ${g.neutral_site ? 'v' : 'at'} ${g.home_name}`;
+  return {
+    html: nflPage(path, '/nfl/games/:gameId', <NflGamePage initialData={data} />),
+    title: `${name}: preview, head-to-head and prediction | ${BRAND_NAME}`,
+    description: gameSentence(data),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SportsEvent',
+        name,
+        sport: 'American football',
+        startDate: g.kickoff_at ?? g.gameday,
+        homeTeam: { '@type': 'SportsTeam', name: g.home_name },
+        awayTeam: { '@type': 'SportsTeam', name: g.away_name },
+        ...(g.stadium ? { location: { '@type': 'Place', name: g.stadium } } : {}),
+        url: `${SITE_URL}${path}`,
+      },
+      breadcrumb([NFL_CRUMB, { name: 'Fixtures & Results', path: NFL_FIXTURES_PATH }, { name, path }]),
+    ],
   };
 }
 

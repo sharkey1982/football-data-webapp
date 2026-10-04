@@ -132,6 +132,9 @@ export const nflFixturesPath = (season?: number, week?: number) =>
   season == null ? NFL_FIXTURES_PATH : `${NFL_FIXTURES_PATH}?season=${season}${week != null ? `&week=${week}` : ''}`;
 export const nflTeamPath = (slug: string) => `${NFL_TEAMS_PATH}/${slug}`;
 export const nflPlayerPath = (slug: string) => `${NFL_PLAYERS_PATH}/${slug}`;
+export const NFL_GAMES_PATH = '/nfl/games';
+/** One game's preview page (nflverse game_id, e.g. 2026_05_KC_JAX). */
+export const nflGamePath = (gameId: string) => `${NFL_GAMES_PATH}/${gameId}`;
 
 // ---- Formatting ------------------------------------------------------------
 

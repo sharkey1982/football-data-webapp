@@ -32,8 +32,11 @@ export function ScoreChip({
 export function FormBadge({
   result,
   detail,
+  label,
 }: {
   result: 'W' | 'D' | 'L';
+  /** Letter shown instead of the result (NFL shows a tie as T). */
+  label?: string;
   /** Optional richer tooltip text, e.g. "vs Tottenham, 2-1 (H)" -- falls back to a plain Win/Draw/Loss label if omitted. */
   detail?: string;
 }) {
@@ -48,7 +51,7 @@ export function FormBadge({
       className={`inline-flex items-center justify-center w-6 h-6 rounded-sm text-xs font-bold font-mono ${styles}`}
       title={detail ?? (result === 'W' ? 'Win' : result === 'D' ? 'Draw' : 'Loss')}
     >
-      {result}
+      {label ?? result}
     </span>
   );
 }

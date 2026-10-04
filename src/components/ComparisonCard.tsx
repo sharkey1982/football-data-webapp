@@ -5,6 +5,8 @@ import type { FormResult } from '../lib/api';
 export interface FormEntry {
   result: FormResult;
   detail: string;
+  /** Letter shown on the badge instead of the result (NFL ties: T). */
+  label?: string;
 }
 
 export function ComparisonCard({
@@ -42,7 +44,8 @@ export function ComparisonCard({
           </div>
           <div className="flex justify-between text-xs font-mono text-ink-700">
             <span>{homeWinPct!.toFixed(0)}%</span>
-            <span className="text-ink-500">{drawPct!.toFixed(0)}% draw</span>
+            {/* NFL passes 0: ties are too rare to price, so no draw label. */}
+            {drawPct! > 0 ? <span className="text-ink-500">{drawPct!.toFixed(0)}% draw</span> : <span />}
             <span>{awayWinPct!.toFixed(0)}%</span>
           </div>
         </div>
@@ -57,7 +60,7 @@ function TeamColumn({ name, form, align }: { name: string; form: FormEntry[]; al
       <div className="font-display uppercase text-lg tracking-wide truncate">{name}</div>
       <div className={`flex gap-1 mt-2 ${align === 'right' ? 'justify-end' : ''}`}>
         {(align === 'right' ? [...form].reverse() : form).slice(0, 5).map((entry, i) => (
-          <FormBadge key={i} result={entry.result} detail={entry.detail} />
+          <FormBadge key={i} result={entry.result} detail={entry.detail} label={entry.label} />
         ))}
       </div>
     </div>

@@ -24,7 +24,7 @@
 // ============================================================================
 
 import type { WatchOffer } from './watchGuide';
-import { favourLabel, nflFixturesPath, ukDateKey, weekLabel, type NflGame, type NflGameModel } from './nflApi';
+import { favourLabel, nflGamePath, ukDateKey, weekLabel, type NflGame, type NflGameModel } from './nflApi';
 import type { WatchGuideItem } from '../components/WatchGuideView';
 
 export const RULES_CHECKED = '4 October 2026';
@@ -120,7 +120,9 @@ export function nflWatch(g: Pick<NflGame, 'game_type' | 'kickoff_at' | 'neutral_
   if (!g.kickoff_at) return { offers, pickedWeekly: 'Kick-off time not set yet; UK broadcasts follow once it is.', listingsUrl: SKY_LISTINGS };
   const { day, hour } = ukParts(g.kickoff_at);
   const primetime = hour >= 23 || hour < 6;
-  const london = g.neutral_site && LONDON.test(g.stadium ?? '');
+  // By stadium, not neutral_site: nflverse marks the Jaguars' London games as
+  // Jaguars home games, and they are London games all the same.
+  const london = LONDON.test(g.stadium ?? '');
   // European neutral-site games kick off in the UK afternoon; Sky shows every
   // London and European game. (Neutral games elsewhere fall to the other rules.)
   const european = g.neutral_site && hour >= 9 && hour < 17;
@@ -150,7 +152,7 @@ export function nflWatch(g: Pick<NflGame, 'game_type' | 'kickoff_at' | 'neutral_
 const UK_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' });
 
 /** A stable numeric id per game (the guide keys rows by number). */
-function gameNumber(gameId: string): number {
+export function gameNumber(gameId: string): number {
   let h = 0;
   for (let i = 0; i < gameId.length; i++) h = (h * 31 + gameId.charCodeAt(i)) | 0;
   return Math.abs(h);
@@ -163,7 +165,7 @@ export function nflGuideItem(g: NflGame, model?: NflGameModel): WatchGuideItem {
   return {
     fixtureId: gameNumber(g.game_id),
     slug: null,
-    href: nflFixturesPath(g.season, g.week),
+    href: nflGamePath(g.game_id),
     kickoffDate: ukDateKey(g),
     kickoffTime: g.kickoff_at ? UK_TIME.format(new Date(g.kickoff_at)) : null,
     leagueCode: 'NFL',

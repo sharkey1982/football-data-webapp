@@ -209,6 +209,12 @@ async function main() {
     }
     if (latest != null) for (const season of mod.nflSeasonRange(latest)) { entries.push(urlEntry(mod.nflSeasonPath(season), null)); counts.nfl++; }
     for (const t of nflTeams ?? []) { entries.push(urlEntry(mod.nflTeamPath(t.slug), null)); counts.nfl++; }
+    // Game pages: the latest season's schedule (the ones the static build writes).
+    const gameSeason = (await query('nfl_games?select=season&order=season.desc&limit=1'))?.[0]?.season;
+    if (gameSeason != null && mod.nflGamePath) {
+      const ids = (await query(`nfl_games?select=game_id&season=eq.${gameSeason}&order=game_id.asc&limit=1000`)) ?? [];
+      for (const g of ids) { entries.push(urlEntry(mod.nflGamePath(g.game_id), null)); counts.nfl++; }
+    }
   }
 
   counts.finance = 0;
