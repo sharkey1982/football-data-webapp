@@ -90,6 +90,7 @@ const NflTeamsPage = lazy(() => import('./pages/nfl/NflTeamsPage'));
 const NflTeamPage = lazy(() => import('./pages/nfl/NflTeamPage'));
 const NflGamePage = lazy(() => import('./pages/nfl/NflGamePage'));
 const NflRoadTripsPage = lazy(() => import('./pages/nfl/NflRoadTripsPage'));
+const LocalClubsPage = lazy(() => import('./pages/football/LocalClubsPage'));
 const NflPickMyTeamPage = lazy(() => import('./pages/nfl/NflPickMyTeamPage'));
 const NflSeasonsPage = lazy(() => import('./pages/nfl/NflSeasonsPage'));
 const NflSeasonPage = lazy(() => import('./pages/nfl/NflSeasonPage'));
@@ -276,6 +277,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TeamExplorer />
+              </Suspense>
+            }
+          />
+          <Route
+            path="football/local-clubs"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <LocalClubsPage />
               </Suspense>
             }
           />

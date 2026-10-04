@@ -74,6 +74,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'TV Guide', to: '/tv-guide', blurb: 'Every upcoming fixture with a confirmed UK broadcast, in order.' },
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
           { label: 'Your Team', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
+          { label: 'Your Local Clubs', to: '/football/local-clubs', blurb: 'Put in your postcode: your nearest club at every level, Premier League to National League.' },
           { label: 'Position Tracking', to: '/football/history', blurb: 'How far the table still moves, where teams in any position finished, and this season against every champion.', matchPrefix: ['/football/history'], excludePrefix: ['/football/history/trends', '/football/history/scorelines'] },
           { label: 'Historic Trends', to: '/football/history/trends', blurb: 'Goals, home advantage, draws and title thresholds, season by season since 1992/93.', matchPrefix: ['/football/history/trends'] },
           { label: 'Score Explore', to: '/football/history/scorelines', blurb: 'How often every scoreline happens, by league, era or club.', matchPrefix: ['/football/history/scorelines'] },

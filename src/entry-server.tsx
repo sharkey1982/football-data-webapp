@@ -71,6 +71,8 @@ import NflTeamsPage from './pages/nfl/NflTeamsPage';
 import NflTeamPage from './pages/nfl/NflTeamPage';
 import NflGamePage from './pages/nfl/NflGamePage';
 import NflRoadTripsPage from './pages/nfl/NflRoadTripsPage';
+import LocalClubsPage from './pages/football/LocalClubsPage';
+import { LOCAL_CLUBS_PATH, TOP_TIERS as LOCAL_CLUBS_TIERS, buildLocalClubs, type LocalClubsData } from './lib/localClubs';
 import NflPickMyTeamPage from './pages/nfl/NflPickMyTeamPage';
 import { buildPicker, buildRoadTrips, roadTripsSentence, LONDON_STADIUM, type PickerData, type RoadTrips } from './lib/nflPlaces';
 import { buildGamePreview, gameSentence, type NflGamePreview } from './lib/nflGame';
@@ -114,6 +116,7 @@ export {
 } from './lib/nflApi';
 export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
 export { buildGamePreview as buildNflGamePreview };
+export { buildLocalClubs, LOCAL_CLUBS_TIERS };
 export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
 
@@ -669,6 +672,23 @@ export function renderNflSeasonPage(data: NflSeasonData): RenderedPage {
     description: story.headline,
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([NFL_CRUMB, { name: 'Past seasons', path: NFL_SEASONS_PATH }, { name: `${data.season} season`, path }])],
+  };
+}
+
+export function renderLocalClubsPage(data: LocalClubsData): RenderedPage {
+  const path = LOCAL_CLUBS_PATH;
+  return {
+    html: renderToString(
+      <StaticRouter location={path}>
+        <Routes>
+          <Route path={path} element={<LocalClubsPage initialData={data} />} />
+        </Routes>
+      </StaticRouter>
+    ),
+    title: `Your Local Clubs: nearest football club to your postcode | ${BRAND_NAME}`,
+    description: `Put in your postcode to find your nearest football club and the nearest in every division: ${data.clubs.length} clubs from the Premier League to the National League.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'Discover', path: '/football/discover' }, { name: 'Your Local Clubs', path }])],
   };
 }
 
