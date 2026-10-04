@@ -51,6 +51,23 @@ export type NflGame = {
   stadium: string | null;
 };
 
+/** The model's pre-kick-off prediction for a game (Elo, experiment N1) and
+ * the market at that moment. Only predictions made before kick-off exist. */
+export type NflGameModel = {
+  game_id: string;
+  predicted_at: string;
+  p_home: number;
+  predicted_margin: number;
+  market_p_home: number | null;
+};
+export const MODEL_COLUMNS = 'game_id,predicted_at,p_home,predicted_margin,market_p_home';
+
+/** "KC 64%": the side the probability favours, from a home-win probability. */
+export function favourLabel(g: Pick<NflGame, 'home_franchise' | 'away_franchise'>, pHome: number): string {
+  const p = Number(pHome);
+  return p >= 0.5 ? `${g.home_franchise} ${Math.round(p * 100)}%` : `${g.away_franchise} ${Math.round((1 - p) * 100)}%`;
+}
+
 export type NflStanding = {
   season: number;
   franchise: string;
@@ -202,9 +219,11 @@ export type NflWeekData = {
   teams: NflTeam[];
   /** The whole season, for the calendar. */
   seasonGames: NflGame[];
+  /** Model predictions by game_id (only games predicted before kick-off). */
+  model: Record<string, NflGameModel>;
 };
 
-export function buildWeek(season: number, seasons: number[], seasonGames: NflGame[], week: number | null, teams: NflTeam[]): NflWeekData | null {
+export function buildWeek(season: number, seasons: number[], seasonGames: NflGame[], week: number | null, teams: NflTeam[], model: NflGameModel[] = []): NflWeekData | null {
   if (seasonGames.length === 0) return null;
   const byWeek = new Map<number, NflWeekRef>();
   for (const g of seasonGames) if (!byWeek.has(g.week)) byWeek.set(g.week, { week: g.week, game_type: g.game_type, label: weekLabel(g.game_type, g.week) });
@@ -215,7 +234,7 @@ export function buildWeek(season: number, seasons: number[], seasonGames: NflGam
   const games = seasonGames
     .filter((g) => g.week === chosen)
     .sort((a, b) => (a.kickoff_at ?? a.gameday).localeCompare(b.kickoff_at ?? b.gameday) || a.game_id.localeCompare(b.game_id));
-  return { season, seasons, week: chosen, weeks, games, currentWeek, teams, seasonGames };
+  return { season, seasons, week: chosen, weeks, games, currentWeek, teams, seasonGames, model: Object.fromEntries(model.map((m) => [m.game_id, m])) };
 }
 
 /** One plain sentence about the week, for the page and its description. */
@@ -358,12 +377,18 @@ async function loadSeasonGames(season: number): Promise<NflGame[]> {
   return (data ?? []) as unknown as NflGame[];
 }
 
+async function loadSeasonModel(season: number): Promise<NflGameModel[]> {
+  const { data, error } = await supabase.from('nfl_game_model' as never).select(MODEL_COLUMNS).like('game_id', `${season}_%`).limit(1000);
+  if (error) throw error;
+  return (data ?? []) as unknown as NflGameModel[];
+}
+
 export async function loadNflWeek(season: number | null, week: number | null): Promise<NflWeekData | null> {
   const seasons = await loadSeasons();
   if (seasons.length === 0) return null;
   const s = season != null && seasons.includes(season) ? season : seasons[seasons.length - 1];
-  const [games, teams] = await Promise.all([loadSeasonGames(s), loadNflTeams()]);
-  return buildWeek(s, seasons, games, week, teams);
+  const [games, teams, model] = await Promise.all([loadSeasonGames(s), loadNflTeams(), loadSeasonModel(s)]);
+  return buildWeek(s, seasons, games, week, teams, model);
 }
 
 export async function loadNflStandings(season: number): Promise<NflStandingsData | null> {

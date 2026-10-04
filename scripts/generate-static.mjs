@@ -413,7 +413,8 @@ async function main() {
       const tableSeason = Math.max(...standings.map((r) => r.season));
       const tableData = { season: tableSeason, seasons, rows: standings.filter((r) => r.season === tableSeason) };
       let n = 0;
-      const week = entry.buildNflWeek(latest, seasons, latestGames, null, teams);
+      const model = (await query(`nfl_game_model?select=${entry.NFL_MODEL_COLUMNS}&game_id=like.${latest}_*&limit=1000`)) ?? [];
+      const week = entry.buildNflWeek(latest, seasons, latestGames, null, teams, model);
       if (week) n += attempt('fixtures', () => entry.renderNflFixturesPage(week));
       n += attempt('table', () => entry.renderNflTablePage(tableData));
       n += attempt('teams', () => entry.renderNflTeamsPage(tableData));

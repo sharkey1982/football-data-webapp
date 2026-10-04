@@ -1,7 +1,6 @@
-name: NFL lab (branch run, temporary)
-# TEMPORARY: from the nfl-model-lab branch, re-import NFL games with the new
-# model fields, then score N0, N1 (tuning + validation) and N1's holdout once.
-# Deleted before merge.
+name: NFL model (branch run, temporary)
+# TEMPORARY: first run of the daily model predictions (scripts/nfl_elo.py)
+# from the nfl-model-lab branch. The experiments already ran. Deleted before merge.
 on:
   push:
     branches: [nfl-model-lab]
@@ -11,7 +10,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -21,11 +20,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r scripts/requirements.txt
-      - name: Re-import games with the model fields
-        run: python scripts/nfl_import.py
-      - name: N0
-        run: python scripts/lab_nfl.py n0
-      - name: N1 tuning and validation
-        run: python scripts/lab_nfl.py n1
-      - name: N1 holdout (once)
-        run: python scripts/lab_nfl.py n1 --open-holdout
+      - name: Model predictions
+        run: python scripts/nfl_elo.py

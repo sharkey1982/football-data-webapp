@@ -140,8 +140,10 @@ def fit_sigma(games: list[dict]) -> float:
 
 # ---- Elo -------------------------------------------------------------------------------------
 
-def run_elo(games: list[dict], k: float, hfa: float, reg: float) -> dict[str, tuple[float, float]]:
-    """Walk-forward: returns game_id -> (pre-game P(home win), Elo edge incl. home advantage)."""
+def elo_walk(games: list[dict], k: float, hfa: float, reg: float):
+    """Walk-forward margin Elo over played games, in order. Returns
+    (game_id -> (pre-game P(home win), Elo edge incl. home advantage),
+    ratings after the last game, season of the last game)."""
     r: dict[str, float] = defaultdict(lambda: 1500.0)
     season = None
     out = {}
@@ -161,7 +163,12 @@ def run_elo(games: list[dict], k: float, hfa: float, reg: float) -> dict[str, tu
         delta = k * mult * (result - p)
         r[h] += delta
         r[a] -= delta
-    return out
+    return out, r, season
+
+
+def run_elo(games: list[dict], k: float, hfa: float, reg: float) -> dict[str, tuple[float, float]]:
+    """Walk-forward: returns game_id -> (pre-game P(home win), Elo edge incl. home advantage)."""
+    return elo_walk(games, k, hfa, reg)[0]
 
 
 # ---- log-linear pool ---------------------------------------------------------------------------
