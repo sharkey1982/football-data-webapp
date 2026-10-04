@@ -20,6 +20,12 @@ def main() -> None:
     if not rows:
         print("::error::check_model_integrity returned nothing")
         sys.exit(1)
+    # NFL checks live in their own function so football's stays untouched.
+    nfl = sb.rpc("check_nfl_integrity", {}).execute().data or []
+    if not nfl:
+        print("::error::check_nfl_integrity returned nothing")
+        sys.exit(1)
+    rows += nfl
     for r in rows:
         mark = {"ok": "ok  ", "warning": "WARN", "failed": "FAIL"}.get(r["status"], r["status"])
         print(f"[{mark}] {r['check_name']}: {r['found']} -- {r['detail']}")

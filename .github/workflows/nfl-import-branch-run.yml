@@ -1,0 +1,24 @@
+name: NFL import (branch run, temporary)
+# TEMPORARY: runs the first NFL load from the nfl-phase1 branch so the data
+# can be checked before the PR. Deleted before merge.
+on:
+  push:
+    branches: [nfl-phase1]
+    paths: [.github/workflows/nfl-import-branch-run.yml]
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install supabase
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/nfl_import.py
