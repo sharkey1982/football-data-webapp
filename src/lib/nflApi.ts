@@ -126,6 +126,8 @@ export const NFL_SEASONS_PATH = '/nfl/seasons';
 export const NFL_PLAYERS_PATH = '/nfl/players';
 export const NFL_HEAT_MAP_PATH = '/nfl/fixture-heat-map';
 export const NFL_SCORING_PATH = '/nfl/scoring-rules';
+export const NFL_ROAD_TRIPS_PATH = '/nfl/road-trips';
+export const NFL_PICK_PATH = '/nfl/pick-my-team';
 export const nflSeasonPath = (season: number) => `${NFL_SEASONS_PATH}/${season}`;
 export const nflTablePath = (season?: number) => (season == null ? NFL_TABLE_PATH : `${NFL_TABLE_PATH}?season=${season}`);
 export const nflFixturesPath = (season?: number, week?: number) =>

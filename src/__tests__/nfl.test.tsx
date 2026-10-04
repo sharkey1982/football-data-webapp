@@ -8,11 +8,15 @@ import NflTablePage from '../pages/nfl/NflTablePage';
 import NflTeamPage from '../pages/nfl/NflTeamPage';
 import NflSeasonPage from '../pages/nfl/NflSeasonPage';
 import StagePage from '../pages/StagePage';
-import { renderNflFixturesPage, renderNflGamePage, renderNflSeasonPage, renderNflTablePage, renderNflTeamPage } from '../entry-server';
+import { renderNflFixturesPage, renderNflGamePage, renderNflPickPage, renderNflRoadTripsPage, renderNflSeasonPage, renderNflTablePage, renderNflTeamPage } from '../entry-server';
 import NflGamePage from '../pages/nfl/NflGamePage';
+import NflRoadTripsPage from '../pages/nfl/NflRoadTripsPage';
+import NflPickMyTeamPage from '../pages/nfl/NflPickMyTeamPage';
+import { STADIUMS, buildPicker, buildRoadTrips, lateUk, milesBetween, pickReasons, rankTeams, type PickerTeam } from '../lib/nflPlaces';
 import { favouriteCoverProb, likeliestMargins, marginBuckets, marginDistribution } from '../lib/nflMargin';
 import { buildGamePreview, formOf, gameSentence, headToHead, headToHeadSentence, marginLabel, seasonSoFar } from '../lib/nflGame';
 import { THEMES } from '../lib/journey';
+import { LAYOUT_PAIRS } from '../lib/layoutPairs';
 import { againstSpread, seasonStory, teamSeasonStory, upsetSize, winStreaks, type NflSeasonSummary } from '../lib/nflStory';
 import { nflGuideItem, nflWatch } from '../lib/nflWatch';
 import { buildHeatMap, consistency, playerSentence, positionRank, type NflPlayerWeek, type PointsAllowed } from '../lib/nflFantasyApi';
@@ -459,7 +463,9 @@ describe('NFL model display', () => {
 describe('NFL journey', () => {
   it('uses the same page names as Football for the same jobs', () => {
     const football = THEMES.football.stages[0].links.map((l) => l.label);
-    const nfl = THEMES.nfl.stages[0].links.map((l) => l.label);
+    // Pages with no football counterpart are declared 'nfl-only' in layoutPairs.
+    const nflOnly = new Set(LAYOUT_PAIRS.filter((p) => p.status === 'nfl-only').map((p) => p.label));
+    const nfl = THEMES.nfl.stages[0].links.map((l) => l.label).filter((l) => !nflOnly.has(l));
     for (const label of nfl) expect(football).toContain(label);
     const fpl = THEMES.fpl.stages.flatMap((st) => st.links.map((l) => l.label));
     for (const label of THEMES.nfl.stages[1].links.map((l) => l.label)) expect(fpl).toContain(label);
@@ -562,5 +568,60 @@ describe('NFL game page (head-to-head, form, prediction)', () => {
     expect(page.html).toContain('The model’s favourite won.');
     expect(page.structuredData[0]).toMatchObject({ '@type': 'SportsEvent', name: 'Miami Dolphins at New England Patriots' });
     expect(gameSentence(played)).toBe('Miami Dolphins at New England Patriots, Week 6 of the 2026 season: New England Patriots won 27–20.');
+  });
+});
+
+describe('NFL Road Trips and Pick My Team', () => {
+  const rt = [
+    // NE home at Gillette, MIA home at Hard Rock; NE plays at MIA, MIA plays in London; one late game.
+    game({ game_id: 'r1', season: 2026, home_franchise: 'NE', away_franchise: 'MIA', stadium: 'Gillette Stadium', kickoff_at: '2026-10-04T17:00:00Z' }),
+    game({ game_id: 'r2', season: 2026, home_franchise: 'MIA', home_name: 'Miami Dolphins', away_franchise: 'NE', away_name: 'New England Patriots', stadium: 'Hard Rock Stadium', kickoff_at: '2026-10-12T00:15:00Z' }),
+    game({ game_id: 'r3', season: 2026, home_franchise: 'MIA', home_name: 'Miami Dolphins', away_franchise: 'NE', away_name: 'New England Patriots', stadium: 'Hard Rock Stadium', kickoff_at: '2026-10-19T17:00:00Z' }),
+    game({ game_id: 'r4', season: 2026, home_franchise: 'MIA', home_name: 'Miami Dolphins', away_franchise: 'NE', away_name: 'New England Patriots', stadium: 'Wembley Stadium', neutral_site: true, kickoff_at: '2026-10-26T14:30:00Z' }),
+    game({ game_id: 'r5', season: 2026, home_franchise: 'NE', away_franchise: 'MIA', stadium: 'Somewhere New', kickoff_at: '2026-11-01T18:00:00Z' }),
+  ];
+  const two = [teams[0], teams[1]];
+
+  it('road miles: round trips from the home stadium, late UK kick-offs, abroad, unplaced venues', () => {
+    expect(lateUk({ kickoff_at: '2026-10-12T00:15:00Z' })).toBe(true);
+    expect(lateUk({ kickoff_at: '2026-10-04T17:00:00Z' })).toBe(false);
+    const d = buildRoadTrips(2026, rt, two);
+    const mia = d.teams.find((t) => t.franchise === 'MIA')!;
+    const ne = d.teams.find((t) => t.franchise === 'NE')!;
+    expect(mia.stadium).toBe('Hard Rock Stadium');
+    const leg = milesBetween(STADIUMS['Hard Rock Stadium'], STADIUMS['Gillette Stadium']);
+    const london = milesBetween(STADIUMS['Hard Rock Stadium'], STADIUMS['Wembley Stadium']);
+    expect(mia.miles).toBe(Math.round(2 * leg + 2 * london));
+    expect(ne.abroad).toEqual(['Wembley Stadium']);
+    expect(mia.late).toBe(1);
+    expect(d.unplaced).toEqual(['Somewhere New']);
+    expect(d.teams[0].franchise).toBe(d.teams[0].miles >= d.teams[1].miles ? d.teams[0].franchise : '');
+  });
+
+  const pick = (franchise: string, won: number, lost: number, late: number, london: number, cold: boolean): PickerTeam => ({ franchise, name: franchise, slug: franchise.toLowerCase(), won, lost, tied: 0, recordSeason: 2025, late, london, cold });
+  const field = [pick('JAX', 13, 4, 3, 15, false), pick('TEN', 3, 14, 0, 2, false), pick('BUF', 12, 5, 6, 2, true), pick('NYJ', 3, 14, 0, 3, true)];
+
+  it('picker: each answer counts, London is capped, underdogs get bad teams', () => {
+    expect(rankTeams(field, { q1: 'dog', q2: 'late', q3: 'yes', q4: 'warm' })[0].team.franchise).toBe('TEN');
+    expect(rankTeams(field, { q1: 'win', q2: 'late', q3: 'no', q4: 'cold' })[0].team.franchise).toBe('BUF');
+    expect(rankTeams(field, { q1: 'win', q2: 'early', q3: 'yes', q4: 'warm' })[0].team.franchise).toBe('JAX');
+    expect(pickReasons(field[0], { q3: 'yes' }, 2026)).toContain("15 London games since 2007, this season's included");
+    const built = buildPicker(2026, rt, rows2008.slice(0, 2).map((r) => ({ ...r, season: 2025 })), [rt[3]], two);
+    expect(built.teams.find((t) => t.franchise === 'MIA')).toMatchObject({ london: 1, late: 1, cold: false, recordSeason: 2025 });
+  });
+
+  it('pages render from initial data and server-render with their story in the HTML', async () => {
+    const d = buildRoadTrips(2026, rt, two);
+    render(<MemoryRouter><NflRoadTripsPage initialData={d} /></MemoryRouter>);
+    expect(screen.getByTestId('nfl-road-trips-story').textContent).toMatch(/travel furthest in 2026/);
+    expect(screen.getByText('Not yet on the map: Somewhere New.')).toBeInTheDocument();
+    const page = renderNflRoadTripsPage(d);
+    expect(page.canonical).toBe('https://fixtureshark.com/nfl/road-trips');
+    expect(page.html).toContain('Most miles');
+    const picker = { season: 2026, teams: field };
+    render(<MemoryRouter><NflPickMyTeamPage initialData={picker} /></MemoryRouter>);
+    for (const label of ['Winners', 'Early evening, UK time', 'Yes', 'Sunshine or a roof']) fireEvent.click(screen.getByRole('button', { name: label }));
+    expect(screen.getByTestId('nfl-pick-result').textContent).toContain('JAX');
+    expect(renderNflPickPage(picker).html).toContain('Pick My Team');
   });
 });

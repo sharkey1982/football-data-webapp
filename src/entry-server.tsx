@@ -70,6 +70,9 @@ import NflTablePage from './pages/nfl/NflTablePage';
 import NflTeamsPage from './pages/nfl/NflTeamsPage';
 import NflTeamPage from './pages/nfl/NflTeamPage';
 import NflGamePage from './pages/nfl/NflGamePage';
+import NflRoadTripsPage from './pages/nfl/NflRoadTripsPage';
+import NflPickMyTeamPage from './pages/nfl/NflPickMyTeamPage';
+import { buildPicker, buildRoadTrips, roadTripsSentence, LONDON_STADIUM, type PickerData, type RoadTrips } from './lib/nflPlaces';
 import { buildGamePreview, gameSentence, type NflGamePreview } from './lib/nflGame';
 import NflSeasonsPage from './pages/nfl/NflSeasonsPage';
 import NflSeasonPage from './pages/nfl/NflSeasonPage';
@@ -77,6 +80,8 @@ import NflScoringRulesPage from './pages/nfl/NflScoringRulesPage';
 import {
   NFL_FIXTURES_PATH,
   NFL_HUB_PATH,
+  NFL_PICK_PATH,
+  NFL_ROAD_TRIPS_PATH,
   NFL_SCORING_PATH,
   NFL_SEASONS_PATH,
   NFL_TABLE_PATH,
@@ -109,6 +114,7 @@ export {
 } from './lib/nflApi';
 export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
 export { buildGamePreview as buildNflGamePreview };
+export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
 
 export type RenderedPage = {
@@ -663,6 +669,28 @@ export function renderNflSeasonPage(data: NflSeasonData): RenderedPage {
     description: story.headline,
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([NFL_CRUMB, { name: 'Past seasons', path: NFL_SEASONS_PATH }, { name: `${data.season} season`, path }])],
+  };
+}
+
+export function renderNflRoadTripsPage(data: RoadTrips): RenderedPage {
+  const path = NFL_ROAD_TRIPS_PATH;
+  return {
+    html: nflPage(path, path, <NflRoadTripsPage initialData={data} />),
+    title: `NFL road trips ${data.season}: miles travelled by every team | ${BRAND_NAME}`,
+    description: roadTripsSentence(data),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'Road Trips', path }])],
+  };
+}
+
+export function renderNflPickPage(data: PickerData): RenderedPage {
+  const path = NFL_PICK_PATH;
+  return {
+    html: nflPage(path, path, <NflPickMyTeamPage initialData={data} />),
+    title: `Which NFL team should I support? Pick My Team | ${BRAND_NAME}`,
+    description: 'Four questions for UK fans: winners or underdogs, kick-off times, London games and weather. Matched to all 32 NFL teams on real data.',
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'Pick My Team', path }])],
   };
 }
 

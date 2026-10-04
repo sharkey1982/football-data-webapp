@@ -187,6 +187,8 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'League Table', to: '/nfl/table', blurb: 'This season\u2019s standings by division or across the league.' },
           { label: 'Your Team', to: '/nfl/teams', blurb: 'One team at a time \u2014 this season, every season since 2002, and its story.', matchPrefix: ['/nfl/teams'] },
           { label: 'Past seasons', to: '/nfl/seasons', blurb: 'The story of every season since 2002: champions, upsets, streaks and records.', matchPrefix: ['/nfl/seasons'] },
+          { label: 'Road Trips', to: '/nfl/road-trips', blurb: 'How far every team travels this season, on a map, with late UK kick-offs.' },
+          { label: 'Pick My Team', to: '/nfl/pick-my-team', blurb: 'Four questions to find your NFL team, matched on real data.' },
         ],
       },
       {
