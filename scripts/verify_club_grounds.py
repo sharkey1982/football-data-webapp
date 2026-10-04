@@ -47,7 +47,7 @@ def lookup(postcodes: list[str]) -> dict[str, tuple[float, float] | None]:
 
 def main() -> None:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    rows = sb.table("club_grounds").select("team_id,ground_name,latitude,longitude,ground_postcode").execute().data or []
+    rows = sb.table("club_grounds").select("team_id,ground_name,latitude,longitude,ground_postcode,postcode_far_reason").execute().data or []
     names = {t["team_id"]: t["canonical_name"] for t in (sb.table("teams").select("team_id,canonical_name").in_("team_id", [r["team_id"] for r in rows]).execute().data or [])}
     found = lookup(sorted({r["ground_postcode"] for r in rows}))
     now = datetime.now(timezone.utc).isoformat()
@@ -61,18 +61,18 @@ def main() -> None:
             "postcode_distance_m": d,
             "postcode_checked_at": now,
         }).eq("team_id", r["team_id"]).execute()
-        report.append((d if d is not None else 10**9, names.get(r["team_id"], r["team_id"]), r["ground_name"], r["ground_postcode"], d))
+        report.append((d if d is not None else 10**9, names.get(r["team_id"], r["team_id"]), r["ground_name"], r["ground_postcode"], d, r.get("postcode_far_reason")))
     report.sort(reverse=True)
-    for _, team, ground, pc, d in report:
-        flag = "NOT FOUND" if d is None else ("FAR" if d > 1500 else "ok")
+    for _, team, ground, pc, d, reason in report:
+        flag = "NOT FOUND" if d is None else ("REVIEWED" if d > 1500 and reason else "FAR" if d > 1500 else "ok")
         print(f"{flag:9} {str(d) + ' m' if d is not None else '-':>9}  {team} ({ground}, {pc})")
     checks = sb.rpc("check_club_grounds", {}).execute().data or []
     for c in checks:
         print(f"[{c['status']}] {c['check_name']}: {c['found']} -- {c['detail']}")
     failed = [c for c in checks if c["status"] == "failed"]
     status = "failed" if failed else "success"
-    far = sum(1 for x in report if x[4] is None or x[4] > 1500)
-    summary = f"{len(rows)} grounds checked against postcodes.io: {far} more than 1.5 km from their postcode or not found"
+    far = sum(1 for x in report if (x[4] is None or x[4] > 1500) and not x[5])
+    summary = f"{len(rows)} grounds checked against postcodes.io: {far} more than 1.5 km from their postcode or not found (reviewed exceptions excluded)"
     sb.table("pipeline_runs").insert({"job_name": "verify_club_grounds", "status": status, "summary": summary, "finished_at": "now()"}).execute()
     print(summary)
     sys.exit(1 if failed else 0)
