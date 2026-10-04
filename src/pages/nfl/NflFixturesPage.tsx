@@ -3,12 +3,16 @@
 //
 // /nfl/fixtures -- "Fixtures & Results", as in Football: one week of games,
 // results, upcoming kick-offs in UK time, the line, and where each game is
-// on in the UK (full detail on the TV Guide). ?season= and ?week= pick
+// on in the UK (full detail on the TV Guide). Football's calendar heat map
+// sits above the list: games per UK day, play-offs in the cup colour; tap
+// days to list just those days, as on the football fixtures page. ?season= and ?week= pick
 // another week without adding static pages; the bare URL shows the week the
 // season is on and is the one version server-rendered at build.
 // ============================================================================
 
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import FixtureCalendarHeatmap from '../../components/FixtureCalendarHeatmap';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import {
@@ -20,6 +24,7 @@ import {
   nflSeasonPath,
   nflTablePath,
   nflTeamPath,
+  ukDateKey,
   ukDay,
   ukKickoff,
   weekSentence,
@@ -72,8 +77,39 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
     path: NFL_FIXTURES_PATH,
   });
 
+  // Calendar: counts per UK date across the season; the left month follows
+  // the week on show until the person pages it themselves.
+  const { dateCounts, dateTypes } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const types: Record<string, 'league' | 'cup' | 'mixed'> = {};
+    for (const g of data?.seasonGames ?? []) {
+      const k = ukDateKey(g);
+      counts[k] = (counts[k] ?? 0) + 1;
+      const t = g.game_type === 'REG' ? 'league' : 'cup';
+      types[k] = types[k] && types[k] !== t ? 'mixed' : t;
+    }
+    return { dateCounts: counts, dateTypes: types };
+  }, [data]);
+  // Day selection and paging belong to the week on show: a new season or
+  // week starts clean (derived from the stored key, not reset in an effect).
+  const weekKey = `${data?.season}:${data?.week}`;
+  const [ui, setUi] = useState<{ key: string; selected: Set<string>; view: { year: number; month: number } | null }>({ key: '', selected: new Set(), view: null });
+  const selectedDates = ui.key === weekKey ? ui.selected : new Set<string>();
+  const view = ui.key === weekKey ? ui.view : null;
+  const firstOfWeek = data?.games[0] ? ukDateKey(data.games[0]) : null;
+  const anchor = view ?? (firstOfWeek ? { year: Number(firstOfWeek.slice(0, 4)), month: Number(firstOfWeek.slice(5, 7)) - 1 } : { year: new Date().getFullYear(), month: new Date().getMonth() });
+  const setView = (v: { year: number; month: number }) => setUi({ key: weekKey, selected: selectedDates, view: v });
+  const setSelectedDates = (next: Set<string>) => setUi({ key: weekKey, selected: next, view });
+  const toggleDate = (d: string) => {
+    const next = new Set(selectedDates);
+    if (next.has(d)) next.delete(d);
+    else next.add(d);
+    setSelectedDates(next);
+  };
+  const listGames = selectedDates.size > 0 ? (data?.seasonGames ?? []).filter((g) => selectedDates.has(ukDateKey(g))).sort((a, b) => (a.kickoff_at ?? a.gameday).localeCompare(b.kickoff_at ?? b.gameday)) : data?.games ?? [];
+
   const days: { day: string; games: NflGame[] }[] = [];
-  for (const g of data?.games ?? []) {
+  for (const g of listGames) {
     const day = ukDay(g);
     const last = days[days.length - 1];
     if (last && last.day === day) last.games.push(g);
@@ -134,9 +170,35 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
             </nav>
           </div>
 
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
+            <FixtureCalendarHeatmap
+              dateCounts={dateCounts}
+              dateTypes={dateTypes}
+              loading={false}
+              selectedDates={selectedDates}
+              onToggleDate={toggleDate}
+              viewYear={anchor.year}
+              viewMonth={anchor.month}
+              onChangeMonth={(year, month) => setView({ year, month })}
+            />
+            <div className="flex-1 min-w-0 text-ink-500 text-sm pt-1" data-testid="nfl-calendar-help">
+              <p>
+                {selectedDates.size > 0
+                  ? `The list below shows games on the ${selectedDates.size === 1 ? 'selected day' : `${selectedDates.size} selected days`} only (UK dates).`
+                  : `The list below shows ${current?.label ?? `week ${data.week}`}. Darker days have more games; play-off days are in blue.`}{' '}
+                Tap a day to select it, or tap again to deselect &mdash; tap more than one day to combine them.
+              </p>
+              {selectedDates.size > 0 && (
+                <button type="button" className="mt-2 text-pitch-800 underline underline-offset-2" onClick={() => setSelectedDates(new Set())}>
+                  Back to {current?.label ?? `week ${data.week}`}
+                </button>
+              )}
+            </div>
+          </div>
+
           <section aria-labelledby="week-heading" className="space-y-4">
             <h2 id="week-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">
-              {`${data.season}: ${current?.label ?? `Week ${data.week}`}`}
+              {selectedDates.size > 0 ? `${data.season}: ${selectedDates.size === 1 ? 'selected day' : `${selectedDates.size} selected days`}` : `${data.season}: ${current?.label ?? `Week ${data.week}`}`}
             </h2>
             {days.map(({ day, games }) => (
               <div key={day}>
