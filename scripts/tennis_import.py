@@ -5,8 +5,9 @@
 # Tennis results load (design: claude/tennis-design-2026-10-04.md).
 #
 # Source: tennis-data.co.uk, one workbook per tour per year:
-#   ATP  <base>/<year>/<year>.xlsx   (from 2000; older years may be .xls)
-#   WTA  <base>/<year>w/<year>.xlsx  (from 2007)
+#   ATP  <base>/<folder>/<year>/<year>.xlsx   (from 2000; .xls before 2013)
+#   WTA  <base>/<folder>/<year>w/<year>.xlsx  (from 2007)
+# <folder> is obscured and may change, so links are read from alldata.php.
 # Cloudflare refuses these downloads from cloud machines (GitHub Actions,
 # tested 4 Oct 2026), so this runs on Chris's PC, daily via Windows Task
 # Scheduler (scripts/tennis_import.bat). If the site refuses Python as well,
@@ -156,12 +157,17 @@ def load_workbook(tour: str, year: int, files_dir: Path | None, current_year: in
             p = cache / n
             if p.exists():
                 return f"{p} (cached)", read_excel(p.read_bytes(), n)
+    links = file_links()
+    urls = ([links[(tour, year)]] if (tour, year) in links
+            else [f"{BASE_URL}/{folder}/{n}" for n in names])  # page unreadable: old layout
     errors = []
-    for n in names:
-        url = f"{BASE_URL}/{folder}/{n}"
+    for url in urls:
+        n = url.rsplit("/", 1)[-1]
         try:
             data = fetch(url)
             df = read_excel(data, n)
+            for old in cache.glob(f"{year}.xls*"):  # keep one copy per year
+                old.unlink()
             (cache / n).write_bytes(data)
             time.sleep(1)  # be polite to a small site
             return url, df
@@ -169,6 +175,32 @@ def load_workbook(tour: str, year: int, files_dir: Path | None, current_year: in
             errors.append(f"{url}: {e}")
     raise RuntimeError(f"{tour} {year}: could not download -- " + " | ".join(errors)
                        + ". If the site refuses Python, save the file from a browser and use --files-dir.")
+
+
+_LINKS: dict | None = None
+
+
+def file_links() -> dict[tuple[str, int], str]:
+    """{(tour, year): url} read from the site's download page each run.
+
+    The files sit under an obscured folder (4 Oct 2026:
+    hrjk-85HytOjkhth76j_ygh4jf7/2026/2026.xlsx, WTA in 2026w/) that can
+    change, so the links are taken from alldata.php rather than built.
+    """
+    global _LINKS
+    if _LINKS is None:
+        _LINKS = {}
+        try:
+            page = fetch(f"{BASE_URL}/alldata.php").decode("latin-1")
+        except Exception as e:  # noqa: BLE001
+            print(f"  (download page not read: {e}; trying the old file layout)")
+            return _LINKS
+        for href in re.findall(r"""href=["']?([^"' >]+?\.xlsx?)""", page, re.I):
+            m = re.search(r"(\d{4})(w?)/\1\.xlsx?$", href, re.I)
+            if m:
+                key = ("WTA" if m.group(2) else "ATP", int(m.group(1)))
+                _LINKS[key] = href if href.startswith("http") else f"{BASE_URL}/{href.lstrip('/')}"
+    return _LINKS
 
 
 def read_excel(data: bytes, name: str) -> pd.DataFrame:
