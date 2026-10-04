@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+# ============================================================================
+# scripts/tennis_import.py
+#
+# Tennis results load (design: claude/tennis-design-2026-10-04.md).
+#
+# Source: tennis-data.co.uk, one workbook per tour per year:
+#   ATP  <base>/<year>/<year>.xlsx   (from 2000; older years may be .xls)
+#   WTA  <base>/<year>w/<year>.xlsx  (from 2007)
+# Cloudflare refuses these downloads from cloud machines (GitHub Actions,
+# tested 4 Oct 2026), so this runs on Chris's PC, daily via Windows Task
+# Scheduler (scripts/tennis_import.bat). If the site refuses Python as well,
+# download the files in a browser and point --files-dir at them.
+#
+# What it does, per tour-year:
+#   1. reads the workbook; refuses it if a required column is missing or two
+#      rows share a match key (tour|year|tournament|round|winner|loser);
+#   2. upserts through public.tennis_upsert_matches (service_role), which
+#      creates tournaments, players and name aliases on first sight; a row
+#      whose source data is unchanged is not rewritten;
+#   3. reconciles against the file: match count, total games and a hash of
+#      every match key must equal public.tennis_year_totals. Any difference
+#      fails the run and lists the keys that differ.
+# One pipeline_runs row (job_name tennis_import) per run; the integrity
+# check tennis_fresh warns after 3 days without a successful run.
+#
+#   python scripts/tennis_import.py --profile            read + report only, no database
+#   python scripts/tennis_import.py                      this year (and last year in January)
+#   python scripts/tennis_import.py --years 2000-2026    backfill
+#   python scripts/tennis_import.py --files-dir "C:\tennis"   use files saved by hand:
+#        <dir>\atp\2026.xlsx and <dir>\wta\2026.xlsx
+#
+# On the PC (once):  py -3 -m pip install pandas openpyxl xlrd supabase
+# Scheduled daily with --log, which appends output to
+# %LOCALAPPDATA%\fixtureshark\logs\tennis_import.log instead of the console.
+# (No .bat or requirements file: anything else in scripts/ would trigger a
+# Netlify production build.)
+#
+# Credentials: SUPABASE_URL and SUPABASE_SERVICE_KEY from the environment or
+# from %LOCALAPPDATA%\fixtureshark\tennis.env (KEY=VALUE lines; never in the
+# repo). Downloads are cached in %LOCALAPPDATA%\fixtureshark\tennis-cache;
+# past years are downloaded once, the current year every run.
+# ============================================================================
+
+import argparse
+import datetime as dt
+import hashlib
+import io
+import math
+import os
+import re
+import sys
+import time
+import unicodedata
+import urllib.request
+from collections import Counter, defaultdict
+from pathlib import Path
+
+import pandas as pd
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:
+    pass
+
+BASE_URL = "http://www.tennis-data.co.uk"
+FIRST_YEAR = {"ATP": 2000, "WTA": 2007}
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/129.0 Safari/537.36")
+BATCH = 500
+REQUIRED = ["Tournament", "Date", "Round", "Winner", "Loser"]
+MAX_SETS = 5
+ODDS = {"b365": "B365", "ps": "PS", "max": "Max", "avg": "Avg", "bfe": "BFE"}
+APP_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "fixtureshark"
+
+
+# ---------------------------------------------------------------------------
+# Reading
+# ---------------------------------------------------------------------------
+def clean(v) -> str | None:
+    """Trimmed text with runs of spaces collapsed; None for blanks and NaN."""
+    if v is None or (isinstance(v, float) and math.isnan(v)):
+        return None
+    s = re.sub(r"\s+", " ", str(v)).strip()
+    return s or None
+
+
+def num(v):
+    """Number or None. Accepts '6', 6.0, ' ', 'NR', NaN."""
+    s = clean(v)
+    if s is None:
+        return None
+    try:
+        f = float(s.replace(",", ""))
+    except ValueError:
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return int(f) if f.is_integer() else f
+
+
+def as_int(v):
+    n = num(v)
+    return int(n) if n is not None else None
+
+
+def as_date(v) -> str | None:
+    if v is None or (isinstance(v, float) and math.isnan(v)):
+        return None
+    if isinstance(v, (pd.Timestamp, dt.datetime, dt.date)):
+        return pd.Timestamp(v).date().isoformat()
+    if isinstance(v, (int, float)):  # Excel serial day
+        return (dt.date(1899, 12, 30) + dt.timedelta(days=int(v))).isoformat()
+    t = pd.to_datetime(str(v).strip(), dayfirst=True, errors="coerce")
+    return None if pd.isna(t) else t.date().isoformat()
+
+
+def jsonable(v):
+    if v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v))):
+        return None
+    if isinstance(v, (pd.Timestamp, dt.datetime, dt.date)):
+        return pd.Timestamp(v).isoformat()
+    if hasattr(v, "item"):  # numpy scalar
+        return jsonable(v.item())
+    if isinstance(v, str):
+        return v.strip() or None
+    return v
+
+
+def slugify(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def fetch(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*",
+                                               "Referer": f"{BASE_URL}/alldata.php"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return r.read()
+
+
+def load_workbook(tour: str, year: int, files_dir: Path | None, current_year: int) -> tuple[str, pd.DataFrame]:
+    """(where it came from, DataFrame). Local files first, then cache, then download."""
+    folder = f"{year}" if tour == "ATP" else f"{year}w"
+    names = [f"{year}.xlsx", f"{year}.xls"]
+    if files_dir:
+        for n in names:
+            p = files_dir / tour.lower() / n
+            if p.exists():
+                return str(p), read_excel(p.read_bytes(), n)
+        raise FileNotFoundError(f"{tour} {year}: none of {names} in {files_dir / tour.lower()}")
+    cache = APP_DIR / "tennis-cache" / tour.lower()
+    cache.mkdir(parents=True, exist_ok=True)
+    if year < current_year:
+        for n in names:
+            p = cache / n
+            if p.exists():
+                return f"{p} (cached)", read_excel(p.read_bytes(), n)
+    errors = []
+    for n in names:
+        url = f"{BASE_URL}/{folder}/{n}"
+        try:
+            data = fetch(url)
+            df = read_excel(data, n)
+            (cache / n).write_bytes(data)
+            time.sleep(1)  # be polite to a small site
+            return url, df
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{url}: {e}")
+    raise RuntimeError(f"{tour} {year}: could not download -- " + " | ".join(errors)
+                       + ". If the site refuses Python, save the file from a browser and use --files-dir.")
+
+
+def read_excel(data: bytes, name: str) -> pd.DataFrame:
+    df = pd.read_excel(io.BytesIO(data), engine="openpyxl" if name.endswith("xlsx") else "xlrd")
+    df.columns = [clean(c) or f"col{i}" for i, c in enumerate(df.columns)]
+    # trailing blank rows
+    return df[df[[c for c in ("Winner", "Loser") if c in df.columns]].notna().any(axis=1)].reset_index(drop=True)
+
+
+def to_rows(tour: str, year: int, df: pd.DataFrame) -> list[dict]:
+    missing = [c for c in REQUIRED if c not in df.columns]
+    if missing:
+        raise ValueError(f"{tour} {year}: missing columns {missing}; file has {list(df.columns)}")
+    series_col = "Series" if "Series" in df.columns else "Tier" if "Tier" in df.columns else None
+    rows = []
+    for i, r in enumerate(df.to_dict("records")):
+        tournament, rnd, winner, loser = clean(r["Tournament"]), clean(r["Round"]), clean(r["Winner"]), clean(r["Loser"])
+        date = as_date(r["Date"])
+        if not all((tournament, rnd, winner, loser, date)):
+            raise ValueError(f"{tour} {year} row {i + 2}: blank tournament/round/winner/loser/date: "
+                             f"{[tournament, rnd, winner, loser, r['Date']]}")
+        w_games, l_games = [], []
+        for k in range(1, MAX_SETS + 1):
+            w, l = as_int(r.get(f"W{k}")), as_int(r.get(f"L{k}"))
+            if w is None or l is None:
+                break
+            w_games.append(w)
+            l_games.append(l)
+        row = {
+            "source_key": "|".join([tour, str(year), tournament, rnd, winner, loser]),
+            "tour": tour, "year": year, "tournament": tournament, "round": rnd,
+            "winner": winner, "loser": loser, "match_date": date,
+            "location": clean(r.get("Location")),
+            "series": clean(r.get(series_col)) if series_col else None,
+            "court": clean(r.get("Court")), "surface": clean(r.get("Surface")),
+            "best_of": as_int(r.get("Best of")),
+            "w_rank": as_int(r.get("WRank")), "l_rank": as_int(r.get("LRank")),
+            "w_pts": as_int(r.get("WPts")), "l_pts": as_int(r.get("LPts")),
+            "w_games": w_games, "l_games": l_games,
+            "w_sets": as_int(r.get("Wsets")), "l_sets": as_int(r.get("Lsets")),
+            "status": clean(r.get("Comment")),
+            "raw": {k: v for k, v in ((k, jsonable(v)) for k, v in r.items()) if v is not None},
+        }
+        for key, col in ODDS.items():
+            row[f"{key}_w"], row[f"{key}_l"] = num(r.get(f"{col}W")), num(r.get(f"{col}L"))
+        rows.append(row)
+    dups = [k for k, n in Counter(x["source_key"] for x in rows).items() if n > 1]
+    if dups:
+        raise ValueError(f"{tour} {year}: {len(dups)} duplicate match keys, nothing written: {dups[:20]}")
+    return rows
+
+
+def totals(rows: list[dict]) -> tuple[int, int, str]:
+    games = sum(sum(x["w_games"]) + sum(x["l_games"]) for x in rows)
+    key_hash = hashlib.md5("#".join(sorted(x["source_key"] for x in rows)).encode("utf-8")).hexdigest()
+    return len(rows), games, key_hash
+
+
+# ---------------------------------------------------------------------------
+# Profile (no database): what the file holds, and what to review
+# ---------------------------------------------------------------------------
+def profile(tour: str, year: int, src: str, df: pd.DataFrame, rows: list[dict] | None, err: str | None) -> None:
+    d = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True) if "Date" in df.columns else pd.Series(dtype="datetime64[ns]")
+    print(f"\n=== {tour} {year}: {len(df)} rows, {d.min().date() if d.notna().any() else '?'} to "
+          f"{d.max().date() if d.notna().any() else '?'}  [{src}]")
+    print("  columns:", ", ".join(df.columns))
+    for c in ("Series", "Tier", "Court", "Surface", "Round", "Best of", "Comment"):
+        if c in df.columns:
+            print(f"  {c}:", dict(Counter(df[c].map(clean)).most_common(12)))
+    blank = {c: int(df[c].isna().sum()) for c in df.columns if df[c].isna().any()}
+    print("  blanks per column:", blank)
+    if err:
+        print("  REFUSED:", err)
+        return
+    n, games, _ = totals(rows)
+    print(f"  parsed {n} matches, {games} games; sample: {rows[0]['source_key']} {rows[0]['w_games']}-{rows[0]['l_games']}")
+    bad = [x["source_key"] for x in rows if x["status"] == "Completed" and x["w_sets"] is not None
+           and (x["w_sets"] != sum(w > l for w, l in zip(x["w_games"], x["l_games"]))
+                or x["l_sets"] != sum(l > w for w, l in zip(x["w_games"], x["l_games"])))]
+    print(f"  completed matches whose set scores disagree with sets won: {len(bad)} {bad[:5]}")
+
+
+def name_review(rows_by_tour: dict[str, list[dict]]) -> None:
+    """Different source strings that look like one player (accents, spacing, case)."""
+    for tour, rows in rows_by_tour.items():
+        by_slug = defaultdict(set)
+        for x in rows:
+            for n in (x["winner"], x["loser"]):
+                by_slug[slugify(n)].add(n)
+        clashes = {k: sorted(v) for k, v in by_slug.items() if len(v) > 1}
+        names = {n for v in by_slug.values() for n in v}
+        print(f"\n=== {tour} names: {len(names)} distinct; {len(clashes)} groups that differ only by accents/case/spacing")
+        for k, v in list(clashes.items())[:40]:
+            print("   ", v)
+
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+def read_env_file() -> None:
+    p = APP_DIR / "tennis.env"
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"'))
+
+
+def db_keys(sb, tour: str, year: int) -> set[str]:
+    keys, start = set(), 0
+    while True:
+        page = (sb.table("tennis_matches").select("source_key").eq("tour", tour).eq("year", year)
+                .order("source_key").range(start, start + 999).execute().data)
+        keys |= {p["source_key"] for p in page}
+        if len(page) < 1000:
+            return keys
+        start += 1000
+
+
+def load(sb, tour: str, year: int, rows: list[dict]) -> str:
+    changed = 0
+    for i in range(0, len(rows), BATCH):
+        changed += sb.rpc("tennis_upsert_matches", {"rows": rows[i:i + BATCH]}).execute().data or 0
+    want = totals(rows)
+    got = sb.rpc("tennis_year_totals", {"p_tour": tour, "p_year": year}).execute().data[0]
+    if (got["matches"], got["games"], got["key_hash"]) != want:
+        have = db_keys(sb, tour, year)
+        file_keys = {x["source_key"] for x in rows}
+        raise RuntimeError(
+            f"{tour} {year} does not reconcile: file {want[0]} matches / {want[1]} games, "
+            f"database {got['matches']} / {got['games']}. In database not file: {sorted(have - file_keys)[:10]}; "
+            f"in file not database: {sorted(file_keys - have)[:10]}")
+    return f"{tour} {year}: {len(rows)} ({changed} new/changed)"
+
+
+def parse_years(spec: str, today: dt.date) -> list[int]:
+    if not spec:
+        return [today.year - 1, today.year] if today.month == 1 else [today.year]
+    out = []
+    for part in spec.split(","):
+        a, _, b = part.strip().partition("-")
+        out += list(range(int(a), int(b or a) + 1))
+    return sorted(set(out))
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--years", default="", help="e.g. 2026 or 2000-2026 (default: this year; also last year in January)")
+    ap.add_argument("--tour", default="both", choices=["atp", "wta", "both"])
+    ap.add_argument("--files-dir", default="", help=r"folder holding atp\<year>.xlsx and wta\<year>.xlsx saved by hand")
+    ap.add_argument("--profile", action="store_true", help="read and report only; no database")
+    ap.add_argument("--log", action="store_true", help="append output to %%LOCALAPPDATA%%\\fixtureshark\\logs\\tennis_import.log")
+    args = ap.parse_args()
+    if args.log:
+        (APP_DIR / "logs").mkdir(parents=True, exist_ok=True)
+        sys.stdout = sys.stderr = open(APP_DIR / "logs" / "tennis_import.log", "a", encoding="utf-8", buffering=1)
+        print(f"==== {dt.datetime.now():%Y-%m-%d %H:%M}")
+
+    today = dt.date.today()
+    tours = ["ATP", "WTA"] if args.tour == "both" else [args.tour.upper()]
+    files_dir = Path(args.files_dir) if args.files_dir else None
+    jobs = [(t, y) for t in tours for y in parse_years(args.years, today) if FIRST_YEAR[t] <= y <= today.year]
+
+    if args.profile:
+        by_tour = defaultdict(list)
+        for tour, year in jobs:
+            try:
+                src, df = load_workbook(tour, year, files_dir, today.year)
+            except Exception as e:  # noqa: BLE001
+                print(f"\n=== {tour} {year}: NOT READ -- {e}")
+                continue
+            try:
+                rows, err = to_rows(tour, year, df), None
+                by_tour[tour] += rows
+            except Exception as e:  # noqa: BLE001
+                rows, err = None, str(e)
+            profile(tour, year, src, df, rows, err)
+        name_review(by_tour)
+        return 0
+
+    read_env_file()
+    from supabase import create_client
+    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+    run = sb.table("pipeline_runs").insert({"job_name": "tennis_import", "status": "running"}).execute().data[0]
+    done, failures = [], []
+    for tour, year in jobs:
+        try:
+            src, df = load_workbook(tour, year, files_dir, today.year)
+            done.append(load(sb, tour, year, to_rows(tour, year, df)))
+            print(done[-1], f"[{src}]")
+        except Exception as e:  # noqa: BLE001
+            failures.append(str(e))
+            print(f"FAILED {e}")
+    summary = "; ".join(done) or "nothing loaded"
+    sb.table("pipeline_runs").update({
+        "status": "failed" if failures else "success", "summary": summary[:2000],
+        "error_message": " || ".join(failures)[:4000] or None, "finished_at": "now()",
+    }).eq("run_id", run["run_id"]).execute()
+    print(("FAILED: " + " || ".join(failures)) if failures else "OK: " + summary)
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
