@@ -69,7 +69,7 @@ export type TriviaFact = {
 
 /** Fisher-Yates over options (and their details), tracking where every
  * correct option lands. Returns new arrays; never mutates. */
-function shuffleFact(labels: string[], correctOriginal: number[], details?: string[]) {
+export function shuffleFact(labels: string[], correctOriginal: number[], details?: string[]) {
   const order = labels.map((_, i) => i);
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -93,7 +93,7 @@ function formatPercent(part: number, total: number): string {
 }
 
 /** "Just ahead of X" -- or "level with X" when they tie. */
-function joined(names: string[]): string {
+export function joined(names: string[]): string {
   return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 

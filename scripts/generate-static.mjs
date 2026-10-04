@@ -364,9 +364,12 @@ async function main() {
   }
   await writeLeaguePages();
 
-  // ---- NFL (/nfl, /nfl/standings/:season, /nfl/teams/:slug) ------------------
-  // ~60 pages from three bulk queries: the hub at the current week, every
-  // season's standings and all 32 teams. Any failure leaves the SPA shell.
+  // ---- NFL -------------------------------------------------------------------
+  // Fixtures & Results, League Table, Your Team (+ 32 team pages), Past seasons
+  // (+ one page per season, with its story) and Scoring Rules: ~65 pages from
+  // a few bulk queries. The hub, stage pages, TV Guide, Player Scout and Fixture
+  // Heat Map get head tags only (STATIC_ROUTES); player pages are client-only.
+  // Any failure leaves the SPA shell, which still works.
   async function writeNflPages() {
     try {
       const entry = await import(ENTRY);
@@ -376,12 +379,13 @@ async function main() {
         console.warn('Static: NFL data unavailable -- NFL pages stay client-rendered.');
         return;
       }
-      const [teams, standings, games] = await Promise.all([
+      const [teams, standings, games, summaries] = await Promise.all([
         query(`nfl_teams?select=${entry.NFL_TEAM_COLUMNS}&order=name.asc`),
         queryAll(`nfl_standings?select=${entry.NFL_STANDING_COLUMNS}&order=season.asc,franchise.asc`),
-        queryAll(`nfl_games?select=${entry.NFL_GAME_COLUMNS}&season=eq.${latest}&order=week.asc,game_id.asc`),
+        queryAll(`nfl_games?select=${entry.NFL_GAME_COLUMNS}&order=season.asc,week.asc,game_id.asc`),
+        query(`nfl_season_summary?select=${entry.NFL_SUMMARY_COLUMNS}&order=season.asc`),
       ]);
-      if (!teams || !standings || !games) {
+      if (!teams || !standings || !games || !summaries) {
         console.warn('Static: NFL data unavailable -- NFL pages stay client-rendered.');
         return;
       }
@@ -391,30 +395,36 @@ async function main() {
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
       };
-      let n = 0;
-      const week = entry.buildNflWeek(latest, seasons, games, null, teams);
-      if (week) {
-        write(entry.renderNflHubPage(week));
-        n++;
+      const attempt = (label, fn) => {
+        try {
+          write(fn());
+          return 1;
+        } catch (err) {
+          console.error(`Static: failed NFL ${label}: ${err?.message ?? err}`);
+          return 0;
+        }
+      };
+      const gamesBy = new Map();
+      for (const g of games) {
+        if (!gamesBy.has(g.season)) gamesBy.set(g.season, []);
+        gamesBy.get(g.season).push(g);
       }
+      const latestGames = gamesBy.get(latest) ?? [];
+      const tableSeason = Math.max(...standings.map((r) => r.season));
+      const tableData = { season: tableSeason, seasons, rows: standings.filter((r) => r.season === tableSeason) };
+      let n = 0;
+      const week = entry.buildNflWeek(latest, seasons, latestGames, null, teams);
+      if (week) n += attempt('fixtures', () => entry.renderNflFixturesPage(week));
+      n += attempt('table', () => entry.renderNflTablePage(tableData));
+      n += attempt('teams', () => entry.renderNflTeamsPage(tableData));
+      n += attempt('seasons', () => entry.renderNflSeasonsPage({ standings, summaries }));
+      n += attempt('scoring rules', () => entry.renderNflScoringPage());
       for (const season of seasons) {
         const rows = standings.filter((r) => r.season === season);
         if (rows.length === 0) continue;
-        try {
-          write(entry.renderNflStandingsPage({ season, seasons, rows }));
-          n++;
-        } catch (err) {
-          console.error(`Static: failed NFL standings ${season}: ${err?.message ?? err}`);
-        }
+        n += attempt(`season ${season}`, () => entry.renderNflSeasonPage({ season, seasons, rows, games: gamesBy.get(season) ?? [], summaries }));
       }
-      for (const team of teams) {
-        try {
-          write(entry.renderNflTeamPage(entry.buildNflTeam(team, standings, games, latest)));
-          n++;
-        } catch (err) {
-          console.error(`Static: failed NFL team ${team.slug}: ${err?.message ?? err}`);
-        }
-      }
+      for (const team of teams) n += attempt(`team ${team.slug}`, () => entry.renderNflTeamPage(entry.buildNflTeam(team, standings, latestGames, latest)));
       console.log(`Static: wrote ${n} NFL page(s).`);
     } catch (err) {
       console.error(`Static: failed NFL pages: ${err?.message ?? err}`);

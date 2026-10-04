@@ -1,8 +1,8 @@
 // ============================================================================
 // src/lib/journey.ts
 //
-// Single source of truth for the site's structure: two themes, each
-// following Discover -> Predict -> Validate -> Configure.
+// Single source of truth for the site's structure: three themes (Football,
+// Fantasy Premier League, NFL), each a hub with its stages.
 //
 // Everything that needs to know "what is this page, and where does it
 // sit" reads from here -- the hub pages, the stage landing pages, and
@@ -15,8 +15,8 @@
 // Adding a page means adding one entry here.
 // ============================================================================
 
-export type StageKey = 'discover' | 'predict';
-export type ThemeKey = 'football' | 'fpl';
+export type StageKey = 'discover' | 'predict' | 'fantasy';
+export type ThemeKey = 'football' | 'fpl' | 'nfl';
 
 export type JourneyLink = {
   label: string;
@@ -161,6 +161,44 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       },
     ],
   },
+  // NFL (Oct 2026): the same structure and the same page names as Football
+  // and Fantasy (Chris: "keep menu option naming consistent"). Fantasy is a
+  // stage here rather than a theme of its own until it has predictions.
+  nfl: {
+    key: 'nfl',
+    title: 'NFL',
+    eyebrow: 'FixtureShark \u00b7 NFL',
+    hubPath: '/nfl',
+    intro: 'Every NFL result since 2002, how to watch in the UK, and the player numbers for fantasy.',
+    stages: [
+      {
+        key: 'discover',
+        title: 'Discover',
+        tagline: 'Results, tables, teams, the archive.',
+        intro:
+          'Everything that has actually happened in the NFL since 2002: every game, how to watch the next ones in the UK, the standings, each team\u2019s record and the story of every season.',
+        links: [
+          { label: 'Fixtures & Results', to: '/nfl/fixtures', blurb: 'Every game week by week, kick-offs in UK time, with the betting line.' },
+          { label: 'TV Guide', to: '/nfl/tv-guide', blurb: 'How, when and where to watch every upcoming game in the UK.' },
+          { label: 'League Table', to: '/nfl/table', blurb: 'This season\u2019s standings by division or across the league.' },
+          { label: 'Your Team', to: '/nfl/teams', blurb: 'One team at a time \u2014 this season, every season since 2002, and its story.', matchPrefix: ['/nfl/teams'] },
+          { label: 'Past seasons', to: '/nfl/seasons', blurb: 'The story of every season since 2002: champions, upsets, streaks and records.', matchPrefix: ['/nfl/seasons'] },
+        ],
+      },
+      {
+        key: 'fantasy',
+        title: 'Fantasy',
+        tagline: 'Player stats, matchups, scoring.',
+        intro:
+          'The numbers for picking an NFL fantasy team: every player\u2019s fantasy points in standard, half-PPR and PPR scoring, their usage and consistency, and which defences give up the most to each position.',
+        links: [
+          { label: 'Player Scout', to: '/nfl/players', blurb: 'Every QB, RB, WR, TE and kicker \u2014 points, usage, form and consistency.', matchPrefix: ['/nfl/players'] },
+          { label: 'Fixture Heat Map', to: '/nfl/fixture-heat-map', blurb: 'Which defences give up the most fantasy points to each position, and who faces them next.' },
+          { label: 'Scoring Rules', to: '/nfl/scoring-rules', blurb: 'Exactly how standard, half-PPR and PPR points are earned.' },
+        ],
+      },
+    ],
+  },
 };
 
 /** Path for a stage page, derived rather than written out, so the hub
@@ -169,7 +207,7 @@ export function stagePath(theme: JourneyTheme, stage: JourneyStage): string {
   return `${theme.hubPath}/${stage.key}`;
 }
 
-/** Every page in the header menu, in menu order (Football, then Fantasy). */
+/** Every page in the header menu, in menu order (Football, Fantasy, NFL). */
 export function menuOrder(): string[] {
   return Object.values(THEMES).flatMap((t) => t.stages.flatMap((s) => s.links.map((l) => l.to)));
 }

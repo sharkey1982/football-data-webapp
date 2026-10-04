@@ -181,10 +181,10 @@ export default function AppLayout() {
   // which it previously did (the nav said "Browse" after the hubs had
   // moved to "Discover"). Adding a destination is now one config edit
   // that updates the nav, the hub and the stage page together.
-  const themeGroups: NavGroup[] = (['football', 'fpl'] as const).map((key) => {
+  const themeGroups: NavGroup[] = (['football', 'fpl', 'nfl'] as const).map((key) => {
     const theme = THEMES[key];
     return {
-      label: key === 'football' ? 'Football' : 'Fantasy',
+      label: key === 'football' ? 'Football' : key === 'fpl' ? 'Fantasy' : 'NFL',
       // Overview sits above the stage headings as a plain item, not an
       // empty section -- a heading with nothing under it reads as a
       // rendering bug.
@@ -216,16 +216,6 @@ export default function AppLayout() {
 
   const navGroups: NavGroup[] = [
     ...themeGroups,
-    {
-      // NFL (Oct 2026): American football, the same results-and-history
-      // approach as the football section. Team pages are reached from the
-      // schedule page and the standings.
-      label: 'NFL',
-      items: [
-        { to: '/nfl', label: 'Schedule & results', matchPrefix: '/nfl', excludePrefix: '/nfl/standings' },
-        { to: '/nfl/standings', label: 'Standings', matchPrefix: '/nfl/standings' },
-      ],
-    },
     {
       // The Boardroom: club finances from statutory accounts -- the third
       // pillar alongside Football and Fantasy. A dropdown like the others,
@@ -266,6 +256,7 @@ export default function AppLayout() {
   ].filter((g) => g.label !== 'Admin' || isAdmin);
   const footballGroup = navGroups.find((g) => g.label === 'Football')!;
   const fantasyGroup = navGroups.find((g) => g.label === 'Fantasy')!;
+  const nflGroup = navGroups.find((g) => g.label === 'NFL')!;
   // A link back up to whichever theme hub the current page belongs to --
   // requested directly (the sketched flow shows an explicit loop back
   // from a destination page to its hub, which wasn't actually there
@@ -284,7 +275,14 @@ export default function AppLayout() {
   // back link from every page, with nothing failing loudly.
   const onFootballPage = location.pathname !== '/football' && groupItems(footballGroup).some((item) => isItemActive(location.pathname, item));
   const onFantasyPage = location.pathname !== '/fpl/start' && groupItems(fantasyGroup).some((item) => isItemActive(location.pathname, item));
-  const backToHub = onFootballPage ? { to: '/football', label: 'Football' } : onFantasyPage ? { to: '/fpl/start', label: 'Fantasy Premier League' } : null;
+  const onNflPage = location.pathname !== '/nfl' && (location.pathname.startsWith('/nfl/') || groupItems(nflGroup).some((item) => isItemActive(location.pathname, item)));
+  const backToHub = onFootballPage
+    ? { to: '/football', label: 'Football' }
+    : onFantasyPage
+      ? { to: '/fpl/start', label: 'Fantasy Premier League' }
+      : onNflPage
+        ? { to: '/nfl', label: 'NFL' }
+        : null;
 
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">

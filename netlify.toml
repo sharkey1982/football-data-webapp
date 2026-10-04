@@ -109,6 +109,21 @@
 # address has no pre-built page any more, so without this any existing link
 # or search result would 404. Different paths, so no trailing-slash loop.
 # ----------------------------------------------------------------------------
+# NFL standings moved to Football's structure on 4 Oct 2026, the day they
+# launched: the current table is "League Table", each season's page "Past
+# seasons" (with its story).
+[[redirects]]
+  from = "/nfl/standings"
+  to = "/nfl/table"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/nfl/standings/*"
+  to = "/nfl/seasons/:splat"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/football/lineups"
   to = "/fpl/line-ups"

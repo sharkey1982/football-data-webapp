@@ -11,6 +11,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import type { NflSeasonSummary } from './nflStory';
 
 export const NFL_FIRST_SEASON = 2002;
 
@@ -96,9 +97,24 @@ export const DIVISIONS = ['East', 'North', 'South', 'West'] as const;
 
 // ---- Paths -----------------------------------------------------------------
 
+// Mirrors the football section: hub, Fixtures & Results, TV Guide, League
+// Table, Your Team, Past seasons -- and Fantasy's Player Scout, Fixture Heat
+// Map and Scoring Rules.
 export const NFL_HUB_PATH = '/nfl';
-export const nflStandingsPath = (season: number) => `/nfl/standings/${season}`;
-export const nflTeamPath = (slug: string) => `/nfl/teams/${slug}`;
+export const NFL_FIXTURES_PATH = '/nfl/fixtures';
+export const NFL_TV_PATH = '/nfl/tv-guide';
+export const NFL_TABLE_PATH = '/nfl/table';
+export const NFL_TEAMS_PATH = '/nfl/teams';
+export const NFL_SEASONS_PATH = '/nfl/seasons';
+export const NFL_PLAYERS_PATH = '/nfl/players';
+export const NFL_HEAT_MAP_PATH = '/nfl/fixture-heat-map';
+export const NFL_SCORING_PATH = '/nfl/scoring-rules';
+export const nflSeasonPath = (season: number) => `${NFL_SEASONS_PATH}/${season}`;
+export const nflTablePath = (season?: number) => (season == null ? NFL_TABLE_PATH : `${NFL_TABLE_PATH}?season=${season}`);
+export const nflFixturesPath = (season?: number, week?: number) =>
+  season == null ? NFL_FIXTURES_PATH : `${NFL_FIXTURES_PATH}?season=${season}${week != null ? `&week=${week}` : ''}`;
+export const nflTeamPath = (slug: string) => `${NFL_TEAMS_PATH}/${slug}`;
+export const nflPlayerPath = (slug: string) => `${NFL_PLAYERS_PATH}/${slug}`;
 
 // ---- Formatting ------------------------------------------------------------
 
@@ -243,8 +259,10 @@ export function standingsSentence(d: NflStandingsData): string {
     const runnerUp = d.rows.find((r) => r.playoff_result === 'Lost Super Bowl');
     return `The ${champion.team_name} won the Super Bowl after the ${d.season} season${runnerUp ? `, beating the ${runnerUp.team_name}` : ''}. Best regular-season record: the ${best.team_name}, ${recordLabel(best)}.`;
   }
-  const maxPlayed = Math.max(...d.rows.map((r) => r.played));
-  return `${d.season} NFL standings after ${maxPlayed} game${maxPlayed === 1 ? '' : 's'}: the ${best.team_name} lead the league at ${recordLabel(best)}.`;
+  const tied = d.rows.filter((r) => r.win_pct === best.win_pct);
+  const names = tied.map((r) => `the ${r.team_name}`);
+  const who = names.length <= 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `${d.season} NFL standings so far: ${who} ${tied.length > 1 ? 'share' : 'have'} the best record at ${recordLabel(best)}.`;
 }
 
 // ---- Team ----------------------------------------------------------------------
@@ -375,4 +393,74 @@ export async function loadNflTeams(): Promise<NflTeam[]> {
   const { data, error } = await supabase.from('nfl_teams' as never).select(TEAM_COLUMNS).order('name');
   if (error) throw error;
   return (data ?? []) as unknown as NflTeam[];
+}
+
+// ---- Seasons (Past seasons and one season's story) -------------------------------------
+
+
+export type NflSeasonData = {
+  season: number;
+  seasons: number[];
+  rows: NflStanding[];
+  games: NflGame[];
+  summaries: NflSeasonSummary[];
+};
+
+export type NflSeasonIndexData = { standings: NflStanding[]; summaries: NflSeasonSummary[] };
+
+const SUMMARY_SELECT =
+  'season,reg_games,reg_played,points_per_game,home_win_share,one_score_share,overtime_games,ties,favourite_win_share,neutral_games';
+
+async function loadSummaries(): Promise<NflSeasonSummary[]> {
+  const { data, error } = await supabase.from('nfl_season_summary' as never).select(SUMMARY_SELECT).order('season');
+  if (error) throw error;
+  return (data ?? []) as unknown as NflSeasonSummary[];
+}
+
+export async function loadNflSeason(season: number): Promise<NflSeasonData | null> {
+  const [seasons, st, games, summaries] = await Promise.all([
+    loadSeasons(),
+    supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('season', season),
+    loadSeasonGames(season),
+    loadSummaries(),
+  ]);
+  if (st.error) throw st.error;
+  const rows = (st.data ?? []) as unknown as NflStanding[];
+  if (rows.length === 0) return null;
+  return { season, seasons, rows, games, summaries };
+}
+
+export async function loadNflSeasonIndex(): Promise<NflSeasonIndexData> {
+  const [summaries, standings] = await Promise.all([loadSummaries(), loadAllStandings()]);
+  return { standings, summaries };
+}
+
+async function loadAllStandings(): Promise<NflStanding[]> {
+  const out: NflStanding[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).order('season').order('franchise').range(from, from + 999);
+    if (error) throw error;
+    out.push(...((data ?? []) as unknown as NflStanding[]));
+    if ((data ?? []).length < 1000) return out;
+  }
+}
+
+// ---- TV Guide ------------------------------------------------------------------------------
+
+export type NflUpcomingData = { season: number; games: NflGame[] };
+
+/** Unplayed games kicking off in the next `days` days (UK view), soonest first. */
+export function upcomingGames(seasonGames: NflGame[], now: Date, days = 14): NflGame[] {
+  const from = now.getTime() - 4 * 3600 * 1000; // keep games in progress
+  const to = now.getTime() + days * 86400 * 1000;
+  return seasonGames
+    .filter((g) => g.home_score == null && g.kickoff_at && new Date(g.kickoff_at).getTime() >= from && new Date(g.kickoff_at).getTime() <= to)
+    .sort((a, b) => a.kickoff_at!.localeCompare(b.kickoff_at!));
+}
+
+export async function loadNflUpcoming(): Promise<NflUpcomingData | null> {
+  const seasons = await loadSeasons();
+  if (seasons.length === 0) return null;
+  const season = seasons[seasons.length - 1];
+  return { season, games: upcomingGames(await loadSeasonGames(season), new Date()) };
 }

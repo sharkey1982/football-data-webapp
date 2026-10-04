@@ -318,7 +318,11 @@ language sql stable security definer set search_path = '' as $$
   select 'nfl_fantasy_points_match', case when n = 0 then 'ok' else 'failed' end, n,
     'NFL player-weeks (non-kickers) where our standard or PPR points differ from nflverse by more than 0.01'
   from (select count(*) n from nfl.player_weeks w
+        -- Kicking excluded: nflverse scores none of it, and a non-kicker can
+        -- kick (Dare Ogunbowale's emergency field goal, 2023 week 9: 3 points
+        -- here, 0 there). Every other player-week must agree exactly.
         where w.position <> 'K' and w.src_points_std is not null
+          and w.fg_att = 0 and w.pat_made = 0 and w.pat_missed = 0
           and (abs(nfl.points_std(w) - w.src_points_std) > 0.011
                or abs(nfl.points_std(w) + w.receptions - w.src_points_ppr) > 0.011)) x
   union all

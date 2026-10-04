@@ -82,9 +82,25 @@ const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
 const ActualMatchesPage = lazy(() => import('./pages/fpl/ActualMatchesPage'));
 const ActualMatchDetailPage = lazy(() => import('./pages/fpl/ActualMatchDetailPage'));
 const TacticalRolesAdminPage = lazy(() => import('./pages/fpl/TacticalRolesAdminPage'));
-const NflHubPage = lazy(() => import('./pages/nfl/NflHubPage'));
-const NflStandingsPage = lazy(() => import('./pages/nfl/NflStandingsPage'));
+const NflHub = lazy(() => import('./pages/nfl/NflHub'));
+const NflFixturesPage = lazy(() => import('./pages/nfl/NflFixturesPage'));
+const NflTvGuidePage = lazy(() => import('./pages/nfl/NflTvGuidePage'));
+const NflTablePage = lazy(() => import('./pages/nfl/NflTablePage'));
+const NflTeamsPage = lazy(() => import('./pages/nfl/NflTeamsPage'));
 const NflTeamPage = lazy(() => import('./pages/nfl/NflTeamPage'));
+const NflSeasonsPage = lazy(() => import('./pages/nfl/NflSeasonsPage'));
+const NflSeasonPage = lazy(() => import('./pages/nfl/NflSeasonPage'));
+const NflPlayersPage = lazy(() => import('./pages/nfl/NflPlayersPage'));
+const NflPlayerPage = lazy(() => import('./pages/nfl/NflPlayerPage'));
+const NflHeatMapPage = lazy(() => import('./pages/nfl/NflHeatMapPage'));
+const NflScoringRulesPage = lazy(() => import('./pages/nfl/NflScoringRulesPage'));
+// The NFL section's first URLs (4 Oct 2026), moved the same day to match
+// Football's structure; netlify.toml 301s them too.
+function NflOldStandingsRedirect() {
+  const { pathname } = useLocation();
+  const season = pathname.split('/')[3];
+  return <Navigate to={season ? `/nfl/seasons/${season}` : '/nfl/table'} replace />;
+}
 
 /** Matches this app's existing "Loading..." convention (font-mono,
  * text-ink-500) used throughout individual pages' own data-loading
@@ -651,28 +667,44 @@ export default function App() {
               </Suspense>
             }
           />
-          {/* NFL (phase 1, Oct 2026): schedule, standings, teams. */}
+          {/* NFL: the same hub -> stage -> page structure as Football and Fantasy (journey.ts). */}
           <Route
             path="nfl"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <NflHubPage />
+                <NflHub />
               </Suspense>
             }
           />
           <Route
-            path="nfl/standings"
+            path="nfl/fixtures"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <NflStandingsPage />
+                <NflFixturesPage />
               </Suspense>
             }
           />
           <Route
-            path="nfl/standings/:season"
+            path="nfl/tv-guide"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <NflStandingsPage />
+                <NflTvGuidePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/table"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflTablePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/teams"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflTeamsPage />
               </Suspense>
             }
           />
@@ -684,6 +716,64 @@ export default function App() {
               </Suspense>
             }
           />
+          <Route
+            path="nfl/seasons"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflSeasonsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/seasons/:season"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflSeasonPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/players"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflPlayersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/players/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflPlayerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/fixture-heat-map"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflHeatMapPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/scoring-rules"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflScoringRulesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/:stage"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <StagePage themeKey="nfl" />
+              </Suspense>
+            }
+          />
+          <Route path="nfl/standings" element={<NflOldStandingsRedirect />} />
+          <Route path="nfl/standings/:season" element={<NflOldStandingsRedirect />} />
           <Route
             path="results-data"
             element={

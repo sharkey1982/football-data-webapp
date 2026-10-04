@@ -1,8 +1,10 @@
 // ============================================================================
 // src/pages/nfl/NflTeamPage.tsx
 //
-// /nfl/teams/:slug -- one franchise: this season's games and every season
-// since 2002 (record, division finish, play-offs). Franchise pages follow a
+// /nfl/teams/:slug -- one franchise: the story of its season, its games
+// (results, the line and whether it covered, where to watch the rest), its
+// fantasy leaders, and every season since 2002 (record, division finish,
+// play-offs). Franchise pages follow a
 // team through moves (Oakland -> Las Vegas Raiders, San Diego -> Los Angeles
 // Chargers, St Louis -> Los Angeles Rams) and renames, showing each season
 // under the name it played as. Server-rendered at build for all 32.
@@ -14,10 +16,12 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import {
   NFL_HUB_PATH,
+  NFL_TEAMS_PATH,
   byeWeeks,
+  nflPlayerPath,
   lineLabel,
   loadNflTeam,
-  nflStandingsPath,
+  nflSeasonPath,
   nflTeamPath,
   ordinal,
   pctLabel,
@@ -30,6 +34,45 @@ import {
   type NflTeamData,
 } from '../../lib/nflApi';
 import NotFoundPage from '../NotFoundPage';
+import NflWatchLine from '../../components/nfl/NflWatchLine';
+import { againstSpread, teamSeasonStory } from '../../lib/nflStory';
+import { loadTeamFantasyLeaders, type NflPlayerSeason } from '../../lib/nflFantasyApi';
+
+function FantasyLeaders({ franchise, season }: { franchise: string; season: number }) {
+  const { data } = useKeyedFetch(`${franchise}:${season}`, () => loadTeamFantasyLeaders(franchise, season));
+  if (!data || data.length === 0) return null;
+  return (
+    <section aria-labelledby="fantasy-heading">
+      <h2 id="fantasy-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">{`Fantasy leaders, ${season}`}</h2>
+      <div className="overflow-x-auto mt-2">
+        <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+          <thead className="bg-chalk-200 text-ink-500">
+            <tr>
+              <th scope="col" className="text-left font-medium text-xs px-2 py-2">Player</th>
+              <th scope="col" className="text-left font-medium text-xs px-2 py-2">Pos</th>
+              <th scope="col" className="text-right font-medium text-xs px-2 py-2">GP</th>
+              <th scope="col" className="text-right font-medium text-xs px-2 py-2">PPR pts</th>
+              <th scope="col" className="text-right font-medium text-xs px-2 py-2">Per game</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((p: NflPlayerSeason, i: number) => (
+              <tr key={p.player_id} className={i % 2 ? 'bg-chalk-100/60' : undefined}>
+                <th scope="row" className="text-left px-2 py-1.5 font-normal">
+                  <Link to={nflPlayerPath(p.player_slug)} className="hover:underline">{p.player_name}</Link>
+                </th>
+                <td className="px-2 py-1.5 text-xs">{p.position}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-xs tabular-nums">{p.games}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-xs tabular-nums">{Number(p.pts_ppr).toFixed(1)}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-xs tabular-nums font-semibold">{Number(p.ppg_ppr).toFixed(1)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 type SortKey = 'season' | 'win_pct' | 'points_for' | 'points_against' | 'point_diff' | 'division_rank' | 'playoff_round';
 
@@ -67,7 +110,7 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link>
+          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot; <Link to={NFL_TEAMS_PATH} className="hover:underline">Your Team</Link>
           {data && <>{' '}&middot; {`${data.team.conference} ${data.team.division}`}</>}
         </p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">{data ? data.team.name : 'NFL team'}</h1>
@@ -80,6 +123,12 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
       {data && (
         <>
           <p className="text-ink-900 max-w-prose" data-testid="nfl-team-story">{teamSentence(data)}</p>
+          {teamSeasonStory(data.team.franchise, data.games, now).sentences.length > 0 && (
+            <section aria-labelledby="season-story-heading" className="max-w-prose">
+              <h2 id="season-story-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">{`The ${data.season} season`}</h2>
+              <p className="text-ink-900 mt-1" data-testid="nfl-team-season-story">{teamSeasonStory(data.team.franchise, data.games, now).sentences.join(' ')}</p>
+            </section>
+          )}
 
           <section aria-labelledby="games-heading">
             <h2 id="games-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">{`${data.season} games`}</h2>
@@ -90,7 +139,7 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
                     <th scope="col" className="text-left font-medium text-xs px-2 py-2">Week</th>
                     <th scope="col" className="text-left font-medium text-xs px-2 py-2">Opponent</th>
                     <th scope="col" className="text-left font-medium text-xs px-2 py-2">Result / kick-off (UK)</th>
-                    <th scope="col" className="text-left font-medium text-xs px-2 py-2 hidden sm:table-cell">Line</th>
+                    <th scope="col" className="text-left font-medium text-xs px-2 py-2 hidden sm:table-cell">Line (closing)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -118,10 +167,19 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
                           {r.letter ? (
                             <span className={r.letter === 'W' ? 'font-semibold' : r.letter === 'L' ? 'text-loss-600' : undefined}>{`${r.letter} ${r.score}`}</span>
                           ) : (
-                            ukKickoff(g)
+                            <>
+                              {ukKickoff(g)}
+                              <span className="block font-sans text-[11px]"><NflWatchLine g={g} /></span>
+                            </>
                           )}
                         </td>
-                        <td className="px-2 py-1.5 font-mono text-xs text-ink-500 hidden sm:table-cell">{lineLabel(g) ?? ''}</td>
+                        <td className="px-2 py-1.5 font-mono text-xs text-ink-500 hidden sm:table-cell">
+                          {lineLabel(g) ?? ''}
+                          {(() => {
+                            const ats = againstSpread(g, data.team.franchise);
+                            return ats ? <span className={ats === 'cover' ? 'text-pitch-700' : undefined}>{` · ${ats === 'cover' ? 'covered' : ats === 'miss' ? 'did not cover' : 'push'}`}</span> : null;
+                          })()}
+                        </td>
                       </tr>
                     );
                   })}
@@ -129,9 +187,11 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
               </table>
             </div>
             <p className="text-sm mt-3">
-              <Link to={nflStandingsPath(data.season)} className="text-pitch-800 underline underline-offset-2">{`${data.season} standings`}</Link>
+              <Link to={nflSeasonPath(data.season)} className="text-pitch-800 underline underline-offset-2">{`Story of the ${data.season} season`}</Link>
             </p>
           </section>
+
+          <FantasyLeaders franchise={data.team.franchise} season={data.season} />
 
           <section aria-labelledby="history-heading">
             <h2 id="history-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">Every season since 2002</h2>
@@ -153,7 +213,7 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
                   {history.map((h, i) => (
                     <tr key={h.season} className={h.playoff_result === 'Won Super Bowl' ? 'bg-amber-100/60' : i % 2 ? 'bg-chalk-100/60' : undefined}>
                       <th scope="row" className="text-left px-2 py-1.5 font-normal">
-                        <Link to={nflStandingsPath(h.season)} className="hover:underline">{h.season}</Link>
+                        <Link to={nflSeasonPath(h.season)} className="hover:underline">{h.season}</Link>
                         {h.team_name !== data.team.name && <span className="block text-xs text-ink-500">{h.team_name}</span>}
                       </th>
                       <td className={num}>{recordLabel(h)}</td>
