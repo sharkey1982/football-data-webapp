@@ -6,8 +6,9 @@
 --    stays its own level: the source does not separate Premier Mandatory/5
 --    from Premier 700. "WTA251".."WTA276" (26 one-off labels in the 2021
 --    file, a spreadsheet fill-down) are WTA250.
--- 2. tennis.result_of(status): the source's status with its typos fixed
---    ("Walkoer", "Rrtired"); "Cancelled" and "Sched" are "Not played".
+-- 2. tennis.result_of(status, w_games): the source's status with its typos fixed
+--    ("Walkoer", "Rrtired"); "Cancelled" and "Sched" are "Not played" unless the
+--    row has set scores (then Completed).
 --    A match counts in a win-loss record when it was played: Completed,
 --    Retired, Awarded or Disqualified (walkovers don't count, as on the
 --    ATP/WTA sites). A final won by walkover is still a title.
@@ -61,6 +62,16 @@ returns text language sql immutable as $$
     else coalesce(p_status, 'Completed') end
 $$;
 
+-- "Sched" and "Cancelled" mean not played only when there are no set scores:
+-- the 2019 US Open final (Nadal v Medvedev, 7-5 6-3 5-7 4-6 6-4) is "Sched" in
+-- the source; the 2021 Grampians Trophy final (Cancelled) has none.
+create or replace function tennis.result_of(p_status text, p_games int[])
+returns text language sql immutable as $$
+  select case
+    when p_status in ('Cancelled', 'Sched') and coalesce(cardinality(p_games), 0) > 0 then 'Completed'
+    else tennis.result_of(p_status) end
+$$;
+
 create or replace view public.tennis_matches with (security_invoker = true) as
 select m.source_key, m.tour, m.year, m.match_date, t.tournament_id, t.name tournament, t.slug tournament_slug,
   m.location, m.series, m.court, m.surface, m.round, m.best_of,
@@ -70,8 +81,8 @@ select m.source_key, m.tour, m.year, m.match_date, t.tournament_id, t.name tourn
   tennis.level_of(m.tour, m.series, t.name) level,
   tennis.level_rank(tennis.level_of(m.tour, m.series, t.name)) level_rank,
   tennis.round_order(m.round) round_order,
-  tennis.result_of(m.status) result,
-  tennis.result_of(m.status) in ('Completed', 'Retired', 'Awarded', 'Disqualified') played,
+  tennis.result_of(m.status, m.w_games) result,
+  tennis.result_of(m.status, m.w_games) in ('Completed', 'Retired', 'Awarded', 'Disqualified') played,
   case when m.surface = 'Greenset' then 'Hard' else m.surface end surface_group
 from tennis.matches m
 join tennis.tournaments t on t.tournament_id = m.tournament_id
@@ -81,13 +92,13 @@ join tennis.players l on l.player_id = m.loser_id;
 create or replace view public.tennis_players with (security_invoker = true) as
 with s as (
   select winner_id pid, tour, year, match_date, true won,
-    tennis.result_of(status) in ('Completed', 'Retired', 'Awarded', 'Disqualified') played,
-    round = 'The Final' and tennis.result_of(status) <> 'Not played' final
+    tennis.result_of(status, w_games) in ('Completed', 'Retired', 'Awarded', 'Disqualified') played,
+    round = 'The Final' and tennis.result_of(status, w_games) <> 'Not played' final
   from tennis.matches
   union all
   select loser_id, tour, year, match_date, false,
-    tennis.result_of(status) in ('Completed', 'Retired', 'Awarded', 'Disqualified'),
-    round = 'The Final' and tennis.result_of(status) <> 'Not played'
+    tennis.result_of(status, w_games) in ('Completed', 'Retired', 'Awarded', 'Disqualified'),
+    round = 'The Final' and tennis.result_of(status, w_games) <> 'Not played'
   from tennis.matches
 ), latest as (select tour, max(year) y from tennis.matches group by tour)
 select p.player_id, p.tour, p.name, p.slug,
@@ -105,5 +116,5 @@ join latest lt on lt.tour = p.tour
 group by p.player_id, lt.y;
 
 grant select on public.tennis_matches, public.tennis_players to anon, authenticated;
-grant execute on function tennis.level_of(text, text), tennis.level_of(text, text, text), tennis.level_rank(text), tennis.round_order(text), tennis.result_of(text)
+grant execute on function tennis.level_of(text, text), tennis.level_of(text, text, text), tennis.level_rank(text), tennis.round_order(text), tennis.result_of(text), tennis.result_of(text, int[])
   to anon, authenticated;

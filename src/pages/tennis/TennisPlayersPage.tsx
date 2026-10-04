@@ -85,7 +85,7 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
               {`Show all ${rows.length.toLocaleString('en-GB')}`}
             </button>
           )}
-          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Win % shown sorted only for 20+ matches. ${DATA_NOTE}`}</p>
+          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. ${DATA_NOTE}`}</p>
         </>
       )}
     </article>
