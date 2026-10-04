@@ -38,14 +38,14 @@ describe('finance routes, through the real App', () => {
   it('/finance renders the index of clubs with published accounts', async () => {
     mocked.getFinanceIndex.mockResolvedValue(buildFinanceIndex([southendData()]));
     visit('/finance');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Club finances' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'The Boardroom' })).toBeInTheDocument();
     expect(await screen.findByRole('link', { name: /Southend/ })).toHaveAttribute('href', '/football/teams/southend/finances');
   });
 
   it('/finance/compare renders the club comparison', async () => {
     mocked.getAllClubFinance.mockResolvedValue([southendData()]);
     visit('/finance/compare');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Club finances compared' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Compare Club Finances' })).toBeInTheDocument();
     expect(mocked.getAllClubFinance).toHaveBeenCalled();
   });
 

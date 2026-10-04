@@ -60,12 +60,12 @@ describe('AppLayout main nav', () => {
     expect(screen.queryByRole('button', { name: /^Optimiser$/ })).not.toBeInTheDocument();
   });
 
-  it('The Boardroom is a top-level heading holding Club finances (/finance)', async () => {
+  it('The Boardroom lives under Football > Discover, not as its own top-level menu', async () => {
     renderAt('/');
-    const boardroom = screen.getByRole('button', { name: /The Boardroom/ });
-    await userEvent.setup().click(boardroom);
-    expect(await screen.findByRole('link', { name: 'Club finances' })).toHaveAttribute('href', '/finance');
-    expect(screen.getByRole('link', { name: 'Compare clubs' })).toHaveAttribute('href', '/finance/compare');
+    expect(screen.queryByRole('button', { name: /The Boardroom/ })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: /Football/ }));
+    expect(await screen.findByRole('link', { name: 'The Boardroom' })).toHaveAttribute('href', '/finance');
+    expect(screen.getByRole('link', { name: 'Compare Club Finances' })).toHaveAttribute('href', '/finance/compare');
   });
 
   it('the Admin menu holds operational tools only -- Optimiser is a Fantasy feature', async () => {

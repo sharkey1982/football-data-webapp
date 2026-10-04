@@ -82,6 +82,10 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'League Insights', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
           { label: 'Country Insights', to: '/football/countries-compared', blurb: 'Every country\u2019s top flight on one axis \u2014 goals, home advantage, cards.' },
           { label: 'Market Efficiency', to: '/football/market-efficiency', blurb: 'Where the betting market is priced sharply \u2014 and where it isn\u2019t.' },
+          // Club finances, formerly their own top-level menu (Chris, 4 Oct 2026:
+          // fold The Boardroom into Football > Discover, keeping the name).
+          { label: 'The Boardroom', to: '/finance', blurb: 'Every club\u2019s finances from its statutory accounts \u2014 revenue, wages, profit and cash.', matchPrefix: ['/finance'], excludePrefix: '/finance/compare' },
+          { label: 'Compare Club Finances', to: '/finance/compare', blurb: 'Clubs side by side on revenue, wages, profit and debt.' },
           { label: 'Raw Data', to: '/results-data', blurb: 'The full match archive, filterable and exportable.' },
         ],
       },

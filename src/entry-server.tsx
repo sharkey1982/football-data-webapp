@@ -354,10 +354,10 @@ export function renderFinanceComparePage(clubs: ClubFinanceData[]): RenderedPage
   );
   return {
     html,
-    title: `Club finances compared \u2014 revenue, wages, debt | ${BRAND_NAME}`,
+    title: `Compare Club Finances: revenue, wages, debt | ${BRAND_NAME}`,
     description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from filings at Companies House.',
     canonical: `${SITE_URL}${path}`,
-    structuredData: [breadcrumb([{ name: 'Club finances', path: '/finance' }, { name: 'Compare clubs', path }])],
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'The Boardroom', path: '/finance' }, { name: 'Compare Club Finances', path }])],
   };
 }
 
@@ -372,11 +372,11 @@ export function renderFinanceIndexPage(entries: FinanceIndexEntry[]): RenderedPa
   );
   return {
     html,
-    title: `Club finances \u2014 statutory accounts, explained | ${BRAND_NAME}`,
+    title: `The Boardroom: club finances from statutory accounts | ${BRAND_NAME}`,
     description:
       'Football club finances from the accounts clubs file at Companies House: revenue, profit and loss, cash, borrowings and net assets, each figure traceable to its source.',
     canonical: `${SITE_URL}${path}`,
-    structuredData: [breadcrumb([{ name: 'Club finances', path }])],
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'The Boardroom', path }])],
   };
 }
 
