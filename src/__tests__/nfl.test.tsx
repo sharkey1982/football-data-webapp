@@ -11,7 +11,7 @@ import StagePage from '../pages/StagePage';
 import { renderNflFixturesPage, renderNflSeasonPage, renderNflTablePage, renderNflTeamPage } from '../entry-server';
 import { THEMES } from '../lib/journey';
 import { againstSpread, seasonStory, teamSeasonStory, upsetSize, winStreaks, type NflSeasonSummary } from '../lib/nflStory';
-import { nflWatch } from '../lib/nflWatch';
+import { nflGuideItem, nflWatch } from '../lib/nflWatch';
 import { buildHeatMap, consistency, playerSentence, positionRank, type NflPlayerWeek, type PointsAllowed } from '../lib/nflFantasyApi';
 
 vi.mock('../lib/nflApi', async () => {
@@ -422,6 +422,18 @@ describe('NFL fantasy maths', () => {
     expect(positionRank(d, 'p', 'ppr')).toBe(1);
     expect(positionRank(d, 'p', 'std')).toBe(2);
     expect(playerSentence(d, 'ppr')).toBe('Joe Example has scored 62.0 PPR points in 4 games in 2026 (15.5 a game), the most among WRs. Over his last three games he averaged 19.0, up on his season average.');
+  });
+});
+
+describe('NFL TV Guide rows (shared football layout)', () => {
+  it('maps a game into the football guide shape, UK date and time, model and weekly-pick note', () => {
+    const item = nflGuideItem(weekData.games[1], { game_id: 'b', predicted_at: '', p_home: 0.36, predicted_margin: -2, market_p_home: null });
+    expect(item).toMatchObject({ kickoffDate: '2026-10-04', kickoffTime: '14:30', leagueName: 'NFL', competitionType: 'league', homeTeamName: 'Team 1-0', awayTeamName: 'Team 1-1', href: '/nfl/fixtures?season=2026&week=4' });
+    expect(item.subtitle).toBe('Week 4 · Tottenham Hotspur Stadium · Model T11 64%');
+    expect(item.offers.map((o) => o.channel ?? o.serviceProduct)).toEqual(['DAZN NFL Game Pass', 'Sky Sports NFL', '5']);
+    const sunday = nflGuideItem(game({ kickoff_at: '2026-10-11T17:00:00Z', gameday: '2026-10-11' }));
+    expect(sunday.note?.text).toContain('pick their Sunday games each week');
+    expect(nflGuideItem(game({ game_type: 'DIV' })).competitionType).toBe('cup');
   });
 });
 
