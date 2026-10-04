@@ -194,7 +194,9 @@ async function main() {
     }
   }
 
-  // NFL: /nfl is a static route; standings per season and the 32 team pages.
+  // NFL: hub, stage and list pages are static routes; plus one page per
+  // season (its story) and the 32 team pages. Player pages are client-only
+  // and stay out (low page count).
   counts.nfl = 0;
   if (mod?.nflTeamPath) {
     const [nflTeams, nflLatest] = await Promise.all([
@@ -202,7 +204,10 @@ async function main() {
       query('nfl_standings?select=season&order=season.desc&limit=1'),
     ]);
     const latest = nflLatest?.[0]?.season;
-    if (latest != null) for (const season of mod.nflSeasonRange(latest)) { entries.push(urlEntry(mod.nflStandingsPath(season), null)); counts.nfl++; }
+    for (const p of ['/nfl/fixtures', '/nfl/table', '/nfl/teams', '/nfl/seasons', '/nfl/scoring-rules']) {
+      if (!staticPaths.includes(p)) { entries.push(urlEntry(p, null)); counts.nfl++; }
+    }
+    if (latest != null) for (const season of mod.nflSeasonRange(latest)) { entries.push(urlEntry(mod.nflSeasonPath(season), null)); counts.nfl++; }
     for (const t of nflTeams ?? []) { entries.push(urlEntry(mod.nflTeamPath(t.slug), null)); counts.nfl++; }
   }
 

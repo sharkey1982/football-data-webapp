@@ -65,21 +65,44 @@ import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './li
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
-import NflHubPage from './pages/nfl/NflHubPage';
-import NflStandingsPage from './pages/nfl/NflStandingsPage';
+import NflFixturesPage from './pages/nfl/NflFixturesPage';
+import NflTablePage from './pages/nfl/NflTablePage';
+import NflTeamsPage from './pages/nfl/NflTeamsPage';
 import NflTeamPage from './pages/nfl/NflTeamPage';
+import NflSeasonsPage from './pages/nfl/NflSeasonsPage';
+import NflSeasonPage from './pages/nfl/NflSeasonPage';
+import NflScoringRulesPage from './pages/nfl/NflScoringRulesPage';
 import {
+  NFL_FIXTURES_PATH,
   NFL_HUB_PATH,
-  nflStandingsPath,
+  NFL_SCORING_PATH,
+  NFL_SEASONS_PATH,
+  NFL_TABLE_PATH,
+  NFL_TEAMS_PATH,
+  nflSeasonPath,
   nflTeamPath,
   standingsSentence,
   teamSentence,
   weekSentence,
+  type NflSeasonData,
+  type NflSeasonIndexData,
   type NflStandingsData,
   type NflTeamData,
   type NflWeekData,
 } from './lib/nflApi';
-export { buildTeam as buildNflTeam, buildWeek as buildNflWeek, seasonRange as nflSeasonRange, GAME_COLUMNS as NFL_GAME_COLUMNS, STANDING_COLUMNS as NFL_STANDING_COLUMNS, TEAM_COLUMNS as NFL_TEAM_COLUMNS, nflStandingsPath, nflTeamPath } from './lib/nflApi';
+import { seasonStory as nflSeasonStory, seasonsSentence } from './lib/nflStory';
+import type { ReactElement } from 'react';
+export {
+  buildTeam as buildNflTeam,
+  buildWeek as buildNflWeek,
+  seasonRange as nflSeasonRange,
+  GAME_COLUMNS as NFL_GAME_COLUMNS,
+  STANDING_COLUMNS as NFL_STANDING_COLUMNS,
+  TEAM_COLUMNS as NFL_TEAM_COLUMNS,
+  nflSeasonPath,
+  nflTeamPath,
+} from './lib/nflApi';
+export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
 
 export type RenderedPage = {
@@ -573,53 +596,74 @@ export function renderScorelinesPage(data: ScorelinesData): RenderedPage {
 // ---- NFL --------------------------------------------------------------------
 
 const NFL_CRUMB = { name: 'NFL', path: NFL_HUB_PATH };
+const NFL_DISCOVER_CRUMB = { name: 'Discover', path: '/nfl/discover' };
 
-export function renderNflHubPage(data: NflWeekData): RenderedPage {
-  const html = renderToString(
-    <StaticRouter location={NFL_HUB_PATH}>
+function nflPage(path: string, route: string, element: ReactElement): string {
+  return renderToString(
+    <StaticRouter location={path}>
       <Routes>
-        <Route path={NFL_HUB_PATH} element={<NflHubPage initialData={data} />} />
+        <Route path={route} element={element} />
       </Routes>
     </StaticRouter>
   );
+}
+
+export function renderNflFixturesPage(data: NflWeekData): RenderedPage {
   return {
-    html,
-    title: `NFL schedule, results and standings in UK time | ${BRAND_NAME}`,
+    html: nflPage(NFL_FIXTURES_PATH, NFL_FIXTURES_PATH, <NflFixturesPage initialData={data} />),
+    title: `NFL fixtures and results in UK time | ${BRAND_NAME}`,
     description: weekSentence(data),
-    canonical: `${SITE_URL}${NFL_HUB_PATH}`,
-    structuredData: [breadcrumb([NFL_CRUMB])],
+    canonical: `${SITE_URL}${NFL_FIXTURES_PATH}`,
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'Fixtures & Results', path: NFL_FIXTURES_PATH }])],
   };
 }
 
-export function renderNflStandingsPage(data: NflStandingsData): RenderedPage {
-  const path = nflStandingsPath(data.season);
-  const html = renderToString(
-    <StaticRouter location={path}>
-      <Routes>
-        <Route path="/nfl/standings/:season" element={<NflStandingsPage initialData={data} />} />
-      </Routes>
-    </StaticRouter>
-  );
+export function renderNflTablePage(data: NflStandingsData): RenderedPage {
   return {
-    html,
-    title: `${data.season} NFL standings | ${BRAND_NAME}`,
+    html: nflPage(NFL_TABLE_PATH, NFL_TABLE_PATH, <NflTablePage initialData={data} />),
+    title: `${data.season} NFL league table and standings | ${BRAND_NAME}`,
     description: standingsSentence(data),
+    canonical: `${SITE_URL}${NFL_TABLE_PATH}`,
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'League Table', path: NFL_TABLE_PATH }])],
+  };
+}
+
+export function renderNflTeamsPage(data: NflStandingsData): RenderedPage {
+  return {
+    html: nflPage(NFL_TEAMS_PATH, NFL_TEAMS_PATH, <NflTeamsPage initialData={data} />),
+    title: `NFL teams: every team\u2019s season and history | ${BRAND_NAME}`,
+    description: 'All 32 NFL teams by conference and division, with this season\u2019s record, every season since 2002 and the story of each.',
+    canonical: `${SITE_URL}${NFL_TEAMS_PATH}`,
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'Your Team', path: NFL_TEAMS_PATH }])],
+  };
+}
+
+export function renderNflSeasonsPage(data: NflSeasonIndexData): RenderedPage {
+  return {
+    html: nflPage(NFL_SEASONS_PATH, NFL_SEASONS_PATH, <NflSeasonsPage initialData={data} />),
+    title: `Every NFL season since 2002: champions and stories | ${BRAND_NAME}`,
+    description: seasonsSentence(data),
+    canonical: `${SITE_URL}${NFL_SEASONS_PATH}`,
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'Past seasons', path: NFL_SEASONS_PATH }])],
+  };
+}
+
+export function renderNflSeasonPage(data: NflSeasonData): RenderedPage {
+  const path = nflSeasonPath(data.season);
+  const story = nflSeasonStory(data.season, data.games, data.rows, data.summaries);
+  return {
+    html: nflPage(path, '/nfl/seasons/:season', <NflSeasonPage initialData={data} />),
+    title: `The ${data.season} NFL season: champions, story and standings | ${BRAND_NAME}`,
+    description: story.headline,
     canonical: `${SITE_URL}${path}`,
-    structuredData: [breadcrumb([NFL_CRUMB, { name: `${data.season} standings`, path }])],
+    structuredData: [breadcrumb([NFL_CRUMB, { name: 'Past seasons', path: NFL_SEASONS_PATH }, { name: `${data.season} season`, path }])],
   };
 }
 
 export function renderNflTeamPage(data: NflTeamData): RenderedPage {
   const path = nflTeamPath(data.team.slug);
-  const html = renderToString(
-    <StaticRouter location={path}>
-      <Routes>
-        <Route path="/nfl/teams/:slug" element={<NflTeamPage initialData={data} />} />
-      </Routes>
-    </StaticRouter>
-  );
   return {
-    html,
+    html: nflPage(path, '/nfl/teams/:slug', <NflTeamPage initialData={data} />),
     title: `${data.team.name}: ${data.season} schedule, results and history | ${BRAND_NAME}`,
     description: teamSentence(data),
     canonical: `${SITE_URL}${path}`,
@@ -632,8 +676,18 @@ export function renderNflTeamPage(data: NflTeamData): RenderedPage {
         memberOf: { '@type': 'SportsOrganization', name: 'National Football League' },
         url: `${SITE_URL}${path}`,
       },
-      breadcrumb([NFL_CRUMB, { name: data.team.name, path }]),
+      breadcrumb([NFL_CRUMB, { name: 'Your Team', path: NFL_TEAMS_PATH }, { name: data.team.name, path }]),
     ],
+  };
+}
+
+export function renderNflScoringPage(): RenderedPage {
+  return {
+    html: nflPage(NFL_SCORING_PATH, NFL_SCORING_PATH, <NflScoringRulesPage />),
+    title: `NFL fantasy scoring rules: standard, half-PPR and PPR | ${BRAND_NAME}`,
+    description: 'How NFL fantasy points are scored on FixtureShark: standard, half-PPR and PPR for passing, rushing, receiving and turnovers, and the kicker rules.',
+    canonical: `${SITE_URL}${NFL_SCORING_PATH}`,
+    structuredData: [breadcrumb([NFL_CRUMB, { name: 'Fantasy', path: '/nfl/fantasy' }, { name: 'Scoring Rules', path: NFL_SCORING_PATH }])],
   };
 }
 

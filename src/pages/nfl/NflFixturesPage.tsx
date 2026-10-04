@@ -1,22 +1,24 @@
 // ============================================================================
-// src/pages/nfl/NflHubPage.tsx
+// src/pages/nfl/NflFixturesPage.tsx
 //
-// /nfl -- one week of NFL games: results, upcoming kick-offs in UK time and
-// the line. ?season= and ?week= pick another week without adding static
-// pages; the bare URL shows the week the season is on and is the one page
-// server-rendered at build.
+// /nfl/fixtures -- "Fixtures & Results", as in Football: one week of games,
+// results, upcoming kick-offs in UK time, the line, and where each game is
+// on in the UK (full detail on the TV Guide). ?season= and ?week= pick
+// another week without adding static pages; the bare URL shows the week the
+// season is on and is the one version server-rendered at build.
 // ============================================================================
 
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import {
-  CONFERENCES,
-  DIVISIONS,
+  NFL_FIXTURES_PATH,
   NFL_HUB_PATH,
+  NFL_TV_PATH,
   lineLabel,
   loadNflWeek,
-  nflStandingsPath,
+  nflSeasonPath,
+  nflTablePath,
   nflTeamPath,
   ukDay,
   ukKickoff,
@@ -24,6 +26,7 @@ import {
   type NflGame,
   type NflWeekData,
 } from '../../lib/nflApi';
+import NflWatchLine from '../../components/nfl/NflWatchLine';
 
 function intParam(v: string | null): number | null {
   if (v == null || !/^\d{1,4}$/.test(v)) return null;
@@ -50,12 +53,13 @@ function GameRow({ g }: { g: NflGame }) {
         <div>{done ? `Final${g.overtime ? ' (OT)' : ''}` : ukKickoff(g)}</div>
         {line && <div>{`${done ? 'Closing line' : 'Line'}: ${line}${g.total_line != null ? `, O/U ${g.total_line}` : ''}`}</div>}
         {g.neutral_site && g.stadium && <div className="text-pitch-700">{g.stadium}</div>}
+        {!done && <NflWatchLine g={g} />}
       </div>
     </li>
   );
 }
 
-export default function NflHubPage({ initialData }: { initialData?: NflWeekData }) {
+export default function NflFixturesPage({ initialData }: { initialData?: NflWeekData }) {
   const [params, setParams] = useSearchParams();
   const season = intParam(params.get('season'));
   const week = intParam(params.get('week'));
@@ -63,9 +67,9 @@ export default function NflHubPage({ initialData }: { initialData?: NflWeekData 
   const { data, failed, loading } = useKeyedFetch(key, () => loadNflWeek(season, week), initialData ? { key: 'now:now', data: initialData } : undefined);
 
   useDocumentHead({
-    title: 'NFL schedule, results and standings in UK time',
-    description: data ? weekSentence(data) : 'NFL results, upcoming games with UK kick-off times, standings and every team since 2002.',
-    path: NFL_HUB_PATH,
+    title: 'NFL fixtures and results in UK time',
+    description: data ? weekSentence(data) : 'Every NFL game week by week: results, upcoming kick-offs in UK time, the line and where to watch.',
+    path: NFL_FIXTURES_PATH,
   });
 
   const days: { day: string; games: NflGame[] }[] = [];
@@ -89,8 +93,10 @@ export default function NflHubPage({ initialData }: { initialData?: NflWeekData 
   return (
     <article className="space-y-6">
       <header>
-        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">NFL</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">NFL schedule and results</h1>
+        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
+          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot; <Link to="/nfl/discover" className="hover:underline">Discover</Link>
+        </p>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Fixtures &amp; Results</h1>
         <p className="text-sm text-ink-500 mt-1">Kick-off times are UK time.</p>
       </header>
 
@@ -145,37 +151,11 @@ export default function NflHubPage({ initialData }: { initialData?: NflWeekData 
             </p>
           </section>
 
-          <p className="text-sm">
-            <Link to={nflStandingsPath(data.season)} className="text-pitch-800 underline underline-offset-2">{`${data.season} standings`}</Link>
+          <p className="text-sm flex flex-wrap gap-x-5 gap-y-1.5">
+            <Link to={nflTablePath(data.season)} className="text-pitch-800 underline underline-offset-2">{`${data.season} League Table`}</Link>
+            <Link to={nflSeasonPath(data.season)} className="text-pitch-800 underline underline-offset-2">{`Story of the ${data.season} season`}</Link>
+            <Link to={NFL_TV_PATH} className="text-pitch-800 underline underline-offset-2">TV Guide</Link>
           </p>
-
-          <section aria-labelledby="teams-heading">
-            <h2 id="teams-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">Teams</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-2">
-              {CONFERENCES.map((c) => (
-                <div key={c}>
-                  <h3 className="font-mono text-xs uppercase tracking-widest text-ink-500">{c}</h3>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 mt-2 text-sm">
-                    {DIVISIONS.map((d) => (
-                      <div key={d}>
-                        <p className="text-xs text-ink-500">{`${c} ${d}`}</p>
-                        <ul>
-                          {data.teams
-                            .filter((t) => t.conference === c && t.division === d)
-                            .sort((a, b) => a.name.localeCompare(b.name))
-                            .map((t) => (
-                              <li key={t.franchise}>
-                                <Link to={nflTeamPath(t.slug)} className="hover:underline">{t.name}</Link>
-                              </li>
-                            ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
 
           <p className="text-xs text-ink-500">Data: nflverse, every season since 2002. Updated daily.</p>
         </>

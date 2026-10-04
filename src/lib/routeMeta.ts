@@ -28,6 +28,7 @@ export type RouteMeta = {
 
 const FOOTBALL = { name: 'Football', path: '/football' };
 const FPL = { name: 'Fantasy Premier League', path: '/fpl/start' };
+const NFL = { name: 'NFL', path: '/nfl' };
 
 export const STATIC_ROUTES: RouteMeta[] = [
   {
@@ -350,7 +351,37 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/nfl',
-    title: 'NFL schedule, results and standings in UK time',
-    description: 'NFL results and upcoming games with UK kick-off times and the line, standings for every season since 2002 and a page for every team.',
+    title: 'NFL \u2014 results, standings, UK TV and fantasy stats',
+    description: 'Every NFL result since 2002, how to watch every game in the UK, the standings and the story of each season, and player stats for fantasy.',
+  },
+  {
+    path: '/nfl/discover',
+    title: 'Discover \u2014 NFL',
+    description: 'Everything that has actually happened in the NFL since 2002: every game, how to watch in the UK, the standings, each team and the story of every season.',
+    crumbs: [NFL],
+  },
+  {
+    path: '/nfl/fantasy',
+    title: 'Fantasy \u2014 NFL',
+    description: 'The numbers for picking an NFL fantasy team: points in standard, half-PPR and PPR, usage and consistency, and which defences give up the most.',
+    crumbs: [NFL],
+  },
+  {
+    path: '/nfl/tv-guide',
+    title: 'NFL TV guide: how to watch every game in the UK',
+    description: 'Every NFL game in the next two weeks in UK time, with where to watch it live in the UK: Sky Sports, 5 (free) and DAZN NFL Game Pass.',
+    crumbs: [NFL],
+  },
+  {
+    path: '/nfl/players',
+    title: 'NFL Player Scout: fantasy points and stats for every player',
+    description: 'Every NFL quarterback, running back, receiver, tight end and kicker: fantasy points in PPR, half-PPR and standard scoring, per game, recent form and usage.',
+    crumbs: [NFL],
+  },
+  {
+    path: '/nfl/fixture-heat-map',
+    title: 'NFL fantasy fixture heat map: kindest and toughest matchups',
+    description: 'Every NFL team\u2019s next six games coloured by how many fantasy points each opponent gives up to each position.',
+    crumbs: [NFL],
   },
 ];
