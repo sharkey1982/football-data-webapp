@@ -217,18 +217,6 @@ export default function AppLayout() {
   const navGroups: NavGroup[] = [
     ...themeGroups,
     {
-      // The Boardroom: club finances from statutory accounts -- the third
-      // pillar alongside Football and Fantasy. A dropdown like the others,
-      // though it holds one destination today; each club's own page lives
-      // at /football/teams/:slug/finances and is reached from here and
-      // from its team page.
-      label: 'The Boardroom',
-      items: [
-        { to: '/finance', label: 'Club finances', matchPrefix: '/finance' },
-        { to: '/finance/compare', label: 'Compare clubs', matchPrefix: '/finance/compare' },
-      ],
-    },
-    {
       // Renamed from "Data" and re-scoped. Results Data moved into
       // Football > Discover, where it belongs -- it's the curated match
       // archive, filterable and exportable, which is exploration rather

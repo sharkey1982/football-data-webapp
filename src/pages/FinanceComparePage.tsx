@@ -63,7 +63,7 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
   }, [initialData]);
 
   useDocumentHead({
-    title: 'Club finances compared',
+    title: 'Compare Club Finances',
     description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from filings at Companies House.',
     path: '/finance/compare',
   });
@@ -102,7 +102,7 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
   return (
     <div className="space-y-5">
       <header className="space-y-2">
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">Club finances compared</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">Compare Club Finances</h1>
         <label className="flex items-center gap-2 text-sm text-ink-700">
           Year
           <select value={year} onChange={(e) => setYear(e.target.value)} className="border border-ink-500/30 rounded px-2 py-1 text-sm">
