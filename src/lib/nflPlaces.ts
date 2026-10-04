@@ -14,6 +14,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { milesBetween } from './geo';
 import { GAME_COLUMNS, STANDING_COLUMNS, TEAM_COLUMNS, type NflGame, type NflStanding, type NflTeam } from './nflApi';
 
 export type Venue = { lat: number; lon: number; x?: number; y?: number };
@@ -68,11 +69,7 @@ export const COLD_OUTDOOR = new Set(['GB', 'CHI', 'BUF', 'NE', 'CLE', 'PIT', 'KC
 
 export const LONDON_STADIUM = /wembley|tottenham|twickenham/i;
 
-export function milesBetween(a: Venue, b: Venue): number {
-  const r = (d: number) => (d * Math.PI) / 180;
-  const h = Math.sin((r(b.lat) - r(a.lat)) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin((r(b.lon) - r(a.lon)) / 2) ** 2;
-  return 3958.8 * 2 * Math.asin(Math.sqrt(h));
-}
+export { milesBetween };
 
 const UK_HOUR = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', hour12: false });
 

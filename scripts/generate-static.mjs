@@ -443,6 +443,29 @@ async function main() {
   }
   await writeNflPages();
 
+  // ---- Your Local Clubs (/football/local-clubs) --------------------------------
+  // Every club with a checked ground and this season's division; the postcode
+  // part only happens in the browser.
+  try {
+    const entry = await import(ENTRY);
+    const tiers = entry.LOCAL_CLUBS_TIERS.join(',');
+    const [grounds, standings] = await Promise.all([
+      query('club_grounds?select=team_id,ground_name,latitude,longitude'),
+      query(`league_standings?select=team_id,league_name,tier,season_start_year&league_code=in.(${tiers})&order=season_start_year.desc&limit=200`),
+    ]);
+    // Only the clubs with a ground (well under PostgREST's 1,000-row cap).
+    const teams = grounds ? await query(`teams?select=team_id,display_name,canonical_name,slug&team_id=in.(${grounds.map((g) => g.team_id).join(',')})`) : null;
+    if (grounds && standings && teams) {
+      const page = entry.renderLocalClubsPage(entry.buildLocalClubs(grounds, teams, standings));
+      const dir = join(DIST, 'football', 'local-clubs');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      console.log('Static: wrote Your Local Clubs.');
+    } else console.warn('Static: club grounds unavailable -- Your Local Clubs stays client-rendered.');
+  } catch (err) {
+    console.error(`Static: failed Your Local Clubs: ${err?.message ?? err}`);
+  }
+
   // ---- Record Book (/football/records, /football/records/:league) -----------
   async function writeRecordsPages() {
     if (!leagueBulk) return;
