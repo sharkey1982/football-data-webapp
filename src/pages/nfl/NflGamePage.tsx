@@ -47,6 +47,8 @@ import {
 import { gameNumber, nflWatch } from '../../lib/nflWatch';
 import { againstSpread } from '../../lib/nflStory';
 import NotFoundPage from '../NotFoundPage';
+import NflMarginChart from '../../components/nfl/NflMarginChart';
+import { favouriteCoverProb, marginDistribution } from '../../lib/nflMargin';
 
 const card = 'border border-chalk-300 rounded-lg bg-white p-4';
 const cardHeading = 'font-display uppercase text-sm tracking-wide text-ink-500 mb-3';
@@ -72,6 +74,55 @@ function atsText(a: { cover: number; miss: number; push: number }): string {
 
 function scoreLine(g: NflGame): string {
   return `${g.away_name} ${g.away_score}–${g.home_score} ${g.home_name}${g.overtime ? ' (OT)' : ''}`;
+}
+
+function RecentList({ team, franchise, recent }: { team: string; franchise: string; recent: NflGame[] }) {
+  const entries = formOf(recent, franchise, 6);
+  return (
+    <div>
+      <h3 className="font-display uppercase tracking-wide text-ink-900">{team}</h3>
+      {entries.length === 0 ? (
+        <p className="text-sm text-ink-500 mt-1">No games yet.</p>
+      ) : (
+        <ul className="mt-1 divide-y divide-chalk-200 text-sm">
+          {entries.map((e) => {
+            const g = e.game;
+            const opp = e.home ? { slug: g.away_slug } : { slug: g.home_slug };
+            return (
+              <li key={g.game_id} className="py-1.5 grid grid-cols-[auto_1fr_auto] gap-x-2 items-baseline">
+                <span
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded-sm text-[11px] font-bold font-mono ${e.letter === 'W' ? 'bg-pitch-700 text-chalk-100' : e.letter === 'L' ? 'bg-loss-600 text-chalk-100' : 'bg-chalk-300 text-ink-700'}`}
+                >
+                  {e.letter}
+                </span>
+                <span className="min-w-0">
+                  <span className="text-ink-500 text-xs">{e.home || g.neutral_site ? 'v ' : '@ '}</span>
+                  <Link to={nflTeamPath(opp.slug)} className="hover:underline">{e.opponent}</Link>
+                  <span className="block text-xs text-ink-500 font-mono">
+                    {`${g.season === recent[0]?.season ? '' : `${g.season} `}${weekLabel(g.game_type, g.week)}`}
+                    {e.ats && ` · ${e.ats === 'cover' ? 'covered' : e.ats === 'miss' ? 'did not cover' : 'push'} ${lineLabel(g)}`}
+                  </span>
+                </span>
+                <Link to={nflGamePath(g.game_id)} className="font-mono tabular-nums hover:underline">{e.score}</Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function RecentGames({ game, p }: { game: NflGame; p: NflGamePreview }) {
+  return (
+    <div className={card} data-testid="nfl-recent-games">
+      <h2 className={cardHeading}>Recent games</h2>
+      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+        <RecentList team={game.home_name} franchise={game.home_franchise} recent={p.homeRecent} />
+        <RecentList team={game.away_name} franchise={game.away_franchise} recent={p.awayRecent} />
+      </div>
+    </div>
+  );
 }
 
 function SeasonSoFar({ game, home, away }: { game: NflGame; home: NflSeasonSoFar; away: NflSeasonSoFar }) {
@@ -329,6 +380,23 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
               The model is a margin-based Elo rating walked forward over every game since 2002, with home advantage; ties are rare enough not to be priced. Betting
               market: the moneyline with the bookmaker&rsquo;s margin removed, and the spread as quoted (favourite first).
             </p>
+            <NflMarginChart
+              expectedMargin={Number(model.predicted_margin)}
+              homeName={game.home_name}
+              awayName={game.away_name}
+              homeShort={game.home_franchise}
+              awayShort={game.away_franchise}
+            />
+            {game.spread_line != null && game.spread_line !== 0 && (
+              <p className="text-sm text-ink-700 mt-1 max-w-prose" data-testid="nfl-cover-chance">
+                {`On this curve ${game.spread_line > 0 ? game.home_name : game.away_name} ${played ? 'were' : 'are'} ${pct(favouriteCoverProb(marginDistribution(Number(model.predicted_margin)), game.spread_line))} to cover the line (${line}): to win by more than ${Math.abs(game.spread_line)}.`}
+              </p>
+            )}
+            <p className="text-xs text-ink-500 mt-1 max-w-prose">
+              The curve is a normal spread of results around the model&rsquo;s expected margin (Stern, 1991), reweighted for the NFL&rsquo;s key numbers. Its
+              shape was fitted on 2002&ndash;2023 and checked on 2024, where it beat a plain bell curve. Because it is built from the expected margin alone, its win
+              chances can differ by a few points from the Elo figure above, which is the one the Model Lab scores.
+            </p>
           </>
         ) : (
           <p className="text-ink-500 text-sm mt-1">
@@ -353,6 +421,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
         <p className="text-xs text-ink-500 -mt-2">
           Form is each team&rsquo;s last 5 games before this one, home and away (the season is only 17 games), oldest to newest; play-offs included.
         </p>
+        <RecentGames game={game} p={p} />
         <SeasonSoFar game={game} home={seasonSoFar(p.homeRecent, game.home_franchise, game.season)} away={seasonSoFar(p.awayRecent, game.away_franchise, game.season)} />
         <HeadToHeadRecord p={p} />
       </section>
