@@ -483,20 +483,22 @@ async function loadAllStandings(): Promise<NflStanding[]> {
 
 // ---- TV Guide ------------------------------------------------------------------------------
 
-export type NflUpcomingData = { season: number; games: NflGame[] };
+export type NflUpcomingData = { season: number; games: NflGame[]; model: Record<string, NflGameModel> };
 
-/** Unplayed games kicking off in the next `days` days (UK view), soonest first. */
-export function upcomingGames(seasonGames: NflGame[], now: Date, days = 14): NflGame[] {
-  const from = now.getTime() - 4 * 3600 * 1000; // keep games in progress
+/** Unplayed games from four hours ago (games in progress) to `days` ahead, soonest first. */
+export function upcomingGames(seasonGames: NflGame[], now: Date, days = 400): NflGame[] {
+  const from = now.getTime() - 4 * 3600 * 1000;
   const to = now.getTime() + days * 86400 * 1000;
   return seasonGames
     .filter((g) => g.home_score == null && g.kickoff_at && new Date(g.kickoff_at).getTime() >= from && new Date(g.kickoff_at).getTime() <= to)
     .sort((a, b) => a.kickoff_at!.localeCompare(b.kickoff_at!));
 }
 
+/** The rest of the season, for the TV Guide (as the football guide lists every upcoming fixture). */
 export async function loadNflUpcoming(): Promise<NflUpcomingData | null> {
   const seasons = await loadSeasons();
   if (seasons.length === 0) return null;
   const season = seasons[seasons.length - 1];
-  return { season, games: upcomingGames(await loadSeasonGames(season), new Date()) };
+  const [games, model] = await Promise.all([loadSeasonGames(season), loadSeasonModel(season)]);
+  return { season, games: upcomingGames(games, new Date()), model: Object.fromEntries(model.map((m) => [m.game_id, m])) };
 }

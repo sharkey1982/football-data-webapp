@@ -24,7 +24,8 @@
 // ============================================================================
 
 import type { WatchOffer } from './watchGuide';
-import type { NflGame } from './nflApi';
+import { favourLabel, nflFixturesPath, ukDateKey, weekLabel, type NflGame, type NflGameModel } from './nflApi';
+import type { WatchGuideItem } from '../components/WatchGuideView';
 
 export const RULES_CHECKED = '4 October 2026';
 
@@ -143,3 +144,42 @@ export function nflWatch(g: Pick<NflGame, 'game_type' | 'kickoff_at' | 'neutral_
   }
   return { offers, pickedWeekly, listingsUrl: SKY_LISTINGS };
 }
+
+// ---- The TV Guide row (shared WatchGuideView) -----------------------------------------
+
+const UK_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' });
+
+/** A stable numeric id per game (the guide keys rows by number). */
+function gameNumber(gameId: string): number {
+  let h = 0;
+  for (let i = 0; i < gameId.length; i++) h = (h * 31 + gameId.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** One NFL game as a row of the shared TV Guide (the football fixture shape). */
+export function nflGuideItem(g: NflGame, model?: NflGameModel): WatchGuideItem {
+  const w = nflWatch(g);
+  const playoff = g.game_type !== 'REG';
+  return {
+    fixtureId: gameNumber(g.game_id),
+    slug: null,
+    href: nflFixturesPath(g.season, g.week),
+    kickoffDate: ukDateKey(g),
+    kickoffTime: g.kickoff_at ? UK_TIME.format(new Date(g.kickoff_at)) : null,
+    leagueCode: 'NFL',
+    leagueName: playoff ? 'NFL play-offs' : 'NFL',
+    countryName: 'United States',
+    competitionType: playoff ? 'cup' : 'league',
+    leagueTier: 1,
+    homeTeamName: g.home_name,
+    awayTeamName: g.away_name,
+    homeTeamCountry: 'United States',
+    awayTeamCountry: 'United States',
+    predictedHomeGoals: null,
+    predictedAwayGoals: null,
+    offers: w.offers,
+    subtitle: `${weekLabel(g.game_type, g.week)}${g.neutral_site && g.stadium ? ` · ${g.stadium}` : ''}${model ? ` · Model ${favourLabel(g, model.p_home)}` : ''}`,
+    note: w.pickedWeekly ? { text: w.pickedWeekly, link: { label: 'Sky’s NFL listings', url: w.listingsUrl } } : undefined,
+  };
+}
+
