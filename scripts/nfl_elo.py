@@ -75,7 +75,8 @@ def main() -> None:
                     "p_home": round(1 / (1 + 10 ** (-edge / 400)), 4), "predicted_margin": round(edge / 25, 2),
                     "market_p_home": None if moneyline_prob(g) is None else round(moneyline_prob(g), 4),
                     "spread_line": g["spread_line"], "total_line": g["total_line"],
-                    "home_moneyline": g["home_moneyline"], "away_moneyline": g["away_moneyline"],
+                    "home_moneyline": None if g["home_moneyline"] is None else int(g["home_moneyline"]),
+                    "away_moneyline": None if g["away_moneyline"] is None else int(g["away_moneyline"]),
                 })
         written = sb.rpc("nfl_insert_predictions", {"rows": rows}).execute().data if rows else 0
         summary = f"{MODEL_VERSION}: {len(played)} games rated; {written} predictions for {len(upcoming)} games in the next {HORIZON_DAYS} days"

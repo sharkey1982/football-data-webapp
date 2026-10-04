@@ -1,6 +1,7 @@
 name: NFL model (branch run, temporary)
 # TEMPORARY: first run of the daily model predictions (scripts/nfl_elo.py)
-# from the nfl-model-lab branch. The experiments already ran. Deleted before merge.
+# from the nfl-model-lab branch (retry after the integer fix). The experiments
+# already ran. Deleted before merge.
 on:
   push:
     branches: [nfl-model-lab]
