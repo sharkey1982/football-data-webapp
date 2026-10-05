@@ -161,16 +161,63 @@ def simulate_groups(p, groups: dict, played: list, remaining: list, rating: dict
         gf[h] += hs
         gf[a] += as_
     out = []
+    zone_n = defaultdict(lambda: defaultdict(int))     # team -> zone -> sims
+    at_pos = defaultdict(list)                         # (league, position) -> [(teams, keys per sim)]
     for g, ts in groups.items():
         ts = sorted(ts)
         key = np.stack([pts[t] * 1e6 + (gd[t] + 500) * 1e3 + gf[t] + rng.random(SIMS) * 0.5 for t in ts])
         order = (-key).argsort(0).argsort(0)  # rank of each team in each sim (0 = top)
+        league = g[0]
+        for k in range(len(ts)):
+            who = np.argmax(order == k, axis=0)
+            at_pos[(league, k)].append((np.array(ts)[who], key[who, np.arange(SIMS)]))
         for i, t in enumerate(ts):
             pos = [round(float((order[i] == k).mean()), 4) for k in range(len(ts))]
             out.append({"group_label": g, "team": t, "played": played_n[t], "points": int(base[t][0]),
                         "gd": int(base[t][1]), "gf": int(base[t][2]), "p_pos": pos,
                         "exp_points": round(float(pts[t].mean()), 2), "sims": SIMS})
+    for (league, k), per_group in at_pos.items():
+        teams = np.stack([t for t, _ in per_group])     # groups x sims
+        keys = np.stack([kk for _, kk in per_group])
+        cross = (-keys).argsort(0).argsort(0)          # rank among the groups' teams in this position
+        for gi in range(teams.shape[0]):
+            zones = ZONE_FN(league, k, cross[gi], teams.shape[0])
+            for t in np.unique(teams[gi]):
+                mask = teams[gi] == t
+                for z in np.unique(zones[mask]):
+                    zone_n[t][str(z)] += int((zones[mask] == z).sum())
+    for row in out:
+        row["zones"] = {z: round(n / SIMS, 4) for z, n in sorted(zone_n[row["team"]].items(), key=lambda x: -x[1])}
     return out
+
+
+# 2026/27 Nations League: what each finishing position leads to (UEFA regulations,
+# rebalanced for three leagues of 18 from 2028/29). League A ranks its thirds
+# and fourths across the four groups: the best two thirds stay up, the worst two
+# go into the A/B play-offs with the best two fourths; the worst two fourths go
+# down. Ties across groups split by points, goal difference, goals scored.
+ZONE_LABELS = {
+    "QF": "Quarter-finals", "STAY": "Stays up", "PO_AB": "Play-off A/B", "PO_BC": "Play-off B/C",
+    "PROMOTED": "Promoted", "RELEGATED": "Relegated", "STAY_B": "Stays in B", "STAY_C": "Stays in C",
+}
+
+
+def ZONE_FN(league: str, position: int, cross_rank: np.ndarray, n_groups: int) -> np.ndarray:
+    """Zone per sim for the team finishing `position` (0 = top) in a group of `league`,
+    given its rank among the teams in that position across the league's groups."""
+    def const(z):
+        return np.full(cross_rank.shape, z, dtype=object)
+    if league == "A":
+        if position <= 1:
+            return const("QF")
+        if position == 2:
+            return np.where(cross_rank < n_groups - 2, "STAY", "PO_AB").astype(object)
+        return np.where(cross_rank < 2, "PO_AB", "RELEGATED").astype(object)
+    if league == "B":
+        return const({0: "PROMOTED", 1: "PO_AB", 2: "STAY_B"}.get(position, "PO_BC"))
+    if league == "C":
+        return const({0: "PROMOTED", 1: "PO_BC"}.get(position, "STAY_C"))
+    return const("PROMOTED")  # League D: every team moves up to C as the leagues merge
 
 
 def build_projections(matches: list, fixtures: list, kind_of: dict, edition_key: str = "UNL-2026-27") -> dict:
