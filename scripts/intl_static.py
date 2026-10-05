@@ -155,6 +155,39 @@ VENUE_FIXES = {
     "2021-06-12|Wales|Switzerland": ("Baku", "Azerbaijan", True),
 }
 
+# Continental and other tournaments with pages (competition name in the
+# results file, edition-key prefix). Their rounds are derived from the games
+# (intl_import.apply_derived); editions are clusters of games, not years.
+CONTINENTAL = [
+    ("Copa América", "COPA"),
+    ("African Cup of Nations", "AFCON"),
+    ("AFC Asian Cup", "ASIAN"),
+    ("Gold Cup", "GOLD"),
+    ("Confederations Cup", "CONFED"),
+]
+
+# Editions named for a different year from the one most games were played in.
+OFFICIAL_LABELS = {
+    ("African Cup of Nations", "2022"): "2021",   # played Jan-Feb 2022
+    ("African Cup of Nations", "2024"): "2023",   # played Jan-Feb 2024
+    ("AFC Asian Cup", "2024"): "2023",            # played Jan-Feb 2024
+}
+
+# Winners (and runners-up) of editions whose deciding games the derivation
+# cannot place: two-legged finals, byes, unusual formats. Used only when no
+# winner can be derived; where one can, the importer checks it agrees.
+HAND_WINNERS = {
+    ("Copa América", "1937"): ("Argentina", "Brazil"),         # play-off after a league
+    ("Copa América", "1975"): ("Peru", "Colombia"),            # two-legged final and a play-off
+    ("Copa América", "1979"): ("Paraguay", "Chile"),
+    ("Copa América", "1983"): ("Uruguay", "Brazil"),
+    ("African Cup of Nations", "1957"): ("Egypt", "Ethiopia"),  # three teams, Ethiopia a bye to the final
+    ("African Cup of Nations", "1963"): ("Ghana", "Sudan"),
+    ("African Cup of Nations", "1965"): ("Ghana", "Tunisia"),
+    ("AFC Asian Cup", "1972"): ("Iran", "South Korea"),
+    ("Confederations Cup", "1995"): ("Denmark", "Argentina"),
+}
+
 # CONMEBOL has no qualifying competition in the results to infer it from.
 CONMEBOL = {"Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador",
             "Paraguay", "Peru", "Uruguay", "Venezuela"}
