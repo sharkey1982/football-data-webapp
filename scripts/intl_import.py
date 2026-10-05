@@ -874,6 +874,22 @@ def write(sb, b: Build) -> dict:
     return {"written": written}
 
 
+def write_projections(sb, b: Build) -> str:
+    """Model IP1: projections for unplayed fixtures and the Nations League
+    group odds (scripts/intl_projections.py). Skipped with a note until
+    migration 20261005210000 is applied."""
+    import intl_projections
+    kind_of = {c["name"]: c["kind"] for c in b.competitions}
+    r = intl_projections.build_projections(b.matches, b.fixtures, kind_of)
+    try:
+        sb.rpc("intl_replace_projections", {"payload": r}).execute()
+    except Exception as e:  # noqa: BLE001
+        if "intl_replace_projections" not in str(e):
+            raise
+        return "projections skipped (migration not applied yet)"
+    return f"{len(r['projections'])} projections, {len(r['group_odds'])} group odds"
+
+
 def reconcile(sb, b: Build) -> None:
     expected = year_totals(b.matches)
     held = {r["year"]: (r["matches"], r["goals"], r["key_hash"])
@@ -915,6 +931,9 @@ def main() -> None:
     if args.dry_run:
         b = build(read_sources(args.source_dir))
         print(summary(b))
+        import intl_projections
+        r = intl_projections.build_projections(b.matches, b.fixtures, {c["name"]: c["kind"] for c in b.competitions})
+        print(f"{len(r['projections'])} projections, {len(r['group_odds'])} group odds; IP1 params {r['model']['params']}")
         return
 
     from supabase import create_client
@@ -937,7 +956,8 @@ def main() -> None:
             if "intl_refresh_visuals" not in str(e):
                 raise
             print("intl_refresh_visuals not there yet; skipped")
-        finish("success", f"{summary(b)}; {w['written']} written; reconciled per year")
+        proj_note = write_projections(sb, b)
+        finish("success", f"{summary(b)}; {w['written']} written; reconciled per year; {proj_note}")
     except Exception as e:  # noqa: BLE001 -- record any failure, then fail the job
         finish("failed", "intl_import failed", str(e)[:2000])
         sys.exit(1)

@@ -1,0 +1,41 @@
+name: International squads (Wikipedia)
+
+# Daily: every current nation's squad and recent call-ups from its English
+# Wikipedia page -- see scripts/intl_squads.py. 07:20 UTC, after the 06:30
+# international import. Also after each successful "Apply database migrations"
+# run and on any change to the script. Tests first. Writes a pipeline_runs row
+# (job_name intl_squads).
+
+on:
+  schedule:
+    - cron: '20 7 * * *'
+  workflow_run:
+    workflows: ['Apply database migrations']
+    types: [completed]
+  push:
+    branches: [main]
+    paths: ['scripts/intl_squads.py']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt pytest
+      - name: Tests
+        run: python -m pytest -q scripts/test_intl_squads.py
+      - name: Import squads
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        working-directory: scripts
+        run: python intl_squads.py

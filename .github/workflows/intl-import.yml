@@ -5,7 +5,9 @@ name: International import (results, tournaments, Nations League fixtures)
 # NFL import and before the 07:00 FPL run rebuilds the site. Also runs after
 # each successful "Apply database migrations" run, so the first load follows
 # the schema straight away, and on any change to the importer. Runs the unit tests first, so a broken parser
-# never writes. Writes a pipeline_runs row (job_name intl_import).
+# never writes. Writes a pipeline_runs row (job_name intl_import). After the
+# load it refits model IP1 and writes fixture projections and the Nations
+# League group odds (scripts/intl_projections.py).
 
 on:
   schedule:
@@ -16,7 +18,7 @@ on:
   # An importer change reloads at once rather than at 06:30.
   push:
     branches: [main]
-    paths: ['scripts/intl_import.py', 'scripts/intl_static.py']
+    paths: ['scripts/intl_import.py', 'scripts/intl_static.py', 'scripts/intl_projections.py']
   workflow_dispatch:
     inputs:
       dry_run:
@@ -39,7 +41,7 @@ jobs:
           python-version: '3.12'
       - run: pip install -r scripts/requirements.txt pytest
       - name: Tests
-        run: python -m pytest -q scripts/test_intl_import.py
+        run: python -m pytest -q scripts/test_intl_import.py scripts/test_intl_squads.py
       - name: Import
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
