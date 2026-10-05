@@ -186,11 +186,11 @@ def parse_players(body: str, kind: str) -> list[dict]:
         lm = re.search(r"\{\{\s*sort\s*\|\s*(\d{4}-\d{2}-\d{2})", latest, re.I)
         tail = inner[inner.find("latest="):] if "latest=" in inner else inner
         status = next((s for s in STATUS if re.search(rf"<sup>\s*{s}\s*</sup>|\b{s}\b</sup>", tail)), None)
-        club, _ = link(p.get("club", ""))
+        club, club_wiki = link(p.get("club", ""))
         rows.append({
             "list": kind, "number": to_int(p.get("no")), "position": (p.get("pos") or "").strip().upper()[:2] or None,
             "player": player, "wiki_title": target, "birth_date": birth_date(p.get("age", "")),
-            "caps": to_int(p.get("caps")), "goals": to_int(p.get("goals")), "club": club or None,
+            "caps": to_int(p.get("caps")), "goals": to_int(p.get("goals")), "club": club or None, "club_wiki": club_wiki,
             "club_country": (p.get("clubnat") or "").strip().upper() or None,
             "latest_date": lm.group(1) if lm else None,
             "latest_text": (re.sub(r"\s*(?:%s)\s*$" % "|".join(STATUS), "", plain(latest)) or None) if kind == "recent" else None,
@@ -269,6 +269,90 @@ def fetch(teams: list[str]) -> list[tuple[str, str, str, str | None]]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Clubs: league country, FixtureShark club page, ClubElo rating
+# ---------------------------------------------------------------------------
+
+CLUBELO_URL = "http://api.clubelo.com/{date}"
+# ClubElo country codes that differ from FIFA's.
+CLUBELO_COUNTRY = {"ROM": "ROU", "SLO": "SVN", "BOS": "BIH", "MAC": "MKD", "LAT": "LVA", "LIT": "LTU", "NIR": "NIR"}
+
+
+def read_clubelo(text: str) -> list[dict]:
+    """ClubElo's daily CSV (Rank,Club,Country,Level,Elo,From,To) -> rows, ranked by Elo."""
+    import csv
+    import io
+    rows = [r for r in csv.DictReader(io.StringIO(text)) if r.get("Club") and r.get("Elo")]
+    rows.sort(key=lambda r: -float(r["Elo"]))
+    return [{"club": r["Club"], "country": r.get("Country") or None, "level": int(r["Level"]) if (r.get("Level") or "").isdigit() else None,
+             "elo": round(float(r["Elo"]), 1), "rank": i + 1} for i, r in enumerate(rows)]
+
+
+def site_country(fifa: str | None) -> str | None:
+    import club_match as cm
+    name = cm.FIFA_COUNTRIES.get((fifa or "").upper())
+    return cm.SITE_COUNTRY.get(name, name)
+
+
+def build_indexes(site_teams: list[dict], elo_rows: list[dict]):
+    """(FixtureShark index, ClubElo index, ClubElo row by FixtureShark slug)."""
+    import club_match as cm
+    site = cm.Index()
+    for t in site_teams:
+        site.add(t.get("country"), t, t.get("canonical_name"), t.get("display_name"), *(t.get("aliases") or []))
+    elo = cm.Index()
+    by_slug = {}
+    for r in elo_rows:
+        fifa = CLUBELO_COUNTRY.get(r["country"] or "", r["country"])
+        country = site_country(fifa)
+        elo.add(country, r, r["club"])
+        t = site.find(country, r["club"])
+        if t is not None:
+            r["club_slug"] = t["slug"]
+            by_slug.setdefault(t["slug"], r)
+    return site, elo, by_slug
+
+
+def enrich(players: list[dict], site, elo, elo_by_slug) -> dict:
+    """Adds club_league_country, club_slug, clubelo_name, club_elo, club_elo_rank to each player."""
+    import club_match as cm
+    n = {"players": 0, "site": 0, "elo": 0}
+    for p in players:
+        country = site_country(p.get("club_country"))
+        p["club_league_country"] = cm.FIFA_COUNTRIES.get((p.get("club_country") or "").upper())
+        t = site.find(country, p.get("club"), p.get("club_wiki")) if p.get("club") else None
+        e = (elo_by_slug.get(t["slug"]) if t else None) or (elo.find(country, p.get("club"), p.get("club_wiki")) if p.get("club") else None)
+        p["club_slug"] = t["slug"] if t else None
+        p["clubelo_name"], p["club_elo"], p["club_elo_rank"] = (e["club"], e["elo"], e["rank"]) if e else (None, None, None)
+        n["players"] += 1
+        n["site"] += t is not None
+        n["elo"] += e is not None
+    return n
+
+
+def load_site_teams(sb) -> list[dict]:
+    countries = {c["country_id"]: c["name"] for c in sb.table("countries").select("country_id,name").execute().data}
+    teams = sb.table("teams").select("team_id,slug,canonical_name,display_name,country_id").limit(5000).execute().data
+    aliases, start = [], 0
+    while True:
+        page = sb.table("team_aliases").select("team_id,raw_name").range(start, start + 999).execute().data
+        aliases += page
+        if len(page) < 1000:
+            break
+        start += 1000
+    by_team = {}
+    for a in aliases:
+        by_team.setdefault(a["team_id"], []).append(a["raw_name"])
+    return [{**t, "country": countries.get(t["country_id"]), "aliases": by_team.get(t["team_id"], [])} for t in teams]
+
+
+def fetch_clubelo() -> list[dict]:
+    from datetime import date
+    req = urllib.request.Request(CLUBELO_URL.format(date=date.today().isoformat()), headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return read_clubelo(r.read().decode("utf-8", "replace"))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -292,6 +376,18 @@ def main() -> None:
     missing = sorted(set(teams) - got)
     note = f"{len(squads)} squads ({len(players)} players) from {len(pages)} pages; no squad table for {len(missing)}: {', '.join(missing[:40])}"
     print(note)
+    club_note = ""
+    elo_rows = []
+    if sb is not None:
+        try:
+            elo_rows = fetch_clubelo()
+        except Exception as e:  # noqa: BLE001 -- ratings are a bonus; squads still load
+            print(f"::warning::ClubElo not read: {e}")
+        site, elo, by_slug = build_indexes(load_site_teams(sb), elo_rows)
+        n = enrich(players, site, elo, by_slug)
+        club_note = f"; clubs: {n['site']}/{n['players']} matched to FixtureShark, {n['elo']} rated by ClubElo ({len(elo_rows)} clubs)"
+        note += club_note
+        print(club_note)
     if args.dry_run:
         for s in squads[:3]:
             print(json.dumps(s, ensure_ascii=False))
@@ -309,6 +405,14 @@ def main() -> None:
             chunk = squads[i:i + 40]
             names = {s["team"] for s in chunk}
             sb.rpc("intl_replace_squads", {"payload": {"squads": chunk, "players": [p for p in players if p["team"] in names]}}).execute()
+        if elo_rows:
+            from datetime import date
+            try:
+                sb.rpc("intl_replace_club_elo", {"payload": [{**r, "fetched_on": date.today().isoformat()} for r in elo_rows]}).execute()
+            except Exception as e:  # noqa: BLE001
+                if "intl_replace_club_elo" not in str(e):
+                    raise
+                print("intl_replace_club_elo not there yet; skipped")
         sb.table("pipeline_runs").update({"status": "success", "summary": note, "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()
     except Exception as e:  # noqa: BLE001
         sb.table("pipeline_runs").update({"status": "failed", "summary": "intl_squads failed", "error_message": str(e)[:2000],

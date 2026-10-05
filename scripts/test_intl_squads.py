@@ -82,3 +82,43 @@ def test_squad_straight_under_players_heading():
     r = sq.parse_page("Canada", "Canada men's national soccer team", page, None)
     assert r["squad"]["players"] == 2 and r["squad"]["caps_as_of"] == "3 October 2026"
     assert len([p for p in r["players"] if p["list"] == "recent"]) == 1
+
+
+def test_club_matching_and_clubelo():
+    import club_match as cm
+    site_teams = [
+        {"slug": "man-city", "canonical_name": "Man City", "display_name": "Manchester City", "country": "England", "aliases": ["Manchester City FC"]},
+        {"slug": "man-united", "canonical_name": "Man United", "display_name": "Manchester United", "country": "England", "aliases": []},
+        {"slug": "salzburg", "canonical_name": "Salzburg", "display_name": "Salzburg", "country": "Austria", "aliases": []},
+        {"slug": "wolves", "canonical_name": "Wolves", "display_name": "Wolves", "country": "England", "aliases": ["Wolverhampton"]},
+    ]
+    csv_text = "Rank,Club,Country,Level,Elo,From,To\nNone,Man City,ENG,1,2010.5,2026-10-01,2026-10-07\nNone,Bayern,GER,1,1990,x,y\nNone,Salzburg,AUT,1,1700,x,y\n"
+    rows = sq.read_clubelo(csv_text + "".join(f"None,Club {i},FRA,2,{1300 + i},x,y\n" for i in range(5)))
+    assert rows[0]["club"] == "Man City" and rows[0]["rank"] == 1 and rows[1]["club"] == "Bayern"
+    site, elo, by_slug = sq.build_indexes(site_teams, rows)
+    assert by_slug["man-city"]["club"] == "Man City"
+    players = [
+        {"club": "Manchester City", "club_wiki": "Manchester City F.C.", "club_country": "ENG"},
+        {"club": "Red Bull Salzburg", "club_wiki": "FC Red Bull Salzburg", "club_country": "AUT"},
+        {"club": "Bayern Munich", "club_wiki": "FC Bayern Munich", "club_country": "GER"},
+        {"club": "Wolverhampton Wanderers", "club_wiki": "Wolverhampton Wanderers F.C.", "club_country": "ENG"},
+        {"club": "Tropical Coriano", "club_wiki": "ASD Tropical Coriano", "club_country": "ITA"},
+    ]
+    n = sq.enrich(players, site, elo, by_slug)
+    assert [p["club_slug"] for p in players] == ["man-city", "salzburg", None, "wolves", None]
+    assert [p["clubelo_name"] for p in players] == ["Man City", "Salzburg", "Bayern", None, None]
+    assert players[0]["club_league_country"] == "England" and players[0]["club_elo_rank"] == 1
+    assert n == {"players": 5, "site": 3, "elo": 3}
+    assert cm.norm("Brighton & Hove Albion F.C.") == "brighton hove albion"
+
+
+def test_nations_league_zones():
+    r = np.array([0, 1, 2, 3])
+    assert list(ip.ZONE_FN("A", 0, r, 4)) == ["QF"] * 4
+    assert list(ip.ZONE_FN("A", 2, r, 4)) == ["STAY", "STAY", "PO_AB", "PO_AB"]
+    assert list(ip.ZONE_FN("A", 3, r, 4)) == ["PO_AB", "PO_AB", "RELEGATED", "RELEGATED"]
+    assert ip.ZONE_FN("B", 3, r, 4)[0] == "PO_BC" and ip.ZONE_FN("C", 3, r, 4)[0] == "STAY_C" and ip.ZONE_FN("D", 2, r, 2)[0] == "PROMOTED"
+    groups = {"A1": ["W", "X", "Y", "Z"], "A2": ["P", "Q", "R", "S"]}
+    rows = {o["team"]: o for o in ip.simulate_groups(P, groups, [], [(a, b, False) for g in groups.values() for a in g for b in g if a < b], {"W": 2100, "P": 2100})}
+    assert all(abs(sum(o["zones"].values()) - 1) < 1e-6 for o in rows.values())
+    assert rows["W"]["zones"].get("QF", 0) > 0.8

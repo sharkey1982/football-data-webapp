@@ -1,7 +1,8 @@
 name: International squads (Wikipedia)
 
 # Daily: every current nation's squad and recent call-ups from its English
-# Wikipedia page -- see scripts/intl_squads.py. 07:20 UTC, after the 06:30
+# Wikipedia page -- see scripts/intl_squads.py -- with each club matched to
+# its FixtureShark page and its ClubElo rating (scripts/club_match.py). 07:20 UTC, after the 06:30
 # international import. Also after each successful "Apply database migrations"
 # run and on any change to the script. Tests first. Writes a pipeline_runs row
 # (job_name intl_squads).
@@ -14,7 +15,7 @@ on:
     types: [completed]
   push:
     branches: [main]
-    paths: ['scripts/intl_squads.py']
+    paths: ['scripts/intl_squads.py', 'scripts/club_match.py']
   workflow_dispatch:
 
 permissions:
