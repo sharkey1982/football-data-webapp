@@ -446,6 +446,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [INTERNATIONAL],
   },
   {
+    path: '/international/clubs',
+    title: 'Where the internationals play: club call-ups for every national squad',
+    description: 'Which clubs and leagues supply the most players to national teams, how many of each squad play abroad, and how strong their clubs are.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
     path: '/international/history',
     title: 'International football through time: the Elo race since 1872',
     description: 'The world\u2019s top ten national teams year by year since 1872, every world number one, and the biggest upsets at the major tournaments.',

@@ -15,7 +15,11 @@ import {
   type EditionSummary,
   type IntlFixture,
   type IntlGoal,
+  type ClubCallup,
+  type ClubEloRow,
   type GroupOdds,
+  type LeagueExport,
+  type SquadClubStrength,
   type IntlGroup,
   type IntlSquad,
   type SquadPlayer,
@@ -57,8 +61,12 @@ export const FIXTURE_COLUMNS =
 export const TEAM_COLUMNS =
   'team,slug,confederation,played,won,drawn,lost,goals_for,goals_against,first_match,last_match,elo,elo_rank,elo_peak,elo_peak_date,wc_titles,euro_titles,unl_titles,titles';
 export const GROUP_ODDS_COLUMNS = 'edition_key,group_label,team,slug,played,points,gd,gf,p_pos,exp_points,sims,updated_at';
+export const GROUP_ODDS_COLUMNS_ZONES = `${GROUP_ODDS_COLUMNS},zones`;
 export const SQUAD_COLUMNS = 'team,slug,wiki_title,revision_at,intro,caps_as_of,players,fetched_at';
-export const SQUAD_PLAYER_COLUMNS = 'team,list,seq,number,position,player,wiki_title,birth_date,caps,goals,club,club_country,latest_date,latest_text,status';
+export const SQUAD_PLAYER_COLUMNS =
+  'team,list,seq,number,position,player,wiki_title,birth_date,caps,goals,club,club_country,latest_date,latest_text,status,club_wiki,club_league_country,club_slug,clubelo_name,club_elo,club_elo_rank';
+/** Before migration 20261005220000 the club columns don't exist: fall back to these. */
+export const SQUAD_PLAYER_COLUMNS_BASIC = 'team,list,seq,number,position,player,wiki_title,birth_date,caps,goals,club,club_country,latest_date,latest_text,status';
 export const EDITION_COLUMNS =
   'edition_key,competition,competition_slug,label,season_start,teams,matches,goals,hosts,winner,winner_slug,runner_up,runner_up_slug,final_key,first_match,last_match';
 
@@ -88,7 +96,11 @@ type ViewName =
   | 'intl_upsets'
   | 'intl_group_odds'
   | 'intl_squads'
-  | 'intl_squad_players';
+  | 'intl_squad_players'
+  | 'intl_club_callups'
+  | 'intl_league_exports'
+  | 'intl_club_elo'
+  | 'intl_squad_club_strength';
 /** The intl views aren't in the generated database types; a loose query shape keeps the calls readable. */
 export const intlView = (view: ViewName, columns: string): Query =>
   (supabase.from(view as never) as unknown as { select(columns: string): Query }).select(columns);
@@ -178,12 +190,16 @@ export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
     paged<Pick<TeamSummary, 'team' | 'slug' | 'confederation'>>(() => intlView('intl_team_summary', 'team,slug,confederation').order('team', { ascending: true })),
     paged<Pick<IntlGoal, 'scorer' | 'own_goal' | 'penalty'>>(() => intlView('intl_goals', 'scorer,own_goal,penalty').eq('team', t).eq('own_goal', false).order('match_key', { ascending: true }).order('seq', { ascending: true })),
     rows<IntlSquad>(intlView('intl_squads', SQUAD_COLUMNS).eq('slug', slug).limit(1)).catch(() => []),
-    rows<SquadPlayer>(intlView('intl_squad_players', SQUAD_PLAYER_COLUMNS).eq('slug', slug).order('list', { ascending: true }).order('seq', { ascending: true }).limit(200)).catch(() => []),
-    rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('slug', slug).limit(5)).catch(() => []),
+    rows<SquadPlayer>(intlView('intl_squad_players', SQUAD_PLAYER_COLUMNS).eq('slug', slug).order('list', { ascending: true }).order('seq', { ascending: true }).limit(200))
+      .catch(() => rows<SquadPlayer>(intlView('intl_squad_players', SQUAD_PLAYER_COLUMNS_BASIC).eq('slug', slug).order('list', { ascending: true }).order('seq', { ascending: true }).limit(200)))
+      .catch(() => []),
+    rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS_ZONES).eq('slug', slug).limit(5))
+      .catch(() => rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('slug', slug).limit(5)))
+      .catch(() => []),
   ]);
   // The rest of this team's Nations League group, for its chances table.
   const groupOdds = myOdds[0]
-    ? await rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('edition_key', myOdds[0].edition_key).eq('group_label', myOdds[0].group_label)).catch(() => myOdds)
+    ? await rows<GroupOdds>(intlView('intl_group_odds', myOdds[0].zones !== undefined ? GROUP_ODDS_COLUMNS_ZONES : GROUP_ODDS_COLUMNS).eq('edition_key', myOdds[0].edition_key).eq('group_label', myOdds[0].group_label)).catch(() => myOdds)
     : [];
   return { team, matches, fixtures, totals, pairs, editions, teams, goals, squad: squads[0] ?? null, squadPlayers, groupOdds };
 }
@@ -217,7 +233,9 @@ export async function loadIntlEdition(slug: string, label: string): Promise<Intl
     rows<IntlStage>(intlView('intl_stages', 'stage_key,edition_key,code,name,type,stage_order').eq('edition_key', key).order('stage_order', { ascending: true })),
     rows<IntlGroup>(intlView('intl_groups', 'group_key,edition_key,stage_code,label,league,size,teams').eq('edition_key', key).order('label', { ascending: true })),
     rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).eq('edition_key', key).order('kickoff_utc', { ascending: true }).limit(1000)),
-    rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('edition_key', key).limit(200)).catch(() => [] as GroupOdds[]),
+    rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS_ZONES).eq('edition_key', key).limit(200))
+      .catch(() => rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('edition_key', key).limit(200)))
+      .catch(() => [] as GroupOdds[]),
   ]);
   // Goals for the edition's games, in chunks (keys go in the URL).
   const goals: IntlGoal[] = [];
@@ -246,4 +264,20 @@ export async function loadIntlHistory(): Promise<IntlHistoryData> {
     loadIntlEditions(),
   ]);
   return { years, upsets, editions };
+}
+
+// ---- Club call-ups: where the internationals play ------------------------------------
+
+export const INTL_CLUBS_PATH = '/international/clubs';
+
+export type IntlClubsData = { clubs: ClubCallup[]; leagues: LeagueExport[]; strength: SquadClubStrength[]; elo: ClubEloRow[] };
+
+export async function loadIntlClubs(): Promise<IntlClubsData> {
+  const [clubs, leagues, strength, elo] = await Promise.all([
+    rows<ClubCallup>(intlView('intl_club_callups', 'club_key,club,league_country,club_slug,club_elo,club_elo_rank,players,nations,callups').order('players', { ascending: false }).limit(150)),
+    rows<LeagueExport>(intlView('intl_league_exports', 'league_country,players,nations,clubs,foreign_players').order('players', { ascending: false }).limit(250)),
+    paged<SquadClubStrength>(() => intlView('intl_squad_club_strength', 'team,slug,confederation,players,at_home,abroad,rated,avg_club_elo,league_countries').order('team', { ascending: true })),
+    rows<ClubEloRow>(intlView('intl_club_elo', 'club,country,level,elo,rank,club_slug,fetched_on,internationals').order('rank', { ascending: true }).limit(100)),
+  ]);
+  return { clubs, leagues, strength, elo };
 }

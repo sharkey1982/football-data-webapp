@@ -1,7 +1,7 @@
 // Unit tests for the International visuals: bracket order, titles race,
 // competition filters and title lists.
 import { describe, it, expect } from 'vitest';
-import { ageOn, pct, bracketRounds, matchesFilter, pointsForWin, titleList, titleText, titlesRace, TOURNAMENTS, type EditionSummary, type IntlMatch } from '../lib/intlStats';
+import { leagueBreakdown, ageOn, pct, bracketRounds, matchesFilter, pointsForWin, titleList, titleText, titlesRace, TOURNAMENTS, type EditionSummary, type IntlMatch } from '../lib/intlStats';
 
 function g(key: string, stage: string, home: string, away: string, hs: number, as: number, date = '2024-07-01'): IntlMatch {
   return {
@@ -80,5 +80,12 @@ describe('small helpers', () => {
     expect(ageOn('1994-03-07', '2026-10-05')).toBe(32);
     expect(ageOn('1994-10-06', '2026-10-05')).toBe(31);
     expect(ageOn('1994-10-05', '2026-10-05')).toBe(32);
+  });
+});
+
+describe('where they play', () => {
+  it('puts home first, then by count', () => {
+    const b = leagueBreakdown([{ club_league_country: 'Spain' }, { club_league_country: 'England' }, { club_league_country: 'Spain' }, { club_league_country: null }, { club_league_country: 'Germany' }], 'England');
+    expect(b).toEqual([{ country: 'England', n: 1, home: true }, { country: 'Spain', n: 2, home: false }, { country: 'Germany', n: 1, home: false }]);
   });
 });
