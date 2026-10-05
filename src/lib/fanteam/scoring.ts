@@ -267,12 +267,13 @@ function normaliseBands(x: ProjectionInput) {
 // Safety net (weekly contests)
 // ---------------------------------------------------------------------------
 
-export type NetCandidate = { key: string; team_id: number; pos: Pos; price: number; s: number; ifStart: number };
+export type NetCandidate = { key: string; team_id: number; pos: Pos; price: number; s: number; ifStart: number; total?: number };
 
 /** Expected value with FanTeam's safety net: a non-starter is replaced at
  * kick-off by a same-club, same-position player at an equal or lower price,
- * closest price first; if that one doesn't start either, the next. Sub
- * appearances by the original player don't count (he is replaced). */
+ * closest price first; if that one doesn't start either, the next. If no
+ * eligible player starts, the original stays and keeps whatever he scores
+ * off the bench (his expected points as a non-starter). */
 export function safetyNetValue(player: NetCandidate, pool: NetCandidate[]): { value: number; replacementValue: number } {
   const subs = pool
     .filter((c) => c.key !== player.key && c.team_id === player.team_id && c.pos === player.pos && c.price <= player.price + 1e-9)
@@ -283,5 +284,9 @@ export function safetyNetValue(player: NetCandidate, pool: NetCandidate[]): { va
     remaining *= 1 - c.s;
     if (remaining < 1e-4) break;
   }
-  return { value: player.s * player.ifStart + (1 - player.s) * repl, replacementValue: repl };
+  // Expected points if he doesn't start (sub appearances), from his total.
+  const benchPts = player.total != null && player.s < 1 - 1e-9
+    ? Math.max(0, (player.total - player.s * player.ifStart) / (1 - player.s)) : 0;
+  const ifNotStart = repl + remaining * benchPts;
+  return { value: player.s * player.ifStart + (1 - player.s) * ifNotStart, replacementValue: ifNotStart };
 }

@@ -458,3 +458,41 @@ describe('FanTeam export file', () => {
     expect(matched.detail).toMatch(/1 unmatched but not expected to play/);
   });
 });
+
+describe('FanTeam player breakdown inputs', () => {
+  it('carries minutes, xG, xA and the safety-net replacement value', () => {
+    const base = { fixture_id: 1, matchweek: 6, kickoff_date: '2026-10-10', kickoff_time: '15:00:00', element_type: 3, team_id: 18,
+      team_name: 'Man City', opponent_name: 'Everton', is_home: true, now_cost: 80, status: 'a', sub_appearance_probability: 0.05,
+      expected_saves: null, xpts_clean_sheet: 0.3, xpts_goals_conceded: 0, xpts_penalties: 0, xpts_cards_own_goals: -0.2,
+      team_goals: 2, opp_goals: 0.8, p_off_before_60: 0.05, p_off_60_84: 0.3, p_full: 0.65, generated_at: new Date().toISOString() };
+    const inputs = [
+      { ...base, fpl_player_id: 1, fpl_code: 1, web_name: 'Star', first_name: 'A', second_name: 'Star', start_probability: 0.5, expected_minutes: 45, expected_goals: 0.3, expected_assists: 0.2 },
+      { ...base, fpl_player_id: 2, fpl_code: 2, web_name: 'Cover', first_name: 'B', second_name: 'Cover', start_probability: 1, expected_minutes: 85, expected_goals: 0.1, expected_assists: 0.1 },
+    ];
+    const rows = [
+      { row_no: 1, name_raw: 'A Star', club_raw: 'MCI', position: 'MID' as Pos, price_m: 9 },
+      { row_no: 2, name_raw: 'B Cover', club_raw: 'MCI', position: 'MID' as Pos, price_m: 6 },
+    ];
+    const teams = new Map<string, number>([['mci', 18]]);
+    const views = buildPlayers(rows, inputs as never, RULES, { players: new Map(), clubs: teams }, true);
+    const star = views[0];
+    expect(star.inputs).toMatchObject({ xMin: 45, xG: 0.3, xA: 0.2 });
+    expect(star.netReplacement).toBeGreaterThan(0);
+    expect(star.value).toBeCloseTo(star.s * star.ifStart + (1 - star.s) * star.netReplacement!);
+    const sum = Object.values(star.breakdown!).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(star.total);
+  });
+});
+
+describe('FanTeam safety net: no replacement', () => {
+  it('keeps the original player (and his bench points) when no cheaper team-mate exists', () => {
+    const a = { key: 'a', team_id: 1, pos: 'FWD' as Pos, price: 11, s: 0.9, ifStart: 6.2, total: 5.94 };
+    const v = safetyNetValue(a, [a]);
+    expect(v.value).toBeCloseTo(5.94);
+  });
+  it('never worth less than playing without the net when replacements are weak', () => {
+    const a = { key: 'a', team_id: 1, pos: 'MID' as Pos, price: 8, s: 0.6, ifStart: 6, total: 4 };
+    const b = { key: 'b', team_id: 1, pos: 'MID' as Pos, price: 5, s: 0.1, ifStart: 3, total: 0.4 };
+    expect(safetyNetValue(a, [a, b]).value).toBeGreaterThan(0.6 * 6);
+  });
+});
