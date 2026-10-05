@@ -99,7 +99,7 @@ async function main() {
     return;
   }
 
-  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument, projectionDetail, PROJECTION_DETAIL_COLUMNS } = await import(ENTRY);
+  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument, projectionDetail, PROJECTION_DETAIL_COLUMNS, teamChances } = await import(ENTRY);
   const shell = readFileSync(SHELL, 'utf8');
 
   // ---- Static routes: correct head tags per page --------------------
@@ -177,7 +177,7 @@ async function main() {
         `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null`
     ),
     matches: queryAll(
-      `matches?select=home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
+      `matches?select=match_id,home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
         `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}`
     ),
     players: queryAll(
@@ -822,6 +822,14 @@ async function main() {
   let tWritten = 0;
   let tSkipped = 0;
 
+  // Closing market odds for this season's results: the pre-match win chance
+  // and Upset/Shock flags on team pages (src/lib/expectation.ts).
+  const matchIds = (matches ?? []).map((m) => m.match_id).filter((x) => x != null);
+  const oddsRows = matchIds.length
+    ? (await query(`match_odds?select=match_id,price_home,price_draw,price_away&market=eq.1x2&bookmaker=eq.Avg&is_closing=eq.true&match_id=in.(${matchIds.join(',')})`)) ?? []
+    : [];
+  const oddsByMatch = new Map(oddsRows.map((o) => [o.match_id, o]));
+
   for (const [teamId, teamFixtures] of fixturesByTeam.entries()) {
     const team = teamById.get(teamId);
     if (!team || !team.slug) {
@@ -856,6 +864,7 @@ async function main() {
           f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
         predicted_goals_against:
           f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
+        ...teamChances(res ? oddsByMatch.get(res.match_id) : undefined, isHome),
       };
     });
 

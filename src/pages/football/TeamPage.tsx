@@ -25,6 +25,8 @@ import {
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { teamHasFinance } from '../../lib/financeApi';
 import TeamHistoryPanel from '../../components/TeamHistoryPanel';
+import ResultFlag from '../../components/ResultFlag';
+import { chanceText, pointsVsExpected, resultFlag, vsExpectedText, type Outcome } from '../../lib/expectation';
 
 /** hasFinance: whether this club has published accounts. Static generation
  *  supplies it from ONE bulk query for every team; when absent the page asks
@@ -109,6 +111,10 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
   // football-data confirms lower-league results up to three days later.
   const played = matches.filter((m) => m.goals_for != null || m.status === 'played');
   const upcoming = matches.filter((m) => m.status !== 'played').slice(0, 5);
+  const outcome = (m: TeamPageMatch): Outcome | null =>
+    m.goals_for == null || m.goals_against == null ? null : m.goals_for > m.goals_against ? 'W' : m.goals_for < m.goals_against ? 'L' : 'D';
+  const vsExpected = pointsVsExpected(played.map((m) => ({ outcome: outcome(m), win: m.win_chance, draw: m.draw_chance })));
+  const anyChance = played.some((m) => m.win_chance != null);
 
   return (
     <article className="space-y-6">
@@ -189,6 +195,11 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Results this season</h2>
+        {vsExpected.played > 0 && (
+          <p className="text-sm text-ink-700 mt-1" data-testid="team-vs-expected">
+            {vsExpectedText(vsExpected, 'points')}
+          </p>
+        )}
         {played.length === 0 ? (
           <p className="text-ink-500 text-sm mt-1">No results yet.</p>
         ) : (
@@ -198,6 +209,7 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
                 <tr>
                   <th scope="col" className="text-left font-medium text-xs px-3 py-2">Date</th>
                   <th scope="col" className="text-left font-medium text-xs px-3 py-2">Opponent</th>
+                  {anyChance && <th scope="col" className="text-right font-medium text-xs px-3 py-2" title="Chance of winning before kick-off, from the betting market">Win chance</th>}
                   <th scope="col" className="text-right font-medium text-xs px-3 py-2">Score</th>
                 </tr>
               </thead>
@@ -210,9 +222,13 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
                     <td className="px-3 py-1.5 text-xs">
                       {m.opponent_name} <span className="text-ink-500">({m.is_home ? 'H' : 'A'})</span>
                     </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
+                    {anyChance && <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-ink-500">{chanceText(m.win_chance)}</td>}
+                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums whitespace-nowrap">
                       {m.goals_for != null ? (
-                        <>{m.goals_for}&ndash;{m.goals_against}</>
+                        <>
+                          {m.goals_for}&ndash;{m.goals_against}
+                          <ResultFlag kind={resultFlag(m.win_chance, outcome(m))} chance={m.win_chance} />
+                        </>
                       ) : m.reported_goals_for != null ? (
                         <span title="Reported score, awaiting confirmation">
                           {m.reported_goals_for}&ndash;{m.reported_goals_against}
@@ -227,6 +243,11 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
               </tbody>
             </table>
           </div>
+        )}
+        {anyChance && (
+          <p className="text-xs text-ink-500 mt-2 max-w-prose">
+            Win chance: from the average closing betting odds, margin removed. Upset: won with under a one-in-three chance. Shock: lost with over a two-in-three chance. Expected points add up 3 &times; win chance + draw chance.
+          </p>
         )}
       </section>
 

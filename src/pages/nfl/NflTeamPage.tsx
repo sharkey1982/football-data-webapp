@@ -36,6 +36,8 @@ import {
 } from '../../lib/nflApi';
 import NotFoundPage from '../NotFoundPage';
 import NflWatchLine from '../../components/nfl/NflWatchLine';
+import ResultFlag from '../../components/ResultFlag';
+import { nflTeamChance, resultFlag, vsExpectedText, winsVsExpected } from '../../lib/expectation';
 import { againstSpread, teamSeasonStory } from '../../lib/nflStory';
 import { loadTeamFantasyLeaders, type NflPlayerSeason } from '../../lib/nflFantasyApi';
 
@@ -133,6 +135,17 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
 
           <section aria-labelledby="games-heading">
             <h2 id="games-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">{`${data.season} games`}</h2>
+            {(() => {
+              const v = winsVsExpected(
+                data.games
+                  .filter((g) => g.game_type === 'REG')
+                  .map((g) => {
+                    const r = teamResult(g, data.team.franchise);
+                    return { outcome: r.letter === 'T' ? 'D' : r.letter, win: nflTeamChance(g, data.team.franchise) };
+                  })
+              );
+              return v.played > 0 ? <p className="text-sm text-ink-700 mt-1" data-testid="nfl-team-page-vs-expected">{`Regular season v the betting line: ${vsExpectedText(v, 'wins')}`}</p> : null;
+            })()}
             <div className="overflow-x-auto mt-2">
               <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
                 <thead className="bg-chalk-200 text-ink-500">
@@ -166,7 +179,10 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
                         </th>
                         <td className="px-2 py-1.5 font-mono text-xs tabular-nums">
                           {r.letter ? (
-                            <Link to={nflGamePath(g.game_id)} className={`hover:underline ${r.letter === 'W' ? 'font-semibold' : r.letter === 'L' ? 'text-loss-600' : ''}`}>{`${r.letter} ${r.score}`}</Link>
+                            <>
+                              <Link to={nflGamePath(g.game_id)} className={`hover:underline ${r.letter === 'W' ? 'font-semibold' : r.letter === 'L' ? 'text-loss-600' : ''}`}>{`${r.letter} ${r.score}`}</Link>
+                              <ResultFlag kind={resultFlag(nflTeamChance(g, data.team.franchise), r.letter === 'T' ? 'D' : r.letter)} chance={nflTeamChance(g, data.team.franchise)} />
+                            </>
                           ) : (
                             <>
                               <Link to={nflGamePath(g.game_id)} className="hover:underline">{ukKickoff(g)}</Link>
