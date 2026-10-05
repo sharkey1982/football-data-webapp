@@ -277,6 +277,9 @@ export type NflStandingsData = {
   season: number;
   seasons: number[];
   rows: NflStanding[];
+  /** The season's games, for official tie-breaks, seeds and record splits
+   * (nflTiebreak.ts). Optional: without them the table falls back to the view's order. */
+  games?: NflGame[];
 };
 
 export function divisionRows(rows: NflStanding[], conference: string, division: string): NflStanding[] {
@@ -399,14 +402,15 @@ export async function loadNflWeek(season: number | null, week: number | null): P
 }
 
 export async function loadNflStandings(season: number): Promise<NflStandingsData | null> {
-  const [seasons, res] = await Promise.all([
+  const [seasons, res, games] = await Promise.all([
     loadSeasons(),
     supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('season', season),
+    loadSeasonGames(season).catch(() => undefined),
   ]);
   if (res.error) throw res.error;
   const rows = (res.data ?? []) as unknown as NflStanding[];
   if (rows.length === 0) return null;
-  return { season, seasons, rows };
+  return { season, seasons, rows, games };
 }
 
 export const loadLatestNflSeason = loadLatestSeason;
