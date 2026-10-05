@@ -184,6 +184,29 @@ ALIASES: dict[str, dict[str, str | tuple[str, int, int]]] = {
         "Van D. Merwe I.": "Van Der Merwe I.",
         "Zayed M. S.": "Zayid M.S.",
         "Zayed M.S.": "Zayid M.S.",
+        # 5 Oct 2026: the same person under two spellings, confirmed by Wikidata
+        # (tennis_people.py) and never in the same draw.
+        "Lisnard J.": "Lisnard J.R.",
+        "Ferrero J.": "Ferrero J.C.",
+        "Chela J.": "Chela J.I.",
+        "Mathieu P.": "Mathieu P.H.",
+        "Guzman J.": "Guzman J.P.",
+        "Scherrer J.": "Scherrer J.C.",
+        "Qureshi A.": "Qureshi A.U.H.",
+        "Sanchez De Luna J.": "Sanchez de Luna J.A.",
+        "Del Potro J.": "Del Potro J.M.",
+        "Jun W.": "Jun W.S.",
+        "Viola Mat.": "Viola M.",
+        "Zayid M.": "Zayid M.S.",
+        "Herbert P.": "Herbert P.H.",
+        "Galan D.": "Galan D.E.",
+        "Silva F.F.": "Ferreira Silva F.",
+        "Aragone J.": "Aragone J.C.",
+        "Kwon S.": "Kwon S.W.",
+        "Moroni G.": "Moroni G.M.",
+        "Barrios Vera M.T.": "Barrios M.",
+        "Etcheverry T.M.": "Etcheverry T.",
+        "Bailly G.": "Bailly G.A.",
     },
     "WTA": {
         "Arruabarrena-Vecino L.": "Arruabarrena L.",
@@ -209,6 +232,32 @@ ALIASES: dict[str, dict[str, str | tuple[str, int, int]]] = {
         "Saidkhodj. D.": "Saidkhodjaeva D.",
         "Soler-E. S.": "Soler Espinosa S.",
         "Vogele S.": "Voegele S.",
+        # 5 Oct 2026: the same person under two spellings, confirmed by Wikidata
+        # (tennis_people.py) and never in the same draw.
+        "Sun T.": "Sun T.T.",
+        "Camerin M.": "Camerin M.E.",
+        "Volodko K.": "Bondarenko K.",
+        "Hsieh S.": "Hsieh S.W.",
+        "Sun S.": "Sun S.N.",
+        "Candela E.C.": "Cabeza-Candela E.",
+        "Olaru I.": "Olaru R.",
+        "Olaru I.R.": "Olaru R.",
+        "Munoz D.": "Munoz Gallegos D.",
+        "Pliskova Kar.": "Pliskova Ka.",
+        "Pliskova Kri.": "Pliskova Kr.",
+        "Salerni M.": "Salerni M.E.",
+        "Joao Koehler M.": "Koehler M.J.",
+        "Gavrilova D.": "Saville D.",
+        "Beck An.": "Beck A.",
+        "Schmiedlova A.K.": "Schmiedlova A.",
+        "Kerkhove L.": "Pattinama Kerkhove L.",
+        "Jang S.": "Jang S.J.",
+        "Sanders S.": "Hunter S.",
+        "Collins D.R.": "Collins D.",
+        "Alves C.M.": "Alves C.",
+        "Teichmann J.B.": "Teichmann J.",
+        "Jimenez V.": "Jimenez Kasintseva V.",
+        "Nugroho P.M.": "Nugroho P.",
     },
 }
 
@@ -230,8 +279,14 @@ def tidy_name(name: str) -> str:
     return re.sub(r"\s+", " ", n).strip()
 
 
+_ALIAS_BY_KEY: dict[str, dict[str, str | tuple[str, int, int]]] = {}
+
+
 def alias_of(tour: str, name: str, year: int) -> str:
-    a = ALIASES.get(tour, {}).get(name)
+    """ALIASES looked up by name_key, so "Ferrero J." and "Ferrero J" both hit."""
+    if tour not in _ALIAS_BY_KEY:
+        _ALIAS_BY_KEY[tour] = {name_key(k): v for k, v in ALIASES.get(tour, {}).items()}
+    a = _ALIAS_BY_KEY[tour].get(name_key(name))
     if isinstance(a, tuple):
         return a[0] if a[1] <= year <= a[2] else name
     return a or name
@@ -597,6 +652,15 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             failures.append(str(e))
             print(f"FAILED {e}")
+    if done:
+        # Events, editions and per-player summaries are tables built from the
+        # matches (phase 3); rebuild them after any load.
+        try:
+            done.append("refresh: " + str(sb.rpc("tennis_refresh", {}).execute().data))
+            print(done[-1])
+        except Exception as e:  # noqa: BLE001
+            failures.append(f"tennis_refresh: {e}")
+            print(f"FAILED tennis_refresh: {e}")
     summary = "; ".join(done) or "nothing loaded"
     sb.table("pipeline_runs").update({
         "status": "failed" if failures else "success", "summary": summary[:2000],

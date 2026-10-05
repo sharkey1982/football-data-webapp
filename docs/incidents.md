@@ -12,6 +12,22 @@ fixing something else.
 
 ---
 
+## 2026-10-05 · Tennis: 48 more players split under two spellings
+- **Impact:** 48 people (23 ATP, 25 WTA) appeared as two players each, splitting their records (e.g. "Del Potro J." and "Del Potro J.M.", "Gavrilova D." and "Saville D." after marriage, "Bogomolov Jr.A." and "Bogomolov A."). Titles, win-loss and player pages for them were understated. Found when matching players to Wikidata for phase 3: two of our players claimed the same person.
+- **Cause:** the 4 Oct alias list caught punctuation and case only; the source also drops or adds initials, uses married or shortened surnames, and the alias lookup used the exact source text, so three spacing variants of listed names slipped through.
+- **Fix:** migration `20261005090000_tennis_phase3_data` merges each pair (matches and aliases move to one player, keys rebuilt); `ALIASES` gains the same pairs and the lookup is now by `name_key`. Every pair was checked to never share a draw. The migration checks, before committing, that per-season match and game totals are unchanged and that the rebuilt keys equal the importer's file hash for every complete season.
+- **Prevention:** `scripts/tennis_people.py` (monthly) reports any Wikidata person matched by two players ("taken"); unit tests in `scripts/test_tennis_people.py`.
+
+---
+
+## 2026-10-04 · Database unresponsive overnight; a production build ran during it
+- **Impact:** Supabase returned 522s from about 21:53 UTC on 4 Oct until the owner restarted it at 05:29 UTC on 5 Oct. Pages fell back to their error states; the scheduled production build in that window wrote few static pages.
+- **Cause:** not pinned down. The heaviest queries at the time were the fixture, broadcast-sync and model jobs on the micro instance; the tennis loads had finished hours before.
+- **Fix:** restart by the owner; the next build regenerated the pages.
+- **Prevention (open):** a build should stop rather than publish when the database is unreachable; to be added to `scripts/generate-static.mjs` with the next site change.
+
+---
+
 ## 2026-10-04 · Tennis first load: two near-misses caught before writing, and a slow view
 - **Impact:** none reached the site. Found while profiling all 47 tennis files (ATP 2000-2026, WTA 2007-2026) before the first backfill: (1) two finals with a blank date (WTA 2010 Guangzhou, WTA 2012 Cincinnati) would have failed both tour-years; one final dated a year early (ATP 2006 Paris, 2005-11-05); (2) about 90 player-name variants (punctuation, case, accents, short forms such as "Querry S.", "Bautista R.") would each have become a separate player. During phase 2 the new `tennis_players` view timed out as anon (3 s limit) on its first version.
 - **Cause:** (1) `pd.NaT` passes `isinstance(v, datetime)`, so a blank date became the text "NaT"; (2) the source has no player ids; the writer makes a player per new spelling; (3) a correlated sub-query ("tour's latest year") re-ran per row.
