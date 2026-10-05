@@ -83,6 +83,7 @@ const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
 const ActualMatchesPage = lazy(() => import('./pages/fpl/ActualMatchesPage'));
 const ActualMatchDetailPage = lazy(() => import('./pages/fpl/ActualMatchDetailPage'));
 const TacticalRolesAdminPage = lazy(() => import('./pages/fpl/TacticalRolesAdminPage'));
+const MinutesOutlookPage = lazy(() => import('./pages/fpl/MinutesOutlookPage'));
 const NflHub = lazy(() => import('./pages/nfl/NflHub'));
 const NflFixturesPage = lazy(() => import('./pages/nfl/NflFixturesPage'));
 const NflTvGuidePage = lazy(() => import('./pages/nfl/NflTvGuidePage'));
@@ -687,6 +688,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <ActualMatchDetailPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/minutes"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <MinutesOutlookPage />
               </Suspense>
             }
           />
