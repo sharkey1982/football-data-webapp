@@ -21,6 +21,10 @@ on:
         description: 'Player-stat seasons, e.g. 2016-2026 (blank = latest season only)'
         required: false
         default: ''
+      team_seasons:
+        description: 'Team-stat seasons, e.g. 2002-2026 (blank = the player seasons, or latest)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -41,7 +45,8 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SEASONS: ${{ inputs.seasons }}
           PLAYER_SEASONS: ${{ inputs.player_seasons }}
-        run: python scripts/nfl_import.py --seasons "$SEASONS" --player-seasons "$PLAYER_SEASONS"
+          TEAM_SEASONS: ${{ inputs.team_seasons }}
+        run: python scripts/nfl_import.py --seasons "$SEASONS" --player-seasons "$PLAYER_SEASONS" --team-seasons "$TEAM_SEASONS"
       - name: Model predictions (Elo, experiment N1)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

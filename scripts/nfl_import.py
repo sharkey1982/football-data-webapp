@@ -20,6 +20,10 @@
 # Fantasy points are computed in the database (nfl.points_std) and checked
 # against nflverse's own points by check_nfl_integrity().
 #
+# Then team stats (stats_team/stats_team_week_<season>.csv) into
+# nfl.team_weeks, from 2002: the latest season daily; --team-seasons for others
+# (the backfill: --team-seasons 2002-2026). Reconciled per season.
+#
 # After loading, it reconciles against the file it just read: game count,
 # scored-game count and total points per season must match nfl.games via
 # public.nfl_games exactly. Any difference fails the run. One pipeline_runs
@@ -49,6 +53,7 @@ FIRST_SEASON = 2002
 PLAYER_FIRST_SEASON = 2016
 PLAYERS_URL = "https://github.com/nflverse/nflverse-data/releases/download/players/players.csv"
 PLAYER_WEEK_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{season}.csv"
+TEAM_WEEK_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_{season}.csv"
 PLAYER_POSITIONS = {"QB", "RB", "FB", "WR", "TE", "K"}
 TEAM_CODES = {"ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND",
               "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA",
@@ -138,6 +143,58 @@ def week_row(r: dict) -> dict:
         "pat_made": inum(r.get("pat_made")), "pat_missed": inum(r.get("pat_missed")),
         "src_points_std": num(r["fantasy_points"]), "src_points_ppr": num(r["fantasy_points_ppr"]),
     }
+
+
+def team_week_row(r: dict) -> dict:
+    """One nflverse team-game as an nfl.team_weeks row (every NOT NULL column set)."""
+    return {
+        "game_id": r["game_id"], "team": r["team"], "opponent": r["opponent_team"], "season": int(r["season"]),
+        "week": int(r["week"]), "season_type": r["season_type"],
+        "completions": inum(r["completions"]), "attempts": inum(r["attempts"]), "passing_yards": inum(r["passing_yards"]),
+        "passing_tds": inum(r["passing_tds"]), "passing_interceptions": inum(r["passing_interceptions"]),
+        "sacks_suffered": inum(r["sacks_suffered"]), "sack_yards_lost": inum(r["sack_yards_lost"]),
+        "passing_first_downs": inum(r["passing_first_downs"]), "passing_epa": num(r["passing_epa"]),
+        "carries": inum(r["carries"]), "rushing_yards": inum(r["rushing_yards"]), "rushing_tds": inum(r["rushing_tds"]),
+        "rushing_first_downs": inum(r["rushing_first_downs"]), "rushing_epa": num(r["rushing_epa"]),
+        "fumbles_lost": inum(r["fumbles_lost_total"]), "special_teams_tds": inum(r["special_teams_tds"]),
+        "def_sacks": num(r["def_sacks"]) or 0, "def_interceptions": inum(r["def_interceptions"]),
+        "def_tds": inum(r["def_tds"]), "def_safeties": inum(r["def_safeties"]),
+        "fumble_recovery_opp": inum(r["fumble_recovery_opp"]),
+        "def_blocks": inum(r["def_punt_blocks"]) + inum(r["def_fg_blocks"]) + inum(r["def_pat_blocks"]),
+        "penalties": inum(r["penalties"]), "penalty_yards": inum(r["penalty_yards"]),
+        "fg_made": inum(r["fg_made"]), "fg_att": inum(r["fg_att"]), "pat_made": inum(r["pat_made"]), "pat_att": inum(r["pat_att"]),
+    }
+
+
+def load_team_weeks(sb, seasons: list[int]) -> str:
+    """Team stats per game for the given seasons, reconciled per season. Returns a summary line."""
+    per_season: dict[int, int] = {}
+    written = 0
+    for season in seasons:
+        try:
+            source = fetch_csv(TEAM_WEEK_URL.format(season=season))
+        except urllib.error.HTTPError as e:
+            if e.code == 404 and season == max(seasons):
+                continue  # the file appears with the season's first game
+            raise
+        keys = [(r["game_id"], r["team"]) for r in source]
+        if len(keys) != len(set(keys)):
+            raise RuntimeError(f"duplicate team-game in stats_team_week_{season}.csv")
+        bad = {c for r in source for c in (r["team"], r["opponent_team"]) if c not in TEAM_CODES}
+        if bad:
+            raise RuntimeError(f"unmapped team codes in {season} team stats: {sorted(bad)}")
+        rows = [team_week_row(r) for r in source]
+        for i in range(0, len(rows), BATCH):
+            written += sb.rpc("nfl_upsert_team_weeks", {"rows": rows[i:i + BATCH]}).execute().data or 0
+        per_season[season] = len(rows)
+    diffs = []
+    for season, n in per_season.items():
+        held = sb.table("nfl_team_games").select("game_id", count="exact").eq("season", season).limit(1).execute().count
+        if held != n:
+            diffs.append(f"{season}: file {n} v db {held}")
+    if diffs:
+        raise RuntimeError("team stats reconciliation failed -- " + "; ".join(diffs))
+    return f"team-games {written} ({','.join(map(str, per_season))}) reconciled"
 
 
 def slugify(name: str) -> str:
@@ -253,6 +310,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seasons", default="", help="comma-separated seasons; default all from 2002")
     ap.add_argument("--player-seasons", default="", help="e.g. 2016-2026; default the latest season only")
+    ap.add_argument("--team-seasons", default="", help="team stats, e.g. 2002-2026; default the player seasons (or the latest)")
     args = ap.parse_args()
     wanted = {int(s) for s in args.seasons.split(",") if s.strip()}
 
@@ -301,8 +359,11 @@ def main() -> None:
         g, scored, _ = expected[latest]
         player_seasons = [s for s in season_list(args.player_seasons) if s >= PLAYER_FIRST_SEASON] or [latest]
         players = load_players(sb, player_seasons)
+        # Team stats: the same seasons as player stats, but back to 2002.
+        team_seasons = [s for s in season_list(args.team_seasons or args.player_seasons) if s >= FIRST_SEASON] or [latest]
+        team_stats = load_team_weeks(sb, team_seasons)
         finish("success", f"{len(rows)} games ({min(expected)}-{latest}), {written} written; "
-                          f"{latest}: {scored}/{g} scored; reconciled per season; {players}")
+                          f"{latest}: {scored}/{g} scored; reconciled per season; {players}; {team_stats}")
     except Exception as e:  # noqa: BLE001 -- record any failure, then fail the job
         finish("failed", "nfl_import failed", str(e)[:2000])
         sys.exit(1)
