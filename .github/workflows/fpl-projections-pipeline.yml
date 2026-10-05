@@ -41,7 +41,7 @@ on:
         required: false
         type: string
       to_matchweek:
-        description: 'Last matchweek (leave blank to auto-detect a 3-gameweek window)'
+        description: 'Last matchweek (leave blank to auto-detect a 10-gameweek window)'
         required: false
         type: string
 
@@ -57,7 +57,11 @@ jobs:
       - run: pip install -r scripts/requirements.txt
 
       # Manual dispatch can pin an exact range; the scheduled run (and a
-      # manual dispatch left blank) auto-detects the next 3 gameweeks.
+      # manual dispatch left blank) auto-detects the next 10 gameweeks.
+      # 10, not 3 (2026-10-05): Squad Check offers a 10-gameweek horizon and
+      # availability now changes gameweek by gameweek (return dates, doubts
+      # for the next gameweek only), but GW9+ had last been generated on
+      # 26 Sep. A 10-week run took ~3 minutes on 26 Sep.
       - name: Determine matchweek range
         id: range
         run: |
@@ -66,7 +70,7 @@ jobs:
             echo "to_matchweek=${{ inputs.to_matchweek }}" >> "$GITHUB_OUTPUT"
             echo "Using manually specified range: ${{ inputs.from_matchweek }}-${{ inputs.to_matchweek }}"
           else
-            python scripts/get_next_matchweek_range.py --weeks 3
+            python scripts/get_next_matchweek_range.py --weeks 10
           fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

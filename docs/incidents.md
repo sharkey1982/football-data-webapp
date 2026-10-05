@@ -12,11 +12,20 @@ fixing something else.
 
 ---
 
+## 2026-10-05 · FPL projections: this week's injury status applied to every future gameweek; GW9+ ten days stale
+- **Reported:** Chris -- return dates should feed long-term projections, and a doubt should only matter for the next gameweek.
+- **Impact:** every future fixture used this week's FPL status. Players "Expected back 10 Oct" (Pau, Bizot, Mateta, Mitoma ...) were projected 0 for the rest of the season; 75%/50% doubts were 75%/50% in every gameweek; 49 players with an unknown return date were 0 forever. Players injured since August (Saliba, Amad, Minteh, Joelinton ...) were rated as unknown squad players (18% start) even once fit. Separately, the pipeline only refreshed the next 3 gameweeks, so GW9-16 were last generated on 26 Sep, although Squad Check offers a 10-gameweek horizon.
+- **Cause:** three views (lineup consensus, minutes fallback, v6 start-probability fallback) each turned `chance_of_playing_next_round`/status into one availability per player and joined it to every fixture; the return date in the news text was parsed only for the injuries page. The pipeline window was set to 3 gameweeks when only near-term projections were read.
+- **Fix:** migration `20261005230000_fpl_fixture_availability`: view `fpl_player_fixture_availability` gives availability per fixture (suspension end date; return-date ramp 75%/90%/fit; doubt = FPL's chance for the next gameweek, then the remaining doubt halves each gameweek; unknown return 0 for two gameweeks then +15% a gameweek to 60%), and all three views read it. Flagged non-goalkeepers with no appearances this season use last season's starts (20+ first choice, 10-19 rotation). Pipeline window 3 -> 10 gameweeks. model_change_log entry.
+- **Prevention:** the rule applied is stored per row (`rule` column), so any projection can be traced to it. The ramps and the 60% cap are assumptions from three weeks of snapshots (13 Sep - 5 Oct); re-check them against outcomes once more gameweeks are logged. *Lesson: a "next round" figure is about one gameweek -- anything copied across a horizon needs a rule for how it changes.*
+
+---
+
 ## 2026-10-05 · FPL team pitch: players drawn in positions they don't play
-- **Impact:** on the fixture pitch, players appeared in slots far from their role -- e.g. Arsenal GW7 (4-2-3-1) showed Mosquera, a right-centre-back, in the left-wing slot, and a second RCB (Konsa) in the back four, while the projected left winger (Tzolis) was missing. Across GW7, 17 of 20 team pitches had at least one such placement (a DEF at CF for Coventry and Sunderland, a DEF at LW for Man City, a DEF in the pivot for Liverpool). Display only; projections were unaffected.
+- **Impact:** on the fixture pitch, players appeared in slots far from their role -- e.g. Arsenal GW6 (4-2-3-1) showed Mosquera, a right-centre-back, in the left-wing slot, and a second RCB (Konsa) in the back four, while the projected left winger (Tzolis) was missing. Across GW6, 17 of 20 team pitches had at least one such placement (a DEF at CF for Coventry and Sunderland, a DEF at LW for Man City, a DEF in the pivot for Liverpool). Display only; projections were unaffected.
 - **Cause:** the pitch took the ten outfielders with most expected minutes, then forced them into the formation's slots. When those ten didn't fit the shape (two RCBs, no LW), the fallback put the leftover player in whatever slot was free, however far from his role. Players with no confirmed role were treated the same way.
 - **Fix:** players are now chosen per slot: every player-slot pair is scored start probability × fit (exact role 1; nearby roles less; wrong side halved; more than two lines away never), and pairs are taken best first. A slot nobody fits is left empty rather than filled wrongly. Unconfirmed-role players stay in their FPL line. LW/LF and RW/RF now count as the same job.
-- **Prevention:** regression tests with the real Arsenal GW7 data (fail on the old code), and a check that a centre-back is never drawn in an attacking slot. Checked against all 20 GW7 team pitches: no player outside his line.
+- **Prevention:** regression tests with the real Arsenal GW6 data (fail on the old code), and a check that a centre-back is never drawn in an attacking slot. Checked against all 20 GW6 team pitches: no player outside his line.
 
 ---
 
