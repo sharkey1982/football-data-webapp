@@ -4,8 +4,9 @@ name: NFL import (nflverse games and team names)
 # imports on purpose. 06:20 UTC: after Monday Night Football has finished and
 # before the 07:00 FPL run rebuilds the site, so the static NFL pages carry
 # the latest results, then the latest season's player stats; then the model's
-# predictions for the next 8 days (scripts/nfl_elo.py, append-only). Writes
-# pipeline_runs rows (job_name nfl_import, nfl_elo).
+# predictions for the next 8 days (scripts/nfl_elo.py, append-only); then the
+# Match Projector's fantasy projections (scripts/nfl_projections.py). Writes
+# pipeline_runs rows (job_name nfl_import, nfl_elo, nfl_projections).
 
 on:
   schedule:
@@ -46,3 +47,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/nfl_elo.py
+      - name: Fantasy projections (Match Projector, experiment NP1)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/nfl_projections.py
