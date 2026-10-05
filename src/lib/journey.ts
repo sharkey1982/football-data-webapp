@@ -157,6 +157,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // projection assumes. This is the read-only public page -- the
           // admin editing page (Tactical Roles) stays in Admin.
           { label: 'Starting Lineups', to: '/fpl/line-ups', blurb: 'The XI the model expects each club to start, by role and depth.' },
+          // Minutes over the 10-gameweek horizon: who takes a place back as
+          // injured players return (Chris, 5 Oct 2026).
+          { label: 'Minutes Outlook', to: '/fpl/minutes', blurb: 'Who plays over the next 10 gameweeks, and who loses their place as injured players return.' },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
           { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },

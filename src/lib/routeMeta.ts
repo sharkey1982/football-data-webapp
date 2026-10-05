@@ -201,6 +201,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/fpl/minutes',
+    title: 'Minutes Outlook \u2014 who plays over the next 10 gameweeks',
+    description:
+      'Each club\u2019s players gameweek by gameweek: projected start chance and minutes, with injuries, return dates and doubts, so you can see who loses their place when a first-choice player returns.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/line-ups',
     title: 'Starting lineups \u2014 predicted XI by club',
     description:
