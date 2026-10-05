@@ -186,14 +186,6 @@ function roleSide(role: string | null): 'L' | 'R' | 'C' {
   return 'C';
 }
 
-/** How well a player's actual role fits a template slot's expected role. Exact match dominates; otherwise nearer tactical group + matching side scores higher. */
-function matchScore(playerRole: string | null, playerPosition: FplElementType | null, slotRole: string): number {
-  if (playerRole && playerRole.toUpperCase() === slotRole.toUpperCase()) return 1000;
-  const groupDiff = Math.abs(roleGroup(playerRole, playerPosition) - roleGroup(slotRole));
-  const sideBonus = roleSide(playerRole) === roleSide(slotRole) ? 60 : roleSide(playerRole) === 'C' || roleSide(slotRole) === 'C' ? 20 : 0;
-  return 500 - groupDiff * 40 + sideBonus;
-}
-
 /** "4-2-3-1" -> [4, 2, 3, 1]; null/unparseable -> null. */
 function parseFormation(formation: string | null): number[] | null {
   if (!formation) return null;
@@ -208,26 +200,6 @@ type PitchSlot = {
   left: number;
 };
 
-/**
- * Assigns starters to template slots. Two passes, deliberately NOT one
- * greedy slot-by-slot pass:
- *
- * Pass 1 -- every player with an EXACT tactical_role match for some slot
- * in this template gets that slot, full stop, regardless of where in the
- * template array that slot sits. This is what "tactical_role is
- * authoritative" requires: a confirmed CF must never be displaceable by a
- * fuzzy match for a different slot just because that slot happens to be
- * processed earlier in template order. (This was the actual bug: CF is
- * the last slot in the 4-2-3-1 template, so a real CF with no other exact
- * match yet claimed could get grabbed by the RW slot -- processed earlier
- * -- before the loop ever reached CF, leaving CF filled by whoever was
- * left over instead.)
- *
- * Pass 2 -- only for slots no exact match claimed, and only among players
- * with no exact-role home anywhere in this formation (missing/unrecognised
- * tactical_role, or a specific role this formation's template doesn't
- * have a slot for): nearest-fit fuzzy matching, same as before.
- */
 /** Roles that are the same job under different names, so an exact match
  * isn't missed on a naming difference.
  *
@@ -238,12 +210,15 @@ type PitchSlot = {
  * appearing next to the goalkeeper.
  *
  * Deliberately narrow: only pairs that genuinely describe one position.
- * A wide pair (LW/LM) is NOT included, because the difference between
+ * LW/LF and RW/RF are the same wide-forward job. A wide pair (LW/LM) is NOT included, because the difference between
  * them is real and the fuzzy pass already handles it with a side bonus. */
 const ROLE_ALIASES: string[][] = [
   ['CM', 'DM', 'CDM'],
   ['AM', 'CAM'],
   ['CF', 'ST'],
+  // A front three's wide forwards: templates call them LF/RF or LW/RW.
+  ['LW', 'LF'],
+  ['RW', 'RF'],
 ];
 
 function rolesEquivalent(playerRole: string, slotRole: string): boolean {
@@ -253,37 +228,69 @@ function rolesEquivalent(playerRole: string, slotRole: string): boolean {
   return ROLE_ALIASES.some((group) => group.includes(a) && group.includes(b));
 }
 
-function assignToTemplate(starters: FplFixtureProjectionPlayer[], template: Slot[]): PitchSlot[] {
+/** Chance this player starts: start_probability, else expected minutes / 90. */
+function startChance(p: FplFixtureProjectionPlayer): number {
+  if (p.start_probability != null) return p.start_probability;
+  if (p.expected_minutes != null) return Math.min(1, p.expected_minutes / 90);
+  return 0.5;
+}
+
+/**
+ * How well a player fits a slot, 0-1. An exact (or equivalent) role is 1;
+ * otherwise it falls with distance between tactical groups, halves for the
+ * wrong side, and is 0 more than two groups away. Zero means "never put
+ * him there": an empty slot is better than a centre-back drawn on the wing.
+ */
+function slotFit(p: FplFixtureProjectionPlayer, slotRole: string): number {
+  if (isKnownRole(p.tactical_role) && rolesEquivalent(p.tactical_role!, slotRole)) return 1;
+  const role = isKnownRole(p.tactical_role) ? p.tactical_role : null;
+  if (!role) {
+    // Role not confirmed: all we know is the FPL position, so keep him in
+    // that line (a DEF in the back line, a FWD up front), any side.
+    const g = roleGroup(slotRole);
+    if (p.fpl_position === 2) return g === 1 || g === 2 ? 0.6 : 0;
+    if (p.fpl_position === 3) return g >= 3 && g <= 6 ? 0.6 : 0;
+    if (p.fpl_position === 4) return g === 7 ? 0.6 : g === 6 ? 0.4 : g === 5 ? 0.3 : 0;
+    return g >= 1 ? 0.3 : 0;
+  }
+  const diff = Math.abs(roleGroup(role, p.fpl_position) - roleGroup(slotRole));
+  let fit = diff === 0 ? 0.7 : diff === 1 ? 0.5 : diff === 2 ? 0.3 : 0;
+  const a = roleSide(role), b = roleSide(slotRole);
+  if (a !== 'C' && b !== 'C' && a !== b) fit *= 0.5;
+  return fit;
+}
+
+/**
+ * Picks AND places the starters in one step (5 Oct 2026). Previously the
+ * ten outfielders with most expected minutes were taken first and then
+ * forced into the template: when that ten held two right-centre-backs and
+ * no left winger (Arsenal GW7: Mosquera and Konsa, Tzolis left out), the
+ * fuzzy pass put a centre-back in the LW slot.
+ *
+ * Now every (player, slot) pair is scored start chance x fit, and pairs are
+ * taken best first, each player and slot used once. So each slot gets the
+ * likeliest starter who actually plays there; a player only goes to a
+ * slot that isn't his role when nobody better fits, and never to one far
+ * from it. Ties keep the API order (expected minutes).
+ */
+function assignToTemplate(pool: FplFixtureProjectionPlayer[], template: Slot[]): PitchSlot[] {
+  const pairs: { pi: number; si: number; w: number; exact: boolean }[] = [];
+  pool.forEach((p, pi) => {
+    const chance = startChance(p);
+    if (chance <= 0) return;
+    template.forEach((slot, si) => {
+      const fit = slotFit(p, slot.role);
+      if (fit > 0) pairs.push({ pi, si, w: chance * fit, exact: fit === 1 });
+    });
+  });
+  pairs.sort((x, y) => y.w - x.w || Number(y.exact) - Number(x.exact) || x.pi - y.pi || x.si - y.si);
   const slotPlayer: (FplFixtureProjectionPlayer | null)[] = new Array(template.length).fill(null);
-  const used = new Set<number>();
-
-  template.forEach((slot, slotIndex) => {
-    const exact = starters.find(
-      (p) => !used.has(p.fpl_player_id) && isKnownRole(p.tactical_role) && rolesEquivalent(p.tactical_role!, slot.role)
-    );
-    if (exact) {
-      slotPlayer[slotIndex] = exact;
-      used.add(exact.fpl_player_id);
-    }
-  });
-
-  template.forEach((slot, slotIndex) => {
-    if (slotPlayer[slotIndex]) return;
-    const remaining = starters.filter((p) => !used.has(p.fpl_player_id));
-    if (remaining.length === 0) return;
-    let best = remaining[0];
-    let bestScore = -Infinity;
-    for (const p of remaining) {
-      const score = matchScore(p.tactical_role, p.fpl_position, slot.role);
-      if (score > bestScore) {
-        bestScore = score;
-        best = p;
-      }
-    }
-    slotPlayer[slotIndex] = best;
-    used.add(best.fpl_player_id);
-  });
-
+  const usedPlayers = new Set<number>();
+  for (const { pi, si } of pairs) {
+    if (slotPlayer[si] || usedPlayers.has(pi)) continue;
+    slotPlayer[si] = pool[pi];
+    usedPlayers.add(pi);
+  }
   const slots: PitchSlot[] = [];
   template.forEach((slot, i) => {
     const player = slotPlayer[i];
@@ -317,7 +324,8 @@ function layoutByLines(starters: FplFixtureProjectionPlayer[], lineSizes: number
 
 function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string | null): PitchSlot[] {
   const isGk = (p: FplFixtureProjectionPlayer) => p.tactical_role?.toUpperCase() === 'GK' || p.fpl_position === 1;
-  const gk = players.find(isGk) ?? null;
+  // Likeliest keeper, not just the first listed.
+  const gk = players.filter(isGk).reduce<FplFixtureProjectionPlayer | null>((best, p) => (!best || startChance(p) > startChance(best) ? p : best), null);
   const outfieldPool = players.filter((p) => !isGk(p));
 
   const formationLines = parseFormation(formation);
@@ -351,7 +359,9 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   // left-right confusion. assignToTemplate already safely omits any slot
   // with no player assigned, so this is safe with a partial XI.
   if (template) {
-    slots.push(...assignToTemplate(starters, template));
+    // The whole outfield pool, not the top-ten by minutes: assignToTemplate
+    // chooses who starts in each slot.
+    slots.push(...assignToTemplate(outfieldPool, template));
   } else {
     let lineSizes: number[];
     if (formationLines && formationLines.reduce((a, b) => a + b, 0) === starters.length) {

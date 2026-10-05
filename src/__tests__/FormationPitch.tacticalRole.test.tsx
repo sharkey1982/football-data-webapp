@@ -103,7 +103,10 @@ describe('FormationPitch -- tactical_role positioning', () => {
   });
 
   it('does not crash when a starter has a null tactical_role', () => {
-    const withNullRole = [...evertonGw5Starters.slice(0, 9), player({ fpl_player_id: 999, web_name: 'Unknown Player', tactical_role: null })];
+    // Replaces Rohl, so the free RW slot is his. (A midfielder with no role
+    // is never drawn in a defender's slot, so with Rohl also unplaced only
+    // one of them could be shown.)
+    const withNullRole = [...evertonGw5Starters.filter((p) => p.web_name !== 'Rohl'), player({ fpl_player_id: 999, web_name: 'Unknown Player', tactical_role: null })];
     expect(() =>
       render(<FormationPitch players={withNullRole} formation="4-2-3-1" selectedPlayerId={null} onSelectPlayer={() => {}} />)
     ).not.toThrow();
@@ -156,5 +159,53 @@ describe('FormationPitch -- 3-4-3 sides', () => {
     // below 65 means the CM was dropped into the back line.
     const top = Number((pivot!.style.top || '').replace('%', ''));
     expect(top).toBeLessThan(65);
+  });
+});
+
+describe('FormationPitch -- picks the likeliest player for each slot', () => {
+  // Real Arsenal v Leeds GW7 (fixture 51) feed, in API order (expected
+  // minutes). The old code took the top ten outfielders by minutes --
+  // two RCBs (Mosquera, Konsa) and no left winger -- and drew Mosquera,
+  // a centre-back, in the LW slot.
+  const D = { fpl_position: 2 as const, fpl_position_label: 'DEF' };
+  const arsenal: FplFixtureProjectionPlayer[] = [
+    player({ fpl_player_id: 1, web_name: 'Raya', tactical_role: 'GK', fpl_position: 1, start_probability: 0.96 }),
+    player({ fpl_player_id: 2, web_name: 'Lewis-Skelly', tactical_role: 'DM', start_probability: 0.95 }),
+    player({ fpl_player_id: 3, web_name: 'Odegaard', tactical_role: 'AM', start_probability: 0.95 }),
+    player({ fpl_player_id: 4, web_name: 'Gabriel', tactical_role: 'LCB', ...D, start_probability: 0.95 }),
+    player({ fpl_player_id: 5, web_name: 'Calafiori', tactical_role: 'LB', ...D, start_probability: 0.95 }),
+    player({ fpl_player_id: 6, web_name: 'Saka', tactical_role: 'RW', start_probability: 0.95 }),
+    player({ fpl_player_id: 7, web_name: 'Mosquera', tactical_role: 'RCB', ...D, start_probability: 0.78 }),
+    player({ fpl_player_id: 8, web_name: 'White', tactical_role: 'RB', ...D, start_probability: 0.64 }),
+    player({ fpl_player_id: 9, web_name: 'Konsa', tactical_role: 'RCB', ...D, start_probability: 0.54 }),
+    player({ fpl_player_id: 10, web_name: 'Tzolis', tactical_role: 'LW', start_probability: 0.64 }),
+    player({ fpl_player_id: 11, web_name: 'Rice', tactical_role: 'DM', start_probability: 0.64 }),
+    player({ fpl_player_id: 12, web_name: 'Havertz', tactical_role: 'CF', fpl_position: 4, fpl_position_label: 'FWD', start_probability: 0.64 }),
+    player({ fpl_player_id: 13, web_name: 'Timber', tactical_role: 'RB', ...D, start_probability: 0.4 }),
+    player({ fpl_player_id: 14, web_name: 'Eze', tactical_role: 'LW', start_probability: 0.07 }),
+    player({ fpl_player_id: 15, web_name: 'Saliba', tactical_role: 'RCB', ...D, start_probability: 0 }),
+  ];
+  const at = (name: string) => {
+    const b = screen.getByText(name).closest('button') as HTMLButtonElement;
+    return [b.style.top, b.style.left].join(',');
+  };
+
+  it('puts the left winger on the left wing and leaves the second RCB out', () => {
+    render(<FormationPitch players={arsenal} formation="4-2-3-1" selectedPlayerId={null} onSelectPlayer={() => {}} />);
+    expect(at('Tzolis')).toBe('30%,15%');
+    expect(at('Mosquera')).toBe('74%,64%');
+    expect(screen.queryByText('Konsa')).toBeNull();
+    expect(screen.queryByText('Eze')).toBeNull();
+    expect(screen.queryByText('Saliba')).toBeNull();
+    expect(screen.getAllByRole('button').filter((b) => b.style.top).length).toBe(11);
+  });
+
+  it('never draws a centre-back in an attacking slot, leaving it empty instead', () => {
+    const noWinger = arsenal.filter((p) => !['Tzolis', 'Eze'].includes(p.web_name));
+    render(<FormationPitch players={noWinger} formation="4-2-3-1" selectedPlayerId={null} onSelectPlayer={() => {}} />);
+    for (const name of ['Mosquera', 'Konsa', 'Timber']) {
+      const el = screen.queryByText(name)?.closest('button') as HTMLButtonElement | undefined;
+      if (el) expect(Number(el.style.top.replace('%', ''))).toBeGreaterThan(60);
+    }
   });
 });

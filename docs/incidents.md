@@ -12,6 +12,14 @@ fixing something else.
 
 ---
 
+## 2026-10-05 · FPL team pitch: players drawn in positions they don't play
+- **Impact:** on the fixture pitch, players appeared in slots far from their role -- e.g. Arsenal GW7 (4-2-3-1) showed Mosquera, a right-centre-back, in the left-wing slot, and a second RCB (Konsa) in the back four, while the projected left winger (Tzolis) was missing. Across GW7, 17 of 20 team pitches had at least one such placement (a DEF at CF for Coventry and Sunderland, a DEF at LW for Man City, a DEF in the pivot for Liverpool). Display only; projections were unaffected.
+- **Cause:** the pitch took the ten outfielders with most expected minutes, then forced them into the formation's slots. When those ten didn't fit the shape (two RCBs, no LW), the fallback put the leftover player in whatever slot was free, however far from his role. Players with no confirmed role were treated the same way.
+- **Fix:** players are now chosen per slot: every player-slot pair is scored start probability × fit (exact role 1; nearby roles less; wrong side halved; more than two lines away never), and pairs are taken best first. A slot nobody fits is left empty rather than filled wrongly. Unconfirmed-role players stay in their FPL line. LW/LF and RW/RF now count as the same job.
+- **Prevention:** regression tests with the real Arsenal GW7 data (fail on the old code), and a check that a centre-back is never drawn in an attacking slot. Checked against all 20 GW7 team pitches: no player outside his line.
+
+---
+
 ## 2026-10-05 · FanTeam: fix list unusable on a phone; two players set to "Not in FPL" by mistake; safety-net value too low
 - **Impact:** on a phone, the unmatched-players list saved on every change of a dropdown, so Savinho (Tottenham) and Gabriel Slonina (Chelsea) were set to "Not in FPL" by accident, and there was no way to undo it from the page. Separately, a player with no cheaper same-club team-mate was valued lower with the safety net than without it (Haaland 5.59 vs 5.94 in the test data), which would have under-rated such players in safety-net contests.
 - **Cause:** the fix list was designed for a desktop (fixed widths, save-on-change, "Not in FPL" as the first option); it was never checked at phone size. The safety-net formula dropped a non-starter's own bench points when no replacement was available, though FanTeam keeps the original player then.
