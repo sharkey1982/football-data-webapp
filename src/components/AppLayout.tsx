@@ -136,6 +136,13 @@ function NavDropdown({ group }: { group: NavGroup }) {
   );
 }
 
+
+// Top-menu headings (Chris, 5 Oct 2026: "Football > Club, Fantasy > FPL";
+// International will be "Intnl"). Short so the header fits one line on a
+// phone. Only the headings: URLs, hub titles and breadcrumbs keep their
+// full names.
+const MENU_LABEL = { football: 'Club', fpl: 'FPL', nfl: 'NFL', tennis: 'Tennis' } as const;
+
 export default function AppLayout() {
   const location = useLocation();
 
@@ -184,7 +191,7 @@ export default function AppLayout() {
   const themeGroups: NavGroup[] = (['football', 'fpl', 'nfl', 'tennis'] as const).map((key) => {
     const theme = THEMES[key];
     return {
-      label: key === 'football' ? 'Football' : key === 'fpl' ? 'Fantasy' : key === 'nfl' ? 'NFL' : 'Tennis',
+      label: MENU_LABEL[key],
       // Overview sits above the stage headings as a plain item, not an
       // empty section -- a heading with nothing under it reads as a
       // rendering bug.
@@ -243,9 +250,9 @@ export default function AppLayout() {
       ],
     },
   ].filter((g) => g.label !== 'Admin' || isAdmin);
-  const footballGroup = navGroups.find((g) => g.label === 'Football')!;
-  const fantasyGroup = navGroups.find((g) => g.label === 'Fantasy')!;
-  const nflGroup = navGroups.find((g) => g.label === 'NFL')!;
+  const footballGroup = navGroups.find((g) => g.label === MENU_LABEL.football)!;
+  const fantasyGroup = navGroups.find((g) => g.label === MENU_LABEL.fpl)!;
+  const nflGroup = navGroups.find((g) => g.label === MENU_LABEL.nfl)!;
   // A link back up to whichever theme hub the current page belongs to --
   // requested directly (the sketched flow shows an explicit loop back
   // from a destination page to its hub, which wasn't actually there
