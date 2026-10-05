@@ -931,6 +931,12 @@ def main() -> None:
         w = write(sb, b)
         reconcile(sb, b)
         sb.rpc("intl_refresh", {}).execute()
+        try:
+            sb.rpc("intl_refresh_visuals", {}).execute()
+        except Exception as e:  # noqa: BLE001 -- only before migration 20261005200000 is applied
+            if "intl_refresh_visuals" not in str(e):
+                raise
+            print("intl_refresh_visuals not there yet; skipped")
         finish("success", f"{summary(b)}; {w['written']} written; reconciled per year")
     except Exception as e:  # noqa: BLE001 -- record any failure, then fail the job
         finish("failed", "intl_import failed", str(e)[:2000])
