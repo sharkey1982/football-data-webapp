@@ -25,7 +25,7 @@ function PlayerName({ p }: { p: SquadPlayer }) {
 function Rows({ players, recent }: { players: SquadPlayer[]; recent?: boolean }) {
   const now = today();
   return (
-    <tbody>
+    <>
       {players.map((p) => (
         <tr key={`${p.list}-${p.seq}`} className="border-t border-chalk-200">
           <td className="px-2 py-1 text-right font-mono text-xs text-ink-500 w-8">{p.number ?? ''}</td>
@@ -40,7 +40,7 @@ function Rows({ players, recent }: { players: SquadPlayer[]; recent?: boolean })
           {recent && <td className="px-2 py-1 text-xs text-ink-500 hidden md:table-cell">{p.latest_text ?? (p.latest_date ? shortDate(p.latest_date) : '')}</td>}
         </tr>
       ))}
-    </tbody>
+    </>
   );
 }
 
@@ -71,7 +71,11 @@ function SquadTable({ players, recent, testId }: { players: SquadPlayer[]; recen
           <Rows players={g.list} recent={recent} />
         </tbody>
       ))}
-      {other.length > 0 && <Rows players={other} recent={recent} />}
+      {other.length > 0 && (
+        <tbody>
+          <Rows players={other} recent={recent} />
+        </tbody>
+      )}
     </table>
   );
 }
