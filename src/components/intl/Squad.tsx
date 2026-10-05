@@ -63,7 +63,10 @@ function SquadTable({ players, recent, testId }: { players: SquadPlayer[]; recen
       {groups.map((g) => (
         <tbody key={g.code}>
           <tr>
-            <th colSpan={recent ? 7 : 6} className="bg-chalk-100 px-2 py-0.5 text-left text-[11px] font-medium uppercase tracking-wide text-ink-500">{g.name}</th>
+            {/* colSpan only over the always-visible columns: spanning hidden ones adds phantom columns on phones */}
+            <th colSpan={5} className="bg-chalk-100 px-2 py-0.5 text-left text-[11px] font-medium uppercase tracking-wide text-ink-500">{g.name}</th>
+            <td className="bg-chalk-100 hidden sm:table-cell" />
+            {recent && <td className="bg-chalk-100 hidden md:table-cell" />}
           </tr>
           <Rows players={g.list} recent={recent} />
         </tbody>

@@ -75,3 +75,10 @@ def test_current_ratings_apply_reported_results():
     matches = [{"match_date": "2026-08-01", "home_team": "A", "away_team": "B", "elo_home_pre": 1500, "elo_away_pre": 1500, "elo_change": 10}]
     r = ip.current_ratings(matches, [{"kickoff_utc": "2026-09-01T18:00:00+00:00", "home_team": "B", "away_team": "A", "home_score": 2, "away_score": 0}])
     assert r["B"] > 1490 and r["A"] < 1510 and np.isclose(r["A"] + r["B"], 3000)
+
+
+def test_squad_straight_under_players_heading():
+    page = PAGE.replace("===Current squad===\n", "").replace("are correct as of", "as of")
+    r = sq.parse_page("Canada", "Canada men's national soccer team", page, None)
+    assert r["squad"]["players"] == 2 and r["squad"]["caps_as_of"] == "3 October 2026"
+    assert len([p for p in r["players"] if p["list"] == "recent"]) == 1
