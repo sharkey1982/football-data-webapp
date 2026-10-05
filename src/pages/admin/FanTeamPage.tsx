@@ -9,7 +9,7 @@
 // Design: Claude Docs "FanTeam private optimiser — design".
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useAuthOptional } from '../../lib/auth';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
@@ -17,17 +17,18 @@ import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import {
   getRules, getInputs, getLatestPaste, getPreviousPrices, getManualMaps, savePaste, setClubFix, setPlayerFix,
+  deleteClubFix, deletePlayerFix,
   type GameRules, type InputRow, type Paste, type PriceRow,
 } from '../../lib/fanteam/api';
-import { parsePaste, PARSER_VERSION, type ParsedRow } from '../../lib/fanteam/paste';
+import { parsePaste, PARSER_VERSION, type FplRef, type ParsedRow, type TeamRef } from '../../lib/fanteam/paste';
 import { buildPlayers, health, isUnlikely, nameKey, norm, teamsFrom, fplRefsFrom, toCandidates, type PlayerView } from '../../lib/fanteam/model';
 import { solveLineup, type ContestRules, type Lineup, type SolverFn } from '../../lib/fanteam/optimiser';
-import { SOT_PER_XG, type Pos, type ScoringRule } from '../../lib/fanteam/scoring';
+import { SOT_PER_XG, type PointsBreakdown, type Pos, type ScoringRule } from '../../lib/fanteam/scoring';
 
-type Tab = 'prices' | 'players' | 'lineup' | 'health';
+type Tab = 'prices' | 'players' | 'lineup' | 'scoring' | 'health';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'prices', label: 'Prices' }, { key: 'players', label: 'Players' },
-  { key: 'lineup', label: 'Lineup' }, { key: 'health', label: 'Data health' },
+  { key: 'lineup', label: 'Lineup' }, { key: 'scoring', label: 'Scoring' }, { key: 'health', label: 'Data health' },
 ];
 const POS_ORDER: Record<Pos, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
 const f1 = (v: number) => v.toFixed(1);
@@ -119,10 +120,10 @@ export default function FanTeamPage() {
           </select>
         </label>
       </header>
-      <nav className="flex gap-1 border-b border-chalk-300">
+      <nav className="flex gap-1 border-b border-chalk-300 overflow-x-auto">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 ${tab === t.key ? 'border-ink-900 text-ink-900 font-medium' : 'border-transparent text-ink-500'}`}>
+            className={`px-3 py-2 text-sm -mb-px border-b-2 whitespace-nowrap ${tab === t.key ? 'border-ink-900 text-ink-900 font-medium' : 'border-transparent text-ink-500'}`}>
             {t.label}
           </button>
         ))}
@@ -135,8 +136,9 @@ export default function FanTeamPage() {
             <PricesTab matchweek={matchweek} seasonId={seasonId} rules={rules} inputs={inputs} paste={paste}
               prev={prev} views={views} manual={manual} onSaved={reload} />
           )}
-          {tab === 'players' && <PlayersTab views={views} />}
+          {tab === 'players' && <PlayersTab views={views} captainMultiplier={Number(rules.game.captain_multiplier)} safetyNet={paste?.paste.safety_net ?? false} />}
           {tab === 'lineup' && <LineupTab views={views} rules={rules} paste={paste} status={h.status} onFix={() => setTab('health')} />}
+          {tab === 'scoring' && <ScoringTab rules={rules} paste={paste?.paste ?? null} />}
           {tab === 'health' && <HealthTab h={h} rules={rules} />}
         </>
       )}
@@ -159,6 +161,7 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
   const [parsed, setParsed] = useState<ParsedRow[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showUnlikely, setShowUnlikely] = useState(false);
   const teams = useMemo(() => teamsFrom(inputs).sort((a, b) => a.team_name.localeCompare(b.team_name)), [inputs]);
   const refs = useMemo(() => fplRefsFrom(inputs), [inputs]);
 
@@ -203,9 +206,11 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
   };
 
   const unknownClubs = [...new Set(views.filter((v) => v.team_id == null).map((v) => v.club_raw))];
-  // Likely starters first: those are the ones that block the optimiser.
+  // Likely starters block the optimiser; the rest are folded away.
   const unmatched = views.filter((v) => v.team_id != null && v.fpl_code == null && v.match !== 'manual')
-    .sort((a, b) => Number(isUnlikely(a.lineup)) - Number(isUnlikely(b.lineup)) || b.price - a.price);
+    .sort((a, b) => b.price - a.price);
+  const blocking = unmatched.filter((v) => !isUnlikely(v.lineup));
+  const unlikely = unmatched.filter((v) => isUnlikely(v.lineup));
   const changes = views.filter((v) => prev.has(`${v.name}|${v.team_id}`) && prev.get(`${v.name}|${v.team_id}`) !== v.price);
 
   return (
@@ -263,43 +268,29 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
       )}
 
       {unknownClubs.length > 0 && (
-        <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-2">
-          <h2 className="text-sm font-medium text-ink-700">Unknown clubs</h2>
-          {unknownClubs.map((c) => (
-            <div key={c} className="flex items-center gap-2 text-sm">
-              <span className="w-48 truncate">{c || '(blank)'}</span>
-              <select className="border border-chalk-300 rounded px-2 py-1" defaultValue=""
-                onChange={async (e) => { if (e.target.value) { await setClubFix(norm(c), Number(e.target.value)); await onSaved(); } }}>
-                <option value="">Choose club…</option>
-                {teams.map((t) => <option key={t.team_id} value={t.team_id}>{t.team_name}</option>)}
-              </select>
-            </div>
-          ))}
+        <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-3">
+          <h2 className="text-sm font-medium text-ink-700">Unknown clubs ({unknownClubs.length})</h2>
+          {unknownClubs.map((c) => <ClubFixCard key={c} club={c} teams={teams} onSaved={onSaved} />)}
         </section>
       )}
 
       {unmatched.length > 0 && (
-        <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-2">
-          <h2 className="text-sm font-medium text-ink-700">Unmatched players ({unmatched.length})</h2>
-          <p className="text-xs text-ink-500">Greyed players aren't expected to play and don't block the optimiser.</p>
-          {unmatched.map((v) => (
-            <div key={v.key} className="flex items-center gap-2 text-sm">
-              <span className={`w-72 truncate ${isUnlikely(v.lineup) ? 'text-ink-500' : ''}`}>{v.name} · {v.team_name} · {v.pos} · £{f1(v.price)}m{v.lineup ? ` · ${v.lineup}` : ''}</span>
-              <select className="border border-chalk-300 rounded px-2 py-1" defaultValue=""
-                onChange={async (e) => {
-                  if (!e.target.value) return;
-                  await setPlayerFix(nameKey(v.name), v.team_id!, e.target.value === 'none' ? null : Number(e.target.value));
-                  await onSaved();
-                }}>
-                <option value="">Choose FPL player…</option>
-                <option value="none">Not in FPL (leave out)</option>
-                {refs.filter((r) => r.team_id === v.team_id).sort((a, b) => a.second_name.localeCompare(b.second_name))
-                  .map((r) => <option key={r.fpl_code} value={r.fpl_code}>{r.first_name} {r.second_name} ({r.web_name})</option>)}
-              </select>
+        <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-3" data-testid="fanteam-unmatched">
+          <h2 className="text-sm font-medium text-ink-700">Unmatched players ({blocking.length} to fix)</h2>
+          {blocking.length === 0 && <p className="text-sm text-ink-700">Nothing blocking the optimiser.</p>}
+          {blocking.map((v) => <PlayerFixCard key={v.key} v={v} refs={refs} onSaved={onSaved} />)}
+          {unlikely.length > 0 && (
+            <div className="space-y-3">
+              <button className="text-sm underline text-ink-700 py-1" onClick={() => setShowUnlikely(!showUnlikely)}>
+                {showUnlikely ? 'Hide' : 'Show'} {unlikely.length} not expected to play
+              </button>
+              {showUnlikely && unlikely.map((v) => <PlayerFixCard key={v.key} v={v} refs={refs} onSaved={onSaved} />)}
             </div>
-          ))}
+          )}
         </section>
       )}
+
+      <SavedFixes views={views} manual={manual} refs={refs} teams={teams} onSaved={onSaved} />
 
       {changes.length > 0 && (
         <section className="border border-chalk-300 rounded-lg bg-white p-3">
@@ -322,33 +313,168 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
 
 // ---------------------------------------------------------------------------
 
-function PlayersTab({ views }: { views: PlayerView[] }) {
+function PlayersTab({ views, captainMultiplier, safetyNet }: { views: PlayerView[]; captainMultiplier: number; safetyNet: boolean }) {
   const [pos, setPos] = useState<Pos | 'ALL'>('ALL');
-  const rows = views.filter((v) => v.fixtures > 0 && (pos === 'ALL' || v.pos === pos));
-  if (!views.length) return <p className="text-sm text-ink-500">No prices for this gameweek yet. Paste them on the Prices tab.</p>;
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (selected) panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [selected]);
+  if (!views.length) return <p className="text-sm text-ink-500">No prices for this gameweek yet. Load them on the Prices tab.</p>;
+  const nq = norm(q);
+  const rows = views.filter((v) => v.fixtures > 0 && (pos === 'ALL' || v.pos === pos) && (!nq || norm(`${v.name} ${v.team_name}`).includes(nq)));
+  const sel = views.find((v) => v.key === selected) ?? null;
   const cols: Column<PlayerView>[] = [
-    { key: 'name', label: 'Player', render: (v) => v.name, sortValue: (v) => v.name },
-    { key: 'club', label: 'Club', render: (v) => v.team_name, sortValue: (v) => v.team_name },
+    { key: 'name', label: 'Player', sortValue: (v) => v.name,
+      render: (v) => <button className="text-left underline decoration-dotted underline-offset-2" onClick={() => setSelected(v.key)}>{v.name}</button> },
+    { key: 'club', label: 'Club', render: (v) => v.team_name, sortValue: (v) => v.team_name, className: 'hidden sm:table-cell' },
     { key: 'pos', label: 'Pos', render: (v) => v.pos, sortValue: (v) => POS_ORDER[v.pos] },
-    { key: 'opp', label: 'Opponent', render: (v) => v.opponents, sortValue: (v) => v.opponents, className: 'hidden sm:table-cell' },
+    { key: 'opp', label: 'Opponent', render: (v) => v.opponents, sortValue: (v) => v.opponents, className: 'hidden lg:table-cell' },
     { key: 'lineup', label: 'FanTeam', render: (v) => <span className={v.out ? 'text-red-700' : ''}>{v.lineup ?? ''}</span>, sortValue: (v) => v.lineup, className: 'hidden md:table-cell' },
     { key: 'price', label: '£m', align: 'right', descFirst: true, render: (v) => f1(v.price), sortValue: (v) => v.price },
-    { key: 's', label: 'Start', align: 'right', descFirst: true, render: (v) => pct(v.s), sortValue: (v) => v.s },
-    { key: 'total', label: 'xPts', align: 'right', descFirst: true, render: (v) => f2(v.total), sortValue: (v) => v.total },
-    { key: 'value', label: 'xPts (net)', align: 'right', descFirst: true, render: (v) => f2(v.value), sortValue: (v) => v.value },
+    { key: 's', label: 'Start', align: 'right', descFirst: true, render: (v) => pct(v.s), sortValue: (v) => v.s, className: 'hidden sm:table-cell' },
+    { key: 'total', label: 'xPts', align: 'right', descFirst: true, render: (v) => f2(v.total), sortValue: (v) => v.total, className: 'hidden sm:table-cell' },
+    { key: 'value', label: safetyNet ? 'xPts (net)' : 'xPts', align: 'right', descFirst: true, render: (v) => f2(v.value), sortValue: (v) => v.value },
     { key: 'pm', label: 'Pts/£m', align: 'right', descFirst: true, render: (v) => f2(v.perMillion), sortValue: (v) => v.perMillion },
-    { key: 'sot', label: 'SoT', align: 'right', descFirst: true, render: (v) => f2(v.breakdown?.shots_on_target ?? 0), sortValue: (v) => v.breakdown?.shots_on_target ?? 0, className: 'hidden md:table-cell' },
-    { key: 'imp', label: 'Impact', align: 'right', descFirst: true, render: (v) => f2(v.breakdown?.impact ?? 0), sortValue: (v) => v.breakdown?.impact ?? 0, className: 'hidden md:table-cell' },
   ];
   return (
-    <div className="space-y-2">
-      <div className="flex gap-1">
-        {(['ALL', 'GK', 'DEF', 'MID', 'FWD'] as const).map((p) => (
-          <button key={p} onClick={() => setPos(p)} className={`px-2 py-1 text-xs rounded border ${pos === p ? 'bg-ink-900 text-white border-ink-900' : 'border-chalk-300'}`}>{p === 'ALL' ? 'All' : p}</button>
-        ))}
+    <div className="space-y-3">
+      <div ref={panel}>{sel && <PlayerBreakdown v={sel} captainMultiplier={captainMultiplier} safetyNet={safetyNet} onClose={() => setSelected(null)} />}</div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <input className="min-h-11 border border-chalk-300 rounded px-2 text-base flex-1 min-w-40" placeholder="Find a player or club" aria-label="Find a player"
+          value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex gap-1">
+          {(['ALL', 'GK', 'DEF', 'MID', 'FWD'] as const).map((p) => (
+            <button key={p} onClick={() => setPos(p)} className={`min-h-11 px-3 text-sm rounded border ${pos === p ? 'bg-ink-900 text-white border-ink-900' : 'border-chalk-300'}`}>{p === 'ALL' ? 'All' : p}</button>
+          ))}
+        </div>
       </div>
       <SortableTable<PlayerView> testId="fanteam-players" rows={rows} rowKey={(v) => v.key} columns={cols} initialSort={{ key: 'value', dir: 'desc' }} />
-      <p className="text-xs text-ink-500">xPts (net) includes the safety net when the contest has one. Shots on target are estimated from xG ({SOT_PER_XG} per expected goal).</p>
+      <p className="text-xs text-ink-500">Tap a name for the breakdown.{safetyNet ? ' xPts (net) includes the safety net.' : ''}</p>
+    </div>
+  );
+}
+
+const BREAKDOWN_ROWS: { key: keyof PointsBreakdown; label: string; how: string }[] = [
+  { key: 'appearance', label: 'Appearance', how: 'P(start) + P(sub appearance), 1 point' },
+  { key: 'minutes_60', label: '60+ minutes', how: 'P(start) × P(not off before 60)' },
+  { key: 'full_match', label: 'Full match', how: 'P(start) × P(plays to the end), MID/FWD' },
+  { key: 'goals', label: 'Goals', how: 'xG × goal points' },
+  { key: 'assists', label: 'Assists', how: 'xA × 3' },
+  { key: 'shots_on_target', label: 'Shots on target', how: `xG × ${SOT_PER_XG} × points (estimate)` },
+  { key: 'clean_sheet', label: 'Clean sheet', how: 'P(60+ min and none conceded while on)' },
+  { key: 'goals_conceded', label: 'Goals conceded', how: '−1 per 2 conceded while on, GK/DEF' },
+  { key: 'saves', label: 'Saves', how: 'expected saves × 0.5' },
+  { key: 'impact', label: 'Win/loss impact', how: '0.3 × (P(win) − P(loss)) × minutes share (estimate)' },
+  { key: 'penalties', label: 'Penalties', how: 'saves +5, misses −2' },
+  { key: 'cards_own_goals', label: 'Cards, own goals', how: 'yellow −1, red −3, own goal −2' },
+];
+
+function PlayerBreakdown({ v, captainMultiplier, safetyNet, onClose }: { v: PlayerView; captainMultiplier: number; safetyNet: boolean; onClose: () => void }) {
+  const bd = v.breakdown;
+  return (
+    <section className="border border-ink-900 rounded-lg bg-white p-3 space-y-3" data-testid="fanteam-breakdown">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="font-medium text-ink-900">{v.name}</h2>
+          <p className="text-xs text-ink-500">{v.team_name} · {v.pos} · £{f1(v.price)}m · {v.opponents || 'no fixture'}{v.lineup ? ` · FanTeam: ${v.lineup}` : ''}</p>
+          {v.fpl_name && v.match !== 'exact' && <p className="text-xs text-ink-500">Matched to FPL: {v.fpl_name} ({v.match})</p>}
+        </div>
+        <button className={`${BTN} border border-chalk-300 shrink-0`} onClick={onClose}>Close</button>
+      </div>
+      {v.out && <p className="text-sm text-red-700">FanTeam lists him as {v.lineup}: scored 0 and never picked.</p>}
+      {v.inputs && (
+        <dl className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-sm">
+          {[
+            ['Start', pct(v.s)], ['Sub on', pct(v.inputs.pSub)], ['Full match', v.inputs.pFull == null ? '—' : pct(v.inputs.pFull)],
+            ['Minutes', f1(v.inputs.xMin)], ['xG', f2(v.inputs.xG)], ['xA', f2(v.inputs.xA)],
+          ].map(([k, val]) => (
+            <div key={k} className="border border-chalk-200 rounded p-2"><dt className="text-xs text-ink-500">{k}</dt><dd className="font-medium tabular-nums">{val}</dd></div>
+          ))}
+        </dl>
+      )}
+      {bd && (
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-xs text-ink-500"><th className="py-1">Points from</th><th className="py-1 text-right">xPts</th><th className="py-1 pl-3 hidden sm:table-cell">How</th></tr></thead>
+          <tbody>
+            {BREAKDOWN_ROWS.filter((r) => Math.abs(bd[r.key]) >= 0.005).map((r) => (
+              <tr key={r.key} className="border-t border-chalk-200">
+                <td className="py-1">{r.label}</td>
+                <td className={`py-1 text-right tabular-nums ${bd[r.key] < 0 ? 'text-red-700' : ''}`}>{f2(bd[r.key])}</td>
+                <td className="py-1 pl-3 text-xs text-ink-500 hidden sm:table-cell">{r.how}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-ink-900 font-medium"><td className="py-1">Total</td><td className="py-1 text-right tabular-nums">{f2(v.total)}</td><td className="hidden sm:table-cell" /></tr>
+            {safetyNet && v.netReplacement != null && (
+              <tr className="border-t border-chalk-200"><td className="py-1">With safety net</td><td className="py-1 text-right tabular-nums">{f2(v.value)}</td>
+                <td className="py-1 pl-3 text-xs text-ink-500 hidden sm:table-cell">if he doesn't start: {f2(v.netReplacement)} (a cheaper team-mate swapped in, or his own minutes off the bench if none)</td></tr>
+            )}
+          </tbody>
+        </table>
+      )}
+      {!v.out && v.s > 0 && (
+        <p className="text-xs text-ink-500">If he starts: {f2(v.ifStart)} points. As captain: about {f2(v.value + (captainMultiplier - 1) * v.s * v.ifStart)}.</p>
+      )}
+    </section>
+  );
+}
+
+function ScoringTab({ rules, paste }: { rules: { game: GameRules; scoring: ScoringRule[] }; paste: Paste | null }) {
+  const POSS: Pos[] = ['GK', 'DEF', 'MID', 'FWD'];
+  const ORDER: { code: string; label: string }[] = [
+    { code: 'appearance', label: 'Appearance' }, { code: 'minutes_60', label: '60+ minutes' }, { code: 'full_match', label: 'Played full match' },
+    { code: 'goal', label: 'Goal' }, { code: 'assist', label: 'Assist / fantasy assist' }, { code: 'clean_sheet', label: 'Clean sheet (60+ min)' },
+    { code: 'goals_conceded', label: 'Every 2 goals conceded' }, { code: 'shot_on_target', label: 'Shot on target' }, { code: 'save', label: 'Save' },
+    { code: 'penalty_save', label: 'Penalty save' }, { code: 'impact_positive', label: 'Team won while on pitch' }, { code: 'impact_negative', label: 'Team lost while on pitch' },
+    { code: 'caused_penalty', label: 'Caused a penalty' }, { code: 'caused_scoring_free_kick', label: 'Foul led to free-kick goal' },
+    { code: 'penalty_miss', label: 'Penalty miss' }, { code: 'own_goal', label: 'Own goal' }, { code: 'yellow_card', label: 'Yellow card' }, { code: 'red_card', label: 'Red card' },
+  ];
+  const pts = (code: string, p: Pos) => {
+    const r = rules.scoring.find((x) => x.rule_code === code && x.position === p) ?? rules.scoring.find((x) => x.rule_code === code && x.position == null);
+    return r ? Number(r.points) : null;
+  };
+  const fmt = (n: number | null) => (n == null ? '—' : n > 0 ? `+${n}` : String(n));
+  const g = rules.game;
+  return (
+    <div className="space-y-4 text-sm">
+      <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-2 overflow-x-auto">
+        <h2 className="font-medium text-ink-700">FanTeam points</h2>
+        <table className="w-full" data-testid="fanteam-scoring">
+          <thead><tr className="text-xs text-ink-500 text-left"><th className="py-1">Event</th>{POSS.map((p) => <th key={p} className="py-1 text-right w-12">{p}</th>)}</tr></thead>
+          <tbody>
+            {ORDER.filter((o) => rules.scoring.some((r) => r.rule_code === o.code)).map((o) => (
+              <tr key={o.code} className="border-t border-chalk-200">
+                <td className="py-1">{o.label}</td>
+                {POSS.map((p) => { const v = pts(o.code, p); return <td key={p} className={`py-1 text-right tabular-nums ${v != null && v < 0 ? 'text-red-700' : ''}`}>{fmt(v)}</td>; })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-xs text-ink-500">No bonus points or defensive contributions. A scoring shot isn't also a shot on target; woodwork isn't on target. Only regular and injury time count. Source: <a className="underline" href={g.source_url} target="_blank" rel="noreferrer">FanTeam scoring rules</a>, checked {g.verified_at}.</p>
+      </section>
+
+      <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-1">
+        <h2 className="font-medium text-ink-700">This contest</h2>
+        <ul className="space-y-1">
+          <li>11 players: 1 GK, {g.xi_min.DEF}–{g.xi_max.DEF} DEF, {g.xi_min.MID}–{g.xi_max.MID} MID, {g.xi_min.FWD}–{g.xi_max.FWD} FWD; max {g.max_per_club} per club</li>
+          <li>Budget £{f1(paste?.budget_m ?? Number(g.budget_m))}m{paste ? ` (from the ${paste.contest_name ?? 'latest'} upload)` : ''}</li>
+          <li>Captain ×{Number(g.captain_multiplier)}; vice-captain ×{Number(g.captain_multiplier)} if the captain doesn't play</li>
+          <li>Stacking penalty {paste ? (paste.stacking_penalty ? 'on' : 'off') : 'per contest'}: 2nd, 3rd, 4th+ GK/DEF from a club that keeps a clean sheet lose 1, 2, 3</li>
+          <li>Safety net {paste ? (paste.safety_net ? 'on' : 'off') : 'per contest'}: a non-starter is swapped for a same-club, same-position player at the same or lower price</li>
+        </ul>
+      </section>
+
+      <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-2">
+        <h2 className="font-medium text-ink-700">How the projections are built</h2>
+        <p>From FixtureShark's FPL projections for each fixture (start and sub chances, exit minutes, xG, xA, clean sheet, saves) and the market's team goals, scored with the table above using FanTeam's position for each player.</p>
+        <table className="w-full">
+          <tbody>
+            {BREAKDOWN_ROWS.map((r) => (
+              <tr key={r.key} className="border-t border-chalk-200 align-top"><td className="py-1 pr-3 whitespace-nowrap">{r.label}</td><td className="py-1 text-ink-700">{r.how}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-xs text-ink-500">Shots on target and impact are estimates. Caused-penalty and free-kick fouls are left out. FanTeam's injured or suspended players score 0.</p>
+      </section>
     </div>
   );
 }
@@ -463,5 +589,118 @@ function HealthTab({ h, rules }: { h: ReturnType<typeof health>; rules: { game: 
         <p>Estimates: shots on target ({SOT_PER_XG} per expected goal, league average); impact (win/loss chance from team goals, scaled by expected minutes); full match uses the 85+ minute exit band; caused-penalty and scoring-free-kick fouls are left out.</p>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fix cards: built for a phone. Nothing is saved until a button is pressed,
+// and leaving a player out needs a second tap.
+// ---------------------------------------------------------------------------
+
+const BTN = 'min-h-11 px-4 rounded text-sm font-medium disabled:opacity-40';
+
+function PlayerFixCard({ v, refs, onSaved }: { v: PlayerView; refs: FplRef[]; onSaved: () => Promise<void> }) {
+  const [choice, setChoice] = useState('');
+  const [confirmOut, setConfirmOut] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const POS_ET: Record<Pos, number> = { GK: 1, DEF: 2, MID: 3, FWD: 4 };
+  // Same position first, then by surname.
+  const options = refs.filter((r) => r.team_id === v.team_id)
+    .sort((a, b) => Number(b.element_type === POS_ET[v.pos]) - Number(a.element_type === POS_ET[v.pos]) || a.second_name.localeCompare(b.second_name));
+  const save = async (code: number | null) => {
+    setBusy(true); setErr(null);
+    try { await setPlayerFix(nameKey(v.name), v.team_id!, code); await onSaved(); }
+    catch (e) { setErr(errText(e)); setBusy(false); }
+  };
+  return (
+    <div className="border border-chalk-300 rounded-lg p-3 space-y-2" data-testid="fix-card">
+      <div>
+        <p className="font-medium text-ink-900">{v.name}</p>
+        <p className="text-xs text-ink-500">{v.team_name} · {v.pos} · £{f1(v.price)}m{v.lineup ? ` · ${v.lineup}` : ''}</p>
+      </div>
+      <label className="block text-sm">
+        <span className="sr-only">FPL player for {v.name}</span>
+        <select className="w-full min-h-11 border border-chalk-300 rounded px-2 text-base bg-white" value={choice}
+          onChange={(e) => { setChoice(e.target.value); setConfirmOut(false); }}>
+          <option value="">Choose the FPL player…</option>
+          {options.map((r) => <option key={r.fpl_code} value={r.fpl_code}>{r.web_name} — {r.first_name} {r.second_name}</option>)}
+        </select>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button className={`${BTN} bg-emerald-700 text-white`} disabled={!choice || busy} onClick={() => save(Number(choice))}>Save match</button>
+        {!confirmOut
+          ? <button className={`${BTN} border border-chalk-300`} disabled={busy} onClick={() => { setConfirmOut(true); setChoice(''); }}>Not in FPL…</button>
+          : (
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-ink-700">Leave {v.name} out?</span>
+              <button className={`${BTN} bg-red-700 text-white`} disabled={busy} onClick={() => save(null)}>Yes, leave out</button>
+              <button className={`${BTN} border border-chalk-300`} disabled={busy} onClick={() => setConfirmOut(false)}>Cancel</button>
+            </span>
+          )}
+      </div>
+      {err && <p className="text-sm text-red-700">{err}</p>}
+    </div>
+  );
+}
+
+function ClubFixCard({ club, teams, onSaved }: { club: string; teams: TeamRef[]; onSaved: () => Promise<void> }) {
+  const [choice, setChoice] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="border border-chalk-300 rounded-lg p-3 space-y-2">
+      <p className="font-medium text-ink-900">{club || '(blank)'}</p>
+      <select className="w-full min-h-11 border border-chalk-300 rounded px-2 text-base bg-white" value={choice} onChange={(e) => setChoice(e.target.value)}>
+        <option value="">Choose the club…</option>
+        {teams.map((t) => <option key={t.team_id} value={t.team_id}>{t.team_name}</option>)}
+      </select>
+      <button className={`${BTN} bg-emerald-700 text-white`} disabled={!choice || busy}
+        onClick={async () => { setBusy(true); await setClubFix(norm(club), Number(choice)); await onSaved(); }}>Save club</button>
+    </div>
+  );
+}
+
+/** Every saved fix, with Undo (the player goes back to automatic matching). */
+function SavedFixes({ views, manual, refs, teams, onSaved }: {
+  views: PlayerView[]; manual: { players: Map<string, number | null>; clubs: Map<string, number> };
+  refs: FplRef[]; teams: TeamRef[]; onSaved: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const players = [...manual.players].map(([k, code]) => {
+    const [key, team] = [k.slice(0, k.lastIndexOf('|')), Number(k.slice(k.lastIndexOf('|') + 1))];
+    const v = views.find((x) => nameKey(x.name) === key && x.team_id === team);
+    const ref = code != null ? refs.find((r) => r.fpl_code === code) : undefined;
+    return { k, key, team, name: v?.name ?? key, club: teams.find((t) => t.team_id === team)?.team_name ?? String(team),
+      to: code == null ? 'Not in FPL' : ref ? `${ref.web_name} (${ref.first_name} ${ref.second_name})` : `FPL ${code}` };
+  });
+  const clubs = [...manual.clubs].map(([k, id]) => ({ k, to: teams.find((t) => t.team_id === id)?.team_name ?? String(id) }));
+  const n = players.length + clubs.length;
+  if (n === 0) return null;
+  const undo = async (id: string, fn: () => Promise<void>) => { setBusy(id); try { await fn(); await onSaved(); } finally { setBusy(null); } };
+  return (
+    <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-2" data-testid="fanteam-saved-fixes">
+      <button className="text-sm font-medium text-ink-700 py-1" onClick={() => setOpen(!open)}>
+        Saved fixes ({n}) {open ? '▴' : '▾'}
+      </button>
+      {open && (
+        <ul className="divide-y divide-chalk-200">
+          {players.map((p) => (
+            <li key={p.k} className="flex items-center justify-between gap-2 py-2">
+              <span className="text-sm min-w-0"><span className="font-medium">{p.name}</span> <span className="text-ink-500">({p.club})</span><br />→ {p.to}</span>
+              <button className={`${BTN} border border-chalk-300 shrink-0`} disabled={busy === p.k}
+                onClick={() => undo(p.k, () => deletePlayerFix(p.key, p.team))}>Undo</button>
+            </li>
+          ))}
+          {clubs.map((c) => (
+            <li key={c.k} className="flex items-center justify-between gap-2 py-2">
+              <span className="text-sm min-w-0"><span className="font-medium">{c.k}</span> → {c.to}</span>
+              <button className={`${BTN} border border-chalk-300 shrink-0`} disabled={busy === c.k}
+                onClick={() => undo(c.k, () => deleteClubFix(c.k))}>Undo</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

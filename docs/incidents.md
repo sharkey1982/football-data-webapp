@@ -12,6 +12,14 @@ fixing something else.
 
 ---
 
+## 2026-10-05 · FanTeam: fix list unusable on a phone; two players set to "Not in FPL" by mistake; safety-net value too low
+- **Impact:** on a phone, the unmatched-players list saved on every change of a dropdown, so Savinho (Tottenham) and Gabriel Slonina (Chelsea) were set to "Not in FPL" by accident, and there was no way to undo it from the page. Separately, a player with no cheaper same-club team-mate was valued lower with the safety net than without it (Haaland 5.59 vs 5.94 in the test data), which would have under-rated such players in safety-net contests.
+- **Cause:** the fix list was designed for a desktop (fixed widths, save-on-change, "Not in FPL" as the first option); it was never checked at phone size. The safety-net formula dropped a non-starter's own bench points when no replacement was available, though FanTeam keeps the original player then.
+- **Fix:** fix cards with a full-width list, nothing saved until "Save match", "Not in FPL" behind a confirm tap, a Saved fixes list with Undo; non-starters FanTeam doesn't expect to play folded away. Safety-net value now includes the original's bench points when no replacement starts. Migration `20261005190000_fanteam_fix_accidental_maps` sets Savinho to FPL's Sávio and removes the Slonina setting (writes from Claude's session are cancelled before approval, so it is applied by the GitHub workflow).
+- **Prevention:** browser check at 390×844 (phone) covering cancel, choose-without-saving, save, undo and confirm, plus a no-sideways-scroll check; unit tests for the no-replacement safety net.
+
+---
+
 ## 2026-10-05 · FanTeam: price-paste parser bugs caught before release; migration timestamp clash
 - **Impact:** none shipped. Found while building `/admin/fanteam`: (1) a club name inside a player's name ("Test ArsenalGK0", "Arsenal Tierney") was taken as the club, or the club text was cut out of the name, so players went unmatched; (2) names containing a digit were dropped; (3) a player deliberately marked "Not in FPL" still counted as unmatched and blocked the optimiser; (4) the first migration file reused timestamp `20261004230000`, already taken by a tennis migration on main.
 - **Cause:** (1) club lookup accepted any containment and token removal replaced the first substring match; (2) an over-strict "no digits" name filter; (3) the status check didn't distinguish a decision from a gap; (4) the branch was cut from a stale shallow clone.

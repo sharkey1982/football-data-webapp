@@ -39,6 +39,10 @@ export type PlayerView = {
   perMillion: number;
   pCleanSheet: number;
   breakdown: PointsBreakdown | null;
+  /** Projection inputs behind the points (summed over a double gameweek). */
+  inputs: { xMin: number; xG: number; xA: number; pSub: number; pFull: number | null } | null;
+  /** Safety-net replacement value (expected points if he doesn't start), when the contest has one. */
+  netReplacement: number | null;
 };
 
 export type Status = 'Fresh' | 'Stale' | 'Incomplete' | 'Broken';
@@ -87,12 +91,15 @@ export function buildPlayers(
     const lineup = row.lineup_status ? row.lineup_status.toLowerCase() : null;
     const out = lineup != null && OUT_STATUSES.has(lineup);
     const fx = m.fpl_code != null ? byCode.get(m.fpl_code) ?? [] : [];
-    let total = 0, ifStart = 0, s = 0, pcs = 0;
+    let total = 0, ifStart = 0, s = 0, pcs = 0, xMin = 0, xG = 0, xA = 0, pSub = 0;
+    let pFull: number | null = null;
     const bd: PointsBreakdown = { ...ZERO };
     for (const f of fx) {
       const e = expectedPoints(scoring, row.position, f);
       total += e.total; ifStart += e.ifStart; s = Math.max(s, e.startProbability); pcs = Math.max(pcs, e.pCleanSheet60);
       for (const k of Object.keys(bd) as (keyof PointsBreakdown)[]) bd[k] += e.breakdown[k];
+      xMin += f.expected_minutes; xG += f.expected_goals; xA += f.expected_assists;
+      pSub = Math.max(pSub, f.sub_appearance_probability); pFull = f.p_full ?? pFull;
     }
     // FanTeam says he won't play: no points, never a safety-net replacement.
     if (out) { total = 0; s = 0; pcs = 0; for (const k of Object.keys(bd) as (keyof PointsBreakdown)[]) bd[k] = 0; }
@@ -105,15 +112,21 @@ export function buildPlayers(
       opponents: fx.map((f) => `${f.opponent_name} (${f.is_home ? 'H' : 'A'})`).join(', '),
       fixtures: fx.length, s, ifStart, total, value: total, perMillion: 0, pCleanSheet: pcs,
       breakdown: fx.length ? bd : null,
+      inputs: fx.length ? { xMin, xG, xA, pSub, pFull } : null,
+      netReplacement: null,
     };
   });
 
   if (safetyNet) {
     const pool = views.filter((v) => v.team_id != null && v.fixtures > 0)
-      .map((v) => ({ key: v.key, team_id: v.team_id!, pos: v.pos, price: v.price, s: v.s, ifStart: v.ifStart }));
+      .map((v) => ({ key: v.key, team_id: v.team_id!, pos: v.pos, price: v.price, s: v.s, ifStart: v.ifStart, total: v.total }));
     for (const v of views) {
       const me = pool.find((p) => p.key === v.key);
-      if (me && !v.out) v.value = safetyNetValue(me, pool).value;
+      if (me && !v.out) {
+        const sn = safetyNetValue(me, pool);
+        v.value = sn.value;
+        v.netReplacement = sn.replacementValue;
+      }
     }
   }
   for (const v of views) v.perMillion = v.price > 0 ? v.value / v.price : 0;

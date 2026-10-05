@@ -16,6 +16,7 @@ type Query = Result & {
   select: (cols: string) => Query; eq: (c: string, v: unknown) => Query; lt: (c: string, v: unknown) => Query;
   order: (c: string, o?: { ascending: boolean }) => Query; limit: (n: number) => Query;
   upsert: (v: Row) => Promise<{ error: Error | null }>;
+  delete: () => Query;
 };
 const db = supabase as unknown as {
   from: (t: string) => Query;
@@ -152,6 +153,17 @@ export async function getManualMaps(): Promise<{ players: Map<string, number | n
 
 export async function setPlayerFix(nameKey: string, teamId: number, fplCode: number | null): Promise<void> {
   const { error } = await db.from('fanteam_player_map').upsert({ name_key: nameKey, team_id: teamId, fpl_code: fplCode, set_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+/** Undo a saved player fix: the player goes back to automatic matching. */
+export async function deletePlayerFix(nameKey: string, teamId: number): Promise<void> {
+  const { error } = await db.from('fanteam_player_map').delete().eq('name_key', nameKey).eq('team_id', teamId);
+  if (error) throw error;
+}
+
+export async function deleteClubFix(clubKey: string): Promise<void> {
+  const { error } = await db.from('fanteam_club_map').delete().eq('club_key', clubKey);
   if (error) throw error;
 }
 
