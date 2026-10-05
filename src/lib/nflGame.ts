@@ -240,11 +240,16 @@ async function priorGames(franchise: string, game: NflGame): Promise<NflGame[]> 
   return (data ?? []) as unknown as NflGame[];
 }
 
-export async function loadNflGame(gameId: string): Promise<NflGamePreview | null> {
+/** `known` = the game row the linking page already has (Fixtures & Results
+ * passes it), saving a round trip before the history queries. */
+export async function loadNflGame(gameId: string, known?: NflGame): Promise<NflGamePreview | null> {
   if (!/^\d{4}_\d{2}_[A-Z]{2,3}_[A-Z]{2,3}$/.test(gameId)) return null;
-  const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('game_id', gameId);
-  if (error) throw error;
-  const game = ((data ?? []) as unknown as NflGame[])[0];
+  let game = known && known.game_id === gameId ? known : undefined;
+  if (!game) {
+    const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('game_id', gameId);
+    if (error) throw error;
+    game = ((data ?? []) as unknown as NflGame[])[0];
+  }
   if (!game) return null;
   const h = game.home_franchise;
   const a = game.away_franchise;

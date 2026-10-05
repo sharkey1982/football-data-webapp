@@ -12,16 +12,10 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import { mercator, milesBetween, type LatLon } from './geo';
+import { milesBetween, type LatLon } from './geo';
 
 export const LOCAL_CLUBS_PATH = '/football/local-clubs';
 export const TOP_TIERS = ['E0', 'E1', 'E2', 'E3', 'EC'];
-
-/** Position on public/maps/england-wales.svg (600 x 760): the d3-geo
- * geoMercator that drew it, fitted to England and Wales. */
-export const MAP_W = 600;
-export const MAP_H = 760;
-export const toMap = mercator(4326.17634433165, 449.12439193019645, 5116.52342795176);
 
 export type LocalClub = {
   teamId: number;
@@ -32,8 +26,6 @@ export type LocalClub = {
   lon: number;
   tier: number;
   league: string;
-  x: number;
-  y: number;
 };
 
 export type LocalClubsData = { season: number; clubs: LocalClub[] };
@@ -42,7 +34,7 @@ export type Place = LatLon & { label: string };
 
 export type NearbyClub = LocalClub & { miles: number };
 
-type GroundRow = { team_id: number; ground_name: string; latitude: number | string; longitude: number | string };
+type GroundRow = { team_id: number; ground_name: string; latitude: number | string; longitude: number | string; teams?: Omit<TeamRow, 'team_id'> | null };
 type TeamRow = { team_id: number; display_name: string | null; canonical_name: string; slug: string };
 type StandingRow = { team_id: number; league_name: string; tier: number; season_start_year: number };
 
@@ -53,12 +45,11 @@ export function buildLocalClubs(grounds: GroundRow[], teams: TeamRow[], standing
   const clubs: LocalClub[] = [];
   for (const g of grounds) {
     const s = now.get(g.team_id);
-    const t = team.get(g.team_id);
+    const t = team.get(g.team_id) ?? (g.teams ? { team_id: g.team_id, ...g.teams } : undefined);
     if (!s || !t) continue;
     const lat = Number(g.latitude);
     const lon = Number(g.longitude);
-    const { x, y } = toMap({ lat, lon });
-    clubs.push({ teamId: g.team_id, name: t.display_name ?? t.canonical_name, slug: t.slug, ground: g.ground_name, lat, lon, tier: s.tier, league: s.league_name, x, y });
+    clubs.push({ teamId: g.team_id, name: t.display_name ?? t.canonical_name, slug: t.slug, ground: g.ground_name, lat, lon, tier: s.tier, league: s.league_name });
   }
   clubs.sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name));
   return { season, clubs };
@@ -116,19 +107,17 @@ export async function lookupPostcode(raw: string, fetcher: typeof fetch = fetch)
 // ---- Loader (browser) ----------------------------------------------------------------
 
 export async function loadLocalClubs(): Promise<LocalClubsData> {
+  // One round trip: grounds with their club embedded, beside this season's divisions.
   const [grounds, standings] = await Promise.all([
-    supabase.from('club_grounds' as never).select('team_id,ground_name,latitude,longitude'),
+    supabase.from('club_grounds' as never).select('team_id,ground_name,latitude,longitude,teams(display_name,canonical_name,slug)'),
     supabase
       .from('league_standings' as never)
-      .select('team_id,league_name,tier,season_start_year,league_code')
+      .select('team_id,league_name,tier,season_start_year')
       .in('league_code', TOP_TIERS)
       .order('season_start_year', { ascending: false })
       .limit(200),
   ]);
   if (grounds.error) throw grounds.error;
   if (standings.error) throw standings.error;
-  const g = (grounds.data ?? []) as unknown as GroundRow[];
-  const teams = await supabase.from('teams' as never).select('team_id,display_name,canonical_name,slug').in('team_id', g.map((r) => r.team_id));
-  if (teams.error) throw teams.error;
-  return buildLocalClubs(g, (teams.data ?? []) as unknown as TeamRow[], (standings.data ?? []) as unknown as StandingRow[]);
+  return buildLocalClubs((grounds.data ?? []) as unknown as GroundRow[], [], (standings.data ?? []) as unknown as StandingRow[]);
 }
