@@ -1,7 +1,7 @@
 // Unit tests for the International visuals: bracket order, titles race,
 // competition filters and title lists.
 import { describe, it, expect } from 'vitest';
-import { leagueBreakdown, ageOn, pct, bracketRounds, matchesFilter, pointsForWin, titleList, titleText, titlesRace, TOURNAMENTS, type EditionSummary, type IntlMatch } from '../lib/intlStats';
+import { NOT_A_CLUB, leagueBreakdown, ageOn, pct, bracketRounds, matchesFilter, pointsForWin, titleList, titleText, titlesRace, TOURNAMENTS, type EditionSummary, type IntlMatch } from '../lib/intlStats';
 
 function g(key: string, stage: string, home: string, away: string, hs: number, as: number, date = '2024-07-01'): IntlMatch {
   return {
@@ -87,5 +87,11 @@ describe('where they play', () => {
   it('puts home first, then by count', () => {
     const b = leagueBreakdown([{ club_league_country: 'Spain' }, { club_league_country: 'England' }, { club_league_country: 'Spain' }, { club_league_country: null }, { club_league_country: 'Germany' }], 'England');
     expect(b).toEqual([{ country: 'England', n: 1, home: true }, { country: 'Spain', n: 2, home: false }, { country: 'Germany', n: 1, home: false }]);
+  });
+});
+
+describe('club call-ups', () => {
+  it('drops "Free agent" and "Unknown" from the clubs list', () => {
+    expect(['Free agent', 'Unknown', 'Unattached', 'Liverpool', 'Free Agent'].filter((c) => !NOT_A_CLUB.test(c))).toEqual(['Liverpool']);
   });
 });

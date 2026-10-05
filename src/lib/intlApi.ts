@@ -15,6 +15,7 @@ import {
   type EditionSummary,
   type IntlFixture,
   type IntlGoal,
+  NOT_A_CLUB,
   type ClubCallup,
   type ClubEloRow,
   type GroupOdds,
@@ -279,5 +280,5 @@ export async function loadIntlClubs(): Promise<IntlClubsData> {
     paged<SquadClubStrength>(() => intlView('intl_squad_club_strength', 'team,slug,confederation,players,at_home,abroad,rated,avg_club_elo,league_countries').order('team', { ascending: true })),
     rows<ClubEloRow>(intlView('intl_club_elo', 'club,country,level,elo,rank,club_slug,fetched_on,internationals').order('rank', { ascending: true }).limit(100)),
   ]);
-  return { clubs, leagues, strength, elo };
+  return { clubs: clubs.filter((c) => !NOT_A_CLUB.test(c.club.trim())), leagues, strength, elo };
 }

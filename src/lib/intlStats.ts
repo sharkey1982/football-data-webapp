@@ -450,3 +450,6 @@ export function bracketRounds(matches: IntlMatch[]): { code: string; games: Intl
   return out;
 }
 
+
+/** Squad tables list players without a club this way; they aren't clubs. */
+export const NOT_A_CLUB = /^(free agent|unattached|without (a )?club|no club|unknown|retired|n\/a|-)$/i;
