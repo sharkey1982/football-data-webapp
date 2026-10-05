@@ -1,0 +1,43 @@
+name: Tennis player details (Wikidata)
+
+# Country, date of birth and playing hand for tennis players, from Wikidata
+# (CC0) -- see scripts/tennis_people.py. Runs when the matcher changes, monthly
+# for new players and corrections, and by hand. Logs pipeline_runs
+# (tennis_people); fails if a player with 50+ matches in the last three
+# seasons can't be matched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Match and report only, write nothing
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: [scripts/tennis_people.py]
+  schedule:
+    - cron: '41 4 3 * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tennis-people
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Match and write
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/tennis_people.py ${{ inputs.dry_run && '--dry-run' || '' }}
