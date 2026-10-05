@@ -163,13 +163,13 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
 ];
 
 // ----------------------------------------------------------------------------
-// Other sports (Oct 2026: tennis). The same rule as LAYOUT_PAIRS, keyed by
+// Other sports (Oct 2026: tennis, international). The same rule as LAYOUT_PAIRS, keyed by
 // sport rather than written for the NFL only: every menu page of the sport's
 // theme is listed with its Football counterpart and what they share.
 // src/__tests__/layoutPairs.test.ts checks these too.
 // ----------------------------------------------------------------------------
 export type SportLayoutPair = {
-  sport: 'tennis';
+  sport: 'tennis' | 'international';
   label: string;
   /** The sport's route (as in journey.ts). */
   path: string;
@@ -240,5 +240,45 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     shared: [],
     status: 'separate',
     note: 'By tournament and week, not by match: the source has results only, so coming dates are "usually starts" (design A4) and there are no match times for WatchGuideView.',
+  },
+  {
+    sport: 'international',
+    label: 'Hub',
+    path: '/international',
+    footballFile: 'src/pages/FootballHub.tsx',
+    file: 'src/pages/international/IntlHub.tsx',
+    shared: ['ThemeHub'],
+    status: 'shared',
+    note: 'ThemeHub from the journey config; trivia has one question per International page, each linking to it.',
+  },
+  {
+    sport: 'international',
+    label: 'Fixtures & Results',
+    path: '/international/fixtures',
+    footballFile: 'src/pages/GameweekBrowser.tsx',
+    file: 'src/pages/international/IntlFixturesPage.tsx',
+    shared: ['FixtureCalendarHeatmap'],
+    status: 'partial',
+    note: 'Calendar shared; a day’s games by competition, or one nation’s results and fixtures (?team=), like NFL Fixtures & Results.',
+  },
+  {
+    sport: 'international',
+    label: 'Your Team',
+    path: '/international/teams',
+    footballFile: 'src/pages/TeamExplorer.tsx',
+    file: 'src/pages/international/IntlTeamsPage.tsx',
+    shared: [],
+    status: 'separate',
+    note: 'A sortable list of every nation (as NFL and tennis); each nation page holds the record, rating, tournament history and head-to-heads.',
+  },
+  {
+    sport: 'international',
+    label: 'Tournaments',
+    path: '/international/tournaments',
+    footballFile: 'src/pages/football/LeaguesPage.tsx',
+    file: 'src/pages/international/IntlTournamentsPage.tsx',
+    shared: [],
+    status: 'separate',
+    note: 'Football has league seasons where international football has tournaments: every edition, each with its groups, knockouts and scorers.',
   },
 ];

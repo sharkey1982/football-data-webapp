@@ -110,6 +110,12 @@ const TennisTournamentsPage = lazy(() => import('./pages/tennis/TennisTournament
 const TennisTournamentPage = lazy(() => import('./pages/tennis/TennisTournamentPage'));
 const TennisEditionPage = lazy(() => import('./pages/tennis/TennisEditionPage'));
 const TennisTvGuidePage = lazy(() => import('./pages/tennis/TennisTvGuidePage'));
+const IntlHub = lazy(() => import('./pages/international/IntlHub'));
+const IntlFixturesPage = lazy(() => import('./pages/international/IntlFixturesPage'));
+const IntlTeamsPage = lazy(() => import('./pages/international/IntlTeamsPage'));
+const IntlTeamPage = lazy(() => import('./pages/international/IntlTeamPage'));
+const IntlTournamentsPage = lazy(() => import('./pages/international/IntlTournamentsPage'));
+const IntlEditionPage = lazy(() => import('./pages/international/IntlEditionPage'));
 // The NFL section's first URLs (4 Oct 2026), moved the same day to match
 // Football's structure; netlify.toml 301s them too.
 function NflOldStandingsRedirect() {
@@ -926,6 +932,71 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <StagePage themeKey="tennis" />
+              </Suspense>
+            }
+          />
+          {/* International: the same hub -> stage -> page structure (journey.ts). */}
+          <Route
+            path="international"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlHub />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/fixtures"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlFixturesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/teams"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlTeamsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/teams/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlTeamPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/tournaments"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlTournamentsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/tournaments/:competition"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlTournamentsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/tournaments/:competition/:label"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlEditionPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/:stage"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <StagePage themeKey="international" />
               </Suspense>
             }
           />

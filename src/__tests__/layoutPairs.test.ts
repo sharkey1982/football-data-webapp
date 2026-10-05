@@ -39,10 +39,10 @@ describe('layout pairs (consistent page layouts across sports)', () => {
 });
 
 describe('sport layout pairs (tennis and later sports)', () => {
-  it('lists every tennis menu page and the hub', () => {
-    const listed = new Set(SPORT_LAYOUT_PAIRS.filter((p) => p.sport === 'tennis').map((p) => p.path));
-    const menu = THEMES.tennis.stages.flatMap((s) => s.links.map((l) => l.to));
-    for (const to of [THEMES.tennis.hubPath, ...menu]) expect(listed, `${to} is not in SPORT_LAYOUT_PAIRS`).toContain(to);
+  it.each(['tennis', 'international'] as const)('lists every %s menu page and the hub', (sport) => {
+    const listed = new Set(SPORT_LAYOUT_PAIRS.filter((p) => p.sport === sport).map((p) => p.path));
+    const menu = THEMES[sport].stages.flatMap((s) => s.links.map((l) => l.to));
+    for (const to of [THEMES[sport].hubPath, ...menu]) expect(listed, `${to} is not in SPORT_LAYOUT_PAIRS`).toContain(to);
   });
 
   it.each(SPORT_LAYOUT_PAIRS.map((p) => [`${p.sport}: ${p.label}`, p] as const))('%s: both pages exist and use the shared components', (_label, p) => {
