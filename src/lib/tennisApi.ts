@@ -12,6 +12,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import type { RatingRow } from './tennisModel';
 import { eventRows, eventSummary, finalLite, type CalendarRow, type EventRow, type EventSummary, type FinalLite, type TennisEdition, type TennisEvent } from './tennisEvents';
 import {
   FIRST_YEAR,
@@ -34,6 +35,7 @@ export const TENNIS_PLAYERS_PATH = '/tennis/players';
 export const TENNIS_SEASONS_PATH = '/tennis/seasons';
 export const TENNIS_TOURNAMENTS_PATH = '/tennis/tournaments';
 export const TENNIS_TV_GUIDE_PATH = '/tennis/tv-guide';
+export const TENNIS_H2H_PATH = '/tennis/head-to-head';
 
 const withTour = (path: string, tour: Tour, extra = '') => (tour === 'ATP' && !extra ? path : `${path}?tour=${tourParam(tour)}${extra}`);
 export const tennisResultsPath = (tour: Tour = 'ATP', date?: string) => withTour(TENNIS_RESULTS_PATH, tour, date ? `&date=${date}` : '');
@@ -43,6 +45,14 @@ export const tennisPlayerPath = (tour: Tour, slug: string) => `${TENNIS_PLAYERS_
 export const tennisSeasonPath = (tour: Tour, year: number) => `${TENNIS_SEASONS_PATH}/${tourParam(tour)}/${year}`;
 export const tennisTournamentsPath = (tour: Tour = 'ATP') => withTour(TENNIS_TOURNAMENTS_PATH, tour);
 export const tennisEventPath = (tour: Tour, slug: string) => `${TENNIS_TOURNAMENTS_PATH}/${tourParam(tour)}/${slug}`;
+export const tennisH2HPath = (tour: Tour = 'ATP', a?: string, b?: string) => {
+  const q = new URLSearchParams();
+  if (tour !== 'ATP') q.set('tour', tourParam(tour));
+  if (a) q.set('a', a);
+  if (b) q.set('b', b);
+  const s = q.toString();
+  return s ? `${TENNIS_H2H_PATH}?${s}` : TENNIS_H2H_PATH;
+};
 export const tennisEditionPath = (tour: Tour, slug: string, year: number) => `${tennisEventPath(tour, slug)}/${year}`;
 
 export const MATCH_COLUMNS =
@@ -71,7 +81,7 @@ export type TennisQuery = PromiseLike<{ data: unknown[] | null; error: unknown }
   limit(n: number): TennisQuery;
   range(from: number, to: number): TennisQuery;
 };
-export type TennisViewName = 'tennis_matches' | 'tennis_players' | 'tennis_events' | 'tennis_editions' | 'tennis_calendar';
+export type TennisViewName = 'tennis_matches' | 'tennis_players' | 'tennis_events' | 'tennis_editions' | 'tennis_calendar' | 'tennis_ratings' | 'tennis_match_model' | 'tennis_model_record';
 export const tennisView = (view: TennisViewName, columns: string): TennisQuery =>
   (supabase.from(view as never) as unknown as { select(columns: string): TennisQuery }).select(columns);
 
@@ -241,4 +251,40 @@ export async function loadTennisGuide(today = new Date().toISOString().slice(0, 
   ]);
   const latestDate = recent.reduce<string | null>((a, e) => (a == null || e.end_date > a ? e.end_date : a), null);
   return { calendar, recent, latestDate };
+}
+
+// ---------------------------------------------------------------------------
+// Head to head and the match model (5 Oct 2026)
+// ---------------------------------------------------------------------------
+export const RATING_COLUMNS = 'player_id,surface,rating,matches,latest_rank,last_match';
+export type TennisH2HData = {
+  tour: Tour;
+  a: TennisPlayer;
+  b: TennisPlayer;
+  ratingsA: RatingRow[];
+  ratingsB: RatingRow[];
+  meetings: TennisMatch[];
+  /** The model's pre-match chance for the winner of each meeting, by source_key. */
+  modelP: Record<string, number>;
+};
+
+async function playerBySlug(tour: Tour, slug: string): Promise<TennisPlayer | null> {
+  const { data, error } = await tennisView('tennis_players', PLAYER_COLUMNS).eq('tour', tour).eq('slug', slug).limit(1);
+  if (error) throw error;
+  return ((data ?? []) as TennisPlayer[])[0] ?? null;
+}
+
+export async function loadTennisH2H(tour: Tour, slugA: string, slugB: string): Promise<TennisH2HData | null> {
+  const [a, b] = await Promise.all([playerBySlug(tour, slugA), playerBySlug(tour, slugB)]);
+  if (!a || !b || a.player_id === b.player_id) return null;
+  const [ratings, meetings] = await Promise.all([
+    pagedView<RatingRow>('tennis_ratings', RATING_COLUMNS, (q) => q.in('player_id', [a.player_id, b.player_id]), 'player_id'),
+    pagedMatches((q) => q.eq('tour', tour).or(`and(winner_id.eq.${a.player_id},loser_id.eq.${b.player_id}),and(winner_id.eq.${b.player_id},loser_id.eq.${a.player_id})`)),
+  ]);
+  const modelP: Record<string, number> = {};
+  if (meetings.length) {
+    const rows = await pagedView<{ source_key: string; p_winner: number | null }>('tennis_match_model', 'source_key,p_winner', (q) => q.in('source_key', meetings.map((m) => m.source_key)), 'source_key');
+    for (const r of rows) if (r.p_winner != null) modelP[r.source_key] = r.p_winner;
+  }
+  return { tour, a, b, ratingsA: ratings.filter((r) => r.player_id === a.player_id), ratingsB: ratings.filter((r) => r.player_id === b.player_id), meetings, modelP };
 }

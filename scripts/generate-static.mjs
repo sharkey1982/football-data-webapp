@@ -564,6 +564,25 @@ async function main() {
           attempt(`player ${tour} ${p.slug}`, () => entry.renderTennisPlayerPage(entry.buildTennisPlayer(p, byPlayer.get(p.player_id) ?? [])));
         }
       }
+      // Head to head (ATP default pair): the page itself; other pairs load in the browser.
+      try {
+        const [a, b] = entry.TENNIS_DEFAULT_PAIR.ATP;
+        const pl = await query(`tennis_players?select=${entry.TENNIS_PLAYER_COLUMNS}&tour=eq.ATP&slug=in.(${a},${b})`);
+        const pa = pl?.find((p) => p.slug === a);
+        const pb = pl?.find((p) => p.slug === b);
+        if (pa && pb) {
+          const ratings = await query(`tennis_ratings?select=${entry.TENNIS_RATING_COLUMNS}&player_id=in.(${pa.player_id},${pb.player_id})`);
+          const meetings = await queryAll(`tennis_matches?select=${entry.TENNIS_MATCH_COLUMNS}&tour=eq.ATP&or=(and(winner_id.eq.${pa.player_id},loser_id.eq.${pb.player_id}),and(winner_id.eq.${pb.player_id},loser_id.eq.${pa.player_id}))&order=match_date.asc`);
+          const keys = (meetings ?? []).map((m) => `"${m.source_key}"`).join(',');
+          const model = keys ? await query(`tennis_match_model?select=source_key,p_winner&source_key=in.(${encodeURIComponent(keys)})`) : [];
+          if (ratings && meetings) {
+            const modelP = Object.fromEntries((model ?? []).filter((r) => r.p_winner != null).map((r) => [r.source_key, r.p_winner]));
+            attempt('head to head', () => entry.renderTennisH2HPage({ tour: 'ATP', a: pa, b: pb, ratingsA: ratings.filter((r) => r.player_id === pa.player_id), ratingsB: ratings.filter((r) => r.player_id === pb.player_id), meetings, modelP }));
+          }
+        }
+      } catch (err) {
+        console.error(`Static: failed tennis head to head: ${err?.message ?? err}`);
+      }
       // TV guide (both tours): as at build day; the page refetches on a later day.
       const today = new Date().toISOString().slice(0, 10);
       const since = new Date(Date.now() - 21 * 86400000).toISOString().slice(0, 10);

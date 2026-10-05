@@ -130,6 +130,8 @@ import TennisTournamentsPage from './pages/tennis/TennisTournamentsPage';
 import TennisTournamentPage from './pages/tennis/TennisTournamentPage';
 import TennisEditionPage from './pages/tennis/TennisEditionPage';
 import TennisTvGuidePage from './pages/tennis/TennisTvGuidePage';
+import TennisH2HPage from './pages/tennis/TennisH2HPage';
+import { h2hSentence as tennisH2HSentence, h2hSummary as tennisH2HSummary } from './lib/tennisH2H';
 import { editionSentence as tennisEditionSentence, eventSentence as tennisEventSentence, guideGroups as tennisGuideGroups, guideSentence as tennisGuideSentence, tournamentsSentence as tennisTournamentsSentence } from './lib/tennisEvents';
 import {
   TENNIS_HUB_PATH,
@@ -138,6 +140,8 @@ import {
   TENNIS_SEASONS_PATH,
   TENNIS_TOURNAMENTS_PATH,
   TENNIS_TV_GUIDE_PATH,
+  TENNIS_H2H_PATH,
+  type TennisH2HData,
   tennisEditionPath,
   tennisEventPath,
   tennisPlayerPath,
@@ -162,6 +166,7 @@ export {
   EVENT_COLUMNS as TENNIS_EVENT_COLUMNS,
   EDITION_COLUMNS as TENNIS_EDITION_COLUMNS,
   CALENDAR_COLUMNS as TENNIS_CALENDAR_COLUMNS,
+  RATING_COLUMNS as TENNIS_RATING_COLUMNS,
   tennisEditionPath,
   tennisEventPath,
   resultsWindow as tennisResultsWindow,
@@ -171,6 +176,7 @@ export {
 } from './lib/tennisApi';
 export { STATIC_PLAYER_MIN as TENNIS_STATIC_PLAYER_MIN, seasonIndex as tennisSeasonIndex, seasonSummary as tennisSeasonSummary } from './lib/tennisStats';
 export { eventSummary as tennisEventSummary } from './lib/tennisEvents';
+export { DEFAULT_PAIR as TENNIS_DEFAULT_PAIR } from './lib/tennisModel';
 
 export type RenderedPage = {
   html: string;
@@ -921,6 +927,17 @@ export function renderTennisTvGuidePage(data: TennisGuideData, today: string): R
     description: tennisGuideSentence(tennisGuideGroups(data.calendar, data.recent, today)),
     canonical: `${SITE_URL}${TENNIS_TV_GUIDE_PATH}`,
     structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'TV Guide', path: TENNIS_TV_GUIDE_PATH }])],
+  };
+}
+
+export function renderTennisH2HPage(data: TennisH2HData): RenderedPage {
+  const s = tennisH2HSummary(data.meetings, data.a.player_id, data.b.player_id);
+  return {
+    html: nflPage(TENNIS_H2H_PATH, TENNIS_H2H_PATH, <TennisH2HPage initialData={data} />),
+    title: `Tennis head to head and match predictor: ${data.a.name} v ${data.b.name} | ${BRAND_NAME}`,
+    description: `${tennisH2HSentence(data.a.name, data.b.name, s)} Compare any two players and see who the model makes favourite on each surface.`,
+    canonical: `${SITE_URL}${TENNIS_H2H_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Head to head', path: TENNIS_H2H_PATH }])],
   };
 }
 
