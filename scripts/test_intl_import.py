@@ -170,3 +170,18 @@ def test_fixture_feed_unknown_team_fails():
     results = res(("2024-11-17", "England", "Spain", "5", "0", "Friendly", "London", "England", "FALSE"))
     with pytest.raises(ii.ImportCheckFailed):
         ii.build(src(results, nl_feed=[feed_row(1, "England", "Atlantis", "A3")]))
+
+
+def test_venue_fix_and_hosts():
+    # Euro 2020: Wales v Switzerland was in Baku (the file says Cardiff); hosts are every venue country.
+    results = res(("2021-06-12", "Wales", "Switzerland", "1", "1", "UEFA Euro", "Cardiff", "Wales", "FALSE"),
+                  ("2021-06-13", "Austria", "North Macedonia", "3", "1", "UEFA Euro", "Bucharest", "Romania", "TRUE"))
+    doc = {"matches": [
+        {"round": "Matchday 1", "group": "Group A", "date": "2021-06-12", "team1": "Wales", "team2": "Switzerland", "score": {"ft": [1, 1]}},
+        {"round": "Matchday 1", "group": "Group C", "date": "2021-06-13", "team1": "Austria", "team2": "North Macedonia", "score": {"ft": [3, 1]}},
+    ]}
+    b = ii.build(src(results, euro={"2020": doc}))
+    m = next(x for x in b.matches if x["home_team"] == "Wales")
+    assert (m["city"], m["country"], m["neutral"]) == ("Baku", "Azerbaijan", True)
+    assert m["raw"]["city"] == "Cardiff"
+    assert b.editions[0]["hosts"] == ["Azerbaijan", "Romania"]

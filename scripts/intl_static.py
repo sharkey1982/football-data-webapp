@@ -147,6 +147,14 @@ COIN_TOSSES = {"1968-06-05|Italy|Russia": "Italy"}   # Euro 1968 semi-final
 # the third-place play-off.
 STAGE_OVERRIDES = {"1980-06-21|Italy|Czechoslovakia": "3P", "1980-06-22|Belgium|Germany": "F"}
 
+# Venue corrections to the results file, each checked against the match
+# report. The key is the match key; the value replaces city, country and
+# neutral. The raw source row is kept unchanged.
+VENUE_FIXES = {
+    # Euro 2020 group A, played at the Baku Olympic Stadium (the file has Cardiff).
+    "2021-06-12|Wales|Switzerland": ("Baku", "Azerbaijan", True),
+}
+
 # CONMEBOL has no qualifying competition in the results to infer it from.
 CONMEBOL = {"Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador",
             "Paraguay", "Peru", "Uruguay", "Venezuela"}

@@ -4,7 +4,7 @@ name: International import (results, tournaments, Nations League fixtures)
 # from the football, NFL and tennis imports on purpose. 06:30 UTC: after the
 # NFL import and before the 07:00 FPL run rebuilds the site. Also runs after
 # each successful "Apply database migrations" run, so the first load follows
-# the schema straight away. Runs the unit tests first, so a broken parser
+# the schema straight away, and on any change to the importer. Runs the unit tests first, so a broken parser
 # never writes. Writes a pipeline_runs row (job_name intl_import).
 
 on:
@@ -13,6 +13,10 @@ on:
   workflow_run:
     workflows: ['Apply database migrations']
     types: [completed]
+  # An importer change reloads at once rather than at 06:30.
+  push:
+    branches: [main]
+    paths: ['scripts/intl_import.py', 'scripts/intl_static.py']
   workflow_dispatch:
     inputs:
       dry_run:
