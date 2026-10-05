@@ -4,12 +4,14 @@
 // /tennis/seasons -- "Past seasons", as in Football and NFL: every season on
 // a tour with its Grand Slam champions and the player with the most titles,
 // each linking to that season's page. ?tour=wta for the WTA. Static (ATP).
+// Phase 3: the title and Grand Slam races with From/To seasons (TitleRaces).
 // ============================================================================
 
 import { Link, useSearchParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { PlayerLink, TennisHeader } from '../../components/tennis/TennisBits';
 import TourToggle from '../../components/tennis/TourToggle';
+import TitleRaces from '../../components/tennis/TitleRaces';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { TENNIS_SEASONS_PATH, loadTennisSeasonIndex, tennisSeasonPath, tennisSeasonsPath, type TennisSeasonIndexData } from '../../lib/tennisApi';
@@ -66,6 +68,7 @@ export default function TennisSeasonsPage({ initialData }: { initialData?: Tenni
       {data && (
         <>
           <p className="text-ink-900 max-w-prose" data-testid="tennis-seasons-story">{seasonsSentence(tour, data.rows)}</p>
+          {data.finals && data.finals.length > 0 && <TitleRaces tour={tour} finals={data.finals} />}
           <SortableTable columns={columns} rows={data.rows} rowKey={(r) => String(r.year)} initialSort={{ key: 'year', dir: 'desc' }} caption={`${tour} seasons`} testId="tennis-seasons-table" />
           <p className="text-xs text-ink-500">{DATA_NOTE}</p>
         </>

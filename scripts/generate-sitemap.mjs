@@ -222,7 +222,7 @@ async function main() {
   // (the ones the static build writes; the rest are noindex).
   counts.tennis = 0;
   if (mod?.tennisSeasonPath) {
-    for (const p of ['/tennis/results', '/tennis/players', '/tennis/seasons']) {
+    for (const p of ['/tennis/results', '/tennis/players', '/tennis/seasons', '/tennis/tournaments', '/tennis/tv-guide']) {
       if (!staticPaths.includes(p)) { entries.push(urlEntry(p, null)); counts.tennis++; }
     }
     for (const tour of ['ATP', 'WTA']) {
@@ -230,6 +230,11 @@ async function main() {
       if (latest != null) for (const y of mod.tennisYears(tour, latest)) { entries.push(urlEntry(mod.tennisSeasonPath(tour, y), null)); counts.tennis++; }
       const players = (await query(`tennis_players?select=slug&tour=eq.${tour}&recent_matches=gte.${mod.TENNIS_STATIC_PLAYER_MIN}&order=slug.asc`)) ?? [];
       for (const p of players) { entries.push(urlEntry(mod.tennisPlayerPath(tour, p.slug), null)); counts.tennis++; }
+      // Phase 3: every tournament, and the Grand Slam, Tour Finals and 1000 editions (the static ones).
+      const events = (await query(`tennis_events?select=slug&tour=eq.${tour}&order=slug.asc&limit=1000`)) ?? [];
+      for (const e of events) { entries.push(urlEntry(mod.tennisEventPath(tour, e.slug), null)); counts.tennis++; }
+      const big = (await query(`tennis_editions?select=event_slug,year&tour=eq.${tour}&level_rank=lte.3&order=event_slug.asc,year.asc&limit=1000`)) ?? [];
+      for (const e of big) { entries.push(urlEntry(mod.tennisEditionPath(tour, e.event_slug, e.year), null)); counts.tennis++; }
     }
   }
 

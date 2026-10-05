@@ -125,13 +125,26 @@ import TennisPlayersPage from './pages/tennis/TennisPlayersPage';
 import TennisPlayerPage from './pages/tennis/TennisPlayerPage';
 import TennisSeasonsPage from './pages/tennis/TennisSeasonsPage';
 import TennisSeasonPage from './pages/tennis/TennisSeasonPage';
+import TennisTournamentsPage from './pages/tennis/TennisTournamentsPage';
+import TennisTournamentPage from './pages/tennis/TennisTournamentPage';
+import TennisEditionPage from './pages/tennis/TennisEditionPage';
+import TennisTvGuidePage from './pages/tennis/TennisTvGuidePage';
+import { editionSentence as tennisEditionSentence, eventSentence as tennisEventSentence, guideGroups as tennisGuideGroups, guideSentence as tennisGuideSentence, tournamentsSentence as tennisTournamentsSentence } from './lib/tennisEvents';
 import {
   TENNIS_HUB_PATH,
   TENNIS_PLAYERS_PATH,
   TENNIS_RESULTS_PATH,
   TENNIS_SEASONS_PATH,
+  TENNIS_TOURNAMENTS_PATH,
+  TENNIS_TV_GUIDE_PATH,
+  tennisEditionPath,
+  tennisEventPath,
   tennisPlayerPath,
   tennisSeasonPath,
+  type TennisEditionData,
+  type TennisEventData,
+  type TennisGuideData,
+  type TennisTournamentsData,
   type TennisPlayerData,
   type TennisPlayersData,
   type TennisResultsData,
@@ -143,12 +156,20 @@ export {
   MATCH_COLUMNS as TENNIS_MATCH_COLUMNS,
   PLAYER_COLUMNS as TENNIS_PLAYER_COLUMNS,
   buildTennisPlayer,
+  buildSeasonIndex as buildTennisSeasonIndex,
+  buildTournaments as buildTennisTournaments,
+  EVENT_COLUMNS as TENNIS_EVENT_COLUMNS,
+  EDITION_COLUMNS as TENNIS_EDITION_COLUMNS,
+  CALENDAR_COLUMNS as TENNIS_CALENDAR_COLUMNS,
+  tennisEditionPath,
+  tennisEventPath,
   resultsWindow as tennisResultsWindow,
   tennisPlayerPath,
   tennisSeasonPath,
   tennisYears,
 } from './lib/tennisApi';
 export { STATIC_PLAYER_MIN as TENNIS_STATIC_PLAYER_MIN, seasonIndex as tennisSeasonIndex, seasonSummary as tennisSeasonSummary } from './lib/tennisStats';
+export { eventSummary as tennisEventSummary } from './lib/tennisEvents';
 
 export type RenderedPage = {
   html: string;
@@ -856,6 +877,49 @@ export function renderTennisSeasonPage(data: TennisSeasonData): RenderedPage {
     description: tennisSeasonSentence(data.summary),
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Past seasons', path: TENNIS_SEASONS_PATH }, { name: `${year} ${tour}`, path }])],
+  };
+}
+
+export function renderTennisTournamentsPage(data: TennisTournamentsData): RenderedPage {
+  return {
+    html: nflPage(TENNIS_TOURNAMENTS_PATH, TENNIS_TOURNAMENTS_PATH, <TennisTournamentsPage initialData={data} />),
+    title: `${data.tour} tournaments: champions, records and draws since ${TENNIS_FIRST_YEAR[data.tour]} | ${BRAND_NAME}`,
+    description: tennisTournamentsSentence(data),
+    canonical: `${SITE_URL}${TENNIS_TOURNAMENTS_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Tournaments', path: TENNIS_TOURNAMENTS_PATH }])],
+  };
+}
+
+export function renderTennisEventPage(data: TennisEventData): RenderedPage {
+  const path = tennisEventPath(data.event.tour, data.event.slug);
+  return {
+    html: nflPage(path, '/tennis/tournaments/:tour/:slug', <TennisTournamentPage initialData={data} />),
+    title: `${data.event.name} (${data.event.tour}): champions, records and draws | ${BRAND_NAME}`,
+    description: tennisEventSentence(data.event, data.summary),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Tournaments', path: TENNIS_TOURNAMENTS_PATH }, { name: data.event.name, path }])],
+  };
+}
+
+export function renderTennisEditionPage(data: TennisEditionData): RenderedPage {
+  const { event, edition } = data;
+  const path = tennisEditionPath(event.tour, event.slug, edition.year);
+  return {
+    html: nflPage(path, '/tennis/tournaments/:tour/:slug/:year', <TennisEditionPage initialData={data} />),
+    title: `${edition.name} ${edition.year}: draw, results and the road to the final | ${BRAND_NAME}`,
+    description: tennisEditionSentence(data),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Tournaments', path: TENNIS_TOURNAMENTS_PATH }, { name: event.name, path: tennisEventPath(event.tour, event.slug) }, { name: String(edition.year), path }])],
+  };
+}
+
+export function renderTennisTvGuidePage(data: TennisGuideData, today: string): RenderedPage {
+  return {
+    html: nflPage(TENNIS_TV_GUIDE_PATH, TENNIS_TV_GUIDE_PATH, <TennisTvGuidePage initialData={data} today={today} />),
+    title: `Tennis on TV in the UK: this week and next | ${BRAND_NAME}`,
+    description: tennisGuideSentence(tennisGuideGroups(data.calendar, data.recent, today)),
+    canonical: `${SITE_URL}${TENNIS_TV_GUIDE_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'TV Guide', path: TENNIS_TV_GUIDE_PATH }])],
   };
 }
 

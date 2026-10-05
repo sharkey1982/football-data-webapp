@@ -5,12 +5,16 @@
 // year, splits by surface, level and season, best wins (by opponent rank and
 // by odds) and latest matches. Static pages for players with 50+ matches in
 // the tour's last three seasons; everyone else client-side (noindex).
+// Phase 3: country, age and playing hand (Wikidata), and form by surface and
+// at each Grand Slam for chosen seasons (PlayerForm).
 // ============================================================================
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
+import { Country, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
+import PlayerForm from '../../components/tennis/PlayerForm';
+import { ageOn } from '../../lib/tennisEvents';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { loadTennisPlayer, tennisPlayerPath, tennisPlayersPath, tennisSeasonPath, type TennisPlayerData } from '../../lib/tennisApi';
@@ -95,6 +99,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
   return (
     <article className="space-y-6">
       <TennisHeader title={s?.name ?? 'Player'} crumb={{ to: tennisPlayersPath(tour), label: 'Your Player' }}>
+        {data && <PlayerBio player={data.player} />}
         {s && <p className="text-ink-900 max-w-prose" data-testid="tennis-player-story">{playerSentence(s)}</p>}
       </TennisHeader>
       {failed && <p className="text-ink-700">This player is unavailable right now.</p>}
@@ -122,6 +127,8 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
               {`: ${recordLabel(s.season.won, s.season.lost)}, ${s.season.titles} title${s.season.titles === 1 ? '' : 's'}.`}
             </p>
           )}
+
+          {data.matches && data.matches.length > 0 && <PlayerForm tour={tour} playerId={data.player.player_id} matches={data.matches} />}
 
           <Section title="Latest matches" id="tp-recent">
             <SortableTable columns={matchColumns(tour, data.player.player_id)} rows={s.recent} rowKey={(m) => m.source_key} testId="tennis-player-recent" />
@@ -154,9 +161,32 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
               <SortableTable columns={winColumns(tour)} rows={s.bestWinsByOdds} rowKey={(w) => w.match.source_key} empty="No odds recorded for these wins." />
             </Section>
           </div>
-          <p className="text-xs text-ink-500">{`Rankings are as at each match. Odds are the winner's pre-match average market price (Bet365 or Pinnacle before 2010). ${DATA_NOTE}`}</p>
+          <p className="text-xs text-ink-500">{`Rankings are as at each match. Odds are the winner's pre-match average market price (Bet365 or Pinnacle before 2010). ${DATA_NOTE}${data.player.wikidata_qid || data.player.country ? ' Player details: Wikidata (CC0).' : ''}`}</p>
         </>
       )}
     </article>
+  );
+}
+
+/** Full name, country, age and playing hand, when Wikidata has them. */
+function PlayerBio({ player }: { player: TennisPlayerData['player'] }) {
+  const today = new Date().toISOString().slice(0, 10);
+  // Not seen for a year: show age at the last match rather than today's.
+  const retired = player.last_match < new Date(Date.parse(`${today}T12:00:00Z`) - 365 * 86400000).toISOString().slice(0, 10);
+  const parts: React.ReactNode[] = [];
+  if (player.full_name && player.full_name !== player.name) parts.push(<span key="n" className="text-ink-900">{player.full_name}</span>);
+  if (player.country) parts.push(<Country key="c" code={player.country} />);
+  if (player.birth_date) {
+    const age = ageOn(player.birth_date, retired ? player.last_match : today);
+    parts.push(<span key="a">{retired ? `${age} at last match` : `age ${age}`}</span>);
+  }
+  if (player.hand) parts.push(<span key="h">{`${player.hand.toLowerCase()}-handed`}</span>);
+  if (!parts.length) return null;
+  return (
+    <p className="text-sm text-ink-700 flex flex-wrap gap-x-2" data-testid="tennis-player-bio">
+      {parts.map((p, i) => (
+        <span key={i}>{i > 0 && <span aria-hidden="true" className="text-ink-500 mr-2">·</span>}{p}</span>
+      ))}
+    </p>
   );
 }

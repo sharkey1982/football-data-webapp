@@ -104,6 +104,10 @@ const TennisPlayersPage = lazy(() => import('./pages/tennis/TennisPlayersPage'))
 const TennisPlayerPage = lazy(() => import('./pages/tennis/TennisPlayerPage'));
 const TennisSeasonsPage = lazy(() => import('./pages/tennis/TennisSeasonsPage'));
 const TennisSeasonPage = lazy(() => import('./pages/tennis/TennisSeasonPage'));
+const TennisTournamentsPage = lazy(() => import('./pages/tennis/TennisTournamentsPage'));
+const TennisTournamentPage = lazy(() => import('./pages/tennis/TennisTournamentPage'));
+const TennisEditionPage = lazy(() => import('./pages/tennis/TennisEditionPage'));
+const TennisTvGuidePage = lazy(() => import('./pages/tennis/TennisTvGuidePage'));
 // The NFL section's first URLs (4 Oct 2026), moved the same day to match
 // Football's structure; netlify.toml 301s them too.
 function NflOldStandingsRedirect() {
@@ -860,6 +864,38 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TennisSeasonPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/tournaments"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisTournamentsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/tournaments/:tour/:slug"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisTournamentPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/tournaments/:tour/:slug/:year"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisEditionPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/tv-guide"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisTvGuidePage />
               </Suspense>
             }
           />
