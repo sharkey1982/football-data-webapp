@@ -12,6 +12,8 @@ import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { FixtureRow, GameList, GameRow, IntlHeader, Section, TitleBadges } from '../../components/intl/IntlBits';
 import NationPicker from '../../components/intl/NationPicker';
+import GroupChances from '../../components/intl/GroupChances';
+import Squad from '../../components/intl/Squad';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, type IntlTeamData } from '../../lib/intlApi';
@@ -155,6 +157,17 @@ export default function IntlTeamPage() {
         <GameList testId="intl-tp-latest">{latest.map((m) => <GameRow key={m.match_key} m={m} showDate showCompetition team={t.team} />)}</GameList>
         <p className="text-sm"><Link to={intlFixturesPath({ team: t.slug })} className="text-pitch-800 underline underline-offset-2">Results and fixtures</Link></p>
       </Section>
+
+      <Section title="Squad" id="intl-tp-squad" testId="intl-tp-squad">
+        <Squad squad={data.squad} players={data.squadPlayers} team={t.team} />
+      </Section>
+
+      {data.groupOdds.length > 0 && (
+        <Section title={`Nations League chances: Group ${data.groupOdds[0].group_label}`} id="intl-tp-odds" testId="intl-tp-odds">
+          <GroupChances odds={data.groupOdds} highlight={t.team} />
+          <p className="text-xs text-ink-500">The rest of the league phase played out 10,000 times with FixtureShark’s model (IP1, built on Elo ratings). Ties split by goal difference and goals scored, not head-to-head.</p>
+        </Section>
+      )}
 
       {history.length > 0 && (
         <Section title="Tournament history" id="intl-tp-history" testId="intl-tp-history">
