@@ -34,6 +34,15 @@ const POS_ORDER: Record<Pos, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
 const f1 = (v: number) => v.toFixed(1);
 const f2 = (v: number) => v.toFixed(2);
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+const sumBy = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a + f(x), 0);
+/** Three-letter club label for tight spaces. */
+const SHORT: Record<string, string> = {
+  'Arsenal': 'ARS', 'Aston Villa': 'AVL', 'Bournemouth': 'BOU', 'Brentford': 'BRE', 'Brighton': 'BHA', 'Burnley': 'BUR', 'Chelsea': 'CHE',
+  'Coventry': 'COV', 'Crystal Palace': 'CRY', 'Everton': 'EVE', 'Fulham': 'FUL', 'Hull': 'HUL', 'Ipswich': 'IPS', 'Leeds': 'LEE',
+  'Liverpool': 'LIV', 'Man City': 'MCI', 'Man United': 'MUN', 'Newcastle': 'NEW', "Nott'm Forest": 'NFO', 'Sunderland': 'SUN',
+  'Tottenham': 'TOT', 'West Ham': 'WHU', 'Wolves': 'WOL',
+};
+const shortTeam = (name: string) => SHORT[name] ?? name.slice(0, 3).toUpperCase();
 const errText = (e: unknown) => (e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : String(e));
 
 let solverPromise: Promise<SolverFn> | null = null;
@@ -328,7 +337,12 @@ function PlayersTab({ views, captainMultiplier, safetyNet }: { views: PlayerView
       render: (v) => <button className="text-left underline decoration-dotted underline-offset-2" onClick={() => setSelected(v.key)}>{v.name}</button> },
     { key: 'club', label: 'Club', render: (v) => v.team_name, sortValue: (v) => v.team_name, className: 'hidden sm:table-cell' },
     { key: 'pos', label: 'Pos', render: (v) => v.pos, sortValue: (v) => POS_ORDER[v.pos] },
-    { key: 'opp', label: 'Opponent', render: (v) => v.opponents, sortValue: (v) => v.opponents, className: 'hidden lg:table-cell' },
+    { key: 'opp', label: 'Opp', sortValue: (v) => v.opponents,
+      render: (v) => <span className="whitespace-nowrap">{v.matches.map((m) => `${shortTeam(m.opponent)} (${m.home ? 'H' : 'A'})`).join(', ')}</span> },
+    { key: 'txg', label: 'Team xG', align: 'right', descFirst: true, render: (v) => (v.matches.length ? f2(sumBy(v.matches, (m) => m.teamGoals)) : ''),
+      sortValue: (v) => sumBy(v.matches, (m) => m.teamGoals), className: 'hidden md:table-cell' },
+    { key: 'cs', label: 'CS', align: 'right', descFirst: true, render: (v) => (v.matches.length ? pct(Math.max(...v.matches.map((m) => m.cleanSheet))) : ''),
+      sortValue: (v) => Math.max(0, ...v.matches.map((m) => m.cleanSheet)), className: 'hidden md:table-cell' },
     { key: 'lineup', label: 'FanTeam', render: (v) => <span className={v.out ? 'text-red-700' : ''}>{v.lineup ?? ''}</span>, sortValue: (v) => v.lineup, className: 'hidden md:table-cell' },
     { key: 'price', label: '£m', align: 'right', descFirst: true, render: (v) => f1(v.price), sortValue: (v) => v.price },
     { key: 's', label: 'Start', align: 'right', descFirst: true, render: (v) => pct(v.s), sortValue: (v) => v.s, className: 'hidden sm:table-cell' },
@@ -382,6 +396,19 @@ function PlayerBreakdown({ v, captainMultiplier, safetyNet, onClose }: { v: Play
         <button className={`${BTN} border border-chalk-300 shrink-0`} onClick={onClose}>Close</button>
       </div>
       {v.out && <p className="text-sm text-red-700">FanTeam lists him as {v.lineup}: scored 0 and never picked.</p>}
+      {v.matches.map((m, i) => (
+        <div key={i} className="border border-chalk-200 rounded p-2 space-y-2" data-testid="fanteam-match">
+          <p className="text-sm font-medium text-ink-900">{v.team_name} {m.home ? 'v' : '@'} {m.opponent} <span className="text-xs text-ink-500 font-normal">{m.home ? 'home' : 'away'} · {new Date(m.kickoff).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span></p>
+          <dl className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-sm">
+            {[
+              [`${shortTeam(v.team_name)} goals`, f2(m.teamGoals)], [`${shortTeam(m.opponent)} goals`, f2(m.oppGoals)], ['Clean sheet', pct(m.cleanSheet)],
+              ['Win', pct(m.win)], ['Draw', pct(m.draw)], ['Loss', pct(m.loss)],
+            ].map(([k, val]) => (
+              <div key={k}><dt className="text-xs text-ink-500">{k}</dt><dd className="font-medium tabular-nums">{val}</dd></div>
+            ))}
+          </dl>
+        </div>
+      ))}
       {v.inputs && (
         <dl className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-sm">
           {[
