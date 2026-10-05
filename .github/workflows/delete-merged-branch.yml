@@ -1,0 +1,19 @@
+# Deletes a pull request's branch once it is merged -- the same as GitHub's
+# "Automatically delete head branches" setting, which can't be changed from a
+# Claude session. Branches of closed-unmerged PRs are kept. Never touches main.
+# No checkout: nothing from the PR runs.
+name: Delete merged branch
+on:
+  pull_request_target:
+    types: [closed]
+permissions:
+  contents: write
+jobs:
+  delete:
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref != 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}" && echo "Deleted ${BRANCH}" || echo "Already gone: ${BRANCH}"
