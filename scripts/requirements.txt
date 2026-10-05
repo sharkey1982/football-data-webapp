@@ -4,3 +4,4 @@ scipy
 supabase
 lxml==6.1.1
 pulp==3.3.2
+psycopg[binary]==3.2.10
