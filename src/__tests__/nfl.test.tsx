@@ -485,14 +485,13 @@ describe('NFL model display', () => {
 });
 
 describe('NFL journey', () => {
-  it('uses the same page names as Football for the same jobs', () => {
-    const football = THEMES.football.stages[0].links.map((l) => l.label);
-    // Pages with no football counterpart are declared 'nfl-only' in layoutPairs.
+  it('uses the same page names as Football and FPL, in the same section', () => {
+    // Pages with no counterpart are declared 'nfl-only' in layoutPairs.
     const nflOnly = new Set(LAYOUT_PAIRS.filter((p) => p.status === 'nfl-only').map((p) => p.label));
-    const nfl = THEMES.nfl.stages[0].links.map((l) => l.label).filter((l) => !nflOnly.has(l));
-    for (const label of nfl) expect(football).toContain(label);
-    const fpl = THEMES.fpl.stages.flatMap((st) => st.links.map((l) => l.label));
-    for (const label of THEMES.nfl.stages[1].links.map((l) => l.label)) expect(fpl).toContain(label);
+    for (const stage of THEMES.nfl.stages) {
+      const names = [THEMES.football, THEMES.fpl].flatMap((t) => t.stages.filter((s) => s.key === stage.key).flatMap((s) => s.links.map((l) => l.label)));
+      for (const l of stage.links.filter((x) => !nflOnly.has(x.label))) expect(names, `${stage.key}: ${l.label}`).toContain(l.label);
+    }
   });
 });
 

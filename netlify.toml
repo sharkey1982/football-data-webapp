@@ -112,6 +112,20 @@
 # NFL standings moved to Football's structure on 4 Oct 2026, the day they
 # launched: the current table is "League Table", each season's page "Past
 # seasons" (with its story).
+# 5 Oct 2026: projections are per player ("Player Projections", as in FPL),
+# and the NFL menu's Fantasy section became Predict, as in Football and FPL.
+[[redirects]]
+  from = "/nfl/projections"
+  to = "/nfl/player-projections"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/nfl/fantasy"
+  to = "/nfl/predict"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/nfl/standings"
   to = "/nfl/table"

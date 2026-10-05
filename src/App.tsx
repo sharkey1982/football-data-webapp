@@ -788,7 +788,7 @@ export default function App() {
             }
           />
           <Route
-            path="nfl/projections"
+            path="nfl/player-projections"
             element={
               <Suspense fallback={<RouteFallback />}>
                 <NflProjectionsPage />
@@ -819,6 +819,10 @@ export default function App() {
               </Suspense>
             }
           />
+          {/* Renamed 5 Oct 2026 (Chris): per-player projections, and the NFL menu's
+              Fantasy section became Predict, as in Football and FPL. */}
+          <Route path="nfl/projections" element={<Navigate to="/nfl/player-projections" replace />} />
+          <Route path="nfl/fantasy" element={<Navigate to="/nfl/predict" replace />} />
           <Route
             path="nfl/:stage"
             element={

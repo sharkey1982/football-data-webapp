@@ -362,9 +362,9 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [NFL],
   },
   {
-    path: '/nfl/fantasy',
-    title: 'Fantasy \u2014 NFL',
-    description: 'The numbers for picking an NFL fantasy team: points in standard, half-PPR and PPR, usage and consistency, and which defences give up the most.',
+    path: '/nfl/predict',
+    title: 'Predict \u2014 NFL',
+    description: 'Projected fantasy points for every NFL player\u2019s next game, how well the projections test, and which defences give up the most to each position.',
     crumbs: [NFL],
   },
   {
@@ -374,8 +374,8 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [NFL],
   },
   {
-    path: '/nfl/projections',
-    title: 'NFL Match Projections: projected fantasy points this week',
+    path: '/nfl/player-projections',
+    title: 'NFL Player Projections: projected fantasy points this week',
     description: 'Projected fantasy points for every NFL quarterback, running back, receiver, tight end and kicker in their next game, in PPR, half-PPR and standard scoring, with the range, matchup and injury status.',
     crumbs: [NFL],
   },

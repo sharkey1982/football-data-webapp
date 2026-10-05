@@ -1,7 +1,7 @@
 // ============================================================================
 // src/pages/nfl/NflProjectionsPage.tsx
 //
-// /nfl/projections -- "Match Projections", as in Fantasy: projected fantasy
+// /nfl/player-projections -- "Player Projections", as in FPL: projected fantasy
 // points for every relevant player in each team's next game, with a typical
 // range, the season average, the market's points for his team and the
 // matchup. ?team=&pos=&fmt= keep the view shareable, as on Player Scout.
@@ -35,7 +35,7 @@ export default function NflProjectionsPage() {
   const fmtLabel = FORMATS.find((f) => f.key === fmt)!.label;
 
   useDocumentHead({
-    title: 'NFL Match Projections: projected fantasy points this week',
+    title: 'NFL Player Projections: projected fantasy points this week',
     description: 'Projected fantasy points for every NFL quarterback, running back, receiver, tight end and kicker in their next game, in PPR, half-PPR and standard scoring, with the range, matchup and injury status.',
     path: NFL_PROJECTIONS_PATH,
   });
@@ -71,9 +71,9 @@ export default function NflProjectionsPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot; <Link to="/nfl/fantasy" className="hover:underline">Fantasy</Link>
+          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot; <Link to="/nfl/predict" className="hover:underline">Predict</Link>
         </p>
-        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Match Projections</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Player Projections</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
           Projected fantasy points for each player&rsquo;s next game: his recent scoring, how many points the betting market expects his team to score, and how much the opponent gives up to his position.
           Every projection assumes he plays; injury reports appear from Wednesday.{' '}

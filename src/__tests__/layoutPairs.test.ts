@@ -65,3 +65,38 @@ describe('sport layout pairs (tennis and later sports)', () => {
     }
   });
 });
+
+// Menu bars kept consistent, ordering included (Chris, 5 Oct 2026). Football
+// and Fantasy Premier League set the pattern; every other sport's menu must
+// use the same sections in the same order, and wherever a page shares its name
+// with a Football or FPL page in the same section, the shared pages appear in
+// that menu's order. Sport-only pages may sit anywhere between them.
+describe('menu order matches Football and FPL', () => {
+  const REFERENCE = ['football', 'fpl'] as const;
+  const others = (Object.keys(THEMES) as (keyof typeof THEMES)[]).filter((k) => !(REFERENCE as readonly string[]).includes(k));
+  const sectionOrder = THEMES.football.stages.map((s) => s.key);
+
+  it('Football and FPL use the same sections in the same order', () => {
+    expect(THEMES.fpl.stages.map((s) => s.key)).toEqual(sectionOrder);
+  });
+
+  it.each(others)('%s: sections in Football order', (k) => {
+    const keys = THEMES[k].stages.map((s) => s.key);
+    expect(keys, `${k} sections`).toEqual(sectionOrder.slice(0, keys.length));
+  });
+
+  for (const k of others) {
+    for (const ref of REFERENCE) {
+      it(`${k}: shared pages in ${ref} order, section by section`, () => {
+        for (const stage of THEMES[k].stages) {
+          const refStage = THEMES[ref].stages.find((s) => s.key === stage.key);
+          if (!refStage) continue;
+          const refLabels = refStage.links.map((l) => l.label);
+          const shared = stage.links.map((l) => l.label).filter((l) => refLabels.includes(l));
+          const expected = refLabels.filter((l) => shared.includes(l));
+          expect(shared, `${k} ${stage.key}: pages shared with ${ref} must follow its order`).toEqual(expected);
+        }
+      });
+    }
+  }
+});

@@ -2,7 +2,7 @@
 # ============================================================================
 # scripts/nfl_projections.py
 #
-# NFL Match Projector, daily after the NFL import. For each team's next
+# NFL Player Projections, daily after the NFL import. For each team's next
 # regular-season game kicking off in the next 8 days, projects fantasy points
 # for its players and replaces nfl.projections for those games
 # (public.nfl_replace_projections, service_role only).

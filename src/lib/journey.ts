@@ -15,7 +15,7 @@
 // Adding a page means adding one entry here.
 // ============================================================================
 
-export type StageKey = 'discover' | 'predict' | 'fantasy';
+export type StageKey = 'discover' | 'predict';
 export type ThemeKey = 'football' | 'fpl' | 'nfl' | 'tennis';
 
 export type JourneyLink = {
@@ -166,44 +166,50 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       },
     ],
   },
-  // NFL (Oct 2026): the same structure and the same page names as Football
-  // and Fantasy (Chris: "keep menu option naming consistent"). Fantasy is a
-  // stage here rather than a theme of its own (it has projections from 5 Oct
-  // 2026: Match Projections, Model Lab NP1).
+  // NFL (Oct 2026): the same structure, stage names and page names as
+  // Football and Fantasy Premier League (Chris: "keep menu option naming
+  // consistent", and 5 Oct: "keep the menu bars as consistent as possible
+  // including ordering"). Discover holds what happened -- Football's
+  // Discover pages first, in Football's order, then FPL's Discover pages in
+  // FPL's order; Predict holds forecasts, FPL's Predict pages in FPL's order.
+  // NFL-only pages sit beside the page they pair with (layoutPairs.ts).
+  // src/__tests__/layoutPairs.test.ts checks the order.
   nfl: {
     key: 'nfl',
     title: 'NFL',
     eyebrow: 'FixtureShark \u00b7 NFL',
     hubPath: '/nfl',
-    intro: 'Every NFL result since 2002, how to watch in the UK, and the player numbers for fantasy.',
+    intro: 'Every NFL result since 2002, how to watch in the UK, the player numbers for fantasy, and projected points for the next game.',
     stages: [
       {
         key: 'discover',
         title: 'Discover',
-        tagline: 'Results, tables, teams, the archive.',
+        tagline: 'Results, tables, teams, players, rules.',
         intro:
-          'Everything that has actually happened in the NFL since 2002: every game, how to watch the next ones in the UK, the standings, each team\u2019s record and the story of every season.',
+          'Everything that has actually happened in the NFL since 2002: every game, how to watch the next ones in the UK, the standings, each team\u2019s record, the story of every season, every player\u2019s fantasy numbers and how points are earned. No projections here.',
         links: [
           { label: 'Fixtures & Results', to: '/nfl/fixtures', blurb: 'Every game week by week, kick-offs in UK time, with the betting line.' },
           { label: 'TV Guide', to: '/nfl/tv-guide', blurb: 'How, when and where to watch every upcoming game in the UK.' },
           { label: 'League Table', to: '/nfl/table', blurb: 'This season\u2019s standings by division or across the league.' },
           { label: 'Your Team', to: '/nfl/teams', blurb: 'One team at a time \u2014 this season, every season since 2002, and its story.', matchPrefix: ['/nfl/teams'] },
-          { label: 'Past seasons', to: '/nfl/seasons', blurb: 'The story of every season since 2002: champions, upsets, streaks and records.', matchPrefix: ['/nfl/seasons'] },
-          { label: 'Road Trips', to: '/nfl/road-trips', blurb: 'How far every team travels this season, on a map, with late UK kick-offs.' },
+          // Where Football has Your Local Clubs: finding a team to follow.
           { label: 'Pick My Team', to: '/nfl/pick-my-team', blurb: 'Four questions to find your NFL team, matched on real data.' },
+          { label: 'Road Trips', to: '/nfl/road-trips', blurb: 'How far every team travels this season, on a map, with late UK kick-offs.' },
+          { label: 'Past seasons', to: '/nfl/seasons', blurb: 'The story of every season since 2002: champions, upsets, streaks and records.', matchPrefix: ['/nfl/seasons'] },
+          // FPL's Discover pages, in FPL's order (Player Scout first, Scoring Rules last).
+          { label: 'Player Scout', to: '/nfl/players', blurb: 'Every QB, RB, WR, TE and kicker \u2014 points, usage, form and consistency.', matchPrefix: ['/nfl/players'] },
+          { label: 'Scoring Rules', to: '/nfl/scoring-rules', blurb: 'Exactly how standard, half-PPR and PPR points are earned.' },
         ],
       },
       {
-        key: 'fantasy',
-        title: 'Fantasy',
-        tagline: 'Projections, player stats, matchups, scoring.',
+        key: 'predict',
+        title: 'Predict',
+        tagline: 'Projected points and matchups.',
         intro:
-          'The numbers for picking an NFL fantasy team: every player\u2019s fantasy points in standard, half-PPR and PPR scoring, their usage and consistency, and which defences give up the most to each position.',
+          'Projected fantasy points for every player\u2019s next game \u2014 recent scoring, the betting market\u2019s view of his team and the opponent \u2014 with how well the projections test, and which defences give up the most to each position.',
         links: [
-          { label: 'Match Projections', to: '/nfl/projections', blurb: 'Projected fantasy points for every player\u2019s next game, with the range, matchup and injury news.' },
-          { label: 'Player Scout', to: '/nfl/players', blurb: 'Every QB, RB, WR, TE and kicker \u2014 points, usage, form and consistency.', matchPrefix: ['/nfl/players'] },
+          { label: 'Player Projections', to: '/nfl/player-projections', blurb: 'Every player\u2019s projected points for his next game, with the range, matchup and injury news.' },
           { label: 'Fixture Heat Map', to: '/nfl/fixture-heat-map', blurb: 'Which defences give up the most fantasy points to each position, and who faces them next.' },
-          { label: 'Scoring Rules', to: '/nfl/scoring-rules', blurb: 'Exactly how standard, half-PPR and PPR points are earned.' },
         ],
       },
     ],

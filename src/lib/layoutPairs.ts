@@ -107,13 +107,13 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     note: 'Season pages follow the football league-season page section by section (story, table, season in numbers) but are separate code.',
   },
   {
-    label: 'Match Projections',
-    nflPath: '/nfl/projections',
-    footballFile: 'src/pages/fpl/GameweekPage.tsx',
+    label: 'Player Projections',
+    nflPath: '/nfl/player-projections',
+    footballFile: 'src/pages/fpl/PlayerProjectionsTablePage.tsx',
     nflFile: 'src/pages/nfl/NflProjectionsPage.tsx',
     shared: [],
     status: 'separate',
-    note: 'Same job (projected points for the next game) and the same name; FPL projects a whole gameweek per squad slot, NFL per player-game, so the bodies differ. The NFL table is one component (NflProjectionTable) shared with the NFL game page team tabs.',
+    note: 'Same job (every player\'s projected points, sortable) and the same name; FPL spans a gameweek range, NFL is the next game, so the bodies differ. The NFL table is one component (NflProjectionTable) shared with the NFL game page team tabs.',
   },
   {
     label: 'Player Scout',
