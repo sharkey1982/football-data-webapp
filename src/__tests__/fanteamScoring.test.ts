@@ -380,3 +380,81 @@ describe('FanTeam data status', () => {
     expect(health({ hasRules: true, inputs: four() as never, pasteMatchweek: 6, matchweek: 6, views, now: NOW }).status).toBe('Incomplete');
   });
 });
+
+// Real rows from FanTeam's GW6 export (5 Oct 2026), including the awkward ones.
+const EXPORT = [
+  'Tournament\tPlayerID\tName\tFName\tClub\tLineup\tPosition\tPrice',
+  '1143307\t4700645\tFoden\tPhil\tMCI\tsuspended\tmidfielder\t10.2',
+  '1143307\t4700649\tSavinho\tSavinho\tTOT\texpected\tmidfielder\t6.8',
+  '1143307\t4700662\tDias \tRúben\tMCI\texpected\tdefender\t6.1',
+  '1143307\t4700687\tvan Dijk \tVirgil\tLIV\texpected\tdefender\t6.2',
+  '1143307\t4700867\tGross\tPascal\tBHA\texpected\tmidfielder\t10.2',
+  '1143307\t4700918\tYarmolyuk\tYehor\tBRE\texpected\tmidfielder\t8.5',
+  '1143307\t4701138\tRudoni\tJack\tCVC\texpected\tmidfielder\t8.6',
+  '1143307\t4701192\tMcBurnie\tOliver\tHUL\texpected\tforward\t7.1',
+  '1143307\t4700947\tPetrovic\tDjordje\tBOU\texpected\tgoalkeeper\t5.9',
+  '1143307\t4725055\t Angulo\tJuan Riquelme\tSUN\tunexpected\tforward\t6.9',
+].join('\n');
+const DB_TEAMS = [
+  { team_id: 18, team_name: 'Man City' }, { team_id: 14, team_name: 'Tottenham' }, { team_id: 15, team_name: 'Liverpool' },
+  { team_id: 25, team_name: 'Brighton' }, { team_id: 23, team_name: 'Brentford' }, { team_id: 48, team_name: 'Coventry' },
+  { team_id: 8, team_name: 'Hull' }, { team_id: 30, team_name: 'Bournemouth' }, { team_id: 12, team_name: 'Sunderland' },
+  { team_id: 5, team_name: 'Man United' }, { team_id: 37, team_name: "Nott'm Forest" },
+];
+const DB_FPL: FplRef[] = [
+  { fpl_code: 209244, team_id: 18, element_type: 3, web_name: 'Foden', first_name: 'Phil', second_name: 'Foden' },
+  { fpl_code: 510281, team_id: 14, element_type: 3, web_name: 'Sávio', first_name: 'Sávio', second_name: 'Moreira de Oliveira' },
+  { fpl_code: 171314, team_id: 18, element_type: 2, web_name: 'Rúben', first_name: 'Rúben', second_name: 'dos Santos Gato Alves Dias' },
+  { fpl_code: 97032, team_id: 15, element_type: 2, web_name: 'Virgil', first_name: 'Virgil', second_name: 'van Dijk' },
+  { fpl_code: 60307, team_id: 25, element_type: 3, web_name: 'Groß', first_name: 'Pascal', second_name: 'Groß' },
+  { fpl_code: 508395, team_id: 23, element_type: 3, web_name: 'Yarmoliuk', first_name: 'Yehor', second_name: 'Yarmoliuk' },
+  { fpl_code: 480457, team_id: 48, element_type: 3, web_name: 'Rudoni', first_name: 'Jack', second_name: 'Rudoni' },
+  { fpl_code: 169432, team_id: 8, element_type: 4, web_name: 'McBurnie', first_name: 'Oli', second_name: 'McBurnie' },
+  { fpl_code: 457569, team_id: 30, element_type: 1, web_name: 'Petrović', first_name: 'Đorđe', second_name: 'Petrović' },
+  { fpl_code: 661313, team_id: 12, element_type: 4, web_name: 'J.Angulo', first_name: 'Juan', second_name: 'Angulo' },
+  { fpl_code: 536661, team_id: 12, element_type: 3, web_name: 'N.Angulo', first_name: 'Nilson', second_name: 'Angulo' },
+];
+
+describe('FanTeam export file', () => {
+  const rows = parsePaste(EXPORT, DB_TEAMS, new Map());
+  it('reads every row by column, with id, name parts and lineup status', () => {
+    expect(rows).toHaveLength(10);
+    expect(rows.every((r) => r.issues.length === 0)).toBe(true);
+    expect(rows[0]).toMatchObject({ name_raw: 'Phil Foden', club_raw: 'MCI', position: 'MID', price_m: 10.2, fanteam_player_id: 4700645, lineup_status: 'suspended', tournament: '1143307' });
+    expect(rows[1].name_raw).toBe('Savinho');                 // mononym not doubled
+    expect(rows[2]).toMatchObject({ name_raw: 'Rúben Dias', surname: 'Dias' }); // trailing space trimmed
+    expect(rows[9]).toMatchObject({ name_raw: 'Juan Riquelme Angulo', position: 'FWD' });
+  });
+  it('maps FanTeam club codes to the database names (incl. CVC, HUL)', () => {
+    expect(['MCI', 'TOT', 'CVC', 'HUL', 'MUN', 'NFO'].map((c) => resolveClub(c, DB_TEAMS, new Map()))).toEqual([18, 14, 48, 8, 5, 37]);
+  });
+  it('matches the awkward names to the right FPL players', () => {
+    const got = rows.map((r) => matchPlayer(r.name_raw, resolveClub(r.club_raw, DB_TEAMS, new Map()), r.position, DB_FPL, new Map(), { first: r.first_name, surname: r.surname }).fpl_code);
+    expect(got).toEqual([209244, null, 171314, 97032, 60307, 508395, 480457, 169432, 457569, 661313]);
+  });
+  it('accepts a comma-separated export too', () => {
+    const csv = EXPORT.split('\n').map((l) => l.split('\t').map((v) => (v.includes(',') ? `"${v}"` : v)).join(',')).join('\n');
+    expect(parsePaste(csv, DB_TEAMS, new Map()).map((r) => r.price_m)).toEqual(rows.map((r) => r.price_m));
+  });
+  it('injured or suspended players score 0 and are left out; unexpected unmatched players do not block', () => {
+    const inputs = [
+      { fixture_id: 1, matchweek: 6, kickoff_date: '2026-10-10', kickoff_time: '15:00:00', fpl_player_id: 1, fpl_code: 209244,
+        web_name: 'Foden', first_name: 'Phil', second_name: 'Foden', element_type: 3, team_id: 18, team_name: 'Man City',
+        opponent_name: 'Everton', is_home: true, now_cost: 80, status: 'a', start_probability: 0.9, sub_appearance_probability: 0.05,
+        expected_minutes: 80, expected_goals: 0.4, expected_assists: 0.3, expected_saves: null, xpts_clean_sheet: 0.4,
+        xpts_goals_conceded: 0, xpts_penalties: 0, xpts_cards_own_goals: -0.2, team_goals: 2, opp_goals: 0.8,
+        p_off_before_60: 0.05, p_off_60_84: 0.3, p_full: 0.65, generated_at: new Date().toISOString() },
+    ];
+    // Only Man City has inputs here, so Rúben Dias (MCI, no FPL row given) is the one unmatched; mark him unexpected.
+    const rows2 = rows.map((r) => ({ ...r, position: r.position as Pos, price_m: r.price_m as number,
+      lineup_status: r.name_raw === 'Rúben Dias' ? 'unexpected' : r.lineup_status }));
+    const views = buildPlayers(rows2, inputs as never, RULES, { players: new Map(), clubs: new Map() }, true);
+    const foden = views.find((v) => v.name === 'Phil Foden')!;
+    expect(foden).toMatchObject({ out: true, total: 0, value: 0 });
+    expect(toCandidates(views, 2).some((c) => c.name === 'Phil Foden')).toBe(false);
+    const h = health({ hasRules: true, inputs: inputs as never, pasteMatchweek: 6, matchweek: 6, views });
+    const matched = h.checks.find((c) => c.label === 'Players matched')!;
+    expect(matched.ok).toBe(true);
+    expect(matched.detail).toMatch(/1 unmatched but not expected to play/);
+  });
+});

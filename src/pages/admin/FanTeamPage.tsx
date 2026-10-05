@@ -20,7 +20,7 @@ import {
   type GameRules, type InputRow, type Paste, type PriceRow,
 } from '../../lib/fanteam/api';
 import { parsePaste, PARSER_VERSION, type ParsedRow } from '../../lib/fanteam/paste';
-import { buildPlayers, health, nameKey, norm, teamsFrom, fplRefsFrom, toCandidates, type PlayerView } from '../../lib/fanteam/model';
+import { buildPlayers, health, isUnlikely, nameKey, norm, teamsFrom, fplRefsFrom, toCandidates, type PlayerView } from '../../lib/fanteam/model';
 import { solveLineup, type ContestRules, type Lineup, type SolverFn } from '../../lib/fanteam/optimiser';
 import { SOT_PER_XG, type Pos, type ScoringRule } from '../../lib/fanteam/scoring';
 
@@ -162,7 +162,18 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
   const teams = useMemo(() => teamsFrom(inputs).sort((a, b) => a.team_name.localeCompare(b.team_name)), [inputs]);
   const refs = useMemo(() => fplRefsFrom(inputs), [inputs]);
 
-  const read = () => setParsed(parsePaste(text, teams, manual.clubs));
+  const read = (t = text) => {
+    const rows = parsePaste(t, teams, manual.clubs);
+    setParsed(rows);
+    const tour = rows.find((r) => r.tournament)?.tournament;
+    if (tour && !contest) setContest(`FanTeam tournament ${tour}`);
+  };
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    const t = await file.text();
+    setText(t);
+    read(t);
+  };
   const good = parsed?.filter((r) => r.price_m != null && r.position != null && r.name_raw) ?? [];
 
   const save = async () => {
@@ -172,6 +183,8 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
       const rows = good.map((r, i) => ({
         row_no: i + 1, name_raw: r.name_raw, club_raw: r.club_raw, position: r.position as Pos, price_m: r.price_m as number,
         team_id: null, fpl_code: null, match_method: null,
+        fanteam_player_id: r.fanteam_player_id ?? null, first_name: r.first_name ?? null, surname: r.surname ?? null,
+        lineup_status: r.lineup_status ?? null,
       }));
       // Record the automatic match made at paste time (history only; the page re-matches on load).
       const withMatch = buildPlayers(rows, inputs, rules.scoring, manual, false);
@@ -190,13 +203,15 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
   };
 
   const unknownClubs = [...new Set(views.filter((v) => v.team_id == null).map((v) => v.club_raw))];
-  const unmatched = views.filter((v) => v.team_id != null && v.fpl_code == null && v.match !== 'manual');
+  // Likely starters first: those are the ones that block the optimiser.
+  const unmatched = views.filter((v) => v.team_id != null && v.fpl_code == null && v.match !== 'manual')
+    .sort((a, b) => Number(isUnlikely(a.lineup)) - Number(isUnlikely(b.lineup)) || b.price - a.price);
   const changes = views.filter((v) => prev.has(`${v.name}|${v.team_id}`) && prev.get(`${v.name}|${v.team_id}`) !== v.price);
 
   return (
     <div className="space-y-4">
       <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-3">
-        <h2 className="text-sm font-medium text-ink-700">Paste prices for GW{matchweek}</h2>
+        <h2 className="text-sm font-medium text-ink-700">Prices for GW{matchweek}</h2>
         <div className="grid sm:grid-cols-4 gap-2 text-sm">
           <label className="flex flex-col gap-1 sm:col-span-2">Contest
             <input className="border border-chalk-300 rounded px-2 py-1" value={contest} onChange={(e) => setContest(e.target.value)} placeholder="EPL Weekly Special" />
@@ -210,9 +225,14 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
           </div>
         </div>
         <textarea aria-label="Price list" className="w-full h-40 border border-chalk-300 rounded p-2 font-mono text-xs"
-          value={text} onChange={(e) => { setText(e.target.value); setParsed(null); }} placeholder="Paste the player list here" />
-        <div className="flex gap-2 items-center">
-          <button className="px-3 py-1.5 text-sm rounded bg-ink-900 text-white disabled:opacity-40" disabled={!text.trim()} onClick={read}>Read</button>
+          value={text} onChange={(e) => { setText(e.target.value); setParsed(null); }} placeholder="Upload FanTeam's player CSV or paste the player list here" />
+        <div className="flex flex-wrap gap-2 items-center">
+          <label className="px-3 py-1.5 text-sm rounded border border-chalk-300 cursor-pointer">
+            Upload CSV
+            <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="hidden" aria-label="Upload CSV"
+              onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} />
+          </label>
+          <button className="px-3 py-1.5 text-sm rounded bg-ink-900 text-white disabled:opacity-40" disabled={!text.trim()} onClick={() => read()}>Read</button>
           {parsed && <button className="px-3 py-1.5 text-sm rounded bg-emerald-700 text-white disabled:opacity-40" disabled={saving || good.length === 0} onClick={save}>Save {good.length} rows</button>}
           {msg && <span className="text-sm text-ink-700">{msg}</span>}
         </div>
@@ -228,6 +248,7 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
                 { key: 'club', label: 'Club', render: (r) => r.club_raw, sortValue: (r) => r.club_raw },
                 { key: 'pos', label: 'Pos', render: (r) => r.position ?? '', sortValue: (r) => r.position },
                 { key: 'price', label: 'Price', align: 'right', render: (r) => (r.price_m != null ? f1(r.price_m) : ''), sortValue: (r) => r.price_m },
+                { key: 'lineup', label: 'Lineup', render: (r) => r.lineup_status ?? '', sortValue: (r) => r.lineup_status ?? null },
                 { key: 'issues', label: 'Issues', render: (r) => <span className="text-red-700">{r.issues.join(', ')}</span>, sortValue: (r) => r.issues.length },
               ]}
             />
@@ -260,9 +281,10 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
       {unmatched.length > 0 && (
         <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-2">
           <h2 className="text-sm font-medium text-ink-700">Unmatched players ({unmatched.length})</h2>
+          <p className="text-xs text-ink-500">Greyed players aren't expected to play and don't block the optimiser.</p>
           {unmatched.map((v) => (
             <div key={v.key} className="flex items-center gap-2 text-sm">
-              <span className="w-56 truncate">{v.name} · {v.team_name} · {v.pos} · £{f1(v.price)}m</span>
+              <span className={`w-72 truncate ${isUnlikely(v.lineup) ? 'text-ink-500' : ''}`}>{v.name} · {v.team_name} · {v.pos} · £{f1(v.price)}m{v.lineup ? ` · ${v.lineup}` : ''}</span>
               <select className="border border-chalk-300 rounded px-2 py-1" defaultValue=""
                 onChange={async (e) => {
                   if (!e.target.value) return;
@@ -309,6 +331,7 @@ function PlayersTab({ views }: { views: PlayerView[] }) {
     { key: 'club', label: 'Club', render: (v) => v.team_name, sortValue: (v) => v.team_name },
     { key: 'pos', label: 'Pos', render: (v) => v.pos, sortValue: (v) => POS_ORDER[v.pos] },
     { key: 'opp', label: 'Opponent', render: (v) => v.opponents, sortValue: (v) => v.opponents, className: 'hidden sm:table-cell' },
+    { key: 'lineup', label: 'FanTeam', render: (v) => <span className={v.out ? 'text-red-700' : ''}>{v.lineup ?? ''}</span>, sortValue: (v) => v.lineup, className: 'hidden md:table-cell' },
     { key: 'price', label: '£m', align: 'right', descFirst: true, render: (v) => f1(v.price), sortValue: (v) => v.price },
     { key: 's', label: 'Start', align: 'right', descFirst: true, render: (v) => pct(v.s), sortValue: (v) => v.s },
     { key: 'total', label: 'xPts', align: 'right', descFirst: true, render: (v) => f2(v.total), sortValue: (v) => v.total },

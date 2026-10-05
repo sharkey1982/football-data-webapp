@@ -79,6 +79,11 @@ export type PriceRow = {
   team_id: number | null;
   fpl_code: number | null;
   match_method: string | null;
+  /** FanTeam export fields; null for older pastes or other layouts. */
+  fanteam_player_id?: number | null;
+  first_name?: string | null;
+  surname?: string | null;
+  lineup_status?: string | null;
 };
 
 export async function getRules(format = 'classic_11'): Promise<{ game: GameRules; scoring: ScoringRule[] }> {
