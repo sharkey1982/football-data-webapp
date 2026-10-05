@@ -24,6 +24,7 @@ import {
 import { parsePaste, PARSER_VERSION, type FplRef, type ParsedRow, type TeamRef } from '../../lib/fanteam/paste';
 import { buildPlayers, health, isUnlikely, nameKey, norm, teamsFrom, fplRefsFrom, toCandidates, type PlayerView } from '../../lib/fanteam/model';
 import { lineupPoints, solveLineup, validateLineup, type Candidate, type ContestRules, type Lineup, type SolverFn } from '../../lib/fanteam/optimiser';
+import { matchTeamText, readImageText, type PhotoMatch } from '../../lib/fanteam/teamPhoto';
 import { SOT_PER_XG, type PointsBreakdown, type Pos, type ScoringRule } from '../../lib/fanteam/scoring';
 
 type Tab = 'prices' | 'players' | 'lineup' | 'myteam' | 'scoring' | 'health';
@@ -750,6 +751,8 @@ function MyTeamTab({ views, rules, paste, status }: {
           {picked.length}/{contest.size} players · £{f1(cost)}m of £{f1(contest.budget)}m · {posCount('GK')} GK, {posCount('DEF')} DEF, {posCount('MID')} MID, {posCount('FWD')} FWD
         </p>
         {missing > 0 && <p className="text-amber-700">{missing} saved player(s) aren&apos;t in this upload.</p>}
+        <PhotoImport views={views} size={contest.size}
+          onUse={(ks) => { setKeys(ks); if (cap && !ks.includes(cap)) setCap(null); if (vice && !ks.includes(vice)) setVice(null); setBest(null); setMsg(null); }} />
         {picked.length < contest.size && (
           <div className="space-y-1">
             <input className="w-full min-h-11 border border-chalk-300 rounded px-2 text-base" placeholder="Add a player: type a name or club" aria-label="Add a player"
@@ -819,6 +822,82 @@ function MyTeamTab({ views, rules, paste, status }: {
             );
           })()}
         </section>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Read from a screenshot": OCR in the browser, names matched against this
+ * contest's list only, then shown for confirmation. Nothing changes until
+ * "Use these" is pressed; captain and vice are still tapped by hand.
+ */
+function PhotoImport({ views, size, onUse }: { views: PlayerView[]; size: number; onUse: (keys: string[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [found, setFound] = useState<PhotoMatch | null>(null);
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [choice, setChoice] = useState<Record<string, string>>({});
+  const input = useRef<HTMLInputElement>(null);
+
+  const read = async (file: File) => {
+    setBusy(true); setErr(null); setFound(null); setProgress(0);
+    try {
+      const raw = await readImageText(file, setProgress);
+      const m = matchTeamText(raw, views);
+      setText(raw); setFound(m); setTicked(new Set(m.picks.map((v) => v.pkey))); setChoice({});
+    } catch (e) { setErr(`Couldn't read the picture: ${errText(e)}`); }
+    finally { setBusy(false); if (input.current) input.current.value = ''; }
+  };
+  const chosen = found ? [
+    ...found.picks.filter((v) => ticked.has(v.pkey)).map((v) => v.pkey),
+    ...found.ambiguous.map((a) => choice[a.word]).filter((k): k is string => !!k),
+  ] : [];
+  const keys = [...new Set(chosen)];
+
+  return (
+    <div className="space-y-2" data-testid="fanteam-photo">
+      <label className={`${BTN} border border-chalk-300 inline-flex items-center cursor-pointer ${busy ? 'opacity-40 pointer-events-none' : ''}`}>
+        {busy ? `Reading… ${Math.round(progress * 100)}%` : 'Read team from a screenshot'}
+        <input ref={input} type="file" accept="image/*" className="sr-only" aria-label="Team screenshot" disabled={busy}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void read(f); }} />
+      </label>
+      {busy && progress === 0 && <p className="text-xs text-ink-500">First use downloads the text reader (about 4 MB).</p>}
+      {err && <p className="text-red-700">{err}</p>}
+      {found && (
+        <div className="border border-chalk-300 rounded p-2 space-y-2 bg-chalk-50">
+          {found.picks.length + found.ambiguous.length === 0
+            ? <p className="text-amber-700">No player names from this contest found in the picture. Try a sharper screenshot of the team list.</p>
+            : <p className="text-ink-700">Found {found.picks.length + found.ambiguous.length} name(s). Untick any that are wrong.</p>}
+          <ul className="divide-y divide-chalk-200">
+            {[...found.picks].sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos]).map((v) => (
+              <li key={v.pkey}><label className="flex items-center gap-2 min-h-11">
+                <input type="checkbox" className="h-5 w-5" checked={ticked.has(v.pkey)}
+                  onChange={(e) => { const s = new Set(ticked); if (e.target.checked) s.add(v.pkey); else s.delete(v.pkey); setTicked(s); }} />
+                <span><span className="font-medium">{v.name}</span> <span className="text-ink-500">{v.pos} · {v.team_name} · £{f1(v.price)}m</span></span>
+              </label></li>
+            ))}
+            {found.ambiguous.map((a) => (
+              <li key={a.word} className="py-2"><label className="flex flex-col gap-1">Which &ldquo;{a.options[0].surname ?? a.word}&rdquo;?
+                <select className="min-h-11 border border-chalk-300 rounded px-2 bg-white" value={choice[a.word] ?? ''}
+                  onChange={(e) => setChoice({ ...choice, [a.word]: e.target.value })}>
+                  <option value="">None of these</option>
+                  {a.options.map((v) => <option key={v.pkey} value={v.pkey}>{v.name} · {v.team_name} · {v.pos} · £{f1(v.price)}m</option>)}
+                </select>
+              </label></li>
+            ))}
+          </ul>
+          {keys.length > 0 && keys.length !== size && <p className="text-amber-700">{keys.length} of {size} players: you can add or remove players after.</p>}
+          <div className="flex flex-wrap gap-2">
+            <button className={`${BTN} bg-emerald-700 text-white`} disabled={keys.length === 0 || keys.length > size}
+              onClick={() => { onUse(keys); setFound(null); }}>{keys.length > size ? `Too many (${keys.length})` : `Use these ${keys.length}`}</button>
+            <button className={`${BTN} border border-chalk-300`} onClick={() => setFound(null)}>Cancel</button>
+          </div>
+          <details className="text-xs text-ink-500"><summary className="cursor-pointer min-h-8">Text read from the picture</summary>
+            <pre className="whitespace-pre-wrap break-words">{text}</pre></details>
+        </div>
       )}
     </div>
   );
