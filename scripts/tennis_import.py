@@ -652,10 +652,10 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             failures.append(str(e))
             print(f"FAILED {e}")
-    # Events, editions and per-player summaries (phase 3) are rebuilt by the
-    # tennis-refresh GitHub job, which runs every two hours and picks up any
-    # load: the rebuild takes longer than the API's statement time limit, so
-    # it runs over a direct database connection there, not from here.
+    # Events, editions and per-player summaries (phase 3) are rebuilt inside
+    # the database by pg_cron every two hours after any load
+    # (tennis_refresh_if_stale, migration 20261005120000): the rebuild takes
+    # longer than the API's statement time limit, so not from here.
     summary = "; ".join(done) or "nothing loaded"
     sb.table("pipeline_runs").update({
         "status": "failed" if failures else "success", "summary": summary[:2000],
