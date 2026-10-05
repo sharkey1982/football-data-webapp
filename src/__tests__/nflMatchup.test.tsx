@@ -41,6 +41,10 @@ describe('NFL match-up maths', () => {
   });
 });
 
+const line = (franchise: string, week: number, game_id: string, over: Partial<mu.TeamGameLine> = {}): mu.TeamGameLine => ({
+  season: 2026, week, game_id, franchise, points_for: 24, points_against: 20, pass_yards_net: 220, rushing_yards: 110, passing_tds: 2, rushing_tds: 1,
+  giveaways: 1, fg_made: 2, fg_att: 2, opp_pass_yards_net: 200, opp_rushing_yards: 100, opp_passing_tds: 1, opp_rushing_tds: 1, opp_fg_made: 1, takeaways: 2, ...over,
+});
 const game = { game_id: '2026_05_MIA_DET', season: 2026, game_type: 'REG', week: 5, gameday: '2026-10-11', kickoff_at: '2026-10-11T17:00:00Z', home_franchise: 'DET', home_slug: 'detroit-lions', home_name: 'Detroit Lions', home_short: 'Lions', away_franchise: 'MIA', away_slug: 'miami-dolphins', away_name: 'Miami Dolphins', away_short: 'Dolphins', home_score: null, away_score: null, neutral_site: false, spread_line: 7, total_line: 49 } as unknown as NflGame;
 const stats = (f: string, over: Partial<NflTeamSeason>) => ({ franchise: f, season: 2026, games: 4, points_for: 120, plays: 260, attempts: 140, sacks_suffered: 8, dst_points: 28, ...over }) as unknown as NflTeamSeason;
 const proj = (id: string, slug: string, position: string, ppr: number) => ({ game_id: game.game_id, player_id: id, player_slug: id, player_name: id, position, team_slug: slug, method: 'np1', proj_ppr: ppr, proj_half: ppr, proj_std: ppr, low_ppr: ppr / 2, high_ppr: ppr * 1.5, injury_status: null }) as unknown as NflProjection;
@@ -52,6 +56,8 @@ describe('NFL Match Projections page', () => {
       projections: [proj('Goff', 'detroit-lions', 'QB', 19), proj('Gibbs', 'detroit-lions', 'RB', 21), proj('Tua', 'miami-dolphins', 'QB', 16), proj('Hill', 'miami-dolphins', 'WR', 17)],
       home: { profile: mu.buildProfile('DET', 2026, DET), stats: stats('DET', { points_for: 130 }), allowed: [{ position: 'WR', ppr_per_game: 40, ppr_rank: 3 }] },
       away: { profile: mu.buildProfile('MIA', 2026, MIA), stats: stats('MIA', { points_for: 80 }), allowed: [{ position: 'RB', ppr_per_game: 30, ppr_rank: 2 }] },
+      teamGames: [line('DET', 1, 'g1', { pass_yards_net: 250 }), line('MIA', 1, 'g2', { opp_pass_yards_net: 300 })],
+      playerActuals: [],
     });
     render(<MemoryRouter initialEntries={['/nfl/match-projections/2026_05_MIA_DET']}><Routes><Route path="/nfl/match-projections/:gameId" element={<NflMatchProjectionsPage />} /></Routes></MemoryRouter>);
     await waitFor(() => expect(screen.getByTestId('nfl-matchup-kpis')).toBeInTheDocument());
@@ -90,5 +96,44 @@ describe('NFL Match Projections page', () => {
     const card = screen.getByTestId('nfl-matchup-card');
     expect(card.textContent).toContain('–');
     expect(card.textContent).not.toContain('0.0');
+  });
+
+  it('stat lines: average before the game, what the opponent allows, and the actual once played', () => {
+    const lines = [
+      line('DET', 1, 'a', { pass_yards_net: 200 }), line('DET', 2, 'b', { pass_yards_net: 300 }),
+      line('MIA', 1, 'c', { opp_pass_yards_net: 280, takeaways: 3 }), line('MIA', 3, 'd', { opp_pass_yards_net: 220, takeaways: 1 }),
+      line('DET', 5, game.game_id, { pass_yards_net: 333 }), line('MIA', 5, game.game_id),
+    ];
+    const s = mu.statLines(lines, 'DET', 'MIA', game);
+    const pass = s.lines.find((l) => l.key === 'pass')!;
+    expect(s.games).toBe(2);
+    expect(pass.avg).toBe(250);
+    expect(pass.oppAllows).toBe(250);
+    expect(pass.actual).toBe(333);
+    expect(s.lines.find((l) => l.key === 'to')!.oppAllows).toBe(2);
+    expect(mu.actualLine({ player_id: 'x', pts_std: 0, pts_half: 0, pts_ppr: 0, passing_yards: 289, passing_tds: 2, rushing_yards: 14, rushing_tds: 0, receptions: 0, receiving_yards: 0, receiving_tds: 0, fg_made: 0, fg_att: 0 })).toBe('289 pass yds, 2 TD \u00b7 14 rush yds');
+  });
+
+  it('after the game: final score, actual stat lines and actual points beside the projection', async () => {
+    const played = { ...game, home_score: 31, away_score: 17 } as unknown as NflGame;
+    mocked.loadMatchup.mockResolvedValue({
+      game: played, season: 2026,
+      projections: [proj('Goff', 'detroit-lions', 'QB', 19), proj('Tua', 'miami-dolphins', 'QB', 16)],
+      home: { profile: mu.buildProfile('DET', 2026, DET), stats: stats('DET', {}), allowed: [] },
+      away: { profile: mu.buildProfile('MIA', 2026, MIA), stats: stats('MIA', {}), allowed: [] },
+      teamGames: [line('DET', 1, 'g1'), line('MIA', 1, 'g2'), line('DET', 5, played.game_id, { pass_yards_net: 301 }), line('MIA', 5, played.game_id, { pass_yards_net: 188 })],
+      playerActuals: [{ player_id: 'Goff', pts_std: 20, pts_half: 20, pts_ppr: 24.5, passing_yards: 301, passing_tds: 3, rushing_yards: 0, rushing_tds: 0, receptions: 0, receiving_yards: 0, receiving_tds: 0, fg_made: 0, fg_att: 0 }],
+    });
+    render(<MemoryRouter initialEntries={['/nfl/match-projections/2026_05_MIA_DET']}><Routes><Route path="/nfl/match-projections/:gameId" element={<NflMatchProjectionsPage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(screen.getByTestId('nfl-matchup-final')).toBeInTheDocument());
+    expect(screen.getByTestId('nfl-matchup-final').textContent).toContain('Dolphins 17\u201331 Lions');
+    const pass = screen.getAllByTestId('nfl-statline').find((r) => r.textContent!.includes('Passing yards'))!;
+    expect(pass.textContent).toMatch(/^188/);
+    expect(pass.textContent).toMatch(/301$/);
+    const qb = screen.getAllByTestId('nfl-matchup-slot')[0];
+    expect(qb.textContent).toContain('24.5');
+    expect(qb.textContent).toContain('proj 19.0');
+    expect(qb.textContent).toContain('301 pass yds, 3 TD');
+    expect(qb.textContent).toContain('did not play'); // Tua has no actual row
   });
 });

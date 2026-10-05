@@ -119,13 +119,119 @@ export function lineup(rows: NflProjection[], teamSlug: string): { slot: string;
 
 export type PositionAllowed = { position: string; ppr_per_game: number; ppr_rank: number };
 
+// ---- Stat lines: season average, what the opponent allows, and the actual game --------------
+
+/** One team's line in one game (public.nfl_team_games). */
+export type TeamGameLine = {
+  season: number;
+  week: number;
+  game_id: string;
+  franchise: string;
+  points_for: number | null;
+  pass_yards_net: number;
+  rushing_yards: number;
+  passing_tds: number;
+  rushing_tds: number;
+  giveaways: number;
+  fg_made: number;
+  fg_att: number;
+  opp_pass_yards_net: number | null;
+  opp_rushing_yards: number | null;
+  opp_passing_tds: number | null;
+  opp_rushing_tds: number | null;
+  opp_fg_made: number | null;
+  takeaways: number;
+  points_against: number | null;
+};
+export const TEAM_GAME_COLUMNS =
+  'season,week,game_id,franchise,points_for,points_against,pass_yards_net,rushing_yards,passing_tds,rushing_tds,giveaways,fg_made,fg_att,opp_pass_yards_net,opp_rushing_yards,opp_passing_tds,opp_rushing_tds,opp_fg_made,takeaways';
+
+/** Each stat: the team's own figure, and what a defence allows (from that defence's games). */
+export const STAT_LINES: { key: string; label: string; digits: number; own: (g: TeamGameLine) => number | null; allows: (g: TeamGameLine) => number | null }[] = [
+  { key: 'pts', label: 'Points', digits: 1, own: (g) => g.points_for, allows: (g) => g.points_against },
+  { key: 'pass', label: 'Passing yards', digits: 0, own: (g) => g.pass_yards_net, allows: (g) => g.opp_pass_yards_net },
+  { key: 'rush', label: 'Rushing yards', digits: 0, own: (g) => g.rushing_yards, allows: (g) => g.opp_rushing_yards },
+  { key: 'ptd', label: 'Passing TDs', digits: 1, own: (g) => g.passing_tds, allows: (g) => g.opp_passing_tds },
+  { key: 'rtd', label: 'Rushing TDs', digits: 1, own: (g) => g.rushing_tds, allows: (g) => g.opp_rushing_tds },
+  { key: 'fg', label: 'Field goals', digits: 1, own: (g) => g.fg_made, allows: (g) => g.opp_fg_made },
+  { key: 'to', label: 'Giveaways / takeaways', digits: 1, own: (g) => g.giveaways, allows: (g) => g.takeaways },
+];
+
+export type StatLine = { key: string; label: string; digits: number; avg: number | null; oppAllows: number | null; actual: number | null };
+
+const mean = (xs: (number | null)[]): number | null => {
+  const v = xs.filter((x): x is number => x != null).map(Number);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+};
+
+/**
+ * A team's stat lines for one game: its average per game before this game,
+ * what the opponent's defence allowed per game before it, and (once played)
+ * the actual figure in this game. "Giveaways / takeaways": the team's
+ * giveaways, and the takeaways the opponent's defence forces.
+ */
+export function statLines(lines: TeamGameLine[], team: string, opponent: string, game: Pick<NflGame, 'game_id' | 'week' | 'season'>): { lines: StatLine[]; games: number; oppGames: number } {
+  const before = (f: string) => lines.filter((l) => l.franchise === f && l.season === game.season && l.week < game.week && l.game_id !== game.game_id);
+  const mine = before(team);
+  const theirs = before(opponent);
+  const actual = lines.find((l) => l.franchise === team && l.game_id === game.game_id) ?? null;
+  return {
+    games: mine.length,
+    oppGames: theirs.length,
+    lines: STAT_LINES.map((s) => ({
+      key: s.key,
+      label: s.label,
+      digits: s.digits,
+      avg: mean(mine.map(s.own)),
+      oppAllows: mean(theirs.map(s.allows)),
+      actual: actual ? s.own(actual) : null,
+    })),
+  };
+}
+
+/** A player's actual output in one game (public.nfl_player_weeks). */
+export type PlayerActual = {
+  player_id: string;
+  pts_std: number;
+  pts_half: number;
+  pts_ppr: number;
+  passing_yards: number;
+  passing_tds: number;
+  rushing_yards: number;
+  rushing_tds: number;
+  receptions: number;
+  receiving_yards: number;
+  receiving_tds: number;
+  fg_made: number;
+  fg_att: number;
+};
+export const PLAYER_ACTUAL_COLUMNS = 'player_id,pts_std,pts_half,pts_ppr,passing_yards,passing_tds,rushing_yards,rushing_tds,receptions,receiving_yards,receiving_tds,fg_made,fg_att';
+
+/** "289 pass yds, 2 TD · 14 rush yds": the parts of a box-score line that scored. */
+export function actualLine(a: PlayerActual): string {
+  const parts: string[] = [];
+  const td = (n: number) => (n ? `, ${n} TD` : '');
+  if (Number(a.passing_yards)) parts.push(`${a.passing_yards} pass yds${td(Number(a.passing_tds))}`);
+  if (Number(a.rushing_yards) || Number(a.rushing_tds)) parts.push(`${a.rushing_yards} rush yds${td(Number(a.rushing_tds))}`);
+  if (Number(a.receptions) || Number(a.receiving_yards)) parts.push(`${a.receptions} rec, ${a.receiving_yards} yds${td(Number(a.receiving_tds))}`);
+  if (Number(a.fg_att)) parts.push(`${a.fg_made}/${a.fg_att} FG`);
+  return parts.join(' \u00b7 ') || 'no stats';
+}
+
 export type MatchupData = {
   game: NflGame;
   season: number;
   projections: NflProjection[];
   home: { profile: TeamProfile; stats: NflTeamSeason | null; allowed: PositionAllowed[] };
   away: { profile: TeamProfile; stats: NflTeamSeason | null; allowed: PositionAllowed[] };
+  /** Both teams' game lines this season (for stat lines and actuals). */
+  teamGames: TeamGameLine[];
+  /** Once played: each player's actual output in this game. */
+  playerActuals: PlayerActual[];
 };
+
+/** True once the game has a final score. */
+export const isPlayed = (g: Pick<NflGame, 'home_score' | 'away_score'>): boolean => g.home_score != null && g.away_score != null;
 
 const WEEK_COLS = 'team,position,season,season_type,rushing_yards,receiving_yards,rushing_tds,receiving_tds,targets,carries,game_id';
 
@@ -136,13 +242,21 @@ export async function loadMatchup(gameId: string): Promise<MatchupData | null> {
   if (!game) return null;
   const teams = [game.home_franchise, game.away_franchise];
   // This season once a team has played; before week 2, last season.
-  const [projRes, stats, weeks, allowed] = await Promise.all([
+  const played = isPlayed(game);
+  const [projRes, stats, weeks, allowed, teamGames, actuals] = await Promise.all([
     supabase.from('nfl_projections' as never).select(PROJECTION_COLUMNS).eq('game_id', gameId),
     supabase.from('nfl_team_seasons' as never).select(TEAM_SEASON_COLUMNS).in('season', [game.season, game.season - 1]).in('franchise', teams),
     supabase.from('nfl_player_weeks' as never).select(WEEK_COLS).in('season', [game.season, game.season - 1]).in('team', teams).eq('season_type', 'REG').limit(5000),
     supabase.from('nfl_points_allowed' as never).select('season,defence,position,ppr_per_game,ppr_rank').in('season', [game.season, game.season - 1]).in('defence', teams),
+    supabase.from('nfl_team_games' as never).select(TEAM_GAME_COLUMNS).eq('season', game.season).eq('season_type', 'REG').in('franchise', teams),
+    played
+      ? supabase.from('nfl_player_weeks' as never).select(PLAYER_ACTUAL_COLUMNS).eq('game_id', gameId)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   for (const r of [projRes, stats, weeks, allowed]) if (r.error) throw r.error;
+  // Stat lines and actuals are extras: the page still works without them.
+  const tg = teamGames.error ? [] : ((teamGames.data ?? []) as unknown as TeamGameLine[]);
+  const pa = actuals.error ? [] : ((actuals.data ?? []) as unknown as PlayerActual[]);
   const st = (stats.data ?? []) as unknown as NflTeamSeason[];
   const wk = (weeks.data ?? []) as unknown as WeekLine[];
   const al = (allowed.data ?? []) as unknown as (PositionAllowed & { season: number; defence: string })[];
@@ -157,7 +271,7 @@ export async function loadMatchup(gameId: string): Promise<MatchupData | null> {
     };
   };
   const home = side(game.home_franchise);
-  return { game, season: home.profile.season, projections: (projRes.data ?? []) as unknown as NflProjection[], home, away: side(game.away_franchise) };
+  return { game, season: home.profile.season, projections: (projRes.data ?? []) as unknown as NflProjection[], home, away: side(game.away_franchise), teamGames: tg, playerActuals: pa };
 }
 
 /** A side's line-up total, or null when the team has no projections for this game yet
@@ -172,7 +286,9 @@ export async function loadMatchupIndex(): Promise<MatchupCard[]> {
   if (!ids.length) return [];
   const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).in('game_id', ids);
   if (error) throw error;
-  const games = (data ?? []) as unknown as NflGame[];
+  // Projections are kept after kick-off; the index shows the last week and what's coming.
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  const games = ((data ?? []) as unknown as NflGame[]).filter((g) => !g.kickoff_at || new Date(g.kickoff_at).getTime() >= cutoff);
   const side = (g: NflGame, slug: string): number | null => {
     const rows = proj.filter((p) => p.game_id === g.game_id && p.team_slug === slug);
     if (!rows.length) return null;
