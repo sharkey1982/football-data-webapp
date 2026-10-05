@@ -63,14 +63,41 @@ export type IntlFixture = {
 };
 
 /** Nations League league phase, simulated: chance of each finishing position. */
-export type GroupOdds = { edition_key: string; group_label: string; team: string; slug: string; played: number; points: number; gd: number; gf: number; p_pos: number[]; exp_points: number; sims: number; updated_at: string };
+export type GroupOdds = { edition_key: string; group_label: string; team: string; slug: string; played: number; points: number; gd: number; gf: number; p_pos: number[]; exp_points: number; sims: number; updated_at: string; zones?: Record<string, number> | null };
+
+/** Nations League 2026/27: what a finish leads to, per league, in display order. */
+export const NL_ZONES: Record<string, { code: string; label: string; good?: boolean; bad?: boolean }[]> = {
+  A: [{ code: 'QF', label: 'Quarter-finals', good: true }, { code: 'STAY', label: 'Stays up' }, { code: 'PO_AB', label: 'Play-off' }, { code: 'RELEGATED', label: 'Relegated', bad: true }],
+  B: [{ code: 'PROMOTED', label: 'Promoted', good: true }, { code: 'PO_AB', label: 'Play-off A/B' }, { code: 'STAY_B', label: 'Stays in B' }, { code: 'PO_BC', label: 'Play-off B/C', bad: true }],
+  C: [{ code: 'PROMOTED', label: 'Promoted', good: true }, { code: 'PO_BC', label: 'Play-off B/C' }, { code: 'STAY_C', label: 'Stays in C' }],
+  D: [{ code: 'PROMOTED', label: 'Promoted to C', good: true }],
+};
 
 export type IntlSquad = { team: string; slug: string; wiki_title: string; revision_at: string | null; intro: string | null; caps_as_of: string | null; players: number; fetched_at: string };
 export type SquadPlayer = {
   team: string; list: 'current' | 'recent'; seq: number; number: number | null; position: string | null; player: string; wiki_title: string | null;
   birth_date: string | null; caps: number | null; goals: number | null; club: string | null; club_country: string | null;
   latest_date: string | null; latest_text: string | null; status: string | null;
+  club_wiki?: string | null; club_league_country?: string | null; club_slug?: string | null;
+  clubelo_name?: string | null; club_elo?: number | null; club_elo_rank?: number | null;
 };
+
+export type ClubCallup = {
+  club_key: string; club: string; league_country: string | null; club_slug: string | null; club_elo: number | null; club_elo_rank: number | null;
+  players: number; nations: number; callups: { team: string; slug: string; player: string; caps: number | null }[];
+};
+export type LeagueExport = { league_country: string; players: number; nations: number; clubs: number; foreign_players: number };
+export type ClubEloRow = { club: string; country: string | null; level: number | null; elo: number; rank: number; club_slug: string | null; fetched_on: string; internationals: number };
+export type SquadClubStrength = { team: string; slug: string; confederation: string | null; players: number; at_home: number; abroad: number; rated: number; avg_club_elo: number | null; league_countries: number };
+
+/** Where a squad plays: players per league country, home first, then by count. */
+export function leagueBreakdown(players: Pick<SquadPlayer, 'club_league_country'>[], nation: string): { country: string; n: number; home: boolean }[] {
+  const n = new Map<string, number>();
+  for (const p of players) if (p.club_league_country) n.set(p.club_league_country, (n.get(p.club_league_country) ?? 0) + 1);
+  return [...n.entries()]
+    .map(([country, k]) => ({ country, n: k, home: country === nation }))
+    .sort((a, b) => Number(b.home) - Number(a.home) || b.n - a.n || a.country.localeCompare(b.country));
+}
 
 /** Age in whole years on a date (both ISO). */
 export function ageOn(birth: string, on: string): number {
@@ -423,3 +450,6 @@ export function bracketRounds(matches: IntlMatch[]): { code: string; games: Intl
   return out;
 }
 
+
+/** Squad tables list players without a club this way; they aren't clubs. */
+export const NOT_A_CLUB = /^(free agent|unattached|without (a )?club|no club|unknown|retired|n\/a|-)$/i;

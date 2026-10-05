@@ -119,6 +119,7 @@ const IntlTeamsPage = lazy(() => import('./pages/international/IntlTeamsPage'));
 const IntlTeamPage = lazy(() => import('./pages/international/IntlTeamPage'));
 const IntlTournamentsPage = lazy(() => import('./pages/international/IntlTournamentsPage'));
 const IntlHistoryPage = lazy(() => import('./pages/international/IntlHistoryPage'));
+const IntlClubsPage = lazy(() => import('./pages/international/IntlClubsPage'));
 const IntlEditionPage = lazy(() => import('./pages/international/IntlEditionPage'));
 // The NFL section's first URLs (4 Oct 2026), moved the same day to match
 // Football's structure; netlify.toml 301s them too.
@@ -1017,6 +1018,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <IntlTournamentsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="international/clubs"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <IntlClubsPage />
               </Suspense>
             }
           />

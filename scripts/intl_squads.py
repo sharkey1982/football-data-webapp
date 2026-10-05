@@ -347,10 +347,24 @@ def load_site_teams(sb) -> list[dict]:
 
 
 def fetch_clubelo() -> list[dict]:
-    from datetime import date
-    req = urllib.request.Request(CLUBELO_URL.format(date=date.today().isoformat()), headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return read_clubelo(r.read().decode("utf-8", "replace"))
+    """Today's ClubElo table; on an error (ClubElo answered 502 on 5 Oct) retry,
+    then fall back to the two previous days' tables."""
+    from datetime import date, timedelta
+    last = None
+    for back in (0, 1, 2):
+        url = CLUBELO_URL.format(date=(date.today() - timedelta(days=back)).isoformat())
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": UA})
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    rows = read_clubelo(r.read().decode("utf-8", "replace"))
+                if len(rows) >= 100:
+                    return rows
+                last = f"{url}: only {len(rows)} rows"
+            except Exception as e:  # noqa: BLE001
+                last = f"{url}: {e}"
+            time.sleep(10 * (attempt + 1))
+    raise RuntimeError(last or "ClubElo unavailable")
 
 
 def main() -> None:

@@ -292,6 +292,16 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
   },
   {
     sport: 'international',
+    label: 'Club Call-ups',
+    path: '/international/clubs',
+    footballFile: null,
+    file: 'src/pages/international/IntlClubsPage.tsx',
+    shared: [],
+    status: 'sport-only',
+    note: 'International only: where national-team players play their club football, from the squads.',
+  },
+  {
+    sport: 'international',
     label: 'Through Time',
     path: '/international/history',
     footballFile: 'src/pages/LeagueTable.tsx',
