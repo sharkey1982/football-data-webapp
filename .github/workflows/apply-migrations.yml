@@ -1,0 +1,116 @@
+# ============================================================================
+# Apply database migrations from the repo.
+#
+# Why: database writes from Claude's work sessions are cancelled before an
+# approval prompt reaches Chris (every attempt since 4 Oct), so migrations
+# were being pasted into the SQL Editor by hand. This applies them from
+# GitHub instead, over the session-pooler connection.
+#
+# What it applies:
+#   - on a push to main: every supabase/migrations/*.sql file ADDED by that
+#     push and not yet recorded in public.repo_migrations;
+#   - on demand: the one file named in the input.
+# Each file runs in a single transaction with ON_ERROR_STOP, so a failure
+# leaves the database unchanged, and is then recorded. Files merged before
+# this workflow existed are never replayed.
+#
+# If a file was already run by hand in the SQL Editor, run this workflow on
+# demand with that file and mark_only = true to record it without running it.
+#
+# Needs one secret, SUPABASE_DB_URL: the SESSION POOLER connection string
+# (Supabase dashboard -> Connect -> Session pooler) with the password filled
+# in. The direct connection is IPv6-only; GitHub's runners are IPv4.
+# ============================================================================
+name: Apply database migrations
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**.sql']
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'Migration file name, e.g. 20261005130000_intl_phase1.sql'
+        required: true
+      mark_only:
+        description: 'Record it as applied without running it (it was run by hand)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apply-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check the secret is set
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL is not set -- add the Session pooler connection string as a repository secret (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Install psql 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17 >/dev/null
+
+      - name: Apply
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          EVENT: ${{ github.event_name }}
+          FILE: ${{ inputs.file }}
+          MARK_ONLY: ${{ inputs.mark_only }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PSQL=(/usr/lib/postgresql/17/bin/psql "$DB_URL" -Atq -v ON_ERROR_STOP=1)
+          "${PSQL[@]}" -c "create table if not exists public.repo_migrations (
+              filename text primary key,
+              applied_at timestamptz not null default now(),
+              commit_sha text,
+              how text not null check (how in ('workflow', 'marked')));
+            alter table public.repo_migrations enable row level security;
+            revoke all on public.repo_migrations from anon, authenticated;"
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            files="$FILE"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            files=$(git diff-tree --no-commit-id --name-only --diff-filter=A -r "$SHA" -- 'supabase/migrations/*.sql' | xargs -r -n1 basename)
+          else
+            git fetch -q --depth=50 origin "$BEFORE" || true
+            files=$(git diff --name-only --diff-filter=A "$BEFORE" "$SHA" -- 'supabase/migrations/*.sql' | xargs -r -n1 basename)
+          fi
+          files=$(printf '%s\n' $files | sort)
+          if [ -z "$files" ]; then echo "No new migration files."; exit 0; fi
+
+          for f in $files; do
+            path="supabase/migrations/$f"
+            [ -f "$path" ] || { echo "::error::$path not found"; exit 1; }
+            done_already=$("${PSQL[@]}" -c "select count(*) from public.repo_migrations where filename = '$f'")
+            if [ "$done_already" != "0" ]; then echo "Already applied: $f"; continue; fi
+            if [ "$EVENT" = "workflow_dispatch" ] && [ "$MARK_ONLY" = "true" ]; then
+              "${PSQL[@]}" -c "insert into public.repo_migrations (filename, commit_sha, how) values ('$f', '$SHA', 'marked')"
+              echo "Recorded without running: $f"
+              continue
+            fi
+            echo "Applying $f"
+            "${PSQL[@]}" --single-transaction -c "set statement_timeout = '10min'" -f "$path"
+            "${PSQL[@]}" -c "insert into public.repo_migrations (filename, commit_sha, how) values ('$f', '$SHA', 'workflow')"
+            echo "Applied: $f"
+          done

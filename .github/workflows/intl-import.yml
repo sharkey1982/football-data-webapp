@@ -2,13 +2,17 @@ name: International import (results, tournaments, Nations League fixtures)
 
 # Daily international football load -- see scripts/intl_import.py. Separate
 # from the football, NFL and tennis imports on purpose. 06:30 UTC: after the
-# NFL import and before the 07:00 FPL run rebuilds the site. Runs the unit
-# tests first, so a broken parser never writes. Writes a pipeline_runs row
-# (job_name intl_import).
+# NFL import and before the 07:00 FPL run rebuilds the site. Also runs after
+# each successful "Apply database migrations" run, so the first load follows
+# the schema straight away. Runs the unit tests first, so a broken parser
+# never writes. Writes a pipeline_runs row (job_name intl_import).
 
 on:
   schedule:
     - cron: '30 6 * * *'
+  workflow_run:
+    workflows: ['Apply database migrations']
+    types: [completed]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -21,6 +25,7 @@ permissions:
 
 jobs:
   run:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
