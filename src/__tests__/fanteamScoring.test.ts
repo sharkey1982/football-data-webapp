@@ -4,7 +4,7 @@ import highsLoader from 'highs';
 import { scoreEvents, expectedPoints, safetyNetValue, winLoss, type ScoringRule, type Pos, type ProjectionInput } from '../lib/fanteam/scoring';
 import { solveLineup, validateLineup, buildLp, stackingPenalty, type Candidate, type ContestRules, type SolverFn } from '../lib/fanteam/optimiser';
 import { parsePaste, matchPlayer, resolveClub, type FplRef } from '../lib/fanteam/paste';
-import { buildPlayers, health, toCandidates } from '../lib/fanteam/model';
+import { buildPlayers, health, playerKey, toCandidates } from '../lib/fanteam/model';
 
 // The seed in migration 20261005140000_fanteam_private.sql, as the page reads it.
 const R = (rule_code: string, position: Pos | null, points: number, per_n: number | null = null, threshold_minutes: number | null = null): ScoringRule =>
@@ -499,5 +499,28 @@ describe('FanTeam safety net: no replacement', () => {
     const a = { key: 'a', team_id: 1, pos: 'MID' as Pos, price: 8, s: 0.6, ifStart: 6, total: 4 };
     const b = { key: 'b', team_id: 1, pos: 'MID' as Pos, price: 5, s: 0.1, ifStart: 3, total: 0.4 };
     expect(safetyNetValue(a, [a, b]).value).toBeGreaterThan(0.6 * 6);
+  });
+});
+
+describe('FanTeam: several contests, international list, stable keys', () => {
+  const INTL = [
+    'Tournament\tPlayerID\tName\tFName\tClub\tLineup\tPosition\tPrice',
+    '1144732\t4734666\tSzoboszlai\tDominik\tHUN\texpected\tmidfielder\t9',
+    '1144732\t4734878\tCherki\tRayan\tFRA\texpected\tmidfielder\t13.3',
+    '1144732\t4734934\tDonnarumma\tGianluigi\tITA\texpected\tgoalkeeper\t11.4',
+    '1144732\t4735024\tLammens\tSenne\tBEL\texpected\tgoalkeeper\t5.7',
+  ].join('\n');
+  it('an international list reads fine but reports "No projections", not Broken', () => {
+    const rows = parsePaste(INTL, DB_TEAMS, new Map());
+    expect(rows.map((r) => r.tournament)).toEqual(['1144732', '1144732', '1144732', '1144732']);
+    const views = buildPlayers(rows.map((r) => ({ ...r, position: r.position as Pos, price_m: r.price_m as number })), [] as never, RULES,
+      { players: new Map(), clubs: new Map() }, false);
+    const h = health({ hasRules: true, inputs: [], pasteMatchweek: 6, matchweek: 6, views });
+    expect(h.status).toBe('No projections');
+    expect(h.checks[0].detail).toMatch(/HUN/);
+  });
+  it('player keys use the FanTeam id when there is one, else name and club', () => {
+    expect(playerKey({ fanteam_player_id: 4700673, name_raw: 'Erling Haaland', club_raw: 'MCI' })).toBe('ft:4700673');
+    expect(playerKey({ fanteam_player_id: null, name_raw: 'Erling Haaland', club_raw: 'MCI' })).toBe('n:erling haaland|mci');
   });
 });
