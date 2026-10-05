@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 
 from intl_static import (COIN_TOSSES, CONFEDERATION_OF_COMPETITION, CONMEBOL, ELO_K_40, ELO_K_40_SUFFIX, ELO_K_50,
                          ELO_K_60, FIXTURE_FEED_ALIASES, NATIONS_LEAGUE, NATIONS_LEAGUE_LATER,
-                         OPENFOOTBALL_ALIASES, OPENFOOTBALL_YEAR_ALIASES, STAGE_OVERRIDES)
+                         OPENFOOTBALL_ALIASES, OPENFOOTBALL_YEAR_ALIASES, STAGE_OVERRIDES, VENUE_FIXES)
 
 RAW = "https://raw.githubusercontent.com"
 RESULTS_BASE = f"{RAW}/martj42/international_results/master"
@@ -229,6 +229,11 @@ def build(src: dict) -> Build:
             "home_score_90": None, "away_score_90": None, "went_extra_time": None,
             "shootout_winner": None, "raw": r,
         })
+    for m in matches:
+        fix = VENUE_FIXES.get(m["match_key"])
+        if fix:
+            m["city"], m["country"], m["neutral"] = fix
+            out.notes.append(f"venue corrected: {m['match_key']} -> {fix[0]}, {fix[1]}")
     by_day_pair = defaultdict(list)
     for m in matches:
         by_day_pair[(m["match_date"], pair(m["home_team"], m["away_team"]))].append(m)
@@ -339,7 +344,7 @@ def stage_tournament(out: Build, matches: list, by_day_pair: dict, src: dict, co
     for year, games in sorted(by_year.items()):
         ed = f"{code}-{year}"
         teams = {t for m in games for t in (m["home_team"], m["away_team"])}
-        hosts = sorted({m["country"] for m in games if not m["neutral"]} & teams)
+        hosts = sorted({m["country"] for m in games if m["country"]})  # every country that staged a game
         out.editions.append({"edition_key": ed, "competition": comp, "label": year, "season_start": int(year),
                              "teams": len(teams), "matches": len(games), "hosts": hosts,
                              "first_match": min(m["match_date"] for m in games),
