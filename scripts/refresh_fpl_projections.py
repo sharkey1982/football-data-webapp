@@ -28,6 +28,16 @@
 # path -- same service_role HTTP client as every other script here.
 #
 # Requires SUPABASE_URL and SUPABASE_SERVICE_KEY in the environment.
+#
+# 2026-10-05: with SUPABASE_DB_URL also set (the session-pooler string the
+# migration workflow uses), each fixture is refreshed over a direct database
+# connection with a 2-minute statement limit instead of through the API,
+# whose 8-second limit the refresh had outgrown (~3s a fixture when quiet,
+# well over 8s when the database is busy: the 10-gameweek run on 5 Oct
+# failed on it). The API path stays as the fallback when the secret is
+# absent. Each run first refreshes fpl_fixture_availability_store (per-
+# fixture availability from return dates and doubts), which the projection
+# views read.
 # ============================================================================
 
 import os
@@ -88,6 +98,44 @@ def main():
     )
     run_id = run.data[0]["run_id"]
 
+    db_url = os.environ.get("SUPABASE_DB_URL")
+    conn_box: list = [None]
+
+    def db():
+        if conn_box[0] is None or conn_box[0].closed:
+            import psycopg  # only needed on the direct path
+            conn_box[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30)
+            conn_box[0].execute("set statement_timeout = '120s'")
+        return conn_box[0]
+
+    def call(fn: str, fixture_id=None):
+        """Call a database function directly when SUPABASE_DB_URL is set, else via the API."""
+        if db_url:
+            try:
+                if fixture_id is None:
+                    return db().execute(f"select public.{fn}()").fetchone()[0]
+                return db().execute(f"select public.{fn}(%s)", (fixture_id,)).fetchone()[0]
+            except Exception:
+                # Drop a broken connection so the retry reconnects.
+                try:
+                    if conn_box[0] is not None:
+                        conn_box[0].close()
+                except Exception:
+                    pass
+                conn_box[0] = None
+                raise
+        args = {} if fixture_id is None else {"p_fixture_id": fixture_id}
+        return supabase.rpc(fn, args).execute().data
+
+    print(f"::notice::Calling the database {'directly (2-minute limit)' if db_url else 'through the API (8-second limit)'}.")
+    # Availability per fixture first. If this fails the projections still
+    # run on the previous stored availability, so warn rather than stop.
+    try:
+        n = call("refresh_fpl_fixture_availability")
+        print(f"::notice::Fixture availability refreshed: {n} rows.")
+    except Exception as e:
+        print(f"::warning::Could not refresh fixture availability ({e}); using the previous stored rows.")
+
     def record_failure(message: str) -> None:
         # The failure record goes through the same database that just
         # failed, so it gets its own retries rather than one attempt.
@@ -140,8 +188,7 @@ def main():
         # the same call that normally takes ~1.3s timed out repeatedly.
         for attempt in range(1, 8):
             try:
-                result = supabase.rpc("refresh_fpl_projection_fixture_v6", {"p_fixture_id": fixture_id}).execute()
-                rows = result.data
+                rows = call("refresh_fpl_projection_fixture_v6", fixture_id)
                 last_error = None
                 break
             except Exception as e:
