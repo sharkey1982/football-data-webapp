@@ -305,7 +305,11 @@ export function guideGroups(calendar: CalendarRow[], recent: TennisEdition[], to
   const underWay = recent.filter((e) => !e.winner && e.start_date >= addDays(today, -21)).sort((a, b) => a.level_rank - b.level_rank || a.name.localeCompare(b.name));
   const busy = new Set(underWay.map((e) => e.event_id));
   const mon = weekStart(today);
-  const rows = calendar.filter((c) => !busy.has(c.event_id)).sort((a, b) => a.usual_start.localeCompare(b.usual_start) || a.level_rank - b.level_rank || a.name.localeCompare(b.name));
+  // The view's "next" date jumps a year once this year's usual start has passed,
+  // so an event still in its usual week (Shanghai in early October) is moved back.
+  const rows = calendar
+    .map((c) => (addDays(c.usual_end, -364) >= today ? { ...c, usual_start: addDays(c.usual_start, -364), usual_end: addDays(c.usual_end, -364) } : c))
+    .filter((c) => !busy.has(c.event_id)).sort((a, b) => a.usual_start.localeCompare(b.usual_start) || a.level_rank - b.level_rank || a.name.localeCompare(b.name));
   const inRange = (c: CalendarRow, from: string, to: string) => c.usual_start >= from && c.usual_start <= to;
   return {
     underWay,
