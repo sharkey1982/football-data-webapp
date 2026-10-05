@@ -8,7 +8,7 @@
 // Pure functions; the page only fetches and renders.
 // ============================================================================
 
-import { expectedPoints, safetyNetValue, type Pos, type ScoringRule, type PointsBreakdown } from './scoring';
+import { expectedPoints, safetyNetValue, winLoss, type Pos, type ScoringRule, type PointsBreakdown } from './scoring';
 import { matchPlayer, nameKey, norm, resolveClub, type FplRef, type TeamRef } from './paste';
 import type { InputRow, PriceRow } from './api';
 import type { Candidate } from './optimiser';
@@ -43,6 +43,18 @@ export type PlayerView = {
   inputs: { xMin: number; xG: number; xA: number; pSub: number; pFull: number | null } | null;
   /** Safety-net replacement value (expected points if he doesn't start), when the contest has one. */
   netReplacement: number | null;
+  /** Each fixture this gameweek: opponent and the team-level estimates. */
+  matches: MatchView[];
+};
+
+export type MatchView = {
+  opponent: string;
+  home: boolean;
+  kickoff: string;          // date
+  teamGoals: number;        // expected goals for his team
+  oppGoals: number;         // expected goals for the opponent
+  win: number; draw: number; loss: number;
+  cleanSheet: number;       // P(team keeps a clean sheet), full match
 };
 
 export type Status = 'Fresh' | 'Stale' | 'Incomplete' | 'Broken';
@@ -113,6 +125,15 @@ export function buildPlayers(
       fixtures: fx.length, s, ifStart, total, value: total, perMillion: 0, pCleanSheet: pcs,
       breakdown: fx.length ? bd : null,
       inputs: fx.length ? { xMin, xG, xA, pSub, pFull } : null,
+      matches: fx.map((f) => {
+        const wl = winLoss(Math.max(0, f.team_goals), Math.max(0, f.opp_goals));
+        return {
+          opponent: f.opponent_name, home: f.is_home, kickoff: f.kickoff_date,
+          teamGoals: f.team_goals, oppGoals: f.opp_goals,
+          win: wl.win, loss: wl.loss, draw: Math.max(0, 1 - wl.win - wl.loss),
+          cleanSheet: Math.exp(-Math.max(0, f.opp_goals)),
+        };
+      }),
       netReplacement: null,
     };
   });

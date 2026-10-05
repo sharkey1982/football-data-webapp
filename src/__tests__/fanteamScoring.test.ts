@@ -481,6 +481,11 @@ describe('FanTeam player breakdown inputs', () => {
     expect(star.value).toBeCloseTo(star.s * star.ifStart + (1 - star.s) * star.netReplacement!);
     const sum = Object.values(star.breakdown!).reduce((a, b) => a + b, 0);
     expect(sum).toBeCloseTo(star.total);
+    const m = star.matches[0];
+    expect(m).toMatchObject({ opponent: 'Everton', home: true, teamGoals: 2, oppGoals: 0.8 });
+    expect(m.win + m.draw + m.loss).toBeCloseTo(1, 3);
+    expect(m.win).toBeGreaterThan(m.loss);
+    expect(m.cleanSheet).toBeCloseTo(Math.exp(-0.8));
   });
 });
 
