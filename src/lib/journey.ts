@@ -1,8 +1,9 @@
 // ============================================================================
 // src/lib/journey.ts
 //
-// Single source of truth for the site's structure: four themes (Football,
-// Fantasy Premier League, NFL, Tennis), each a hub with its stages.
+// Single source of truth for the site's structure: five themes (Football,
+// Fantasy Premier League, NFL, Tennis, International), each a hub with its
+// stages.
 //
 // Everything that needs to know "what is this page, and where does it
 // sit" reads from here -- the hub pages, the stage landing pages, and
@@ -16,7 +17,7 @@
 // ============================================================================
 
 export type StageKey = 'discover' | 'predict';
-export type ThemeKey = 'football' | 'fpl' | 'nfl' | 'tennis';
+export type ThemeKey = 'football' | 'fpl' | 'nfl' | 'tennis' | 'international';
 
 export type JourneyLink = {
   label: string;
@@ -241,6 +242,30 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       },
     ],
   },
+  // International (Oct 2026): every men's full international since 1872, with
+  // the World Cup, Euros and Nations League as tournaments. Page names match
+  // Football's where the job matches (Fixtures & Results, Your Team).
+  international: {
+    key: 'international',
+    title: 'International',
+    eyebrow: 'FixtureShark \u00b7 International',
+    hubPath: '/international',
+    intro: 'Every men\u2019s international since 1872: results and fixtures, every nation\u2019s record and rating, and every World Cup, Euro and Nations League.',
+    stages: [
+      {
+        key: 'discover',
+        title: 'Discover',
+        tagline: 'Results, fixtures, nations, tournaments.',
+        intro:
+          'Everything that has happened in international football: every game since 1872 with the favourite on the day, each nation\u2019s record, rating and tournament history, and every World Cup, Euro and Nations League round by round.',
+        links: [
+          { label: 'Fixtures & Results', to: '/international/fixtures', blurb: 'Every international day by day, with the favourite and the upsets; filter to one nation.' },
+          { label: 'Your Team', to: '/international/teams', blurb: 'Any nation\u2019s record, rating, tournament history and head-to-heads.', matchPrefix: ['/international/teams'] },
+          { label: 'Tournaments', to: '/international/tournaments', blurb: 'Every World Cup, Euro and Nations League: groups, knockouts and scorers.', matchPrefix: ['/international/tournaments'] },
+        ],
+      },
+    ],
+  },
 };
 
 /** Path for a stage page, derived rather than written out, so the hub
@@ -249,7 +274,7 @@ export function stagePath(theme: JourneyTheme, stage: JourneyStage): string {
   return `${theme.hubPath}/${stage.key}`;
 }
 
-/** Every page in the header menu, in menu order (Football, Fantasy, NFL, Tennis). */
+/** Every page in the header menu, in menu order (Football, Fantasy, NFL, Tennis, International). */
 export function menuOrder(): string[] {
   return Object.values(THEMES).flatMap((t) => t.stages.flatMap((s) => s.links.map((l) => l.to)));
 }

@@ -137,11 +137,10 @@ function NavDropdown({ group }: { group: NavGroup }) {
 }
 
 
-// Top-menu headings (Chris, 5 Oct 2026: "Football > Club, Fantasy > FPL";
-// International will be "Intnl"). Short so the header fits one line on a
-// phone. Only the headings: URLs, hub titles and breadcrumbs keep their
-// full names.
-const MENU_LABEL = { football: 'Club', fpl: 'FPL', nfl: 'NFL', tennis: 'Tennis' } as const;
+// Top-menu headings (Chris, 5 Oct 2026: "Football > Club, Fantasy > FPL",
+// International as "Intnl"). Short so the header fits one line on a phone.
+// Only the headings: URLs, hub titles and breadcrumbs keep their full names.
+const MENU_LABEL = { football: 'Club', fpl: 'FPL', nfl: 'NFL', tennis: 'Tennis', international: 'Intnl' } as const;
 
 export default function AppLayout() {
   const location = useLocation();
@@ -188,7 +187,7 @@ export default function AppLayout() {
   // which it previously did (the nav said "Browse" after the hubs had
   // moved to "Discover"). Adding a destination is now one config edit
   // that updates the nav, the hub and the stage page together.
-  const themeGroups: NavGroup[] = (['football', 'fpl', 'nfl', 'tennis'] as const).map((key) => {
+  const themeGroups: NavGroup[] = (['football', 'fpl', 'nfl', 'tennis', 'international'] as const).map((key) => {
     const theme = THEMES[key];
     return {
       label: MENU_LABEL[key],
@@ -273,6 +272,7 @@ export default function AppLayout() {
   const onFantasyPage = location.pathname !== '/fpl/start' && groupItems(fantasyGroup).some((item) => isItemActive(location.pathname, item));
   const onNflPage = location.pathname !== '/nfl' && (location.pathname.startsWith('/nfl/') || groupItems(nflGroup).some((item) => isItemActive(location.pathname, item)));
   const onTennisPage = location.pathname !== '/tennis' && location.pathname.startsWith('/tennis/');
+  const onIntlPage = location.pathname !== '/international' && location.pathname.startsWith('/international/');
   const backToHub = onFootballPage
     ? { to: '/football', label: 'Football' }
     : onFantasyPage
@@ -281,7 +281,9 @@ export default function AppLayout() {
         ? { to: '/nfl', label: 'NFL' }
         : onTennisPage
           ? { to: '/tennis', label: 'Tennis' }
-          : null;
+          : onIntlPage
+            ? { to: '/international', label: 'International' }
+            : null;
 
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">

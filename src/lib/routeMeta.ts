@@ -30,6 +30,7 @@ const FOOTBALL = { name: 'Football', path: '/football' };
 const FPL = { name: 'Fantasy Premier League', path: '/fpl/start' };
 const NFL = { name: 'NFL', path: '/nfl' };
 const TENNIS = { name: 'Tennis', path: '/tennis' };
+const INTERNATIONAL = { name: 'International', path: '/international' };
 
 export const STATIC_ROUTES: RouteMeta[] = [
   {
@@ -401,5 +402,34 @@ export const STATIC_ROUTES: RouteMeta[] = [
     title: 'Discover \u2014 Tennis',
     description: 'Every tour-level result with rankings and the pre-match favourite, each player\u2019s record and titles, and the story of every season.',
     crumbs: [TENNIS],
+  },
+  {
+    path: '/international',
+    title: 'International football \u2014 every result since 1872, nations and tournaments',
+    description: 'Every men\u2019s international since 1872: results and fixtures, every nation\u2019s record and rating, and every World Cup, Euro and Nations League.',
+  },
+  {
+    path: '/international/discover',
+    title: 'Discover \u2014 International football',
+    description: 'Every international since 1872 with the favourite on the day, each nation\u2019s record, rating and tournament history, and every World Cup, Euro and Nations League.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
+    path: '/international/fixtures',
+    title: 'International results and fixtures, day by day',
+    description: 'Every men\u2019s international since 1872, day by day: results with the favourite and the upsets, and the coming Nations League fixtures.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
+    path: '/international/teams',
+    title: 'International teams: every nation\u2019s rating, record and titles',
+    description: 'Every national team\u2019s World Football Elo rating, all-time record and World Cup, Euro and Nations League titles, since 1872.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
+    path: '/international/tournaments',
+    title: 'International tournaments: every World Cup, Euro and Nations League',
+    description: 'Every World Cup since 1930, every Euro since 1960 and every UEFA Nations League: winners, hosts, groups, knockouts and scorers.',
+    crumbs: [INTERNATIONAL],
   },
 ];
