@@ -9,7 +9,7 @@
 -- else stays checked.
 -- ============================================================================
 
-alter table public.club_grounds add column postcode_far_reason text;
+alter table public.club_grounds add column if not exists postcode_far_reason text;
 
 update public.club_grounds
 set postcode_far_reason = 'B91 2PP covers a long stretch of Damson Parkway; its centroid is 1.9 km from the ground. Coordinates confirmed independently (thegreatbritainguide.com/place/damson-park), 4 Oct 2026.',
