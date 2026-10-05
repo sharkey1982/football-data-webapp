@@ -17,7 +17,10 @@ import { FORMATS, fmt1, type ScoringFormat } from '../../lib/nflFantasyApi';
 import { isUnlikely, projOf, rangeOf, type NflProjection } from '../../lib/nflProjections';
 import {
   SKILL,
+  actualLine,
   impliedPoints,
+  isPlayed,
+  statLines,
   lineup,
   loadMatchup,
   loadMatchupIndex,
@@ -25,6 +28,7 @@ import {
   relianceSentence,
   share,
   type MatchupData,
+  type PlayerActual,
   type PositionAllowed,
   type PositionSplit,
   type TeamProfile,
@@ -139,16 +143,24 @@ function ProfileCard({ name, slug, p }: { name: string; slug: string; p: TeamPro
 
 // ---- Line-ups side by side ------------------------------------------------------------------
 
-function PlayerCell({ r, fmt, align }: { r: NflProjection | null; fmt: ScoringFormat; align: 'left' | 'right' }) {
+const actualPts = (a: PlayerActual, f: ScoringFormat) => Number(f === 'ppr' ? a.pts_ppr : f === 'half' ? a.pts_half : a.pts_std);
+
+function PlayerCell({ r, fmt, align, played, actual }: { r: NflProjection | null; fmt: ScoringFormat; align: 'left' | 'right'; played: boolean; actual: PlayerActual | null }) {
   if (!r) return <td className={`px-2 py-1.5 text-xs text-ink-500 ${align === 'right' ? 'text-right' : ''}`} colSpan={2}>–</td>;
   const [lo, hi] = rangeOf(r, fmt);
   const name = (
     <span className={isUnlikely(r) ? 'text-ink-500 line-through' : ''}>
       <Link to={nflPlayerPath(r.player_slug)} className="hover:underline">{r.player_name}</Link>
       {r.injury_status && <span className="ml-1 text-[10px] uppercase text-loss-700" title={r.injury ?? ''}>{r.injury_status === 'Questionable' ? 'Q' : r.injury_status}</span>}
+      {played && <span className="block text-[10px] text-ink-500" data-testid="nfl-actual-line">{actual ? actualLine(actual) : 'did not play'}</span>}
     </span>
   );
-  const pts = (
+  const pts = played ? (
+    <span className="font-mono text-xs tabular-nums" data-testid="nfl-actual-pts">
+      <span className="font-semibold text-sm">{actual ? fmt1(actualPts(actual, fmt)) : '0.0'}</span>
+      <span className="block text-[10px] text-ink-500">{`proj ${fmt1(projOf(r, fmt))}${r.method === 'season_avg' ? '*' : ''}`}</span>
+    </span>
+  ) : (
     <span className="font-mono text-xs tabular-nums">
       <span className="font-semibold text-sm">{fmt1(projOf(r, fmt))}</span>
       {r.method === 'season_avg' && <span className="text-ink-500" title="Season average (the projector did not clearly beat it for this position)">*</span>}
@@ -171,6 +183,10 @@ function PlayerCell({ r, fmt, align }: { r: NflProjection | null; fmt: ScoringFo
 function Lineups({ d, fmt }: { d: MatchupData; fmt: ScoringFormat }) {
   const away = lineup(d.projections, d.game.away_slug);
   const home = lineup(d.projections, d.game.home_slug);
+  const played = isPlayed(d.game);
+  const act = new Map(d.playerActuals.map((a) => [a.player_id, a]));
+  const actOf = (p: NflProjection | null) => (p ? (act.get(p.player_id) ?? null) : null);
+  const actualSum = (l: typeof away) => l.reduce((s, x) => s + (x.player && act.get(x.player.player_id) ? actualPts(act.get(x.player.player_id)!, fmt) : 0), 0);
   const missing = [!d.projections.some((p) => p.team_slug === d.game.away_slug) && d.game.away_name, !d.projections.some((p) => p.team_slug === d.game.home_slug) && d.game.home_name].filter(Boolean);
   const sum = (l: typeof away) => l.reduce((s, x) => s + (x.player && x.player.injury_status !== 'Out' ? projOf(x.player, fmt) : 0), 0);
   return (
@@ -182,30 +198,87 @@ function Lineups({ d, fmt }: { d: MatchupData; fmt: ScoringFormat }) {
       <thead className="bg-chalk-200 text-ink-500 text-xs">
         <tr>
           <th scope="col" className="px-2 py-2 text-left font-medium">{d.game.away_short}</th>
-          <th scope="col" className="px-2 py-2 text-right font-medium">Proj</th>
+          <th scope="col" className="px-2 py-2 text-right font-medium">{played ? 'Actual' : 'Proj'}</th>
           <th scope="col" className="px-2 py-2 text-center font-medium w-12"> </th>
-          <th scope="col" className="px-2 py-2 text-left font-medium">Proj</th>
+          <th scope="col" className="px-2 py-2 text-left font-medium">{played ? 'Actual' : 'Proj'}</th>
           <th scope="col" className="px-2 py-2 text-right font-medium">{d.game.home_short}</th>
         </tr>
       </thead>
       <tbody>
         {away.map((a, i) => (
           <tr key={a.slot} className={i % 2 ? 'bg-chalk-100/60' : undefined} data-testid="nfl-matchup-slot">
-            <PlayerCell r={a.player} fmt={fmt} align="left" />
+            <PlayerCell r={a.player} fmt={fmt} align="left" played={played} actual={actOf(a.player)} />
             <th scope="row" className="px-2 py-1.5 text-center font-mono text-[11px] text-ink-500 font-normal">{a.slot}</th>
-            <PlayerCell r={home[i].player} fmt={fmt} align="right" />
+            <PlayerCell r={home[i].player} fmt={fmt} align="right" played={played} actual={actOf(home[i].player)} />
           </tr>
         ))}
         <tr className="border-t-2 border-ink-500 font-semibold" data-testid="nfl-matchup-totals">
           <td className="px-2 py-1.5 text-left text-xs">Line-up total</td>
-          <td className="px-2 py-1.5 text-right font-mono">{fmt1(sum(away))}</td>
+          <td className="px-2 py-1.5 text-right font-mono">
+            {played ? fmt1(actualSum(away)) : fmt1(sum(away))}
+            {played && <span className="block text-[10px] font-normal text-ink-500">{`proj ${fmt1(sum(away))}`}</span>}
+          </td>
           <td />
-          <td className="px-2 py-1.5 text-left font-mono">{fmt1(sum(home))}</td>
+          <td className="px-2 py-1.5 text-left font-mono">
+            {played ? fmt1(actualSum(home)) : fmt1(sum(home))}
+            {played && <span className="block text-[10px] font-normal text-ink-500">{`proj ${fmt1(sum(home))}`}</span>}
+          </td>
           <td className="px-2 py-1.5 text-right text-xs">Line-up total</td>
         </tr>
       </tbody>
     </table>
     </>
+  );
+}
+
+function StatLines({ d }: { d: MatchupData }) {
+  const g = d.game;
+  const played = isPlayed(g);
+  const a = statLines(d.teamGames, g.away_franchise, g.home_franchise, g);
+  const h = statLines(d.teamGames, g.home_franchise, g.away_franchise, g);
+  if (!a.games && !h.games && !played) return null;
+  const f = (x: number | null, digits: number) => (x == null ? '\u2013' : x.toFixed(digits));
+  const sub = 'px-2 py-1 text-[10px] font-normal text-ink-500';
+  const num = 'px-2 py-1.5 font-mono text-xs tabular-nums';
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden" data-testid="nfl-matchup-statlines">
+        <thead className="bg-chalk-200 text-ink-500 text-xs">
+          <tr>
+            <th scope="colgroup" colSpan={played ? 3 : 2} className="px-2 pt-2 text-left font-medium">{g.away_short}</th>
+            <th scope="col" rowSpan={2} className="px-2 py-2 text-center font-medium">Per game</th>
+            <th scope="colgroup" colSpan={played ? 3 : 2} className="px-2 pt-2 text-right font-medium">{g.home_short}</th>
+          </tr>
+          <tr>
+            {played && <th scope="col" className={`${sub} text-left`}>This game</th>}
+            <th scope="col" className={`${sub} text-left`} title="The team's average per game this season, before this game">Avg</th>
+            <th scope="col" className={`${sub} text-left`} title="What the opponent's defence allowed per game this season, before this game">Opp allows</th>
+            <th scope="col" className={`${sub} text-right`} title="What the opponent's defence allowed per game this season, before this game">Opp allows</th>
+            <th scope="col" className={`${sub} text-right`} title="The team's average per game this season, before this game">Avg</th>
+            {played && <th scope="col" className={`${sub} text-right`}>This game</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {a.lines.map((x, i) => {
+            const y = h.lines[i];
+            return (
+              <tr key={x.key} className={i % 2 ? 'bg-chalk-100/60' : undefined} data-testid="nfl-statline">
+                {played && <td className={`${num} text-left font-semibold`}>{f(x.actual, 0)}</td>}
+                <td className={`${num} text-left`}>{f(x.avg, x.digits)}</td>
+                <td className={`${num} text-left text-ink-500`}>{f(x.oppAllows, x.digits)}</td>
+                <th scope="row" className="px-2 py-1.5 text-center text-xs font-normal text-ink-700">{x.label}</th>
+                <td className={`${num} text-right text-ink-500`}>{f(y.oppAllows, y.digits)}</td>
+                <td className={`${num} text-right`}>{f(y.avg, y.digits)}</td>
+                {played && <td className={`${num} text-right font-semibold`}>{f(y.actual, 0)}</td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="text-xs text-ink-500 mt-1 max-w-prose">
+        {`Avg: the team\u2019s own average per game before this game (${a.games} and ${h.games} games). Opp allows: what the other side\u2019s defence gave up per game before it. For giveaways, Opp allows is the takeaways that defence forces. These are records, not forecasts: the projections below are for fantasy points.`}
+      </p>
+    </div>
   );
 }
 
@@ -228,6 +301,7 @@ function GameView({ gameId }: { gameId: string }) {
         <Breadcrumb />
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">{`${g.away_name} ${g.neutral_site ? 'v' : 'at'} ${g.home_name}`}</h1>
         <p className="text-ink-700 mt-1 text-sm">
+          {isPlayed(g) && <strong className="text-ink-900" data-testid="nfl-matchup-final">{`Final: ${g.away_short} ${g.away_score}\u2013${g.home_score} ${g.home_short} \u00b7 `}</strong>}
           {`Week ${g.week} · ${ukKickoff(g)} (UK)`} &middot; <Link to={nflGamePath(g.game_id)} className="text-pitch-800 underline underline-offset-2">Game preview</Link> &middot;{' '}
           <Link to={NFL_MATCH_PROJECTIONS_PATH} className="text-pitch-800 underline underline-offset-2">All this week&rsquo;s match-ups</Link>
         </p>
@@ -236,6 +310,7 @@ function GameView({ gameId }: { gameId: string }) {
       <section aria-labelledby="mu-inputs" className="space-y-3">
         <h2 id="mu-inputs" className="font-display uppercase tracking-wide text-lg text-ink-900">The match-up</h2>
         <KpiStrip d={data} />
+        <StatLines d={data} />
         <div className="grid sm:grid-cols-2 gap-3">
           <ProfileCard name={g.away_name} slug={g.away_slug} p={data.away.profile} />
           <ProfileCard name={g.home_name} slug={g.home_slug} p={data.home.profile} />
@@ -298,7 +373,7 @@ function IndexView() {
             return (
               <li key={g.game_id}>
                 <Link to={nflMatchProjectionPath(g.game_id)} className="block border border-chalk-300 rounded-lg p-3 bg-white hover:border-pitch-700" data-testid="nfl-matchup-card">
-                  <p className="text-xs text-ink-500">{`Week ${g.week} · ${ukKickoff(g)}`}</p>
+                  <p className="text-xs text-ink-500">{isPlayed(g) ? `Week ${g.week} · Final: ${g.away_score}\u2013${g.home_score}` : `Week ${g.week} · ${ukKickoff(g)}`}</p>
                   <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-baseline mt-1 text-sm">
                     <span>{g.away_name}</span>
                     <span className="font-mono text-xs text-ink-500" title="Expected points (betting line)">{imp ? imp.away.toFixed(1) : ''}</span>
