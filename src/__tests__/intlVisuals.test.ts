@@ -1,7 +1,7 @@
 // Unit tests for the International visuals: bracket order, titles race,
 // competition filters and title lists.
 import { describe, it, expect } from 'vitest';
-import { bracketRounds, matchesFilter, pointsForWin, titleList, titleText, titlesRace, TOURNAMENTS, type EditionSummary, type IntlMatch } from '../lib/intlStats';
+import { ageOn, pct, bracketRounds, matchesFilter, pointsForWin, titleList, titleText, titlesRace, TOURNAMENTS, type EditionSummary, type IntlMatch } from '../lib/intlStats';
 
 function g(key: string, stage: string, home: string, away: string, hs: number, as: number, date = '2024-07-01'): IntlMatch {
   return {
@@ -65,5 +65,20 @@ describe('filters and points', () => {
     expect(pointsForWin('COPA-1959')).toBe(2);
     expect(pointsForWin('COPA-1995')).toBe(3);
     expect(pointsForWin('AFCON-1959-egypt')).toBe(2);
+  });
+});
+
+describe('small helpers', () => {
+  it('formats chances without claiming certainty', () => {
+    expect(pct(0.523)).toBe('52%');
+    expect(pct(0.001)).toBe('<1%');
+    expect(pct(0.999)).toBe('>99%');
+    expect(pct(0)).toBe('0%');
+    expect(pct(1)).toBe('100%');
+  });
+  it('works out age on a date', () => {
+    expect(ageOn('1994-03-07', '2026-10-05')).toBe(32);
+    expect(ageOn('1994-10-06', '2026-10-05')).toBe(31);
+    expect(ageOn('1994-10-05', '2026-10-05')).toBe(32);
   });
 });

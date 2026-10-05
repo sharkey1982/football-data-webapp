@@ -46,6 +46,7 @@ TITLE_OVERRIDES = {
     "Eswatini": "Eswatini national football team",
     "São Tomé and Príncipe": "São Tomé and Príncipe national football team",
     "Curaçao": "Curaçao national football team",
+    "Sweden": "Sweden men's national football team",
 }
 
 STATUS = ("INJ", "WD", "RET", "PRE", "SUS", "COV", "SEN", "U21", "U23", "DEC", "ILL", "OTH", "TRA")
@@ -201,13 +202,17 @@ def parse_players(body: str, kind: str) -> list[dict]:
 def parse_page(team: str, title: str, text: str, revision_at: str | None) -> dict | None:
     body = section(text, r"Current squad")
     if body is None:
+        # Some pages list the squad straight under "Players", before its first sub-heading.
+        players_body = section(text, r"Players")
+        body = re.split(r"^=+[^=\n]+=+\s*$", players_body, maxsplit=1, flags=re.M)[0] if players_body else None
+    if body is None:
         return None
     current = parse_players(body, "current")
     if not current:
         return None
     before = body.split("{{nat fs g start", 1)[0]
     unlinked = re.sub(r"\[\[(?:[^\]|]+\|)?([^\]]+)\]\]", r"\1", re.sub(r"<ref[^>]*>.*?</ref>|<ref[^>]*/>", "", before, flags=re.S))
-    asof = re.search(r"(?:correct|updated)\s+(?:as\s+)?(?:of|on)\s+([A-Za-z0-9][^.'<|}]*?\d{4})", unlinked, re.I)
+    asof = re.search(r"(?:correct|updated|goals)\s+(?:as\s+)?(?:of|on)\s+([A-Za-z0-9][^.'<|}]*?\d{4})", unlinked, re.I)
     intro_text = re.split(r"(?i)caps and goals", plain(before))[0].strip()
     recent_body = section(text, r"Recent call[- ]ups") or ""
     recent = parse_players(recent_body, "recent")

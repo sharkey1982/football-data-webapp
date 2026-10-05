@@ -53,7 +53,49 @@ export type IntlFixture = {
   home_score: number | null;
   away_score: number | null;
   match_key: string | null;
+  /** Model IP1 projection (unplayed fixtures only). */
+  p_home?: number | null;
+  p_draw?: number | null;
+  p_away?: number | null;
+  xg_home?: number | null;
+  xg_away?: number | null;
+  scores?: { h: number; a: number; p: number }[] | null;
 };
+
+/** Nations League league phase, simulated: chance of each finishing position. */
+export type GroupOdds = { edition_key: string; group_label: string; team: string; slug: string; played: number; points: number; gd: number; gf: number; p_pos: number[]; exp_points: number; sims: number; updated_at: string };
+
+export type IntlSquad = { team: string; slug: string; wiki_title: string; revision_at: string | null; intro: string | null; caps_as_of: string | null; players: number; fetched_at: string };
+export type SquadPlayer = {
+  team: string; list: 'current' | 'recent'; seq: number; number: number | null; position: string | null; player: string; wiki_title: string | null;
+  birth_date: string | null; caps: number | null; goals: number | null; club: string | null; club_country: string | null;
+  latest_date: string | null; latest_text: string | null; status: string | null;
+};
+
+/** Age in whole years on a date (both ISO). */
+export function ageOn(birth: string, on: string): number {
+  const [by, bm, bd] = birth.split('-').map(Number);
+  const [y, m, d] = on.split('-').map(Number);
+  return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
+}
+
+const STATUS_TEXT: Record<string, string> = { INJ: 'injured', WD: 'withdrew', RET: 'retired', PRE: 'preliminary squad', SUS: 'suspended', COV: 'illness', ILL: 'illness', SEN: 'senior squad', U21: 'under-21s', U23: 'under-23s', DEC: 'declined', OTH: 'other', TRA: 'training squad' };
+export const statusText = (s: string | null) => (s ? STATUS_TEXT[s] ?? s : null);
+
+/** Positions in squad order with their plain names. */
+export const POSITIONS = [
+  { code: 'GK', name: 'Goalkeepers' },
+  { code: 'DF', name: 'Defenders' },
+  { code: 'MF', name: 'Midfielders' },
+  { code: 'FW', name: 'Forwards' },
+] as const;
+
+/** Percentage text for a probability: "52%", "<1%", ">99%". */
+export function pct(p: number): string {
+  if (p > 0 && p < 0.005) return '<1%';
+  if (p < 1 && p > 0.995) return '>99%';
+  return `${Math.round(p * 100)}%`;
+}
 
 export type TeamSummary = {
   team: string;
@@ -103,7 +145,7 @@ export type CompetitionTotal = { team: string; competition: string; competition_
 export type PairRecord = { team_a: string; team_b: string; played: number; a_won: number; drawn: number; b_won: number; a_goals: number; b_goals: number; first_meeting: string; last_meeting: string };
 export type IntlGoal = { match_key: string; seq: number; team: string; scorer: string | null; minute: number | null; own_goal: boolean; penalty: boolean };
 
-/** The three competitions with tournament pages, in display order. */
+/** The competitions with tournament pages, in display order. */
 export const TOURNAMENTS = [
   { competition: 'FIFA World Cup', slug: 'world-cup', short: 'World Cup', code: 'WC', confederation: 'FIFA', dbSlug: 'fifa-world-cup' },
   { competition: 'UEFA Euro', slug: 'euro', short: 'Euro', code: 'EURO', confederation: 'UEFA', dbSlug: 'uefa-euro' },

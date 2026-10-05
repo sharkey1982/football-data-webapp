@@ -9,7 +9,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { INTL_DISCOVER_PATH, INTL_HUB_PATH, editionPathOf, intlTeamPath } from '../../lib/intlApi';
-import { eloExpectation, isUpset, scoreText, tournamentByCompetition, ukDateTime, UPSET_BELOW, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
+import { pct, eloExpectation, isUpset, scoreText, tournamentByCompetition, ukDateTime, UPSET_BELOW, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
 
 export function IntlHeader({ title, crumb, children }: { title: string; crumb?: { to: string; label: string }; children?: ReactNode }) {
   return (
@@ -152,7 +152,31 @@ export function FixtureRow({ f, showDate }: { f: IntlFixture; showDate?: boolean
       </span>
       <span className="w-full sm:w-auto text-xs text-ink-500">{[f.group_label ? `Group ${f.group_label}` : null, f.venue].filter(Boolean).join(' · ')}</span>
       {played && f.home_score == null && <span className="text-xs font-mono text-ink-500">Result to follow</span>}
+      {!played && f.home_score == null && f.p_home != null && <Projection f={f} />}
     </li>
+  );
+}
+
+/** Model IP1's view of an unplayed fixture: win/draw/win as a bar with the
+ * numbers in text (never colour alone), expected goals and the likeliest score. */
+export function Projection({ f }: { f: IntlFixture }) {
+  const ph = f.p_home ?? 0, pd = f.p_draw ?? 0, pa = f.p_away ?? 0;
+  const top = f.scores?.[0];
+  return (
+    <span className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-700" data-testid="intl-projection">
+      <span className="flex h-2 w-40 overflow-hidden rounded-full bg-chalk-200" aria-hidden>
+        <span className="bg-pitch-700" style={{ width: `${ph * 100}%` }} />
+        <span className="bg-chalk-300" style={{ width: `${pd * 100}%` }} />
+        <span className="bg-amber-500" style={{ width: `${pa * 100}%` }} />
+      </span>
+      <span className="font-mono tabular-nums">
+        <span className="text-pitch-800">{`${f.home_team} ${pct(ph)}`}</span>
+        {` · Draw ${pct(pd)} · `}
+        <span className="text-ink-900">{`${f.away_team} ${pct(pa)}`}</span>
+      </span>
+      {f.xg_home != null && f.xg_away != null && <span className="text-ink-500">{`Expected goals ${f.xg_home.toFixed(1)}–${f.xg_away.toFixed(1)}`}</span>}
+      {top && <span className="text-ink-500">{`Likeliest ${top.h}–${top.a} (${pct(top.p)})`}</span>}
+    </span>
   );
 }
 

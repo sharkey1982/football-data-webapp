@@ -15,7 +15,10 @@ import {
   type EditionSummary,
   type IntlFixture,
   type IntlGoal,
+  type GroupOdds,
   type IntlGroup,
+  type IntlSquad,
+  type SquadPlayer,
   type IntlMatch,
   type IntlStage,
   type PairRecord,
@@ -49,9 +52,13 @@ export const MATCH_COLUMNS =
   'match_key,match_date,home_team,home_slug,home_name,away_team,away_slug,away_name,home_score,away_score,home_score_90,away_score_90,' +
   'went_extra_time,shootout_winner,competition,competition_slug,competition_kind,edition_key,stage_code,stage_name,stage_type,group_label,matchday,' +
   'city,country,neutral,elo_home_pre,elo_away_pre,elo_change';
-export const FIXTURE_COLUMNS = 'fixture_key,edition_key,kickoff_utc,home_team,home_slug,away_team,away_slug,group_label,round_number,venue,home_score,away_score,match_key';
+export const FIXTURE_COLUMNS =
+  'fixture_key,edition_key,kickoff_utc,home_team,home_slug,away_team,away_slug,group_label,round_number,venue,home_score,away_score,match_key,p_home,p_draw,p_away,xg_home,xg_away,scores';
 export const TEAM_COLUMNS =
   'team,slug,confederation,played,won,drawn,lost,goals_for,goals_against,first_match,last_match,elo,elo_rank,elo_peak,elo_peak_date,wc_titles,euro_titles,unl_titles,titles';
+export const GROUP_ODDS_COLUMNS = 'edition_key,group_label,team,slug,played,points,gd,gf,p_pos,exp_points,sims,updated_at';
+export const SQUAD_COLUMNS = 'team,slug,wiki_title,revision_at,intro,caps_as_of,players,fetched_at';
+export const SQUAD_PLAYER_COLUMNS = 'team,list,seq,number,position,player,wiki_title,birth_date,caps,goals,club,club_country,latest_date,latest_text,status';
 export const EDITION_COLUMNS =
   'edition_key,competition,competition_slug,label,season_start,teams,matches,goals,hosts,winner,winner_slug,runner_up,runner_up_slug,final_key,first_match,last_match';
 
@@ -78,7 +85,10 @@ type ViewName =
   | 'intl_pair_records'
   | 'intl_goals'
   | 'intl_team_year_elo'
-  | 'intl_upsets';
+  | 'intl_upsets'
+  | 'intl_group_odds'
+  | 'intl_squads'
+  | 'intl_squad_players';
 /** The intl views aren't in the generated database types; a loose query shape keeps the calls readable. */
 export const intlView = (view: ViewName, columns: string): Query =>
   (supabase.from(view as never) as unknown as { select(columns: string): Query }).select(columns);
@@ -149,6 +159,9 @@ export type IntlTeamData = {
   editions: EditionSummary[];
   teams: Pick<TeamSummary, 'team' | 'slug' | 'confederation'>[];
   goals: Pick<IntlGoal, 'scorer' | 'own_goal' | 'penalty'>[];
+  squad: IntlSquad | null;
+  squadPlayers: SquadPlayer[];
+  groupOdds: GroupOdds[];
 };
 
 export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
@@ -156,7 +169,7 @@ export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
   if (!team) return null;
   const t = team.team;
   const enc = (v: string) => `"${v.replace(/"/g, '\\"')}"`;
-  const [matches, fixtures, totals, pairs, editions, teams, goals] = await Promise.all([
+  const [matches, fixtures, totals, pairs, editions, teams, goals, squads, squadPlayers, myOdds] = await Promise.all([
     paged<IntlMatch>(() => intlView('intl_matches', MATCH_COLUMNS).or(`home_slug.eq.${slug},away_slug.eq.${slug}`).order('match_date', { ascending: true }).order('match_key', { ascending: true })),
     rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).or(`home_slug.eq.${slug},away_slug.eq.${slug}`).order('kickoff_utc', { ascending: true }).limit(50)),
     rows<CompetitionTotal>(intlView('intl_team_competition_totals', 'team,competition,competition_kind,played,won,drawn,lost,goals_for,goals_against,first_match,last_match').eq('team', t)),
@@ -164,8 +177,15 @@ export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
     rows<EditionSummary>(intlView('intl_edition_summary', EDITION_COLUMNS).order('season_start', { ascending: true })),
     paged<Pick<TeamSummary, 'team' | 'slug' | 'confederation'>>(() => intlView('intl_team_summary', 'team,slug,confederation').order('team', { ascending: true })),
     paged<Pick<IntlGoal, 'scorer' | 'own_goal' | 'penalty'>>(() => intlView('intl_goals', 'scorer,own_goal,penalty').eq('team', t).eq('own_goal', false).order('match_key', { ascending: true }).order('seq', { ascending: true })),
+    rows<IntlSquad>(intlView('intl_squads', SQUAD_COLUMNS).eq('slug', slug).limit(1)).catch(() => []),
+    rows<SquadPlayer>(intlView('intl_squad_players', SQUAD_PLAYER_COLUMNS).eq('slug', slug).order('list', { ascending: true }).order('seq', { ascending: true }).limit(200)).catch(() => []),
+    rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('slug', slug).limit(5)).catch(() => []),
   ]);
-  return { team, matches, fixtures, totals, pairs, editions, teams, goals };
+  // The rest of this team's Nations League group, for its chances table.
+  const groupOdds = myOdds[0]
+    ? await rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('edition_key', myOdds[0].edition_key).eq('group_label', myOdds[0].group_label)).catch(() => myOdds)
+    : [];
+  return { team, matches, fixtures, totals, pairs, editions, teams, goals, squad: squads[0] ?? null, squadPlayers, groupOdds };
 }
 
 // ---- Tournaments -----------------------------------------------------------------
@@ -182,6 +202,7 @@ export type IntlEditionData = {
   goals: IntlGoal[];
   fixtures: IntlFixture[];
   editions: EditionSummary[];
+  groupOdds: GroupOdds[];
 };
 
 export async function loadIntlEdition(slug: string, label: string): Promise<IntlEditionData | null> {
@@ -191,11 +212,12 @@ export async function loadIntlEdition(slug: string, label: string): Promise<Intl
   const edition = editions.find((e) => e.label === label);
   if (!edition) return null;
   const key = edition.edition_key;
-  const [matches, stages, groups, fixtures] = await Promise.all([
+  const [matches, stages, groups, fixtures, groupOdds] = await Promise.all([
     paged<IntlMatch>(() => intlView('intl_matches', MATCH_COLUMNS).eq('edition_key', key).order('match_date', { ascending: true }).order('match_key', { ascending: true })),
     rows<IntlStage>(intlView('intl_stages', 'stage_key,edition_key,code,name,type,stage_order').eq('edition_key', key).order('stage_order', { ascending: true })),
     rows<IntlGroup>(intlView('intl_groups', 'group_key,edition_key,stage_code,label,league,size,teams').eq('edition_key', key).order('label', { ascending: true })),
     rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).eq('edition_key', key).order('kickoff_utc', { ascending: true }).limit(1000)),
+    rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS).eq('edition_key', key).limit(200)).catch(() => [] as GroupOdds[]),
   ]);
   // Goals for the edition's games, in chunks (keys go in the URL).
   const goals: IntlGoal[] = [];
@@ -203,7 +225,7 @@ export async function loadIntlEdition(slug: string, label: string): Promise<Intl
   for (let i = 0; i < keys.length; i += 60) {
     goals.push(...(await rows<IntlGoal>(intlView('intl_goals', 'match_key,seq,team,scorer,minute,own_goal,penalty').in('match_key', keys.slice(i, i + 60)).limit(2000))));
   }
-  return { edition, matches, stages, groups, goals, fixtures, editions };
+  return { edition, matches, stages, groups, goals, fixtures, editions, groupOdds };
 }
 
 // ---- History: the Elo race, titles and upsets --------------------------------------

@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FixtureRow, GameList, GameRow, IntlHeader, Section, TeamLink } from '../../components/intl/IntlBits';
 import Bracket from '../../components/intl/Bracket';
+import GroupChances from '../../components/intl/GroupChances';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlEditionPath, intlTournamentPath, loadIntlEdition, type IntlEditionData } from '../../lib/intlApi';
@@ -58,6 +59,7 @@ function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }
   const isLeague = stage.code === 'LP';
   const leagues = isLeague ? [...new Set(labels.map((l) => l[0]))] : [''];
   const unplayed = data.fixtures.filter((f) => !f.match_key && !isReported(f));
+  const odds = isLeague ? data.groupOdds : [];
   return (
     <Section title={stage.name} id={`intl-ed-${stage.code}`} testId={`intl-ed-${stage.code}`}>
       {leagues.map((lg) => (
@@ -75,6 +77,12 @@ function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }
                 return (
                   <div key={label || 'all'} className="space-y-2">
                     <GroupTable label={label ? `Group ${label}` : stage.name} rows={rows} testId="intl-group-table" />
+                    {isLeague && odds.some((o) => o.group_label === label) && (
+                      <details className="text-sm" open={fixtures.length > 0}>
+                        <summary className="cursor-pointer text-pitch-800">Chances: where each team finishes</summary>
+                        <GroupChances odds={odds.filter((o) => o.group_label === label)} testId="intl-group-chances" />
+                      </details>
+                    )}
                     {groupReported.length + fixtures.length > 0 && (
                       <GameList>
                         {groupReported.map((m) => <GameRow key={m.match_key} m={m} showDate />)}
@@ -89,6 +97,7 @@ function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }
       ))}
       <p className="text-xs text-ink-500">
         {reported.length > 0 && `Provisional: includes ${reported.length} result${reported.length === 1 ? '' : 's'} reported by the fixture feed and not yet confirmed by the results file. `}
+        {odds.length > 0 && `Chances: the rest of the league phase played out 10,000 times with each game’s win/draw/loss and score probabilities from FixtureShark’s model (IP1, built on Elo ratings); ties split by goal difference and goals scored, not head-to-head. `}
         {`${pointsForWin(data.edition.edition_key)} points for a win. Ordered by points, goal difference, then goals scored; the official tie-breakers vary by tournament, so “through” is taken from who played in the next round.`}
       </p>
     </Section>
