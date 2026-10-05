@@ -239,6 +239,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Results', to: '/tennis/results', blurb: 'Every match day by day, with rankings and the upsets.' },
           { label: 'Your Player', to: '/tennis/players', blurb: 'Any player\u2019s record by season, surface and level, their titles and best wins.', matchPrefix: ['/tennis/players'] },
           { label: 'Tournaments', to: '/tennis/tournaments', blurb: 'Every tournament\u2019s champions and records, and each year\u2019s draw with the road to the final.', matchPrefix: ['/tennis/tournaments'] },
+          { label: 'Head to head', to: '/tennis/head-to-head', blurb: 'Any two players: their record against each other and who our model makes favourite on each surface.' },
           { label: 'TV Guide', to: '/tennis/tv-guide', blurb: 'Which tournaments are on this week and next, and the UK channel for each.' },
           { label: 'Past seasons', to: '/tennis/seasons', blurb: 'Grand Slam champions, title leaders and the title race for every season.', matchPrefix: ['/tennis/seasons'] },
         ],

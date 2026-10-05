@@ -291,4 +291,14 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     status: 'partial',
     note: 'The same Timelapse bar race as the league table’s points race, over Elo ratings since 1872; plus world number ones and the biggest upsets.',
   },
+  {
+    sport: 'tennis',
+    label: 'Head to head',
+    path: '/tennis/head-to-head',
+    footballFile: null,
+    file: 'src/pages/tennis/TennisH2HPage.tsx',
+    shared: [],
+    status: 'sport-only',
+    note: 'Football compares teams on each match page; tennis has a page to compare any two players, with the surface model.',
+  },
 ];

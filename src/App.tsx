@@ -111,6 +111,7 @@ const TennisTournamentsPage = lazy(() => import('./pages/tennis/TennisTournament
 const TennisTournamentPage = lazy(() => import('./pages/tennis/TennisTournamentPage'));
 const TennisEditionPage = lazy(() => import('./pages/tennis/TennisEditionPage'));
 const TennisTvGuidePage = lazy(() => import('./pages/tennis/TennisTvGuidePage'));
+const TennisH2HPage = lazy(() => import('./pages/tennis/TennisH2HPage'));
 const IntlHub = lazy(() => import('./pages/international/IntlHub'));
 const IntlFixturesPage = lazy(() => import('./pages/international/IntlFixturesPage'));
 const IntlTeamsPage = lazy(() => import('./pages/international/IntlTeamsPage'));
@@ -926,6 +927,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <TennisEditionPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tennis/head-to-head"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisH2HPage />
               </Suspense>
             }
           />

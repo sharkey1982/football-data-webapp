@@ -15,9 +15,10 @@ import SortableTable, { type Column } from '../../components/SortableTable';
 import { Country, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
 import PlayerForm from '../../components/tennis/PlayerForm';
 import { ageOn } from '../../lib/tennisEvents';
+import { DEFAULT_PAIR } from '../../lib/tennisModel';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { loadTennisPlayer, tennisPlayerPath, tennisPlayersPath, tennisSeasonPath, type TennisPlayerData } from '../../lib/tennisApi';
+import { loadTennisPlayer, tennisH2HPath, tennisPlayerPath, tennisPlayersPath, tennisSeasonPath, type TennisPlayerData } from '../../lib/tennisApi';
 import { DATA_NOTE, parseTour, pctLabel, playerSentence, recordLabel, scoreLabel, shortDate, STATIC_PLAYER_MIN, type NotableWin, type SplitRow, type TennisMatch, type TitleRow, type Tour } from '../../lib/tennisStats';
 
 function splitColumns(label: string, link?: (key: string) => string): Column<SplitRow>[] {
@@ -101,6 +102,13 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
       <TennisHeader title={s?.name ?? 'Player'} crumb={{ to: tennisPlayersPath(tour), label: 'Your Player' }}>
         {data && <PlayerBio player={data.player} />}
         {s && <p className="text-ink-900 max-w-prose" data-testid="tennis-player-story">{playerSentence(s)}</p>}
+        {data && (
+          <p className="text-sm">
+            <Link to={tennisH2HPath(tour, data.player.slug, DEFAULT_PAIR[tour][0] === data.player.slug ? DEFAULT_PAIR[tour][1] : DEFAULT_PAIR[tour][0])} className="text-pitch-800 underline underline-offset-2" data-testid="tennis-player-h2h-link">
+              Head to head with another player
+            </Link>
+          </p>
+        )}
       </TennisHeader>
       {failed && <p className="text-ink-700">This player is unavailable right now.</p>}
       {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
