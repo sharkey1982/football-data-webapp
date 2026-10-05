@@ -652,15 +652,10 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             failures.append(str(e))
             print(f"FAILED {e}")
-    if done:
-        # Events, editions and per-player summaries are tables built from the
-        # matches (phase 3); rebuild them after any load.
-        try:
-            done.append("refresh: " + str(sb.rpc("tennis_refresh", {}).execute().data))
-            print(done[-1])
-        except Exception as e:  # noqa: BLE001
-            failures.append(f"tennis_refresh: {e}")
-            print(f"FAILED tennis_refresh: {e}")
+    # Events, editions and per-player summaries (phase 3) are rebuilt by the
+    # tennis-refresh GitHub job, which runs every two hours and picks up any
+    # load: the rebuild takes longer than the API's statement time limit, so
+    # it runs over a direct database connection there, not from here.
     summary = "; ".join(done) or "nothing loaded"
     sb.table("pipeline_runs").update({
         "status": "failed" if failures else "success", "summary": summary[:2000],
