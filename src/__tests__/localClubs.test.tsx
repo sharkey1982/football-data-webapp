@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import LocalClubsPage from '../pages/football/LocalClubsPage';
-import { buildLocalClubs, localSentence, lookupPostcode, milesText, nearestByLevel, nearestClubs, tidyPostcode, toMap } from '../lib/localClubs';
+import { buildLocalClubs, localSentence, lookupPostcode, milesText, nearestByLevel, nearestClubs, tidyPostcode } from '../lib/localClubs';
 import { renderLocalClubsPage } from '../entry-server';
 
 const grounds = [
@@ -36,13 +36,12 @@ const home = { lat: 51.537, lon: 0.714, label: 'SS1 3JB' };
 describe('Your Local Clubs', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('builds clubs from grounds and this season only; places them on the map', () => {
+  it('builds clubs from grounds and this season only (teams embedded or separate)', () => {
     expect(data.season).toBe(2026);
     expect(data.clubs.map((c) => c.name)).toEqual(['Arsenal', 'Charlton', 'West Ham', 'Gillingham', 'Southend']);
     expect(data.clubs.find((c) => c.name === 'West Ham')!.league).toBe('Championship');
-    const sth = toMap({ lat: 51.54901, lon: 0.70157 });
-    expect(sth.x).toBeCloseTo(502.1, 0);
-    expect(sth.y).toBeCloseTo(559.2, 0);
+    const embedded = buildLocalClubs(grounds.map((g) => ({ ...g, teams: teams.find((t) => t.team_id === g.team_id) ?? null })), [], standings);
+    expect(embedded.clubs.map((c) => c.slug)).toEqual(data.clubs.map((c) => c.slug));
   });
 
   it('nearest club, nearest per division, and the sentence', () => {
@@ -68,21 +67,23 @@ describe('Your Local Clubs', () => {
     expect(await lookupPostcode('not a postcode', ok as unknown as typeof fetch)).toBeNull();
   });
 
-  it('page: every club on the map, then a postcode gives the nearest and each division', async () => {
+  it('page: every club by division, then a postcode gives the nearest in each division first', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ result: { latitude: 51.537, longitude: 0.714 } }), { status: 200 })));
     render(<MemoryRouter><LocalClubsPage initialData={data} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Your Local Clubs');
-    expect(screen.getAllByRole('link', { name: /, (Premier League|Championship|League Two|National League)$/ })).toHaveLength(5);
+    expect(screen.getByTestId('local-directory').querySelectorAll('a')).toHaveLength(5);
     fireEvent.change(screen.getByLabelText('Postcode'), { target: { value: 'SS1 3JB' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find clubs' }));
-    expect((await screen.findByTestId('local-nearest')).textContent).toContain('Southend');
-    expect(screen.getByTestId('local-by-level').querySelectorAll('tr')).toHaveLength(4);
+    const table = await screen.findByTestId('local-by-level');
+    expect([...table.querySelectorAll('tbody tr')].map((r) => r.children[1].textContent)).toEqual(['Arsenal', 'Charlton', 'Gillingham', 'Southend']);
+    expect(screen.getByTestId('local-nearest').textContent).toContain('Southend');
+    expect(screen.queryByTestId('local-directory')).toBeNull();
   });
 
   it('server-renders with every club and a page-specific head', () => {
     const page = renderLocalClubsPage(data);
     expect(page.canonical).toBe('https://fixtureshark.com/football/local-clubs');
-    expect(page.html).toContain('5 clubs on the map');
+    expect(page.html).toContain('5 in all, with its ground');
     expect(page.description).toContain('5 clubs from the Premier League to the National League');
   });
 });

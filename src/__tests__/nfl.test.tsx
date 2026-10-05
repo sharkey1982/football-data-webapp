@@ -232,6 +232,24 @@ describe('NFL pages', () => {
     await waitFor(() => expect(mocked.loadNflWeek).toHaveBeenCalledWith(2025, 19));
   });
 
+  it('Fixtures & Results: search a team to see its season of results', async () => {
+    mocked.loadNflWeek.mockResolvedValue(weekData);
+    render(
+      <MemoryRouter initialEntries={['/nfl/fixtures']}>
+        <Routes><Route path="/nfl/fixtures" element={<NflFixturesPage />} /></Routes>
+      </MemoryRouter>
+    );
+    fireEvent.change(await screen.findByTestId('nfl-team-search'), { target: { value: 'miami dolphins' } });
+    const season = await screen.findByTestId('nfl-team-season');
+    expect(screen.getByTestId('nfl-team-season-summary').textContent).toBe('Regular season 2-0 · points 40-34 (+6) · against the spread 2-0');
+    const cells = [...season.querySelectorAll('tbody tr')].map((r) => r.textContent ?? '');
+    expect(cells.filter((c) => c.includes('Bye'))).toHaveLength(2);
+    expect(cells.some((c) => c.includes('W 27-24 (OT)'))).toBe(true);
+    expect(screen.queryByTestId('nfl-week-story')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'All teams' }));
+    expect(await screen.findByTestId('nfl-week-story')).toBeInTheDocument();
+  });
+
   it('League Table lists the bracket division winner first and toggles to a sortable league table', async () => {
     mocked.loadNflStandings.mockResolvedValue(standingsData);
     render(
@@ -530,8 +548,15 @@ describe('NFL game page (head-to-head, form, prediction)', () => {
     expect(screen.getByTestId('nfl-h2h-meetings').querySelectorAll('li')).toHaveLength(3);
     expect(screen.getByTestId('nfl-season-so-far').textContent).toContain('1-1-1');
     expect(screen.getAllByTitle(/^T 14–14 at Team 1-0/)).toHaveLength(1);
+    // Same tabs as Football's Head to Heads; Prediction first and showing.
+    expect(screen.getAllByRole('button', { name: /^(Prediction|Head to Head|Home Team|Away Team)$/ }).map((b) => b.textContent)).toEqual(['Prediction', 'Head to Head', 'Home Team', 'Away Team']);
+    expect(screen.getByTestId('nfl-game-prediction').hidden).toBe(false);
+    expect(screen.getByTestId('nfl-tab-h2h').hidden).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Home Team' }));
+    expect(screen.getByTestId('nfl-tab-home').hidden).toBe(false);
+    expect(screen.getByTestId('nfl-game-prediction').hidden).toBe(true);
     // Who they played and the scores, linking to each game.
-    const recent = screen.getByTestId('nfl-recent-games');
+    const recent = screen.getByTestId('nfl-tab-home');
     expect(recent.textContent).toContain('Team 1-1');
     expect(recent.textContent).toContain('30–3');
     expect(recent.querySelector('a[href="/nfl/games/2026_03_T11_NE"]')).not.toBeNull();

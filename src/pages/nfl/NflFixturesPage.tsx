@@ -11,7 +11,7 @@
 // ============================================================================
 
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import FixtureCalendarHeatmap from '../../components/FixtureCalendarHeatmap';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
@@ -29,39 +29,57 @@ import {
   ukDateKey,
   ukDay,
   ukKickoff,
+  weekLabel,
   weekSentence,
+  byeWeeks,
+  teamResult,
   type NflGame,
+  type NflTeam,
   type NflGameModel,
   type NflWeekData,
 } from '../../lib/nflApi';
 import NflWatchLine from '../../components/nfl/NflWatchLine';
+import { againstSpread } from '../../lib/nflStory';
 
 function intParam(v: string | null): number | null {
   if (v == null || !/^\d{1,4}$/.test(v)) return null;
   return Number(v);
 }
 
+/** Start fetching the game page's code on hover, so the click opens fast. */
+const prefetchGamePage = () => void import('./NflGamePage');
+
+/** The whole row opens the game page, as Football's fixture rows open the
+ * match preview; team names still go to the team pages. */
 function GameRow({ g, model }: { g: NflGame; model?: NflGameModel }) {
+  const navigate = useNavigate();
+  const open = () => navigate(nflGamePath(g.game_id), { state: { game: g } });
   const done = g.home_score != null && g.away_score != null;
   const awayWon = done && g.away_score! > g.home_score!;
   const homeWon = done && g.home_score! > g.away_score!;
   const line = lineLabel(g);
   return (
-    <li className="border border-chalk-300 rounded-lg bg-white/60 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1" data-testid="nfl-game">
+    <li
+      className="border border-chalk-300 rounded-lg bg-white/60 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 cursor-pointer hover:border-pitch-700 hover:bg-white transition-colors"
+      data-testid="nfl-game"
+      onClick={open}
+      onMouseEnter={prefetchGamePage}
+      onFocus={prefetchGamePage}
+    >
       <div className="flex-1 min-w-[14rem] grid grid-cols-[1fr_auto] gap-x-3 text-sm">
-        <Link to={nflTeamPath(g.away_slug)} className={`hover:underline ${awayWon ? 'font-semibold' : ''}`}>{g.away_name}</Link>
+        <Link to={nflTeamPath(g.away_slug)} onClick={(e) => e.stopPropagation()} className={`hover:underline ${awayWon ? 'font-semibold' : ''}`}>{g.away_name}</Link>
         <span className={`font-mono tabular-nums text-right ${awayWon ? 'font-semibold' : ''}`}>{done ? g.away_score : ''}</span>
         <span>
           <span className="text-ink-500 text-xs">{g.neutral_site ? 'v ' : '@ '}</span>
-          <Link to={nflTeamPath(g.home_slug)} className={`hover:underline ${homeWon ? 'font-semibold' : ''}`}>{g.home_name}</Link>
+          <Link to={nflTeamPath(g.home_slug)} onClick={(e) => e.stopPropagation()} className={`hover:underline ${homeWon ? 'font-semibold' : ''}`}>{g.home_name}</Link>
         </span>
         <span className={`font-mono tabular-nums text-right ${homeWon ? 'font-semibold' : ''}`}>{done ? g.home_score : ''}</span>
       </div>
       <div className="text-xs text-ink-500 font-mono text-right ml-auto">
         <div>{done ? `Final${g.overtime ? ' (OT)' : ''}` : ukKickoff(g)}</div>
         <div>
-          <Link to={nflGamePath(g.game_id)} className="text-pitch-800 underline underline-offset-2" data-testid="nfl-game-link">
-            {done ? 'Result, head-to-head & form' : 'Preview: head-to-head, form & prediction'}
+          <Link to={nflGamePath(g.game_id)} state={{ game: g }} onClick={(e) => e.stopPropagation()} className="font-sans font-medium text-pitch-700 hover:text-pitch-800" data-testid="nfl-game-link">
+            Explore &rarr;
           </Link>
         </div>
         {line && <div>{`${done ? 'Closing line' : 'Line'}: ${line}${g.total_line != null ? `, O/U ${g.total_line}` : ''}`}</div>}
@@ -77,10 +95,110 @@ function GameRow({ g, model }: { g: NflGame; model?: NflGameModel }) {
   );
 }
 
+/** One team's season, results first and clear: Football's team mode on
+ * Fixtures & Results, for the NFL. */
+function TeamSeason({ team, season, games, model }: { team: NflTeam; season: number; games: NflGame[]; model: Record<string, NflGameModel> }) {
+  const navigate = useNavigate();
+  const mine = games
+    .filter((g) => g.home_franchise === team.franchise || g.away_franchise === team.franchise)
+    .sort((a, b) => (a.kickoff_at ?? a.gameday).localeCompare(b.kickoff_at ?? b.gameday));
+  const rows: ({ bye: number } | { g: NflGame })[] = [...mine.map((g) => ({ g })), ...byeWeeks(mine).map((w) => ({ bye: w }))].sort((a, b) => {
+    const wa = 'bye' in a ? a.bye : a.g.game_type === 'REG' ? a.g.week : 100 + a.g.week;
+    const wb = 'bye' in b ? b.bye : b.g.game_type === 'REG' ? b.g.week : 100 + b.g.week;
+    return wa - wb;
+  });
+  let w = 0, l = 0, t = 0, pf = 0, pa = 0, cover = 0, miss = 0, push = 0;
+  for (const g of mine) {
+    const r = teamResult(g, team.franchise);
+    if (!r.letter || g.game_type !== 'REG') continue;
+    if (r.letter === 'W') w++;
+    else if (r.letter === 'L') l++;
+    else t++;
+    const home = g.home_franchise === team.franchise;
+    pf += home ? g.home_score! : g.away_score!;
+    pa += home ? g.away_score! : g.home_score!;
+    const ats = againstSpread(g, team.franchise);
+    if (ats === 'cover') cover++;
+    else if (ats === 'miss') miss++;
+    else if (ats === 'push') push++;
+  }
+  const played = w + l + t;
+  return (
+    <section aria-labelledby="team-heading" className="space-y-3" data-testid="nfl-team-season">
+      <h2 id="team-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">{`${season}: ${team.name}`}</h2>
+      {played > 0 && (
+        <p className="text-sm text-ink-700" data-testid="nfl-team-season-summary">
+          {`Regular season ${w}-${l}${t ? `-${t}` : ''} · points ${pf}-${pa} (${pf - pa >= 0 ? '+' : ''}${pf - pa}) · against the spread ${cover}-${miss}${push ? `-${push}` : ''}`}
+        </p>
+      )}
+      <div className="overflow-x-auto border border-chalk-300 rounded-lg bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-chalk-200 text-ink-500">
+            <tr>
+              <th scope="col" className="text-left font-medium text-xs px-3 py-2">Week</th>
+              <th scope="col" className="text-left font-medium text-xs px-3 py-2">Opponent</th>
+              <th scope="col" className="text-left font-medium text-xs px-3 py-2">Result / kick-off (UK)</th>
+              <th scope="col" className="text-left font-medium text-xs px-3 py-2 hidden sm:table-cell">Line</th>
+              <th scope="col" className="text-left font-medium text-xs px-3 py-2 hidden md:table-cell">Model</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              if ('bye' in row) {
+                return (
+                  <tr key={`bye-${row.bye}`} className={i % 2 ? 'bg-chalk-100/60' : undefined}>
+                    <td className="px-3 py-2 text-xs text-ink-700">{`Week ${row.bye}`}</td>
+                    <td colSpan={4} className="px-3 py-2 text-xs text-ink-500">Bye</td>
+                  </tr>
+                );
+              }
+              const g = row.g;
+              const r = teamResult(g, team.franchise);
+              const ats = againstSpread(g, team.franchise);
+              const m = model[g.game_id];
+              return (
+                <tr
+                  key={g.game_id}
+                  className={`cursor-pointer hover:bg-chalk-100 ${i % 2 ? 'bg-chalk-100/60' : ''}`}
+                  onClick={() => navigate(nflGamePath(g.game_id), { state: { game: g } })}
+                  onMouseEnter={prefetchGamePage}
+                >
+                  <td className="px-3 py-2 text-xs text-ink-700 whitespace-nowrap">{weekLabel(g.game_type, g.week)}</td>
+                  <td className="px-3 py-2">
+                    <span className="text-xs text-ink-500">{g.neutral_site || r.home ? 'v ' : '@ '}</span>
+                    <Link to={nflTeamPath(r.opponentSlug)} onClick={(e) => e.stopPropagation()} className="hover:underline">{r.opponent}</Link>
+                    {g.neutral_site && g.stadium && <span className="block text-xs text-pitch-700">{g.stadium}</span>}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs tabular-nums whitespace-nowrap">
+                    {r.letter ? (
+                      <Link to={nflGamePath(g.game_id)} state={{ game: g }} onClick={(e) => e.stopPropagation()} className={`hover:underline ${r.letter === 'W' ? 'font-semibold text-pitch-800' : r.letter === 'L' ? 'text-loss-600' : ''}`}>
+                        {`${r.letter} ${r.score}`}
+                      </Link>
+                    ) : (
+                      <Link to={nflGamePath(g.game_id)} state={{ game: g }} onClick={(e) => e.stopPropagation()} className="hover:underline">{ukKickoff(g)}</Link>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs text-ink-500 hidden sm:table-cell whitespace-nowrap">
+                    {lineLabel(g) ?? ''}
+                    {ats && <span className={ats === 'cover' ? 'text-pitch-700' : undefined}>{` · ${ats === 'cover' ? 'covered' : ats === 'miss' ? 'did not cover' : 'push'}`}</span>}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs text-ink-500 hidden md:table-cell whitespace-nowrap">{m ? favourLabel(g, m.p_home) : ''}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-ink-500">Tap a game for its preview or result: head-to-head, form and the prediction.</p>
+    </section>
+  );
+}
+
 export default function NflFixturesPage({ initialData }: { initialData?: NflWeekData }) {
   const [params, setParams] = useSearchParams();
   const season = intParam(params.get('season'));
   const week = intParam(params.get('week'));
+  const teamSlug = params.get('team');
   const key = `${season ?? 'now'}:${week ?? 'now'}`;
   const { data, failed, loading } = useKeyedFetch(key, () => loadNflWeek(season, week), initialData ? { key: 'now:now', data: initialData } : undefined);
 
@@ -131,11 +249,22 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
   const idx = data ? data.weeks.findIndex((w) => w.week === data.week) : -1;
   const prev = data && idx > 0 ? data.weeks[idx - 1] : null;
   const next = data && idx >= 0 && idx < data.weeks.length - 1 ? data.weeks[idx + 1] : null;
-  const go = (s: number, w: number | null) => {
+  const go = (s: number, w: number | null, team: string | null = teamSlug) => {
     const p = new URLSearchParams();
     p.set('season', String(s));
     if (w != null) p.set('week', String(w));
+    if (team) p.set('team', team);
     setParams(p);
+  };
+  const team = data && teamSlug ? data.teams.find((t) => t.slug === teamSlug) ?? null : null;
+  const [teamText, setTeamText] = useState('');
+  const pickTeam = (text: string) => {
+    setTeamText(text);
+    const hit = data?.teams.find((t) => t.name.toLowerCase() === text.trim().toLowerCase() || t.short_name.toLowerCase() === text.trim().toLowerCase());
+    if (hit && data) {
+      go(data.season, data.week, hit.slug);
+      setTeamText('');
+    }
   };
   const current = data?.weeks.find((w) => w.week === data.week);
 
@@ -154,7 +283,7 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
 
       {data && (
         <>
-          <p className="text-ink-900 max-w-prose" data-testid="nfl-week-story">{weekSentence(data)}</p>
+          {!team && <p className="text-ink-900 max-w-prose" data-testid="nfl-week-story">{weekSentence(data)}</p>}
 
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
@@ -165,24 +294,47 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1">
+            {!team && <label className="flex flex-col gap-1">
               <span className="text-xs text-ink-500">Week</span>
               <select className="border border-chalk-300 rounded px-2 py-1 bg-white" value={data.week} onChange={(e) => go(data.season, Number(e.target.value))}>
                 {data.weeks.map((w) => (
                   <option key={w.week} value={w.week}>{w.label}</option>
                 ))}
               </select>
+            </label>}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-ink-500">Team</span>
+              <input
+                list="nfl-team-names"
+                value={teamText}
+                onChange={(e) => pickTeam(e.target.value)}
+                placeholder={team ? team.name : 'Search a team'}
+                className="border border-chalk-300 rounded px-2 py-1 bg-white w-56"
+                aria-label="Search a team"
+                data-testid="nfl-team-search"
+              />
+              <datalist id="nfl-team-names">
+                {data.teams.map((t) => <option key={t.slug} value={t.name} />)}
+              </datalist>
             </label>
-            <nav aria-label="Other weeks" className="flex gap-4 pb-1">
+            {team && (
+              <button type="button" className="text-pitch-800 underline underline-offset-2 pb-1" onClick={() => go(data.season, data.week, null)}>
+                All teams
+              </button>
+            )}
+            {!team && <nav aria-label="Other weeks" className="flex gap-4 pb-1">
               {prev && (
                 <button type="button" className="text-pitch-800 underline underline-offset-2" onClick={() => go(data.season, prev.week)}>&larr; {prev.label}</button>
               )}
               {next && (
                 <button type="button" className="text-pitch-800 underline underline-offset-2" onClick={() => go(data.season, next.week)}>{next.label} &rarr;</button>
               )}
-            </nav>
+            </nav>}
           </div>
 
+          {team && <TeamSeason team={team} season={data.season} games={data.seasonGames} model={data.model} />}
+
+          {!team && <>
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <FixtureCalendarHeatmap
               dateCounts={dateCounts}
@@ -228,6 +380,7 @@ export default function NflFixturesPage({ initialData }: { initialData?: NflWeek
               Model: FixtureShark&rsquo;s team rating (an Elo rating built from every result since 2002) and the chance it gives the side it favours, made before kick-off and never changed afterwards; market: the same from the betting odds. Tested on seasons it never saw (2025 and 2026), the model called results clearly better than home advantage alone but less well than the betting market, so it is shown beside the market rather than instead of it.
             </p>
           </section>
+          </>}
 
           <p className="text-sm flex flex-wrap gap-x-5 gap-y-1.5">
             <Link to={nflTablePath(data.season)} className="text-pitch-800 underline underline-offset-2">{`${data.season} League Table`}</Link>

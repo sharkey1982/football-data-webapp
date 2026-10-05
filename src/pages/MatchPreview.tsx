@@ -25,6 +25,8 @@ import { ComparisonCard, StreakBadges } from '../components/ComparisonCard';
 import { HeadToHeadSummary } from '../components/HeadToHeadSummary';
 import { HeadToHeadHistory } from '../components/HeadToHeadHistory';
 import { MatchStatsGrid } from '../components/MatchStatsGrid';
+import PreviewTabs from '../components/PreviewTabs';
+import type { PreviewTabId } from '../lib/previewTabs';
 import { ScoreChip } from '../components/ScoreChip';
 import { formatMatchDateWithYear } from '../lib/formatDate';
 import { ScoreProbabilityGrid } from '../components/ScoreProbabilityGrid';
@@ -33,17 +35,11 @@ import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
 type LeagueOption = { league_id: number; code: string; name: string };
-type Tab = 'overview' | 'home' | 'away' | 'prediction';
-
 // Prediction FIRST, and the default. This page sits under Football >
 // Predict: the forecast is what a visitor came for, and the
 // head-to-head record is context for it rather than the headline.
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'prediction', label: 'Prediction' },
-  { id: 'overview', label: 'Head to Head' },
-  { id: 'home', label: 'Home Team' },
-  { id: 'away', label: 'Away Team' },
-];
+// The tab strip is shared with the NFL game page (PreviewTabs).
+type Tab = PreviewTabId;
 
 export default function MatchPreview() {
   useDocumentHead({
@@ -397,22 +393,7 @@ export default function MatchPreview() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-1 border-b border-chalk-300">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={[
-                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-                  activeTab === tab.id
-                    ? 'border-amber-500 text-pitch-800'
-                    : 'border-transparent text-ink-500 hover:text-ink-700',
-                ].join(' ')}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <PreviewTabs active={activeTab} onChange={setActiveTab} />
 
           {activeTab === 'overview' && (
             <div className="space-y-4">

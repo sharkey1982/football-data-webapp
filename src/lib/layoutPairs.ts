@@ -75,9 +75,9 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     nflPath: '/nfl/games/:gameId',
     footballFile: 'src/pages/MatchPreview.tsx',
     nflFile: 'src/pages/nfl/NflGamePage.tsx',
-    shared: ['ComparisonCard'],
+    shared: ['ComparisonCard', 'PreviewTabs'],
     status: 'partial',
-    note: 'The game page carries the preview overview: the shared form/prediction card, then head-to-head record and last meetings in the same cards. NFL head-to-head is per franchise since 2002.',
+    note: 'Same tabs in the same order (Prediction, Head to Head, Home Team, Away Team) via the shared PreviewTabs, and the shared form/prediction card. NFL head-to-head is per franchise since 2002.',
   },
   {
     label: 'League Table',

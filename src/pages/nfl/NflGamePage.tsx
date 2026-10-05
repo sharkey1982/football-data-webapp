@@ -11,7 +11,10 @@
 // the same shared components -- see src/lib/layoutPairs.ts.
 // ============================================================================
 
-import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import PreviewTabs from '../../components/PreviewTabs';
+import type { PreviewTabId } from '../../lib/previewTabs';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import WatchOptions from '../../components/WatchOptions';
@@ -76,8 +79,8 @@ function scoreLine(g: NflGame): string {
   return `${g.away_name} ${g.away_score}–${g.home_score} ${g.home_name}${g.overtime ? ' (OT)' : ''}`;
 }
 
-function RecentList({ team, franchise, recent }: { team: string; franchise: string; recent: NflGame[] }) {
-  const entries = formOf(recent, franchise, 6);
+function RecentList({ team, franchise, recent, count = 6 }: { team: string; franchise: string; recent: NflGame[]; count?: number }) {
+  const entries = formOf(recent, franchise, count);
   return (
     <div>
       <h3 className="font-display uppercase tracking-wide text-ink-900">{team}</h3>
@@ -109,18 +112,6 @@ function RecentList({ team, franchise, recent }: { team: string; franchise: stri
           })}
         </ul>
       )}
-    </div>
-  );
-}
-
-function RecentGames({ game, p }: { game: NflGame; p: NflGamePreview }) {
-  return (
-    <div className={card} data-testid="nfl-recent-games">
-      <h2 className={cardHeading}>Recent games</h2>
-      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
-        <RecentList team={game.home_name} franchise={game.home_franchise} recent={p.homeRecent} />
-        <RecentList team={game.away_name} franchise={game.away_franchise} recent={p.awayRecent} />
-      </div>
     </div>
   );
 }
@@ -255,7 +246,11 @@ function HeadToHeadRecord({ p }: { p: NflGamePreview }) {
 
 export default function NflGamePage({ initialData }: { initialData?: NflGamePreview } = {}) {
   const { gameId = '' } = useParams<{ gameId: string }>();
-  const { data: p, failed, loading } = useKeyedFetch(gameId, () => loadNflGame(gameId), initialData ? { key: initialData.game.game_id, data: initialData } : undefined);
+  // A link from Fixtures & Results passes the game along, so the header shows
+  // at once and the load skips straight to the history.
+  const known = (useLocation().state as { game?: NflGame } | null)?.game;
+  const { data: p, failed, loading } = useKeyedFetch(gameId, () => loadNflGame(gameId, known?.game_id === gameId ? known : undefined), initialData ? { key: initialData.game.game_id, data: initialData } : undefined);
+  const [tab, setTab] = useState<PreviewTabId>('prediction');
   const { data: partners } = useKeyedFetch('streaming', () => getActivePartners('streaming').catch(() => []));
 
   const game = p?.game;
@@ -266,7 +261,19 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
     path: nflGamePath(gameId),
   });
 
-  if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
+  if (loading) {
+    return known && known.game_id === gameId ? (
+      <article className="space-y-6">
+        <header>
+          <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-5">{`${known.away_name} ${known.neutral_site ? 'v' : 'at'} ${known.home_name}`}</h1>
+          <p className="text-ink-700 mt-1">{`NFL ${known.season} · ${weekLabel(known.game_type, known.week)} · ${ukKickoff(known)}${known.kickoff_at ? ' UK time' : ''}`}</p>
+        </header>
+        <p className="text-ink-500 font-mono text-sm">Loading form and head-to-head&hellip;</p>
+      </article>
+    ) : (
+      <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>
+    );
+  }
   if (failed) return <p className="text-loss-600 text-sm">Failed to load this game.</p>;
   if (!p || !game) return <NotFoundPage />;
 
@@ -332,7 +339,9 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
         </section>
       )}
 
-      <section data-testid="nfl-game-prediction">
+      <PreviewTabs active={tab} onChange={setTab} />
+
+      <section data-testid="nfl-game-prediction" hidden={tab !== 'prediction'}>
         <h2 className={sectionHeading}>{played ? 'What the model predicted beforehand' : 'Prediction'}</h2>
         {model && pHome != null ? (
           <>
@@ -408,7 +417,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
         )}
       </section>
 
-      <section className="space-y-4" aria-label="Form and head-to-head">
+      <section className="space-y-4" aria-label="Head to head" hidden={tab !== 'overview'} data-testid="nfl-tab-h2h">
         <ComparisonCard
           homeTeamName={game.home_name}
           awayTeamName={game.away_name}
@@ -421,10 +430,21 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
         <p className="text-xs text-ink-500 -mt-2">
           Form is each team&rsquo;s last 5 games before this one, home and away (the season is only 17 games), oldest to newest; play-offs included.
         </p>
-        <RecentGames game={game} p={p} />
         <SeasonSoFar game={game} home={seasonSoFar(p.homeRecent, game.home_franchise, game.season)} away={seasonSoFar(p.awayRecent, game.away_franchise, game.season)} />
         <HeadToHeadRecord p={p} />
       </section>
+
+      {(['home', 'away'] as const).map((side) => (
+        <section key={side} className={card} hidden={tab !== side} aria-label={side === 'home' ? game.home_name : game.away_name} data-testid={`nfl-tab-${side}`}>
+          <h2 className={cardHeading}>Recent games</h2>
+          <RecentList
+            team={side === 'home' ? game.home_name : game.away_name}
+            franchise={side === 'home' ? game.home_franchise : game.away_franchise}
+            recent={side === 'home' ? p.homeRecent : p.awayRecent}
+            count={10}
+          />
+        </section>
+      ))}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to={fixturesLink} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">{`${weekLabel(game.game_type, game.week)} fixtures & results`}</Link>
