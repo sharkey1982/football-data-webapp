@@ -33,6 +33,41 @@ export function Section({ title, children, id, testId }: { title: string; childr
   );
 }
 
+/** A row of toggle chips (one choice). Scrolls sideways on a phone rather than wrapping into a wall. */
+export function ChipGroup<K extends string>({ options, value, onChange, label, testId }: { options: readonly { key: K; label: string; count?: number }[]; value: K; onChange: (k: K) => void; label: string; testId?: string }) {
+  return (
+    <div role="group" aria-label={label} className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" data-testid={testId}>
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          aria-pressed={o.key === value}
+          onClick={() => onChange(o.key)}
+          className={`shrink-0 rounded-full border px-3 py-1 text-sm whitespace-nowrap ${o.key === value ? 'bg-pitch-800 text-chalk-100 border-pitch-800' : 'bg-white text-ink-700 border-chalk-300 hover:border-pitch-600'}`}
+        >
+          {o.label}
+          {o.count != null && <span className={`ml-1.5 font-mono text-xs ${o.key === value ? 'text-chalk-200' : 'text-ink-500'}`}>{o.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A small trophy count: "🏆 5 World Cups" style, as text badges. */
+export function TitleBadges({ list }: { list: { tournament: { short: string; slug: string }; n: number }[] }) {
+  if (!list.length) return null;
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {list.map(({ tournament, n }) => (
+        <span key={tournament.slug} className="inline-flex items-center gap-1 rounded bg-amber-400/30 border border-amber-500 px-1.5 py-0.5 text-[11px] leading-none text-ink-900 whitespace-nowrap" title={`${n} × ${tournament.short}`}>
+          <span className="font-mono font-semibold">{n}</span>
+          <span>{tournament.short}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function TeamLink({ slug, name, bold }: { slug: string | null | undefined; name: string; bold?: boolean }) {
   if (!slug) return <span className={bold ? 'font-semibold' : undefined}>{name}</span>;
   return (
@@ -77,7 +112,7 @@ export function EloChance({ m, team }: { m: IntlMatch; team?: string }) {
 export function GameRow({ m, showDate, showCompetition, team }: { m: IntlMatch; showDate?: boolean; showCompetition?: boolean; team?: string }) {
   const winner = m.home_score > m.away_score ? m.home_team : m.away_score > m.home_score ? m.away_team : m.shootout_winner;
   const t = tournamentByCompetition(m.competition);
-  const where = [m.stage_name && m.stage_code !== 'LP' && m.stage_code !== 'GRP' ? m.stage_name : null, m.group_label ? `Group ${m.group_label}` : null].filter(Boolean).join(' · ');
+  const where = [m.stage_name && m.stage_code !== 'LP' && m.stage_code !== 'GRP' && m.stage_code !== 'ALL' ? m.stage_name : null, m.group_label ? `Group ${m.group_label}` : null].filter(Boolean).join(' · ');
   const outcome = team ? (winner === team && m.home_score !== m.away_score ? 'W' : m.home_score === m.away_score ? 'D' : 'L') : null;
   return (
     <li className="px-3 py-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm" data-testid="intl-game">

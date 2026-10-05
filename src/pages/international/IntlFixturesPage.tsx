@@ -12,11 +12,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import FixtureCalendarHeatmap from '../../components/FixtureCalendarHeatmap';
-import { FixtureRow, GameList, GameRow, IntlHeader, Section } from '../../components/intl/IntlBits';
+import { ChipGroup, FixtureRow, GameList, GameRow, IntlHeader, Section } from '../../components/intl/IntlBits';
+import NationPicker from '../../components/intl/NationPicker';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_FIXTURES_PATH, intlFixturesPath, intlTeamPath, loadIntlFixtures, loadIntlTeamGames, loadIntlTeams } from '../../lib/intlApi';
-import { DATA_NOTE, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
+import { COMPETITION_FILTERS, DATA_NOTE, matchesFilter, type CompetitionFilter, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -66,7 +67,16 @@ export default function IntlFixturesPage() {
     const dates = Object.keys(counts).sort();
     return dates.find((d) => d > today) ?? dates.filter((d) => d < today).pop() ?? null;
   }, [dateParam, counts, today]);
-  const groups = useMemo(() => (data && selected ? groupDay(data.matches, data.fixtures, selected) : []), [data, selected]);
+  const filter = (COMPETITION_FILTERS.find((f) => f.key === params.get('comp'))?.key ?? 'all') as CompetitionFilter;
+  const allGroups = useMemo(() => (data && selected ? groupDay(data.matches, data.fixtures, selected) : []), [data, selected]);
+  const groups = useMemo(
+    () => allGroups.map((g) => ({ ...g, matches: g.matches.filter((m) => matchesFilter(m, filter)), fixtures: matchesFilter({ competition_kind: 'nations_league' }, filter) ? g.fixtures : [] })).filter((g) => g.matches.length + g.fixtures.length > 0),
+    [allGroups, filter]
+  );
+  const filterCounts = useMemo(
+    () => COMPETITION_FILTERS.map((f) => ({ ...f, count: allGroups.reduce((a, g) => a + g.matches.filter((m) => matchesFilter(m, f.key)).length + (matchesFilter({ competition_kind: 'nations_league' }, f.key) ? g.fixtures.length : 0), 0) })),
+    [allGroups]
+  );
   const nGames = groups.reduce((a, g) => a + g.matches.length + g.fixtures.length, 0);
   const tg = teamGames.data;
 
@@ -84,10 +94,16 @@ export default function IntlFixturesPage() {
     next.set('date', d);
     setParams(next);
   }
-  function pickTeam(slug: string) {
+  function pickTeam(slug: string | null) {
     const next = new URLSearchParams();
     if (slug) next.set('team', slug);
     setParams(next);
+  }
+  function pickFilter(f: CompetitionFilter) {
+    const next = new URLSearchParams(params);
+    if (f === 'all') next.delete('comp');
+    else next.set('comp', f);
+    setParams(next, { replace: true });
   }
 
   const teamOptions = useMemo(
@@ -101,15 +117,14 @@ export default function IntlFixturesPage() {
         <p className="text-ink-700 max-w-prose">Every men’s international since 1872, with the favourite on the day. Pick a day on the calendar, or one nation.</p>
       </IntlHeader>
 
-      <label className="text-sm inline-flex items-center gap-2">
-        <span className="text-ink-500">Nation</span>
-        <select value={team ?? ''} onChange={(e) => pickTeam(e.target.value)} className="border border-chalk-300 rounded px-2 py-1 bg-white max-w-[16rem]" data-testid="intl-team-picker">
-          <option value="">All nations, by day</option>
-          {teamOptions.map((t) => (
-            <option key={t.slug} value={t.slug}>{t.team}</option>
-          ))}
-        </select>
-      </label>
+      <NationPicker
+        nations={teamOptions}
+        value={team}
+        onChange={pickTeam}
+        label="Nation"
+        emptyLabel="All nations, by day"
+        testId="intl-team-picker"
+      />
 
       {team ? (
         <>
@@ -127,8 +142,9 @@ export default function IntlFixturesPage() {
                 </Section>
               )}
               <Section title="Latest results" id="intl-team-results">
+                <ChipGroup options={COMPETITION_FILTERS} value={filter} onChange={pickFilter} label="Competition" testId="intl-comp-filter" />
                 <GameList testId="intl-team-results">
-                  {[...tg.fixtures.filter(isReported).map(reportedAsMatch).reverse(), ...tg.matches].map((m) => <GameRow key={m.match_key} m={m} showDate showCompetition team={tg.team.team} />)}
+                  {[...tg.fixtures.filter(isReported).map(reportedAsMatch).reverse(), ...tg.matches].filter((m) => matchesFilter(m, filter)).map((m) => <GameRow key={m.match_key} m={m} showDate showCompetition team={tg.team.team} />)}
                 </GameList>
               </Section>
             </>
@@ -157,8 +173,9 @@ export default function IntlFixturesPage() {
 
               {selected && (
                 <section aria-labelledby="intl-day" className="space-y-4" data-testid="intl-day">
-                  <h2 id="intl-day" className="font-display uppercase tracking-wide text-lg text-ink-900">{`${shortDate(selected)} · ${nGames} game${nGames === 1 ? '' : 's'}`}</h2>
-                  {groups.length === 0 && <p className="text-ink-700 text-sm">No games on this day.</p>}
+                  <h2 id="intl-day" className="font-display uppercase tracking-wide text-lg text-ink-900">{`${shortDate(selected)} · ${nGames} game${nGames === 1 ? '' : 's'}${filter === 'all' ? '' : ` (${COMPETITION_FILTERS.find((f) => f.key === filter)!.label.toLowerCase()})`}`}</h2>
+                  {allGroups.length > 0 && <ChipGroup options={filterCounts} value={filter} onChange={pickFilter} label="Competition" testId="intl-comp-filter" />}
+                  {groups.length === 0 && <p className="text-ink-700 text-sm">{allGroups.length ? 'No games of that kind on this day.' : 'No games on this day.'}</p>}
                   {groups.map((g) => (
                     <div key={g.competition} className="space-y-1">
                       <h3 className="text-sm font-medium text-ink-900">{g.competition}</h3>

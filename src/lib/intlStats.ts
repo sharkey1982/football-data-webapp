@@ -74,6 +74,8 @@ export type TeamSummary = {
   wc_titles: number;
   euro_titles: number;
   unl_titles: number;
+  /** Titles per competition slug (intl_competitions.slug), e.g. { "copa-america": 15 }. */
+  titles: Record<string, number> | null;
 };
 
 export type EditionSummary = {
@@ -103,10 +105,16 @@ export type IntlGoal = { match_key: string; seq: number; team: string; scorer: s
 
 /** The three competitions with tournament pages, in display order. */
 export const TOURNAMENTS = [
-  { competition: 'FIFA World Cup', slug: 'world-cup', short: 'World Cup', code: 'WC' },
-  { competition: 'UEFA Euro', slug: 'euro', short: 'Euro', code: 'EURO' },
-  { competition: 'UEFA Nations League', slug: 'nations-league', short: 'Nations League', code: 'UNL' },
+  { competition: 'FIFA World Cup', slug: 'world-cup', short: 'World Cup', code: 'WC', confederation: 'FIFA', dbSlug: 'fifa-world-cup' },
+  { competition: 'UEFA Euro', slug: 'euro', short: 'Euro', code: 'EURO', confederation: 'UEFA', dbSlug: 'uefa-euro' },
+  { competition: 'Copa América', slug: 'copa-america', short: 'Copa América', code: 'COPA', confederation: 'CONMEBOL', dbSlug: 'copa-america' },
+  { competition: 'African Cup of Nations', slug: 'africa-cup-of-nations', short: 'AFCON', code: 'AFCON', confederation: 'CAF', dbSlug: 'african-cup-of-nations' },
+  { competition: 'AFC Asian Cup', slug: 'asian-cup', short: 'Asian Cup', code: 'ASIAN', confederation: 'AFC', dbSlug: 'afc-asian-cup' },
+  { competition: 'Gold Cup', slug: 'gold-cup', short: 'Gold Cup', code: 'GOLD', confederation: 'CONCACAF', dbSlug: 'gold-cup' },
+  { competition: 'UEFA Nations League', slug: 'nations-league', short: 'Nations League', code: 'UNL', confederation: 'UEFA', dbSlug: 'uefa-nations-league' },
+  { competition: 'Confederations Cup', slug: 'confederations-cup', short: 'Confed Cup', code: 'CONFED', confederation: 'FIFA', dbSlug: 'confederations-cup' },
 ] as const;
+export type Tournament = (typeof TOURNAMENTS)[number];
 export type TournamentSlug = (typeof TOURNAMENTS)[number]['slug'];
 
 export const tournamentBySlug = (slug: string) => TOURNAMENTS.find((t) => t.slug === slug) ?? null;
@@ -165,12 +173,12 @@ export function isUpset(m: IntlMatch): boolean {
   return m.home_score > m.away_score ? e < UPSET_BELOW : 1 - e < UPSET_BELOW;
 }
 
-/** Points for a win in an edition: 2 until the 1994 World Cup and Euro 96, then 3. */
+/** Points for a win in an edition: 2 until the 1994 World Cup (other tournaments: until 1995), then 3. */
 export function pointsForWin(editionKey: string): number {
   const year = Number(editionKey.replace(/^[A-Z]+-/, '').slice(0, 4));
   if (editionKey.startsWith('WC-')) return year >= 1994 ? 3 : 2;
-  if (editionKey.startsWith('EURO-')) return year >= 1996 ? 3 : 2;
-  return 3;
+  if (editionKey.startsWith('UNL-')) return 3;
+  return year >= 1995 ? 3 : 2;
 }
 
 export type TableRow = { team: string; slug: string; name: string; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number; through: boolean };
@@ -211,9 +219,9 @@ export type HistoryCell = { edition_key: string; label: string; reached: string;
 
 const ROUND_SHORT: Record<string, string> = {
   PRE: 'Prelim', R1: 'R1', GRP: 'Group', GPO: 'Group', GRP2: 'Round 2', FR: 'Final group', R32: 'Last 32', R16: 'Last 16',
-  QF: 'QF', SF: 'SF', '3P': 'SF', F: 'Final', LP: 'League', PO_AB: 'Play-off', PO_BC: 'Play-off', PO_CD: 'Play-off', PO_C: 'Play-out',
+  QF: 'QF', SF: 'SF', '3P': 'SF', F: 'Final', PO: 'Play-off', ALL: 'Played', LP: 'League', PO_AB: 'Play-off', PO_BC: 'Play-off', PO_CD: 'Play-off', PO_C: 'Play-out',
 };
-const ROUND_DEPTH: Record<string, number> = { PRE: 1, R1: 2, GRP: 2, LP: 2, GPO: 2, PO_AB: 3, PO_BC: 3, PO_CD: 3, PO_C: 3, GRP2: 4, R32: 3, R16: 4, QF: 5, SF: 6, '3P': 6, FR: 7, F: 7 };
+const ROUND_DEPTH: Record<string, number> = { PRE: 1, R1: 2, GRP: 2, LP: 2, GPO: 2, PO_AB: 3, PO_BC: 3, PO_CD: 3, PO_C: 3, GRP2: 4, R32: 3, R16: 4, QF: 5, SF: 6, '3P': 6, FR: 7, F: 7, PO: 7, ALL: 1 };
 
 export function tournamentHistory(team: string, games: IntlMatch[], editions: EditionSummary[]): HistoryCell[] {
   const best = new Map<string, string>();
@@ -228,7 +236,7 @@ export function tournamentHistory(team: string, games: IntlMatch[], editions: Ed
     .map((e) => {
       const code = best.get(e.edition_key)!;
       const won = e.winner === team;
-      const reached = won ? 'Winner' : code === 'F' ? 'Runner-up' : code === 'FR' && e.runner_up === team ? 'Runner-up' : ROUND_SHORT[code] ?? code;
+      const reached = won ? 'Winner' : e.runner_up === team || code === 'F' ? 'Runner-up' : ROUND_SHORT[code] ?? code;
       return { edition_key: e.edition_key, label: e.label, reached, order: won ? 9 : ROUND_DEPTH[code] ?? 0, won };
     })
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -282,9 +290,94 @@ export function countsByDate(matches: IntlMatch[], fixtures: IntlFixture[]): Rec
   return out;
 }
 
-/** Competition display order on a day: World Cup, Euro, Nations League, other tournaments, qualifiers, friendlies. */
+/** Competition display order on a day: the TOURNAMENTS in order, other tournaments, qualifiers, friendlies. */
 export function competitionRank(competition: string, kind: string): number {
   const t = TOURNAMENTS.findIndex((x) => x.competition === competition);
   if (t >= 0) return t;
-  return kind === 'tournament' ? 5 : kind === 'nations_league' ? 6 : kind === 'qualifying' ? 7 : 9;
+  return kind === 'tournament' ? 10 : kind === 'nations_league' ? 11 : kind === 'qualifying' ? 12 : 13;
 }
+
+/** Titles a team has won, biggest first, as "5 World Cups, 9 Copa Américas". */
+export function titleList(t: Pick<TeamSummary, 'titles'>): { tournament: Tournament; n: number }[] {
+  const got = t.titles ?? {};
+  return TOURNAMENTS.map((tt) => ({ tournament: tt, n: got[tt.dbSlug] ?? 0 })).filter((x) => x.n > 0);
+}
+export const majorTitles = (t: Pick<TeamSummary, 'titles'>) => titleList(t).reduce((a, x) => a + x.n, 0);
+export const titleText = (tt: Tournament, n: number) => `${n} ${tt.short}${n === 1 ? '' : tt.short.endsWith('s') ? '' : 's'}`;
+
+/** Filter groups for a day's games. */
+export const COMPETITION_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'tournaments', label: 'Tournaments' },
+  { key: 'qualifying', label: 'Qualifiers' },
+  { key: 'nations_league', label: 'Nations League' },
+  { key: 'friendly', label: 'Friendlies' },
+] as const;
+export type CompetitionFilter = (typeof COMPETITION_FILTERS)[number]['key'];
+export function matchesFilter(m: Pick<IntlMatch, 'competition_kind'>, f: CompetitionFilter): boolean {
+  if (f === 'all') return true;
+  const kind = m.competition_kind === 'reported' ? 'nations_league' : m.competition_kind;
+  return f === 'tournaments' ? kind === 'tournament' : kind === f;
+}
+
+/** Cumulative titles per team by edition year, for the titles race. */
+export function titlesRace(editions: EditionSummary[]): { years: number[]; series: { team: string; slug: string | null; values: (number | null)[] }[] } {
+  const won = editions.filter((e) => e.winner).sort((a, b) => a.season_start - b.season_start);
+  const years = [...new Set(won.map((e) => e.season_start))];
+  const teams = new Map<string, { slug: string | null; byYear: Map<number, number> }>();
+  for (const e of won) {
+    const t = teams.get(e.winner!) ?? { slug: e.winner_slug, byYear: new Map() };
+    t.byYear.set(e.season_start, (t.byYear.get(e.season_start) ?? 0) + 1);
+    teams.set(e.winner!, t);
+  }
+  const series = [...teams.entries()].map(([team, t]) => {
+    let n = 0;
+    const values = years.map((y) => {
+      n += t.byYear.get(y) ?? 0;
+      return n > 0 ? n : null;
+    });
+    return { team, slug: t.slug, values };
+  });
+  return { years, series };
+}
+
+// ---- Knockout bracket ------------------------------------------------------------
+
+const BRACKET_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'F'] as const;
+
+const tiePair = (m: IntlMatch) => [m.home_team, m.away_team].sort().join('|');
+
+/** The deciding game of each tie in a round (the last game between the pair). */
+function ties(games: IntlMatch[]): IntlMatch[] {
+  const last = new Map<string, IntlMatch>();
+  for (const m of [...games].sort((a, b) => a.match_date.localeCompare(b.match_date))) last.set(tiePair(m), m);
+  return [...last.values()];
+}
+
+/** Rounds in bracket order, worked back from the final. */
+export function bracketRounds(matches: IntlMatch[]): { code: string; games: IntlMatch[] }[] {
+  const present = BRACKET_ROUNDS.filter((r) => matches.some((m) => m.stage_code === r));
+  if (!present.includes('F') || present.length < 2) return [];
+  const out: { code: string; games: IntlMatch[] }[] = [];
+  let next: IntlMatch[] = ties(matches.filter((m) => m.stage_code === 'F'));
+  out.unshift({ code: 'F', games: next });
+  for (let i = present.length - 2; i >= 0; i--) {
+    const pool = ties(matches.filter((m) => m.stage_code === present[i]));
+    const used = new Set<string>();
+    const ordered: IntlMatch[] = [];
+    for (const g of next) {
+      for (const team of [g.home_team, g.away_team]) {
+        const feed = pool.find((m) => !used.has(m.match_key) && (m.home_team === team || m.away_team === team));
+        if (feed) {
+          used.add(feed.match_key);
+          ordered.push(feed);
+        }
+      }
+    }
+    ordered.push(...pool.filter((m) => !used.has(m.match_key)));
+    out.unshift({ code: present[i], games: ordered });
+    next = ordered;
+  }
+  return out;
+}
+

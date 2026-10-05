@@ -1,8 +1,8 @@
 // ============================================================================
 // src/pages/international/IntlEditionPage.tsx
 //
-// /international/tournaments/:competition/:label -- one World Cup, Euro or
-// Nations League: the final, every group table (with who went through, taken
+// /international/tournaments/:competition/:label -- one edition of a major
+// tournament: the champions, a knockout bracket, the final, every group table (with who went through, taken
 // from who played in a later round, so it is right whatever the tie-breakers),
 // every knockout round, the top scorers and the upsets. A Nations League still
 // in its league phase shows each group's teams and fixtures.
@@ -11,10 +11,11 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FixtureRow, GameList, GameRow, IntlHeader, Section, TeamLink } from '../../components/intl/IntlBits';
+import Bracket from '../../components/intl/Bracket';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlEditionPath, intlTournamentPath, loadIntlEdition, type IntlEditionData } from '../../lib/intlApi';
-import { DATA_NOTE, editionLabel, groupTable, isReported, isUpset, pointsForWin, reportedAsMatch, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow } from '../../lib/intlStats';
+import { DATA_NOTE, bracketRounds, editionLabel, groupTable, isReported, isUpset, pointsForWin, reportedAsMatch, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow } from '../../lib/intlStats';
 
 function GroupTable({ label, rows, testId }: { label: string; rows: TableRow[]; testId?: string }) {
   return (
@@ -98,7 +99,9 @@ function Knockout({ data, stage }: { data: IntlEditionData; stage: IntlStage }) 
   const games = data.matches.filter((m) => m.stage_code === stage.code);
   if (!games.length) return null;
   return (
-    <Section title={stage.name} id={`intl-ed-${stage.code}`} testId={`intl-ed-${stage.code}`}>
+    <Section title={stage.code === 'ALL' ? 'Every game' : stage.name} id={`intl-ed-${stage.code}`} testId={`intl-ed-${stage.code}`}>
+      {stage.code === 'ALL' && <p className="text-xs text-ink-500">This edition’s format (two-legged ties and play-offs) can’t be worked out from the results alone, so its games are listed in date order.</p>}
+      {stage.code === 'PO' && <p className="text-xs text-ink-500">Played to separate teams level at the top of the final round.</p>}
       <GameList>{games.map((m) => <GameRow key={m.match_key} m={m} showDate />)}</GameList>
     </Section>
   );
@@ -146,6 +149,15 @@ export default function IntlEditionPage() {
   return (
     <article className="space-y-6">
       <IntlHeader title={name} crumb={{ to: intlTournamentPath(t.slug), label: t.short }}>
+        {e.winner && (
+          <div className="inline-flex items-center gap-3 rounded-lg border border-amber-500 bg-amber-400/20 px-4 py-2" data-testid="intl-champions">
+            <span aria-hidden className="text-2xl">🏆</span>
+            <span>
+              <span className="block text-[11px] uppercase tracking-widest text-ink-500">Champions</span>
+              <span className="font-display uppercase tracking-wide text-xl text-ink-900"><TeamLink slug={e.winner_slug} name={e.winner} /></span>
+            </span>
+          </div>
+        )}
         <p className="text-ink-900 max-w-prose" data-testid="intl-edition-summary">
           {e.winner ? (
             <>
@@ -166,6 +178,12 @@ export default function IntlEditionPage() {
           {next && <Link to={editionPathOf(next)} className="underline">{`${editionLabel(next.label)} →`}</Link>}
         </nav>
       </IntlHeader>
+
+      {bracketRounds(data.matches).length > 0 && (
+        <Section title="The road to the final" id="intl-ed-bracket">
+          <Bracket matches={data.matches} />
+        </Section>
+      )}
 
       {data.stages.map((s) => (s.type === 'round_robin' ? <RoundRobin key={s.code} data={data} stage={s} /> : <Knockout key={s.code} data={data} stage={s} />))}
 

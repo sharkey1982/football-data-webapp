@@ -281,4 +281,14 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     status: 'separate',
     note: 'Football has league seasons where international football has tournaments: every edition, each with its groups, knockouts and scorers.',
   },
+  {
+    sport: 'international',
+    label: 'Through Time',
+    path: '/international/history',
+    footballFile: 'src/pages/LeagueTable.tsx',
+    file: 'src/pages/international/IntlHistoryPage.tsx',
+    shared: ['Timelapse'],
+    status: 'partial',
+    note: 'The same Timelapse bar race as the league table’s points race, over Elo ratings since 1872; plus world number ones and the biggest upsets.',
+  },
 ];
