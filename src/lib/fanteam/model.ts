@@ -18,6 +18,8 @@ export const OUT_STATUSES = new Set(['injured', 'suspended']);
 
 export type PlayerView = {
   key: string;
+  /** Stable across uploads of a contest: ft:<FanTeam id>, else n:<name>|<club>. */
+  pkey: string;
   row_no: number;
   name: string;
   club_raw: string;
@@ -57,7 +59,7 @@ export type MatchView = {
   cleanSheet: number;       // P(team keeps a clean sheet), full match
 };
 
-export type Status = 'Fresh' | 'Stale' | 'Incomplete' | 'Broken';
+export type Status = 'Fresh' | 'Stale' | 'Incomplete' | 'Broken' | 'No projections';
 export type Health = { status: Status; checks: { label: string; ok: boolean; detail: string }[] };
 
 const ZERO: PointsBreakdown = {
@@ -82,7 +84,7 @@ export function fplRefsFrom(inputs: InputRow[]): FplRef[] {
 
 export function buildPlayers(
   rows: (Pick<PriceRow, 'row_no' | 'name_raw' | 'club_raw' | 'position' | 'price_m'> &
-    Partial<Pick<PriceRow, 'first_name' | 'surname' | 'lineup_status'>>)[],
+    Partial<Pick<PriceRow, 'first_name' | 'surname' | 'lineup_status' | 'fanteam_player_id'>>)[],
   inputs: InputRow[],
   scoring: ScoringRule[],
   manual: { players: Map<string, number | null>; clubs: Map<string, number> },
@@ -117,7 +119,7 @@ export function buildPlayers(
     if (out) { total = 0; s = 0; pcs = 0; for (const k of Object.keys(bd) as (keyof PointsBreakdown)[]) bd[k] = 0; }
     const ref = m.fpl_code != null ? refs.find((r) => r.fpl_code === m.fpl_code) : undefined;
     return {
-      key: `r${row.row_no}`, row_no: row.row_no, name: row.name_raw, club_raw: row.club_raw,
+      key: `r${row.row_no}`, pkey: playerKey(row), row_no: row.row_no, name: row.name_raw, club_raw: row.club_raw,
       team_id: teamId, team_name: teamId != null ? teamName.get(teamId) ?? '' : row.club_raw,
       pos: row.position, price: row.price_m, fpl_code: m.fpl_code,
       fpl_name: ref ? `${ref.first_name} ${ref.second_name}` : null, match: m.method, lineup, out,
@@ -152,6 +154,15 @@ export function buildPlayers(
   }
   for (const v of views) v.perMillion = v.price > 0 ? v.value / v.price : 0;
   return views;
+}
+
+export function playerKey(r: { fanteam_player_id?: number | null; name_raw: string; club_raw: string }): string {
+  return r.fanteam_player_id ? `ft:${r.fanteam_player_id}` : `n:${nameKey(r.name_raw)}|${norm(r.club_raw)}`;
+}
+
+/** Share of a list's rows whose club is a Premier League club FixtureShark projects. */
+export function projectableShare(views: PlayerView[]): number {
+  return views.length ? views.filter((v) => v.team_id != null).length / views.length : 0;
 }
 
 export function toCandidates(views: PlayerView[], captainMultiplier: number): Candidate[] {
@@ -207,9 +218,18 @@ export function health(args: {
   const missingPos = (['GK', 'DEF', 'MID', 'FWD'] as Pos[]).filter((p) => !args.views.some((v) => v.pos === p));
   add('All positions present', args.views.length === 0 || missingPos.length === 0, missingPos.length ? `none for ${missingPos.join(', ')}` : 'GK, DEF, MID, FWD');
 
+  // A list that is mostly not Premier League clubs (e.g. an international
+  // contest) has no FixtureShark projections at all: say so plainly.
+  const share = projectableShare(args.views);
+  const unsupported = args.views.length > 0 && share < 0.5;
+  if (unsupported) {
+    const clubs = [...new Set(args.views.filter((v) => v.team_id == null).map((v) => v.club_raw))].slice(0, 8).join(', ');
+    checks.unshift({ label: 'Premier League list', ok: false, detail: `${Math.round(share * 100)}% of rows are Premier League clubs (others: ${clubs}); FixtureShark only projects the Premier League so far` });
+  }
   const failed = (l: string) => checks.find((c) => c.label === l && !c.ok);
   let status: Status = 'Fresh';
-  if (failed('Rules') || failed('Projections')) status = 'Broken';
+  if (unsupported) status = 'No projections';
+  else if (failed('Rules') || failed('Projections')) status = 'Broken';
   else if (failed('Clubs recognised') || failed('Players matched') || failed('All positions present')) status = 'Incomplete';
   else if (failed('Projections fresh') || failed('Prices for this gameweek')) status = 'Stale';
   return { status, checks };

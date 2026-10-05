@@ -68,6 +68,7 @@ export type Paste = {
   safety_net: boolean;
   row_count: number;
   parser_version: string;
+  tournament_id: string | null;
 };
 
 export type PriceRow = {
@@ -115,22 +116,26 @@ export async function getInputs(matchweek: number): Promise<InputRow[]> {
   })) as unknown as InputRow[];
 }
 
-export async function getLatestPaste(matchweek: number): Promise<{ paste: Paste; rows: PriceRow[] } | null> {
-  const { data, error } = await db.from('fanteam_price_pastes')
-    .select('paste_id, pasted_at, contest_name, season_id, matchweek, rules_id, budget_m, stacking_penalty, safety_net, row_count, parser_version')
-    .eq('matchweek', matchweek).order('pasted_at', { ascending: false }).limit(1);
+const PASTE_COLS = 'paste_id, pasted_at, contest_name, season_id, matchweek, rules_id, budget_m, stacking_penalty, safety_net, row_count, parser_version, tournament_id';
+
+/** Every saved upload, newest first (one per upload; re-uploads of a contest are kept). */
+export async function listPastes(): Promise<Paste[]> {
+  const { data, error } = await db.from('fanteam_price_pastes').select(PASTE_COLS).order('pasted_at', { ascending: false }).limit(200);
   if (error) throw error;
-  if (!data?.length) return null;
-  const paste = { ...data[0], budget_m: Number(data[0].budget_m) } as unknown as Paste;
-  const { data: rows, error: re } = await db.from('fanteam_player_prices').select('*').eq('paste_id', paste.paste_id).order('row_no');
-  if (re) throw re;
-  return { paste, rows: (rows ?? []).map((r) => ({ ...r, price_m: Number(r.price_m) })) as unknown as PriceRow[] };
+  return (data ?? []).map((p) => ({ ...p, budget_m: Number(p.budget_m) })) as unknown as Paste[];
 }
 
-/** Previous paste's prices by name|team, for "changed since last paste". */
-export async function getPreviousPrices(beforePasteId: number): Promise<Map<string, number>> {
+export async function getPasteRows(pasteId: number): Promise<PriceRow[]> {
+  const { data: rows, error } = await db.from('fanteam_player_prices').select('*').eq('paste_id', pasteId).order('row_no');
+  if (error) throw error;
+  return (rows ?? []).map((r) => ({ ...r, price_m: Number(r.price_m) })) as unknown as PriceRow[];
+}
+
+/** The previous upload of the same contest, by name|team, for "price changes". */
+export async function getPreviousPrices(paste: Paste): Promise<Map<string, number>> {
+  if (!paste.tournament_id) return new Map();
   const { data, error } = await db.from('fanteam_price_pastes').select('paste_id')
-    .lt('paste_id', beforePasteId).order('paste_id', { ascending: false }).limit(1);
+    .eq('tournament_id', paste.tournament_id).lt('paste_id', paste.paste_id).order('paste_id', { ascending: false }).limit(1);
   if (error) throw error;
   if (!data?.length) return new Map();
   const { data: rows, error: re } = await db.from('fanteam_player_prices').select('name_raw, team_id, price_m').eq('paste_id', data[0].paste_id);
@@ -182,10 +187,44 @@ export type NewPaste = {
   safety_net: boolean;
   raw_text: string;
   parser_version: string;
+  tournament_id: string | null;
 };
 
 export async function savePaste(paste: NewPaste, rows: Omit<PriceRow, 'paste_id'>[]): Promise<number> {
   const { data, error } = await db.rpc('fanteam_save_paste', { p_paste: paste as unknown as Row, p_rows: rows });
   if (error) throw error;
   return Number(data);
+}
+
+// ---------------------------------------------------------------------------
+// My teams
+// ---------------------------------------------------------------------------
+
+export type MyTeam = {
+  my_team_id?: number;
+  tournament_id: string;
+  label: string;
+  player_keys: string[];
+  captain_key: string | null;
+  vice_key: string | null;
+  updated_at?: string;
+};
+
+export async function getMyTeams(tournamentId: string): Promise<MyTeam[]> {
+  const { data, error } = await db.from('fanteam_my_teams').select('*').eq('tournament_id', tournamentId).order('label');
+  if (error) throw error;
+  return (data ?? []) as unknown as MyTeam[];
+}
+
+export async function saveMyTeam(t: MyTeam): Promise<void> {
+  const row: Row = { tournament_id: t.tournament_id, label: t.label, player_keys: t.player_keys,
+    captain_key: t.captain_key, vice_key: t.vice_key, updated_at: new Date().toISOString() };
+  const q = db.from('fanteam_my_teams') as unknown as { upsert: (v: Row, o: { onConflict: string }) => Promise<{ error: Error | null }> };
+  const { error } = await q.upsert(row, { onConflict: 'tournament_id,label' });
+  if (error) throw error;
+}
+
+export async function deleteMyTeam(tournamentId: string, label: string): Promise<void> {
+  const { error } = await db.from('fanteam_my_teams').delete().eq('tournament_id', tournamentId).eq('label', label);
+  if (error) throw error;
 }
