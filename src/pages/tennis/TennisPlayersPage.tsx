@@ -3,13 +3,15 @@
 //
 // /tennis/players -- "Your Player", the tennis counterpart of Football's Your
 // Team: every player on a tour, searchable, sortable by any column. ATP by
-// default; ?tour=wta for the WTA. Server-rendered at build (ATP).
+// default; ?tour=wta for the WTA. ?country=GB filters by the nation played
+// for (Wikidata, phase 3). Server-rendered at build (ATP).
 // ============================================================================
 
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { PlayerLink, TennisHeader } from '../../components/tennis/TennisBits';
+import { Country, FilterSelect, PlayerLink, TennisHeader } from '../../components/tennis/TennisBits';
+import { countryCounts, countryName } from '../../lib/tennisEvents';
 import TourToggle from '../../components/tennis/TourToggle';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
@@ -19,7 +21,8 @@ import { DATA_NOTE, FIRST_YEAR, parseTour, pct, pctLabel, recordLabel, shortDate
 const PAGE = 100;
 
 export default function TennisPlayersPage({ initialData }: { initialData?: TennisPlayersData }) {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const country = (params.get('country') ?? '').toUpperCase();
   const tour = parseTour(params.get('tour')) ?? initialData?.tour ?? 'ATP';
   const { data, failed, loading } = useKeyedFetch(tour, () => loadTennisPlayers(tour), initialData ? { key: initialData.tour, data: initialData } : undefined);
   const [query, setQuery] = useState('');
@@ -30,14 +33,23 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
     path: TENNIS_PLAYERS_PATH,
   });
 
+  const countries = useMemo(() => countryCounts(data?.players ?? []), [data]);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = data?.players ?? [];
-    return q ? list.filter((p) => p.name.toLowerCase().includes(q)) : list;
-  }, [data, query]);
+    let list = data?.players ?? [];
+    if (country) list = list.filter((p) => p.country === country);
+    return q ? list.filter((p) => p.name.toLowerCase().includes(q) || (p.full_name ?? '').toLowerCase().includes(q)) : list;
+  }, [data, query, country]);
+  const setCountry = (c: string) => {
+    const next = new URLSearchParams(params);
+    if (c) next.set('country', c);
+    else next.delete('country');
+    setParams(next, { replace: true });
+  };
 
   const columns: Column<TennisPlayer>[] = [
     { key: 'name', label: 'Player', render: (p) => <PlayerLink tour={p.tour} slug={p.slug} name={p.name} />, sortValue: (p) => p.name },
+    { key: 'country', label: 'Country', render: (p) => <Country code={p.country} short />, sortValue: (p) => (p.country ? countryName(p.country) : null), className: 'hidden sm:table-cell' },
     { key: 'recent', label: 'Last 3 seasons', render: (p) => p.recent_matches, sortValue: (p) => p.recent_matches, align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
     { key: 'record', label: 'W–L', render: (p) => recordLabel(p.won, p.lost), sortValue: (p) => p.won + p.lost, align: 'right', descFirst: true },
     { key: 'pct', label: 'Win %', render: (p) => pctLabel(pct(p.won, p.lost)), sortValue: (p) => (p.won + p.lost >= 20 ? pct(p.won, p.lost) : null), align: 'right', descFirst: true },
@@ -68,24 +80,31 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
                 data-testid="tennis-player-search"
               />
             </label>
-            <span className="text-xs text-ink-500">{`${rows.length.toLocaleString('en-GB')} players`}</span>
+            <FilterSelect
+              label="Country"
+              value={country}
+              onChange={setCountry}
+              testId="tennis-country-filter"
+              options={[{ value: '', label: 'All countries' }, ...countries.map((c) => ({ value: c.code, label: `${c.name} (${c.n})` }))]}
+            />
+            <span className="text-xs text-ink-500">{`${rows.length.toLocaleString('en-GB')} players${country ? ` from ${countryName(country)}` : ''}`}</span>
           </div>
           <SortableTable
             columns={columns}
             rows={rows}
             rowKey={(p) => String(p.player_id)}
             initialSort={{ key: 'recent', dir: 'desc' }}
-            limit={all || query ? undefined : PAGE}
+            limit={all || query || country ? undefined : PAGE}
             caption={`${tour} players`}
             testId="tennis-players-table"
             empty="No player matches that name."
           />
-          {!all && !query && rows.length > PAGE && (
+          {!all && !query && !country && rows.length > PAGE && (
             <button type="button" onClick={() => setAll(true)} className="text-sm text-pitch-800 underline underline-offset-2">
               {`Show all ${rows.length.toLocaleString('en-GB')}`}
             </button>
           )}
-          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. ${DATA_NOTE}`}</p>
+          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. Country is the nation played for now. ${DATA_NOTE} Player details: Wikidata (CC0).`}</p>
         </>
       )}
     </article>

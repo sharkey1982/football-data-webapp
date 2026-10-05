@@ -21,6 +21,8 @@ export type TennisMatch = {
   tour: Tour;
   year: number;
   match_date: string;
+  /** Present from phase 3 (MATCH_COLUMNS); optional so older fixtures still type-check. */
+  tournament_id?: number;
   tournament: string;
   tournament_slug: string;
   location: string | null;
@@ -63,6 +65,12 @@ export type TennisPlayer = {
   last_year: number;
   last_match: string;
   recent_matches: number;
+  /** From Wikidata (scripts/tennis_people.py): ISO alpha-2, null when unknown. */
+  country?: string | null;
+  full_name?: string | null;
+  birth_date?: string | null;
+  hand?: 'Right' | 'Left' | null;
+  wikidata_qid?: string | null;
 };
 
 /** Players with this many played matches in the tour's last three seasons get a static page. */

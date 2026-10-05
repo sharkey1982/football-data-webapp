@@ -220,13 +220,15 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       {
         key: 'discover',
         title: 'Discover',
-        tagline: 'Results, players, the archive.',
+        tagline: 'Results, players, tournaments, TV.',
         intro:
           'Everything that has happened at tour level: every result with the rankings and the pre-match favourite, each player\u2019s record and titles, and the story of every season.',
         links: [
           { label: 'Results', to: '/tennis/results', blurb: 'Every match day by day, with rankings and the upsets.' },
           { label: 'Your Player', to: '/tennis/players', blurb: 'Any player\u2019s record by season, surface and level, their titles and best wins.', matchPrefix: ['/tennis/players'] },
-          { label: 'Past seasons', to: '/tennis/seasons', blurb: 'Grand Slam champions, title leaders, upsets and streaks for every season.', matchPrefix: ['/tennis/seasons'] },
+          { label: 'Tournaments', to: '/tennis/tournaments', blurb: 'Every tournament\u2019s champions and records, and each year\u2019s draw with the road to the final.', matchPrefix: ['/tennis/tournaments'] },
+          { label: 'TV Guide', to: '/tennis/tv-guide', blurb: 'Which tournaments are on this week and next, and the UK channel for each.' },
+          { label: 'Past seasons', to: '/tennis/seasons', blurb: 'Grand Slam champions, title leaders and the title race for every season.', matchPrefix: ['/tennis/seasons'] },
         ],
       },
     ],

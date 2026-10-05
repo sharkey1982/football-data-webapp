@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { TENNIS_DISCOVER_PATH, TENNIS_HUB_PATH, tennisPlayerPath } from '../../lib/tennisApi';
 import { LEVEL_LABEL, type Level, type Tour } from '../../lib/tennisStats';
+import { countryName } from '../../lib/tennisEvents';
 
 export function TennisHeader({ title, crumb, toggle, children }: { title: string; crumb?: { to: string; label: string }; toggle?: ReactNode; children?: ReactNode }) {
   return (
@@ -58,3 +59,28 @@ export function Section({ title, children, id }: { title: string; children: Reac
   );
 }
 
+
+/** Country name, or its ISO code when `short` (full name on hover). No flag
+ * emoji: Windows shows those as two letters, which would read "GB GB". */
+export function Country({ code, short = false }: { code: string | null | undefined; short?: boolean }) {
+  if (!code) return <span className="text-ink-500">–</span>;
+  return (
+    <span className="whitespace-nowrap" title={countryName(code)}>
+      {short ? <abbr title={countryName(code)} className="no-underline font-mono text-xs">{code}</abbr> : countryName(code)}
+    </span>
+  );
+}
+
+/** A plain labelled select, used for the tennis filters. */
+export function FilterSelect({ label, value, onChange, options, testId }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; testId?: string }) {
+  return (
+    <label className="text-sm inline-flex items-center gap-1.5">
+      <span className="text-ink-500">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="border border-chalk-300 rounded px-2 py-1 bg-white max-w-[14rem]" data-testid={testId}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
