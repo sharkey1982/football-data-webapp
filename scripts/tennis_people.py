@@ -42,7 +42,7 @@ USER_AGENT = "FixtureShark/1.0 (https://fixtureshark.com; tennis player details)
 # One query per tour id property. Labels via rdfs:label (en) rather than the
 # label service keeps it fast enough for ~20k people.
 QUERY = """
-SELECT ?p ?id ?label ?mul ?family ?given ?dob ?sex ?hand ?handlabel ?cit ?sport ?citq ?sportq WHERE {
+SELECT ?p ?id ?label ?mul ?family ?given ?dob ?sex ?hand ?handlabel ?cit ?sport ?citq ?sportq ?sportnow ?sportpref WHERE {
   ?p wdt:%(prop)s ?id .
   OPTIONAL { ?p rdfs:label ?label FILTER(LANG(?label) = "en") }
   OPTIONAL { ?p rdfs:label ?mul FILTER(LANG(?mul) = "mul") }
@@ -53,6 +53,10 @@ SELECT ?p ?id ?label ?mul ?family ?given ?dob ?sex ?hand ?handlabel ?cit ?sport 
   OPTIONAL { ?p wdt:P741 ?h . BIND(STRAFTER(STR(?h), "entity/") AS ?hand) OPTIONAL { ?h rdfs:label ?handlabel FILTER(LANG(?handlabel) = "en") } }
   OPTIONAL { ?p wdt:P27 ?c . BIND(STRAFTER(STR(?c), "entity/") AS ?citq) OPTIONAL { ?c wdt:P297 ?cit } }
   OPTIONAL { ?p wdt:P1532 ?s . BIND(STRAFTER(STR(?s), "entity/") AS ?sportq) OPTIONAL { ?s wdt:P297 ?sport } }
+  # The nation played for now: P1532 statements with no end date (players who switched, e.g. Russia to Kazakhstan).
+  OPTIONAL { ?p p:P1532 ?st . ?st ps:P1532 ?s2 ; wikibase:rank ?rk .
+             FILTER(?rk != wikibase:DeprecatedRank) FILTER NOT EXISTS { ?st pq:P582 ?ended }
+             ?s2 wdt:P297 ?sportnow . BIND(IF(?rk = wikibase:PreferredRank, ?sportnow, "") AS ?sportpref) }
 }
 """
 PROPS = {"ATP": "P536", "WTA": "P597"}
@@ -80,12 +84,12 @@ def fetch() -> dict[str, list[dict]]:
         for b in rows:
             qid = b["p"]["value"].rsplit("/", 1)[-1]
             p = people.setdefault(qid, {"qid": qid, "ids": set(), "label": None, "family": set(), "given": set(),
-                                        "dob": None, "sex": None, "hand": None, "hands": set(), "cit": set(), "sport": set(),
+                                        "dob": None, "sex": None, "hand": None, "hands": set(), "cit": set(), "sport": set(), "sportnow": set(), "sportpref": set(),
                                         "citq": set(), "sportq": set()})
             g = lambda k: b.get(k, {}).get("value")  # noqa: E731
             p["ids"].add(g("id"))
             p["label"] = p["label"] or g("label") or g("mul")  # well-known names are often only under "mul"
-            for k in ("family", "given", "cit", "sport", "citq", "sportq"):
+            for k in ("family", "given", "cit", "sport", "citq", "sportq", "sportnow", "sportpref"):
                 if g(k):
                     p[k].add(g(k))
             if g("handlabel"):
@@ -239,9 +243,10 @@ def match(players: list[dict], people: dict[str, list[dict]]) -> list[dict]:
 
 def one_player_per_person(rows: list[dict]) -> list[dict]:
     """A Wikidata person may match two of our players (spellings not merged, or
-    a namesake). Keep the strongest match -- override, then full initials,
-    then most matches -- and leave the others unmatched."""
-    rank = {"override": 3, "name+initials": 2, "name+initial": 1}
+    a namesake). Keep the override, else the player with most matches
+    ("Fernandez L.A.", 270, over "Fernandez L.", 8), and leave the others
+    unmatched."""
+    rank = {"override": 1}
     groups = defaultdict(list)
     for r in rows:
         if r["qid"]:
@@ -258,6 +263,11 @@ def one_player_per_person(rows: list[dict]) -> list[dict]:
 COUNTRY_QID = {
     "Q756617": "DK",   # Kingdom of Denmark (Wikidata often uses this, which has no ISO code)
     "Q29999": "NL",    # Kingdom of the Netherlands
+}
+# Hand-checked nation played for, where Wikidata lists two current ones (Wikidata QID -> alpha-2).
+COUNTRY_OVERRIDES = {
+    "Q23678983": "KZ",   # Alexander Bublik, for Kazakhstan since 2016
+    "Q110287122": "KZ",  # Alexander Shevchenko, for Kazakhstan since 2024
 }
 # Historic states (Soviet Union, Yugoslavia, Czechoslovakia...) are left out on
 # purpose: they sit beside the current country and would make it ambiguous.
@@ -284,8 +294,15 @@ def person_row(m: dict) -> dict | None:
     if not p:
         return None
     sport, cit = countries(p)
-    # The nation a player represents (P1532) when known; else citizenship, if only one.
-    country = sport[0] if len(sport) == 1 else (cit[0] if not sport and len(cit) == 1 else None)
+    # The nation a player represents now: a preferred P1532 statement, else one
+    # with no end date, else the only P1532, else the only citizenship.
+    country = COUNTRY_OVERRIDES.get(m["qid"])
+    for options in () if country else (p.get("sportpref") or [], p.get("sportnow") or [], sport, [] if sport else cit):
+        if len(set(options)) == 1:
+            country = options[0]
+            break
+        if len(set(options)) > 1:
+            break
     return {
         "player_id": m["player_id"], "wikidata_qid": m["qid"], "full_name": p.get("label"),
         "country": country, "all_countries": sorted(set(sport) | set(cit)),

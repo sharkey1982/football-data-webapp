@@ -92,3 +92,13 @@ def test_hand_from_tennis_specific_values():
     assert tp.hand_of({"hand": "Q14419931", "hands": ["right-handed, one-handed backhand"]}) == "Right"
     assert tp.hand_of({"hand": "Q789447", "hands": []}) == "Left"
     assert tp.hand_of({"hand": "Q457332", "hands": ["ambidexterity"]}) is None
+
+
+def test_country_is_the_nation_played_for_now():
+    m = {"player_id": 1, "qid": "Q1", "method": "name+initials",
+         "person": person("Q1", "Alexander Bublik", sport=["KZ", "RU"], sportnow=["KZ"], cit=["RU"], citq=[], sportq=[])}
+    assert tp.person_row(m)["country"] == "KZ"
+    m["person"].update(sportnow=["AU", "RU"], sportpref=["AU"])
+    assert tp.person_row(m)["country"] == "AU"
+    m["person"].update(sportnow=["AU", "RU"], sportpref=[])
+    assert tp.person_row(m)["country"] is None  # two current nations: unknown, not a guess
