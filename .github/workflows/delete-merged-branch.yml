@@ -1,19 +1,30 @@
-# Deletes a pull request's branch once it is merged -- the same as GitHub's
-# "Automatically delete head branches" setting, which can't be changed from a
-# Claude session. Branches of closed-unmerged PRs are kept. Never touches main.
-# No checkout: nothing from the PR runs.
-name: Delete merged branch
+# Deletes branches whose pull requests have been merged -- the same job as
+# GitHub's "Automatically delete head branches" setting, which can't be changed
+# from a Claude session. Runs on every push to main (each merge is one): looks
+# at the 50 most recently closed PRs and deletes the head branch of each merged
+# one, but only while the branch still points at the merged commit (so a branch
+# that got new work after merging is kept). Branches of closed-unmerged PRs are
+# kept. Never touches main. No checkout: nothing from a PR runs.
+name: Delete merged branches
 on:
-  pull_request_target:
-    types: [closed]
+  push:
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: write
+  pull-requests: read
 jobs:
   delete:
-    if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref != 'main'
     runs-on: ubuntu-latest
     steps:
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}" && echo "Deleted ${BRANCH}" || echo "Already gone: ${BRANCH}"
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/pulls?state=closed&sort=updated&direction=desc&per_page=50" \
+            --jq '.[] | select(.merged_at != null and .head.repo.full_name == "'"${GITHUB_REPOSITORY}"'" and .head.ref != "main") | "\(.head.ref) \(.head.sha)"' |
+          while read -r ref sha; do
+            tip=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${ref}" --jq .object.sha 2>/dev/null || true)
+            if [ -n "$tip" ] && [ "$tip" = "$sha" ]; then
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${ref}" && echo "Deleted ${ref}"
+            fi
+          done
