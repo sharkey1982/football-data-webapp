@@ -4,7 +4,8 @@ import highsLoader from 'highs';
 import { scoreEvents, expectedPoints, safetyNetValue, winLoss, type ScoringRule, type Pos, type ProjectionInput } from '../lib/fanteam/scoring';
 import { solveLineup, validateLineup, buildLp, stackingPenalty, type Candidate, type ContestRules, type SolverFn } from '../lib/fanteam/optimiser';
 import { parsePaste, matchPlayer, resolveClub, type FplRef } from '../lib/fanteam/paste';
-import { buildPlayers, health, playerKey, toCandidates } from '../lib/fanteam/model';
+import { buildPlayers, health, playerKey, toCandidates, type PlayerView } from '../lib/fanteam/model';
+import { matchTeamText } from '../lib/fanteam/teamPhoto';
 
 // The seed in migration 20261005140000_fanteam_private.sql, as the page reads it.
 const R = (rule_code: string, position: Pos | null, points: number, per_n: number | null = null, threshold_minutes: number | null = null): ScoringRule =>
@@ -522,5 +523,45 @@ describe('FanTeam: several contests, international list, stable keys', () => {
   it('player keys use the FanTeam id when there is one, else name and club', () => {
     expect(playerKey({ fanteam_player_id: 4700673, name_raw: 'Erling Haaland', club_raw: 'MCI' })).toBe('ft:4700673');
     expect(playerKey({ fanteam_player_id: null, name_raw: 'Erling Haaland', club_raw: 'MCI' })).toBe('n:erling haaland|mci');
+  });
+});
+
+describe('FanTeam: reading a team screenshot', () => {
+  const pv = (pkey: string, name: string, surname: string, pos: Pos, price: number, value = 5) =>
+    ({ pkey, key: pkey, name, surname, pos, price, value, team_name: 'X' }) as unknown as PlayerView;
+  const LIST = [
+    pv('ft:1', 'Erling Haaland', 'Haaland', 'FWD', 14.5, 9),
+    pv('ft:2', 'Bruno Fernandes', 'Fernandes', 'MID', 9, 6),
+    pv('ft:3', 'Fernandes Fernandes', 'Fernandes', 'MID', 5.1, 2),
+    pv('ft:4', 'Gabriel Magalhães', 'Magalhães', 'DEF', 6.5),
+    pv('ft:5', 'Bukayo Saka', 'Saka', 'MID', 10.2),
+    pv('ft:6', 'Jordan Pickford', 'Pickford', 'GK', 5.4),
+    pv('ft:7', 'Chris Wood', 'Wood', 'FWD', 7.5),
+    pv('ft:8', 'Ben White', 'White', 'DEF', 5.5),
+  ];
+  it('finds surnames, accents and one misread letter, and ignores other words', () => {
+    const m = matchTeamText('GK Pickf0rd 5.4\nMagalhaes DEF\nHaaland (C) 14.5\nSaka\nCaptain Budget left 0.5', LIST);
+    expect(m.picks.map((v) => v.pkey).sort()).toEqual(['ft:1', 'ft:4', 'ft:5', 'ft:6']);
+    expect(m.ambiguous).toEqual([]);
+  });
+  it('a shared surname is settled by first name or price, else asked', () => {
+    expect(matchTeamText('B. Fernandes', LIST).picks.map((v) => v.pkey)).toEqual(['ft:2']);
+    expect(matchTeamText('Fernandes 9.0', LIST).picks.map((v) => v.pkey)).toEqual(['ft:2']);
+    const m = matchTeamText('Fernandes', LIST);
+    expect(m.picks).toEqual([]);
+    expect(m.ambiguous[0].options.map((v) => v.pkey)).toEqual(['ft:2', 'ft:3']);
+  });
+  it('short surnames need the whole word', () => {
+    expect(matchTeamText('Woodland Whiteboard', LIST).picks).toEqual([]);
+    expect(matchTeamText('C. Wood', LIST).picks.map((v) => v.pkey)).toEqual(['ft:7']);
+  });
+});
+
+describe('FanTeam: screenshot OCR slips', () => {
+  const pv = (pkey: string, name: string, surname: string, price: number, value = 5) =>
+    ({ pkey, key: pkey, name, surname, pos: 'MID', price, value, team_name: 'X' }) as unknown as PlayerView;
+  const LIST = [pv('ft:2', 'Bruno Fernandes', 'Fernandes', 13.2, 6), pv('ft:3', 'Mateus Fernandes', 'Fernandes', 6.7, 3), pv('ft:9', 'Omar Marmoush', 'Marmoush', 7.5)];
+  it('"rn" read as "m" still matches, and the price picks the right Fernandes', () => {
+    expect(matchTeamText('(8. Femandes’ 13.2M  [ Mamoush', LIST).picks.map((v) => v.pkey).sort()).toEqual(['ft:2', 'ft:9']);
   });
 });

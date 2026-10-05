@@ -337,7 +337,7 @@ export function matchPlayer(
   }
 }
 
-function editDistance(a: string, b: string): number {
+export function editDistance(a: string, b: string): number {
   if (Math.abs(a.length - b.length) > 1) return 2;
   const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
   for (let j = 1; j <= b.length; j++) d[0][j] = j;

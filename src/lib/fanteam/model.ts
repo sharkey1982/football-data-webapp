@@ -20,6 +20,8 @@ export type PlayerView = {
   key: string;
   /** Stable across uploads of a contest: ft:<FanTeam id>, else n:<name>|<club>. */
   pkey: string;
+  /** Surname as FanTeam lists it (export only), for reading team screenshots. */
+  surname: string | null;
   row_no: number;
   name: string;
   club_raw: string;
@@ -119,7 +121,7 @@ export function buildPlayers(
     if (out) { total = 0; s = 0; pcs = 0; for (const k of Object.keys(bd) as (keyof PointsBreakdown)[]) bd[k] = 0; }
     const ref = m.fpl_code != null ? refs.find((r) => r.fpl_code === m.fpl_code) : undefined;
     return {
-      key: `r${row.row_no}`, pkey: playerKey(row), row_no: row.row_no, name: row.name_raw, club_raw: row.club_raw,
+      key: `r${row.row_no}`, pkey: playerKey(row), surname: row.surname ?? null, row_no: row.row_no, name: row.name_raw, club_raw: row.club_raw,
       team_id: teamId, team_name: teamId != null ? teamName.get(teamId) ?? '' : row.club_raw,
       pos: row.position, price: row.price_m, fpl_code: m.fpl_code,
       fpl_name: ref ? `${ref.first_name} ${ref.second_name}` : null, match: m.method, lineup, out,
