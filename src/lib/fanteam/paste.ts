@@ -5,14 +5,16 @@
 // each row to an FPL player. Prices only ever arrive this way (Chris copies
 // the list in his own browser); nothing here talks to FanTeam.
 //
-// The parser is deliberately layout-tolerant: it accepts one player per line
+// FanTeam's own player export (header: Tournament, PlayerID, Name, FName,
+// Club, Lineup, Position, Price; tab or comma separated) is read by column.
+// Anything else falls back to a layout-tolerant reader: one player per line
 // (tabs, commas or runs of spaces) or a player spread over several lines,
 // closing a record at each price. Every parse is previewed before saving.
 // ============================================================================
 
 import type { Pos } from './scoring';
 
-export const PARSER_VERSION = 'v1';
+export const PARSER_VERSION = 'v2';
 
 export type ParsedRow = {
   row_no: number;
@@ -21,6 +23,12 @@ export type ParsedRow = {
   position: Pos | null;
   price_m: number | null;
   issues: string[];
+  /** From FanTeam's export only. */
+  fanteam_player_id?: number | null;
+  first_name?: string | null;
+  surname?: string | null;
+  lineup_status?: string | null;
+  tournament?: string | null;
 };
 
 export type TeamRef = { team_id: number; team_name: string };
@@ -32,21 +40,34 @@ const POS_WORDS: Record<string, Pos> = {
   fwd: 'FWD', fw: 'FWD', f: 'FWD', st: 'FWD', forward: 'FWD', forwards: 'FWD', striker: 'FWD',
 };
 
-/** Common short and informal Premier League club names -> words that appear
- * in the canonical name. Unknown clubs fall through to a manual fix. */
-const CLUB_ALIASES: Record<string, string> = {
-  ars: 'arsenal', avl: 'aston villa', villa: 'aston villa', bou: 'bournemouth', bre: 'brentford',
-  bha: 'brighton', bri: 'brighton', bur: 'burnley', che: 'chelsea', cry: 'crystal palace', palace: 'crystal palace',
-  eve: 'everton', ful: 'fulham', ips: 'ipswich', lee: 'leeds', lei: 'leicester', liv: 'liverpool',
-  mci: 'manchester city', 'man city': 'manchester city', 'man c': 'manchester city',
-  mun: 'manchester united', 'man utd': 'manchester united', 'man united': 'manchester united', 'man u': 'manchester united',
-  new: 'newcastle', nfo: 'nottingham forest', "nott'm forest": 'nottingham forest', 'notts forest': 'nottingham forest', forest: 'nottingham forest',
-  sou: 'southampton', sun: 'sunderland', tot: 'tottenham', spurs: 'tottenham', whu: 'west ham', wol: 'wolverhampton', wolves: 'wolverhampton',
-  shu: 'sheffield united', lut: 'luton', boro: 'middlesbrough', cov: 'coventry', nor: 'norwich', wat: 'watford', wba: 'west brom',
+/** Club codes and informal names -> the forms a club's canonical name may
+ * take (the database uses e.g. "Man City", "Man United", "Tottenham",
+ * "Nott'm Forest", "Coventry", "Hull"). FanTeam's codes are mostly FPL's,
+ * except CVC for Coventry. Unknown clubs fall through to a manual fix. */
+const CLUB_ALIASES: Record<string, string[]> = {
+  ars: ['arsenal'], avl: ['aston villa'], villa: ['aston villa'], bou: ['bournemouth'], bre: ['brentford'],
+  bha: ['brighton', 'brighton and hove albion'], bri: ['brighton'], bur: ['burnley'], che: ['chelsea'],
+  cry: ['crystal palace'], palace: ['crystal palace'], eve: ['everton'], ful: ['fulham'],
+  ips: ['ipswich', 'ipswich town'], lee: ['leeds', 'leeds united'], lei: ['leicester', 'leicester city'], liv: ['liverpool'],
+  mci: ['man city', 'manchester city'], 'man city': ['manchester city'], 'manchester city': ['man city'],
+  mun: ['man united', 'manchester united', 'man utd'], 'man utd': ['man united', 'manchester united'],
+  'man united': ['manchester united'], 'manchester united': ['man united'],
+  new: ['newcastle', 'newcastle united'], nfo: ["nott'm forest", 'nottingham forest'], "nott'm forest": ['nottingham forest'],
+  'nottingham forest': ["nott'm forest"], forest: ["nott'm forest", 'nottingham forest'],
+  sou: ['southampton'], sun: ['sunderland'], tot: ['tottenham', 'tottenham hotspur', 'spurs'], spurs: ['tottenham', 'tottenham hotspur'],
+  'tottenham hotspur': ['tottenham'], whu: ['west ham', 'west ham united'], wol: ['wolves', 'wolverhampton wanderers'],
+  wolves: ['wolverhampton wanderers'], shu: ['sheffield united'], lut: ['luton', 'luton town'], boro: ['middlesbrough'],
+  cov: ['coventry', 'coventry city'], cvc: ['coventry', 'coventry city'], 'coventry city': ['coventry'],
+  hul: ['hull', 'hull city'], 'hull city': ['hull'], 'ipswich town': ['ipswich'],
+  nor: ['norwich', 'norwich city'], wat: ['watford'], wba: ['west brom', 'west bromwich albion'],
 };
 
+/** Letters NFD doesn't decompose (Nørgaard, Groß, Kadıoğlu, Petrović, Łukasz). */
+const FOLD: Record<string, string> = { 'ø': 'o', 'Ø': 'o', 'ß': 'ss', 'ı': 'i', 'đ': 'd', 'Đ': 'd', 'ł': 'l', 'Ł': 'l', 'æ': 'ae', 'Æ': 'ae', 'œ': 'oe', 'þ': 'th' };
+
 export function norm(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  return s.replace(/[øØßıđĐłŁæÆœþ]/g, (c) => FOLD[c] ?? c)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[’`]/g, "'").replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
@@ -55,17 +76,20 @@ export function resolveClub(raw: string, teams: TeamRef[], manual: Map<string, n
   const k = norm(raw);
   if (!k) return null;
   if (manual.has(k)) return manual.get(k)!;
-  const target = (CLUB_ALIASES[k] ?? k).replace(/^afc /, '').replace(/ (fc|afc)$/, '');
-  const exact = teams.find((t) => norm(t.team_name) === target);
-  if (exact) return exact.team_id;
+  const strip = (v: string) => v.replace(/^afc /, '').replace(/ (fc|afc)$/, '');
+  const targets = [strip(k), ...(CLUB_ALIASES[k] ?? []).map(strip)];
+  for (const target of targets) {
+    const exact = teams.find((t) => norm(t.team_name) === target);
+    if (exact) return exact.team_id;
+  }
   // A short form that starts the full name ("Tottenham" ~ "Tottenham Hotspur",
   // "Brighton" ~ "Brighton & Hove Albion"), never a longer text that merely
   // begins with a club name ("Arsenal Tierney") or contains one.
-  const hits = teams.filter((t) => {
-    const n = norm(t.team_name);
-    return n.startsWith(target + ' ');
-  });
-  return hits.length === 1 ? hits[0].team_id : null;
+  for (const target of targets) {
+    const hits = teams.filter((t) => norm(t.team_name).startsWith(target + ' '));
+    if (hits.length === 1) return hits[0].team_id;
+  }
+  return null;
 }
 
 function findPrice(text: string): { value: number; match: string } | null {
@@ -145,7 +169,68 @@ function removeToken(text: string, token: string): string {
   return text.replace(new RegExp(`(^|[\\s(·•-])${esc(token)}(?=$|[\\s)·•-])`), '$1 ');
 }
 
+// ---------------------------------------------------------------------------
+// FanTeam's own export
+// ---------------------------------------------------------------------------
+
+const EXPORT_COLS = ['playerid', 'name', 'club', 'position', 'price'];
+
+/** Read FanTeam's player export by its header; null if the text isn't one. */
+export function parseExport(text: string, teams: TeamRef[], manualClubs: Map<string, number>): ParsedRow[] | null {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return null;
+  const delim = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
+  const split = (l: string) => splitDelimited(l, delim);
+  const header = split(lines[0]).map((h) => h.trim().toLowerCase());
+  if (!EXPORT_COLS.every((c) => header.includes(c))) return null;
+  const col = (name: string) => header.indexOf(name);
+  const iId = col('playerid'), iName = col('name'), iF = col('fname'), iClub = col('club'),
+    iLine = col('lineup'), iPos = col('position'), iPrice = col('price'), iT = col('tournament');
+
+  return lines.slice(1).map((line, idx) => {
+    const f = split(line).map((v) => v.trim());
+    const surname = f[iName] ?? '';
+    const first = iF >= 0 ? f[iF] ?? '' : '';
+    // Mononyms come as e.g. Name "Savinho", FName "Savinho".
+    const name = !first || norm(first) === norm(surname) ? surname : `${first} ${surname}`;
+    const clubRaw = f[iClub] ?? '';
+    const pos = POS_WORDS[(f[iPos] ?? '').toLowerCase()] ?? null;
+    const priceNum = parseFloat((f[iPrice] ?? '').replace(',', '.').replace(/[£m]/gi, ''));
+    const price = Number.isFinite(priceNum) && priceNum > 0 ? priceNum : null;
+    const idNum = Number(f[iId]);
+    const issues: string[] = [];
+    if (!surname) issues.push('no name');
+    if (!pos) issues.push('no position');
+    if (price == null) issues.push('no price');
+    if (resolveClub(clubRaw, teams, manualClubs) == null) issues.push('club not recognised');
+    return {
+      row_no: idx + 1, name_raw: name, club_raw: clubRaw, position: pos, price_m: price, issues,
+      fanteam_player_id: Number.isFinite(idNum) && idNum > 0 ? idNum : null,
+      first_name: first || null, surname: surname || null,
+      lineup_status: iLine >= 0 ? (f[iLine] || null) : null,
+      tournament: iT >= 0 ? (f[iT] || null) : null,
+    };
+  });
+}
+
+/** Split one delimited line, honouring double quotes. */
+function splitDelimited(line: string, delim: string): string[] {
+  if (delim === '\t') return line.split('\t');
+  const out: string[] = [];
+  let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+    else if (ch === delim && !q) { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
 export function parsePaste(text: string, teams: TeamRef[], manualClubs: Map<string, number>): ParsedRow[] {
+  const exp = parseExport(text, teams, manualClubs);
+  if (exp) return exp;
   return records(text).map((rec, idx) => {
     const issues: string[] = [];
     const price = findPrice(rec);
@@ -187,6 +272,7 @@ export function nameKey(name: string): string {
 
 export function matchPlayer(
   name: string, teamId: number | null, pos: Pos | null, fpl: FplRef[], manual: Map<string, number | null>,
+  parts?: { first?: string | null; surname?: string | null },
 ): Match {
   if (teamId == null) return { fpl_code: null, method: 'none', candidates: 0 };
   const key = nameKey(name);
@@ -205,7 +291,27 @@ export function matchPlayer(
   const tokens = key.split(' ');
   const last = tokens[tokens.length - 1];
 
+  // With FanTeam's separate first name and surname: the surname must end
+  // FPL's surname or be its web name, then the first name breaks ties.
+  const byParts = (): Match | null => {
+    const sur = parts?.surname ? norm(parts.surname) : '';
+    if (!sur) return null;
+    const first = parts?.first ? norm(parts.first) : '';
+    const hit = squad.filter((p) => {
+      const sec = norm(p.second_name), web = norm(p.web_name).replace(/^[a-z]{1,2} /, '');
+      return sec === sur || sec.endsWith(' ' + sur) || sec.startsWith(sur + ' ') || web === sur || norm(p.web_name) === sur;
+    });
+    const r = pick(hit, 'surname');
+    if (r) return r;
+    if (hit.length > 1 && first) {
+      const f = hit.filter((p) => norm(p.first_name).split(' ')[0] === first.split(' ')[0] || norm(p.first_name).startsWith(first[0]) && first.length === 1);
+      return pick(f, 'surname');
+    }
+    return null;
+  };
+
   return pick(squad.filter((p) => full(p) === key), 'exact')
+    ?? byParts()
     ?? pick(squad.filter((p) => norm(p.web_name) === key), 'web_name')
     ?? (tokens.length >= 2 && tokens[0].length === 1
       ? pick(squad.filter((p) => norm(p.first_name).startsWith(tokens[0]) && norm(p.second_name).endsWith(tokens.slice(1).join(' '))), 'initial')
@@ -215,5 +321,28 @@ export function matchPlayer(
       return sec[sec.length - 1] === last || norm(p.web_name) === last;
     }), 'surname')
     ?? pick(squad.filter((p) => full(p).includes(key) || key.includes(norm(p.web_name))), 'surname')
+    ?? nearSurname()
     ?? { fpl_code: null, method: 'none', candidates: squad.length };
+
+  // Last resort: one letter different in the surname (Yarmolyuk ~ Yarmoliuk),
+  // same club and position, and only if exactly one player fits.
+  function nearSurname(): Match | null {
+    const sur = norm(parts?.surname ?? last);
+    if (sur.length < 5 || !pos) return null;
+    const hit = squad.filter((p) => p.element_type === POS_TO_ET[pos]).filter((p) => {
+      const cands = [norm(p.web_name), ...norm(p.second_name).split(' ')];
+      return cands.some((c) => c.length >= 5 && editDistance(c, sur) === 1);
+    });
+    return hit.length === 1 ? { fpl_code: hit[0].fpl_code, method: 'surname', candidates: 1 } : null;
+  }
+}
+
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 1) return 2;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  }
+  return d[a.length][b.length];
 }

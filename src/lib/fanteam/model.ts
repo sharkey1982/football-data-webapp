@@ -13,6 +13,9 @@ import { matchPlayer, nameKey, norm, resolveClub, type FplRef, type TeamRef } fr
 import type { InputRow, PriceRow } from './api';
 import type { Candidate } from './optimiser';
 
+/** FanTeam lineup statuses that mean he won't play: scored 0, left out of lineups. */
+export const OUT_STATUSES = new Set(['injured', 'suspended']);
+
 export type PlayerView = {
   key: string;
   row_no: number;
@@ -25,6 +28,8 @@ export type PlayerView = {
   fpl_code: number | null;
   fpl_name: string | null;
   match: string;
+  lineup: string | null;          // FanTeam's lineup status, when the export gave one
+  out: boolean;                   // injured or suspended per FanTeam
   opponents: string;
   fixtures: number;
   s: number;
@@ -60,7 +65,8 @@ export function fplRefsFrom(inputs: InputRow[]): FplRef[] {
 }
 
 export function buildPlayers(
-  rows: Pick<PriceRow, 'row_no' | 'name_raw' | 'club_raw' | 'position' | 'price_m'>[],
+  rows: (Pick<PriceRow, 'row_no' | 'name_raw' | 'club_raw' | 'position' | 'price_m'> &
+    Partial<Pick<PriceRow, 'first_name' | 'surname' | 'lineup_status'>>)[],
   inputs: InputRow[],
   scoring: ScoringRule[],
   manual: { players: Map<string, number | null>; clubs: Map<string, number> },
@@ -77,7 +83,9 @@ export function buildPlayers(
 
   const views: PlayerView[] = rows.map((row) => {
     const teamId = resolveClub(row.club_raw, teams, manual.clubs);
-    const m = matchPlayer(row.name_raw, teamId, row.position, refs, manual.players);
+    const m = matchPlayer(row.name_raw, teamId, row.position, refs, manual.players, { first: row.first_name, surname: row.surname });
+    const lineup = row.lineup_status ? row.lineup_status.toLowerCase() : null;
+    const out = lineup != null && OUT_STATUSES.has(lineup);
     const fx = m.fpl_code != null ? byCode.get(m.fpl_code) ?? [] : [];
     let total = 0, ifStart = 0, s = 0, pcs = 0;
     const bd: PointsBreakdown = { ...ZERO };
@@ -86,12 +94,14 @@ export function buildPlayers(
       total += e.total; ifStart += e.ifStart; s = Math.max(s, e.startProbability); pcs = Math.max(pcs, e.pCleanSheet60);
       for (const k of Object.keys(bd) as (keyof PointsBreakdown)[]) bd[k] += e.breakdown[k];
     }
+    // FanTeam says he won't play: no points, never a safety-net replacement.
+    if (out) { total = 0; s = 0; pcs = 0; for (const k of Object.keys(bd) as (keyof PointsBreakdown)[]) bd[k] = 0; }
     const ref = m.fpl_code != null ? refs.find((r) => r.fpl_code === m.fpl_code) : undefined;
     return {
       key: `r${row.row_no}`, row_no: row.row_no, name: row.name_raw, club_raw: row.club_raw,
       team_id: teamId, team_name: teamId != null ? teamName.get(teamId) ?? '' : row.club_raw,
       pos: row.position, price: row.price_m, fpl_code: m.fpl_code,
-      fpl_name: ref ? `${ref.first_name} ${ref.second_name}` : null, match: m.method,
+      fpl_name: ref ? `${ref.first_name} ${ref.second_name}` : null, match: m.method, lineup, out,
       opponents: fx.map((f) => `${f.opponent_name} (${f.is_home ? 'H' : 'A'})`).join(', '),
       fixtures: fx.length, s, ifStart, total, value: total, perMillion: 0, pCleanSheet: pcs,
       breakdown: fx.length ? bd : null,
@@ -103,7 +113,7 @@ export function buildPlayers(
       .map((v) => ({ key: v.key, team_id: v.team_id!, pos: v.pos, price: v.price, s: v.s, ifStart: v.ifStart }));
     for (const v of views) {
       const me = pool.find((p) => p.key === v.key);
-      if (me) v.value = safetyNetValue(me, pool).value;
+      if (me && !v.out) v.value = safetyNetValue(me, pool).value;
     }
   }
   for (const v of views) v.perMillion = v.price > 0 ? v.value / v.price : 0;
@@ -112,7 +122,7 @@ export function buildPlayers(
 
 export function toCandidates(views: PlayerView[], captainMultiplier: number): Candidate[] {
   return views
-    .filter((v) => v.team_id != null && v.fpl_code != null && v.fixtures > 0)
+    .filter((v) => v.team_id != null && v.fpl_code != null && v.fixtures > 0 && !v.out)
     .map((v) => ({
       key: v.key, name: v.name, team_id: v.team_id!, team_name: v.team_name, pos: v.pos, price: v.price,
       value: v.value, captainExtra: (captainMultiplier - 1) * v.s * v.ifStart, s: v.s, ifStart: v.ifStart,
@@ -121,6 +131,11 @@ export function toCandidates(views: PlayerView[], captainMultiplier: number): Ca
 }
 
 export const PROJECTION_MAX_AGE_HOURS = 36;
+
+/** FanTeam doesn't expect him to play. */
+export function isUnlikely(lineup: string | null): boolean {
+  return lineup != null && (OUT_STATUSES.has(lineup) || lineup === 'unexpected');
+}
 
 export function health(args: {
   hasRules: boolean;
@@ -144,11 +159,17 @@ export function health(args: {
   const unclub = args.views.filter((v) => v.team_id == null).length;
   // A player marked "Not in FPL" is a decision, not a gap: he is left out of
   // the optimiser and doesn't block it.
-  const unmatched = args.views.filter((v) => v.team_id != null && v.fpl_code == null && v.match !== 'manual').length;
+  // Unmatched players FanTeam itself doesn't expect to play (unexpected,
+  // injured, suspended) are listed but don't block: they would never be picked.
+  const open = args.views.filter((v) => v.team_id != null && v.fpl_code == null && v.match !== 'manual');
+  const unmatched = open.filter((v) => !isUnlikely(v.lineup)).length;
+  const ignored = open.length - unmatched;
   const excluded = args.views.filter((v) => v.fpl_code == null && v.match === 'manual').length;
   add('Clubs recognised', unclub === 0, unclub ? `${unclub} rows with an unknown club` : 'all clubs recognised');
   add('Players matched', unmatched === 0,
-    (unmatched ? `${unmatched} players not matched to FPL` : 'all players matched') + (excluded ? `; ${excluded} marked not in FPL` : ''));
+    (unmatched ? `${unmatched} likely starters not matched to FPL` : 'all likely starters matched')
+      + (ignored ? `; ${ignored} unmatched but not expected to play` : '')
+      + (excluded ? `; ${excluded} marked not in FPL` : ''));
   const missingPos = (['GK', 'DEF', 'MID', 'FWD'] as Pos[]).filter((p) => !args.views.some((v) => v.pos === p));
   add('All positions present', args.views.length === 0 || missingPos.length === 0, missingPos.length ? `none for ${missingPos.join(', ')}` : 'GK, DEF, MID, FWD');
 
