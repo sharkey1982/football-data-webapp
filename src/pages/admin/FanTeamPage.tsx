@@ -16,19 +16,20 @@ import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import {
-  getRules, getInputs, getLatestPaste, getPreviousPrices, getManualMaps, savePaste, setClubFix, setPlayerFix,
+  getRules, getInputs, listPastes, getPasteRows, getPreviousPrices, getManualMaps, savePaste, setClubFix, setPlayerFix,
+  getMyTeams, saveMyTeam, deleteMyTeam, type MyTeam,
   deleteClubFix, deletePlayerFix,
   type GameRules, type InputRow, type Paste, type PriceRow,
 } from '../../lib/fanteam/api';
 import { parsePaste, PARSER_VERSION, type FplRef, type ParsedRow, type TeamRef } from '../../lib/fanteam/paste';
 import { buildPlayers, health, isUnlikely, nameKey, norm, teamsFrom, fplRefsFrom, toCandidates, type PlayerView } from '../../lib/fanteam/model';
-import { solveLineup, type ContestRules, type Lineup, type SolverFn } from '../../lib/fanteam/optimiser';
+import { lineupPoints, solveLineup, validateLineup, type Candidate, type ContestRules, type Lineup, type SolverFn } from '../../lib/fanteam/optimiser';
 import { SOT_PER_XG, type PointsBreakdown, type Pos, type ScoringRule } from '../../lib/fanteam/scoring';
 
-type Tab = 'prices' | 'players' | 'lineup' | 'scoring' | 'health';
+type Tab = 'prices' | 'players' | 'lineup' | 'myteam' | 'scoring' | 'health';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'prices', label: 'Prices' }, { key: 'players', label: 'Players' },
-  { key: 'lineup', label: 'Lineup' }, { key: 'scoring', label: 'Scoring' }, { key: 'health', label: 'Data health' },
+  { key: 'lineup', label: 'Lineup' }, { key: 'myteam', label: 'My team' }, { key: 'scoring', label: 'Scoring' }, { key: 'health', label: 'Data health' },
 ];
 const POS_ORDER: Record<Pos, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
 const f1 = (v: number) => v.toFixed(1);
@@ -68,41 +69,45 @@ export default function FanTeamPage() {
   const isAdmin = auth?.isAdmin ?? false;
 
   const [tab, setTab] = useState<Tab>('prices');
-  const [matchweek, setMatchweek] = useState<number | null>(null);
+  const [defaultMw, setDefaultMw] = useState<number | null>(null);
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [rules, setRules] = useState<{ game: GameRules; scoring: ScoringRule[] } | null>(null);
   const [inputs, setInputs] = useState<InputRow[]>([]);
+  const [pastes, setPastes] = useState<Paste[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [paste, setPaste] = useState<{ paste: Paste; rows: PriceRow[] } | null>(null);
   const [prev, setPrev] = useState<Map<string, number>>(new Map());
   const [manual, setManual] = useState<{ players: Map<string, number | null>; clubs: Map<string, number> }>({ players: new Map(), clubs: new Map() });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const selectedRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    Promise.all([getDefaultMatchweek(), getCurrentFplSeasonId()])
-      .then(([mw, sid]) => { setMatchweek(mw); setSeasonId(sid); })
-      .catch((e) => setError(errText(e)));
-  }, [isAdmin]);
-
-  // State is only set after the awaits, so the effect below never sets
-  // state synchronously.
-  const reload = useCallback(async () => {
-    if (matchweek == null) return;
+  // Loads everything for one saved contest (default: the newest upload).
+  // State is only set after the awaits.
+  const reload = useCallback(async (pick?: number | null) => {
     try {
-      const [r, inp, p, m] = await Promise.all([getRules(), getInputs(matchweek), getLatestPaste(matchweek), getManualMaps()]);
-      const pr = p ? await getPreviousPrices(p.paste.paste_id) : new Map<string, number>();
-      setRules(r); setInputs(inp); setPaste(p); setManual(m); setPrev(pr); setError(null);
+      const [mw, sid, r, list, m] = await Promise.all([getDefaultMatchweek(), getCurrentFplSeasonId(), getRules(), listPastes(), getManualMaps()]);
+      const want = pick === undefined ? selectedRef.current : pick;
+      const sel = list.find((p) => p.paste_id === want) ?? list[0] ?? null;
+      const [rows, inp, pr] = await Promise.all([
+        sel ? getPasteRows(sel.paste_id) : Promise.resolve([] as PriceRow[]),
+        getInputs(sel?.matchweek ?? mw),
+        sel ? getPreviousPrices(sel) : Promise.resolve(new Map<string, number>()),
+      ]);
+      selectedRef.current = sel?.paste_id ?? null;
+      setDefaultMw(mw); setSeasonId(sid); setRules(r); setPastes(list); setManual(m);
+      setSelectedId(sel?.paste_id ?? null); setPaste(sel ? { paste: sel, rows } : null); setInputs(inp); setPrev(pr); setError(null);
     } catch (e) {
       setError(errText(e));
     } finally {
       setLoading(false);
     }
-  }, [matchweek]);
+  }, []);
   // reload() sets state only after its awaits; the rule can't see through the call.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (isAdmin) void reload(); }, [isAdmin, reload]);
 
+  const matchweek = paste?.paste.matchweek ?? defaultMw;
   const views = useMemo<PlayerView[]>(() => {
     if (!rules || !paste) return [];
     return buildPlayers(paste.rows, inputs, rules.scoring, manual, paste.paste.safety_net);
@@ -119,15 +124,22 @@ export default function FanTeamPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
-      <header className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-ink-900">FanTeam</h1>
-        {!loading && <StatusBadge status={h.status} />}
-        <label className="text-sm text-ink-700 flex items-center gap-2 ml-auto">
-          Gameweek
-          <select className="border border-chalk-300 rounded px-2 py-1" value={matchweek ?? ''} onChange={(e) => setMatchweek(Number(e.target.value))}>
-            {Array.from({ length: 38 }, (_, i) => i + 1).map((w) => <option key={w} value={w}>{w}</option>)}
-          </select>
-        </label>
+      <header className="space-y-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-ink-900">FanTeam</h1>
+          {!loading && <StatusBadge status={h.status} />}
+        </div>
+        {pastes.length > 0 && (
+          <label className="block text-sm text-ink-700">
+            <span className="sr-only">Contest</span>
+            <select aria-label="Contest" className="w-full min-h-11 border border-chalk-300 rounded px-2 text-base bg-white" value={selectedId ?? ''}
+              onChange={(e) => { setLoading(true); void reload(Number(e.target.value)); }}>
+              {contestOptions(pastes).map((p) => (
+                <option key={p.paste_id} value={p.paste_id}>{contestLabel(p)}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </header>
       <nav className="flex gap-1 border-b border-chalk-300 overflow-x-auto">
         {TABS.map((t) => (
@@ -141,12 +153,19 @@ export default function FanTeamPage() {
       {loading && !error && <p className="text-sm text-ink-500">Loading…</p>}
       {!loading && rules && matchweek != null && seasonId != null && (
         <>
+          {h.status === 'No projections' && tab !== 'prices' && (
+            <p className="text-sm border border-amber-400 bg-amber-50 rounded p-2" data-testid="fanteam-no-projections">
+              This list isn&apos;t a Premier League contest. FixtureShark only projects Premier League players so far, so prices are shown without points.
+            </p>
+          )}
           {tab === 'prices' && (
-            <PricesTab matchweek={matchweek} seasonId={seasonId} rules={rules} inputs={inputs} paste={paste}
-              prev={prev} views={views} manual={manual} onSaved={reload} />
+            <PricesTab defaultMw={defaultMw ?? matchweek} seasonId={seasonId} rules={rules} inputs={inputs} paste={paste}
+              prev={prev} views={views} manual={manual} unsupported={h.status === 'No projections'}
+              onSaved={(id) => reload(id === undefined ? undefined : id)} />
           )}
           {tab === 'players' && <PlayersTab views={views} captainMultiplier={Number(rules.game.captain_multiplier)} safetyNet={paste?.paste.safety_net ?? false} />}
           {tab === 'lineup' && <LineupTab views={views} rules={rules} paste={paste} status={h.status} onFix={() => setTab('health')} />}
+          {tab === 'myteam' && <MyTeamTab views={views} rules={rules} paste={paste} status={h.status} />}
           {tab === 'scoring' && <ScoringTab rules={rules} paste={paste?.paste ?? null} />}
           {tab === 'health' && <HealthTab h={h} rules={rules} />}
         </>
@@ -155,13 +174,32 @@ export default function FanTeamPage() {
   );
 }
 
+/** Newest upload of each contest first; older uploads of the same contest kept but listed after. */
+function contestOptions(pastes: Paste[]): Paste[] {
+  const seen = new Set<string>();
+  const latest: Paste[] = [], older: Paste[] = [];
+  for (const p of pastes) {
+    const k = p.tournament_id ?? `paste${p.paste_id}`;
+    (seen.has(k) ? older : latest).push(p);
+    seen.add(k);
+  }
+  return [...latest, ...older];
+}
+
+function contestLabel(p: Paste): string {
+  const when = new Date(p.pasted_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return `${p.contest_name ?? `Upload ${p.paste_id}`} · GW${p.matchweek} · ${p.row_count} players · ${when}`;
+}
+
 // ---------------------------------------------------------------------------
 
-function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, manual, onSaved }: {
-  matchweek: number; seasonId: number; rules: { game: GameRules; scoring: ScoringRule[] }; inputs: InputRow[];
+function PricesTab({ defaultMw, seasonId, rules, inputs, paste, prev, views, manual, unsupported, onSaved }: {
+  defaultMw: number; seasonId: number; rules: { game: GameRules; scoring: ScoringRule[] }; inputs: InputRow[];
   paste: { paste: Paste; rows: PriceRow[] } | null; prev: Map<string, number>; views: PlayerView[];
-  manual: { players: Map<string, number | null>; clubs: Map<string, number> }; onSaved: () => Promise<void>;
+  manual: { players: Map<string, number | null>; clubs: Map<string, number> }; unsupported: boolean;
+  onSaved: (newPasteId?: number) => Promise<void>;
 }) {
+  const [matchweek, setMatchweek] = useState(defaultMw);
   const [text, setText] = useState('');
   const [contest, setContest] = useState('');
   const [budget, setBudget] = useState(String(rules.game.budget_m));
@@ -201,12 +239,13 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
       // Record the automatic match made at paste time (history only; the page re-matches on load).
       const withMatch = buildPlayers(rows, inputs, rules.scoring, manual, false);
       const final = rows.map((r, i) => ({ ...r, team_id: withMatch[i].team_id, fpl_code: withMatch[i].fpl_code, match_method: withMatch[i].match }));
-      await savePaste({
+      const newId = await savePaste({
         contest_name: contest || null, season_id: seasonId, matchweek, rules_id: rules.game.rules_id,
         budget_m: Number(budget), stacking_penalty: stacking, safety_net: net, raw_text: text, parser_version: PARSER_VERSION,
+        tournament_id: parsed.find((r) => r.tournament)?.tournament ?? null,
       }, final);
-      await onSaved();
-      setText(''); setParsed(null); setMsg(`Saved ${final.length} prices for GW${matchweek}.`);
+      await onSaved(newId);
+      setText(''); setParsed(null); setContest(''); setMsg(`Saved ${final.length} prices for GW${matchweek}.`);
     } catch (e) {
       setMsg(`Not saved: ${errText(e)}`);
     } finally {
@@ -225,9 +264,15 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
   return (
     <div className="space-y-4">
       <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-3">
-        <h2 className="text-sm font-medium text-ink-700">Prices for GW{matchweek}</h2>
+        <h2 className="text-sm font-medium text-ink-700">Load a contest's player list</h2>
+        <p className="text-xs text-ink-500">Each upload is saved; switch between contests with the list at the top. Upload again only when prices or lineups change.</p>
         <div className="grid sm:grid-cols-4 gap-2 text-sm">
-          <label className="flex flex-col gap-1 sm:col-span-2">Contest
+          <label className="flex flex-col gap-1">Gameweek
+            <select className="min-h-11 border border-chalk-300 rounded px-2 bg-white" value={matchweek} onChange={(e) => setMatchweek(Number(e.target.value))}>
+              {Array.from({ length: 38 }, (_, i) => i + 1).map((w) => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 sm:col-span-2">Contest name
             <input className="border border-chalk-300 rounded px-2 py-1" value={contest} onChange={(e) => setContest(e.target.value)} placeholder="EPL Weekly Special" />
           </label>
           <label className="flex flex-col gap-1">Budget (£m)
@@ -272,18 +317,18 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
 
       {paste && (
         <p className="text-sm text-ink-700">
-          Using paste of {new Date(paste.paste.pasted_at).toLocaleString('en-GB')}{paste.paste.contest_name ? ` (${paste.paste.contest_name})` : ''}: {paste.paste.row_count} players, budget £{f1(paste.paste.budget_m)}m, stacking {paste.paste.stacking_penalty ? 'on' : 'off'}, safety net {paste.paste.safety_net ? 'on' : 'off'}.
+          Selected contest: {paste.paste.contest_name ?? `upload ${paste.paste.paste_id}`}, uploaded {new Date(paste.paste.pasted_at).toLocaleString('en-GB')}: {paste.paste.row_count} players, budget £{f1(paste.paste.budget_m)}m, stacking {paste.paste.stacking_penalty ? 'on' : 'off'}, safety net {paste.paste.safety_net ? 'on' : 'off'}.
         </p>
       )}
 
-      {unknownClubs.length > 0 && (
+      {!unsupported && unknownClubs.length > 0 && (
         <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-3">
           <h2 className="text-sm font-medium text-ink-700">Unknown clubs ({unknownClubs.length})</h2>
           {unknownClubs.map((c) => <ClubFixCard key={c} club={c} teams={teams} onSaved={onSaved} />)}
         </section>
       )}
 
-      {unmatched.length > 0 && (
+      {!unsupported && unmatched.length > 0 && (
         <section className="border border-orange-300 rounded-lg bg-white p-3 space-y-3" data-testid="fanteam-unmatched">
           <h2 className="text-sm font-medium text-ink-700">Unmatched players ({blocking.length} to fix)</h2>
           {blocking.length === 0 && <p className="text-sm text-ink-700">Nothing blocking the optimiser.</p>}
@@ -299,7 +344,12 @@ function PricesTab({ matchweek, seasonId, rules, inputs, paste, prev, views, man
         </section>
       )}
 
-      <SavedFixes views={views} manual={manual} refs={refs} teams={teams} onSaved={onSaved} />
+      {unsupported && (
+        <p className="text-sm border border-amber-400 bg-amber-50 rounded p-2" data-testid="fanteam-no-projections">
+          This list isn&apos;t a Premier League contest (clubs like {[...new Set(views.map((v) => v.club_raw))].slice(0, 6).join(', ')}). It&apos;s saved, but FixtureShark has no player projections for it yet.
+        </p>
+      )}
+      <SavedFixes views={views} manual={manual} refs={refs} teams={teams} onSaved={() => onSaved()} />
 
       {changes.length > 0 && (
         <section className="border border-chalk-300 rounded-lg bg-white p-3">
@@ -593,6 +643,183 @@ function LineupTab({ views, rules, paste, status, onFix }: {
           <p className="text-xs text-ink-500">Captain {l.captain.name} (starts {pct(l.captain.s)}); vice {l.vice.name} doubles if the captain doesn't play.</p>
         </section>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// My team: the team Chris actually entered, against the optimiser's.
+// ---------------------------------------------------------------------------
+
+function contestRules(rules: { game: GameRules }, paste: { paste: Paste }): ContestRules {
+  return {
+    budget: paste.paste.budget_m, size: rules.game.starting_size, xiMin: rules.game.xi_min, xiMax: rules.game.xi_max,
+    maxPerClub: rules.game.max_per_club, captainMultiplier: Number(rules.game.captain_multiplier), stacking: paste.paste.stacking_penalty,
+  };
+}
+
+/** Every priced player as a solver candidate; injured/suspended kept (value 0) so a team containing them still scores. */
+function allCandidates(views: PlayerView[], mult: number): Candidate[] {
+  return views.filter((v) => v.team_id != null).map((v) => ({
+    key: v.key, name: v.name, team_id: v.team_id!, team_name: v.team_name, pos: v.pos, price: v.price,
+    value: v.out ? 0 : v.value, captainExtra: v.out ? 0 : (mult - 1) * v.s * v.ifStart, s: v.out ? 0 : v.s,
+    ifStart: v.out ? 0 : v.ifStart, pCleanSheet: v.pCleanSheet,
+  }));
+}
+
+function MyTeamTab({ views, rules, paste, status }: {
+  views: PlayerView[]; rules: { game: GameRules }; paste: { paste: Paste; rows: PriceRow[] } | null; status: string;
+}) {
+  const tid = paste ? (paste.paste.tournament_id ?? `paste${paste.paste.paste_id}`) : null;
+  const [saved, setSaved] = useState<MyTeam[]>([]);
+  const [label, setLabel] = useState('Team 1');
+  const [keys, setKeys] = useState<string[]>([]);
+  const [cap, setCap] = useState<string | null>(null);
+  const [vice, setVice] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [best, setBest] = useState<Lineup | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async (pick?: string) => {
+    if (!tid) return;
+    try {
+      const list = await getMyTeams(tid);
+      setSaved(list);
+      const t = list.find((x) => x.label === pick) ?? list[0];
+      if (t) { setLabel(t.label); setKeys(t.player_keys); setCap(t.captain_key); setVice(t.vice_key); }
+    } catch (e) { setMsg(errText(e)); }
+  }, [tid]);
+  // load() sets state only after its await.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
+
+  if (!paste) return <p className="text-sm text-ink-500">Load a contest first.</p>;
+  const contest = contestRules(rules, paste);
+  const byKey = new Map(views.map((v) => [v.pkey, v]));
+  const picked = keys.map((k) => byKey.get(k)).filter((v): v is PlayerView => !!v);
+  const missing = keys.length - picked.length;
+  const pool = allCandidates(views, contest.captainMultiplier);
+  const cand = (v: PlayerView) => pool.find((c) => c.key === v.key);
+  const myCands = picked.map(cand).filter((c): c is Candidate => !!c);
+  const capC = picked.find((v) => v.pkey === cap), viceC = picked.find((v) => v.pkey === vice);
+  const cost = picked.reduce((a, v) => a + v.price, 0);
+  const complete = myCands.length === contest.size && capC && viceC && cap !== vice;
+  const mine = complete ? (() => {
+    const c = cand(capC!)!, vc = cand(viceC!)!;
+    const lu: Lineup = { players: myCands, captain: c, vice: vc, cost, left: contest.budget - cost, expectedPoints: 0, stackingPenalty: 0 };
+    const pts = lineupPoints(myCands, c, vc, contest, pool);
+    return { ...lu, expectedPoints: pts.total, stackingPenalty: pts.penalty, problems: validateLineup(lu, contest) };
+  })() : null;
+  const posCount = (p: Pos) => picked.filter((v) => v.pos === p).length;
+  const nq = norm(q);
+  const results = nq.length >= 2 ? views.filter((v) => !keys.includes(v.pkey) && norm(`${v.name} ${v.team_name}`).includes(nq)).sort((a, b) => b.value - a.value).slice(0, 8) : [];
+
+  const add = (v: PlayerView) => { if (keys.length < contest.size) { setKeys([...keys, v.pkey]); setQ(''); setBest(null); } };
+  const remove = (k: string) => { setKeys(keys.filter((x) => x !== k)); if (cap === k) setCap(null); if (vice === k) setVice(null); setBest(null); };
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try { await saveMyTeam({ tournament_id: tid!, label: label.trim() || 'Team 1', player_keys: keys, captain_key: cap, vice_key: vice }); await load(label.trim() || 'Team 1'); setMsg('Saved.'); }
+    catch (e) { setMsg(errText(e)); } finally { setBusy(false); }
+  };
+  const compare = async () => {
+    setBusy(true); setMsg(null);
+    try { const solve = await loadSolver(); setBest(solveLineup(toCandidates(views, contest.captainMultiplier), contest, solve)); }
+    catch (e) { setMsg(errText(e)); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-4 text-sm" data-testid="fanteam-myteam">
+      <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-3">
+        <div className="flex flex-wrap gap-2 items-end">
+          {saved.length > 0 && (
+            <label className="flex flex-col gap-1">Saved teams
+              <select className="min-h-11 border border-chalk-300 rounded px-2 bg-white" value={saved.some((t) => t.label === label) ? label : ''}
+                onChange={(e) => { setBest(null); void load(e.target.value); }}>
+                <option value="" disabled>Choose…</option>
+                {saved.map((t) => <option key={t.label} value={t.label}>{t.label}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="flex flex-col gap-1">Name
+            <input className="min-h-11 border border-chalk-300 rounded px-2 text-base w-36" value={label} onChange={(e) => setLabel(e.target.value)} />
+          </label>
+          <button className={`${BTN} border border-chalk-300`} onClick={() => { setLabel(`Team ${saved.length + 1}`); setKeys([]); setCap(null); setVice(null); setBest(null); }}>New team</button>
+        </div>
+        <p className="text-ink-700">
+          {picked.length}/{contest.size} players · £{f1(cost)}m of £{f1(contest.budget)}m · {posCount('GK')} GK, {posCount('DEF')} DEF, {posCount('MID')} MID, {posCount('FWD')} FWD
+        </p>
+        {missing > 0 && <p className="text-amber-700">{missing} saved player(s) aren&apos;t in this upload.</p>}
+        {picked.length < contest.size && (
+          <div className="space-y-1">
+            <input className="w-full min-h-11 border border-chalk-300 rounded px-2 text-base" placeholder="Add a player: type a name or club" aria-label="Add a player"
+              value={q} onChange={(e) => setQ(e.target.value)} />
+            {results.length > 0 && (
+              <ul className="border border-chalk-300 rounded divide-y divide-chalk-200">
+                {results.map((v) => (
+                  <li key={v.key}><button className="w-full text-left min-h-11 px-2 py-1" onClick={() => add(v)}>
+                    <span className="font-medium">{v.name}</span> <span className="text-ink-500">{v.team_name} · {v.pos} · £{f1(v.price)}m · {f2(v.value)} xPts{v.out ? ` · ${v.lineup}` : ''}</span>
+                  </button></li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        <ul className="divide-y divide-chalk-200">
+          {[...picked].sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.value - a.value).map((v) => (
+            <li key={v.pkey} className="flex items-center gap-2 py-2">
+              <span className="w-10 text-xs text-ink-500">{v.pos}</span>
+              <span className="flex-1 min-w-0"><span className="font-medium">{v.name}</span>{v.out && <span className="text-red-700"> · {v.lineup}</span>}<br />
+                <span className="text-xs text-ink-500">{v.team_name} · £{f1(v.price)}m · {f2(v.value)} xPts</span></span>
+              <button aria-label={`Captain ${v.name}`} className={`min-h-11 w-11 rounded border ${cap === v.pkey ? 'bg-ink-900 text-white border-ink-900' : 'border-chalk-300'}`}
+                onClick={() => { setCap(v.pkey); if (vice === v.pkey) setVice(null); }}>C</button>
+              <button aria-label={`Vice-captain ${v.name}`} className={`min-h-11 w-11 rounded border ${vice === v.pkey ? 'bg-ink-700 text-white border-ink-700' : 'border-chalk-300'}`}
+                onClick={() => { setVice(v.pkey); if (cap === v.pkey) setCap(null); }}>VC</button>
+              <button aria-label={`Remove ${v.name}`} className="min-h-11 w-11 rounded border border-chalk-300" onClick={() => remove(v.pkey)}>×</button>
+            </li>
+          ))}
+        </ul>
+        {mine && mine.problems.length > 0 && <p className="text-red-700">Not a valid team: {mine.problems.join('; ')}</p>}
+        {picked.length === contest.size && (!cap || !vice) && <p className="text-amber-700">Pick a captain (C) and vice-captain (VC).</p>}
+        <div className="flex flex-wrap gap-2">
+          <button className={`${BTN} bg-emerald-700 text-white`} disabled={busy || keys.length === 0} onClick={save}>Save team</button>
+          {saved.some((t) => t.label === label) && (
+            <button className={`${BTN} border border-chalk-300`} disabled={busy}
+              onClick={async () => { await deleteMyTeam(tid!, label); setKeys([]); setCap(null); setVice(null); await load(); }}>Delete</button>
+          )}
+        </div>
+        {msg && <p className="text-ink-700">{msg}</p>}
+      </section>
+
+      {mine && (
+        <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-3" data-testid="fanteam-compare">
+          <h2 className="font-medium text-ink-700">Your team vs the model</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="border border-chalk-200 rounded p-2"><p className="text-xs text-ink-500">Yours</p><p className="text-lg font-medium tabular-nums">{f2(mine.expectedPoints)}</p><p className="text-xs text-ink-500">£{f1(mine.cost)}m{mine.stackingPenalty > 0.005 ? ` · stacking −${f2(mine.stackingPenalty)}` : ''}</p></div>
+            <div className="border border-chalk-200 rounded p-2"><p className="text-xs text-ink-500">Model&apos;s best</p>
+              {best ? <><p className="text-lg font-medium tabular-nums">{f2(best.expectedPoints)}</p><p className="text-xs text-ink-500">£{f1(best.cost)}m · {Math.abs(mine.expectedPoints - best.expectedPoints) < 0.005 ? 'same as yours' : mine.expectedPoints < best.expectedPoints ? `you're ${f2(best.expectedPoints - mine.expectedPoints)} behind` : `you're ${f2(mine.expectedPoints - best.expectedPoints)} ahead`}</p></>
+                : <button className={`${BTN} border border-chalk-300 mt-1`} disabled={busy || status !== 'Fresh'} onClick={compare}>{status === 'Fresh' ? 'Work it out' : `Needs Fresh data (${status})`}</button>}
+            </div>
+          </div>
+          {best && (() => {
+            const myKeys = new Set(mine.players.map((p) => p.key)), bestKeys = new Set(best.players.map((p) => p.key));
+            const onlyMine = mine.players.filter((p) => !bestKeys.has(p.key)).sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos]);
+            const onlyBest = best.players.filter((p) => !myKeys.has(p.key)).sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos]);
+            const sum = (xs: Candidate[]) => xs.reduce((a, p) => a + p.value, 0);
+            return (
+              <div className="space-y-2">
+                <p className="text-ink-700">{mine.players.length - onlyMine.length} players in both. Captain: yours {mine.captain.name}, model {best.captain.name}.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div><p className="text-xs text-ink-500 mb-1">Only in yours ({f2(sum(onlyMine))} xPts)</p>
+                    <ul>{onlyMine.map((p) => <li key={p.key} className="flex justify-between gap-2 py-1 border-t border-chalk-200"><span>{p.pos} {p.name} <span className="text-ink-500">£{f1(p.price)}m</span></span><span className="tabular-nums">{f2(p.value)}</span></li>)}</ul></div>
+                  <div><p className="text-xs text-ink-500 mb-1">Only in the model&apos;s ({f2(sum(onlyBest))} xPts)</p>
+                    <ul>{onlyBest.map((p) => <li key={p.key} className="flex justify-between gap-2 py-1 border-t border-chalk-200"><span>{p.pos} {p.name} <span className="text-ink-500">£{f1(p.price)}m</span></span><span className="tabular-nums">{f2(p.value)}</span></li>)}</ul></div>
+                </div>
+              </div>
+            );
+          })()}
+        </section>
+      )}
     </div>
   );
 }
