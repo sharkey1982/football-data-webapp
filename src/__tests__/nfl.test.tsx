@@ -31,6 +31,10 @@ vi.mock('../lib/nflFantasyApi', async () => {
   const actual = await vi.importActual<typeof import('../lib/nflFantasyApi')>('../lib/nflFantasyApi');
   return { ...actual, loadTeamFantasyLeaders: vi.fn().mockResolvedValue([]), loadPlayerScout: vi.fn() };
 });
+vi.mock('../lib/nflProjections', async () => {
+  const actual = await vi.importActual<typeof import('../lib/nflProjections')>('../lib/nflProjections');
+  return { ...actual, loadGameProjections: vi.fn().mockResolvedValue([]), loadProjections: vi.fn().mockResolvedValue([]) };
+});
 vi.mock('../lib/commercialLinks', async () => {
   const actual = await vi.importActual<typeof import('../lib/commercialLinks')>('../lib/commercialLinks');
   return { ...actual, getActivePartners: vi.fn().mockResolvedValue([]) };

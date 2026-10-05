@@ -89,7 +89,9 @@ def points(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load(data_dir: str | None):
+def load(data_dir: str | None, first: int | None = None, last: int | None = None):
+    first = FIRST if first is None else first
+    last = LAST if last is None else last
     def read(name, url):
         path = os.path.join(data_dir, name) if data_dir else None
         if path and os.path.exists(path):
@@ -98,14 +100,17 @@ def load(data_dir: str | None):
         return pd.read_csv(url, low_memory=False)
 
     games = read("games.csv", GAMES_URL)
-    games = games[(games.season >= FIRST) & (games.season <= LAST) & (games.game_type == "REG")]
-    frames = [read(f"pw_{s}.csv", PLAYER_WEEK_URL.format(season=s)) for s in range(FIRST, LAST + 1)]
+    games = games[(games.season >= first) & (games.season <= last) & (games.game_type == "REG")]
+    frames = [read(f"pw_{s}.csv", PLAYER_WEEK_URL.format(season=s)) for s in range(first, last + 1)]
     pw = pd.concat(frames, ignore_index=True)
     pw = pw[pw.season_type == "REG"].copy()
+    return games, prepare(pw)
+
+
+def prepare(pw: pd.DataFrame) -> pd.DataFrame:
     pw["pos"] = pw.position.replace({"FB": "RB"})
     pw = pw[pw.pos.isin(POSITIONS)].copy()
-    pw = points(pw)
-    return games, pw
+    return points(pw)
 
 
 def implied_totals(games: pd.DataFrame) -> pd.DataFrame:
@@ -224,7 +229,7 @@ def pos_means(data):
     return np.array([pm.get((s - 1, p), pm.get((s, p), 8.0)) for s, p in zip(df.season, df.pos)])
 
 
-def project(data, prm, mu, field="pts"):
+def project(data, prm, mu, field="pts", parts=False):
     ph, pprev, pvalid = data["ph"], data["pprev"], data["pvalid"]
     ages = np.arange(L)[None, :]
     wt = np.where(pvalid, 0.5 ** (ages / prm["h"]) * np.where(pprev, prm["w"], 1.0), 0.0)
@@ -238,8 +243,11 @@ def project(data, prm, mu, field="pts"):
     lg = data["lg"]
     opp_avg = ((ow * np.nan_to_num(data["opp_vals"])).sum(1) + prm["m"] * lg) / (ow.sum(1) + prm["m"])
     opp = np.where(lg > 0, opp_avg / lg, 1.0)
-    opp = np.where(np.isnan(opp) | (opp <= 0), 1.0, opp) ** prm["b"]
-    return base * env * opp
+    opp = np.where(np.isnan(opp) | (opp <= 0), 1.0, opp)
+    proj = base * env * opp ** prm["b"]
+    if parts:
+        return {"proj": proj, "base": base, "team_usual": tbase, "opp_factor": opp, "games_used": pvalid.sum(1)}
+    return proj
 
 
 def clustered_t(d, clusters):

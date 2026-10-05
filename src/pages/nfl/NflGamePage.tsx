@@ -22,6 +22,7 @@ import { ComparisonCard, type FormEntry } from '../../components/ComparisonCard'
 import { getActivePartners } from '../../lib/commercialLinks';
 import {
   NFL_HUB_PATH,
+  NFL_PROJECTIONS_PATH,
   NFL_TV_PATH,
   favourLabel,
   lineLabel,
@@ -51,6 +52,8 @@ import { gameNumber, nflWatch } from '../../lib/nflWatch';
 import { againstSpread } from '../../lib/nflStory';
 import NotFoundPage from '../NotFoundPage';
 import NflMarginChart from '../../components/nfl/NflMarginChart';
+import NflProjectionTable from '../../components/nfl/NflProjectionTable';
+import { loadGameProjections } from '../../lib/nflProjections';
 import { favouriteCoverProb, marginDistribution } from '../../lib/nflMargin';
 
 const card = 'border border-chalk-300 rounded-lg bg-white p-4';
@@ -252,6 +255,8 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
   const { data: p, failed, loading } = useKeyedFetch(gameId, () => loadNflGame(gameId, known?.game_id === gameId ? known : undefined), initialData ? { key: initialData.game.game_id, data: initialData } : undefined);
   const [tab, setTab] = useState<PreviewTabId>('prediction');
   const { data: partners } = useKeyedFetch('streaming', () => getActivePartners('streaming').catch(() => []));
+  // Match Projector: only for games still to play (the table holds each team's next game).
+  const { data: projections } = useKeyedFetch(`proj:${gameId}`, () => loadGameProjections(gameId).catch(() => []));
 
   const game = p?.game;
   const title = game ? `${game.away_name} ${game.neutral_site ? 'v' : 'at'} ${game.home_name}` : 'NFL game';
@@ -436,6 +441,15 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
 
       {(['home', 'away'] as const).map((side) => (
         <section key={side} className={card} hidden={tab !== side} aria-label={side === 'home' ? game.home_name : game.away_name} data-testid={`nfl-tab-${side}`}>
+          {!played && (projections ?? []).some((r) => r.team_slug === (side === 'home' ? game.home_slug : game.away_slug)) && (
+            <div className="mb-5" data-testid={`nfl-game-proj-${side}`}>
+              <h2 className={cardHeading}>Fantasy projections</h2>
+              <NflProjectionTable compact fmt="ppr" rows={(projections ?? []).filter((r) => r.team_slug === (side === 'home' ? game.home_slug : game.away_slug)).slice(0, 10)} />
+              <p className="text-xs text-ink-500 mt-1">
+                PPR points, assuming he plays. <Link to={`${NFL_PROJECTIONS_PATH}?team=${side === 'home' ? game.home_slug : game.away_slug}`} className="text-pitch-800 underline underline-offset-2">All formats and how they&rsquo;re made</Link>
+              </p>
+            </div>
+          )}
           <h2 className={cardHeading}>Recent games</h2>
           <RecentList
             team={side === 'home' ? game.home_name : game.away_name}

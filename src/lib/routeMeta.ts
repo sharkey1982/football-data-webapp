@@ -374,6 +374,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [NFL],
   },
   {
+    path: '/nfl/projections',
+    title: 'NFL Match Projections: projected fantasy points this week',
+    description: 'Projected fantasy points for every NFL quarterback, running back, receiver, tight end and kicker in their next game, in PPR, half-PPR and standard scoring, with the range, matchup and injury status.',
+    crumbs: [NFL],
+  },
+  {
     path: '/nfl/players',
     title: 'NFL Player Scout: fantasy points and stats for every player',
     description: 'Every NFL quarterback, running back, receiver, tight end and kicker: fantasy points in PPR, half-PPR and standard scoring, per game, recent form and usage.',

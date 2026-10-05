@@ -168,7 +168,8 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
   },
   // NFL (Oct 2026): the same structure and the same page names as Football
   // and Fantasy (Chris: "keep menu option naming consistent"). Fantasy is a
-  // stage here rather than a theme of its own until it has predictions.
+  // stage here rather than a theme of its own (it has projections from 5 Oct
+  // 2026: Match Projections, Model Lab NP1).
   nfl: {
     key: 'nfl',
     title: 'NFL',
@@ -195,10 +196,11 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
       {
         key: 'fantasy',
         title: 'Fantasy',
-        tagline: 'Player stats, matchups, scoring.',
+        tagline: 'Projections, player stats, matchups, scoring.',
         intro:
           'The numbers for picking an NFL fantasy team: every player\u2019s fantasy points in standard, half-PPR and PPR scoring, their usage and consistency, and which defences give up the most to each position.',
         links: [
+          { label: 'Match Projections', to: '/nfl/projections', blurb: 'Projected fantasy points for every player\u2019s next game, with the range, matchup and injury news.' },
           { label: 'Player Scout', to: '/nfl/players', blurb: 'Every QB, RB, WR, TE and kicker \u2014 points, usage, form and consistency.', matchPrefix: ['/nfl/players'] },
           { label: 'Fixture Heat Map', to: '/nfl/fixture-heat-map', blurb: 'Which defences give up the most fantasy points to each position, and who faces them next.' },
           { label: 'Scoring Rules', to: '/nfl/scoring-rules', blurb: 'Exactly how standard, half-PPR and PPR points are earned.' },

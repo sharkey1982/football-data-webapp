@@ -1,4 +1,5 @@
 numpy
+pandas
 scipy
 supabase
 lxml==6.1.1
