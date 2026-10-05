@@ -75,7 +75,7 @@ function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }
                 const fixtures = unplayed.filter((f) => f.group_label === label);
                 const groupReported = reported.filter((m) => m.group_label === label);
                 return (
-                  <div key={label || 'all'} className="space-y-2">
+                  <div key={label || 'all'} className="space-y-2 min-w-0">
                     <GroupTable label={label ? `Group ${label}` : stage.name} rows={rows} testId="intl-group-table" />
                     {isLeague && odds.some((o) => o.group_label === label) && (
                       <details className="text-sm" open={fixtures.length > 0}>
