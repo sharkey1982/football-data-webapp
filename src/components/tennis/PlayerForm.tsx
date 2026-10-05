@@ -151,7 +151,7 @@ export default function PlayerForm({ tour, playerId, matches }: { tour: Tour; pl
 // ---------------------------------------------------------------------------
 const W = 720;
 const H = 240;
-const PAD = { l: 40, r: 64, t: 12, b: 24 };
+const PAD = { l: 40, r: 92, t: 12, b: 24 };
 
 function SurfaceFormChart({ form, from, to }: { form: Record<string, { date: string; pct: number }[]>; from: number; to: number }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -177,7 +177,10 @@ function SurfaceFormChart({ form, from, to }: { form: Record<string, { date: str
   });
   const last = lines.map((l) => ({ surface: l.surface, p: l.pts[l.pts.length - 1] }));
   // Spread end labels so they don't overlap.
-  const labels = [...last].sort((a, b) => b.p.pct - a.p.pct).map((l) => ({ ...l, ly: y(l.p.pct) }));
+  // Lines that stop before the range ends (Carpet after 2008) are labelled where they stop.
+  const atEnd = (iso: string) => x(iso) >= W - PAD.r - 30;
+  const labels = [...last].filter((l) => atEnd(l.p.date)).sort((a, b) => b.p.pct - a.p.pct).map((l) => ({ ...l, ly: y(l.p.pct) }));
+  const early = last.filter((l) => !atEnd(l.p.date));
   for (let i = 1; i < labels.length; i++) if (labels[i].ly - labels[i - 1].ly < 13) labels[i].ly = labels[i - 1].ly + 13;
 
   return (
@@ -210,6 +213,9 @@ function SurfaceFormChart({ form, from, to }: { form: Record<string, { date: str
           ))}
           {labels.map((l) => (
             <text key={l.surface} x={W - PAD.r + 6} y={l.ly + 4} fontSize="11" fill="#3a3f42">{`${l.surface} ${pctLabel(l.p.pct)}`}</text>
+          ))}
+          {early.map((l) => (
+            <text key={l.surface} x={x(l.p.date) + 4} y={y(l.p.pct) - 6} fontSize="11" fill="#3a3f42">{`${l.surface} (to ${l.p.date.slice(0, 4)})`}</text>
           ))}
           {hover != null && hover >= PAD.l && hover <= W - PAD.r && (
             <g>

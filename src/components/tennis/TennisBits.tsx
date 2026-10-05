@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { TENNIS_DISCOVER_PATH, TENNIS_HUB_PATH, tennisPlayerPath } from '../../lib/tennisApi';
 import { LEVEL_LABEL, type Level, type Tour } from '../../lib/tennisStats';
-import { countryName, flag } from '../../lib/tennisEvents';
+import { countryName } from '../../lib/tennisEvents';
 
 export function TennisHeader({ title, crumb, toggle, children }: { title: string; crumb?: { to: string; label: string }; toggle?: ReactNode; children?: ReactNode }) {
   return (
@@ -60,13 +60,13 @@ export function Section({ title, children, id }: { title: string; children: Reac
 }
 
 
-/** Flag and country name (or code only when `short`). The flag is decorative. */
+/** Country name, or its ISO code when `short` (full name on hover). No flag
+ * emoji: Windows shows those as two letters, which would read "GB GB". */
 export function Country({ code, short = false }: { code: string | null | undefined; short?: boolean }) {
   if (!code) return <span className="text-ink-500">–</span>;
   return (
     <span className="whitespace-nowrap" title={countryName(code)}>
-      <span aria-hidden="true">{flag(code)} </span>
-      {short ? code : countryName(code)}
+      {short ? <abbr title={countryName(code)} className="no-underline font-mono text-xs">{code}</abbr> : countryName(code)}
     </span>
   );
 }

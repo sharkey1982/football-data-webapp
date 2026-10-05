@@ -301,7 +301,8 @@ export function weekStart(iso: string): string {
  * next week, the six weeks after), leaving out events already under way.
  */
 export function guideGroups(calendar: CalendarRow[], recent: TennisEdition[], today: string): GuideGroups {
-  const underWay = recent.filter((e) => !e.winner && e.end_date >= addDays(today, -4)).sort((a, b) => a.level_rank - b.level_rank || a.name.localeCompare(b.name));
+  // No final yet and started in the last three weeks (results can lag a few days).
+  const underWay = recent.filter((e) => !e.winner && e.start_date >= addDays(today, -21)).sort((a, b) => a.level_rank - b.level_rank || a.name.localeCompare(b.name));
   const busy = new Set(underWay.map((e) => e.event_id));
   const mon = weekStart(today);
   const rows = calendar.filter((c) => !busy.has(c.event_id)).sort((a, b) => a.usual_start.localeCompare(b.usual_start) || a.level_rank - b.level_rank || a.name.localeCompare(b.name));

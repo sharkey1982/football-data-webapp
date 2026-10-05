@@ -122,7 +122,7 @@ describe('tennis phase 3 builders', () => {
     });
     const g = guideGroups(
       [cal(1, '2026-10-05', '2026-10-11'), cal(2, '2026-10-12', '2026-10-18'), cal(3, '2026-11-09', '2026-11-15'), cal(4, '2026-12-28', '2027-01-03'), cal(5, '2026-10-06', '2026-10-12')],
-      [{ ...ed(2026, 1, 2), event_id: 5, winner: null, winner_slug: null, end_date: '2026-10-07' }],
+      [{ ...ed(2026, 1, 2), event_id: 5, winner: null, winner_slug: null, start_date: '2026-10-02', end_date: '2026-10-07' }, { ...ed(2026, 1, 2), event_id: 6, winner: null, winner_slug: null }],
       '2026-10-08'
     );
     expect(g.underWay.map((e) => e.event_id)).toEqual([5]);
