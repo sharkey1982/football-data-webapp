@@ -10,11 +10,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { FixtureRow, GameList, GameRow, IntlHeader, Section } from '../../components/intl/IntlBits';
+import { FixtureRow, GameList, GameRow, IntlHeader, Section, TitleBadges } from '../../components/intl/IntlBits';
+import NationPicker from '../../components/intl/NationPicker';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, type IntlTeamData } from '../../lib/intlApi';
-import { DATA_NOTE, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
+import { DATA_NOTE, titleList, titleText, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
 
 const REACHED_CLASS = (c: HistoryCell) =>
   c.won ? 'bg-amber-500 text-pitch-950 border-amber-600' : c.reached === 'Runner-up' ? 'bg-pitch-800 text-chalk-100 border-pitch-900' : c.order >= 5 ? 'bg-chalk-200 text-pitch-800 border-pitch-600' : 'bg-white text-ink-700 border-chalk-300';
@@ -55,6 +56,16 @@ function HeadToHead({ data }: { data: IntlTeamData }) {
   const me = data.team.team;
   const opponents = useMemo(() => [...data.pairs].sort((a, b) => b.played - a.played), [data.pairs]);
   const [pick, setPick] = useState<string | null>(null);
+  const slugOf = useMemo(() => new Map(data.teams.map((t) => [t.team, t.slug])), [data.teams]);
+  const confOf = useMemo(() => new Map(data.teams.map((t) => [t.team, t.confederation])), [data.teams]);
+  const nations = useMemo(
+    () =>
+      opponents.map((p) => {
+        const o = p.team_a === me ? p.team_b : p.team_a;
+        return { team: o, slug: slugOf.get(o) ?? o, confederation: confOf.get(o) ?? null, note: `${p.played}` };
+      }),
+    [opponents, me, slugOf, confOf]
+  );
   const pair: PairRecord | undefined = opponents.find((p) => (p.team_a === me ? p.team_b : p.team_a) === pick) ?? opponents[0];
   if (!pair) return null;
   const opp = pair.team_a === me ? pair.team_b : pair.team_a;
@@ -64,18 +75,17 @@ function HeadToHead({ data }: { data: IntlTeamData }) {
   const gf = meIsA ? pair.a_goals : pair.b_goals;
   const ga = meIsA ? pair.b_goals : pair.a_goals;
   const meetings = data.matches.filter((m) => m.home_team === opp || m.away_team === opp).slice().reverse();
-  const slugOf = new Map(data.teams.map((t) => [t.team, t.slug]));
   return (
     <div className="space-y-2">
-      <label className="text-sm inline-flex items-center gap-2">
-        <span className="text-ink-500">Against</span>
-        <select value={opp} onChange={(e) => setPick(e.target.value)} className="border border-chalk-300 rounded px-2 py-1 bg-white max-w-[16rem]" data-testid="intl-h2h-picker">
-          {opponents.map((p) => {
-            const o = p.team_a === me ? p.team_b : p.team_a;
-            return <option key={o} value={o}>{`${o} (${p.played})`}</option>;
-          })}
-        </select>
-      </label>
+      <NationPicker
+        nations={nations}
+        quick={nations.slice(0, 10)}
+        quickLabel="Most played"
+        value={slugOf.get(opp) ?? null}
+        onChange={(slug) => setPick(nations.find((n) => n.slug === slug)?.team ?? null)}
+        label="Against"
+        testId="intl-h2h-picker"
+      />
       <p className="text-ink-900" data-testid="intl-h2h-record">
         {`${me} v `}
         <Link to={teamPath(slugOf.get(opp) ?? '')} className="underline underline-offset-2">{opp}</Link>
@@ -130,8 +140,9 @@ export default function IntlTeamPage() {
         <p className="text-ink-900 max-w-prose" data-testid="intl-team-summary">
           {`${t.confederation ?? 'Not a FIFA confederation member'}. Played ${t.played} since ${shortDate(t.first_match)}: won ${t.won}, drawn ${t.drawn}, lost ${t.lost}. `}
           {`Elo ${Math.round(t.elo)}${t.elo_rank ? `, ranked ${t.elo_rank} in the world` : ''}; peak ${Math.round(t.elo_peak)} in ${t.elo_peak_date.slice(0, 4)}.`}
-          {t.wc_titles + t.euro_titles + t.unl_titles > 0 && ` Titles: ${[t.wc_titles && `${t.wc_titles} World Cup${t.wc_titles > 1 ? 's' : ''}`, t.euro_titles && `${t.euro_titles} Euro${t.euro_titles > 1 ? 's' : ''}`, t.unl_titles && `${t.unl_titles} Nations League${t.unl_titles > 1 ? 's' : ''}`].filter(Boolean).join(', ')}.`}
+          {titleList(t).length > 0 && ` Titles: ${titleList(t).map((x) => titleText(x.tournament, x.n)).join(', ')}.`}
         </p>
+        <TitleBadges list={titleList(t)} />
       </IntlHeader>
 
       {upcoming.length > 0 && (

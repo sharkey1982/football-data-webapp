@@ -51,7 +51,7 @@ export const MATCH_COLUMNS =
   'city,country,neutral,elo_home_pre,elo_away_pre,elo_change';
 export const FIXTURE_COLUMNS = 'fixture_key,edition_key,kickoff_utc,home_team,home_slug,away_team,away_slug,group_label,round_number,venue,home_score,away_score,match_key';
 export const TEAM_COLUMNS =
-  'team,slug,confederation,played,won,drawn,lost,goals_for,goals_against,first_match,last_match,elo,elo_rank,elo_peak,elo_peak_date,wc_titles,euro_titles,unl_titles';
+  'team,slug,confederation,played,won,drawn,lost,goals_for,goals_against,first_match,last_match,elo,elo_rank,elo_peak,elo_peak_date,wc_titles,euro_titles,unl_titles,titles';
 export const EDITION_COLUMNS =
   'edition_key,competition,competition_slug,label,season_start,teams,matches,goals,hosts,winner,winner_slug,runner_up,runner_up_slug,final_key,first_match,last_match';
 
@@ -76,7 +76,9 @@ type ViewName =
   | 'intl_groups'
   | 'intl_team_competition_totals'
   | 'intl_pair_records'
-  | 'intl_goals';
+  | 'intl_goals'
+  | 'intl_team_year_elo'
+  | 'intl_upsets';
 /** The intl views aren't in the generated database types; a loose query shape keeps the calls readable. */
 export const intlView = (view: ViewName, columns: string): Query =>
   (supabase.from(view as never) as unknown as { select(columns: string): Query }).select(columns);
@@ -145,7 +147,7 @@ export type IntlTeamData = {
   totals: CompetitionTotal[];
   pairs: PairRecord[];
   editions: EditionSummary[];
-  teams: Pick<TeamSummary, 'team' | 'slug'>[];
+  teams: Pick<TeamSummary, 'team' | 'slug' | 'confederation'>[];
   goals: Pick<IntlGoal, 'scorer' | 'own_goal' | 'penalty'>[];
 };
 
@@ -160,7 +162,7 @@ export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
     rows<CompetitionTotal>(intlView('intl_team_competition_totals', 'team,competition,competition_kind,played,won,drawn,lost,goals_for,goals_against,first_match,last_match').eq('team', t)),
     paged<PairRecord>(() => intlView('intl_pair_records', 'team_a,team_b,played,a_won,drawn,b_won,a_goals,b_goals,first_meeting,last_meeting').or(`team_a.eq.${enc(t)},team_b.eq.${enc(t)}`).order('team_a', { ascending: true }).order('team_b', { ascending: true })),
     rows<EditionSummary>(intlView('intl_edition_summary', EDITION_COLUMNS).order('season_start', { ascending: true })),
-    paged<Pick<TeamSummary, 'team' | 'slug'>>(() => intlView('intl_team_summary', 'team,slug').order('team', { ascending: true })),
+    paged<Pick<TeamSummary, 'team' | 'slug' | 'confederation'>>(() => intlView('intl_team_summary', 'team,slug,confederation').order('team', { ascending: true })),
     paged<Pick<IntlGoal, 'scorer' | 'own_goal' | 'penalty'>>(() => intlView('intl_goals', 'scorer,own_goal,penalty').eq('team', t).eq('own_goal', false).order('match_key', { ascending: true }).order('seq', { ascending: true })),
   ]);
   return { team, matches, fixtures, totals, pairs, editions, teams, goals };
@@ -202,4 +204,24 @@ export async function loadIntlEdition(slug: string, label: string): Promise<Intl
     goals.push(...(await rows<IntlGoal>(intlView('intl_goals', 'match_key,seq,team,scorer,minute,own_goal,penalty').in('match_key', keys.slice(i, i + 60)).limit(2000))));
   }
   return { edition, matches, stages, groups, goals, fixtures, editions };
+}
+
+// ---- History: the Elo race, titles and upsets --------------------------------------
+
+export const INTL_HISTORY_PATH = '/international/history';
+
+export type YearElo = { team: string; slug: string; name: string; confederation: string | null; year: number; elo: number; rank: number };
+export type IntlUpset = IntlMatch & { expectation: number };
+export type IntlHistoryData = { years: YearElo[]; upsets: IntlUpset[]; editions: EditionSummary[] };
+
+const MAJOR = TOURNAMENTS.map((t) => t.competition);
+
+/** The top 10 each year since 1872, the biggest upsets at the major tournaments, and every edition. */
+export async function loadIntlHistory(): Promise<IntlHistoryData> {
+  const [years, upsets, editions] = await Promise.all([
+    paged<YearElo>(() => intlView('intl_team_year_elo', 'team,slug,name,confederation,year,elo,rank').lte('rank', 10).order('year', { ascending: true }).order('rank', { ascending: true })),
+    rows<IntlUpset>(intlView('intl_upsets', `expectation,${MATCH_COLUMNS}`).in('competition', MAJOR).order('expectation', { ascending: true }).limit(40)),
+    loadIntlEditions(),
+  ]);
+  return { years, upsets, editions };
 }

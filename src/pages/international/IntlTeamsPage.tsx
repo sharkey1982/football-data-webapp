@@ -11,11 +11,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { IntlHeader } from '../../components/intl/IntlBits';
+import { ChipGroup, IntlHeader, TitleBadges } from '../../components/intl/IntlBits';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TEAMS_PATH, intlTeamPath, loadIntlTeams } from '../../lib/intlApi';
-import { CONFEDERATIONS, DATA_NOTE, type TeamSummary } from '../../lib/intlStats';
+import { CONFEDERATIONS, DATA_NOTE, majorTitles, titleList, type TeamSummary } from '../../lib/intlStats';
+
+const CONF_NAMES: Record<string, string> = { UEFA: 'Europe', CONMEBOL: 'South America', CONCACAF: 'N & C America', CAF: 'Africa', AFC: 'Asia', OFC: 'Oceania' };
 
 export default function IntlTeamsPage() {
   const { data, failed, loading } = useKeyedFetch('teams', () => loadIntlTeams());
@@ -24,7 +26,7 @@ export default function IntlTeamsPage() {
   const [all, setAll] = useState(false);
   useDocumentHead({
     title: 'International teams: every nation’s rating, record and titles',
-    description: 'Every national team’s World Football Elo rating, all-time record and World Cup, Euro and Nations League titles, since 1872.',
+    description: 'Every national team’s World Football Elo rating, all-time record and major titles — World Cups, continental championships and Nations Leagues — since 1872.',
     path: INTL_TEAMS_PATH,
   });
 
@@ -41,9 +43,8 @@ export default function IntlTeamsPage() {
     { key: 'peak', label: 'Peak', render: (t) => <span title={`Reached ${t.elo_peak_date}`}>{Math.round(t.elo_peak)}</span>, sortValue: (t) => t.elo_peak, align: 'right', descFirst: true, className: 'hidden md:table-cell' },
     { key: 'p', label: 'Played', render: (t) => t.played, sortValue: (t) => t.played, align: 'right', descFirst: true, className: 'hidden md:table-cell' },
     { key: 'winpct', label: 'Won %', render: (t) => `${Math.round((100 * t.won) / Math.max(1, t.played))}%`, sortValue: (t) => t.won / Math.max(1, t.played), align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
-    { key: 'wc', label: 'World Cups', render: (t) => t.wc_titles || '', sortValue: (t) => t.wc_titles, align: 'right', descFirst: true },
-    { key: 'euro', label: 'Euros', render: (t) => t.euro_titles || '', sortValue: (t) => t.euro_titles, align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
-    { key: 'unl', label: 'Nations Lg', render: (t) => t.unl_titles || '', sortValue: (t) => t.unl_titles, align: 'right', descFirst: true, className: 'hidden lg:table-cell' },
+    { key: 'wc', label: 'World Cups', render: (t) => t.wc_titles || '', sortValue: (t) => t.wc_titles, align: 'right', descFirst: true, className: 'sm:hidden' },
+    { key: 'titles', label: 'Major titles', render: (t) => <TitleBadges list={titleList(t)} />, sortValue: (t) => majorTitles(t) + t.wc_titles / 10, descFirst: true, className: 'hidden sm:table-cell' },
   ];
 
   return (
@@ -55,17 +56,17 @@ export default function IntlTeamsPage() {
       {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
       {data && (
         <>
+          <ChipGroup
+            options={[{ key: '', label: 'All' }, ...CONFEDERATIONS.map((c) => ({ key: c, label: CONF_NAMES[c] }))]}
+            value={conf}
+            onChange={setConf}
+            label="Confederation"
+            testId="intl-conf-filter"
+          />
           <div className="flex flex-wrap items-center gap-3">
             <label className="text-sm">
               <span className="sr-only">Search nations</span>
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nation" className="border border-chalk-300 rounded px-2 py-1 w-48 bg-white" data-testid="intl-team-search" />
-            </label>
-            <label className="text-sm inline-flex items-center gap-1.5">
-              <span className="text-ink-500">Confederation</span>
-              <select value={conf} onChange={(e) => setConf(e.target.value)} className="border border-chalk-300 rounded px-2 py-1 bg-white" data-testid="intl-conf-filter">
-                <option value="">All</option>
-                {CONFEDERATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
             </label>
             <label className="text-sm inline-flex items-center gap-1.5">
               <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
@@ -74,7 +75,7 @@ export default function IntlTeamsPage() {
             <span className="text-xs text-ink-500">{`${rows.length} nation${rows.length === 1 ? '' : 's'}`}</span>
           </div>
           <SortableTable columns={columns} rows={rows} rowKey={(t) => t.team} initialSort={{ key: 'rank', dir: 'asc' }} caption="International teams" testId="intl-teams-table" empty="No nation matches." />
-          <p className="text-xs text-ink-500">{`Elo: the World Football Elo method, computed by FixtureShark from every result (start 1500; weighted by competition and margin; shoot-outs count as draws). Rank is among confederation members who have played in the last four years. Titles: World Cup, Euro and UEFA Nations League. Teams are filed under today’s nation (Soviet Union under Russia, West Germany under Germany), as in the source. ${DATA_NOTE}`}</p>
+          <p className="text-xs text-ink-500">{`Elo: the World Football Elo method, computed by FixtureShark from every result (start 1500; weighted by competition and margin; shoot-outs count as draws). Rank is among confederation members who have played in the last four years. Major titles: World Cup, the continental championships (Euro, Copa América, AFCON, Asian Cup, Gold Cup), Nations League and Confederations Cup. Teams are filed under today’s nation (Soviet Union under Russia, West Germany under Germany), as in the source. ${DATA_NOTE}`}</p>
         </>
       )}
     </article>

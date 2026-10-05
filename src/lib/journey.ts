@@ -250,18 +250,19 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
     title: 'International',
     eyebrow: 'FixtureShark \u00b7 International',
     hubPath: '/international',
-    intro: 'Every men\u2019s international since 1872: results and fixtures, every nation\u2019s record and rating, and every World Cup, Euro and Nations League.',
+    intro: 'Every men\u2019s international since 1872: results and fixtures, every nation\u2019s record and rating, and every World Cup, continental championship and Nations League.',
     stages: [
       {
         key: 'discover',
         title: 'Discover',
         tagline: 'Results, fixtures, nations, tournaments.',
         intro:
-          'Everything that has happened in international football: every game since 1872 with the favourite on the day, each nation\u2019s record, rating and tournament history, and every World Cup, Euro and Nations League round by round.',
+          'Everything that has happened in international football: every game since 1872 with the favourite on the day, each nation\u2019s record, rating and tournament history, and every World Cup, continental championship and Nations League round by round, with how it all changed since 1872.',
         links: [
           { label: 'Fixtures & Results', to: '/international/fixtures', blurb: 'Every international day by day, with the favourite and the upsets; filter to one nation.' },
           { label: 'Your Team', to: '/international/teams', blurb: 'Any nation\u2019s record, rating, tournament history and head-to-heads.', matchPrefix: ['/international/teams'] },
-          { label: 'Tournaments', to: '/international/tournaments', blurb: 'Every World Cup, Euro and Nations League: groups, knockouts and scorers.', matchPrefix: ['/international/tournaments'] },
+          { label: 'Tournaments', to: '/international/tournaments', blurb: 'Every World Cup, Euro, Copa Am\u00e9rica, AFCON, Asian Cup, Gold Cup and Nations League: brackets, groups and the race for titles.', matchPrefix: ['/international/tournaments'] },
+          { label: 'Through Time', to: '/international/history', blurb: 'The world\u2019s top ten year by year since 1872, every world number one, and the biggest tournament upsets.' },
         ],
       },
     ],

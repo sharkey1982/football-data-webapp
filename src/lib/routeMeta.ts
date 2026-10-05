@@ -423,13 +423,19 @@ export const STATIC_ROUTES: RouteMeta[] = [
   {
     path: '/international/teams',
     title: 'International teams: every nation\u2019s rating, record and titles',
-    description: 'Every national team\u2019s World Football Elo rating, all-time record and World Cup, Euro and Nations League titles, since 1872.',
+    description: 'Every national team\u2019s World Football Elo rating, all-time record and major titles, since 1872.',
     crumbs: [INTERNATIONAL],
   },
   {
     path: '/international/tournaments',
-    title: 'International tournaments: every World Cup, Euro and Nations League',
-    description: 'Every World Cup since 1930, every Euro since 1960 and every UEFA Nations League: winners, hosts, groups, knockouts and scorers.',
+    title: 'International tournaments: World Cup, Euro, Copa Am\u00e9rica, AFCON and more',
+    description: 'Every World Cup, Euro, Copa Am\u00e9rica, Africa Cup of Nations, Asian Cup, Gold Cup, Nations League and Confederations Cup: winners, hosts, groups, knockouts and scorers.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
+    path: '/international/history',
+    title: 'International football through time: the Elo race since 1872',
+    description: 'The world\u2019s top ten national teams year by year since 1872, every world number one, and the biggest upsets at the major tournaments.',
     crumbs: [INTERNATIONAL],
   },
 ];
