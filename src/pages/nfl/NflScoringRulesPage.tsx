@@ -24,7 +24,7 @@ export default function NflScoringRulesPage() {
     <article className="space-y-6">
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot; <Link to="/nfl/fantasy" className="hover:underline">Fantasy</Link>
+          <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot; <Link to="/nfl/discover" className="hover:underline">Discover</Link>
         </p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Scoring Rules</h1>
         <p className="text-ink-700 mt-2 max-w-prose">

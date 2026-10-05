@@ -1,7 +1,7 @@
 // ============================================================================
 // src/lib/nflProjections.ts
 //
-// NFL Match Projector: projected fantasy points per player for each team's next
+// NFL Player Projections: projected fantasy points per player for each team's next
 // game (public.nfl_projections, written daily by scripts/nfl_projections.py).
 //
 // Method per position from Model Lab experiment NP1 (5 Oct 2026):

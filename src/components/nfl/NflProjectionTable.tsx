@@ -1,7 +1,7 @@
 // ============================================================================
 // src/components/nfl/NflProjectionTable.tsx
 //
-// The Match Projector's player table: used by /nfl/projections (every game)
+// The Player Projections's player table: used by /nfl/player-projections (every game)
 // and by each team tab of an NFL game page (one team, compact), so the two
 // cannot drift apart.
 // ============================================================================

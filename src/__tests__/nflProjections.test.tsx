@@ -61,10 +61,10 @@ describe('NFL projection helpers', () => {
   });
 });
 
-describe('NFL Match Projections page', () => {
+describe('NFL Player Projections page', () => {
   it('ranks players, hides those ruled out, and filters by club, position and format', async () => {
     mocked.loadProjections.mockResolvedValue(ROWS);
-    render(<MemoryRouter initialEntries={['/nfl/projections']}><Routes><Route path="/nfl/projections" element={<NflProjectionsPage />} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/nfl/player-projections']}><Routes><Route path="/nfl/player-projections" element={<NflProjectionsPage />} /></Routes></MemoryRouter>);
     await waitFor(() => expect(screen.getAllByTestId('nfl-proj-row')).toHaveLength(3));
     expect(screen.getAllByTestId('nfl-proj-row')[0].textContent).toContain('Drake Maye');
     expect(screen.getByTestId('nfl-proj-summary').textContent).toMatch(/^3 players, week 5, PPR scoring\. Drake Maye: 21\.4 points/);
@@ -90,15 +90,15 @@ describe('NFL Match Projections page', () => {
 
   it('says when there are no projections yet', async () => {
     mocked.loadProjections.mockResolvedValue([]);
-    render(<MemoryRouter initialEntries={['/nfl/projections']}><Routes><Route path="/nfl/projections" element={<NflProjectionsPage />} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/nfl/player-projections']}><Routes><Route path="/nfl/player-projections" element={<NflProjectionsPage />} /></Routes></MemoryRouter>);
     await waitFor(() => expect(screen.getByTestId('nfl-proj-empty')).toBeInTheDocument());
   });
 
-  it('is in the NFL Fantasy menu, named as in FPL, with a layout pair', () => {
-    const fantasy = THEMES.nfl.stages.find((s) => s.key === 'fantasy')!;
-    expect(fantasy.links[0]).toMatchObject({ label: 'Match Projections', to: '/nfl/projections' });
-    expect(THEMES.fpl.stages.flatMap((s) => s.links).some((l) => l.label === 'Match Projections')).toBe(true);
-    expect(LAYOUT_PAIRS.find((p) => p.nflPath === '/nfl/projections')?.nflFile).toBe('src/pages/nfl/NflProjectionsPage.tsx');
+  it('is first in the NFL Predict menu, named and placed as in FPL, with a layout pair', () => {
+    const predict = THEMES.nfl.stages.find((s) => s.key === 'predict')!;
+    expect(predict.links[0]).toMatchObject({ label: 'Player Projections', to: '/nfl/player-projections' });
+    expect(THEMES.fpl.stages.find((s) => s.key === 'predict')!.links[0].label).toBe('Player Projections');
+    expect(LAYOUT_PAIRS.find((p) => p.nflPath === '/nfl/player-projections')?.footballFile).toBe('src/pages/fpl/PlayerProjectionsTablePage.tsx');
   });
 });
 
@@ -126,7 +126,7 @@ describe('NFL game page: projections in the team tabs', () => {
     const home = screen.getByTestId('nfl-game-proj-home');
     expect(home.textContent).toContain('Drake Maye');
     expect(home.textContent).not.toContain('Tyreek Hill');
-    expect(home.querySelector('a[href="/nfl/projections?team=new-england-patriots"]')).not.toBeNull();
+    expect(home.querySelector('a[href="/nfl/player-projections?team=new-england-patriots"]')).not.toBeNull();
     expect(screen.getByTestId('nfl-game-proj-away').textContent).toContain('Tyreek Hill');
   });
 });

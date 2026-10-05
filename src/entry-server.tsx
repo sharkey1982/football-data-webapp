@@ -818,7 +818,7 @@ export function renderNflScoringPage(): RenderedPage {
     title: `NFL fantasy scoring rules: standard, half-PPR and PPR | ${BRAND_NAME}`,
     description: 'How NFL fantasy points are scored on FixtureShark: standard, half-PPR and PPR for passing, rushing, receiving and turnovers, and the kicker rules.',
     canonical: `${SITE_URL}${NFL_SCORING_PATH}`,
-    structuredData: [breadcrumb([NFL_CRUMB, { name: 'Fantasy', path: '/nfl/fantasy' }, { name: 'Scoring Rules', path: NFL_SCORING_PATH }])],
+    structuredData: [breadcrumb([NFL_CRUMB, NFL_DISCOVER_CRUMB, { name: 'Scoring Rules', path: NFL_SCORING_PATH }])],
   };
 }
 
