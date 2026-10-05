@@ -12,11 +12,12 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CONFERENCES, DIVISIONS, divisionRows, nflTeamPath, pctLabel, type NflGame, type NflStanding } from '../../lib/nflApi';
+import { CONFERENCES, DIVISIONS, divisionRows, nflTeamPath, pctLabel, type NflGame, type NflStanding, type NflTeamSeason } from '../../lib/nflApi';
+import NflTeamStatsTable from './NflTeamStatsTable';
 import { buildStandingsMath, recLabel, type StandingsMath, type TeamExtras } from '../../lib/nflTiebreak';
 
 type SortKey = 'team_name' | 'won' | 'lost' | 'win_pct' | 'points_for' | 'points_against' | 'point_diff';
-type View = 'division' | 'conference' | 'league';
+type View = 'division' | 'conference' | 'league' | 'stats';
 
 const num = 'px-2 py-1.5 text-right font-mono text-xs tabular-nums';
 const th = 'text-right font-medium text-xs px-2 py-2';
@@ -136,7 +137,7 @@ function ConferenceTable({ conf, rows, math }: { conf: string; rows: NflStanding
   );
 }
 
-export default function StandingsTables({ rows, games }: { rows: NflStanding[]; games?: NflGame[] }) {
+export default function StandingsTables({ rows, games, teamStats }: { rows: NflStanding[]; games?: NflGame[]; teamStats?: NflTeamSeason[] }) {
   const math = useMemo(() => (games && games.length ? buildStandingsMath(rows, games) : null), [rows, games]);
   const [view, setView] = useState<View>('division');
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'win_pct', desc: true });
@@ -158,8 +159,8 @@ export default function StandingsTables({ rows, games }: { rows: NflStanding[]; 
     const by = new Map(rows.map((r) => [r.franchise, r]));
     return order.map((f) => by.get(f)!).filter(Boolean);
   };
-  const views: View[] = math ? ['division', 'conference', 'league'] : ['division', 'league'];
-  const label: Record<View, string> = { division: 'By division', conference: 'By conference', league: 'Whole league' };
+  const views: View[] = [...(math ? (['division', 'conference', 'league'] as View[]) : (['division', 'league'] as View[])), ...(teamStats?.length ? (['stats'] as View[]) : [])];
+  const label: Record<View, string> = { division: 'By division', conference: 'By conference', league: 'Whole league', stats: 'Team stats' };
 
   return (
     <div className="space-y-6">
@@ -258,13 +259,15 @@ export default function StandingsTables({ rows, games }: { rows: NflStanding[]; 
         </div>
       )}
 
-      <p className="text-xs text-ink-500 max-w-prose" data-testid="nfl-table-notes">
+      {view === 'stats' && teamStats && <NflTeamStatsTable rows={teamStats} />}
+
+      {view !== 'stats' && <p className="text-xs text-ink-500 max-w-prose" data-testid="nfl-table-notes">
         Regular season only. Pct counts a tie as half a win. Div, Conf, Non-Conf: records against division, conference and other-conference opponents. Strk: current run of wins (W), losses (L) or ties (T). Last 5: oldest to newest.
         {math
           ? ' Teams level on Pct are ordered by the NFL’s tie-breaking procedure: head-to-head, then division record (within a division) or conference record (between divisions), common opponents, strength of victory (SoV) and strength of schedule (SoS). The rarely used points-ranking steps are not modelled. Checked against every play-off field since 2002: the same teams, division winners and seeds every season.'
           : ' Teams level on Pct are ordered by division record, then points difference, which can differ from the official standings.'}{' '}
         Data: nflverse.
-      </p>
+      </p>}
     </div>
   );
 }

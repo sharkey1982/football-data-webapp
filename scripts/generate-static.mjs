@@ -411,7 +411,8 @@ async function main() {
       }
       const latestGames = gamesBy.get(latest) ?? [];
       const tableSeason = Math.max(...standings.map((r) => r.season));
-      const tableData = { season: tableSeason, seasons, rows: standings.filter((r) => r.season === tableSeason), games: gamesBy.get(tableSeason) ?? [] };
+      const teamStats = (await query(`nfl_team_seasons?select=${entry.NFL_TEAM_SEASON_COLUMNS}&season=eq.${tableSeason}`)) ?? [];
+      const tableData = { season: tableSeason, seasons, rows: standings.filter((r) => r.season === tableSeason), games: gamesBy.get(tableSeason) ?? [], teamStats: teamStats.length ? teamStats : undefined };
       let n = 0;
       const model = (await query(`nfl_game_model?select=${entry.NFL_MODEL_COLUMNS}&game_id=like.${latest}_*&limit=1000`)) ?? [];
       const week = entry.buildNflWeek(latest, seasons, latestGames, null, teams, model);

@@ -280,7 +280,56 @@ export type NflStandingsData = {
   /** The season's games, for official tie-breaks, seeds and record splits
    * (nflTiebreak.ts). Optional: without them the table falls back to the view's order. */
   games?: NflGame[];
+  /** Regular-season team stats (public.nfl_team_seasons); optional. */
+  teamStats?: NflTeamSeason[];
 };
+
+/** One team-season's regular-season team stats (totals; per-game on the page). */
+export type NflTeamSeason = {
+  season: number;
+  franchise: string;
+  slug: string;
+  team_name: string;
+  short_name: string;
+  conference: string;
+  division: string;
+  games: number;
+  points_for: number;
+  points_against: number;
+  plays: number;
+  attempts: number;
+  carries: number;
+  sacks_suffered: number;
+  pass_yards: number;
+  rush_yards: number;
+  pass_tds: number;
+  rush_tds: number;
+  first_downs: number;
+  giveaways: number;
+  takeaways: number;
+  def_sacks: number;
+  def_st_tds: number;
+  opp_plays: number;
+  opp_attempts: number;
+  opp_carries: number;
+  opp_pass_yards: number;
+  opp_rush_yards: number;
+  opp_pass_tds: number;
+  opp_rush_tds: number;
+  penalties: number;
+  penalty_yards: number;
+  offence_epa: number | null;
+  dst_points: number;
+};
+export const TEAM_SEASON_COLUMNS =
+  'season,franchise,slug,team_name,short_name,conference,division,games,points_for,points_against,plays,attempts,carries,sacks_suffered,pass_yards,rush_yards,pass_tds,rush_tds,first_downs,giveaways,takeaways,def_sacks,def_st_tds,opp_plays,opp_attempts,opp_carries,opp_pass_yards,opp_rush_yards,opp_pass_tds,opp_rush_tds,penalties,penalty_yards,offence_epa,dst_points';
+
+async function loadTeamStats(season: number): Promise<NflTeamSeason[] | undefined> {
+  const { data, error } = await supabase.from('nfl_team_seasons' as never).select(TEAM_SEASON_COLUMNS).eq('season', season);
+  if (error) return undefined; // an extra: the table still shows without it
+  const rows = (data ?? []) as unknown as NflTeamSeason[];
+  return rows.length ? rows : undefined;
+}
 
 export function divisionRows(rows: NflStanding[], conference: string, division: string): NflStanding[] {
   return rows
@@ -402,15 +451,16 @@ export async function loadNflWeek(season: number | null, week: number | null): P
 }
 
 export async function loadNflStandings(season: number): Promise<NflStandingsData | null> {
-  const [seasons, res, games] = await Promise.all([
+  const [seasons, res, games, teamStats] = await Promise.all([
     loadSeasons(),
     supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('season', season),
     loadSeasonGames(season).catch(() => undefined),
+    loadTeamStats(season).catch(() => undefined),
   ]);
   if (res.error) throw res.error;
   const rows = (res.data ?? []) as unknown as NflStanding[];
   if (rows.length === 0) return null;
-  return { season, seasons, rows, games };
+  return { season, seasons, rows, games, teamStats };
 }
 
 export const loadLatestNflSeason = loadLatestSeason;

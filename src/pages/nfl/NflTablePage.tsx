@@ -75,7 +75,7 @@ export default function NflTablePage({ initialData }: { initialData?: NflStandin
             <Link to={nflSeasonPath(data.season)} className="text-pitch-800 underline underline-offset-2 pb-1">{`Story of the ${data.season} season`}</Link>
             <Link to={nflFixturesPath(data.season)} className="text-pitch-800 underline underline-offset-2 pb-1">{`${data.season} fixtures & results`}</Link>
           </div>
-          <StandingsTables rows={data.rows} games={data.games} />
+          <StandingsTables rows={data.rows} games={data.games} teamStats={data.teamStats} />
         </>
       )}
     </article>
