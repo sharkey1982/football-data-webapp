@@ -12,6 +12,16 @@ fixing something else.
 
 ---
 
+## 2026-10-05 · FPL start chance: weeks out injured counted like weeks dropped
+- **Reported:** Chris -- the model needs to work as required (follow-up to return dates: returning regulars stayed near zero once fit).
+- **Impact:** outfield start chances came from fixed tiers on this season's appearances. A regular back from injury was rated on the few appearances around his injury (Caicedo 0.03 once fit; Saliba at most 0.15; Amad, Minteh, Mitoma similar), while players who had started while others were injured were rated 0.96 whatever their record.
+- **Cause:** the tiers counted appearances, not the matches a player was available for, and ignored last season; the team scaling then took the excess mostly from mid-range players, i.e. the returners.
+- **Fix:** migration `20261005240000_fpl_start_record`: `fpl_player_start_record` (starts, matches available for -- from daily snapshots, and before 13 Sep from the first snapshot's injury and its news date -- and last season's start rate), refreshed each projection run. Outfield start rate = (starts + last-season rate) / (available matches + 1), max 0.97, times fixture availability; goalkeepers unchanged.
+- **Evidence:** backtest predicting GW3-5 outfield starters from earlier gameweeks only (1,765 player-matches): current Brier 0.0992 / log-loss 0.333; chosen 0.0944 / 0.313. Prior weighted as 3 matches was worse (0.1011); scaling defenders and the rest separately gave no gain and was not adopted. Of six fit regulars returning from absence in the window, one started straight away -- so a returner's chance rises as he is picked rather than jumping back at once.
+- **Prevention:** model changes to start probability are now judged by this backtest, not by inspecting individual players; rerun it as more gameweeks arrive (the window is three gameweeks).
+
+---
+
 ## 2026-10-05 · FPL projections: this week's injury status applied to every future gameweek; GW9+ ten days stale
 - **Reported:** Chris -- return dates should feed long-term projections, and a doubt should only matter for the next gameweek.
 - **Impact:** every future fixture used this week's FPL status. Players "Expected back 10 Oct" (Pau, Bizot, Mateta, Mitoma ...) were projected 0 for the rest of the season; 75%/50% doubts were 75%/50% in every gameweek; 49 players with an unknown return date were 0 forever. Players injured since August (Saliba, Amad, Minteh, Joelinton ...) were rated as unknown squad players (18% start) even once fit. Separately, the pipeline only refreshed the next 3 gameweeks, so GW9-16 were last generated on 26 Sep, although Squad Check offers a 10-gameweek horizon.
