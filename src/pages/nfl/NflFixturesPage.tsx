@@ -40,6 +40,8 @@ import {
 } from '../../lib/nflApi';
 import NflWatchLine from '../../components/nfl/NflWatchLine';
 import { againstSpread } from '../../lib/nflStory';
+import ResultFlag from '../../components/ResultFlag';
+import { chanceText, nflTeamChance, resultFlag, vsExpectedText, winsVsExpected } from '../../lib/expectation';
 
 function intParam(v: string | null): number | null {
   if (v == null || !/^\d{1,4}$/.test(v)) return null;
@@ -123,6 +125,12 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
     else if (ats === 'push') push++;
   }
   const played = w + l + t;
+  const vsExpected = winsVsExpected(
+    mine.filter((g) => g.game_type === 'REG').map((g) => {
+      const r = teamResult(g, team.franchise);
+      return { outcome: r.letter === 'T' ? 'D' : r.letter, win: nflTeamChance(g, team.franchise) };
+    })
+  );
   return (
     <section aria-labelledby="team-heading" className="space-y-3" data-testid="nfl-team-season">
       <h2 id="team-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">{`${season}: ${team.name}`}</h2>
@@ -131,12 +139,16 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
           {`Regular season ${w}-${l}${t ? `-${t}` : ''} · points ${pf}-${pa} (${pf - pa >= 0 ? '+' : ''}${pf - pa}) · against the spread ${cover}-${miss}${push ? `-${push}` : ''}`}
         </p>
       )}
+      {vsExpected.played > 0 && (
+        <p className="text-sm text-ink-700" data-testid="nfl-team-vs-expected">{vsExpectedText(vsExpected, 'wins')}</p>
+      )}
       <div className="overflow-x-auto border border-chalk-300 rounded-lg bg-white">
         <table className="w-full text-sm">
           <thead className="bg-chalk-200 text-ink-500">
             <tr>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2">Week</th>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2">Opponent</th>
+              <th scope="col" className="text-right font-medium text-xs px-3 py-2" title="Chance of winning before kick-off, from the closing betting line">Win chance</th>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2">Result / kick-off (UK)</th>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2 hidden sm:table-cell">Line</th>
               <th scope="col" className="text-left font-medium text-xs px-3 py-2 hidden md:table-cell">Model</th>
@@ -148,7 +160,7 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
                 return (
                   <tr key={`bye-${row.bye}`} className={i % 2 ? 'bg-chalk-100/60' : undefined}>
                     <td className="px-3 py-2 text-xs text-ink-700">{`Week ${row.bye}`}</td>
-                    <td colSpan={4} className="px-3 py-2 text-xs text-ink-500">Bye</td>
+                    <td colSpan={5} className="px-3 py-2 text-xs text-ink-500">Bye</td>
                   </tr>
                 );
               }
@@ -156,6 +168,7 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
               const r = teamResult(g, team.franchise);
               const ats = againstSpread(g, team.franchise);
               const m = model[g.game_id];
+              const chance = nflTeamChance(g, team.franchise);
               return (
                 <tr
                   key={g.game_id}
@@ -169,11 +182,15 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
                     <Link to={nflTeamPath(r.opponentSlug)} onClick={(e) => e.stopPropagation()} className="hover:underline">{r.opponent}</Link>
                     {g.neutral_site && g.stadium && <span className="block text-xs text-pitch-700">{g.stadium}</span>}
                   </td>
+                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-ink-500">{chanceText(chance)}</td>
                   <td className="px-3 py-2 font-mono text-xs tabular-nums whitespace-nowrap">
                     {r.letter ? (
-                      <Link to={nflGamePath(g.game_id)} state={{ game: g }} onClick={(e) => e.stopPropagation()} className={`hover:underline ${r.letter === 'W' ? 'font-semibold text-pitch-800' : r.letter === 'L' ? 'text-loss-600' : ''}`}>
-                        {`${r.letter} ${r.score}`}
-                      </Link>
+                      <>
+                        <Link to={nflGamePath(g.game_id)} state={{ game: g }} onClick={(e) => e.stopPropagation()} className={`hover:underline ${r.letter === 'W' ? 'font-semibold text-pitch-800' : r.letter === 'L' ? 'text-loss-600' : ''}`}>
+                          {`${r.letter} ${r.score}`}
+                        </Link>
+                        <ResultFlag kind={resultFlag(chance, r.letter === 'T' ? 'D' : r.letter)} chance={chance} />
+                      </>
                     ) : (
                       <Link to={nflGamePath(g.game_id)} state={{ game: g }} onClick={(e) => e.stopPropagation()} className="hover:underline">{ukKickoff(g)}</Link>
                     )}
@@ -189,7 +206,9 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-ink-500">Tap a game for its preview or result: head-to-head, form and the prediction.</p>
+      <p className="text-xs text-ink-500">
+        Tap a game for its preview or result. Win chance: from the closing betting line. Upset: won with under a one-in-three chance; Shock: lost with over a two-in-three chance.
+      </p>
     </section>
   );
 }

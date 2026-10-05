@@ -14,6 +14,7 @@
 // you're on.
 // ============================================================================
 
+import { chancesFromOdds } from './expectation';
 import { supabase } from './supabase';
 
 export type TeamPageProfile = {
@@ -45,7 +46,20 @@ export type TeamPageMatch = {
   reported_goals_against?: number | null;
   predicted_goals_for: number | null;
   predicted_goals_against: number | null;
+  /** Pre-match chances from this team's side, from the average closing odds
+   * (margin removed; src/lib/expectation.ts). Absent without odds. */
+  win_chance?: number | null;
+  draw_chance?: number | null;
 };
+
+export type ClosingOddsRow = { match_id: number; price_home: number | string; price_draw: number | string; price_away: number | string };
+
+/** Average closing 1X2 odds -> this team's win/draw chances. */
+export function teamChances(odds: ClosingOddsRow | undefined, isHome: boolean): { win_chance: number | null; draw_chance: number | null } {
+  if (!odds) return { win_chance: null, draw_chance: null };
+  const c = chancesFromOdds(Number(isHome ? odds.price_home : odds.price_away), Number(odds.price_draw), Number(isHome ? odds.price_away : odds.price_home));
+  return c ? { win_chance: c.win, draw_chance: c.draw } : { win_chance: null, draw_chance: null };
+}
 
 export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile | null> {
   const { data: team, error } = await supabase
@@ -146,12 +160,25 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
 
   const { data: results } = await supabase
     .from('matches')
-    .select('home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals')
+    .select('match_id, home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals')
     .eq('league_id', leagueId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
   const resultByKey = new Map<string, any>(
     (results ?? []).map((m) => [`${m.home_team_id}|${m.away_team_id}|${m.match_date}`, m])
   );
+  // Closing market odds for the played ones (an extra: no odds, no chances).
+  const ids = (results ?? []).map((m) => m.match_id).filter((x) => x != null);
+  const oddsByMatch = new Map<number, ClosingOddsRow>();
+  if (ids.length) {
+    const { data: odds } = await supabase
+      .from('match_odds')
+      .select('match_id, price_home, price_draw, price_away')
+      .in('match_id', ids)
+      .eq('market', '1x2')
+      .eq('bookmaker', 'Avg')
+      .eq('is_closing', true);
+    for (const o of (odds ?? []) as unknown as ClosingOddsRow[]) oddsByMatch.set(o.match_id, o);
+  }
 
   return rows.map((f) => {
     const isHome = f.home_team_id === teamId;
@@ -170,6 +197,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
         f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
       predicted_goals_against:
         f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
+      ...teamChances(res ? oddsByMatch.get(res.match_id) : undefined, isHome),
     };
   });
 }

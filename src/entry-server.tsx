@@ -116,6 +116,7 @@ export {
 } from './lib/nflApi';
 export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
 export { buildGamePreview as buildNflGamePreview };
+export { teamChances } from './lib/teamPageApi';
 export { buildLocalClubs, LOCAL_CLUBS_TIERS };
 export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
