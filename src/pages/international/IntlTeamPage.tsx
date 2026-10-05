@@ -14,7 +14,7 @@ import { FixtureRow, GameList, GameRow, IntlHeader, Section } from '../../compon
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, type IntlTeamData } from '../../lib/intlApi';
-import { DATA_NOTE, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
+import { DATA_NOTE, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
 
 const REACHED_CLASS = (c: HistoryCell) =>
   c.won ? 'bg-amber-500 text-pitch-950 border-amber-600' : c.reached === 'Runner-up' ? 'bg-pitch-800 text-chalk-100 border-pitch-900' : c.order >= 5 ? 'bg-chalk-200 text-pitch-800 border-pitch-600' : 'bg-white text-ink-700 border-chalk-300';
@@ -121,8 +121,9 @@ export default function IntlTeamPage() {
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (!data || !t) return <p className="text-ink-700">No national team by that name. <Link to={INTL_TEAMS_PATH} className="underline">See every nation</Link>.</p>;
 
-  const upcoming = data.fixtures.filter((f) => !f.match_key);
-  const latest = data.matches.slice(-10).reverse();
+  const upcoming = data.fixtures.filter((f) => !f.match_key && !isReported(f));
+  const reported = data.fixtures.filter(isReported).map(reportedAsMatch).reverse();
+  const latest = [...reported, ...data.matches.slice(-10).reverse()].slice(0, 10);
   return (
     <article className="space-y-6">
       <IntlHeader title={t.team} crumb={{ to: INTL_TEAMS_PATH, label: 'Your Team' }}>

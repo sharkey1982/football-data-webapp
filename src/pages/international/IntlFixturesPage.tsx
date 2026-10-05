@@ -16,7 +16,7 @@ import { FixtureRow, GameList, GameRow, IntlHeader, Section } from '../../compon
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_FIXTURES_PATH, intlFixturesPath, intlTeamPath, loadIntlFixtures, loadIntlTeamGames, loadIntlTeams } from '../../lib/intlApi';
-import { DATA_NOTE, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
+import { DATA_NOTE, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,7 +41,8 @@ function groupDay(matches: IntlMatch[], fixtures: IntlFixture[], date: string): 
   for (const f of fixtures.filter((x) => !x.match_key && ukDateTime(x.kickoff_utc).date === date)) {
     const name = 'UEFA Nations League';
     const g = groups.get(name) ?? { competition: name, rank: competitionRank(name, 'nations_league'), matches: [], fixtures: [] };
-    g.fixtures.push(f);
+    if (isReported(f)) g.matches.push(reportedAsMatch(f));
+    else g.fixtures.push(f);
     groups.set(name, g);
   }
   return [...groups.values()].sort((a, b) => a.rank - b.rank || a.competition.localeCompare(b.competition));
@@ -120,13 +121,15 @@ export default function IntlFixturesPage() {
               <p className="text-sm">
                 <Link to={intlTeamPath(tg.team.slug)} className="text-pitch-800 underline underline-offset-2">{`${tg.team.team}: full record, rating and tournament history`}</Link>
               </p>
-              {tg.fixtures.filter((f) => !f.match_key).length > 0 && (
+              {tg.fixtures.filter((f) => !f.match_key && !isReported(f)).length > 0 && (
                 <Section title="Coming fixtures" id="intl-team-fixtures">
-                  <GameList testId="intl-team-fixtures">{tg.fixtures.filter((f) => !f.match_key).map((f) => <FixtureRow key={f.fixture_key} f={f} showDate />)}</GameList>
+                  <GameList testId="intl-team-fixtures">{tg.fixtures.filter((f) => !f.match_key && !isReported(f)).map((f) => <FixtureRow key={f.fixture_key} f={f} showDate />)}</GameList>
                 </Section>
               )}
               <Section title="Latest results" id="intl-team-results">
-                <GameList testId="intl-team-results">{tg.matches.map((m) => <GameRow key={m.match_key} m={m} showDate showCompetition team={tg.team.team} />)}</GameList>
+                <GameList testId="intl-team-results">
+                  {[...tg.fixtures.filter(isReported).map(reportedAsMatch).reverse(), ...tg.matches].map((m) => <GameRow key={m.match_key} m={m} showDate showCompetition team={tg.team.team} />)}
+                </GameList>
               </Section>
             </>
           )}
@@ -148,7 +151,7 @@ export default function IntlFixturesPage() {
                   onChangeMonth={(year, month) => setView({ year, month })}
                 />
                 <p className="flex-1 min-w-0 text-ink-500 text-sm pt-1">
-                  {`Darker days have more games. Latest result in the file: ${data.latestResult ? shortDate(data.latestResult) : '–'}; games since then show “Result to follow”.`}
+                  {`Darker days have more games. Latest result in the results file: ${data.latestResult ? shortDate(data.latestResult) : '–'}. Games since then show the score the fixture feed reports (marked “reported”), or “Result to follow”.`}
                 </p>
               </div>
 

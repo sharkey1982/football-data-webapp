@@ -156,7 +156,7 @@ export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
   const enc = (v: string) => `"${v.replace(/"/g, '\\"')}"`;
   const [matches, fixtures, totals, pairs, editions, teams, goals] = await Promise.all([
     paged<IntlMatch>(() => intlView('intl_matches', MATCH_COLUMNS).or(`home_slug.eq.${slug},away_slug.eq.${slug}`).order('match_date', { ascending: true }).order('match_key', { ascending: true })),
-    rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).or(`home_slug.eq.${slug},away_slug.eq.${slug}`).gte('kickoff_utc', new Date(Date.now() - 864e5).toISOString()).order('kickoff_utc', { ascending: true }).limit(20)),
+    rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).or(`home_slug.eq.${slug},away_slug.eq.${slug}`).order('kickoff_utc', { ascending: true }).limit(50)),
     rows<CompetitionTotal>(intlView('intl_team_competition_totals', 'team,competition,competition_kind,played,won,drawn,lost,goals_for,goals_against,first_match,last_match').eq('team', t)),
     paged<PairRecord>(() => intlView('intl_pair_records', 'team_a,team_b,played,a_won,drawn,b_won,a_goals,b_goals,first_meeting,last_meeting').or(`team_a.eq.${enc(t)},team_b.eq.${enc(t)}`).order('team_a', { ascending: true }).order('team_b', { ascending: true })),
     rows<EditionSummary>(intlView('intl_edition_summary', EDITION_COLUMNS).order('season_start', { ascending: true })),

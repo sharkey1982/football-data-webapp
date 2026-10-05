@@ -58,12 +58,16 @@ export function UpsetBadge({ m }: { m: IntlMatch }) {
   );
 }
 
-/** The home side's Elo expectation as a percentage, with a title explaining it. */
-export function EloChance({ m }: { m: IntlMatch }) {
-  const e = eloExpectation(m);
-  if (e == null) return null;
+/** Elo expectation before the game as a percentage: the home side's, or the
+ * given team's on a team's own list. */
+export function EloChance({ m, team }: { m: IntlMatch; team?: string }) {
+  const home = eloExpectation(m);
+  if (home == null) return null;
+  const forAway = team != null && team === m.away_team;
+  const e = forAway ? 1 - home : home;
+  const who = team && (team === m.home_team || team === m.away_team) ? team : 'the home side';
   return (
-    <span className="font-mono text-xs text-ink-500 tabular-nums" title="Elo expectation for the home side (a win counts 1, a draw a half), before the game">
+    <span className="font-mono text-xs text-ink-500 tabular-nums" title={`Elo expectation for ${who} before the game (a win counts 1, a draw a half)`}>
       {`${Math.round(e * 100)}%`}
     </span>
   );
@@ -91,7 +95,7 @@ export function GameRow({ m, showDate, showCompetition, team }: { m: IntlMatch; 
         {where}
         {m.city ? `${showCompetition || where ? ' · ' : ''}${m.city}` : ''}
       </span>
-      <EloChance m={m} />
+      {m.competition_kind === 'reported' ? <span className="text-xs font-mono text-ink-500" title="Reported by the fixture feed; the results file has not confirmed it yet">reported</span> : <EloChance m={m} team={team} />}
     </li>
   );
 }

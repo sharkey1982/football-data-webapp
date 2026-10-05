@@ -253,6 +253,23 @@ export function outcomeFor(team: string, m: IntlMatch): 'W' | 'D' | 'L' {
   return mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
 }
 
+/** A fixture the feed has a score for but the results file doesn't yet: a
+ * reported result. Shown, and counted in provisional group tables, until the
+ * results file confirms it (then the fixture carries a match_key). */
+export const isReported = (f: IntlFixture) => !f.match_key && f.home_score != null && f.away_score != null;
+
+/** A reported fixture as a game row: no Elo, flagged by competition_kind 'reported'. */
+export function reportedAsMatch(f: IntlFixture): IntlMatch {
+  return {
+    match_key: `reported|${f.fixture_key}`, match_date: ukDateTime(f.kickoff_utc).date,
+    home_team: f.home_team, home_slug: f.home_slug, home_name: f.home_team, away_team: f.away_team, away_slug: f.away_slug, away_name: f.away_team,
+    home_score: f.home_score!, away_score: f.away_score!, home_score_90: f.home_score, away_score_90: f.away_score, went_extra_time: false, shootout_winner: null,
+    competition: 'UEFA Nations League', competition_slug: 'uefa-nations-league', competition_kind: 'reported', edition_key: f.edition_key, stage_code: 'LP',
+    stage_name: 'League phase', stage_type: 'round_robin', group_label: f.group_label, matchday: f.round_number, city: f.venue, country: null, neutral: false,
+    elo_home_pre: null, elo_away_pre: null, elo_change: null,
+  };
+}
+
 /** Games per UK date, for the calendar heat map. */
 export function countsByDate(matches: IntlMatch[], fixtures: IntlFixture[]): Record<string, number> {
   const out: Record<string, number> = {};

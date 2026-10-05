@@ -14,7 +14,7 @@ import { FixtureRow, GameList, GameRow, IntlHeader, Section, TeamLink } from '..
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlEditionPath, intlTournamentPath, loadIntlEdition, type IntlEditionData } from '../../lib/intlApi';
-import { DATA_NOTE, editionLabel, groupTable, isUpset, pointsForWin, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow } from '../../lib/intlStats';
+import { DATA_NOTE, editionLabel, groupTable, isReported, isUpset, pointsForWin, reportedAsMatch, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow } from '../../lib/intlStats';
 
 function GroupTable({ label, rows, testId }: { label: string; rows: TableRow[]; testId?: string }) {
   return (
@@ -46,14 +46,17 @@ function GroupTable({ label, rows, testId }: { label: string; rows: TableRow[]; 
 }
 
 function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }) {
-  const games = data.matches.filter((m) => m.stage_code === stage.code);
+  // Results the fixture feed reports but the results file hasn't confirmed yet
+  // count in a provisional table (league phase only: the feed has groups).
+  const reported = stage.code === 'LP' ? data.fixtures.filter(isReported).map(reportedAsMatch) : [];
+  const games = [...data.matches.filter((m) => m.stage_code === stage.code), ...reported];
   const advanced = teamsAfter(data.matches, data.stages, stage.stage_order);
   const listed = data.groups.filter((g) => g.stage_code === stage.code);
   const labels = [...new Set([...listed.map((g) => g.label), ...games.map((m) => m.group_label ?? '')])].filter((l) => l !== '').sort();
   if (labels.length === 0 && games.length) labels.push('');
   const isLeague = stage.code === 'LP';
   const leagues = isLeague ? [...new Set(labels.map((l) => l[0]))] : [''];
-  const unplayed = data.fixtures.filter((f) => !f.match_key);
+  const unplayed = data.fixtures.filter((f) => !f.match_key && !isReported(f));
   return (
     <Section title={stage.name} id={`intl-ed-${stage.code}`} testId={`intl-ed-${stage.code}`}>
       {leagues.map((lg) => (
@@ -67,10 +70,16 @@ function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }
                 const members = listed.find((g) => g.label === label)?.teams ?? [];
                 const rows = groupTable(gGames, data.edition.edition_key, isLeague ? new Set() : advanced, members);
                 const fixtures = unplayed.filter((f) => f.group_label === label);
+                const groupReported = reported.filter((m) => m.group_label === label);
                 return (
                   <div key={label || 'all'} className="space-y-2">
                     <GroupTable label={label ? `Group ${label}` : stage.name} rows={rows} testId="intl-group-table" />
-                    {fixtures.length > 0 && <GameList>{fixtures.map((f) => <FixtureRow key={f.fixture_key} f={f} showDate />)}</GameList>}
+                    {groupReported.length + fixtures.length > 0 && (
+                      <GameList>
+                        {groupReported.map((m) => <GameRow key={m.match_key} m={m} showDate />)}
+                        {fixtures.map((f) => <FixtureRow key={f.fixture_key} f={f} showDate />)}
+                      </GameList>
+                    )}
                   </div>
                 );
               })}
@@ -78,6 +87,7 @@ function RoundRobin({ data, stage }: { data: IntlEditionData; stage: IntlStage }
         </div>
       ))}
       <p className="text-xs text-ink-500">
+        {reported.length > 0 && `Provisional: includes ${reported.length} result${reported.length === 1 ? '' : 's'} reported by the fixture feed and not yet confirmed by the results file. `}
         {`${pointsForWin(data.edition.edition_key)} points for a win. Ordered by points, goal difference, then goals scored; the official tie-breakers vary by tournament, so “through” is taken from who played in the next round.`}
       </p>
     </Section>
@@ -147,7 +157,9 @@ export default function IntlEditionPage() {
           ) : (
             'Still to be decided. '
           )}
-          {`${e.teams} teams, ${e.matches} games${goalsPerGame ? `, ${goalsPerGame} goals a game` : ''}${e.hosts.length ? `; hosted by ${e.hosts.join(', ')}` : ''}.`}
+          {e.matches
+            ? `${e.teams} teams, ${e.matches} games${goalsPerGame ? `, ${goalsPerGame} goals a game` : ''}${e.hosts.length ? `; hosted by ${e.hosts.join(', ')}` : ''}.`
+            : `${e.teams} teams; ${data.fixtures.filter(isReported).length} of ${data.fixtures.length} games played so far.`}
         </p>
         <nav className="flex gap-4 text-sm" aria-label="Other editions">
           {prev && <Link to={editionPathOf(prev)} className="underline">{`← ${editionLabel(prev.label)}`}</Link>}

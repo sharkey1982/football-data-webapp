@@ -1,6 +1,6 @@
 // Unit tests for src/lib/intlStats.ts (International pages).
 import { describe, it, expect } from 'vitest';
-import { countsByDate, eloExpectation, groupTable, isUpset, pointsForWin, scoreText, teamsAfter, tournamentHistory, winnerOf, type EditionSummary, type IntlMatch, type IntlStage } from '../lib/intlStats';
+import { countsByDate, isReported, reportedAsMatch, eloExpectation, groupTable, isUpset, pointsForWin, scoreText, teamsAfter, tournamentHistory, winnerOf, type EditionSummary, type IntlMatch, type IntlStage } from '../lib/intlStats';
 
 function m(over: Partial<IntlMatch>): IntlMatch {
   return {
@@ -74,5 +74,15 @@ describe('intlStats', () => {
     ]);
     // 23:30 UTC on 24 Sep is 00:30 BST on 25 Sep; the played fixture is counted once, as a result.
     expect(counts).toEqual({ '2026-09-24': 1, '2026-09-25': 1 });
+  });
+
+  it('a fixture with a feed score and no confirmed result is a reported result', () => {
+    const f = { fixture_key: 'UNL-2026-27|100', edition_key: 'UNL-2026-27', kickoff_utc: '2026-09-26T18:45:00Z', home_team: 'England', home_slug: 'england', away_team: 'Spain', away_slug: 'spain', group_label: 'A3', round_number: 1, venue: 'Wembley Stadium', home_score: 2, away_score: 3, match_key: null };
+    expect(isReported(f)).toBe(true);
+    expect(isReported({ ...f, match_key: 'x' })).toBe(false);
+    expect(isReported({ ...f, home_score: null, away_score: null })).toBe(false);
+    const m = reportedAsMatch(f);
+    expect([m.match_date, m.home_score, m.away_score, m.group_label, m.competition_kind, m.elo_home_pre]).toEqual(['2026-09-26', 2, 3, 'A3', 'reported', null]);
+    expect(groupTable([m], 'UNL-2026-27', new Set()).map((r) => [r.team, r.pts])).toEqual([['Spain', 3], ['England', 0]]);
   });
 });
