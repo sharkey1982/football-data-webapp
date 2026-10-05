@@ -185,3 +185,30 @@ def test_venue_fix_and_hosts():
     assert (m["city"], m["country"], m["neutral"]) == ("Baku", "Azerbaijan", True)
     assert m["raw"]["city"] == "Cardiff"
     assert b.editions[0]["hosts"] == ["Azerbaijan", "Romania"]
+
+
+def test_continental_editions_split_by_gap_with_winners():
+    # Two Gold Cups more than 120 days apart: in 2001 one league of all four
+    # teams (a final round) then a play-off between two of them (Copa 1949
+    # shape), in 2003 a single game.
+    rows = []
+    teams = ["Mexico", "United States", "Canada", "Jamaica"]
+    for i, a in enumerate(teams):
+        for b in teams[i + 1:]:
+            rows.append(("2001-07-0%d" % (1 + len(rows) % 6), a, b, "1", "0", "Gold Cup", "LA", "United States", "TRUE"))
+    rows.append(("2001-07-20", "Mexico", "United States", "0", "1", "Gold Cup", "LA", "United States", "TRUE"))
+    rows.append(("2003-07-27", "Mexico", "Brazil", "1", "0", "Gold Cup", "Mexico City", "Mexico", "FALSE"))
+    b = ii.build(src(res(*rows)))
+    eds = {e["edition_key"]: e for e in b.editions if e["competition"] == "Gold Cup"}
+    assert set(eds) == {"GOLD-2001", "GOLD-2003"}
+    assert (eds["GOLD-2001"]["winner"], eds["GOLD-2001"]["runner_up"]) == ("United States", "Mexico")
+    g01 = [m for m in b.matches if m["edition_key"] == "GOLD-2001"]
+    assert sorted({m["stage_code"] for m in g01}) == ["FR", "PO"]
+    assert eds["GOLD-2003"]["winner"] == "Mexico"
+
+
+def test_hand_winner_must_agree_with_a_derived_final(monkeypatch):
+    monkeypatch.setitem(ii.HAND_WINNERS, ("Gold Cup", "2003"), ("Brazil", "Mexico"))
+    rows = [("2003-07-27", "Mexico", "Brazil", "1", "0", "Gold Cup", "Mexico City", "Mexico", "FALSE")]
+    with pytest.raises(ii.ImportCheckFailed):
+        ii.build(src(res(*rows)))

@@ -42,7 +42,8 @@ from dataclasses import dataclass, field
 
 from intl_static import (COIN_TOSSES, CONFEDERATION_OF_COMPETITION, CONMEBOL, ELO_K_40, ELO_K_40_SUFFIX, ELO_K_50,
                          ELO_K_60, FIXTURE_FEED_ALIASES, NATIONS_LEAGUE, NATIONS_LEAGUE_LATER,
-                         OPENFOOTBALL_ALIASES, OPENFOOTBALL_YEAR_ALIASES, STAGE_OVERRIDES, VENUE_FIXES)
+                         OPENFOOTBALL_ALIASES, OPENFOOTBALL_YEAR_ALIASES, STAGE_OVERRIDES, VENUE_FIXES,
+                         CONTINENTAL, HAND_WINNERS, OFFICIAL_LABELS)
 
 RAW = "https://raw.githubusercontent.com"
 RESULTS_BASE = f"{RAW}/martj42/international_results/master"
@@ -74,6 +75,8 @@ STAGES = {
     "PO_BC": ("League B/C play-offs", KNOCKOUT, 46),
     "PO_CD": ("League C/D play-offs", KNOCKOUT, 47),
     "PO_C": ("League C play-outs", KNOCKOUT, 48),
+    "PO": ("Play-off", KNOCKOUT, 95),
+    "ALL": ("Games", KNOCKOUT, 99),
 }
 
 OPENFOOTBALL_ROUNDS = {
@@ -274,6 +277,8 @@ def build(src: dict) -> Build:
     # Tournaments.
     stage_tournament(out, matches, by_day_pair, src, WC, "WC", src["worldcup"])
     stage_tournament(out, matches, by_day_pair, src, EURO, "EURO", src["euro"])
+    for comp, code in CONTINENTAL:
+        stage_continental(out, matches, comp, code)
     stage_nations_league(out, matches, src)
 
     # 90-minute scores are known for every round-robin game and friendly.
@@ -359,6 +364,71 @@ def stage_tournament(out: Build, matches: list, by_day_pair: dict, src: dict, co
         add_stage_rows(out, ed, games)
 
 
+def derived_winner(games: list) -> tuple[str | None, str | None]:
+    """(winner, runner-up) from derived stages: the last Final game, else the
+    last play-off game, else the top two of a final round (2 points a win)."""
+    for code in ("F", "PO"):
+        g = [m for m in games if m["stage_code"] == code]
+        if g:
+            w = winner_of(g[-1])
+            if w is None:
+                return None, None
+            return w, g[-1]["away_team"] if w == g[-1]["home_team"] else g[-1]["home_team"]
+    fr = [m for m in games if m["stage_code"] == "FR"]
+    if fr:
+        pts, gd = Counter(), Counter()
+        for m in fr:
+            for t, a, b in ((m["home_team"], m["home_score"], m["away_score"]), (m["away_team"], m["away_score"], m["home_score"])):
+                pts[t] += 2 if a > b else 1 if a == b else 0
+                gd[t] += a - b
+        order = sorted(pts, key=lambda t: (-pts[t], -gd[t]))
+        return order[0], order[1] if len(order) > 1 else None
+    return None, None
+
+
+def stage_continental(out: Build, matches: list, comp: str, code: str) -> None:
+    """A continental tournament: editions are runs of games with no gap of more
+    than 120 days, named by the year most were played in (or the official
+    name, OFFICIAL_LABELS); a second edition in the same year adds its host."""
+    from datetime import date
+    games = sorted((m for m in matches if m["competition"] == comp), key=lambda m: (m["match_date"], m["match_key"]))
+    clusters, last = [], None
+    for m in games:
+        d = date.fromisoformat(m["match_date"])
+        if last is None or (d - last).days > 120:
+            clusters.append([])
+        clusters[-1].append(m)
+        last = d
+    used = set()
+    for cl in clusters:
+        year = Counter(m["match_date"][:4] for m in cl).most_common(1)[0][0]
+        label = OFFICIAL_LABELS.get((comp, year), year)
+        hosts = sorted({m["country"] for m in cl if m["country"]})
+        if label in used:
+            label = f"{label}-{slugify(hosts[0]) if hosts else 'b'}"
+        used.add(label)
+        ed = f"{code}-{label}"
+        for m in cl:
+            m["edition_key"] = ed
+        placed = apply_derived(out, ed, cl, strict=False)
+        dw, dr = derived_winner(cl)
+        hand = HAND_WINNERS.get((comp, label))
+        if hand and dw and hand[0] != dw:
+            raise ImportCheckFailed(f"{ed}: hand winner {hand[0]} but the final says {dw}")
+        teams = {t for m in cl for t in (m["home_team"], m["away_team"])}
+        if hand and not ({hand[0], hand[1]} <= teams):
+            raise ImportCheckFailed(f"{ed}: hand winner/runner-up not in the edition: {hand}")
+        winner, runner = (dw, dr) if dw else (hand or (None, None))
+        if not placed:
+            out.notes.append(f"{ed}: rounds not derived; games listed only")
+        out.editions.append({"edition_key": ed, "competition": comp, "label": label, "season_start": int(label[:4]),
+                             "teams": len(teams), "matches": len(cl), "hosts": hosts,
+                             "first_match": cl[0]["match_date"], "last_match": cl[-1]["match_date"],
+                             "stage_source": "derived" if placed else "games only",
+                             "winner": winner, "runner_up": runner})
+        add_stage_rows(out, ed, cl)
+
+
 def apply_openfootball(out: Build, ed: str, year: str, games: list, by_day_pair: dict, doc: dict, comp: str) -> None:
     played = [x for x in doc["matches"] if x.get("score") not in (None, {}, [])]
     used = set()
@@ -420,37 +490,80 @@ def winner_of(m: dict) -> str | None:
     return m["shootout_winner"] or COIN_TOSSES.get(m["match_key"])
 
 
-def apply_derived(out: Build, ed: str, games: list) -> None:
-    """Group stage = the longest run of games, from the start, that forms
-    complete round robins of four (each pair once). The rest are knockouts,
-    named by how many teams are left; a repeated tie after a draw is a replay;
-    the game between two semi-final losers is the third-place play-off."""
+def apply_derived(out: Build, ed: str, games: list, strict: bool = True) -> bool:
+    """Stages from the games alone, for editions without openfootball labels.
+
+    Group phases: the longest run of games, from the start, that forms
+    complete round robins (every pair in a group meets the same number of
+    times, once or home and away; groups of three or more). A first phase
+    that is one group of every team is a final round (a league tournament).
+    A second run of round robins is a second group stage. The rest are
+    knockouts, named by how many teams are left; a repeated tie after a draw
+    is a replay; two semi-final losers meeting is the third-place play-off;
+    games after a league tournament between the teams level at the top are a
+    play-off.
+
+    Returns True when every game got a stage. With strict=False, games that
+    cannot be placed are put in one "Games" stage (ALL) instead of failing."""
     games.sort(key=lambda m: (m["match_date"], m["match_key"]))
-    split = 0
-    for n in range(len(games), 0, -1):
-        if is_round_robins_of_four(games[:n]):
-            split = n
-            break
-    group_games, ko = games[:split], games[split:]
-    for m in ko:
+    for m in games:
         m["stage_code"] = STAGE_OVERRIDES.get(m["match_key"])
-    ko = [m for m in ko if m["stage_code"] is None]
-    if group_games:
-        comps = components(group_games)
-        for i, comp in enumerate(sorted(comps, key=lambda c: min(m["match_date"] for m in group_games
-                                                              if m["home_team"] in c))):
-            label = "ABCDEFGH"[i]
-            for m in group_games:
+        m["group_label"] = None
+    rest = [m for m in games if m["stage_code"] is None]
+    all_teams = {t for m in games for t in (m["home_team"], m["away_team"])}
+    league = False
+    for phase in range(2):
+        split = 0
+        for n in range(len(rest), 0, -1):
+            if is_round_robins(rest[:n]):
+                split = n
+                break
+        if split == 0:
+            break
+        block, rest = rest[:split], rest[split:]
+        comps = sorted(components(block), key=lambda c: min(m["match_date"] for m in block if m["home_team"] in c))
+        if phase == 0 and len(comps) == 1 and comps[0] == all_teams:
+            league = True
+            for m in block:
+                m["stage_code"] = "FR"
+            continue
+        if phase == 1 and len(comps) == 1 and not rest:
+            for m in block:  # a final group decides the edition
+                m["stage_code"] = "FR"
+            continue
+        code = "GRP" if phase == 0 else "GRP2"
+        for i, comp in enumerate(comps):
+            label = "ABCDEFGHIJKL"[i] if len(comps) > 1 else None
+            for m in block:
                 if m["home_team"] in comp:
-                    m["stage_code"], m["group_label"] = "GRP", label
+                    m["stage_code"], m["group_label"] = code, label
+    if not rest:
+        return True
+    try:
+        if league:
+            # Play-offs between the teams level at the top of a league tournament.
+            if len({t for m in rest for t in (m["home_team"], m["away_team"])}) == 2:
+                for m in rest:
+                    m["stage_code"] = "PO"
+                return True
+            raise ImportCheckFailed(f"{ed}: games after a league tournament that are not a two-team play-off")
+        name_knockouts(ed, rest)
+        return True
+    except ImportCheckFailed:
+        if strict:
+            raise
+        for m in rest:
+            m["stage_code"], m["group_label"] = "ALL", None
+        return False
+
+
+def name_knockouts(ed: str, ko: list) -> None:
     alive = {t for m in ko for t in (m["home_team"], m["away_team"])}
     sf_losers = set()
-    if not ko:
-        return
     i = 0
     while i < len(ko):
         n_teams = len(alive)
-        code = {16: "R16", 8: "QF", 4: "SF", 2: "F"}.get(n_teams)
+        code = {32: "R32", 16: "R16", 8: "QF", 4: "SF", 2: "F"}.get(n_teams)
         round_games = []
         playing = set()
         while i < len(ko) and len(round_games) < n_teams // 2:
@@ -504,11 +617,17 @@ def components(games: list) -> list[set]:
     return list(groups.values())
 
 
-def is_round_robins_of_four(games: list) -> bool:
+def is_round_robins(games: list) -> bool:
+    """Every component is a group of three or more in which every pair met
+    the same number of times (once, or home and away)."""
     pairs = Counter(pair(m["home_team"], m["away_team"]) for m in games)
-    if any(v > 1 for v in pairs.values()):
-        return False
-    return all(len(c) == 4 and sum(1 for p in pairs if p <= c) == 6 for c in components(games))
+    for c in components(games):
+        if len(c) < 3:
+            return False
+        inside = [v for p, v in pairs.items() if p <= c]
+        if len(inside) != len(c) * (len(c) - 1) // 2 or len(set(inside)) != 1 or inside[0] > 2:
+            return False
+    return True
 
 
 def add_stage_rows(out: Build, ed: str, games: list) -> None:
