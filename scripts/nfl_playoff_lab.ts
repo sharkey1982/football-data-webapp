@@ -115,7 +115,7 @@ async function main() {
         sum.wins_elo += Math.abs(e.mean_wins - wins.get(e.franchise)!);
         sum.wins_coin += Math.abs(c.mean_wins - wins.get(e.franchise)!);
         sum.wins_pace += Math.abs(pace - wins.get(e.franchise)!);
-        dPlay.push(be - bc); dDiv.push(de - dc); dLl.push(ll(e.p_playoff, y) - ll(c.p_playoff, y)); cl.push(String(season));
+        dPlay.push(be - bc); dDiv.push(de - dc); dLl.push(ll(e.p_playoff, y) - ll(c.p_playoff, y)); cl.push(`${season}-${e.franchise}`);
         out.n++;
       }
       process.stderr.write(`${season} week ${cp} done\n`);
