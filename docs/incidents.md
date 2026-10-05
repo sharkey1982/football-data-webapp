@@ -12,6 +12,14 @@ fixing something else.
 
 ---
 
+## 2026-10-05 · FanTeam: price-paste parser bugs caught before release; migration timestamp clash
+- **Impact:** none shipped. Found while building `/admin/fanteam`: (1) a club name inside a player's name ("Test ArsenalGK0", "Arsenal Tierney") was taken as the club, or the club text was cut out of the name, so players went unmatched; (2) names containing a digit were dropped; (3) a player deliberately marked "Not in FPL" still counted as unmatched and blocked the optimiser; (4) the first migration file reused timestamp `20261004230000`, already taken by a tennis migration on main.
+- **Cause:** (1) club lookup accepted any containment and token removal replaced the first substring match; (2) an over-strict "no digits" name filter; (3) the status check didn't distinguish a decision from a gap; (4) the branch was cut from a stale shallow clone.
+- **Fix:** club lookup is exact, alias, or a whole-word short form of the full name; tokens are removed only as a whole field or whole word; the name filter skips only pure numbers; manual "Not in FPL" is excluded from the unmatched count; migration renamed `20261005140000_fanteam_private.sql` and the branch rebuilt on current main.
+- **Prevention:** unit tests for each case in `src/__tests__/fanteamScoring.test.ts`; a browser check against the production build with mocked Supabase covering paste → fixes → Fresh → lineup.
+
+---
+
 ## 2026-10-05 · Tennis: 48 more players split under two spellings
 - **Impact:** 48 people (23 ATP, 25 WTA) appeared as two players each, splitting their records (e.g. "Del Potro J." and "Del Potro J.M.", "Gavrilova D." and "Saville D." after marriage, "Bogomolov Jr.A." and "Bogomolov A."). Titles, win-loss and player pages for them were understated. Found when matching players to Wikidata for phase 3: two of our players claimed the same person.
 - **Cause:** the 4 Oct alias list caught punctuation and case only; the source also drops or adds initials, uses married or shortened surnames, and the alias lookup used the exact source text, so three spacing variants of listed names slipped through.

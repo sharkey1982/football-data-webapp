@@ -234,6 +234,7 @@ export default function AppLayout() {
         // Editing tools first (Chris), then the operational views.
         { to: '/admin/team-ratings', label: 'Team Strength Admin', matchPrefix: '/admin/team-ratings' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
+        { to: '/admin/fanteam', label: 'FanTeam', matchPrefix: '/admin/fanteam' },
         { to: '/admin/ai-lab', label: 'AI Lab', matchPrefix: '/admin/ai-lab' },
         { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
