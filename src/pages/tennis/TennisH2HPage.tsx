@@ -32,7 +32,7 @@ function PlayerPicker({ label, tour, value, players, onPick, testId }: { label: 
       <input
         list={listId}
         value={text}
-        placeholder={current ? current.name : `Find a ${tour} player`}
+        placeholder={current ? current.name : `Search ${tour} players`}
         onChange={(e) => {
           setText(e.target.value);
           const hit = players.find((p) => p.name.toLowerCase() === e.target.value.trim().toLowerCase());
