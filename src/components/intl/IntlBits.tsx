@@ -85,8 +85,11 @@ export function GameRow({ m, showDate, showCompetition, team }: { m: IntlMatch; 
       {outcome && <span className={`w-5 shrink-0 font-mono text-xs font-semibold ${outcome === 'W' ? 'text-pitch-700' : outcome === 'L' ? 'text-loss-700' : 'text-ink-500'}`}>{outcome}</span>}
       <span className="min-w-[12rem] flex-1">
         <TeamLink slug={m.home_slug} name={m.home_name} bold={winner === m.home_team} />
-        <span className="font-mono tabular-nums mx-2 whitespace-nowrap">{scoreText({ ...m, shootout_name: m.shootout_winner === m.home_team ? m.home_name : m.shootout_winner === m.away_team ? m.away_name : m.shootout_winner })}</span>
+        <span className="font-mono tabular-nums mx-2 whitespace-nowrap">{scoreText({ ...m, shootout_winner: null })}</span>
         <TeamLink slug={m.away_slug} name={m.away_name} bold={winner === m.away_team} />
+        {m.shootout_winner && (
+          <span className="text-xs text-ink-500">{` (${m.shootout_winner === m.home_team ? m.home_name : m.shootout_winner === m.away_team ? m.away_name : m.shootout_winner} won on penalties)`}</span>
+        )}
         <UpsetBadge m={m} />
       </span>
       <span className="w-full sm:w-auto text-xs text-ink-500">
