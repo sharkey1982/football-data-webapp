@@ -12,6 +12,8 @@ import { renderNflFixturesPage, renderNflGamePage, renderNflPickPage, renderNflR
 import NflGamePage from '../pages/nfl/NflGamePage';
 import NflRoadTripsPage from '../pages/nfl/NflRoadTripsPage';
 import NflPickMyTeamPage from '../pages/nfl/NflPickMyTeamPage';
+import NflPlayersPage from '../pages/nfl/NflPlayersPage';
+import * as fantasyApi from '../lib/nflFantasyApi';
 import { STADIUMS, buildPicker, buildRoadTrips, lateUk, milesBetween, pickReasons, rankTeams, type PickerTeam } from '../lib/nflPlaces';
 import { favouriteCoverProb, likeliestMargins, marginBuckets, marginDistribution } from '../lib/nflMargin';
 import { buildGamePreview, formOf, gameSentence, headToHead, headToHeadSentence, marginLabel, seasonSoFar } from '../lib/nflGame';
@@ -27,7 +29,7 @@ vi.mock('../lib/nflApi', async () => {
 });
 vi.mock('../lib/nflFantasyApi', async () => {
   const actual = await vi.importActual<typeof import('../lib/nflFantasyApi')>('../lib/nflFantasyApi');
-  return { ...actual, loadTeamFantasyLeaders: vi.fn().mockResolvedValue([]) };
+  return { ...actual, loadTeamFantasyLeaders: vi.fn().mockResolvedValue([]), loadPlayerScout: vi.fn() };
 });
 vi.mock('../lib/commercialLinks', async () => {
   const actual = await vi.importActual<typeof import('../lib/commercialLinks')>('../lib/commercialLinks');
@@ -648,5 +650,29 @@ describe('NFL Road Trips and Pick My Team', () => {
     for (const label of ['Winners', 'Early evening, UK time', 'Yes', 'Sunshine or a roof']) fireEvent.click(screen.getByRole('button', { name: label }));
     expect(screen.getByTestId('nfl-pick-result').textContent).toContain('JAX');
     expect(renderNflPickPage(picker).html).toContain('Pick My Team');
+  });
+});
+
+describe('NFL Player Scout club filter', () => {
+  const row = (id: string, name: string, slug: string, short: string, ppr: number) => ({
+    player_id: id, player_slug: id, player_name: name, position: 'WR', season: 2025, team: short, team_slug: slug, team_short: short, games: 17,
+    completions: 0, attempts: 0, passing_yards: 0, passing_tds: 0, interceptions: 0, carries: 0, rushing_yards: 0, rushing_tds: 0,
+    receptions: 0, targets: 0, receiving_yards: 0, receiving_tds: 0, fumbles_lost: 0, target_share: null, fg_made: 0, fg_att: 0, pat_made: 0,
+    pts_std: ppr, pts_half: ppr, pts_ppr: ppr, ppg_std: ppr / 17, ppg_half: ppr / 17, ppg_ppr: ppr / 17,
+    last3_ppg_std: null, last3_ppg_half: null, last3_ppg_ppr: null, sd_ppr: null, best_ppr: null, last_week: 18,
+  });
+  it('filters by club from the URL and the dropdown, and the summary names the club', async () => {
+    (fantasyApi as unknown as Record<string, ReturnType<typeof vi.fn>>).loadPlayerScout.mockResolvedValue({
+      season: 2025, seasons: [2025],
+      rows: [row('a', 'Bear One', 'chicago-bears', 'Bears', 200), row('b', 'Lion One', 'detroit-lions', 'Lions', 250), row('c', 'Bear Two', 'chicago-bears', 'Bears', 100)],
+    });
+    render(<MemoryRouter initialEntries={['/nfl/players?team=chicago-bears']}><Routes><Route path="/nfl/players" element={<NflPlayersPage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(screen.getAllByTestId('nfl-scout-row')).toHaveLength(2));
+    expect(screen.getByTestId('nfl-scout-summary').textContent).toMatch(/^2 Bears players/);
+    const select = screen.getByTestId('nfl-scout-club') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(['All clubs', 'Bears', 'Lions']);
+    fireEvent.change(select, { target: { value: '' } });
+    await waitFor(() => expect(screen.getAllByTestId('nfl-scout-row')).toHaveLength(3));
+    expect(screen.getAllByTestId('nfl-scout-row')[0].textContent).toContain('Lion One');
   });
 });

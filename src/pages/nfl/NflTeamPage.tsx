@@ -16,6 +16,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import {
   NFL_HUB_PATH,
+  NFL_PLAYERS_PATH,
   NFL_TEAMS_PATH,
   byeWeeks,
   nflGamePath,
@@ -41,7 +42,7 @@ import { nflTeamChance, resultFlag, vsExpectedText, winsVsExpected } from '../..
 import { againstSpread, teamSeasonStory } from '../../lib/nflStory';
 import { loadTeamFantasyLeaders, type NflPlayerSeason } from '../../lib/nflFantasyApi';
 
-function FantasyLeaders({ franchise, season }: { franchise: string; season: number }) {
+function FantasyLeaders({ franchise, season, slug }: { franchise: string; season: number; slug: string }) {
   const { data } = useKeyedFetch(`${franchise}:${season}`, () => loadTeamFantasyLeaders(franchise, season));
   if (!data || data.length === 0) return null;
   return (
@@ -73,6 +74,9 @@ function FantasyLeaders({ franchise, season }: { franchise: string; season: numb
           </tbody>
         </table>
       </div>
+      <p className="text-sm mt-2">
+        <Link to={`${NFL_PLAYERS_PATH}?team=${slug}&season=${season}`} className="text-pitch-800 underline underline-offset-2" data-testid="nfl-team-scout-link">All their players in Player Scout &rarr;</Link>
+      </p>
     </section>
   );
 }
@@ -208,7 +212,7 @@ export default function NflTeamPage({ initialData }: { initialData?: NflTeamData
             </p>
           </section>
 
-          <FantasyLeaders franchise={data.team.franchise} season={data.season} />
+          <FantasyLeaders franchise={data.team.franchise} season={data.season} slug={data.team.slug} />
 
           <section aria-labelledby="history-heading">
             <h2 id="history-heading" className="font-display uppercase tracking-wide text-lg text-ink-900">Every season since 2002</h2>

@@ -4,8 +4,9 @@
 // /nfl/players -- "Player Scout", as in Fantasy: every QB, RB, WR, TE and
 // kicker in a season, with fantasy points in PPR, half-PPR or standard
 // scoring, points per game, the last three games, and the usage numbers that
-// drive points at each position. Sortable; ?season=&pos=&fmt= keep the view
-// shareable. Client-rendered (head tags at build).
+// drive points at each position. Sortable; ?season=&pos=&fmt=&team= keep the
+// view shareable. The club filter mirrors Fantasy Football's Player Scout (a
+// dropdown: 32 teams are too many for buttons). Client-rendered (head tags at build).
 // ============================================================================
 
 import { useMemo, useState } from 'react';
@@ -84,12 +85,19 @@ export default function NflPlayersPage() {
   const pos = (FANTASY_POSITIONS as readonly string[]).includes(posParam) ? posParam : 'ALL';
   const fmtParam = params.get('fmt') as ScoringFormat | null;
   const fmt: ScoringFormat = fmtParam && FORMATS.some((f) => f.key === fmtParam) ? fmtParam : 'ppr';
+  const teamParam = params.get('team');
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: 'pts', desc: true });
   const [query, setQuery] = useState('');
   const [shown, setShown] = useState(PAGE);
 
   const { data, failed, loading } = useKeyedFetch(String(season ?? 'latest'), () => loadPlayerScout(season));
   const fmtLabel = FORMATS.find((f) => f.key === fmt)!.label;
+  const teams = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of data?.rows ?? []) if (r.team_slug) m.set(r.team_slug, r.team_short);
+    return [...m].map(([slug, name]) => ({ slug, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [data]);
+  const team = teams.find((t) => t.slug === teamParam) ?? null;
 
   useDocumentHead({
     title: 'NFL Player Scout: fantasy points and stats for every player',
@@ -119,18 +127,19 @@ export default function NflPlayersPage() {
   const rows = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
-    const filtered = data.rows.filter((r) => (pos === 'ALL' || fantasyPosition(r.position) === pos) && (!q || r.player_name.toLowerCase().includes(q)));
+    const filtered = data.rows.filter((r) => (pos === 'ALL' || fantasyPosition(r.position) === pos) && (!team || r.team_slug === team.slug) && (!q || r.player_name.toLowerCase().includes(q)));
     const col = cols.find((c) => c.key === sort.key) ?? cols[1];
     return [...filtered].sort((a, b) => {
       const v = (col.value(a) ?? -Infinity) - (col.value(b) ?? -Infinity);
       return (sort.desc ? -v : v) || pts(b, fmt) - pts(a, fmt);
     });
-  }, [data, pos, query, cols, sort, fmt]);
+  }, [data, pos, team, query, cols, sort, fmt]);
 
   const th = (c: Col) => (
     <th key={c.key} scope="col" className={`text-right font-medium text-xs px-2 py-2 ${c.hideSm ? 'hidden sm:table-cell' : ''}`} aria-sort={sort.key === c.key ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
       <button type="button" className="hover:underline" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : true }))}>
         {c.label}
+        {sort.key === c.key && <span aria-hidden="true">{sort.desc ? ' \u2193' : ' \u2191'}</span>}
       </button>
     </th>
   );
@@ -160,6 +169,13 @@ export default function NflPlayersPage() {
                 {[...data.seasons].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-ink-500">Club</span>
+              <select className="border border-chalk-300 rounded px-2 py-1 bg-white" value={team?.slug ?? ''} onChange={(e) => set('team', e.target.value || null)} data-testid="nfl-scout-club">
+                <option value="">All clubs</option>
+                {teams.map((t) => <option key={t.slug} value={t.slug}>{t.name}</option>)}
+              </select>
+            </label>
             <div role="group" aria-label="Position" className="inline-flex border border-chalk-300 rounded overflow-hidden">
               {['ALL', ...FANTASY_POSITIONS].map((p) => (
                 <button key={p} type="button" aria-pressed={pos === p} onClick={() => set('pos', p === 'ALL' ? null : p)} className={`px-2.5 py-1 ${pos === p ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700'}`}>
@@ -182,7 +198,7 @@ export default function NflPlayersPage() {
 
           <p className="text-sm text-ink-700" data-testid="nfl-scout-summary">
             {rows.length > 0
-              ? `${rows.length} players, ${data.season} regular season, ${fmtLabel} scoring. Top: ${rows[0].player_name} (${rows[0].team_short}), ${fmt1(pts(rows[0], fmt))} points in ${rows[0].games} games.`
+              ? `${rows.length} ${team ? `${team.name} ` : ''}players, ${data.season} regular season, ${fmtLabel} scoring. Top: ${rows[0].player_name} (${rows[0].team_short}), ${fmt1(pts(rows[0], fmt))} points in ${rows[0].games} games.`
               : 'No players match.'}
           </p>
 
