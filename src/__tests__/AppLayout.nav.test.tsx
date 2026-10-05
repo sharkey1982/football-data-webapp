@@ -50,10 +50,10 @@ describe('AppLayout main nav', () => {
     mockedAuth.useAuthOptional.mockReturnValue({ isAdmin: true });
   });
 
-  it('shows four top-level headings: Football, Fantasy, Admin -- no standalone items alongside them', () => {
+  it('shows the top-level headings Club, FPL and Admin -- no standalone items alongside them', () => {
     renderAt('/');
-    expect(screen.getByRole('button', { name: /Football/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Fantasy/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Club/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^FPL/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Admin/ })).toBeInTheDocument();
     // Old flat top-level items should not exist as their own top-level buttons any more.
     expect(screen.queryByRole('button', { name: /^League Table$/ })).not.toBeInTheDocument();
@@ -63,7 +63,7 @@ describe('AppLayout main nav', () => {
   it('The Boardroom lives under Football > Discover, not as its own top-level menu', async () => {
     renderAt('/');
     expect(screen.queryByRole('button', { name: /The Boardroom/ })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: /Football/ }));
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Club/ }));
     expect(await screen.findByRole('link', { name: 'The Boardroom' })).toHaveAttribute('href', '/finance');
     expect(screen.getByRole('link', { name: 'Compare Club Finances' })).toHaveAttribute('href', '/finance/compare');
   });
@@ -85,7 +85,7 @@ describe('AppLayout main nav', () => {
   it('Fantasy dropdown contains Optimiser, Fixture Heat Map, and Match Projections', async () => {
     renderAt('/');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+    await user.click(screen.getByRole('button', { name: /^FPL/ }));
     expect(screen.getByRole('link', { name: 'Optimiser' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Fixture Heat Map' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Match Projections' })).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe('AppLayout main nav', () => {
   it('highlights Optimiser, not Match Projections, when on /fpl/optimal-squad', async () => {
     renderAt('/fpl/optimal-squad');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+    await user.click(screen.getByRole('button', { name: /^FPL/ }));
 
     const optimalSquadLink = screen.getByRole('link', { name: 'Optimiser' });
     const matchProjectionsLink = screen.getByRole('link', { name: 'Match Projections' });
@@ -105,7 +105,7 @@ describe('AppLayout main nav', () => {
   it('highlights Match Projections, not Optimiser, when on /fpl itself', async () => {
     renderAt('/fpl');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+    await user.click(screen.getByRole('button', { name: /^FPL/ }));
 
     const optimalSquadLink = screen.getByRole('link', { name: 'Optimiser' });
     const matchProjectionsLink = screen.getByRole('link', { name: 'Match Projections' });
@@ -113,15 +113,15 @@ describe('AppLayout main nav', () => {
     expect(optimalSquadLink.className).not.toContain('bg-amber-500');
   });
 
-  it('highlights the Football heading when on the Fixtures route (not the new landing page at /, which is outside every nav group)', () => {
+  it('highlights the Club heading when on the Fixtures route (not the new landing page at /, which is outside every nav group)', () => {
     renderAt('/fixtures');
-    expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /^Club/ }).className).toContain('bg-amber-500');
   });
 
   it('highlights no nav group on the new landing page at / -- it is deliberately outside all four groups', () => {
     renderAt('/');
-    expect(screen.getByRole('button', { name: /Football/ }).className).not.toContain('bg-amber-500');
-    expect(screen.getByRole('button', { name: /Fantasy/ }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /^Club/ }).className).not.toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /^FPL/ }).className).not.toContain('bg-amber-500');
     expect(screen.getByRole('button', { name: /^Admin/ }).className).not.toContain('bg-amber-500');
 
   });
@@ -129,18 +129,18 @@ describe('AppLayout main nav', () => {
   it('Football dropdown contains Team Strength (public view), and visiting it highlights Football', async () => {
     renderAt('/team-strength');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Football/ }));
+    await user.click(screen.getByRole('button', { name: /^Club/ }));
 
     expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
     expect(screen.getByRole('link', { name: 'Team Strength' }).className).toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'League Table' }).className).not.toContain('bg-amber-500');
-    expect(screen.getByRole('button', { name: /Football/ }).className).toContain('bg-amber-500');
+    expect(screen.getByRole('button', { name: /^Club/ }).className).toContain('bg-amber-500');
   });
 
   it('Fantasy dropdown also contains Player Projections, distinct from Match Projections and Optimiser', async () => {
     renderAt('/');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+    await user.click(screen.getByRole('button', { name: /^FPL/ }));
     expect(screen.getByRole('link', { name: 'Player Projections' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Match Projections' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Optimiser' })).toBeInTheDocument();
@@ -149,7 +149,7 @@ describe('AppLayout main nav', () => {
   it('highlights only Player Projections, not Match Projections or Optimiser, when on /fpl/player-points', async () => {
     renderAt('/fpl/player-points');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Fantasy/ }));
+    await user.click(screen.getByRole('button', { name: /^FPL/ }));
 
     expect(screen.getByRole('link', { name: 'Player Projections' }).className).toContain('bg-amber-500');
     expect(screen.getByRole('link', { name: 'Match Projections' }).className).not.toContain('bg-amber-500');
@@ -159,7 +159,7 @@ describe('AppLayout main nav', () => {
   it('groups the Football menu into Discover and Predict', async () => {
     renderAt('/fixtures');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Football/ }));
+    await user.click(screen.getByRole('button', { name: /^Club/ }));
 
     for (const stage of ['Discover', 'Predict']) {
       expect(screen.getByText(stage)).toBeInTheDocument();
@@ -176,7 +176,7 @@ describe('AppLayout main nav', () => {
   it('keeps Team Strength public under Predict while its editing lives in Admin', async () => {
     renderAt('/fixtures');
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Football/ }));
+    await user.click(screen.getByRole('button', { name: /^Club/ }));
     expect(screen.getByRole('link', { name: 'Team Strength' })).toHaveAttribute('href', '/team-strength');
 
     await user.click(screen.getByRole('button', { name: /^Admin/ }));
@@ -217,8 +217,8 @@ describe('AppLayout main nav', () => {
     renderAt('/');
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
     // The public groups are untouched.
-    expect(screen.getAllByText('Football').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Fantasy').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Club').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('FPL').length).toBeGreaterThan(0);
   });
 
   it('always leaves a way in to sign in, even with the Admin menu hidden', async () => {
