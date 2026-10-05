@@ -125,6 +125,8 @@ export const NFL_TEAMS_PATH = '/nfl/teams';
 export const NFL_SEASONS_PATH = '/nfl/seasons';
 export const NFL_PLAYERS_PATH = '/nfl/players';
 export const NFL_PROJECTIONS_PATH = '/nfl/player-projections';
+export const NFL_MATCH_PROJECTIONS_PATH = '/nfl/match-projections';
+export const nflMatchProjectionPath = (gameId: string): string => `${NFL_MATCH_PROJECTIONS_PATH}/${gameId}`;
 export const NFL_HEAT_MAP_PATH = '/nfl/fixture-heat-map';
 export const NFL_SCORING_PATH = '/nfl/scoring-rules';
 export const NFL_ROAD_TRIPS_PATH = '/nfl/road-trips';

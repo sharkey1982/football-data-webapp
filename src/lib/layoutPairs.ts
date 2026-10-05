@@ -116,6 +116,15 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     note: 'Same job (every player\'s projected points, sortable) and the same name; FPL spans a gameweek range, NFL is the next game, so the bodies differ. The NFL table is one component (NflProjectionTable) shared with the NFL game page team tabs.',
   },
   {
+    label: 'Match Projections',
+    nflPath: '/nfl/match-projections',
+    footballFile: 'src/pages/fpl/GameweekPage.tsx',
+    nflFile: 'src/pages/nfl/NflMatchProjectionsPage.tsx',
+    shared: [],
+    status: 'separate',
+    note: 'Same job (each fixture as a projected match-up) and name. NFL shows one game at a time with team inputs and line-ups side by side; FPL shows a gameweek of fixtures.',
+  },
+  {
     label: 'Player Scout',
     nflPath: '/nfl/players',
     footballFile: 'src/pages/fpl/PlayerScoutPage.tsx',
