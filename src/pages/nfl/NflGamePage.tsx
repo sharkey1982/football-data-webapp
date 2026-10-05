@@ -23,6 +23,7 @@ import { getActivePartners } from '../../lib/commercialLinks';
 import {
   NFL_HUB_PATH,
   NFL_PROJECTIONS_PATH,
+  nflMatchProjectionPath,
   NFL_TV_PATH,
   favourLabel,
   lineLabel,
@@ -446,7 +447,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
               <h2 className={cardHeading}>Fantasy projections</h2>
               <NflProjectionTable compact fmt="ppr" rows={(projections ?? []).filter((r) => r.team_slug === (side === 'home' ? game.home_slug : game.away_slug)).slice(0, 10)} />
               <p className="text-xs text-ink-500 mt-1">
-                PPR points, assuming he plays. <Link to={`${NFL_PROJECTIONS_PATH}?team=${side === 'home' ? game.home_slug : game.away_slug}`} className="text-pitch-800 underline underline-offset-2">All formats and how they&rsquo;re made</Link>
+                PPR points, assuming he plays. <Link to={nflMatchProjectionPath(game.game_id)} className="text-pitch-800 underline underline-offset-2">Fantasy match-up</Link> &middot; <Link to={`${NFL_PROJECTIONS_PATH}?team=${side === 'home' ? game.home_slug : game.away_slug}`} className="text-pitch-800 underline underline-offset-2">All formats and how they&rsquo;re made</Link>
               </p>
             </div>
           )}

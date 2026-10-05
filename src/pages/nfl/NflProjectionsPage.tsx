@@ -13,7 +13,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { NFL_HUB_PATH, NFL_PLAYERS_PATH, NFL_PROJECTIONS_PATH, NFL_SCORING_PATH, ukKickoff } from '../../lib/nflApi';
+import { NFL_HUB_PATH, NFL_MATCH_PROJECTIONS_PATH, NFL_PLAYERS_PATH, NFL_PROJECTIONS_PATH, NFL_SCORING_PATH, ukKickoff } from '../../lib/nflApi';
 import { FANTASY_POSITIONS, FORMATS, fantasyPosition, fmt1, type ScoringFormat } from '../../lib/nflFantasyApi';
 import { NP1_RESULT, isUnlikely, loadProjections, projOf, projectionSentence } from '../../lib/nflProjections';
 import NflProjectionTable from '../../components/nfl/NflProjectionTable';
@@ -77,7 +77,7 @@ export default function NflProjectionsPage() {
         <p className="text-ink-700 mt-2 max-w-prose">
           Projected fantasy points for each player&rsquo;s next game: his recent scoring, how many points the betting market expects his team to score, and how much the opponent gives up to his position.
           Every projection assumes he plays; injury reports appear from Wednesday.{' '}
-          <Link to={NFL_SCORING_PATH} className="text-pitch-800 underline underline-offset-2">How points are scored</Link>.
+          <Link to={NFL_SCORING_PATH} className="text-pitch-800 underline underline-offset-2">How points are scored</Link>. Game by game, side by side: <Link to={NFL_MATCH_PROJECTIONS_PATH} className="text-pitch-800 underline underline-offset-2">Match Projections</Link>.
         </p>
       </header>
 

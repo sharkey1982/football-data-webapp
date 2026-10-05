@@ -213,6 +213,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           'Projected fantasy points for every player\u2019s next game \u2014 recent scoring, the betting market\u2019s view of his team and the opponent \u2014 with how well the projections test, and which defences give up the most to each position.',
         links: [
           { label: 'Player Projections', to: '/nfl/player-projections', blurb: 'Every player\u2019s projected points for his next game, with the range, matchup and injury news.' },
+          { label: 'Match Projections', to: '/nfl/match-projections', blurb: 'Each game as a fantasy match-up: the teams\u2019 inputs and key players side by side.', matchPrefix: ['/nfl/match-projections'] },
           { label: 'Fixture Heat Map', to: '/nfl/fixture-heat-map', blurb: 'Which defences give up the most fantasy points to each position, and who faces them next.' },
         ],
       },
