@@ -16,6 +16,13 @@
 #
 # If a file was already run by hand in the SQL Editor, run this workflow on
 # demand with that file and mark_only = true to record it without running it.
+# On demand, `file` takes several names (comma or space separated) so they go
+# in ONE run: queued runs in the same concurrency group replace each other.
+#
+# Rule for Claude sessions (CLAUDE.md): never write to the database through
+# the Supabase connector. A file applied by the connector AND committed is
+# run again here and fails (5 Oct: a duplicate lab registration stopped the
+# conclusion after it).
 #
 # Needs one secret, SUPABASE_DB_URL: the SESSION POOLER connection string
 # (Supabase dashboard -> Connect -> Session pooler) with the password filled
@@ -30,7 +37,7 @@ on:
   workflow_dispatch:
     inputs:
       file:
-        description: 'Migration file name, e.g. 20261005130000_intl_phase1.sql'
+        description: 'Migration file name(s), comma or space separated, e.g. 20261005130000_intl_phase1.sql'
         required: true
       mark_only:
         description: 'Record it as applied without running it (it was run by hand)'
@@ -89,7 +96,7 @@ jobs:
             revoke all on public.repo_migrations from anon, authenticated;"
 
           if [ "$EVENT" = "workflow_dispatch" ]; then
-            files="$FILE"
+            files=$(printf '%s' "$FILE" | tr ',' ' ')
           elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             files=$(git diff-tree --no-commit-id --name-only --diff-filter=A -r "$SHA" -- 'supabase/migrations/*.sql' | xargs -r -n1 basename)
           else
@@ -110,7 +117,10 @@ jobs:
               continue
             fi
             echo "Applying $f"
-            "${PSQL[@]}" --single-transaction -c "set statement_timeout = '10min'" -f "$path"
+            if ! "${PSQL[@]}" --single-transaction -c "set statement_timeout = '10min'" -f "$path"; then
+              echo "::error title=Migration failed: $f::Nothing in $f was applied (one transaction) and later files were not tried. If it was already run another way (SQL Editor or the Supabase connector), record it: run this workflow on demand with file=$f and mark_only=true, then re-run for the rest."
+              exit 1
+            fi
             "${PSQL[@]}" -c "insert into public.repo_migrations (filename, commit_sha, how) values ('$f', '$SHA', 'workflow')"
             echo "Applied: $f"
           done
