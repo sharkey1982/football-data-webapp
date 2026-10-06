@@ -347,6 +347,16 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     note: 'The same Timelapse bar race as the league table’s points race, over Elo ratings since 1872; plus world number ones and the biggest upsets.',
   },
   {
+    sport: 'international',
+    label: 'Women’s internationals',
+    path: '/international/women',
+    footballFile: null,
+    file: 'src/pages/international/IntlWomenHub.tsx',
+    shared: [],
+    status: 'sport-only',
+    note: 'The women’s side (Oct 2026): a short list of the same five pages under /international/women/..., which reuse the men’s pages with the women’s data (IntlGenderScope); every page has a Men | Women switch.',
+  },
+  {
     sport: 'tennis',
     label: 'Head to head',
     path: '/tennis/head-to-head',

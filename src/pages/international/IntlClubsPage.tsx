@@ -18,7 +18,7 @@ import { ChipGroup, IntlHeader, Section, TeamLink } from '../../components/intl/
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_CLUBS_PATH, loadIntlClubs } from '../../lib/intlApi';
-import { CONFEDERATIONS, type ClubCallup, type ClubEloRow, type LeagueExport, type SquadClubStrength } from '../../lib/intlStats';
+import { CONFEDERATIONS, type ClubCallup, type ClubEloRow, type LeagueExport, type SquadClubStrength, sideTitle, INTL_GENDER } from '../../lib/intlStats';
 
 const clubLink = (name: string, slug: string | null) => (slug ? <Link to={`/football/teams/${slug}`} className="hover:underline">{name}</Link> : <>{name}</>);
 
@@ -56,7 +56,7 @@ export default function IntlClubsPage() {
   const { data, failed, loading } = useKeyedFetch('intl-clubs', () => loadIntlClubs());
   const [conf, setConf] = useState('');
   useDocumentHead({
-    title: 'Where the internationals play: club call-ups for every national squad',
+    title: sideTitle('Where the internationals play: club call-ups for every national squad'),
     description: 'Which clubs and leagues supply the most players to national teams this window, how many of each squad play abroad, and how strong their clubs are.',
     path: INTL_CLUBS_PATH,
   });
@@ -77,13 +77,15 @@ export default function IntlClubsPage() {
     { key: 'n', label: 'Nations', render: (l) => l.nations, sortValue: (l) => l.nations, align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
     { key: 'k', label: 'Clubs', render: (l) => l.clubs, sortValue: (l) => l.clubs, align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
   ];
-  const strengthCols: Column<SquadClubStrength>[] = [
+  // Women's squads aren't matched to ClubElo (a men's rating), so no strength columns.
+  const women = INTL_GENDER === 'women';
+  const strengthCols: Column<SquadClubStrength>[] = ([
     { key: 't', label: 'Nation', render: (s) => <TeamLink slug={s.slug} name={s.team} />, sortValue: (s) => s.team },
     { key: 'e', label: 'Avg club Elo', render: (s) => (s.avg_club_elo != null && s.rated >= Math.max(3, s.players / 2) ? Math.round(s.avg_club_elo) : '–'), sortValue: (s) => (s.rated >= Math.max(3, s.players / 2) ? s.avg_club_elo : null), align: 'right', descFirst: true },
     { key: 'r', label: 'Rated', render: (s) => `${s.rated}/${s.players}`, sortValue: (s) => s.rated / Math.max(1, s.players), align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
     { key: 'a', label: 'Abroad', render: (s) => `${s.abroad} (${Math.round((100 * s.abroad) / Math.max(1, s.players))}%)`, sortValue: (s) => s.abroad / Math.max(1, s.players), align: 'right', descFirst: true },
     { key: 'l', label: 'Leagues', render: (s) => s.league_countries, sortValue: (s) => s.league_countries, align: 'right', descFirst: true, className: 'hidden md:table-cell' },
-  ];
+  ] as Column<SquadClubStrength>[]).filter((c) => !women || (c.key !== 'e' && c.key !== 'r'));
   const eloCols: Column<ClubEloRow>[] = [
     { key: 'r', label: 'Rank', render: (c) => c.rank, sortValue: (c) => c.rank, align: 'right' },
     { key: 'c', label: 'Club', render: (c) => clubLink(c.club, c.club_slug), sortValue: (c) => c.club },
@@ -114,13 +116,13 @@ export default function IntlClubsPage() {
             <SortableTable columns={leagueCols} rows={data.leagues} rowKey={(l) => l.league_country} initialSort={{ key: 'p', dir: 'desc' }} caption="Internationals by league country" testId="intl-clubs-leagues" />
           </Section>
 
-          <Section title="Squads: abroad and club strength" id="intl-clubs-strength">
+          <Section title={women ? 'Squads: abroad' : 'Squads: abroad and club strength'} id="intl-clubs-strength">
             <ChipGroup options={[{ key: '', label: 'All' }, ...CONFEDERATIONS.map((c) => ({ key: c, label: c }))]} value={conf} onChange={setConf} label="Confederation" testId="intl-clubs-conf" />
-            <SortableTable columns={strengthCols} rows={strength} rowKey={(s) => s.team} initialSort={{ key: 'e', dir: 'desc' }} caption="National squads by club strength" testId="intl-clubs-strength" />
-            <p className="text-xs text-ink-500">Average club Elo: the mean ClubElo rating of squad players’ clubs, shown when at least half the squad’s clubs are rated. ClubElo rates mainly European clubs, so squads based in the Americas, Asia and Africa show “–”.</p>
+            <SortableTable columns={strengthCols} rows={strength} rowKey={(s) => s.team} initialSort={{ key: women ? 'a' : 'e', dir: 'desc' }} caption={women ? 'National squads by players abroad' : 'National squads by club strength'} testId="intl-clubs-strength" />
+            {!women && <p className="text-xs text-ink-500">Average club Elo: the mean ClubElo rating of squad players’ clubs, shown when at least half the squad’s clubs are rated. ClubElo rates mainly European clubs, so squads based in the Americas, Asia and Africa show “–”.</p>}
           </Section>
 
-          {data.elo.length > 0 && (
+          {!women && data.elo.length > 0 && (
             <Section title="Top clubs by ClubElo" id="intl-clubs-elo">
               <SortableTable columns={eloCols} rows={data.elo.slice(0, 50)} rowKey={(c) => c.club} initialSort={{ key: 'r', dir: 'asc' }} caption="ClubElo top 50" testId="intl-clubs-elo" />
               <p className="text-xs text-ink-500">{`Ratings from ClubElo (clubelo.com), the Elo method applied to club football, mainly European; as of ${data.elo[0].fetched_on}. Internationals: players in current national squads.`}</p>

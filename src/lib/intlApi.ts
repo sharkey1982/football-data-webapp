@@ -9,8 +9,11 @@
 // ============================================================================
 
 import { supabase } from './supabase';
-import { parseIntlMatchSlug } from './intlMatch';
+import { parseIntlMatchSlug, setMatchBase } from './intlMatch';
 import {
+  INTL_GENDER,
+  setGenderStats,
+  type IntlGender,
   TOURNAMENTS,
   type CompetitionTotal,
   type EditionSummary,
@@ -34,11 +37,30 @@ import {
   type TournamentSlug,
 } from './intlStats';
 
-export const INTL_HUB_PATH = '/international';
-export const INTL_DISCOVER_PATH = '/international/discover';
-export const INTL_FIXTURES_PATH = '/international/fixtures';
-export const INTL_TEAMS_PATH = '/international/teams';
-export const INTL_TOURNAMENTS_PATH = '/international/tournaments';
+export let INTL_HUB_PATH = '/international';
+/** '/international' or '/international/women': the base of every path below. */
+export let INTL_BASE = '/international';
+export let INTL_DISCOVER_PATH = '/international/discover';
+export let INTL_FIXTURES_PATH = '/international/fixtures';
+export let INTL_TEAMS_PATH = '/international/teams';
+export let INTL_TOURNAMENTS_PATH = '/international/tournaments';
+
+/** Switch every International loader and path between the men's (intl_* views,
+ * /international/...) and women's (intlw_* views, /international/women/...)
+ * game. Called by the route wrapper before its page renders (IntlGenderScope). */
+export function setIntlGender(g: IntlGender): void {
+  if (g === INTL_GENDER && INTL_BASE === (g === 'women' ? '/international/women' : '/international')) return;
+  setGenderStats(g);
+  INTL_BASE = g === 'women' ? '/international/women' : '/international';
+  INTL_HUB_PATH = INTL_BASE;
+  INTL_DISCOVER_PATH = g === 'women' ? INTL_BASE : '/international/discover';
+  INTL_FIXTURES_PATH = `${INTL_BASE}/fixtures`;
+  INTL_TEAMS_PATH = `${INTL_BASE}/teams`;
+  INTL_TOURNAMENTS_PATH = `${INTL_BASE}/tournaments`;
+  INTL_HISTORY_PATH = `${INTL_BASE}/history`;
+  INTL_CLUBS_PATH = `${INTL_BASE}/clubs`;
+  setMatchBase(`${INTL_BASE}/matches`);
+}
 
 export const intlTeamPath = (slug: string) => `${INTL_TEAMS_PATH}/${slug}`;
 export const intlTournamentPath = (slug: TournamentSlug | string) => `${INTL_TOURNAMENTS_PATH}/${slug}`;
@@ -110,7 +132,7 @@ type ViewName =
   | 'intl_model_info';
 /** The intl views aren't in the generated database types; a loose query shape keeps the calls readable. */
 export const intlView = (view: ViewName, columns: string): Query =>
-  (supabase.from(view as never) as unknown as { select(columns: string): Query }).select(columns);
+  (supabase.from((INTL_GENDER === 'women' ? view.replace(/^intl_/, 'intlw_') : view) as never) as unknown as { select(columns: string): Query }).select(columns);
 
 async function rows<T>(q: Query): Promise<T[]> {
   const { data, error } = await q;
@@ -258,7 +280,7 @@ export async function loadIntlEdition(slug: string, label: string): Promise<Intl
 
 // ---- History: the Elo race, titles and upsets --------------------------------------
 
-export const INTL_HISTORY_PATH = '/international/history';
+export let INTL_HISTORY_PATH = '/international/history';
 
 export type YearElo = { team: string; slug: string; name: string; confederation: string | null; year: number; elo: number; rank: number };
 export type IntlUpset = IntlMatch & { expectation: number };
@@ -278,7 +300,7 @@ export async function loadIntlHistory(): Promise<IntlHistoryData> {
 
 // ---- Club call-ups: where the internationals play ------------------------------------
 
-export const INTL_CLUBS_PATH = '/international/clubs';
+export let INTL_CLUBS_PATH = '/international/clubs';
 
 export type IntlClubsData = { clubs: ClubCallup[]; leagues: LeagueExport[]; strength: SquadClubStrength[]; elo: ClubEloRow[] };
 

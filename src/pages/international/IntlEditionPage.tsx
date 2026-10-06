@@ -18,7 +18,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { intlEditionHead } from '../../lib/intlSeo';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlEditionPath, intlTournamentPath, loadIntlEdition, type IntlEditionData } from '../../lib/intlApi';
-import { DATA_NOTE, bracketRounds, editionLabel, groupTable, isReported, isUpset, pointsForWin, reportedAsMatch, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow } from '../../lib/intlStats';
+import { DATA_NOTE, bracketRounds, editionLabel, groupTable, isReported, isUpset, pointsForWin, reportedAsMatch, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow, sideTitle } from '../../lib/intlStats';
 
 function GroupTable({ label, rows, testId }: { label: string; rows: TableRow[]; testId?: string }) {
   return (
@@ -143,7 +143,7 @@ export default function IntlEditionPage({ initialData }: { initialData?: IntlEdi
 
   const head = e && t ? intlEditionHead(t, e, final ? scoreText(final) : null) : null;
   useDocumentHead({
-    title: head?.title ?? 'International tournament',
+    title: sideTitle(head?.title ?? 'International tournament'),
     description: head?.description ?? 'An international tournament: groups, knockouts and scorers.',
     path: intlEditionPath(competition, label),
   });

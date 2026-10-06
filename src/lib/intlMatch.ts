@@ -8,7 +8,10 @@
 // expected beforehand and any fixture can show a prediction.
 // ============================================================================
 
-export const INTL_MATCHES_PATH = '/international/matches';
+export let INTL_MATCHES_PATH = '/international/matches';
+export function setMatchBase(path: string): void {
+  INTL_MATCHES_PATH = path;
+}
 
 /** "2026-11-14-england-v-spain": date (UK) and both slugs. */
 export const intlMatchSlug = (date: string, homeSlug: string, awaySlug: string) => `${date}-${homeSlug}-v-${awaySlug}`;

@@ -17,7 +17,7 @@ import NationPicker from '../../components/intl/NationPicker';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_FIXTURES_PATH, intlFixturesPath, intlTeamPath, loadIntlFixtures, loadIntlTeamGames, loadIntlTeams } from '../../lib/intlApi';
-import { COMPETITION_FILTERS, DATA_NOTE, matchesFilter, type CompetitionFilter, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
+import { COMPETITION_FILTERS, DATA_NOTE, matchesFilter, type CompetitionFilter, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch, sideTitle, sideWord, sinceYear, INTL_GENDER } from '../../lib/intlStats';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -81,10 +81,10 @@ export default function IntlFixturesPage() {
   const tg = teamGames.data;
 
   useDocumentHead({
-    title: tg ? `${tg.team.team} results and fixtures` : 'International results and fixtures, day by day',
+    title: sideTitle(tg ? `${tg.team.team} results and fixtures` : 'International results and fixtures, day by day'),
     description: tg
       ? `${tg.team.team}'s latest international results and coming fixtures, with the Elo favourite in every game.`
-      : 'Every men’s international since 1872, day by day: results with the favourite and the upsets, and the coming Nations League fixtures.',
+      : `Every ${sideWord()} international since ${sinceYear()}, day by day: results with the favourite and the upsets, and the coming fixtures.`,
     path: INTL_FIXTURES_PATH,
   });
 
@@ -114,7 +114,7 @@ export default function IntlFixturesPage() {
   return (
     <article className="space-y-5">
       <IntlHeader title="Fixtures & Results">
-        <p className="text-ink-700 max-w-prose">Every men’s international since 1872, with the favourite on the day. Pick a day on the calendar, or one nation.</p>
+        <p className="text-ink-700 max-w-prose">Every {sideWord()} international since {sinceYear()}, with the favourite on the day. Pick a day on the calendar, or one nation.</p>
       </IntlHeader>
 
       <NationPicker
@@ -167,9 +167,16 @@ export default function IntlFixturesPage() {
                   onChangeMonth={(year, month) => setView({ year, month })}
                 />
                 <p className="flex-1 min-w-0 text-ink-500 text-sm pt-1">
-                  {`Darker days have more games. Latest result in the results file: ${data.latestResult ? shortDate(data.latestResult) : '–'}. Games since then show the score the fixture feed reports (marked “reported”), or “Result to follow”.`}
+                  {`Darker days have more games. Latest result in the results file: ${data.latestResult ? shortDate(data.latestResult) : '–'}. ${INTL_GENDER === 'women' ? 'The women’s file is updated every few months, so recent games can take a while to appear.' : 'Games since then show the score the fixture feed reports (marked “reported”), or “Result to follow”.'}`}
                 </p>
               </div>
+
+              {!selected && data.latestResult && (
+                <p className="text-ink-700 text-sm" data-testid="intl-no-games">
+                  No games in these two months.{' '}
+                  <Link to={intlFixturesPath({ date: data.latestResult })} className="underline">See the latest results ({shortDate(data.latestResult)})</Link>.
+                </p>
+              )}
 
               {selected && (
                 <section aria-labelledby="intl-day" className="space-y-4" data-testid="intl-day">

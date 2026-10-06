@@ -18,7 +18,7 @@ import { IntlHeader, Section, TeamLink } from '../../components/intl/IntlBits';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_HISTORY_PATH, INTL_TOURNAMENTS_PATH, editionPathOf, intlTeamPath, loadIntlHistory, type IntlUpset, type YearElo } from '../../lib/intlApi';
-import { DATA_NOTE, shortDate, tournamentByCompetition } from '../../lib/intlStats';
+import { DATA_NOTE, shortDate, tournamentByCompetition, sideTitle, sinceYear, INTL_GENDER } from '../../lib/intlStats';
 
 const BASE = 1300; // bars start here so the gaps between the best sides show
 
@@ -121,8 +121,8 @@ function UpsetCard({ m }: { m: IntlUpset }) {
 export default function IntlHistoryPage() {
   const { data, failed, loading } = useKeyedFetch('intl-history', () => loadIntlHistory());
   useDocumentHead({
-    title: 'International football through time: the Elo race since 1872, world number ones and the biggest upsets',
-    description: 'Watch the world’s top ten national teams change year by year since 1872, see every world number one, and the biggest shocks at the World Cup, Euros, Copa América and AFCON.',
+    title: sideTitle(`International football through time: the Elo race since ${sinceYear()}, world number ones and the biggest upsets`),
+    description: `Watch the world’s top ten national teams change year by year since ${sinceYear()}, see every world number one, and the biggest shocks at the World Cup, Euros, Copa América and AFCON.`,
     path: INTL_HISTORY_PATH,
   });
 
@@ -142,14 +142,14 @@ export default function IntlHistoryPage() {
   return (
     <article className="space-y-8">
       <IntlHeader title="Through time">
-        <p className="text-ink-700 max-w-prose">More than 150 years of international football in three pictures: who was best, year by year; who held the top spot; and the days the ratings got it most wrong.</p>
+        <p className="text-ink-700 max-w-prose">{INTL_GENDER === 'women' ? 'Seventy years' : 'More than 150 years'} of international football in three pictures: who was best, year by year; who held the top spot; and the days the ratings got it most wrong.</p>
       </IntlHeader>
       {failed && <p className="text-ink-700">History is unavailable right now.</p>}
       {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
       {data && race && (
         <>
-          <Section title="The Elo race since 1872" id="intl-elo-race" testId="intl-elo-race">
-            <p className="text-sm text-ink-700 max-w-prose">The world’s ten best national teams at the end of every year, by World Football Elo rating. Press play to watch Scotland and England give way to Uruguay, Hungary’s Golden Team, Brazil, the great West German and Spanish sides and the rest.</p>
+          <Section title={`The Elo race since ${sinceYear()}`} id="intl-elo-race" testId="intl-elo-race">
+            <p className="text-sm text-ink-700 max-w-prose">The world’s ten best national teams at the end of every year, by World Football Elo rating. {INTL_GENDER === 'women' ? 'Press play to watch the lead pass between the Nordic sides, the USA, Germany and, lately, Spain and England.' : 'Press play to watch Scotland and England give way to Uruguay, Hungary’s Golden Team, Brazil, the great West German and Spanish sides and the rest.'}</p>
             <Timelapse series={race.series} frameLabel={(i) => String(race.years[i])} measure="Elo rating" valueLabel={(v) => String(Math.round(v + BASE))} top={10} stepMs={260} />
           </Section>
 
