@@ -163,10 +163,9 @@ function renderReport(p,opp,home,then){
   screen(`<div class="card"><div class="datechip">THE INJURY REPORT</div><h1>${p.nm} is questionable</h1>
     <p class="lede">${p.label}. He can play, at about 85%, and the injury could get worse.</p>
     <div id="ch"></div></div>`);
-  const opts=[{t:`Start ${p.nm}`,d:`Win chance ${pct(w.play)} · about 1 in 3 he misses the next two games`,go:()=>{p.hurt=true;p.playedHurt=true}},
-    {t:`Rest him`,d:`Win chance ${pct(w.rest)} · fit for the next game`,go:()=>{p.benched=true}}];
-  opts.forEach((o,i)=>{const b=document.createElement("button");b.className="choice";b.innerHTML=`<span class="t">${o.t}</span><span class="d">${o.d}</span>`;
-    b.onclick=()=>{o.go();then()};$("ch").appendChild(b)});
+  const opts=[{id:"play",t:`Start ${p.nm}`,d:`Win chance ${pct(w.play)} · about 1 in 3 he misses the next two games`},
+    {id:"rest",t:`Rest him`,d:`Win chance ${pct(w.rest)} · fit for the next game`}];
+  choiceCards($("ch"),opts,"Confirm",id=>{if(id==="play"){p.hurt=true;p.playedHurt=true}else p.benched=true;then()});
 }
 function bandsHTML(b){
   const row=(k,v)=>`<div class="brk"><span class="bk">${k}</span><span class="bb"><i style="width:${v*100}%"></i></span><span class="bv">${pct(v)}</span></div>`;
@@ -232,11 +231,10 @@ function renderGame(done){
     lines.appendChild(d);$("sb").textContent=`${my()}–${th()}`};
   wirePaceControls($("paceBox"),()=>{skipping=true});
   const delay=()=>skipping?0:PACE.commentaryMs*speedFactor()*(0.9+Math.random()*0.2);
-  const decide=(chip,title,opts,onPick)=>{skipping=false;
+  /* A decision mid-game: pick a card, then confirm (as football's half time). */
+  const decide=(chip,title,opts,goLabel,onPick)=>{skipping=false;
     $("htBox").innerHTML=`<div style="margin-top:12px"><div class="datechip">${chip}</div><h2 style="margin-top:5px">${title}</h2><div id="dc"></div></div>`;
-    opts.forEach(o=>{const b=document.createElement("button");b.className="choice";
-      b.innerHTML=`<span class="t">${o.t}</span><span class="d">${o.d}${o.win!=null?` · win chance <b>${pct(o.win)}</b>`:""}</span>`;
-      b.onclick=()=>{$("htBox").innerHTML=`<div class="outcome" style="margin-top:10px">${o.t}.</div>`;onPick(o.id)};$("dc").appendChild(b)});
+    choiceCards($("dc"),opts,goLabel,id=>{$("htBox").innerHTML="";onPick(id)});
   };
   function tick(){
     const ev=nextDrive(g);
@@ -246,16 +244,16 @@ function renderGame(done){
     if(ev.type==="half"){
       add("HT","Half time","ft");
       if(unlocked("half"))return decide("HALF TIME",th()>my()?`Behind by ${th()-my()}.`:my()>th()?`Ahead by ${my()-th()}.`:"Level at the break.",
-        halfWins(g),id=>{startSecondHalf(g,id);add("","— second half —","");setTimeout(tick,delay())});
+        halfWins(g),"Send them out",id=>{startSecondHalf(g,id);add("","— second half —","");setTimeout(tick,delay())});
       startSecondHalf(g,"steady");add("","— second half —","");return setTimeout(tick,delay());
     }
     if(ev.type==="fourth"){
       const s=ev.sit,where=s.yl<50?`their ${s.yl}`:s.yl===50?"midfield":`your ${100-s.yl}`;
       add(ev.clock,`Fourth and ${s.togo} at ${where}`,"");
-      return decide("FOURTH DOWN",`Fourth and ${s.togo} at ${where}. ${my()}–${th()}.`,fourthWins(g),id=>{const r=resolveFourth(g,id);add(r.clock,scorerLine(g,r),cls(r));setTimeout(tick,delay())});
+      return decide("FOURTH DOWN",`Fourth and ${s.togo} at ${where}. ${my()}–${th()}.`,fourthWins(g),"Make the call",id=>{const r=resolveFourth(g,id);add(r.clock,scorerLine(g,r),cls(r));setTimeout(tick,delay())});
     }
     add(ev.clock,scorerLine(g,ev)+(ev.type==="td"&&!ev.pending&&ev.xp===false?" (extra point missed)":""),cls(ev));
-    if(ev.pending){return decide("THE CONVERSION","Touchdown, and a point behind.",twoWins(g),id=>{const r=resolveTwo(g,id);
+    if(ev.pending){return decide("THE CONVERSION","Touchdown, and a point behind.",twoWins(g),"Make the call",id=>{const r=resolveTwo(g,id);
       add("",id==="go"?(r.ok?"Two-point conversion good":"Two-point conversion fails"):(r.ok?"Extra point good":"Extra point missed"),r.ok?"goal":"against");setTimeout(tick,delay())})}
     setTimeout(tick,delay());
   }
@@ -292,14 +290,12 @@ function renderForcedTrade(done){
   const off=bestOn(OFFENCE),def=bestOn(DEFENCE);
   screen(`<div class="card"><div class="datechip">THE OWNER HAS CALLED</div><h1>A player must be traded</h1>
     <p class="lede">Cash is ${money(S.cash)}. Below ${money(MONEY.firedBelow)} you are fired.</p><div id="ch"></div></div>`);
-  [["off",off,"Fewer points scored"],["def",def,"More points conceded"]].forEach(([side,p,what])=>{
-    const b=document.createElement("button");b.className="choice";
-    b.innerHTML=`<span class="t">Trade ${p.nm} (${POS_SHORT[p.pos]}, ${Math.round(p.r)})</span><span class="d">+${money(tradeFee(p))} · ${what}</span>`;
-    b.onclick=()=>{const t=forcedTrade(side);
+  choiceCards($("ch"),[["off",off,"Fewer points scored"],["def",def,"More points conceded"]].map(([side,p,what])=>
+      ({id:side,t:`Trade ${p.nm} (${POS_SHORT[p.pos]})`,d:`+${money(tradeFee(p))} · ${what}`})),
+    "Confirm the trade",side=>{const t=forcedTrade(side);
       screen(`<div class="card"><div class="datechip">THE OWNER HAS CALLED</div><h1>${t.nm} is gone</h1>
         <div class="outcome">Traded for ${money(t.fee)}. A backup takes his place; the payroll falls.</div>
-        ${button("go","Continue","",true)}</div>`);$("go").onclick=done};
-    $("ch").appendChild(b)});
+        ${button("go","Continue","",true)}</div>`);$("go").onclick=done});
 }
 function tableHTML(){
   const st=standings(S.table);

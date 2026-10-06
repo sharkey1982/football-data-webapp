@@ -55,3 +55,22 @@ function wirePaceControls(root,onSkip){
 /* ---- screen helpers ---------------------------------------------------------- */
 const $=id=>document.getElementById(id);
 function button(id,t,d,primary){return `<button class="choice${primary?' primary':''}" id="${id}"><span class="t">${t}</span>${d?`<span class="d">${d}</span>`:''}</button>`}
+
+/* ---- a decision as cards, as the football game's half time ---------------
+   Tap a card to pick it (it lights up), then press the button to confirm.
+   Nothing happens until the button: a mis-tap costs nothing. On confirm the
+   box is emptied, so no picked card is left on the screen afterwards.
+   opts: [{id,t,d,win?}]; box: the element to fill. */
+function choiceCards(box,opts,goLabel,onGo){
+  let picked=null;
+  box.innerHTML=`<div id="cards"></div><button class="choice primary" id="pickGo" style="margin-top:8px" disabled><span class="t">${goLabel}</span></button>`;
+  const cards=document.getElementById('cards'),go=document.getElementById('pickGo'),btns=[];cards.innerHTML="";
+  const paint=()=>{btns.forEach(b=>{const on=b._id===picked;b.setAttribute('aria-pressed',on);
+      b.style.borderColor=on?'var(--amber)':'';b.style.background=on?'color-mix(in srgb,var(--amber) 14%,transparent)':''});
+    go.disabled=!picked;go.style.opacity=picked?1:.5};
+  opts.forEach(o=>{const b=document.createElement('button');b.className='choice';b._id=o.id;
+    b.innerHTML=`<span class="t">${o.t}</span>${o.d||o.win!=null?`<span class="d">${o.d||""}${o.win!=null?`${o.d?" · ":""}win chance <b>${pct(o.win)}</b>`:""}</span>`:""}`;
+    b.onclick=()=>{picked=o.id;paint()};btns.push(b);cards.appendChild(b)});
+  go.onclick=()=>{if(!picked)return;const id=picked;box.innerHTML="";onGo(id)};
+  paint();
+}
