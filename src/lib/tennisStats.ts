@@ -441,3 +441,25 @@ export function seasonsSentence(tour: Tour, rows: SeasonIndexRow[]): string {
   if (!rows.length) return `Every ${tour} season since ${FIRST_YEAR[tour]}.`;
   return `${rows.length} ${tour} seasons since ${FIRST_YEAR[tour]}. Most Grand Slam titles: ${top.map((t) => `${t.name} (${t.n})`).join(', ')}.`;
 }
+
+// ---------------------------------------------------------------------------
+// Playing status (Chris, 6 Oct 2026): "active" means a tour-level match in the
+// 12 months before the latest match in the data. Measured from the data's end,
+// not today, so a late import doesn't turn everyone inactive. A player out
+// injured for more than a year shows as inactive until they play again.
+// ---------------------------------------------------------------------------
+export type PlayerStatus = 'active' | 'inactive' | 'all';
+export const ACTIVE_DAYS = 365;
+
+export function parseStatus(v: string | null | undefined): PlayerStatus {
+  return v === 'inactive' || v === 'all' ? v : 'active';
+}
+
+/** The earliest last-match date that still counts as active, from the latest match on the tour. */
+export function activeSince(players: { last_match: string | null }[]): string | null {
+  const latest = players.reduce<string | null>((a, p) => (p.last_match && (a == null || p.last_match > a) ? p.last_match : a), null);
+  if (!latest) return null;
+  return new Date(Date.parse(`${latest}T12:00:00Z`) - ACTIVE_DAYS * 86400000).toISOString().slice(0, 10);
+}
+
+export const isActive = (p: { last_match: string | null }, since: string | null) => since != null && p.last_match != null && p.last_match >= since;

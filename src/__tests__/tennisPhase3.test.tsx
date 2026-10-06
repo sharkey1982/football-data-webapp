@@ -30,6 +30,7 @@ import TennisTournamentsPage from '../pages/tennis/TennisTournamentsPage';
 import TennisEditionPage from '../pages/tennis/TennisEditionPage';
 import TennisTvGuidePage from '../pages/tennis/TennisTvGuidePage';
 import TennisPlayerPage from '../pages/tennis/TennisPlayerPage';
+import { activeSince, parseStatus } from '../lib/tennisStats';
 import { renderTennisEditionPage, renderTennisEventPage, renderTennisTournamentsPage, renderTennisTvGuidePage } from '../entry-server';
 
 vi.mock('../lib/tennisApi', async () => {
@@ -151,7 +152,39 @@ const player = (over: Partial<TennisPlayer>): TennisPlayer => ({
   first_year: 2019, last_year: 2026, last_match: '2026-09-29', recent_matches: 200, country: 'IT', full_name: 'Jannik Sinner', birth_date: '2001-08-16', hand: 'Right', ...over,
 });
 
+describe('playing status', () => {
+  it('active means a match in the year before the latest in the data', () => {
+    expect(activeSince([{ last_match: '2026-09-29' }, { last_match: '2020-01-01' }])).toBe('2025-09-29');
+    expect(activeSince([])).toBeNull();
+    expect([parseStatus(null), parseStatus('all'), parseStatus('nonsense')]).toEqual(['active', 'all', 'active']);
+  });
+});
+
 describe('tennis phase 3 pages', () => {
+  it('Your Player: active players by default; inactive, all, and a name search looks through everyone', async () => {
+    mocked.loadTennisPlayers.mockResolvedValue({
+      tour: 'ATP',
+      players: [
+        player({}),
+        player({ player_id: 2, name: 'Federer R.', slug: 'federer-r', country: 'CH', last_match: '2021-07-07', recent_matches: 0 }),
+        player({ player_id: 3, name: 'Injured X.', slug: 'injured-x', country: 'IT', last_match: '2025-10-01', recent_matches: 40 }),
+      ],
+    });
+    render(<MemoryRouter initialEntries={['/tennis/players']}><Routes><Route path="/tennis/players" element={<TennisPlayersPage />} /></Routes></MemoryRouter>);
+    const status = await screen.findByTestId('tennis-status-filter');
+    const names = () => within(screen.getByTestId('tennis-players-table')).getAllByRole('link').map((a) => a.textContent).sort();
+    // Active: a match since 29 Sep 2025, a year before the latest (29 Sep 2026).
+    expect(names()).toEqual(['Injured X.', 'Sinner J.']);
+    expect(within(screen.getByTestId('tennis-country-filter')).getAllByRole('option').map((o) => o.textContent)).toEqual(['All countries', 'Italy (2)']);
+    fireEvent.change(status, { target: { value: 'inactive' } });
+    expect(names()).toEqual(['Federer R.']);
+    fireEvent.change(status, { target: { value: 'all' } });
+    expect(names()).toEqual(['Federer R.', 'Injured X.', 'Sinner J.']);
+    fireEvent.change(status, { target: { value: 'active' } });
+    fireEvent.change(screen.getByTestId('tennis-player-search'), { target: { value: 'fed' } });
+    expect(names()).toEqual(['Federer R.']);
+  });
+
   it('Your Player: filter by country, kept in the URL', async () => {
     mocked.loadTennisPlayers.mockResolvedValue({
       tour: 'ATP',

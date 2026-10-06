@@ -4,7 +4,9 @@
 // /tennis/players -- "Your Player", the tennis counterpart of Football's Your
 // Team: every player on a tour, searchable, sortable by any column. ATP by
 // default; ?tour=wta for the WTA. ?country=GB filters by the nation played
-// for (Wikidata, phase 3). Server-rendered at build (ATP).
+// for (Wikidata, phase 3). ?status=inactive|all for playing status (default
+// active: a match in the 12 months before the latest in the data). Searching
+// by name looks through everyone. Server-rendered at build (ATP).
 // ============================================================================
 
 import { useMemo, useState } from 'react';
@@ -16,13 +18,20 @@ import TourToggle from '../../components/tennis/TourToggle';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { TENNIS_PLAYERS_PATH, loadTennisPlayers, loadTennisSlamEditions, tennisPlayersPath, tennisSlamsPath, type TennisPlayersData } from '../../lib/tennisApi';
-import { DATA_NOTE, FIRST_YEAR, parseTour, pct, pctLabel, recordLabel, shortDate, type TennisPlayer } from '../../lib/tennisStats';
+import { activeSince, DATA_NOTE, FIRST_YEAR, isActive, parseStatus, parseTour, type PlayerStatus, pct, pctLabel, recordLabel, shortDate, type TennisPlayer } from '../../lib/tennisStats';
 
 const PAGE = 100;
+const STATUS_OPTIONS: { value: PlayerStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'all', label: 'All' },
+];
+const STATUS_WORD: Record<PlayerStatus, string> = { active: 'active ', inactive: 'inactive ', all: '' };
 
 export default function TennisPlayersPage({ initialData }: { initialData?: TennisPlayersData }) {
   const [params, setParams] = useSearchParams();
   const country = (params.get('country') ?? '').toUpperCase();
+  const status = parseStatus(params.get('status'));
   const tour = parseTour(params.get('tour')) ?? initialData?.tour ?? 'ATP';
   const { data, failed, loading } = useKeyedFetch(tour, () => loadTennisPlayers(tour), initialData ? { key: initialData.tour, data: initialData } : undefined);
   const [query, setQuery] = useState('');
@@ -37,14 +46,27 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
     path: TENNIS_PLAYERS_PATH,
   });
 
-  const countries = useMemo(() => countryCounts(data?.players ?? []), [data]);
+  const since = useMemo(() => activeSince(data?.players ?? []), [data]);
+  // Status first, so the country counts match what the list will show.
+  const byStatus = useMemo(
+    () => (data?.players ?? []).filter((p) => status === 'all' || isActive(p, since) === (status === 'active')),
+    [data, status, since]
+  );
+  const countries = useMemo(() => countryCounts(byStatus), [byStatus]);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = data?.players ?? [];
+    // A name search looks through every player, whatever the status filter.
+    let list = q ? data?.players ?? [] : byStatus;
     if (country) list = list.filter((p) => p.country === country);
     if (slams) list = list.filter((p) => slamTitles.has(p.slug));
     return q ? list.filter((p) => p.name.toLowerCase().includes(q) || (p.full_name ?? '').toLowerCase().includes(q)) : list;
-  }, [data, query, country, slams, slamTitles]);
+  }, [data, byStatus, query, country, slams, slamTitles]);
+  const setStatus = (v: string) => {
+    const next = new URLSearchParams(params);
+    if (v === 'active') next.delete('status');
+    else next.set('status', v);
+    setParams(next, { replace: true });
+  };
   const setCountry = (c: string) => {
     const next = new URLSearchParams(params);
     if (c) next.set('country', c);
@@ -54,6 +76,7 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
 
   const columns: Column<TennisPlayer>[] = [
     { key: 'name', label: 'Player', render: (p) => <PlayerLink tour={p.tour} slug={p.slug} name={p.name} />, sortValue: (p) => p.name },
+    { key: 'status', label: 'Status', render: (p) => (isActive(p, since) ? <span className="text-pitch-800">Active</span> : <span className="text-ink-500">Inactive</span>), sortValue: (p) => (isActive(p, since) ? 1 : 0), descFirst: true, className: 'hidden lg:table-cell' },
     { key: 'country', label: 'Country', render: (p) => <Country code={p.country} short />, sortValue: (p) => (p.country ? countryName(p.country) : null), className: 'hidden sm:table-cell' },
     { key: 'recent', label: 'Last 3 seasons', render: (p) => p.recent_matches, sortValue: (p) => p.recent_matches, align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
     { key: 'record', label: 'W–L', render: (p) => recordLabel(p.won, p.lost), sortValue: (p) => p.won + p.lost, align: 'right', descFirst: true },
@@ -88,6 +111,13 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
               />
             </label>
             <FilterSelect
+              label="Status"
+              value={status}
+              onChange={setStatus}
+              testId="tennis-status-filter"
+              options={STATUS_OPTIONS}
+            />
+            <FilterSelect
               label="Country"
               value={country}
               onChange={setCountry}
@@ -95,7 +125,7 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
               options={[{ value: '', label: 'All countries' }, ...countries.map((c) => ({ value: c.code, label: `${c.name} (${c.n})` }))]}
             />
             <span className="text-xs text-ink-500">
-              {slams && slamData.loading ? 'Loading the Slam champions…' : `${rows.length.toLocaleString('en-GB')} ${slams ? 'Grand Slam champions' : 'players'}${country ? ` from ${countryName(country)}` : ''}`}
+              {slams && slamData.loading ? 'Loading the Slam champions…' : `${rows.length.toLocaleString('en-GB')} ${query ? '' : STATUS_WORD[status]}${slams ? 'Grand Slam champions' : 'players'}${country ? ` from ${countryName(country)}` : ''}`}
             </span>
             {slams && <Link to={tennisSlamsPath(tour)} className="text-sm text-pitch-800 underline underline-offset-2">Grand Slam champions by year</Link>}
           </div>
@@ -115,7 +145,7 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
               {`Show all ${rows.length.toLocaleString('en-GB')}`}
             </button>
           )}
-          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. Country is the nation played for now. ${DATA_NOTE} Player details: Wikidata (CC0).`}</p>
+          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. Country is the nation played for now. Active: a tour-level match since ${since ? shortDate(since) : '–'} (12 months before the latest result); a long injury shows as inactive. ${DATA_NOTE} Player details: Wikidata (CC0).`}</p>
         </>
       )}
     </article>
