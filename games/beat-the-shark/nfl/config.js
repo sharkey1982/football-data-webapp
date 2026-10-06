@@ -62,8 +62,8 @@ const SEASON_SWING=4;
 
 /* HOW GOOD THE SHARK IS. It predicts a WELL-RUN Your Team: the right game
    plan, the right fourth-down calls, sensible half-time calls, expressed as
-   rating points. A difficulty setting, measured by the checks: a competent
-   coach should beat it about 6 times in 10. */
+   rating points. It only sets the prediction shown to the player (where
+   Your Team should finish); nothing is scored against it. */
 const SHARK_UPLIFT=1;
 
 /* Morale (-10..+10) adds this many rating points per point to both sides
@@ -87,9 +87,18 @@ const LEVELS={
 /* Fourth-down calls per game, once unlocked. */
 const FOURTHS_PER_GAME={beginner:1,intermediate:2,guru:2};
 
-/* Scoring: 50 for matching the Shark's expected wins, this much per win
-   either way (a win is worth three football points), +10 for the title. */
-const PER_WIN=15;
+/* MONEY ($m), as in the football game: not scored, but it has to be
+   managed. Every game the payroll goes out with one chance card; the gate
+   comes in on the result. In the red after a game, the owner forces a
+   trade (you choose: your best player on offence or on defence). Deep in
+   the red, he fires you. The NFL has no points deductions, so the firing
+   is the second sanction. */
+const MONEY={start:30,payroll:15,gate:{w:17,t:12,l:9},firedBelow:-25,tradeFee:.8};
+const BILL_CARDS=[
+  {t:"The team plane needed a new engine",v:-3},{t:"A jersey sales bonus",v:3},
+  {t:"The stadium's video board failed",v:-4},{t:"A playoff-ticket waiting list fee",v:4},
+  {t:"League fine for a sideline outburst",v:-2},{t:"Concession sales up",v:2},
+  {t:"New turf for the practice field",v:-3},{t:"A local radio deal",v:3}];
 
 /* The main site. Links from the game always use this absolute address
    (the game is reachable both proxied and on its own Netlify site). */

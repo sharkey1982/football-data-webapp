@@ -1,8 +1,8 @@
 # Beat the Shark: NFL
 
-The football game's idea, for the NFL. FixtureShark's model predicts how
-many games *Your Team* wins in a six-team division; the player's job is to
-win more. Design: the Claude Docs doc "Beat the Shark: NFL, World Cup and
+The football game's idea, for the NFL. One aim: win the division.
+FixtureShark's model predicts where *Your Team* finishes; money is not
+scored but has to be managed, as in the football game. Design: the Claude Docs doc "Beat the Shark: NFL, World Cup and
 Davis Cup — design" (6 Oct 2026; the tennis game is now the Nations Cup).
 
 Served at `/play/beat-the-shark/nfl/`. It is a folder of the existing game
@@ -38,35 +38,35 @@ About 35 seconds; runs in GitHub Actions with the football game's checks.
 | Group | What it checks |
 |---|---|
 | Loading | The scripts load in order and the start screen draws |
-| Integrity | Every event, in both roles, renders with no `undefined`, `NaN` or `[object` text; every event has a do-nothing choice |
+| Integrity | Every event renders with no `undefined`, `NaN` or `[object` text, in the black and in the red; every event has a do-nothing choice |
 | Engine | About 22 points a team; margin spread near the site's margin curve (sd 13.26); home edge near the Elo model's 1.8 points; 3 and 7 the two commonest margins |
-| Stability | 96 seasons across every level, role and policy finish without a crash |
+| Stability | 96 seasons across every level and policy finish without a crash |
 | Balance | The targets below |
-| Screens | Every level and role played to the verdict through the real screens; the coach sees a plan, half-time and fourth-down call; the GM sees none of them |
+| Screens | Every level played to the verdict through the real screens: bills, gate, game plan, half time, fourth downs, the deadline; in the red, a forced trade; deep in the red, fired |
 
 The checks were run against deliberately broken copies: a Shark made too
 strong fails the balance checks, and an undefined value in an event's
 text fails the integrity check.
 
-**Balance targets** (measured over 150-season runs at Intermediate, with
-look-ahead samples reduced for speed):
+**Balance targets** (150-season runs at Intermediate, look-ahead samples
+reduced for speed). The simulated "good coach" picks the best win chance
+at every call and keeps the season's projected cash above zero.
 
-| Target | Range checked |
-|---|---|
-| The Stingrays (favourites) win the division | 55–80% |
-| A well-played coach beats the Shark | 48–72% (aim: 6 in 10) |
-| A well-played coach wins the division | 7–20% |
-| Deciding nothing beats the Shark | under 1 in 3 |
-| Good calls beat no calls | by 15+ score points |
-| The head coach's calls matter more than the GM's | yes |
-| Beginner: a well-played coach beats the Shark | 45–75% |
+| Target | Range checked | Measured |
+|---|---|---|
+| The Stingrays (favourites) win the division | 55–80% | 71% |
+| A well-played coach wins it | 7–20% (aim 10–15%) | 9% (Beginner 13%) |
+| Deciding nothing wins it | under half the well-played rate | 1% |
+| Good calls finish higher than no calls | by half a place or more | 0.8 |
+| A well-played coach is fired | under 2% | 0% |
+| Random play is forced into a trade | 10%+ of seasons | 37% |
 
 ## How it plays
 
 The opening screen (shared with the football game, `shared/games.js`)
-offers the sports. The NFL starts as the Beginner head coach's season;
-Intermediate, Advanced and the GM role are built and checked but not on
-the opening screen (Chris, 6 Oct 2026).
+offers only the sports. The NFL starts as the Beginner head coach's
+season; Intermediate and Advanced are built and checked but not on the
+opening screen (Chris, 6 Oct 2026).
 
 - **Six teams**, each named for how it decides. The Stingrays (strength 74)
   are always the final boss and the last game. Beginner: 5 games, neutral
@@ -81,12 +81,22 @@ the opening screen (Chris, 6 Oct 2026).
   (open it up, stay the course, run the clock); at Advanced, the two-point
   call. Every option shows its win chance, from playing the game out from
   that moment many times with the same random futures for each option.
-- **The GM** runs the cap, contracts and trades; his coach makes the
-  best calls himself.
+- **Money ($m)**, as the football game's cash: the payroll and a chance
+  card before every game ("Paying the bills"), the gate on the result
+  after it. A bid for a player, the sponsor (a shirt deal or a players'
+  bonus), the medical budget, a free agent and the priced trade deadline
+  all move it. In the red after a game, the owner forces a trade: you
+  choose your best player on offence or on defence. Below −$25m you are
+  fired. The NFL has no points deductions, so firing is the second
+  sanction.
 - **The Shark** simulates the season with every team's hidden swing drawn
-  afresh each time, the same injuries and knocks, the right game plan, and
-  `SHARK_UPLIFT` for a well-run team. Score: 50 for matching its expected
-  wins, ±15 a win, +10 for the title.
+  afresh each time, the same injuries and knocks, and the right game plan.
+  It predicts where Your Team finishes; it is not a score to beat.
+- **The ending**, as the football game's: champions or your position,
+  FixtureShark's prediction, the table, and what the season showed.
+
+The general manager role built first (6 Oct) was removed the same evening:
+one role, as the football game now has one on its opening screen.
 
 ## Real numbers
 

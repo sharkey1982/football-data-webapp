@@ -52,13 +52,6 @@ function wirePaceControls(root,onSkip){
   const sk=root.querySelector('[data-skip]');if(sk)sk.onclick=onSkip;
 }
 
-/* ---- scoring ----------------------------------------------------------------
-   One rule for every game: 50 for matching the Shark, perUnit for each unit
-   (a win, a round, a tie) better or worse, +10 for the title. 0-100. */
-function sharkScore(actual,expected,perUnit,title){
-  return Math.round(clamp(50+perUnit*(actual-expected)+(title?10:0),0,100));
-}
-
 /* ---- screen helpers ---------------------------------------------------------- */
 const $=id=>document.getElementById(id);
 function button(id,t,d,primary){return `<button class="choice${primary?' primary':''}" id="${id}"><span class="t">${t}</span>${d?`<span class="d">${d}</span>`:''}</button>`}

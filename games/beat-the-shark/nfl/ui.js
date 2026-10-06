@@ -8,23 +8,29 @@
    "game" is a whole game day (summary, injury report, preview, the game,
    results); the beats between are the week's decisions. The final boss is
    always the last game, with the trade deadline straight before it. */
-function planFor(level,role){
-  const n=LEVELS[level].games,between=role==="coach"
-    ?(n===5?["presser","event","event"]:["event","presser","event","event","presser","event","event","event"])
-    :(n===5?["gm","gm","gm"]:["gm","gm","gm","gm","gm","gm","gm","gm"]);
-  const p=role==="gm"?["gm"]:[];
+function planFor(level){
+  const n=LEVELS[level].games;
+  /* Beginner, as the football game's: a story beat, a bid, the sponsor,
+     then the deadline straight before the final boss. */
+  const between=n===5?["presser","bid","sponsor"]
+    :["event","bid","presser","sponsor","event","medical","presser","freeagent"];
+  const p=[];
   for(let i=0;i<n;i++){p.push("game");if(i<n-2)p.push(between[i%between.length]);if(i===n-2)p.push("deadline")}
   p.push("end");return p;
 }
 let PLAN=[],cursor=0,RECENT=[];
 function next(){cursor++;step()}
 function step(){
+  if(!S.alive)return renderEnding();
   const b=PLAN[cursor];
   if(!b||b==="end")return renderEnding();
   if(b==="game")return gameDay(next);
   if(b==="presser")return renderSpec(presserSpec(),"FRIDAY · PRESS CONFERENCE",next);
   if(b==="event")return renderSpec(drawEvent(COACH_EVENTS),"THIS WEEK",next);
-  if(b==="gm")return renderSpec(drawEvent(GM_EVENTS),"THE FRONT OFFICE",next);
+  if(b==="bid")return renderSpec(bidSpec(),"A BID ARRIVES",next);
+  if(b==="sponsor")return renderSpec(sponsorSpec(),"THE SPONSOR CALLS",next);
+  if(b==="medical")return renderSpec(medicalSpec(),"THE TRAINING ROOM",next);
+  if(b==="freeagent")return renderSpec(freeAgentSpec(),"THE WAIVER WIRE",next);
   if(b==="deadline")return renderSpec(deadlineSpec(),"BEFORE THE FINAL GAME",next);
   return next();
 }
@@ -34,15 +40,20 @@ function drawEvent(pool){
 }
 
 /* ---- the header -------------------------------------------------------------- */
+/* The top of the screen, as in the football game: position and cash,
+   with cash's latest change in green or red. */
 function paintHeader(){
   if(!S)return;
-  const played=S.table[CLUB].w+S.table[CLUB].l+S.table[CLUB].t,r=S.table[CLUB];
+  const r=S.table[CLUB],played=r.w+r.l+r.t;
   $("hScore").innerHTML=`${played?ord(posOf(CLUB)):"—"}<span class="sub">POSITION</span>`;
-  const diff=myWins()-sharkPar();
-  $("hTwo").innerHTML=`<div class="two"><div class="k">Record</div><div class="v" style="font-size:22px">${r.w}–${r.l}${r.t?"–"+r.t:""}</div></div>
-    <div class="two"><div class="k">v the Shark</div><div class="v" style="font-size:22px;color:${!played?"inherit":diff>=0?"#7ee2a8":"#ffb3ab"}">${played?(diff>=0?"+":"−")+Math.abs(diff).toFixed(1):"—"}</div>
-    <div class="pts">wins ahead of its par</div></div>
-    ${S.role==="gm"?`<div class="two"><div class="k">Cap space</div><div class="v" style="font-size:22px">$${S.cap}m</div></div>`:""}`;
+  if(S._cashSeen==null)S._cashSeen=S.cash;
+  if(S.cash!==S._cashSeen){S._cashDelta=S.cash-S._cashSeen;S._cashSeen=S.cash}
+  const dl=S._cashDelta||0;
+  $("hTwo").innerHTML=`<div class="two cash"><div class="k">Cash</div>
+      <div class="v cashv${S.cash<0?" neg":""}">${money(S.cash)}</div>
+      ${dl?`<div class="cashd ${dl>0?"up":"down"}">${dl>0?"\u25b2 ":"\u25bc "}${money(dl,true)}</div>`:""}
+      ${S.cash<0?`<div class="pts">in the red: a player will be traded</div>`:""}</div>
+    <div class="two"><div class="k">Record</div><div class="v" style="font-size:22px">${r.w}–${r.l}${r.t?"–"+r.t:""}</div></div>`;
   const left=S.games-S.wk;
   $("hSeason").innerHTML=`<div class="lbl"><span>GAME ${Math.min(S.wk+1,S.games)} / ${S.games} · ${left===0?"SEASON OVER":left===1?"THE FINAL GAME":`${left} TO PLAY`}</span>
     <span>${r.res.length?"FORM "+r.res.slice(-5).map(x=>x.r.toUpperCase()).join(" "):""}</span></div>
@@ -57,8 +68,7 @@ function renderSpec(spec,chip,done){
     <p class="lede">${spec.lede}</p>${spec.body||""}<div id="ch"></div></div>`);
   const box=$("ch");
   spec.choices.forEach((c,i)=>{const b=document.createElement("button");b.className="choice";
-    const ok=affordable(c);b.disabled=!ok;
-    b.innerHTML=`<span class="t">${c.t}</span><span class="d">${c.d}${ok?"":" · not enough cap space"}</span>`;
+    b.innerHTML=`<span class="t">${c.t}</span><span class="d">${c.d}</span>`;
     b.onclick=()=>{const tags=apply(c.fx);if(c.after)c.after();
       screen(`<div class="card"><div class="datechip">${chip}</div><h1>${spec.title}</h1>
         <div class="outcome">${c.out}</div><div class="delta">${tagsHTML(tags)}</div>
@@ -68,17 +78,16 @@ function renderSpec(spec,chip,done){
 
 /* ---- start ------------------------------------------------------------------------- */
 /* The opening screen offers the sports, not levels and roles (Chris,
-   6 Oct 2026). The NFL starts as the Beginner head coach's season. The
-   other levels and the GM stay in the code and the checks; pickLevel and
-   pickRole are how the checks reach them. */
-let pickLevel="beginner",pickRole="coach";
+   6 Oct 2026). The NFL starts as the Beginner head coach's season; the
+   other levels stay in the code and the checks (pickLevel reaches them). */
+let pickLevel="beginner";
 function renderStart(){
   S=null;
   renderGamePicker("nfl","../",()=>{$("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating your season…</p></div>`;
-    setTimeout(()=>{beginSeason(pickLevel,pickRole);renderDivision()},30)});
+    setTimeout(()=>{beginSeason(pickLevel);renderDivision()},30)});
 }
-function beginSeason(level,role,seed){
-  newSeason(level,role,seed);PLAN=planFor(level,role);cursor=0;RECENT=[];
+function beginSeason(level,seed){
+  newSeason(level,seed);PLAN=planFor(level);cursor=0;RECENT=[];
   $("foot").innerHTML=`Season ${SEED}`;
 }
 
@@ -103,11 +112,12 @@ function rosterHTML(){
   return grp("Offence",["QB","RB","WR1","WR2","TE","OL"])+grp("Defence",["EDGE","DT","LB","CB1","CB2","S"])+grp("Special teams and backups",["K","QB2","RB2"]);
 }
 function renderYourTeam(){
-  const u=myUnits(),place=Math.round(S.shark.pos[CLUB]);
-  screen(`<div class="card"><div class="datechip">YOUR TEAM</div><h1>${S.shark.wins[CLUB].toFixed(1)} wins, ${ord(place)}</h1>
-    <p class="lede">The Shark's prediction for a well-run Your Team.</p>
+  const u=myUnits();
+  screen(`<div class="card"><div class="datechip">YOUR TEAM</div><h1>FixtureShark predicts ${ord(sharkPlace())}</h1>
+    <div class="kpis"><div class="kpi"><div class="kl">Cash</div><div class="kb">${money(S.cash)}</div></div>
+      <div class="kpi"><div class="kl">Payroll a game</div><div class="kb">${money(S.payroll)}</div></div></div>
     ${unitBars(u)}${rosterHTML()}
-    ${button("go",S.role==="gm"?"To the front office":"First game","",true)}</div>`);
+    ${button("go","First game","",true)}</div>`);
   $("go").onclick=step;
 }
 
@@ -116,24 +126,35 @@ function gameDay(done){
   const opp=oppOf(S.wk),[h]=myFixture(S.wk),home=h===CLUB;
   const toPreview=()=>renderPreview(opp,home,done);
   /* A questionable starter: your call once the injury report is unlocked;
-     until then (and for the GM) the staff rest him, the competent default. */
+     until then the staff rest him, the competent default. */
   const toReport=()=>{const p=injuryReport();if(!p)return toPreview();
     if(unlocked("report"))return renderReport(p,opp,home,toPreview);
     p.benched=true;return toPreview()};
-  if(S.wk>0)return renderSummary(toReport);
-  toReport();
+  const toBills=()=>renderBills(toReport);
+  if(S.wk>0)return renderSummary(toBills);
+  toBills();
 }
 function renderSummary(then){
-  const r=S.table[CLUB],diff=myWins()-sharkPar();
+  const r=S.table[CLUB];
   const out=hurtList();
   screen(`<div class="card"><div class="datechip">GAME ${S.wk+1} OF ${S.games}</div>
     <h1>${ord(posOf(CLUB))}, ${r.w}–${r.l}${r.t?"–"+r.t:""}</h1>
-    <div class="kpis"><div class="kpi"><div class="kl">Wins</div><div class="kb">${myWins()}</div></div>
-      <div class="kpi"><div class="kl">Shark par</div><div class="kb">${sharkPar().toFixed(1)}</div></div>
+    <div class="kpis"><div class="kpi"><div class="kl">Cash</div><div class="kb">${money(S.cash)}</div></div>
+      <div class="kpi"><div class="kl">Payroll a game</div><div class="kb">${money(S.payroll)}</div></div>
       <div class="kpi"><div class="kl">Points for</div><div class="kb">${r.pf}</div></div>
       <div class="kpi"><div class="kl">Points against</div><div class="kb">${r.pa}</div></div></div>
-    <p>${diff>=0?`${diff.toFixed(1)} wins ahead of the Shark.`:`${(-diff).toFixed(1)} wins behind the Shark.`}</p>
     ${out.length?`<p class="small">Out: ${out.map(p=>`${p.nm} (${POS_SHORT[p.pos]})`).join(", ")}</p>`:""}
+    ${button("go","On to the game","",true)}</div>`);
+  $("go").onclick=then;
+}
+/* PAYING THE BILLS, as in the football game: the payroll and one chance card. */
+function renderBills(then){
+  const b=payWeek();
+  screen(`<div class="card"><div class="datechip">GAME ${S.wk+1} OF ${S.games} · PAYING THE BILLS</div>
+    <div class="payday"><div class="payamt">\u2212${money(b.payroll)}</div><div class="small">Payroll</div></div>
+    <div class="outcome" style="border-left-color:${b.card.v<0?"var(--bad)":"var(--good)"}">${b.card.t}: <b>${money(b.card.v,true)}</b></div>
+    <p class="lede">Cash ${money(b.before)} → <b>${money(b.after)}</b></p>
+    ${b.after<0?`<p class="small" style="color:var(--bad)">In the red. Win at the gate, or the owner forces a trade after the game.</p>`:""}
     ${button("go","On to the game","",true)}</div>`);
   $("go").onclick=then;
 }
@@ -156,8 +177,7 @@ function renderPreview(opp,home,done){
   const t=rival(opp),them=rivalUnits(opp),final=S.wk===S.games-1;
   const venue=S.neutral?`v ${opp}`:home?`${opp}, at home`:`Away at ${opp}`;
   const canPlan=unlocked("plan");
-  if(S.role==="gm")S.plan=bestPlan(opp,home);
-  else if(!canPlan)S.plan="balanced";
+  if(!canPlan)S.plan="balanced";
   const pvs={};for(const k of Object.keys(PLANS))pvs[k]=preview(opp,home,k);
   const paint=()=>{
     const pv=pvs[S.plan];
@@ -166,10 +186,10 @@ function renderPreview(opp,home,done){
       <p class="small" style="margin-top:-4px">${t.d}. ${styleWord(t.style)} offence · <b>${weakWord(t.weak)}</b></p>
       <div class="market"><div class="top"><span class="nm">The line: ${lineText(pv)}</span><span class="fee">Win ${pct(pv.win)}</span></div>
         <div class="meta">How it might finish</div>${bandsHTML(pv.bands)}</div>
-      ${S.role==="coach"&&canPlan?`<div class="datechip" style="margin:10px 0 6px">YOUR GAME PLAN</div>
+      ${canPlan?`<div class="datechip" style="margin:10px 0 6px">YOUR GAME PLAN</div>
         ${Object.entries(PLANS).map(([k,p])=>`<button class="choice" data-plan="${k}" style="${k===S.plan?"border-color:var(--amber);background:color-mix(in srgb,var(--amber) 10%,var(--panel2))":""}">
           <span class="t">${p.name}</span><span class="d">Win ${pct(pvs[k].win)} · line ${lineText(pvs[k])}</span></button>`).join("")}`
-        :`<p class="small">Game plan: ${PLANS[S.plan].name}${S.role==="gm"?" (your coach's call)":""}.</p>`}
+        :`<p class="small">Game plan: ${PLANS[S.plan].name}.</p>`}
       <div class="datechip" style="margin:10px 0 6px">THE MATCH-UP</div>
       <table class="tbl"><tr><th></th><th class="n">You</th><th class="n">Them</th></tr>
         ${[["Run offence","runO"],["Pass offence","passO"],["Run defence","runD"],["Pass defence","passD"]].map(([l,k])=>`<tr><td>${l}</td><td class="n">${Math.round(myUnits()[k])}</td><td class="n">${Math.round(them[k])}</td></tr>`).join("")}</table>
@@ -225,14 +245,13 @@ function renderGame(done){
     if(ev.type==="ot"){add("OT","Level after four quarters: overtime, next score wins","ft");return setTimeout(tick,delay())}
     if(ev.type==="half"){
       add("HT","Half time","ft");
-      if(S.role==="coach"&&unlocked("half"))return decide("HALF TIME",th()>my()?`Behind by ${th()-my()}.`:my()>th()?`Ahead by ${my()-th()}.`:"Level at the break.",
+      if(unlocked("half"))return decide("HALF TIME",th()>my()?`Behind by ${th()-my()}.`:my()>th()?`Ahead by ${my()-th()}.`:"Level at the break.",
         halfWins(g),id=>{startSecondHalf(g,id);add("","— second half —","");setTimeout(tick,delay())});
-      startSecondHalf(g,S.role==="gm"?bestHalf(g):"steady");add("","— second half —","");return setTimeout(tick,delay());
+      startSecondHalf(g,"steady");add("","— second half —","");return setTimeout(tick,delay());
     }
     if(ev.type==="fourth"){
       const s=ev.sit,where=s.yl<50?`their ${s.yl}`:s.yl===50?"midfield":`your ${100-s.yl}`;
       add(ev.clock,`Fourth and ${s.togo} at ${where}`,"");
-      if(S.role==="gm"){const opts=fourthWins(g);const best=opts.reduce((a,b)=>b.win>a.win?b:a);const r=resolveFourth(g,best.id);add(r.clock,scorerLine(g,r),cls(r));return setTimeout(tick,delay())}
       return decide("FOURTH DOWN",`Fourth and ${s.togo} at ${where}. ${my()}–${th()}.`,fourthWins(g),id=>{const r=resolveFourth(g,id);add(r.clock,scorerLine(g,r),cls(r));setTimeout(tick,delay())});
     }
     add(ev.clock,scorerLine(g,ev)+(ev.type==="td"&&!ev.pending&&ev.xp===false?" (extra point missed)":""),cls(ev));
@@ -253,15 +272,34 @@ function renderGame(done){
 function bestHalf(g){const o=halfWins(g);return o.reduce((a,b)=>b.win>a.win?b:a).id}
 function renderAfter(info,done){
   const{m,opp,injury,others,g}=info,final=S.wk===S.games-1;
+  const gate=gateReceipts(m>0?"w":m<0?"l":"t");
   endWeek(others);
+  const cash=cashCheck();
+  const go=cash==="fired"?renderEnding:cash==="trade"?()=>renderForcedTrade(done):done;
   screen(`<div class="card"><div class="datechip">GAME ${S.wk} OF ${S.games} · THE DIVISION</div>
     <h1>${m>0?"A win.":m<0?"Beaten.":"A tie."}</h1>
     <div class="res mine"><span><b>${CLUB}</b> ${g.mine==="h"?g.hs:g.as}–${g.mine==="h"?g.as:g.hs} ${opp}</span></div>
     ${others.map(r=>`<div class="res"><span>${r.h} ${r.hs}–${r.as} ${r.a}</span></div>`).join("")}
+    <div class="outcome">Gate receipts: <b style="color:var(--good)">${money(gate,true)}</b></div>
     ${injury?`<div class="outcome" style="border-left-color:var(--bad)">${injury.nm} (${POS_SHORT[injury.pos]}) is hurt: out for ${injury.out} game${injury.out>1?"s":""}.</div>`:""}
     ${tableHTML()}
-    ${button("go",final?"The verdict":"Continue","",true)}</div>`);
-  $("go").onclick=done;
+    ${button("go",cash==="fired"?"The owner wants a word":cash==="trade"?"The owner wants a word":final?"The verdict":"Continue","",true)}</div>`);
+  $("go").onclick=go;
+}
+/* IN THE RED (as the football game's bank): the owner forces a trade, and
+   you choose who goes -- your best player on offence or on defence. */
+function renderForcedTrade(done){
+  const off=bestOn(OFFENCE),def=bestOn(DEFENCE);
+  screen(`<div class="card"><div class="datechip">THE OWNER HAS CALLED</div><h1>A player must be traded</h1>
+    <p class="lede">Cash is ${money(S.cash)}. Below ${money(MONEY.firedBelow)} you are fired.</p><div id="ch"></div></div>`);
+  [["off",off,"Fewer points scored"],["def",def,"More points conceded"]].forEach(([side,p,what])=>{
+    const b=document.createElement("button");b.className="choice";
+    b.innerHTML=`<span class="t">Trade ${p.nm} (${POS_SHORT[p.pos]}, ${Math.round(p.r)})</span><span class="d">+${money(tradeFee(p))} · ${what}</span>`;
+    b.onclick=()=>{const t=forcedTrade(side);
+      screen(`<div class="card"><div class="datechip">THE OWNER HAS CALLED</div><h1>${t.nm} is gone</h1>
+        <div class="outcome">Traded for ${money(t.fee)}. A backup takes his place; the payroll falls.</div>
+        ${button("go","Continue","",true)}</div>`);$("go").onclick=done};
+    $("ch").appendChild(b)});
 }
 function tableHTML(){
   const st=standings(S.table);
@@ -275,28 +313,31 @@ function lessonsHTML(){
   const f=S.calls.fourth,went=f.filter(c=>c.call==="go").length,plans=S.calls.plan;
   const matched=plans.filter(p=>p.plan===p.best).length;
   const out=[];
-  if(S.role==="coach"&&plans.length)out.push(`Your game plan was the Shark's best plan in <b>${matched} of ${plans.length}</b> games.`);
+  if(plans.length)out.push(`Your game plan was the one with the best win chance in <b>${matched} of ${plans.length}</b> games.`);
+  if(S.trades.length)out.push(`Money: the owner forced ${S.trades.length===1?"a trade":`${S.trades.length} trades`} (${S.trades.map(t=>t.nm).join(", ")}).`);
   if(f.length)out.push(`Fourth downs: you went for it <b>${went} of ${f.length}</b> times. Analytics-led NFL teams go for it far more than coaches did twenty years ago, because the win chance says to.`);
   out.push(`Margins of 3 and 7 are the commonest in the NFL, and in this game: scores come in field goals and touchdowns. FixtureShark's margin chart on every game page is built on that.`);
   return out.map(x=>`<p class="small">${x}</p>`).join("");
 }
+/* One aim, as in the football game: win the division. Fired mid-season,
+   the rest of the season is played without you so the table is complete. */
 function renderEnding(){
-  S.wk=S.games;
-  const sc=score(),exp=S.shark.wins[CLUB],w=myWins(),pos=posOf(CLUB),beat=w>exp;
-  screen(`<div class="card hero"><div class="hero-kicker">THE VERDICT</div>
-    <div class="verdict ${beat?"ok":"fail"}">${pos===1?"Division champions!":beat?"You beat the Shark.":"The Shark wins."}</div>
-    <div class="bigstats"><div><div class="bigstat">${sc}</div><div class="biglabel">Score</div></div>
-      <div><div class="bigstat">${w}</div><div class="biglabel">Wins · Shark ${exp.toFixed(1)}</div></div></div>
-    <p>${ord(pos)} in the division. The Shark predicted ${ord(Math.round(S.shark.pos[CLUB]))}.</p></div>
-    <div class="card"><h2>The table</h2>${tableHTML()}</div>
-    <div class="card"><h2>What it shows</h2>${lessonsHTML()}
-      <div class="tip"><b>The real thing</b>
-        <a href="${SITE}/nfl/fixtures">Fixtures & Results</a>: FixtureShark's Elo model beside the betting line ·
-        <a href="${SITE}/nfl/table">League Table</a> · <a href="${SITE}/nfl/snap-outlook">Snap Outlook</a>: who plays, and how much</div>
-      ${button("again","Play again","New season",true)}${button("same","Replay this season",`Season ${SEED}`)}</div>`);
+  while(S.wk<S.games){const[h,a]=myFixture(S.wk),gg=playOut(newGame(h,a,{neutral:S.neutral}));
+    record(S.table,h,a,gg.hs,gg.as);endWeek(playOthers(S.wk))}
+  const pos=posOf(CLUB),pred=sharkPlace();
+  const v=S.fired?"FIRED":pos===1?"DIVISION CHAMPIONS":ord(pos).toUpperCase();
+  const b=S.fired?`The owner ran out of patience, and money: ${money(S.cash)}.`:`FixtureShark predicted ${ord(pred)}.`;
+  screen(`<div class="card"><div class="datechip">THE FINAL GAME · HEAD COACH</div>
+    <div class="verdict ${pos===1&&!S.fired?"ok":"fail"}">${v}</div><p class="lede">${b}</p>
+    ${tableHTML()}
+    <div style="margin-top:10px">${lessonsHTML()}</div>
+    <div class="tip"><b>The real thing</b>
+      <a href="${SITE}/nfl/fixtures">Fixtures & Results</a>: FixtureShark's Elo model beside the betting line ·
+      <a href="${SITE}/nfl/table">League Table</a> · <a href="${SITE}/nfl/snap-outlook">Snap Outlook</a>: who plays, and how much</div>
+    ${button("same","Same season, different decisions","Identical seed",true)}${button("again","A new season","New seed")}</div>`);
   $("again").onclick=renderStart;
-  $("same").onclick=()=>{const seed=SEED;$("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating your season…</p></div>`;
-    setTimeout(()=>{beginSeason(S.level,S.role,seed);renderDivision()},30)};
+  $("same").onclick=()=>{const seed=SEED,lv=S.level;$("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating your season…</p></div>`;
+    setTimeout(()=>{beginSeason(lv,seed);renderDivision()},30)};
 }
 
 renderStart();

@@ -18,11 +18,15 @@ function renderGamePicker(current,root,onStart){
   const app=document.getElementById('app');
   ["hScore","hTwo","hSeason"].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=id==="hScore"?`—<span class="sub">POSITION</span>`:""});
   const tr=document.getElementById('hTrend');if(tr)tr.textContent="";
+  /* Just the sports (Chris): the game's scoreboard is hidden until a game starts. */
+  const hm=document.querySelector&&document.querySelector('header .hmain'),hs=document.getElementById('hSeason');
+  const show=on=>{if(hm&&hm.style)hm.style.display=on?"":"none";if(hs&&hs.style)hs.style.display=on?"":"none"};
+  show(false);
   app.innerHTML=`<div class="card hero">
     <div class="hero-kicker">BEAT THE SHARK</div>
     <div class="mission">Pick a sport</div>
     <div style="margin-top:14px">${BTS_GAMES.map(g=>g.id===current
       ?`<button class="choice primary" id="playThis" data-game="${g.id}"><span class="t">${g.name}</span><span class="d">${g.mission}</span></button>`
       :`<a class="choice" data-game="${g.id}" href="${root}${g.path}" style="text-decoration:none"><span class="t">${g.name}</span><span class="d">${g.mission}</span></a>`).join("")}</div></div>`;
-  document.getElementById('playThis').onclick=onStart;
+  document.getElementById('playThis').onclick=()=>{show(true);onStart()};
 }

@@ -65,47 +65,44 @@ function presserSpec(){
     {t:"Call out the defence",d:"Light a fire",fx:{morale:-3,def:2},out:"The defence reads it on their phones. They are furious, and they practise like it."}]};
 }
 
-/* ---- general manager: the week between games ------------------------------ */
-const GM_EVENTS=[
- ()=>{const p=pick(S.roster.filter(x=>["WR1","EDGE","CB1","RB"].includes(x.pos)));return{sig:"holdout",title:`${p.nm} wants a new contract`,lede:`His agent says he will not practise until it is done. He wants $6m more this year.`,
+/* ---- money: the offers and bills that shape the season ---------------------- */
+function bidSpec(){
+  const p=pick(S.roster.filter(x=>["WR2","TE","LB","CB2","S","DT"].includes(x.pos)&&!x.out&&!x.traded));
+  const fee=Math.round((p.r-30)*.4);
+  return{sig:"bid",title:"A trade offer",lede:`A rival wants ${p.nm} (${POS_SHORT[p.pos]}). They will pay $${fee}m and take his contract.`,
    choices:[
-    {t:"Pay him",d:"$6m of cap space",fx:{cap:-6,morale:2},out:"Signed by lunchtime. He is at practice by two."},
-    {t:"Offer half",d:"$3m, and a promise",fx:{cap:-3},out:"He takes it, grudgingly."},
-    {t:"Refuse",d:"Hold the line",fx:{morale:-3,injure:p.pos,games:1},def:true,out:"He sits out a game. Everyone notices."}]}},
- ()=>{const p=pick(S.roster.filter(x=>["WR2","TE","LB","CB2","S","DT"].includes(x.pos)&&!x.out));return{sig:"bid",title:"A trade offer",lede:`A rival GM offers cap space for ${p.nm}: they take his $5m contract.`,
+    {t:"Accept",d:`+$${fee}m now, payroll down $1m, a weaker starter`,fx:{cash:fee,payroll:-1,upgrade:{pos:p.pos,by:-9}},out:"He is gone by the evening. A backup steps up."},
+    {t:"Keep him",d:"No money, no change",fx:{},def:true,out:"\"Not for sale.\" He hears about it, and likes it."}]};
+}
+function sponsorSpec(){
+  return{sig:"sponsor",title:"The sponsor calls",lede:"A sportswear company wants in. Two offers on the table.",
    choices:[
-    {t:"Accept",d:"+$5m cap space, a weaker starter",fx:{cap:5,upgrade:{pos:p.pos,by:-8}},out:"He is gone by the evening. A backup steps up."},
-    {t:"Ask for more",d:"Might not come back",fx:{},def:true,out:"You ask for a pick as well. They stop answering."},
-    {t:"Decline",d:"He stays",fx:{morale:1},out:"\"Not for sale.\" He hears about it, and likes it."}]}},
- ()=>({sig:"restructure",title:"Restructure a contract",lede:"The cap analyst has a plan: turn the quarterback's salary into a bonus and free up space this year.",
+    {t:"A shirt deal",d:"+$2m at the gate every game",fx:{gate:2},out:"The logo goes on the shirts. The money comes every game."},
+    {t:"A players' bonus pool",d:"Payroll +$2m a game, the team lifted",fx:{payroll:2,off:2,def:2,morale:2},out:"The players get the money. They play like it."},
+    {t:"Turn both down",d:"Keep it simple",fx:{},def:true,out:"The sponsor goes to a rival."}]};
+}
+function medicalSpec(){
+  return{sig:"medical",title:"The medical budget",lede:"The head trainer wants a new recovery programme.",
    choices:[
-    {t:"Do it",d:"+$4m now, more later",fx:{cap:4},out:"Paperwork, signatures, and $4m appears. Next year's GM will pay for it."},
-    {t:"Not this year",d:"Keep the books clean",fx:{},def:true,out:"The analyst sighs and files the spreadsheet."}]}),
- ()=>({sig:"freeagent",title:"A free agent is available",lede:"A veteran pass rusher was released yesterday. He wants $4m for the rest of the season.",
+    {t:"Fund it",d:"$4m now, injured players back",fx:{cash:-4,heal:true},out:"Cryotherapy, sleep pods and a nutritionist. The injury list shrinks."},
+    {t:"Not now",d:"Keep the money",fx:{},def:true,out:"The trainer goes back to ice baths and hope."}]};
+}
+function freeAgentSpec(){
+  return{sig:"freeagent",title:"A free agent is available",lede:"A veteran pass rusher was released yesterday.",
    choices:[
-    {t:"Sign him",d:"$4m, a better pass rush",fx:{cap:-4,upgrade:{pos:"EDGE",by:5}},out:"He arrives Wednesday and is starting by Sunday."},
-    {t:"A cheaper option",d:"$1m, a younger player",fx:{cap:-1,upgrade:{pos:"EDGE",by:rnd(0,3)}},out:"Younger, cheaper, unproven."},
-    {t:"Pass",d:"Keep the money",fx:{},def:true,out:"Someone else signs him by Friday."}]}),
- ()=>({sig:"medical",title:"The medical budget",lede:"The head trainer wants a new recovery programme. It costs $3m this year.",
-   choices:[
-    {t:"Fund it",d:"$3m, injured players back sooner",fx:{cap:-3,heal:true},out:"Cryotherapy, sleep pods and a nutritionist. The injury list shrinks."},
-    {t:"Fund half of it",d:"$1m",fx:{cap:-1,morale:1},out:"A scaled-down version. Better than nothing."},
-    {t:"Not now",d:"Keep the money",fx:{},def:true,out:"The trainer goes back to ice baths and hope."}]}),
- ()=>({sig:"owner",title:"The owner calls",lede:"\"I want to see us win now. What do you need?\"",
-   choices:[
-    {t:"Ask for $5m more",d:"He might say yes",fx:{cap:5,morale:-1},out:"He says yes. He also says he expects the division."},
-    {t:"Ask for patience",d:"Win the long game",fx:{morale:2},def:true,out:"He is not a patient man, but he listens."}]})
-];
+    {t:"Sign him",d:"$5m now, payroll +$1m, a better pass rush",fx:{cash:-5,payroll:1,upgrade:{pos:"EDGE",by:6}},out:"He arrives Wednesday and is starting by Sunday."},
+    {t:"Pass",d:"Keep the money",fx:{},def:true,out:"Someone else signs him by Friday."}]};
+}
+const MONEY_EVENTS=[bidSpec,sponsorSpec,medicalSpec,freeAgentSpec];
 
 /* ---- the trade deadline, before the final boss ----------------------------- */
 function deadlineSpec(){
   const boss=TEAMS[0].n,cb=pl("CB2");
-  const gm=S.role==="gm";
-  return{sig:"deadline",title:"The trade deadline",lede:`One deal, before the ${boss}. Your ${gm?`cap space: $${S.cap}m`:"owner has given you one trade"}.`,
+  return{sig:"deadline",title:"The trade deadline",lede:`One deal before the ${boss}. Cash: ${money(S.cash)}.`,
    choices:[
-    {t:"A pass rusher",d:`Gives up ${cb.nm} (CB)${gm?" · $6m":""}`,fx:{cap:gm?-6:0,upgrade:{pos:"EDGE",by:10}},after:()=>deadlineAfter("edge"),
+    {t:"A pass rusher",d:`$8m, payroll +$1m · gives up ${cb.nm} (CB)`,fx:{cash:-8,payroll:1,upgrade:{pos:"EDGE",by:10}},after:()=>deadlineAfter("edge"),
      out:"A pass rusher arrives; a cornerback leaves. The defence is fiercer and a little thinner."},
-    {t:"A receiver",d:`A No. 1 receiver${gm?" · $8m":""}`,fx:{cap:gm?-8:0},after:()=>deadlineAfter("wr"),
+    {t:"A receiver",d:"$12m, payroll +$2m · a No. 1 receiver",fx:{cash:-12,payroll:2},after:()=>deadlineAfter("wr"),
      out:"A receiver arrives. He has three days to learn the playbook."},
     {t:"Stand pat",d:"Trust this roster",fx:{morale:2},def:true,out:"No deal. The players take it as a vote of confidence."}]};
 }
