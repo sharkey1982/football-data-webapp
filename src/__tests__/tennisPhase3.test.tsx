@@ -206,9 +206,14 @@ describe('tennis phase 3 pages', () => {
       latestDate: '2026-10-04',
     });
     render(<MemoryRouter><TennisTvGuidePage today="2026-10-06" /></MemoryRouter>);
-    const week = await screen.findByTestId('tennis-guide-this-week');
-    expect(week).toHaveTextContent('Wuhan Open');
-    expect(week).toHaveTextContent('Sky Sports');
+    // The shared TV guide layout (as Football and NFL): one row per tournament, "On now" while it's on.
+    const link = await screen.findByRole('link', { name: 'Wuhan Open' });
+    expect(link.getAttribute('href')).toBe('/tennis/tournaments/wta/wuhan');
+    const row = link.closest('li')!;
+    expect(row).toHaveTextContent('On now');
+    expect(row).toHaveTextContent('Sky Sports');
+    expect(screen.getByRole('group', { name: 'Quick filters' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/team/i)).toBeNull();
   });
 });
 

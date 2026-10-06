@@ -43,6 +43,10 @@ export type WatchGuideItem = WatchGuideFixture & {
   subtitle?: ReactNode;
   /** A note under the viewing routes, e.g. "picked week by week", with a listings link. */
   note?: { text: string; link?: { label: string; url: string } };
+  /** The row's title when it isn't "Home v Away" (tennis: the tournament). */
+  title?: string;
+  /** Shown in the time column instead of the kick-off time or "TBC" (tennis: "On now", "Usually"). */
+  timeLabel?: string;
 };
 
 export type WatchGuideViewProps = {
@@ -52,6 +56,8 @@ export type WatchGuideViewProps = {
   intro: ReactNode;
   emptyText: string;
   head: { title: string; description: string; path: string };
+  /** The team picker (football clubs and divisions, NFL teams); off for tennis, whose rows are tournaments. */
+  teamPicker?: boolean;
 };
 
 type Quick = 'all' | 'tonight' | 'weekend' | 'free' | 'subscription' | 'ppv' | 'not_live';
@@ -81,7 +87,7 @@ function matchesQuick(f: WatchGuideItem, q: Quick): boolean {
   return tiers.includes(q);
 }
 
-export default function WatchGuideView({ fixtures, error, title, intro, emptyText, head }: WatchGuideViewProps) {
+export default function WatchGuideView({ fixtures, error, title, intro, emptyText, head, teamPicker = true }: WatchGuideViewProps) {
   const [partners, setPartners] = useState<AffiliatePartner[]>([]);
   const [quick, setQuick] = useState<Quick>('all');
   const [competition, setCompetition] = useState('');
@@ -164,7 +170,7 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
       .slice(0, 40)
       .map((f) => ({
         '@type': 'BroadcastEvent',
-        name: `${f.homeTeamName} v ${f.awayTeamName}`,
+        name: f.title ?? `${f.homeTeamName} v ${f.awayTeamName}`,
         startDate: f.kickoffTime ? `${f.kickoffDate}T${f.kickoffTime}` : f.kickoffDate,
         isLiveBroadcast: true,
         isAccessibleForFree: f.offers.some((o) => ['free', 'free_compatible_device'].includes(tierOf(o))),
@@ -219,9 +225,11 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
                 ))}
               </select>
             </div>
-            <div className="col-span-2 sm:col-span-1 sm:w-64">
-              <TeamPicker groups={teamGroups} value={team} onChange={setTeam} />
-            </div>
+            {teamPicker && (
+              <div className="col-span-2 sm:col-span-1 sm:w-64">
+                <TeamPicker groups={teamGroups} value={team} onChange={setTeam} />
+              </div>
+            )}
             {filtersActive && (
               <button
                 type="button"
@@ -281,10 +289,10 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
                 {fs.map((f) => {
                   const hasPrediction = f.predictedHomeGoals != null && f.predictedAwayGoals != null;
                   const href = f.href !== undefined ? f.href : f.slug ? `/football/matches/${f.slug}` : null;
-                  const name = `${f.homeTeamName} v ${f.awayTeamName}`;
+                  const name = f.title ?? `${f.homeTeamName} v ${f.awayTeamName}`;
                   return (
                     <li key={f.fixtureId} className="py-3 grid grid-cols-[3.25rem_1fr] gap-x-3">
-                      <span className="font-mono text-xs text-ink-500 pt-0.5">{f.kickoffTime ? f.kickoffTime.slice(0, 5) : 'TBC'}</span>
+                      <span className="font-mono text-xs text-ink-500 pt-0.5">{f.timeLabel ?? (f.kickoffTime ? f.kickoffTime.slice(0, 5) : 'TBC')}</span>
                       <div className="min-w-0">
                         {href ? (
                           <Link to={href} className="font-medium text-ink-900 hover:underline">{name}</Link>
