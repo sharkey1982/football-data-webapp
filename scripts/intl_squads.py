@@ -439,6 +439,13 @@ def main() -> None:
         if elo_fresh:
             from datetime import date
             sb.rpc("intl_replace_club_elo", {"payload": [{**r, "fetched_on": date.today().isoformat()} for r in elo_rows]}).execute()
+        try:  # squad watch: save a version for every nation whose squad changed
+            changed = sb.rpc("intl_snapshot_squads", {}).execute().data
+            note += f"; squad versions saved: {changed}"
+        except Exception as e:  # noqa: BLE001 -- only before migration 20261006110000 is applied
+            if "intl_snapshot_squads" not in str(e):
+                raise
+            print("intl_snapshot_squads not there yet; skipped")
         status = "warning" if elo_problem else "success"
         sb.table("pipeline_runs").update({"status": status, "summary": note, "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()
     except Exception as e:  # noqa: BLE001
