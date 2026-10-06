@@ -17,6 +17,7 @@ import Timelapse from '../../components/Timelapse';
 import { ChipGroup, IntlHeader, Section, TeamLink } from '../../components/intl/IntlBits';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
+import { intlTournamentHead } from '../../lib/intlSeo';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlTeamPath, intlTournamentPath, loadIntlEditions } from '../../lib/intlApi';
 import { DATA_NOTE, TOURNAMENTS, editionLabel, titlesRace, tournamentBySlug, type EditionSummary, type Tournament } from '../../lib/intlStats';
 
@@ -80,11 +81,12 @@ export default function IntlTournamentsPage() {
   const navigate = useNavigate();
   const only = competition ? tournamentBySlug(competition) : null;
   const { data, failed, loading } = useKeyedFetch('editions', () => loadIntlEditions());
+  const onlyHead = only ? intlTournamentHead(only) : null;
   useDocumentHead({
-    title: only ? `Every ${only.competition}: winners, hosts and results` : 'International tournaments: World Cup, Euro, Copa América, AFCON and more',
-    description: only
-      ? `Every ${only.competition} edition with its hosts, winner and runner-up, the roll of honour, and each edition's groups, knockouts and scorers.`
-      : 'Every World Cup, Euro, Copa América, Africa Cup of Nations, Asian Cup, Gold Cup, Nations League and Confederations Cup: winners, hosts, groups, knockouts and scorers.',
+    title: onlyHead?.title ?? 'International tournaments: World Cup, Euro, Copa América, AFCON and more',
+    description:
+      onlyHead?.description ??
+      'Every World Cup, Euro, Copa América, Africa Cup of Nations, Asian Cup, Gold Cup, Nations League and Confederations Cup: winners, hosts, groups, knockouts and scorers.',
     path: only ? intlTournamentPath(only.slug) : INTL_TOURNAMENTS_PATH,
   });
 

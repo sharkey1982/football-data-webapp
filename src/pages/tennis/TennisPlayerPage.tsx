@@ -9,6 +9,7 @@
 // at each Grand Slam for chosen seasons (PlayerForm).
 // ============================================================================
 
+import { useNoindex } from '../../hooks/useNoindex';
 import React, { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
@@ -97,6 +98,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
     { key: 'runnerUp', label: 'Runner-up', render: (r) => (r.runnerUp.length ? r.runnerUp.join(', ') : '–'), sortValue: (r) => r.runnerUp.length, descFirst: true, className: 'hidden sm:table-cell' },
   ];
 
+  useNoindex(!loading && !failed && !data);
   return (
     <article className="space-y-6">
       <TennisHeader title={s?.name ?? 'Player'} crumb={{ to: tennisPlayersPath(tour), label: 'Your Player' }}>

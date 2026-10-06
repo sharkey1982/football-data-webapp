@@ -8,20 +8,14 @@
 // noindex is what stops search engines indexing those.
 // ============================================================================
 
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { useNoindex } from '../hooks/useNoindex';
 
 export default function NotFoundPage() {
   useDocumentHead({ title: 'Page not found' });
 
-  useEffect(() => {
-    const tag = document.createElement('meta');
-    tag.setAttribute('name', 'robots');
-    tag.setAttribute('content', 'noindex');
-    document.head.appendChild(tag);
-    return () => tag.remove();
-  }, []);
+  useNoindex(true);
 
   return (
     <div className="mx-auto max-w-xl py-16 text-center">

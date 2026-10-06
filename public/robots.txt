@@ -27,4 +27,25 @@ Disallow: /admin/team-ratings
 Disallow: /admin/
 Disallow: /data-flow
 
+# AI search and answer engines: allowed, deliberately (6 Oct 2026). FixtureShark
+# wants its data cited; /llms.txt summarises the site for them. They get the
+# same rules as everyone else, so admin and operational pages stay blocked.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+Disallow: /source-data
+Disallow: /data-health
+Disallow: /fpl/tactical-roles
+Disallow: /login
+Disallow: /admin/
+Disallow: /data-flow
+
 Sitemap: https://fixtureshark.com/sitemap.xml

@@ -81,14 +81,23 @@ async function queryAll(path, pageSize = 1000) {
   const out = [];
   for (let offset = 0; ; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
-    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    if (page == null) return out.length > 0 ? out : null;
+    let page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    // One retry for a transient error. A page that still fails returns null
+    // for the WHOLE query: until 6 Oct the rows before the failure came back
+    // as if complete, so (with oldest-first ordering) the current season was
+    // what silently went missing. null makes the caller skip the section and
+    // verify-dist's minimum page counts fail the build instead.
+    if (page == null) page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    if (page == null) {
+      console.error(`Static: page at offset ${offset} failed twice for ${path} -- discarding the partial result.`);
+      return null;
+    }
     out.push(...page);
     if (page.length < pageSize) return out;
     // Guard against an unbounded loop if the server ever ignores offset.
     if (offset > 200000) {
-      console.error('Static: pagination guard tripped -- stopping.');
-      return out;
+      console.error('Static: pagination guard tripped -- discarding the result.');
+      return null;
     }
   }
 }
@@ -231,6 +240,44 @@ async function main() {
   }
 
   await writePlayerScoutPages();
+
+  // ---- International: nation, tournament and edition pages (head only) -----
+  // The bodies load in the browser; what the static file gives crawlers is
+  // the right title, description, canonical and breadcrumb for each URL
+  // (before 6 Oct 2026 these were bare app-shell pages, absent from the
+  // sitemap). Same rule as the sitemap: nations with 30+ games, every
+  // tournament, every edition. Titles come from src/lib/intlSeo.ts, which
+  // the pages use too.
+  async function writeIntlPages() {
+    const entry = await import(ENTRY);
+    if (!entry.intlTeamHead) return;
+    const [teams, editions] = await Promise.all([
+      queryAll(`intl_team_summary?select=team,slug,played,won,first_match,elo,elo_rank&played=gte.${entry.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
+      queryAll('intl_edition_summary?select=competition,label,winner,runner_up&order=competition.asc,season_start.asc'),
+    ]);
+    const write = (meta) => {
+      const page = renderStaticRouteHead(meta);
+      const dir = join(DIST, ...meta.path.split('/').filter(Boolean));
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+    };
+    let n = 0;
+    for (const t of teams ?? []) {
+      try { write(entry.intlTeamHead(t)); n++; } catch (err) { console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`); }
+    }
+    const byComp = new Map(entry.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
+    for (const t of entry.INTL_TOURNAMENTS) {
+      try { write(entry.intlTournamentHead(t)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); }
+    }
+    for (const e of editions ?? []) {
+      const t = byComp.get(e.competition);
+      if (!t) continue;
+      try { write(entry.intlEditionHead(t, e)); n++; } catch (err) { console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`); }
+    }
+    console.log(`Static: wrote head tags for ${n} international page(s) (${(teams ?? []).length} nations, ${(editions ?? []).length} editions).`);
+  }
+
+  await writeIntlPages();
 
   // ---- Club finance pages --------------------------------------------------
   // Generated for EVERY team with published accounts -- not only the Premier

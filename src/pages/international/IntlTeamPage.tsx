@@ -7,6 +7,7 @@
 // head-to-head against any opponent it has played.
 // ============================================================================
 
+import { useNoindex } from '../../hooks/useNoindex';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
@@ -16,6 +17,7 @@ import GroupChances from '../../components/intl/GroupChances';
 import Squad from '../../components/intl/Squad';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
+import { intlTeamHead } from '../../lib/intlSeo';
 import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, type IntlTeamData } from '../../lib/intlApi';
 import { DATA_NOTE, titleList, titleText, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
 
@@ -103,11 +105,10 @@ export default function IntlTeamPage() {
   const { slug = '' } = useParams();
   const { data, failed, loading } = useKeyedFetch(slug, () => loadIntlTeam(slug));
   const t = data?.team;
+  const head = t ? intlTeamHead(t) : null;
   useDocumentHead({
-    title: t ? `${t.team} national team: record, rating and tournament history` : 'International team',
-    description: t
-      ? `${t.team}: played ${t.played}, won ${t.won} since ${t.first_match.slice(0, 4)}; Elo ${Math.round(t.elo)}${t.elo_rank ? ` (ranked ${t.elo_rank})` : ''}; World Cup, Euro and Nations League history and head-to-heads.`
-      : 'A national team’s record, rating and tournament history.',
+    title: head?.title ?? 'International team',
+    description: head?.description ?? 'A national team’s record, rating and tournament history.',
     path: intlTeamPath(slug),
   });
 
@@ -129,6 +130,7 @@ export default function IntlTeamPage() {
     { key: 'y', label: 'Years', render: (r) => (r.first_match.slice(0, 4) === r.last_match.slice(0, 4) ? r.first_match.slice(0, 4) : `${r.first_match.slice(0, 4)}–${r.last_match.slice(0, 4)}`), sortValue: (r) => r.last_match, align: 'right', className: 'hidden md:table-cell' },
   ];
 
+  useNoindex(!loading && !failed && (!data || !t));
   if (failed) return <p className="text-ink-700">This team is unavailable right now.</p>;
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
   if (!data || !t) return <p className="text-ink-700">No national team by that name. <Link to={INTL_TEAMS_PATH} className="underline">See every nation</Link>.</p>;

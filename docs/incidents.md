@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-06 · NFL game pages: every sitemap URL redirected
+- **Reported:** site-health (5 Oct, a sampled game page answered 301) and the 6 Oct audit.
+- **Impact:** since game pages launched (4 Oct, #170) all ~272 NFL game URLs in the sitemap, and every internal link to a game, answered 301 to a lower-case address whose page declared the upper-case address canonical: a redirect/canonical loop, so Google would index none of them.
+- **Cause:** game ids are upper case (2026_11_MIA_BUF) and were used as-is in URLs; Netlify serves files under lower-cased paths and redirects any mixed-case request to the lower-case form.
+- **Fix:** `nflGamePath` and `nflMatchProjectionPath` lower-case the id; the two pages turn the URL segment back with `nflGameIdFromParam`. Canonicals, sitemap entries, static directories and links are now all lower case; old upper-case URLs still 301 to them.
+- **Prevention:** site-health always samples an NFL game page and prints the redirect target of any non-200 URL. *Lesson: anything that becomes a URL path must be lower case on Netlify.*
+
+---
+
 ## 2026-10-06 · ClubElo: no club rated since the squads launched, reported as success
 - **Reported:** site audit, 6 Oct.
 - **Impact:** since the international squads went live (5 Oct), no squad player had a club rating: the "Club Elo" column was blank, average club ratings showed "–" and the ClubElo top 50 was hidden. Every intl_squads run was logged as success ("0 rated by ClubElo (0 clubs)").

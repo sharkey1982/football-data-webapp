@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { NFL_HUB_PATH, NFL_MATCH_PROJECTIONS_PATH, NFL_PROJECTIONS_PATH, nflGamePath, nflMatchProjectionPath, nflPlayerPath, nflTeamPath, ukKickoff, type NflTeamSeason } from '../../lib/nflApi';
+import { NFL_HUB_PATH, NFL_MATCH_PROJECTIONS_PATH, NFL_PROJECTIONS_PATH, nflGameIdFromParam, nflGamePath, nflMatchProjectionPath, nflPlayerPath, nflTeamPath, ukKickoff, type NflTeamSeason } from '../../lib/nflApi';
 import { FORMATS, fmt1, type ScoringFormat } from '../../lib/nflFantasyApi';
 import { isUnlikely, projOf, rangeOf, type NflProjection } from '../../lib/nflProjections';
 import {
@@ -395,5 +395,5 @@ function IndexView() {
 
 export default function NflMatchProjectionsPage() {
   const { gameId } = useParams<{ gameId?: string }>();
-  return gameId ? <GameView gameId={gameId} /> : <IndexView />;
+  return gameId ? <GameView gameId={nflGameIdFromParam(gameId)} /> : <IndexView />;
 }

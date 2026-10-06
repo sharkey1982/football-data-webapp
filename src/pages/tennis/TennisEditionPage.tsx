@@ -7,6 +7,7 @@
 // for Grand Slam, Tour Finals and 1000 editions; others client-side.
 // ============================================================================
 
+import { useNoindex } from '../../hooks/useNoindex';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
@@ -50,6 +51,7 @@ export default function TennisEditionPage({ initialData }: { initialData?: Tenni
   const prev = i > 0 ? years[i - 1] : null;
   const next = i >= 0 && i < years.length - 1 ? years[i + 1] : null;
 
+  useNoindex(!loading && !failed && !data);
   return (
     <article className="space-y-6">
       <TennisHeader title={e ? `${e.name} ${year}` : `${year}`} crumb={data ? { to: tennisEventPath(tour, slug), label: data.event.name } : undefined}>

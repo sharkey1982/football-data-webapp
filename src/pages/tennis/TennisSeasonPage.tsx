@@ -6,6 +6,7 @@
 // by ranking) and every final. Static for every tour-year.
 // ============================================================================
 
+import { useNoindex } from '../../hooks/useNoindex';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
@@ -70,6 +71,7 @@ export default function TennisSeasonPage({ initialData }: { initialData?: Tennis
     { key: 'when', label: 'When', render: (r) => `${shortDate(r.from)} – ${shortDate(r.to)}`, sortValue: (r) => r.from, className: 'hidden sm:table-cell' },
   ];
 
+  useNoindex(!loading && !failed && !data);
   return (
     <article className="space-y-6">
       <TennisHeader

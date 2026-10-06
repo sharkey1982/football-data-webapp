@@ -6,6 +6,7 @@
 // year (each year links to its draw). Static for every event.
 // ============================================================================
 
+import { useNoindex } from '../../hooks/useNoindex';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { Country, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
@@ -47,6 +48,7 @@ export default function TennisTournamentPage({ initialData }: { initialData?: Te
     { key: 'dates', label: 'Dates', render: (e) => `${shortDate(e.start_date)} – ${shortDate(e.end_date)}`, sortValue: (e) => e.start_date, className: 'hidden lg:table-cell' },
   ];
 
+  useNoindex(!loading && !failed && !data);
   return (
     <article className="space-y-6">
       <TennisHeader title={ev?.name ?? 'Tournament'} crumb={{ to: tennisTournamentsPath(tour), label: 'Tournaments' }}>

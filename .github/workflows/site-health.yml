@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: '30 8 * * *'
   workflow_dispatch:
+    inputs:
+      base:
+        description: 'Fetch from this host instead (e.g. a deploy preview URL); canonicals are still checked against fixtureshark.com'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -25,12 +30,14 @@ jobs:
       # The canonical domain since 27 Sep 2026. The old netlify.app host now
       # 301s everything here, so checking it proved nothing.
       SITE: https://fixtureshark.com
+      BASE: ${{ inputs.base }}
     steps:
       - name: Check sitemap, key pages and a sample of sitemap URLs
         run: |
           python3 - <<'PY'
           import os, random, re, sys, urllib.request, urllib.error
           site = os.environ["SITE"]
+          base = (os.environ.get("BASE") or site).rstrip("/")
           fails = []
 
           # Redirects are NOT followed: a sitemap or canonical URL that 301s
@@ -44,6 +51,8 @@ jobs:
 
           def fetch(path):
               url = path if path.startswith("http") else site + path
+              if base != site and url.startswith(site):
+                  url = base + url[len(site):]
               req = urllib.request.Request(url, headers={"User-Agent": "FixtureShark-site-health"})
               try:
                   with opener.open(req, timeout=30) as r:
@@ -55,15 +64,35 @@ jobs:
 
           def get(path):
               s, body, headers = fetch(path)
-              if s == 200 and "noindex" in (headers.get("X-Robots-Tag") or headers.get("x-robots-tag") or "").lower():
+              # Deploy previews always send noindex; only the live site is checked for it.
+              if s == 200 and base == site and "noindex" in (headers.get("X-Robots-Tag") or headers.get("x-robots-tag") or "").lower():
                   fails.append(f"{path} sends X-Robots-Tag: noindex")
               return s, body
 
           status, body = get("/sitemap.xml")
           locs = re.findall(r"<loc>([^<]+)</loc>", body) if status == 200 else []
+          # /sitemap.xml is a sitemap index (one file per section) since 6 Oct 2026.
+          per_file = {}
+          if status == 200 and "<sitemapindex" in body:
+              files, locs = locs, []
+              for f in files:
+                  fs, fbody = get(f)
+                  if fs != 200:
+                      fails.append(f"{f} returned {fs}")
+                      continue
+                  n = re.findall(r"<loc>([^<]+)</loc>", fbody)
+                  print(f"  {f}: {len(n)} URLs")
+                  per_file[f.rsplit("/", 1)[-1].removesuffix(".xml")] = len(n)
+                  locs += n
           print(f"sitemap.xml: HTTP {status}, {len(locs)} URLs")
+          print(f"::notice::sitemap {len(locs)} URLs: " + ", ".join(f"{k} {v}" for k, v in per_file.items()))
           if status != 200:
               fails.append(f"/sitemap.xml returned {status}")
+          dupes = len(locs) - len(set(locs))
+          if dupes:
+              fails.append(f"{dupes} duplicate URL(s) in the sitemap")
+          if any("?" in u for u in locs):
+              fails.append("sitemap contains parameterised URLs")
           elif len(locs) < 1000:
               fails.append(f"sitemap has only {len(locs)} URLs (expected 1000+) -- a section is missing")
           wrong_host = [u for u in locs if not u.startswith(site + "/")]
@@ -73,7 +102,9 @@ jobs:
           # Pages that must exist. Team and finance pages are the ones that
           # vanished when static generation didn't finish.
           must = ["/", "/fixtures", "/tv-guide", "/affiliate-disclosure", "/finance", "/football/teams/arsenal",
-                  "/football", "/fpl", "/fpl/line-ups", "/robots.txt"]
+                  "/football", "/fpl", "/fpl/line-ups", "/robots.txt",
+                  "/nfl", "/nfl/teams/buffalo-bills", "/tennis", "/tennis/players/atp/sinner-j",
+                  "/international", "/football/local-clubs"]
           for p in must:
               s, html = get(p)
               print(f"{p}: HTTP {s}")
@@ -101,17 +132,29 @@ jobs:
           # A generated team page must carry real content in the raw HTML,
           # not just an empty React root (that would mean it was served by
           # the SPA fallback because generation failed).
-          s, html = get("/football/teams/arsenal")
-          if s == 200 and re.search(r'<div id="root">\s*</div>', html):
-              fails.append("/football/teams/arsenal has an empty root in raw HTML -- static generation did not write it")
+          for p in ["/football/teams/arsenal", "/nfl/teams/buffalo-bills", "/tennis/players/atp/sinner-j"]:
+              s, html = get(p)
+              if s == 200 and re.search(r'<div id="root">\s*</div>', html):
+                  fails.append(f"{p} has an empty root in raw HTML -- static generation did not write it")
+
+          # Each section's sitemap file must be there and not shrunk to
+          # nothing (a section that drops out of the build shows here).
+          for section, floor in [("football", 1000), ("fpl", 300), ("finance", 10), ("nfl", 200), ("tennis", 150), ("international", 100)]:
+              if per_file.get(section, 0) < floor:
+                  fails.append(f"sitemap section {section} has {per_file.get(section, 0)} URLs (expected {floor}+)")
 
           random.seed()
           sample = random.sample(locs, min(30, len(locs)))
           bad = []
+          # Always include one NFL game page: on 5-6 Oct sampled game pages
+          # answered 301 while team pages were fine.
+          games = [u for u in locs if "/nfl/games/" in u]
+          if games:
+              sample = sample + [random.choice(games)]
           for u in sample:
-              s, _ = get(u)
+              s, _, h = fetch(u)
               if s != 200:
-                  bad.append(f"{u} -> {s}")
+                  bad.append(f"{u} -> {s} {h.get('Location') or h.get('location') or ''}".rstrip())
           print(f"sampled {len(sample)} sitemap URLs, {len(bad)} failed")
           fails += bad
 

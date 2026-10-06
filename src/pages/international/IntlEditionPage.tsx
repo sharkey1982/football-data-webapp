@@ -8,6 +8,7 @@
 // in its league phase shows each group's teams and fixtures.
 // ============================================================================
 
+import { useNoindex } from '../../hooks/useNoindex';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FixtureRow, GameList, GameRow, IntlHeader, Section, TeamLink } from '../../components/intl/IntlBits';
@@ -15,6 +16,7 @@ import Bracket from '../../components/intl/Bracket';
 import GroupChances from '../../components/intl/GroupChances';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
+import { intlEditionHead } from '../../lib/intlSeo';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlEditionPath, intlTournamentPath, loadIntlEdition, type IntlEditionData } from '../../lib/intlApi';
 import { DATA_NOTE, bracketRounds, editionLabel, groupTable, isReported, isUpset, pointsForWin, reportedAsMatch, scoreText, shortDate, teamsAfter, tournamentBySlug, type IntlStage, type TableRow } from '../../lib/intlStats';
 
@@ -138,17 +140,14 @@ export default function IntlEditionPage() {
   const next = idx >= 0 && idx < sameComp.length - 1 ? sameComp[idx + 1] : null;
   const name = t && e ? `${t.short} ${editionLabel(e.label)}` : 'Tournament';
 
+  const head = e && t ? intlEditionHead(t, e, final ? scoreText(final) : null) : null;
   useDocumentHead({
-    title: e && t ? `${t.competition} ${editionLabel(e.label)}: results, groups and scorers` : 'International tournament',
-    description:
-      e && t
-        ? e.winner
-          ? `${t.competition} ${editionLabel(e.label)}: ${e.winner} beat ${e.runner_up ?? 'the runners-up'}${final ? ` ${scoreText(final)} in the final` : ''}. Every group, knockout round, scorer and upset.`
-          : `${t.competition} ${editionLabel(e.label)}: every group, fixture and result.`
-        : 'An international tournament: groups, knockouts and scorers.',
+    title: head?.title ?? 'International tournament',
+    description: head?.description ?? 'An international tournament: groups, knockouts and scorers.',
     path: intlEditionPath(competition, label),
   });
 
+  useNoindex(!t || (!loading && !failed && (!data || !e)));
   if (!t) return <p className="text-ink-700">No such tournament. <Link to={INTL_TOURNAMENTS_PATH} className="underline">See every tournament</Link>.</p>;
   if (failed) return <p className="text-ink-700">This tournament is unavailable right now.</p>;
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
