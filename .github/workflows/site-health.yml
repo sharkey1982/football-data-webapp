@@ -132,7 +132,8 @@ jobs:
           # A generated team page must carry real content in the raw HTML,
           # not just an empty React root (that would mean it was served by
           # the SPA fallback because generation failed).
-          for p in ["/football/teams/arsenal", "/nfl/teams/buffalo-bills", "/tennis/players/atp/sinner-j"]:
+          for p in ["/football/teams/arsenal", "/nfl/teams/buffalo-bills", "/tennis/players/atp/sinner-j",
+                    "/international/teams/england", "/international/tournaments/world-cup/2022"]:
               s, html = get(p)
               if s == 200 and re.search(r'<div id="root">\s*</div>', html):
                   fails.append(f"{p} has an empty root in raw HTML -- static generation did not write it")
