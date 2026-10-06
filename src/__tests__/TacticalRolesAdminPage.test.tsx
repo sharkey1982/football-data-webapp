@@ -34,6 +34,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveTacticalRoleCorrection: vi.fn(),
     saveDepthRankCorrection: vi.fn(),
     saveManualStatus: vi.fn(),
+    saveManualReturnDate: vi.fn(),
     getProjectedMinutes: vi.fn(),
     getSetPieceHierarchyForTeam: vi.fn(),
     reorderSetPieceTaker: vi.fn(),
@@ -64,6 +65,8 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
     status: 'a',
     status_is_manual: false,
     news: null,
+    manual_return_date: null,
+    fpl_return_date: null,
     ...overrides,
   };
 }
@@ -271,6 +274,36 @@ describe('TacticalRolesAdminPage', () => {
     await user.selectOptions(depthFilterSelect, '3rd');
     await waitFor(() => expect(screen.queryByText('Gabriel')).not.toBeInTheDocument());
     expect(screen.getByText('Kiwior')).toBeInTheDocument();
+  });
+
+  it('lets an admin set and clear a return date in the squad table, showing FPL\u2019s date when none is set', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 4, web_name: 'Saliba', element_type: 2, tactical_role: 'RCB', depth_rank: 1, source_name: 'manual', confidence: 1, status: 'i', news: 'Knee injury - Unknown return date' }),
+      baseRow({ fpl_player_id: 5, web_name: 'Konsa', element_type: 2, tactical_role: 'RCB', depth_rank: 2, source_name: 'manual', confidence: 1, status: 'i', fpl_return_date: '2026-10-18' }),
+      baseRow({ fpl_player_id: 6, web_name: 'White', element_type: 2, tactical_role: 'RB', depth_rank: 2, source_name: 'manual', confidence: 1, manual_return_date: '2026-11-01' }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+    mockedApi.saveManualReturnDate.mockResolvedValue(undefined);
+
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    await waitFor(() => expect(screen.getByLabelText('Expected back: Saliba')).toBeInTheDocument());
+
+    // FPL's own date is shown beside an empty input; an admin date fills it.
+    expect(screen.getByText('FPL 18 Oct')).toBeInTheDocument();
+    expect(screen.getByLabelText('Expected back: White')).toHaveValue('2026-11-01');
+
+    const { fireEvent } = await import('@testing-library/react');
+    fireEvent.change(screen.getByLabelText('Expected back: Saliba'), { target: { value: '2026-10-25' } });
+    await waitFor(() => expect(mockedApi.saveManualReturnDate).toHaveBeenCalledWith(1, 4, 2, '2026-10-25'));
+    await waitFor(() => expect(screen.getByLabelText('Expected back: Saliba')).toHaveValue('2026-10-25'));
+
+    await user.click(screen.getByRole('button', { name: 'Clear return date for White' }));
+    await waitFor(() => expect(mockedApi.saveManualReturnDate).toHaveBeenCalledWith(1, 6, 2, null));
   });
 
   it('shows the set-piece taking order for the selected team, and lets a taker be reordered, added, and removed', async () => {

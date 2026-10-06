@@ -49,6 +49,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveTacticalRoleCorrection: vi.fn(),
     saveDepthRankCorrection: vi.fn(),
     saveManualStatus: vi.fn(),
+    saveManualReturnDate: vi.fn(),
     getProjectedMinutes: vi.fn(),
     getSetPieceHierarchyForTeam: vi.fn(),
     reorderSetPieceTaker: vi.fn(),
@@ -76,6 +77,8 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
     status: 'a',
     status_is_manual: false,
     news: null,
+    manual_return_date: null,
+    fpl_return_date: null,
     ...overrides,
   };
 }
