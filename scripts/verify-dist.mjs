@@ -33,6 +33,7 @@ const checks = [
   ['tennis ATP player pages', count('tennis', 'players', 'atp'), 100],
   ['tennis season pages', count('tennis', 'seasons', 'atp') + count('tennis', 'seasons', 'wta'), 40],
   ['tennis tournament pages', count('tennis', 'tournaments', 'atp') + count('tennis', 'tournaments', 'wta'), 100],
+  ['international nation pages', count('international', 'teams'), 200],
   ['/football/local-clubs', existsSync(join(DIST, 'football', 'local-clubs', 'index.html')) ? 1 : 0, 1],
   // Flat twins (fixtures.html beside fixtures/index.html) -- without them
   // every no-slash canonical URL 301s to its slash form. See write-flat-html.

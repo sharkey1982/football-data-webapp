@@ -251,30 +251,65 @@ async function main() {
   async function writeIntlPages() {
     const entry = await import(ENTRY);
     if (!entry.intlTeamHead) return;
-    const [teams, editions] = await Promise.all([
-      queryAll(`intl_team_summary?select=team,slug,played,won,first_match,elo,elo_rank&played=gte.${entry.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
-      queryAll('intl_edition_summary?select=competition,label,winner,runner_up&order=competition.asc,season_start.asc'),
+    // Every view read once (~120 requests in all); each page's data is then
+    // cut out by src/lib/intlStatic.ts with the browser loaders' filters.
+    const enc = (cols) => cols.replace(/\s+/g, '');
+    const [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups] = await Promise.all([
+      queryAll(`intl_team_summary?select=${enc(entry.INTL_TEAM_COLUMNS)}&order=slug.asc`),
+      queryAll(`intl_edition_summary?select=${enc(entry.INTL_EDITION_COLUMNS)}&order=competition.asc,season_start.asc`),
+      queryAll(`intl_matches?select=${enc(entry.INTL_MATCH_COLUMNS)}&order=match_key.asc`),
+      queryAll(`intl_fixtures?select=${enc(entry.INTL_FIXTURE_COLUMNS)}&order=fixture_key.asc`),
+      queryAll(`intl_team_competition_totals?select=${entry.INTL_BULK_TOTAL_COLUMNS}&order=team.asc,competition.asc`),
+      queryAll(`intl_pair_records?select=${entry.INTL_BULK_PAIR_COLUMNS}&order=team_a.asc,team_b.asc`),
+      queryAll(`intl_goals?select=${entry.INTL_BULK_GOAL_COLUMNS}&order=match_key.asc,seq.asc`),
+      queryAll(`intl_squads?select=${enc(entry.INTL_SQUAD_COLUMNS)}&order=slug.asc`),
+      queryAll(`intl_squad_players?select=slug,${enc(entry.INTL_SQUAD_PLAYER_COLUMNS)}&order=slug.asc,list.asc,seq.asc`),
+      queryAll(`intl_group_odds?select=${enc(entry.INTL_GROUP_ODDS_COLUMNS)}&order=edition_key.asc,group_label.asc,slug.asc`),
+      queryAll(`intl_stages?select=${entry.INTL_BULK_STAGE_COLUMNS}&order=stage_key.asc`),
+      queryAll(`intl_groups?select=${entry.INTL_BULK_GROUP_COLUMNS}&order=group_key.asc`),
     ]);
-    const write = (meta) => {
-      const page = renderStaticRouteHead(meta);
-      const dir = join(DIST, ...meta.path.split('/').filter(Boolean));
+    // Full pages need every view; if any read failed, fall back to head-only
+    // pages (title, description, canonical) rather than half-filled ones.
+    const full = [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups].every((x) => x != null);
+    const bulk = full ? { teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups } : null;
+    if (!full) console.error('Static: an international view failed to load -- writing head-only international pages.');
+    const writeHtml = (path, page) => {
+      const dir = join(DIST, ...path.split('/').filter(Boolean));
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
     };
     let n = 0;
-    for (const t of teams ?? []) {
-      try { write(entry.intlTeamHead(t)); n++; } catch (err) { console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`); }
+    let rendered = 0;
+    for (const t of (teams ?? []).filter((x) => x.played >= entry.INTL_STATIC_TEAM_MIN_GAMES)) {
+      const head = entry.intlTeamHead(t);
+      try {
+        const data = bulk ? entry.intlTeamFromBulk(bulk, t.slug) : null;
+        if (data) { writeHtml(head.path, entry.renderIntlTeamPage(data)); rendered++; } else writeHtml(head.path, renderStaticRouteHead(head));
+        n++;
+      } catch (err) {
+        console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`);
+        try { writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch { /* keep going */ }
+      }
     }
     const byComp = new Map(entry.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
     for (const t of entry.INTL_TOURNAMENTS) {
-      try { write(entry.intlTournamentHead(t)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); }
+      try { const head = entry.intlTournamentHead(t); writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); }
     }
     for (const e of editions ?? []) {
       const t = byComp.get(e.competition);
       if (!t) continue;
-      try { write(entry.intlEditionHead(t, e)); n++; } catch (err) { console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`); }
+      const head = entry.intlEditionHead(t, e);
+      try {
+        const data = bulk ? entry.intlEditionFromBulk(bulk, t.slug, e.label) : null;
+        const page = data ? entry.renderIntlEditionPage(data) : null;
+        if (page) { writeHtml(head.path, page); rendered++; } else writeHtml(head.path, renderStaticRouteHead(head));
+        n++;
+      } catch (err) {
+        console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`);
+        try { writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch { /* keep going */ }
+      }
     }
-    console.log(`Static: wrote head tags for ${n} international page(s) (${(teams ?? []).length} nations, ${(editions ?? []).length} editions).`);
+    console.log(`Static: wrote ${n} international page(s), ${rendered} fully rendered (${(teams ?? []).length} nations read, ${(editions ?? []).length} editions).`);
   }
 
   await writeIntlPages();

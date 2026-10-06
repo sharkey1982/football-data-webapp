@@ -48,13 +48,12 @@ omitted rather than set to the build date.
 | Tennis WTA list views | /tennis/players?tour=wta | 4 | B | Query-string view of the ATP list page; canonical is the list page |
 | Tennis head to head | /tennis/head-to-head?a=…&b=… | any pair | B | One canonical page; pairs are query states |
 | International hub and lists | /international/tournaments | 7 | A | Head static |
-| International nations (30+ games) | /international/teams/england | 248 | A | Head static; record, Elo, tournament history, squad |
+| International nations (30+ games) | /international/teams/england | 248 | A | Full static HTML; record, Elo, tournament history, squad |
 | International nations (<30 games) | /international/teams/… | ~90 | B | Thin |
 | International tournaments | /international/tournaments/world-cup | 8 | A | Head static |
-| International editions | /international/tournaments/world-cup/2022 | 174 | A | Head static; groups, bracket, scorers |
+| International editions | /international/tournaments/world-cup/2022 | 174 | A | Full static HTML; groups, bracket, scorers |
 | Unknown slugs (any section) | /tennis/players/atp/nobody | – | C | `useNoindex` / NotFoundPage (served with HTTP 200 by the app shell) |
 | Admin, login, data-health, source data | /admin/fanteam | – | D | robots.txt |
 
-Follow-ups: full server rendering for the international pages (they are
-head-only), path-based WTA list pages, pre-rendering the most-searched
+Follow-ups: path-based WTA list pages, pre-rendering the most-searched
 head-to-heads, and a real 404 status for unknown paths in static sections.

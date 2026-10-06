@@ -102,9 +102,10 @@ function HeadToHead({ data }: { data: IntlTeamData }) {
   );
 }
 
-export default function IntlTeamPage() {
+export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamData } = {}) {
   const { slug = '' } = useParams();
-  const { data, failed, loading } = useKeyedFetch(slug, () => loadIntlTeam(slug));
+  // initialData: the static build's pre-render (src/lib/intlStatic.ts).
+  const { data, failed, loading } = useKeyedFetch(slug, () => loadIntlTeam(slug), initialData ? { key: slug, data: initialData } : undefined);
   const t = data?.team;
   const head = t ? intlTeamHead(t) : null;
   useDocumentHead({

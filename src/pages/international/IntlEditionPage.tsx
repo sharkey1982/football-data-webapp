@@ -118,10 +118,11 @@ function Knockout({ data, stage }: { data: IntlEditionData; stage: IntlStage }) 
   );
 }
 
-export default function IntlEditionPage() {
+export default function IntlEditionPage({ initialData }: { initialData?: IntlEditionData } = {}) {
   const { competition = '', label = '' } = useParams();
   const t = tournamentBySlug(competition);
-  const { data, failed, loading } = useKeyedFetch(`${competition}/${label}`, () => loadIntlEdition(competition, label));
+  // initialData: the static build's pre-render (src/lib/intlStatic.ts).
+  const { data, failed, loading } = useKeyedFetch(`${competition}/${label}`, () => loadIntlEdition(competition, label), initialData ? { key: `${competition}/${label}`, data: initialData } : undefined);
   const e = data?.edition;
   const final = useMemo(() => (data && e?.final_key ? data.matches.find((m) => m.match_key === e.final_key) ?? null : null), [data, e]);
   const scorers = useMemo(() => {

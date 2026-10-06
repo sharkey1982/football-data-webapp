@@ -131,6 +131,11 @@ import TennisTournamentPage from './pages/tennis/TennisTournamentPage';
 import TennisEditionPage from './pages/tennis/TennisEditionPage';
 import TennisTvGuidePage from './pages/tennis/TennisTvGuidePage';
 import TennisH2HPage from './pages/tennis/TennisH2HPage';
+import IntlTeamPage from './pages/international/IntlTeamPage';
+import IntlEditionPage from './pages/international/IntlEditionPage';
+import { intlEditionHead as intlEditionHeadFor, intlTeamHead as intlTeamHeadFor } from './lib/intlSeo';
+import type { IntlEditionData, IntlTeamData } from './lib/intlApi';
+import { TOURNAMENTS as INTL_TOURNAMENT_LIST, scoreText as intlScoreText } from './lib/intlStats';
 import { h2hSentence as tennisH2HSentence, h2hSummary as tennisH2HSummary } from './lib/tennisH2H';
 import { editionSentence as tennisEditionSentence, eventSentence as tennisEventSentence, guideGroups as tennisGuideGroups, guideSentence as tennisGuideSentence, tournamentsSentence as tennisTournamentsSentence } from './lib/tennisEvents';
 import {
@@ -365,6 +370,51 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
 
 export { STATIC_ROUTES };
 export { intlTeamHead, intlTournamentHead, intlEditionHead, INTL_STATIC_TEAM_MIN_GAMES } from './lib/intlSeo';
+export {
+  intlTeamFromBulk,
+  intlEditionFromBulk,
+  INTL_BULK_GOAL_COLUMNS,
+  INTL_BULK_STAGE_COLUMNS,
+  INTL_BULK_GROUP_COLUMNS,
+  INTL_BULK_TOTAL_COLUMNS,
+  INTL_BULK_PAIR_COLUMNS,
+} from './lib/intlStatic';
+export {
+  MATCH_COLUMNS as INTL_MATCH_COLUMNS,
+  FIXTURE_COLUMNS as INTL_FIXTURE_COLUMNS,
+  TEAM_COLUMNS as INTL_TEAM_COLUMNS,
+  EDITION_COLUMNS as INTL_EDITION_COLUMNS,
+  SQUAD_COLUMNS as INTL_SQUAD_COLUMNS,
+  SQUAD_PLAYER_COLUMNS as INTL_SQUAD_PLAYER_COLUMNS,
+  GROUP_ODDS_COLUMNS_ZONES as INTL_GROUP_ODDS_COLUMNS,
+} from './lib/intlApi';
+
+/** A nation's page, fully pre-rendered (static build; data from intlTeamFromBulk). */
+export function renderIntlTeamPage(data: IntlTeamData): RenderedPage {
+  const head = intlTeamHeadFor(data.team);
+  return {
+    html: nflPage(head.path, '/international/teams/:slug', <IntlTeamPage initialData={data} />),
+    title: `${head.title} | ${BRAND_NAME}`,
+    description: head.description,
+    canonical: `${SITE_URL}${head.path}`,
+    structuredData: [breadcrumb([...(head.crumbs ?? []), { name: data.team.team, path: head.path }])],
+  };
+}
+
+/** One edition of a tournament, fully pre-rendered (static build). */
+export function renderIntlEditionPage(data: IntlEditionData): RenderedPage | null {
+  const t = INTL_TOURNAMENT_LIST.find((x) => x.competition === data.edition.competition);
+  if (!t) return null;
+  const final = data.edition.final_key ? data.matches.find((m) => m.match_key === data.edition.final_key) ?? null : null;
+  const head = intlEditionHeadFor(t, data.edition, final ? intlScoreText(final) : null);
+  return {
+    html: nflPage(head.path, '/international/tournaments/:competition/:label', <IntlEditionPage initialData={data} />),
+    title: `${head.title} | ${BRAND_NAME}`,
+    description: head.description,
+    canonical: `${SITE_URL}${head.path}`,
+    structuredData: [breadcrumb([...(head.crumbs ?? []), { name: `${t.short} ${data.edition.label}`, path: head.path }])],
+  };
+}
 export { TOURNAMENTS as INTL_TOURNAMENTS } from './lib/intlStats';
 
 // ---- Club finances ---------------------------------------------------------
