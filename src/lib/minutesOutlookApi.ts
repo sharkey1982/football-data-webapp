@@ -27,6 +27,8 @@ export type OutlookCell = {
    */
   fitStart: number | null;
   fitMinutes: number | null;
+  /** An admin has set him as first choice when fit for this gameweek. */
+  firstChoice: boolean;
 };
 
 export type OutlookPlayer = {
@@ -82,6 +84,7 @@ type Row = {
   fpl_event_id: number; fixtures: number; opponents: string; start_probability: number | string; expected_minutes: number | string;
   availability: number | string | null; availability_rule: string | null; generated_at: string | null;
   tactical_role?: string | null;
+  first_choice?: boolean | null;
 };
 
 type ActualRow = { fpl_player_id: number; fpl_event_id: number; minutes: number; started: boolean; available: boolean };
@@ -166,7 +169,7 @@ export function buildOutlook(rows: Row[], actualRows: ActualRow[] = []): Outlook
       fixtures: Number(r.fixtures), opponents: r.opponents,
       start: Number(r.start_probability), minutes: Number(r.expected_minutes),
       availability: r.availability == null ? null : Number(r.availability), rule: r.availability_rule,
-      fitStart: null, fitMinutes: null,
+      fitStart: null, fitMinutes: null, firstChoice: !!r.first_choice,
     });
   }
   const first = gameweeks[0], last = gameweeks[gameweeks.length - 1];
@@ -225,4 +228,37 @@ export function shortOpponents(s: string): string {
     const abbr = m[1].replace(/[^A-Za-z]/g, '').slice(0, 3);
     return m[2] === 'H' ? abbr.toUpperCase() : abbr.toLowerCase();
   }).join(' ');
+}
+
+// ---------------------------------------------------------------------------
+// First choice when fit (admin): a player's start chance when available,
+// set by hand; fixture availability still applies. Takes effect when the
+// projections next run.
+// ---------------------------------------------------------------------------
+
+export type FirstChoice = {
+  first_choice_id: number; fpl_player_id: number; web_name: string; start_if_fit: number;
+  effective_from: string; effective_to: string | null; note: string | null; set_at: string;
+};
+
+export async function getFirstChoices(teamId: number): Promise<FirstChoice[]> {
+  const { data, error } = await rpc('get_fpl_first_choices', { p_team_id: teamId });
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    first_choice_id: Number(r.first_choice_id), fpl_player_id: Number(r.fpl_player_id), web_name: String(r.web_name),
+    start_if_fit: Number(r.start_if_fit), effective_from: String(r.effective_from),
+    effective_to: r.effective_to == null ? null : String(r.effective_to), note: r.note == null ? null : String(r.note), set_at: String(r.set_at),
+  }));
+}
+
+export async function setFirstChoice(fplPlayerId: number, startIfFit: number, from: string, to: string | null, note: string | null): Promise<void> {
+  const { error } = await rpc('fpl_set_first_choice', {
+    p_fpl_player_id: fplPlayerId, p_start_if_fit: startIfFit, p_from: from, p_to: to || null, p_note: note || null,
+  });
+  if (error) throw error;
+}
+
+export async function removeFirstChoice(firstChoiceId: number): Promise<void> {
+  const { error } = await rpc('fpl_remove_first_choice', { p_first_choice_id: firstChoiceId });
+  if (error) throw error;
 }

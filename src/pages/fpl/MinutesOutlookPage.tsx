@@ -14,6 +14,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import { useAuthOptional } from '../../lib/auth';
+import FirstChoicePanel from '../../components/fpl/FirstChoicePanel';
 import { formatRefreshDate } from '../../lib/formatDate';
 import {
   compareByRole, getMinutesOutlook, getOutlookTeams, ruleText, shortOpponents,
@@ -50,6 +52,7 @@ function Cell({ c, mode, fit, divider = false }: { c: OutlookCell | undefined; m
     mode === 'start' ? `${Math.round((sv.start / c.fixtures) * 100)}% to start${fit ? ' if fit' : ''}` : `${Math.round(sv.minutes)} ${fit ? 'minutes if fit' : 'expected minutes'}`,
     c.fixtures > 1 ? `${c.fixtures} fixtures` : null,
     why,
+    c.firstChoice ? 'Set as first choice when fit' : null,
   ].filter(Boolean).join(' · ');
   return (
     <td className={`px-0.5 py-0.5${edge}`} title={title}>
@@ -96,9 +99,15 @@ function Trend({ t }: { t: number }) {
 }
 
 function PlayerName({ p }: { p: OutlookPlayer }) {
-  return p.slug ? (
-    <Link to={`/fpl/players/${p.slug}`} className="text-pitch-800 underline underline-offset-2">{p.web_name}</Link>
-  ) : <>{p.web_name}</>;
+  const star = [...p.cells.values()].some((c) => c.firstChoice);
+  return (
+    <>
+      {p.slug ? (
+        <Link to={`/fpl/players/${p.slug}`} className="text-pitch-800 underline underline-offset-2">{p.web_name}</Link>
+      ) : p.web_name}
+      {star && <span className="ml-1 text-amber-600" title="Set as first choice when fit">&#9733;</span>}
+    </>
+  );
 }
 
 export default function MinutesOutlookPage() {
@@ -109,6 +118,7 @@ export default function MinutesOutlookPage() {
   const [mode, setMode] = useState<Mode>('start');
   const [everyone, setEveryone] = useState(false);
   const [fit, setFit] = useState(false);
+  const isAdmin = useAuthOptional()?.isAdmin ?? false;
   const gridRef = useRef<HTMLDivElement>(null);
 
   useDocumentHead({
@@ -213,6 +223,10 @@ export default function MinutesOutlookPage() {
         </label>
       </div>
 
+      {isAdmin && team && outlook && (
+        <FirstChoicePanel key={team.team_id} teamId={team.team_id} teamName={team.team_name} players={outlook.players} />
+      )}
+
       {error && <p className="text-loss-700 text-sm">The outlook couldn&rsquo;t be loaded. Try again shortly.</p>}
       {!outlook && !error && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
 
@@ -279,6 +293,7 @@ export default function MinutesOutlookPage() {
               : ''}
             Grey columns are what actually happened (minutes; <sup>s</sup> = came off the bench;{' '}
             <span className="text-loss-700">out</span> = injured or suspended at the time); green columns are the projections.
+            <span className="text-amber-600">&#9733;</span> = set by us as first choice when fit (his injury still applies).
             Players are listed by playing role (left to right), so the ones competing for the same spot sit
             together. <span className="text-amber-600">&bull;</span> marks a player not certain to be available (doubt, returning, or
             injured with no return date); <span className="text-loss-700">out</span> means not available. Hover a cell for
