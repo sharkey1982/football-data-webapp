@@ -19,6 +19,14 @@ export type OutlookCell = {
   minutes: number;
   availability: number | null;
   rule: string | null;
+  /**
+   * Start chance and minutes IF FIT (Chris, 6 Oct 2026): the projection
+   * divided by his chance of being available. Where he is certainly out, the
+   * nearest gameweek's if-fit value. null when he is out for the whole window.
+   * Expected points use start/minutes above, not these.
+   */
+  fitStart: number | null;
+  fitMinutes: number | null;
 };
 
 export type OutlookPlayer = {
@@ -78,6 +86,34 @@ type Row = {
 
 type ActualRow = { fpl_player_id: number; fpl_event_id: number; minutes: number; started: boolean; available: boolean };
 
+/** Below this availability, dividing by it is noise: borrow a neighbouring gameweek instead. */
+const MIN_AVAILABILITY_FOR_FIT = 0.1;
+
+/** Pure: fills fitStart/fitMinutes on a player's cells (per-fixture values, rescaled for double gameweeks). */
+export function fillIfFit(p: OutlookPlayer, gameweeks: number[]): void {
+  const direct = new Map<number, { s: number; m: number }>(); // per fixture
+  for (const gw of gameweeks) {
+    const c = p.cells.get(gw);
+    if (!c) continue;
+    const a = c.availability ?? 1;
+    if (a >= MIN_AVAILABILITY_FOR_FIT) {
+      direct.set(gw, { s: Math.min(0.98, c.start / c.fixtures / a), m: Math.min(90, c.minutes / c.fixtures / a) });
+    }
+  }
+  for (const gw of gameweeks) {
+    const c = p.cells.get(gw);
+    if (!c) continue;
+    let v = direct.get(gw);
+    if (!v) {
+      // Nearest gameweek with a value, looking forward first (a returning player).
+      const i = gameweeks.indexOf(gw);
+      for (let d = 1; d < gameweeks.length && !v; d++) v = direct.get(gameweeks[i + d]) ?? direct.get(gameweeks[i - d]);
+    }
+    c.fitStart = v ? v.s * c.fixtures : null;
+    c.fitMinutes = v ? v.m * c.fixtures : null;
+  }
+}
+
 /**
  * Tactical roles, back to front and left to right within each line, so
  * players competing for the same spot sit next to each other (Chris, 6 Oct
@@ -130,6 +166,7 @@ export function buildOutlook(rows: Row[], actualRows: ActualRow[] = []): Outlook
       fixtures: Number(r.fixtures), opponents: r.opponents,
       start: Number(r.start_probability), minutes: Number(r.expected_minutes),
       availability: r.availability == null ? null : Number(r.availability), rule: r.availability_rule,
+      fitStart: null, fitMinutes: null,
     });
   }
   const first = gameweeks[0], last = gameweeks[gameweeks.length - 1];
@@ -144,6 +181,7 @@ export function buildOutlook(rows: Row[], actualRows: ActualRow[] = []): Outlook
     const counts = roleCounts.get(p.fpl_player_id);
     p.role = counts ? [...counts.entries()].sort((x, y) => y[1] - x[1] || roleRank(x[0]) - roleRank(y[0]))[0][0] : null;
   }
+  for (const p of byPlayer.values()) fillIfFit(p, gameweeks);
   const pastGameweeks = [...new Set(actualRows.map((r) => Number(r.fpl_event_id)))].sort((a, b) => a - b);
   for (const r of actualRows) {
     byPlayer.get(Number(r.fpl_player_id))?.actual.set(Number(r.fpl_event_id), {

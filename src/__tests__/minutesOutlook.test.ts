@@ -84,3 +84,26 @@ describe('Minutes Outlook: actual minutes', () => {
     expect(o.players).toHaveLength(1);
   });
 });
+
+describe('Minutes Outlook: if fit', () => {
+  // Saliba's real projection: out GW6-7, then availability 15% .. 60% (unknown return).
+  const s = (gw: number, start: number, mins: number, av: number) => ({
+    fpl_player_id: 6, web_name: 'Saliba', slug: null, position_label: 'DEF', status: 'i', news: null,
+    fpl_event_id: gw, fixtures: 1, opponents: 'Leeds (H)', start_probability: start, expected_minutes: mins,
+    availability: av, availability_rule: 'injured_no_date', generated_at: null, tactical_role: 'RCB',
+  });
+  const o = buildOutlook([s(6, 0, 0, 0), s(7, 0, 0, 0), s(8, 0.118, 10, 0.15), s(11, 0.431, 36, 0.6)] as never);
+  const c = (gw: number) => o.players[0].cells.get(gw)!;
+  it('divides out availability, so a returning starter shows his start chance once back', () => {
+    expect(c(8).fitStart).toBeCloseTo(0.787, 2);
+    expect(c(11).fitStart).toBeCloseTo(0.718, 2);
+    expect(c(11).fitMinutes).toBeCloseTo(60, 0);
+  });
+  it('borrows the nearest later gameweek where he is certainly out', () => {
+    expect(c(6).fitStart).toBeCloseTo(c(8).fitStart!, 5);
+    expect(c(7).fitMinutes).toBeCloseTo(c(8).fitMinutes!, 5);
+  });
+  it('leaves expected values unchanged (they drive expected points)', () => {
+    expect(c(11).start).toBeCloseTo(0.431, 3);
+  });
+});

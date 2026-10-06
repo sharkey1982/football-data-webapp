@@ -26,22 +26,28 @@ const POS_LABEL: Record<string, string> = { GKP: 'Goalkeepers', DEF: 'Defenders'
 /** Shown by default: anyone with at least this start chance in some gameweek. */
 const FRINGE = 0.1;
 
-function cellValue(c: OutlookCell, mode: Mode): number {
-  // Per fixture, so a double gameweek shades like a single one.
-  return mode === 'start' ? c.start / c.fixtures : c.minutes / (90 * c.fixtures);
+/** The numbers shown: expected (default) or if fit. null = nothing to show (out all window). */
+function shownValues(c: OutlookCell, fit: boolean): { start: number; minutes: number } | null {
+  if (!fit) return { start: c.start, minutes: c.minutes };
+  return c.fitStart == null || c.fitMinutes == null ? null : { start: c.fitStart, minutes: c.fitMinutes };
 }
 
-function Cell({ c, mode, divider = false }: { c: OutlookCell | undefined; mode: Mode; divider?: boolean }) {
+function Cell({ c, mode, fit, divider = false }: { c: OutlookCell | undefined; mode: Mode; fit: boolean; divider?: boolean }) {
   const edge = divider ? ' border-l-2 border-ink-500/40 pl-1' : '';
   if (!c) return <td className={`px-1 py-1 text-center text-ink-500 text-xs${edge}`}>&ndash;</td>;
-  const v = Math.max(0, Math.min(1, cellValue(c, mode)));
-  const out = c.availability === 0;
-  const flagged = c.availability != null && c.availability > 0 && c.availability < 0.999;
-  const label = mode === 'start' ? `${Math.round((c.start / c.fixtures) * 100)}` : `${Math.round(c.minutes)}`;
+  const shown = shownValues(c, fit);
+  // If fit, an injured player still shows his value (with the dot); only
+  // "out for the whole window" stays out.
+  const out = shown == null || (!fit && c.availability === 0);
+  const sv = shown ?? { start: 0, minutes: 0 };
+  // Per fixture, so a double gameweek shades like a single one.
+  const v = Math.max(0, Math.min(1, mode === 'start' ? sv.start / c.fixtures : sv.minutes / (90 * c.fixtures)));
+  const flagged = c.availability != null && c.availability < 0.999 && (fit || c.availability > 0);
+  const label = mode === 'start' ? `${Math.round((sv.start / c.fixtures) * 100)}` : `${Math.round(sv.minutes)}`;
   const why = ruleText(c.rule, c.availability);
   const title = [
     c.opponents,
-    mode === 'start' ? `${Math.round((c.start / c.fixtures) * 100)}% to start` : `${Math.round(c.minutes)} expected minutes`,
+    mode === 'start' ? `${Math.round((sv.start / c.fixtures) * 100)}% to start${fit ? ' if fit' : ''}` : `${Math.round(sv.minutes)} ${fit ? 'minutes if fit' : 'expected minutes'}`,
     c.fixtures > 1 ? `${c.fixtures} fixtures` : null,
     why,
   ].filter(Boolean).join(' · ');
@@ -102,6 +108,7 @@ export default function MinutesOutlookPage() {
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<Mode>('start');
   const [everyone, setEveryone] = useState(false);
+  const [fit, setFit] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useDocumentHead({
@@ -140,7 +147,7 @@ export default function MinutesOutlookPage() {
     const sticky = el.querySelector<HTMLElement>('th')?.offsetWidth ?? 0;
     if (!firstProj || played.length < 3) return;
     el.scrollLeft = Math.max(0, played[played.length - 2].offsetLeft - sticky);
-  }, [outlook, mode, everyone]);
+  }, [outlook, mode, everyone, fit]);
 
   const shown = useMemo(() => {
     if (!outlook) return [];
@@ -196,6 +203,10 @@ export default function MinutesOutlookPage() {
             </button>
           ))}
         </div>
+        <label className="flex items-center gap-2 text-sm text-ink-700 min-h-11" title="Show each player's chance and minutes assuming he is available">
+          <input type="checkbox" className="h-5 w-5" checked={fit} onChange={(e) => setFit(e.target.checked)} />
+          If fit
+        </label>
         <label className="flex items-center gap-2 text-sm text-ink-700 min-h-11">
           <input type="checkbox" className="h-5 w-5" checked={everyone} onChange={(e) => setEveryone(e.target.checked)} />
           Include fringe players
@@ -254,14 +265,18 @@ export default function MinutesOutlookPage() {
               </thead>
               <tbody>
                 {groups.map((g) => (
-                  <GroupRows key={g.pos} label={POS_LABEL[g.pos]} players={g.players} gameweeks={outlook.gameweeks} mode={mode} span={outlook.pastGameweeks.length + outlook.gameweeks.length + 2} pastGameweeks={outlook.pastGameweeks} />
+                  <GroupRows key={g.pos} label={POS_LABEL[g.pos]} players={g.players} gameweeks={outlook.gameweeks} mode={mode} fit={fit} span={outlook.pastGameweeks.length + outlook.gameweeks.length + 2} pastGameweeks={outlook.pastGameweeks} />
                 ))}
               </tbody>
             </table>
           </div>
 
           <p className="text-xs text-ink-500 max-w-prose">
-            {mode === 'start' ? 'Numbers are the % chance of starting' : 'Numbers are expected minutes'}; darker is more.
+            {mode === 'start' ? 'Numbers are the % chance of starting' : 'Numbers are expected minutes'}
+            {fit ? ' if the player is fit' : ''}; darker is more.
+            {fit
+              ? ' "If fit" divides out the chance of being available, so an injured player shows what he would get once back; expected points still use the normal view, which allows for him not being back yet.'
+              : ''}
             Grey columns are what actually happened (minutes; <sup>s</sup> = came off the bench;{' '}
             <span className="text-loss-700">out</span> = injured or suspended at the time); green columns are the projections.
             Players are listed by playing role (left to right), so the ones competing for the same spot sit
@@ -277,8 +292,8 @@ export default function MinutesOutlookPage() {
   );
 }
 
-function GroupRows({ label, players, gameweeks, pastGameweeks, mode, span }: {
-  label: string; players: OutlookPlayer[]; gameweeks: number[]; pastGameweeks: number[]; mode: Mode; span: number;
+function GroupRows({ label, players, gameweeks, pastGameweeks, mode, fit, span }: {
+  label: string; players: OutlookPlayer[]; gameweeks: number[]; pastGameweeks: number[]; mode: Mode; fit: boolean; span: number;
 }) {
   return (
     <>
@@ -298,7 +313,7 @@ function GroupRows({ label, players, gameweeks, pastGameweeks, mode, span }: {
             <PlayerName p={p} />
           </td>
           {pastGameweeks.map((gw) => <ActualCell key={`a${gw}`} a={p.actual.get(gw)} gw={gw} />)}
-          {gameweeks.map((gw, j) => <Cell key={gw} c={p.cells.get(gw)} mode={mode} divider={j === 0 && pastGameweeks.length > 0} />)}
+          {gameweeks.map((gw, j) => <Cell key={gw} c={p.cells.get(gw)} mode={mode} fit={fit} divider={j === 0 && pastGameweeks.length > 0} />)}
           <td className="px-2 text-center text-xs tabular-nums"><Trend t={p.trend} /></td>
         </tr>
       ))}
