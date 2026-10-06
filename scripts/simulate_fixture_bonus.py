@@ -135,6 +135,44 @@ def simulate_fixture(rng: np.random.Generator, players: list[dict]) -> dict[int,
     return {players[i]["fpl_player_id"]: float(bonus_points[i]) for i in range(n)}
 
 
+BPS_COLUMNS = "fpl_player_id, element_type, team_id, expected_bps_score, expected_minutes, expected_goals, expected_assists, clean_sheet_probability"
+_conn: list = [None]
+
+
+def read_bps(supabase, fixture_id: int) -> list[dict]:
+    """One fixture's BPS inputs. Over a direct database connection when
+    SUPABASE_DB_URL is set (2-minute limit), else the API (8-second limit).
+    Retried with backoff: on 6 Oct 2026 the 10-gameweek pipeline run failed
+    twice on a single API read here (non-JSON gateway error) while the same
+    gameweek ran fine on its own."""
+    import time
+    db_url = os.environ.get("SUPABASE_DB_URL")
+    last: Exception | None = None
+    for attempt in range(1, 6):
+        try:
+            if db_url:
+                if _conn[0] is None or _conn[0].closed:
+                    import psycopg
+                    _conn[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30)
+                    _conn[0].execute("set statement_timeout = '120s'")
+                cur = _conn[0].execute(f"select {BPS_COLUMNS} from public.fpl_fixture_bps_projection_v1 where fixture_id = %s", (fixture_id,))
+                names = [c.name for c in cur.description]
+                return [dict(zip(names, r)) for r in cur.fetchall()]
+            return supabase.table("fpl_fixture_bps_projection_v1").select(BPS_COLUMNS).eq("fixture_id", fixture_id).execute().data
+        except Exception as e:
+            last = e
+            try:
+                if _conn[0] is not None:
+                    _conn[0].close()
+            except Exception:
+                pass
+            _conn[0] = None
+            wait = min(60, 5 * 2 ** (attempt - 1))
+            print(f"::warning::Fixture {fixture_id}: read attempt {attempt} failed ({str(e)[:200]}), retrying in {wait}s...")
+            time.sleep(wait)
+    raise last  # type: ignore[misc]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--from-matchweek", type=int, required=True)
@@ -192,13 +230,8 @@ def main():
     for fixture_id in fixture_ids:
         # The view now carries everything needed in one query -- no second
         # fetch against fpl_player_projections required.
-        bps_resp = (
-            supabase.table("fpl_fixture_bps_projection_v1")
-            .select("fpl_player_id, element_type, team_id, expected_bps_score, expected_minutes, expected_goals, expected_assists, clean_sheet_probability")
-            .eq("fixture_id", fixture_id)
-            .execute()
-        )
-        if not bps_resp.data:
+        data = read_bps(supabase, fixture_id)
+        if not data:
             continue
 
         players = [
@@ -212,7 +245,7 @@ def main():
                 "expected_assists": float(r["expected_assists"]) if r["expected_assists"] is not None else 0.0,
                 "clean_sheet_probability": float(r["clean_sheet_probability"]) if r["clean_sheet_probability"] is not None else 0.0,
             }
-            for r in bps_resp.data
+            for r in data
         ]
 
         bonus_by_player = simulate_fixture(rng, players)
