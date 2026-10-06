@@ -564,7 +564,7 @@ describe('NFL game page (head-to-head, form, prediction)', () => {
     const recent = screen.getByTestId('nfl-tab-home');
     expect(recent.textContent).toContain('Team 1-1');
     expect(recent.textContent).toContain('30–3');
-    expect(recent.querySelector('a[href="/nfl/games/2026_03_T11_NE"]')).not.toBeNull();
+    expect(recent.querySelector('a[href="/nfl/games/2026_03_t11_ne"]')).not.toBeNull();
     // The spread of likely results.
     expect(screen.getByTestId('nfl-margin-chart').textContent).toContain('NE win by');
     expect(screen.getByTestId('nfl-likeliest-margins').textContent).toMatch(/^Most likely exact margins: NE by 3/);
@@ -592,7 +592,7 @@ describe('NFL game page (head-to-head, form, prediction)', () => {
   it('a played game says what the model predicted beforehand and who covered; server render has an event', () => {
     const played = buildGamePreview({ ...target, home_score: 27, away_score: 20 }, pool, model);
     const page = renderNflGamePage(played);
-    expect(page.canonical).toBe('https://fixtureshark.com/nfl/games/2026_06_MIA_NE');
+    expect(page.canonical).toBe('https://fixtureshark.com/nfl/games/2026_06_mia_ne');
     expect(page.html).toContain('What the model predicted beforehand');
     expect(page.html).toContain('New England Patriots covered.');
     expect(page.html).toContain('The model’s favourite won.');

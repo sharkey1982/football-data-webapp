@@ -28,6 +28,7 @@ import {
   favourLabel,
   lineLabel,
   nflFixturesPath,
+  nflGameIdFromParam,
   nflGamePath,
   nflTeamPath,
   ukKickoff,
@@ -249,7 +250,7 @@ function HeadToHeadRecord({ p }: { p: NflGamePreview }) {
 }
 
 export default function NflGamePage({ initialData }: { initialData?: NflGamePreview } = {}) {
-  const { gameId = '' } = useParams<{ gameId: string }>();
+  const gameId = nflGameIdFromParam(useParams<{ gameId: string }>().gameId);
   // A link from Fixtures & Results passes the game along, so the header shows
   // at once and the load skips straight to the history.
   const known = (useLocation().state as { game?: NflGame } | null)?.game;

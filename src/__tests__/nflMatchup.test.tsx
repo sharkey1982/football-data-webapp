@@ -82,7 +82,7 @@ describe('NFL Match Projections page', () => {
     render(<MemoryRouter initialEntries={['/nfl/match-projections']}><Routes><Route path="/nfl/match-projections" element={<NflMatchProjectionsPage />} /></Routes></MemoryRouter>);
     await waitFor(() => expect(screen.getAllByTestId('nfl-matchup-card')).toHaveLength(1));
     const card = screen.getByTestId('nfl-matchup-card');
-    expect(card.getAttribute('href')).toBe('/nfl/match-projections/2026_05_MIA_DET');
+    expect(card.getAttribute('href')).toBe('/nfl/match-projections/2026_05_mia_det');
     expect(card.textContent).toContain('48.9');
     expect(card.textContent).toContain('28.0');
     const predict = THEMES.nfl.stages.find((s) => s.key === 'predict')!.links.map((l) => l.label);

@@ -126,7 +126,12 @@ export const NFL_SEASONS_PATH = '/nfl/seasons';
 export const NFL_PLAYERS_PATH = '/nfl/players';
 export const NFL_PROJECTIONS_PATH = '/nfl/player-projections';
 export const NFL_MATCH_PROJECTIONS_PATH = '/nfl/match-projections';
-export const nflMatchProjectionPath = (gameId: string): string => `${NFL_MATCH_PROJECTIONS_PATH}/${gameId}`;
+// Game ids are upper case (2026_11_MIA_BUF) but URLs are lower case: Netlify
+// serves files under lower-cased paths and 301s any mixed-case URL to them,
+// so upper-case links and sitemap entries all redirected (found 6 Oct 2026).
+// Pages turn the URL segment back with nflGameIdFromParam.
+export const nflMatchProjectionPath = (gameId: string): string => `${NFL_MATCH_PROJECTIONS_PATH}/${gameId.toLowerCase()}`;
+export const nflGameIdFromParam = (param: string | undefined): string => (param ?? '').toUpperCase();
 export const NFL_HEAT_MAP_PATH = '/nfl/fixture-heat-map';
 export const NFL_SCORING_PATH = '/nfl/scoring-rules';
 export const NFL_ROAD_TRIPS_PATH = '/nfl/road-trips';
@@ -139,7 +144,7 @@ export const nflTeamPath = (slug: string) => `${NFL_TEAMS_PATH}/${slug}`;
 export const nflPlayerPath = (slug: string) => `${NFL_PLAYERS_PATH}/${slug}`;
 export const NFL_GAMES_PATH = '/nfl/games';
 /** One game's preview page (nflverse game_id, e.g. 2026_05_KC_JAX). */
-export const nflGamePath = (gameId: string) => `${NFL_GAMES_PATH}/${gameId}`;
+export const nflGamePath = (gameId: string) => `${NFL_GAMES_PATH}/${gameId.toLowerCase()}`;
 
 // ---- Formatting ------------------------------------------------------------
 

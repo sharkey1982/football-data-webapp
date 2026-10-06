@@ -35,7 +35,7 @@ omitted rather than set to the build date.
 | FPL team of the week | /fpl/team-of-the-week/gw5 | 1 per played GW | A | Persistent per gameweek |
 | Club finances and compare | /football/teams/arsenal/finances, /finance/compare | every club with filed accounts | A | Static, filed accounts with sources; in the finance sitemap file |
 | NFL lists, seasons, teams | /nfl/seasons/2025, /nfl/teams/buffalo-bills | ~70 | A | Static season stories and team pages |
-| NFL game pages (latest season) | /nfl/games/2026_02_SEA_ARI | 272 | A | Static: result, model v market, form, head-to-head |
+| NFL game pages (latest season) | /nfl/games/2026_02_sea_ari | 272 | A | Static: result, model v market, form, head-to-head |
 | NFL game pages (older seasons) | /nfl/games/2019_… | ~6,500 | B | Reachable from season pages; not pre-rendered |
 | NFL match-projection pages | /nfl/match-projections/:gameId | ~16 a week | B | Transient (one week); browser only |
 | NFL player pages | /nfl/players/:id | ~1,900 | B | Browser only; low search value today |
