@@ -136,6 +136,34 @@ def main():
     except Exception as e:
         print(f"::warning::Could not refresh fixture availability ({e}); using the previous stored rows.")
 
+    # Then start chances from the club pecking order (6 Oct 2026), which
+    # need the availability just stored. Same rule: warn and carry on with
+    # the previous stored rows if it fails.
+    try:
+        from fpl_depth_chart import compute
+        if db_url:
+            cur = db().execute("select * from public.get_fpl_depth_inputs()")
+            names = [c.name for c in cur.description]
+            inputs = [dict(zip(names, r)) for r in cur.fetchall()]
+        else:
+            inputs = supabase.rpc("get_fpl_depth_inputs", {}).execute().data
+        depth_rows = compute(inputs)
+        import json
+        payload = json.dumps(depth_rows)
+        if db_url:
+            n = db().execute("select public.fpl_replace_depth_start(%s::jsonb)", (payload,)).fetchone()[0]
+        else:
+            n = supabase.rpc("fpl_replace_depth_start", {"p_rows": depth_rows}).execute().data
+        print(f"::notice::Pecking-order start chances refreshed: {n} rows from {len(inputs)} inputs.")
+    except Exception as e:
+        try:
+            if conn_box[0] is not None:
+                conn_box[0].close()
+        except Exception:
+            pass
+        conn_box[0] = None
+        print(f"::warning::Could not refresh pecking-order start chances ({e}); using the previous stored rows.")
+
     def record_failure(message: str) -> None:
         # The failure record goes through the same database that just
         # failed, so it gets its own retries rather than one attempt.

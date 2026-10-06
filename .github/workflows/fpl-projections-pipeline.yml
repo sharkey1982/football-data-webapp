@@ -102,6 +102,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      # The pecking-order start chances (scripts/fpl_depth_chart.py) feed
+      # both passes below; its tests run first so a broken change stops here.
+      - name: Test pecking-order start chances
+        run: pip install -q pytest && python -m pytest -q scripts/test_fpl_depth_chart.py
+
       - name: Refresh FPL projections (pass 1 -- fallback bonus estimate)
         run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
         env:
