@@ -24,6 +24,12 @@
 # nfl.team_weeks, from 2002: the latest season daily; --team-seasons for others
 # (the backfill: --team-seasons 2002-2026). Reconciled per season.
 #
+# Then snap counts (snap_counts/snap_counts_<season>.csv, from 2013, every
+# position; Pro Football Reference ids mapped to gsis via players.csv) and
+# depth charts for fantasy positions (depth_charts/depth_charts_<season>.csv:
+# weekly to 2024, ESPN daily snapshots from 2025 -- the last of each day).
+# Backfill: --snap-seasons 2013-2026 --depth-seasons 2016-2026.
+#
 # After loading, it reconciles against the file it just read: game count,
 # scored-game count and total points per season must match nfl.games via
 # public.nfl_games exactly. Any difference fails the run. One pipeline_runs
@@ -54,6 +60,12 @@ PLAYER_FIRST_SEASON = 2016
 PLAYERS_URL = "https://github.com/nflverse/nflverse-data/releases/download/players/players.csv"
 PLAYER_WEEK_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{season}.csv"
 TEAM_WEEK_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_{season}.csv"
+SNAP_URL = "https://github.com/nflverse/nflverse-data/releases/download/snap_counts/snap_counts_{season}.csv"
+DEPTH_URL = "https://github.com/nflverse/nflverse-data/releases/download/depth_charts/depth_charts_{season}.csv"
+SNAP_FIRST_SEASON = 2013    # nflverse snap counts start in 2013
+DEPTH_FIRST_SEASON = 2016   # kept from the first player-stats season
+FANTASY_POSITIONS = {"QB", "RB", "FB", "WR", "TE", "K"}
+DAILY_REFRESH_DAYS = 3      # a daily run re-reads the last few days of ESPN snapshots
 PLAYER_POSITIONS = {"QB", "RB", "FB", "WR", "TE", "K"}
 TEAM_CODES = {"ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND",
               "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA",
@@ -197,6 +209,126 @@ def load_team_weeks(sb, seasons: list[int]) -> str:
     return f"team-games {written} ({','.join(map(str, per_season))}) reconciled"
 
 
+def fetch_season(url: str, season: int, latest: int) -> list[dict] | None:
+    """A season's file, or None if it isn't published yet (the latest season only)."""
+    try:
+        return fetch_csv(url.format(season=season))
+    except urllib.error.HTTPError as e:
+        if e.code == 404 and season == latest:
+            return None
+        raise
+
+
+def load_snaps(sb, seasons: list[int]) -> str:
+    """Snap counts per player per game (every position), reconciled per season.
+    Pro Football Reference ids are mapped to gsis ids via players.csv."""
+    pfr = {p["pfr_id"]: p["gsis_id"] for p in fetch_csv(PLAYERS_URL) if p.get("pfr_id") and p.get("gsis_id")}
+    per_season: dict[int, int] = {}
+    written = mapped = fantasy = 0
+    for season in seasons:
+        source = fetch_season(SNAP_URL, season, max(seasons))
+        if not source:
+            continue
+        keys = [(r["game_id"], r["pfr_player_id"]) for r in source]
+        if len(keys) != len(set(keys)):
+            raise RuntimeError(f"duplicate player-game in snap_counts_{season}.csv")
+        bad = {c for r in source for c in (r["team"], r["opponent"]) if c not in TEAM_CODES}
+        if bad:
+            raise RuntimeError(f"unmapped team codes in {season} snap counts: {sorted(bad)}")
+        rows = []
+        for r in source:
+            pid = pfr.get(r["pfr_player_id"])
+            if r["position"] in FANTASY_POSITIONS:
+                fantasy += 1
+                mapped += pid is not None
+            rows.append({
+                "game_id": r["game_id"], "pfr_player_id": r["pfr_player_id"], "player_id": pid,
+                "player_name": r["player"], "season": int(r["season"]), "week": int(r["week"]),
+                "game_type": r["game_type"], "team": r["team"], "opponent": r["opponent"], "position": r["position"] or None,
+                "offense_snaps": inum(r["offense_snaps"]), "offense_pct": num(r["offense_pct"]),
+                "defense_snaps": inum(r["defense_snaps"]), "defense_pct": num(r["defense_pct"]),
+                "st_snaps": inum(r["st_snaps"]), "st_pct": num(r["st_pct"]),
+            })
+        for i in range(0, len(rows), BATCH):
+            written += sb.rpc("nfl_upsert_player_snaps", {"rows": rows[i:i + BATCH]}).execute().data or 0
+        per_season[season] = len(rows)
+    diffs = []
+    for season, n in per_season.items():
+        held = sb.table("nfl_player_snaps").select("game_id", count="exact").eq("season", season).limit(1).execute().count
+        if held != n:
+            diffs.append(f"{season}: file {n} v db {held}")
+    if diffs:
+        raise RuntimeError("snap count reconciliation failed -- " + "; ".join(diffs))
+    rate = f"{mapped / fantasy:.1%}" if fantasy else "n/a"
+    return f"snaps {written} ({','.join(map(str, per_season))}) reconciled, fantasy positions mapped {rate}"
+
+
+def load_depth(sb, seasons: list[int], full: set[int]) -> str:
+    """Depth charts for fantasy positions. Weekly format (to 2024): each season
+    replaced whole. ESPN daily format (2025 on): the last snapshot of each day;
+    a daily run replaces the last DAILY_REFRESH_DAYS days, a season named in
+    --depth-seasons is replaced in full."""
+    import datetime as dt
+    out = []
+    for season in seasons:
+        source = fetch_season(DEPTH_URL, season, max(seasons))
+        if not source:
+            continue
+        if "dt" in source[0]:
+            last: dict[str, str] = {}
+            for r in source:
+                day = r["dt"][:10]
+                if r["dt"] > last.get(day, ""):
+                    last[day] = r["dt"]
+            cutoff = (dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=DAILY_REFRESH_DAYS)).isoformat()
+            days = sorted(d for d in last if season in full or d >= cutoff)
+            rows, seen = [], set()
+            for r in source:
+                day = r["dt"][:10]
+                pos = "K" if r["pos_abb"] == "PK" else r["pos_abb"]
+                if day not in days or r["dt"] != last[day] or pos not in FANTASY_POSITIONS or not r["gsis_id"]:
+                    continue
+                if r["team"] not in TEAM_CODES:
+                    raise RuntimeError(f"unmapped team code {r['team']} in {season} depth charts")
+                key = (day, r["team"], r["gsis_id"], int(r["pos_slot"]))
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append({"as_of": day, "snapshot_at": r["dt"], "season": season, "team": r["team"],
+                             "player_id": r["gsis_id"], "player_name": r["player_name"], "position": pos,
+                             "slot": int(r["pos_slot"]), "depth": inum(r["pos_rank"])})
+            written = 0
+            for i in range(0, max(len(rows), 1), BATCH):
+                written += sb.rpc("nfl_replace_depth_daily", {"p_days": days, "rows": rows[i:i + BATCH], "p_first": i == 0}).execute().data or 0
+            if written != len(rows):
+                raise RuntimeError(f"depth daily {season}: wrote {written} of {len(rows)} rows")
+            out.append(f"{season} daily {len(days)} days/{written} rows")
+        else:
+            rows, seen = [], set()
+            for r in source:
+                pos = r["position"].strip()
+                # SBBYE rows are the charts for the bye week before the Super Bowl: no game, no week.
+                if pos not in FANTASY_POSITIONS or not r["gsis_id"] or r["formation"] not in ("Offense", "Special Teams") or not r["week"]:
+                    continue
+                if r["club_code"] not in TEAM_CODES:
+                    raise RuntimeError(f"unmapped team code {r['club_code']} in {season} depth charts")
+                slot = (r["depth_position"] or pos).strip() or pos
+                key = (int(r["week"]), r["game_type"], r["club_code"], r["gsis_id"], slot)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append({"season": season, "week": int(r["week"]), "game_type": r["game_type"], "team": r["club_code"],
+                             "player_id": r["gsis_id"], "player_name": r.get("full_name") or None, "position": pos,
+                             "slot": slot, "depth": inum(r["depth_team"]) or 1})
+            written = 0
+            for i in range(0, max(len(rows), 1), BATCH):
+                written += sb.rpc("nfl_replace_depth_weekly", {"p_season": season, "rows": rows[i:i + BATCH], "p_first": i == 0}).execute().data or 0
+            if written != len(rows):
+                raise RuntimeError(f"depth weekly {season}: wrote {written} of {len(rows)} rows")
+            out.append(f"{season} weekly {written} rows")
+    return "depth " + ("; ".join(out) if out else "none")
+
+
 def slugify(name: str) -> str:
     s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-") or "player"
@@ -311,6 +443,8 @@ def main() -> None:
     ap.add_argument("--seasons", default="", help="comma-separated seasons; default all from 2002")
     ap.add_argument("--player-seasons", default="", help="e.g. 2016-2026; default the latest season only")
     ap.add_argument("--team-seasons", default="", help="team stats, e.g. 2002-2026; default the player seasons (or the latest)")
+    ap.add_argument("--snap-seasons", default="", help="snap counts, e.g. 2013-2026; default the latest season")
+    ap.add_argument("--depth-seasons", default="", help="depth charts, e.g. 2016-2026 (reloads those seasons in full); default the latest season, last few days")
     args = ap.parse_args()
     wanted = {int(s) for s in args.seasons.split(",") if s.strip()}
 
@@ -362,8 +496,12 @@ def main() -> None:
         # Team stats: the same seasons as player stats, but back to 2002.
         team_seasons = [s for s in season_list(args.team_seasons or args.player_seasons) if s >= FIRST_SEASON] or [latest]
         team_stats = load_team_weeks(sb, team_seasons)
+        snap_seasons = [s for s in season_list(args.snap_seasons) if s >= SNAP_FIRST_SEASON] or [latest]
+        snaps = load_snaps(sb, snap_seasons)
+        depth_named = [s for s in season_list(args.depth_seasons) if s >= DEPTH_FIRST_SEASON]
+        depth = load_depth(sb, depth_named or [latest], set(depth_named))
         finish("success", f"{len(rows)} games ({min(expected)}-{latest}), {written} written; "
-                          f"{latest}: {scored}/{g} scored; reconciled per season; {players}; {team_stats}")
+                          f"{latest}: {scored}/{g} scored; reconciled per season; {players}; {team_stats}; {snaps}; {depth}")
     except Exception as e:  # noqa: BLE001 -- record any failure, then fail the job
         finish("failed", "nfl_import failed", str(e)[:2000])
         sys.exit(1)

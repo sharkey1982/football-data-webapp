@@ -25,6 +25,14 @@ on:
         description: 'Team-stat seasons, e.g. 2002-2026 (blank = the player seasons, or latest)'
         required: false
         default: ''
+      snap_seasons:
+        description: 'Snap-count seasons, e.g. 2013-2026 (blank = latest)'
+        required: false
+        default: ''
+      depth_seasons:
+        description: 'Depth-chart seasons to reload in full, e.g. 2016-2026 (blank = latest, last few days)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -32,7 +40,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -46,7 +54,9 @@ jobs:
           SEASONS: ${{ inputs.seasons }}
           PLAYER_SEASONS: ${{ inputs.player_seasons }}
           TEAM_SEASONS: ${{ inputs.team_seasons }}
-        run: python scripts/nfl_import.py --seasons "$SEASONS" --player-seasons "$PLAYER_SEASONS" --team-seasons "$TEAM_SEASONS"
+          SNAP_SEASONS: ${{ inputs.snap_seasons }}
+          DEPTH_SEASONS: ${{ inputs.depth_seasons }}
+        run: python scripts/nfl_import.py --seasons "$SEASONS" --player-seasons "$PLAYER_SEASONS" --team-seasons "$TEAM_SEASONS" --snap-seasons "$SNAP_SEASONS" --depth-seasons "$DEPTH_SEASONS"
       - name: Model predictions (Elo, experiment N1)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
