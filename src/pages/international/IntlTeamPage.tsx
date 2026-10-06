@@ -19,7 +19,7 @@ import SquadWatch from '../../components/intl/SquadWatch';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { intlTeamHead } from '../../lib/intlSeo';
-import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, type IntlTeamData } from '../../lib/intlApi';
+import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, loadSquadHistory, type IntlTeamData } from '../../lib/intlApi';
 import { DATA_NOTE, titleList, titleText, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
 
 const REACHED_CLASS = (c: HistoryCell) =>
@@ -106,6 +106,11 @@ export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamDa
   const { slug = '' } = useParams();
   // initialData: the static build's pre-render (src/lib/intlStatic.ts).
   const { data, failed, loading } = useKeyedFetch(slug, () => loadIntlTeam(slug), initialData ? { key: slug, data: initialData } : undefined);
+  // A pre-rendered page carries no squad history (intlStatic.ts leaves it out), so fetch it in the browser.
+  const needHistory = !!data && data.squadVersions.length === 0;
+  const squadHistory = useKeyedFetch(needHistory ? `squad-history-${slug}` : null, () => loadSquadHistory(slug));
+  const squadVersions = data?.squadVersions.length ? data.squadVersions : squadHistory.data?.squadVersions ?? [];
+  const snapshotPlayers = data?.squadVersions.length ? data.snapshotPlayers : squadHistory.data?.snapshotPlayers ?? [];
   const t = data?.team;
   const head = t ? intlTeamHead(t) : null;
   useDocumentHead({
@@ -166,9 +171,9 @@ export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamDa
         <Squad squad={data.squad} players={data.squadPlayers} team={t.team} />
       </Section>
 
-      {data.squadVersions.length > 0 && (
+      {squadVersions.length > 0 && (
         <Section title="Squad watch" id="intl-tp-watch" testId="intl-tp-watch">
-          <SquadWatch versions={data.squadVersions} players={data.snapshotPlayers} />
+          <SquadWatch versions={squadVersions} players={snapshotPlayers} />
         </Section>
       )}
 
