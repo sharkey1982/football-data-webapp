@@ -581,26 +581,11 @@ function chooseRole(){
   pickRivals();
   R.s=hashSeed(SEED+"|preview");
   buildFixtures();TABLE=blankTable();
-  document.getElementById('hScore').innerHTML=`—<span class="sub">POSITION</span>`;
-  document.getElementById('hTwo').innerHTML="";document.getElementById('hTrend').textContent="";
-  document.getElementById('hSeason').innerHTML="";
-  const sel='border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)';
-  document.getElementById('app').innerHTML=`<div class="card hero">
-    <div class="hero-kicker">BEAT THE SHARK</div>
-    <div class="mission">Your mission:<br>Win the league!</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:16px 0 8px">
-      ${Object.entries(LEVELS).map(([k,v])=>k==="beginner"
-        ?`<button class="choice" data-level="${k}" aria-pressed="true" style="margin:0;padding:9px 6px;text-align:center;${sel}"><span class="t" style="font-size:13.5px">${v.name}</span></button>`
-        :`<div class="choice" aria-disabled="true" style="margin:0;padding:9px 6px;text-align:center;opacity:.5"><span class="t" style="font-size:13.5px">${v.name}</span><span class="d" style="font-size:11px">Coming soon</span></div>`).join('')}
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch">
-      ${["manager","owner"].map(k=>ROLES[k]).map(r=>r.id==="manager"
-        ?`<button class="choice primary" data-r="${r.id}" style="margin:0;height:100%"><span class="t">${r.name}</span><span class="d">${r.tag}</span></button>`
-        // The owner is greyed out while the manager version is refined (Chris).
-        :`<div class="choice" aria-disabled="true" style="margin:0;height:100%;opacity:.5"><span class="t">${r.name}</span><span class="d">Coming soon</span></div>`).join('')}
-    </div></div>`;
-  document.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>{LEVEL=b.dataset.level;chooseRole()});
-  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ROLE=ROLES[b.dataset.r];boot()});
+  /* The opening screen offers the sports, not levels and roles (Chris,
+     6 Oct 2026): football starts as the Beginner manager's season, the one
+     that has been played and refined. Intermediate, Advanced and the owner
+     stay in the code (and the checks), off the opening screen. */
+  renderGamePicker("football","",()=>{ROLE=ROLES.manager;boot()});
 }
 /* THE OPENING SEQUENCE (Chris): the league, all on zero; your team's key
    numbers; then straight into the opening match against the weakest club. */

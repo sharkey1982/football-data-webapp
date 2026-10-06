@@ -63,6 +63,11 @@ look-ahead samples reduced for speed):
 
 ## How it plays
 
+The opening screen (shared with the football game, `shared/games.js`)
+offers the sports. The NFL starts as the Beginner head coach's season;
+Intermediate, Advanced and the GM role are built and checked but not on
+the opening screen (Chris, 6 Oct 2026).
+
 - **Six teams**, each named for how it decides. The Stingrays (strength 74)
   are always the final boss and the last game. Beginner: 5 games, neutral
   venues. Intermediate and Advanced: 10 games, home and away.

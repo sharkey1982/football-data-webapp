@@ -178,7 +178,7 @@ ok("intermediate has every lever from the first match, no 'new' banner", (()=>{c
 ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
 // a beginner cannot play someone out of position before it unlocks
 sheetAt("beginner",1);ok("beginner: out of position locked in match 2, open from match 4", run(`can("oop")`)===false&&(sheetAt("beginner",3),run(`can("oop")`)===true));
-ok("the opening screen offers the three levels, plainly named", (()=>{run("chooseRole()");const h=app();return /data-level="beginner"/.test(h)&&/>Beginner</.test(h)&&/>Intermediate</.test(h)&&/>Advanced</.test(h)&&!/Data guru/.test(h)})());
+ok("the opening screen offers the sports: football starts here, the NFL is a link to its folder", (()=>{run("chooseRole()");const h=app();return /id="playThis" data-game="football"/.test(h)&&/data-game="nfl" href="nfl\/"/.test(h)&&!/data-level=/.test(h)&&!/Owner/.test(h)})());
 run(`LEVEL="intermediate"`);
 // 17. PACING (Chris's playtest: "too fast to follow")
 run(`LEVEL="beginner";SPEED=null`);
@@ -267,8 +267,11 @@ run(`LEVEL="intermediate"`);
 // 20. THE NEW OPENING SEQUENCE (Chris): mission; the league on zero; your
 // team's key numbers; the opening match v the weakest club with them-v-you.
 run(`SEED="SOC-S07";LEVEL="beginner";chooseRole()`);
-ok("opening: 'Your mission: Win the league!', and Manager / Owner side by side", /Your mission:<br>Win the league!/.test(app())&&/grid-template-columns:1fr 1fr/.test(app())&&/data-r="manager"/.test(app()));
-ok("the Owner is greyed out for now: shown, 'Coming soon', not selectable", /The Owner/.test(app())&&!/data-r="owner"/.test(app())&&(app().match(/Coming soon/g)||[]).length===3);
+// Since 6 Oct 2026 (Chris) the opening screen offers the sports; football
+// plays as the Beginner manager's season, and starting it is one tap.
+ok("opening: 'Pick a sport', football to play (Win the league), no roles or levels", /Pick a sport/.test(app())&&/Win the league/.test(app())&&!/data-r=/.test(app())&&!/Coming soon/.test(app()));
+els.playThis.onclick();
+ok("starting football from the picker begins the Beginner manager's season", run("ROLE.id")==="manager"&&run("LEVEL")==="beginner"&&/THE LEAGUE/.test(app()));
 run(`ROLE=ROLES.manager;boot()`);
 ok("then the league, every club on zero, and Begin", /THE LEAGUE/.test(app())&&/class="tbl"/.test(app())&&!/<td class="n">[1-9]\d*<\/td><\/tr>/.test(app())&&/>Begin</.test(app()));
 els.go.onclick();
@@ -347,8 +350,7 @@ run(`SEED="MD-1";LEVEL="intermediate";ROLE=ROLES.manager;boot();const i=PLAN.ind
 ok("a week with no pre-match decision: them v you, then Kick off", /<th class="n">You<\/th>/.test(app())&&/Goals \(this match\)/.test(app())&&/id="kick"/.test(app())&&/12:30 KICK-OFF/.test(app()));
 // 23. THE BEGINNER SEASON (agreed 2026-09-21)
 run(`SEED="BG-1";chooseRole()`);
-ok("levels: Beginner only for now -- Intermediate and Advanced marked 'Coming soon' and not selectable",
-  /data-level="beginner"/.test(app())&&!/data-level="intermediate"/.test(app())&&!/data-level="guru"/.test(app())&&(app().match(/Coming soon/g)||[]).length===3); // + the owner
+ok("the opening screen sets the Beginner level (levels are no longer offered there)", run("LEVEL")==="beginner"&&!/data-level=/.test(app()));
 run(`ROLE=ROLES.manager;boot()`);els.go.onclick();els.go.onclick();els.go.onclick();els.go.onclick();
 ok("neutral venues: no home or away anywhere, and no home advantage in the model",
   !/at home|Away at|At home/.test(app())&&/<h1>v /.test(app())&&run("homeMult()")===1);
