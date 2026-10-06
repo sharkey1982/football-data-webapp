@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-06 · Fixture feed: 47 team names never mapped (postponements, kick-off times, provisional scores)
+- **Reported:** 6 Oct audit, following stale_scheduled_fixtures (red since 1 Oct).
+- **Impact:** every current-season fixture involving 47 clubs was skipped by the daily FixtureDownload refresh: 16 League One, 16 League Two and 15 Championship clubs, plus Tottenham ("Spurs"). Eight League One games postponed on 26 Sep (and Port Vale v Northampton) still showed as due that day with no result coming; 230 League One kick-offs were an hour early (UTC, never corrected); no provisional scores for those clubs. The League One table itself was right: football-data.co.uk has no results for the postponed games either.
+- **Cause:** the feed uses full names ("Huddersfield Town", "Queens Park Rangers"); the matcher only knows team_aliases rows with source FixtureDownload and exact canonical names, and these 47 had neither. The original season load used a different matcher, so the fixtures existed and nothing looked missing.
+- **Fix:** migration `20261006110000_fixture_feed_team_names`: the 47 aliases; League One times corrected quietly (not logged as changes); one refresh run so the postponements are applied and logged.
+- **Prevention:** `check_fixture_feed_names()` in the daily integrity run fails when any current-season E0-E3 fixture hasn't been refreshed for 3 days (each matched fixture is rewritten every run). *Lesson: a matcher that skips what it can't map must say how much it skipped.*
+
+---
+
 ## 2026-10-06 · NFL game pages: every sitemap URL redirected
 - **Reported:** site-health (5 Oct, a sampled game page answered 301) and the 6 Oct audit.
 - **Impact:** since game pages launched (4 Oct, #170) all ~272 NFL game URLs in the sitemap, and every internal link to a game, answered 301 to a lower-case address whose page declared the upper-case address canonical: a redirect/canonical loop, so Google would index none of them.

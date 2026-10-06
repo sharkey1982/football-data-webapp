@@ -21,6 +21,7 @@ from supabase import create_client
 
 AREAS = [
     ("football", "check_model_integrity"),
+    ("football_feeds", "check_fixture_feed_names"),  # FixtureDownload names all mapped
     ("nfl", "check_nfl_integrity"),
     ("tennis", "check_tennis_integrity"),        # results imported from Chris's PC
     ("intl", "check_intl_integrity"),
