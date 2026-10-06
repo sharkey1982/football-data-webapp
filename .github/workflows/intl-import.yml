@@ -58,3 +58,30 @@ jobs:
           else
             python intl_import.py
           fi
+
+  # Women's internationals (martj42/womens-international-results) into the
+  # intlw schema: same importer with --women, its own job so one side failing
+  # never stops the other. Writes a pipeline_runs row (job_name intlw_import).
+  women:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt pytest
+      - name: Tests
+        run: python -m pytest -q scripts/test_intl_import.py scripts/test_intl_squads.py
+      - name: Import (women)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        working-directory: scripts
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python intl_import.py --women --dry-run
+          else
+            python intl_import.py --women
+          fi

@@ -45,3 +45,25 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         working-directory: scripts
         run: python intl_squads.py
+
+  # Women's squads from each women's national team page (intlw tables;
+  # pipeline_runs job_name intlw_squads). Its own job: either side failing
+  # never stops the other.
+  women:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt pytest
+      - name: Tests
+        run: python -m pytest -q scripts/test_intl_squads.py
+      - name: Import squads (women)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        working-directory: scripts
+        run: python intl_squads.py --women

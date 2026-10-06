@@ -43,7 +43,8 @@ from dataclasses import dataclass, field
 from intl_static import (COIN_TOSSES, CONFEDERATION_OF_COMPETITION, CONMEBOL, ELO_K_40, ELO_K_40_SUFFIX, ELO_K_50,
                          ELO_K_60, FIXTURE_FEED_ALIASES, NATIONS_LEAGUE, NATIONS_LEAGUE_LATER,
                          OPENFOOTBALL_ALIASES, OPENFOOTBALL_YEAR_ALIASES, STAGE_OVERRIDES, VENUE_FIXES,
-                         CONTINENTAL, HAND_WINNERS, OFFICIAL_LABELS)
+                         CONTINENTAL, HAND_WINNERS, OFFICIAL_LABELS, WOMEN_COMPETITION_ALIASES, WOMEN_CONFEDERATION,
+                         WOMEN_CONTINENTAL, WOMEN_EDITION_RANGES, WOMEN_ELO_K_50, WOMEN_HAND_WINNERS, WOMEN_SCORE_FIXES)
 
 RAW = "https://raw.githubusercontent.com"
 RESULTS_BASE = f"{RAW}/martj42/international_results/master"
@@ -52,6 +53,38 @@ EURO_URL = f"{RAW}/openfootball/euro.json/master/{{year}}/euro.json"
 NL_FEED_URL = "https://fixturedownload.com/feed/json/nations-league-2026"
 USER_AGENT = "Mozilla/5.0 (compatible; fixtureshark-intl-importer/1.0)"
 BATCH = 2000
+
+
+@dataclass
+class Profile:
+    """Men's (default) or women's run: where the results come from, which
+    database functions take them (intl_* / intlw_*) and the job's name."""
+    women: bool = False
+    results_base: str = f"{RAW}/martj42/international_results/master"
+    local_dir: str = "international_results"
+    rpc_prefix: str = "intl_"
+    job: str = "intl_import"
+
+
+MEN = Profile()
+WOMEN = Profile(True, f"{RAW}/martj42/womens-international-results/master", "womens_results", "intlw_", "intlw_import")
+P = MEN
+
+
+def rpc(name: str) -> str:
+    return P.rpc_prefix + name
+
+
+def women_name(tournament: str) -> str:
+    """One name per women's tournament lineage (WOMEN_COMPETITION_ALIASES, by prefix)."""
+    for old, new in WOMEN_COMPETITION_ALIASES.items():
+        if tournament == old or tournament.startswith(old + " "):
+            return new + tournament[len(old):]
+    return tournament
+
+
+def confederation_of(competition: str) -> str | None:
+    return (WOMEN_CONFEDERATION.get(competition) if P.women else None) or CONFEDERATION_OF_COMPETITION.get(competition)
 
 WC, EURO, UNL = "FIFA World Cup", "UEFA Euro", "UEFA Nations League"
 ROUND_ROBIN, KNOCKOUT = "round_robin", "knockout"
@@ -119,12 +152,20 @@ def read_sources(source_dir: str | None) -> dict:
         return fetch_text(url)
 
     def csv_rows(name: str) -> list[dict]:
-        text = get(f"international_results/{name}", f"{RESULTS_BASE}/{name}")
+        text = get(f"{P.local_dir}/{name}", f"{P.results_base}/{name}")
         if text is None:
+            if P.women and name == "former_names.csv":
+                return []  # the women's file has no former names
             raise ImportCheckFailed(f"{name} not found")
         return list(csv.DictReader(io.StringIO(text)))
 
     src = {n: csv_rows(f"{n}.csv") for n in ("results", "goalscorers", "shootouts", "former_names")}
+    src["women"] = P.women
+    if P.women:
+        for r in src["results"]:
+            r["tournament"] = women_name(r["tournament"])
+        src["worldcup"], src["euro"], src["nl_feed"] = {}, {}, None
+        return src
     years = lambda comp: sorted({r["date"][:4] for r in src["results"] if r["tournament"] == comp})
     src["worldcup"] = {}
     for y in years(WC):
@@ -232,7 +273,12 @@ def build(src: dict) -> Build:
             "home_score_90": None, "away_score_90": None, "went_extra_time": None,
             "shootout_winner": None, "raw": r,
         })
-    for m in matches:
+    for m in matches if src.get("women") else []:
+        fix = WOMEN_SCORE_FIXES.get(m["match_key"])
+        if fix:
+            m["home_score"], m["away_score"] = fix
+            out.notes.append(f"score corrected: {m['match_key']} -> {fix[0]}-{fix[1]}")
+    for m in matches if not src.get("women") else []:
         fix = VENUE_FIXES.get(m["match_key"])
         if fix:
             m["city"], m["country"], m["neutral"] = fix
@@ -275,11 +321,15 @@ def build(src: dict) -> Build:
         out.notes.append(f"{unmatched_goals} goal rows without a unique match (left out)")
 
     # Tournaments.
-    stage_tournament(out, matches, by_day_pair, src, WC, "WC", src["worldcup"])
-    stage_tournament(out, matches, by_day_pair, src, EURO, "EURO", src["euro"])
-    for comp, code in CONTINENTAL:
-        stage_continental(out, matches, comp, code)
-    stage_nations_league(out, matches, src)
+    if src.get("women"):
+        for comp, code in WOMEN_CONTINENTAL:
+            stage_continental(out, matches, comp, code, ranges=WOMEN_EDITION_RANGES.get(comp))
+    else:
+        stage_tournament(out, matches, by_day_pair, src, WC, "WC", src["worldcup"])
+        stage_tournament(out, matches, by_day_pair, src, EURO, "EURO", src["euro"])
+        for comp, code in CONTINENTAL:
+            stage_continental(out, matches, comp, code)
+        stage_nations_league(out, matches, src)
 
     # 90-minute scores are known for every round-robin game and friendly.
     stage_type = {s["stage_key"]: s["type"] for s in out.stages}
@@ -305,7 +355,7 @@ def build(src: dict) -> Build:
             first.setdefault(t, m["match_date"])
             last[t] = max(last.get(t, m["match_date"]), m["match_date"])
             games[t] += 1
-            c = CONFEDERATION_OF_COMPETITION.get(m["competition"])
+            c = confederation_of(m["competition"])
             if c:
                 conf[t] = (m["match_date"], c) if t not in conf or m["match_date"] >= conf[t][0] else conf[t]
     slugs = Counter()
@@ -331,7 +381,7 @@ def build(src: dict) -> Build:
         kind = ("friendly" if name == "Friendly" else "qualifying" if "qualification" in name
                 else "nations_league" if "Nations League" in name else "tournament")
         out.competitions.append({"name": name, "slug": s if comp_slugs[s] == 1 else f"{s}-{comp_slugs[s]}",
-                                 "kind": kind, "confederation": CONFEDERATION_OF_COMPETITION.get(name),
+                                 "kind": kind, "confederation": confederation_of(name),
                                  "matches": n})
 
     out.matches = matches
@@ -386,23 +436,33 @@ def derived_winner(games: list) -> tuple[str | None, str | None]:
     return None, None
 
 
-def stage_continental(out: Build, matches: list, comp: str, code: str) -> None:
+def stage_continental(out: Build, matches: list, comp: str, code: str, ranges: list | None = None) -> None:
     """A continental tournament: editions are runs of games with no gap of more
     than 120 days, named by the year most were played in (or the official
     name, OFFICIAL_LABELS); a second edition in the same year adds its host."""
     from datetime import date
     games = sorted((m for m in matches if m["competition"] == comp), key=lambda m: (m["match_date"], m["match_key"]))
     clusters, last = [], None
-    for m in games:
-        d = date.fromisoformat(m["match_date"])
-        if last is None or (d - last).days > 120:
-            clusters.append([])
-        clusters[-1].append(m)
-        last = d
+    fixed_label = {}
+    if ranges:  # editions given as date ranges (WOMEN_EDITION_RANGES); games outside them are left unstaged
+        for lo, hi, lab in ranges:
+            cl = [m for m in games if lo <= m["match_date"] <= hi]
+            if cl:
+                clusters.append(cl)
+                fixed_label[id(cl)] = lab
+    else:
+        for m in games:
+            d = date.fromisoformat(m["match_date"])
+            if last is None or (d - last).days > 120:
+                clusters.append([])
+            clusters[-1].append(m)
+            last = d
     used = set()
+    official = {} if P.women else OFFICIAL_LABELS
+    hand_winners = WOMEN_HAND_WINNERS if P.women else HAND_WINNERS
     for cl in clusters:
         year = Counter(m["match_date"][:4] for m in cl).most_common(1)[0][0]
-        label = OFFICIAL_LABELS.get((comp, year), year)
+        label = fixed_label.get(id(cl)) or official.get((comp, year), year)
         hosts = sorted({m["country"] for m in cl if m["country"]})
         if label in used:
             label = f"{label}-{slugify(hosts[0]) if hosts else 'b'}"
@@ -412,7 +472,7 @@ def stage_continental(out: Build, matches: list, comp: str, code: str) -> None:
             m["edition_key"] = ed
         placed = apply_derived(out, ed, cl, strict=False)
         dw, dr = derived_winner(cl)
-        hand = HAND_WINNERS.get((comp, label))
+        hand = hand_winners.get((comp, label))
         if hand and dw and hand[0] != dw:
             raise ImportCheckFailed(f"{ed}: hand winner {hand[0]} but the final says {dw}")
         teams = {t for m in cl for t in (m["home_team"], m["away_team"])}
@@ -533,7 +593,7 @@ def apply_derived(out: Build, ed: str, games: list, strict: bool = True) -> bool
             continue
         code = "GRP" if phase == 0 else "GRP2"
         for i, comp in enumerate(comps):
-            label = "ABCDEFGHIJKL"[i] if len(comps) > 1 else None
+            label = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i] if i < 26 else str(i + 1)) if len(comps) > 1 else None
             for m in block:
                 if m["home_team"] in comp:
                     m["stage_code"], m["group_label"] = code, label
@@ -784,7 +844,7 @@ ELO_HOME = 100
 def elo_k(comp: str) -> int:
     if comp in ELO_K_60:
         return 60
-    if comp in ELO_K_50:
+    if comp in ELO_K_50 or (P.women and comp in WOMEN_ELO_K_50):
         return 50
     if comp in ELO_K_40 or comp.endswith(ELO_K_40_SUFFIX):
         return 40
@@ -861,16 +921,16 @@ def rows_for_db(rows: list, drop=("raw",)) -> list:
 def write(sb, b: Build) -> dict:
     ref = {"teams": b.teams, "team_names": b.team_names, "competitions": b.competitions,
            "editions": b.editions, "stages": b.stages, "groups": b.groups, "group_members": b.group_members}
-    sb.rpc("intl_load_reference", {"payload": ref}).execute()
+    sb.rpc(rpc("load_reference"), {"payload": ref}).execute()
     written = 0
     for i in range(0, len(b.matches), BATCH):
         chunk = [dict(m, raw=m["raw"]) for m in b.matches[i:i + BATCH]]
-        written += sb.rpc("intl_upsert_matches", {"rows": chunk}).execute().data or 0
+        written += sb.rpc(rpc("upsert_matches"), {"rows": chunk}).execute().data or 0
     for i in range(0, len(b.goals), BATCH * 2):
-        sb.rpc("intl_replace_goals", {"rows": b.goals[i:i + BATCH * 2]}).execute()
-    sb.rpc("intl_replace_shootouts", {"rows": b.shootouts}).execute()
+        sb.rpc(rpc("replace_goals"), {"rows": b.goals[i:i + BATCH * 2]}).execute()
+    sb.rpc(rpc("replace_shootouts"), {"rows": b.shootouts}).execute()
     if b.fixtures:
-        sb.rpc("intl_upsert_fixtures", {"rows": b.fixtures}).execute()
+        sb.rpc(rpc("upsert_fixtures"), {"rows": b.fixtures}).execute()
     return {"written": written}
 
 
@@ -880,26 +940,26 @@ def write_projections(sb, b: Build) -> str:
     import intl_projections
     kind_of = {c["name"]: c["kind"] for c in b.competitions}
     r = intl_projections.build_projections(b.matches, b.fixtures, kind_of)
-    sb.rpc("intl_replace_projections", {"payload": r}).execute()
+    sb.rpc(rpc("replace_projections"), {"payload": r}).execute()
     return f"{len(r['projections'])} projections, {len(r['group_odds'])} group odds"
 
 
 def reconcile(sb, b: Build) -> None:
     expected = year_totals(b.matches)
     held = {r["year"]: (r["matches"], r["goals"], r["key_hash"])
-            for r in sb.rpc("intl_year_totals", {}).execute().data or []}
+            for r in sb.rpc(rpc("year_totals"), {}).execute().data or []}
     extra_years = [y for y in held if y not in expected]
     stale = [y for y in expected if held.get(y) != expected[y]] + extra_years
     if stale:
         # Rows the file no longer has (a corrected duplicate): remove, then recheck.
         file_keys = {m["match_key"] for m in b.matches}
         for y in stale:
-            db_keys = sb.rpc("intl_match_keys", {"p_year": y}).execute().data or []
+            db_keys = sb.rpc(rpc("match_keys"), {"p_year": y}).execute().data or []
             gone = [k for k in db_keys if k not in file_keys]
             if gone:
-                sb.rpc("intl_delete_matches", {"keys": gone}).execute()
+                sb.rpc(rpc("delete_matches"), {"keys": gone}).execute()
         held = {r["year"]: (r["matches"], r["goals"], r["key_hash"])
-                for r in sb.rpc("intl_year_totals", {}).execute().data or []}
+                for r in sb.rpc(rpc("year_totals"), {}).execute().data or []}
     diffs = [f"{y}: file {expected.get(y)} v db {held.get(y)}" for y in sorted(set(expected) | set(held))
              if held.get(y) != expected.get(y)]
     if diffs:
@@ -909,6 +969,11 @@ def reconcile(sb, b: Build) -> None:
 def summary(b: Build) -> str:
     latest = max(m["match_date"] for m in b.matches)
     wc26 = sum(1 for m in b.matches if m["edition_key"] == "WC-2026")
+    if P.women:
+        return (f"women: {len(b.matches)} matches to {latest}; {len(b.goals)} goals; {len(b.shootouts)} shoot-outs; "
+                f"{len(b.teams)} teams; {len(b.editions)} editions ("
+                + ", ".join(f"{c} {n}" for c, n in Counter(e['competition'] for e in b.editions).most_common()) + ")"
+                + (f"; notes: {' | '.join(b.notes[:6])}" if b.notes else ""))
     eds = Counter(e["competition"] for e in b.editions)
     return (f"{len(b.matches)} matches to {latest}; {len(b.goals)} goals; {len(b.shootouts)} shoot-outs; "
             f"{len(b.teams)} teams; editions WC {eds[WC]}, Euro {eds[EURO]}, Nations League {eds[UNL]}; "
@@ -920,7 +985,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="read and check only; write nothing")
     ap.add_argument("--source-dir", default=None, help="read the source files from this folder")
+    ap.add_argument("--women", action="store_true", help="women's internationals into the intlw schema")
     args = ap.parse_args()
+    global P
+    P = WOMEN if args.women else MEN
 
     if args.dry_run:
         b = build(read_sources(args.source_dir))
@@ -932,7 +1000,7 @@ def main() -> None:
 
     from supabase import create_client
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    run = sb.table("pipeline_runs").insert({"job_name": "intl_import", "status": "running"}).execute().data[0]
+    run = sb.table("pipeline_runs").insert({"job_name": P.job, "status": "running"}).execute().data[0]
 
     def finish(status: str, text: str, error: str | None = None) -> None:
         sb.table("pipeline_runs").update({"status": status, "summary": text, "error_message": error,
@@ -943,8 +1011,8 @@ def main() -> None:
         b = build(read_sources(args.source_dir))
         w = write(sb, b)
         reconcile(sb, b)
-        sb.rpc("intl_refresh", {}).execute()
-        sb.rpc("intl_refresh_visuals", {}).execute()
+        sb.rpc(rpc("refresh"), {}).execute()
+        sb.rpc(rpc("refresh_visuals"), {}).execute()
         proj_note = write_projections(sb, b)
         finish("success", f"{summary(b)}; {w['written']} written; reconciled per year; {proj_note}")
     except Exception as e:  # noqa: BLE001 -- record any failure, then fail the job
