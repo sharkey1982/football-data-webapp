@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+/* Trailing-slash guard, as in the football game: the scripts load by
+   relative path, so /play/beat-the-shark/nfl without its slash would load
+   nothing. MUST stay first in <head>. */
+(function(){var p=location.pathname;
+  if(p.length>1&&p.charAt(p.length-1)!=="/"&&!/\.[a-z0-9]+$/i.test(p))
+    location.replace(p+"/"+location.search+location.hash);})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beat the Shark: NFL — an American football coaching game | FixtureShark</title>
+<meta name="description" content="A ten-minute NFL coaching game. FixtureShark's model predicts how many games your team wins. Call the game plans, the fourth downs and the half-time adjustments, and prove it wrong.">
+<link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/nfl/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FixtureShark">
+<meta property="og:title" content="Beat the Shark: NFL — can you out-coach the model?">
+<meta property="og:description" content="FixtureShark's model predicts how many games your team wins. Call the game plans and the fourth downs, and prove it wrong.">
+<meta property="og:url" content="https://fixtureshark.com/play/beat-the-shark/nfl/">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* the NFL game's own touches */
+  .ln .min{width:66px}
+  .vp .teams{gap:8px;align-items:center}
+  .vp .teams #sb{white-space:nowrap}
+  .seed a{color:var(--pitch2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="homelink" href="https://fixtureshark.com/nfl">&larr; FixtureShark NFL</a>
+    <div class="hmain">
+      <div class="bigscore" id="hScore">—<span class="sub">POSITION</span></div>
+      <div class="twos" id="hTwo"></div>
+      <div class="trend fl" id="hTrend"></div>
+    </div>
+    <div class="season" id="hSeason"></div>
+  </header>
+  <main id="app"></main>
+  <div class="foot" id="foot"></div>
+  <!-- Static on purpose: a crawler sees this, and every screen has a way back into the site. -->
+  <footer class="about">
+    <h2>About Beat the Shark: NFL</h2>
+    <p>Before a ball is snapped, FixtureShark's model simulates the season thousands of times and predicts
+      how many games your team wins. Your job is to win more: as head coach, calling the game plan, the
+      fourth downs and the half-time adjustments, or as general manager, running the cap and the trades.
+      Every team and player is invented; the home advantage and the shape of the scores come from FixtureShark's real NFL models.</p>
+    <ul>
+      <li><a href="https://fixtureshark.com/nfl/fixtures">Fixtures &amp; Results</a> — the Elo model beside the betting line, and how each game might finish</li>
+      <li><a href="https://fixtureshark.com/nfl/table">League Table</a> — the standings with the official tie-breaks</li>
+      <li><a href="https://fixtureshark.com/nfl/snap-outlook">Snap Outlook</a> — who plays, and how much</li>
+    </ul>
+    <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark: football</a> · <a href="https://fixtureshark.com/nfl">Back to FixtureShark NFL</a></p>
+  </footer>
+</div>
+<script src="../shared/core.js"></script>
+<script src="data.js"></script>
+<script src="config.js"></script>
+<script src="engine.js"></script>
+<script src="content.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>

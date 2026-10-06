@@ -31,7 +31,7 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,3 +51,9 @@ jobs:
       # pre-season screen said "the Shark predicts 1st" while the opening said 3rd.
       - name: Full walkthrough
         run: node games/beat-the-shark/test/walkthrough.cjs
+
+      # The NFL game (games/beat-the-shark/nfl): loading, integrity, the
+      # engine against FixtureShark's real NFL numbers, stability, balance,
+      # and whole seasons through the real screens. About a minute.
+      - name: NFL game
+        run: node games/beat-the-shark/nfl/test/checks.cjs

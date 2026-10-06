@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { ThemeHub } from '../components/ThemeHub';
+import { BEAT_THE_SHARK } from '../components/GameCard';
 import { THEMES } from '../lib/journey';
 import { getFootballTrivia, type TriviaFact } from '../lib/landingApi';
 
@@ -25,5 +26,5 @@ export default function FootballHub() {
       .catch(() => setTrivia([]));
   }, []);
 
-  return <ThemeHub theme={THEMES.football} trivia={trivia} />;
+  return <ThemeHub theme={THEMES.football} trivia={trivia} game={BEAT_THE_SHARK.football} />;
 }

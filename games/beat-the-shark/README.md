@@ -21,6 +21,11 @@ games/beat-the-shark/
   test/checks.cjs       loading, integrity, stability and balance checks
 ```
 
+Other sports live in folders beside it, served under the same address:
+`nfl/` (Beat the Shark: NFL, at `/play/beat-the-shark/nfl/`, see its own
+README), with `shared/` holding the code and styles the new games share.
+The World Cup and tennis Nations Cup games will follow the same pattern.
+
 No build step: the scripts are plain files, loaded in that order. **The order
 matters** — each file can use anything declared in the ones before it, and
 `ui.js` must come last because its final lines start the game. The loading
