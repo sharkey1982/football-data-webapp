@@ -26,6 +26,7 @@ Disallow: /admin/team-ratings
 # Other admin-only pages (they show "for admins" to everyone else).
 Disallow: /admin/
 Disallow: /data-flow
+Disallow: /build-report.txt
 
 # AI search and answer engines: allowed, deliberately (6 Oct 2026). FixtureShark
 # wants its data cited; /llms.txt summarises the site for them. They get the
@@ -47,5 +48,6 @@ Disallow: /fpl/tactical-roles
 Disallow: /login
 Disallow: /admin/
 Disallow: /data-flow
+Disallow: /build-report.txt
 
 Sitemap: https://fixtureshark.com/sitemap.xml

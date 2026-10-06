@@ -148,6 +148,7 @@ import {
   TENNIS_H2H_PATH,
   type TennisH2HData,
   tennisEditionPath,
+  tennisH2HCanonicalPath,
   tennisEventPath,
   tennisPlayerPath,
   tennisSeasonPath,
@@ -173,6 +174,7 @@ export {
   CALENDAR_COLUMNS as TENNIS_CALENDAR_COLUMNS,
   RATING_COLUMNS as TENNIS_RATING_COLUMNS,
   tennisEditionPath,
+  tennisH2HCanonicalPath,
   tennisEventPath,
   resultsWindow as tennisResultsWindow,
   tennisPlayerPath,
@@ -990,6 +992,21 @@ export function renderTennisH2HPage(data: TennisH2HData): RenderedPage {
     description: `${tennisH2HSentence(data.a.name, data.b.name, s)} Compare any two players and see who the model makes favourite on each surface.`,
     canonical: `${SITE_URL}${TENNIS_H2H_PATH}`,
     structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Head to head', path: TENNIS_H2H_PATH }])],
+  };
+}
+
+/** One rivalry's own page (/tennis/head-to-head/:tour/:a/:b, slugs in
+ * alphabetical order): the static build writes the most-played pairs. */
+export function renderTennisH2HPairPage(data: TennisH2HData): RenderedPage {
+  const s = tennisH2HSummary(data.meetings, data.a.player_id, data.b.player_id);
+  const path = tennisH2HCanonicalPath(data.tour, data.a.slug, data.b.slug);
+  const name = `${data.a.name} v ${data.b.name}`;
+  return {
+    html: nflPage(path, '/tennis/head-to-head/:tour/:a/:b', <TennisH2HPage initialData={data} />),
+    title: `${name}: head to head and prediction | ${BRAND_NAME}`,
+    description: `${tennisH2HSentence(data.a.name, data.b.name, s)} Who the model makes favourite on each surface.`,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Head to head', path: TENNIS_H2H_PATH }, { name, path }])],
   };
 }
 

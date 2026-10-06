@@ -41,12 +41,40 @@ let SEASON_ID = null;
 const EPL_LEAGUE_ID = 1;
 const MODEL_VERSION = 'leaguewide_v6';
 const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
+// Tennis rivalry pages: the most-played pairs per tour (see writeTennisPages).
+const TENNIS_H2H_PAIRS_PER_TOUR = 30;
+const TENNIS_H2H_MIN_MEETINGS = 8;
 const REQUEST_TIMEOUT_MS = 20000;
-const WATCHDOG_MS = 240000;
+const WATCHDOG_MS = 420000;
+// Club seasons stop here (they ran to WATCHDOG - 30s when the watchdog was
+// 240s); the international full render uses the time after them.
+const CLUB_SEASON_BUDGET_MS = 210000;
+const INTL_FULL_MIN_MS = 150000;
 const STARTED_AT = Date.now();
+
+// Build report: every "Static:" line of this run, written to
+// dist/build-report.txt so a deploy (preview or live) shows what the
+// generator did -- Netlify build logs can't be read from a Claude session.
+// Counts and query paths only; no keys.
+const REPORT = [];
+for (const level of ['log', 'warn', 'error']) {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => {
+    const line = args.map(String).join(' ');
+    if (line.startsWith('Static:')) REPORT.push(`${Math.round((Date.now() - STARTED_AT) / 1000)}s ${level === 'log' ? '' : level.toUpperCase() + ' '}${line}`.slice(0, 400));
+    orig(...args);
+  };
+}
+function writeReport() {
+  try {
+    mkdirSync(DIST, { recursive: true });
+    writeFileSync(join(DIST, 'build-report.txt'), `Static generation, ${new Date().toISOString()}\n${REPORT.join('\n')}\n`, 'utf8');
+  } catch { /* the report must never cost a deploy */ }
+}
 
 const watchdog = setTimeout(() => {
   console.error('Static: watchdog fired -- exiting rather than hanging the build.');
+  writeReport();
   process.exit(0);
 }, WATCHDOG_MS);
 watchdog.unref();
@@ -82,14 +110,18 @@ async function queryAll(path, pageSize = 1000) {
   for (let offset = 0; ; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
     let page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    // One retry for a transient error. A page that still fails returns null
+    // Two retries (1.5s, 5s) for a transient error. A page that still fails returns null
     // for the WHOLE query: until 6 Oct the rows before the failure came back
     // as if complete, so (with oldest-first ordering) the current season was
     // what silently went missing. null makes the caller skip the section and
     // verify-dist's minimum page counts fail the build instead.
-    if (page == null) page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    for (const wait of [1500, 5000]) {
+      if (page != null) break;
+      await new Promise((r) => setTimeout(r, wait));
+      page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    }
     if (page == null) {
-      console.error(`Static: page at offset ${offset} failed twice for ${path} -- discarding the partial result.`);
+      console.error(`Static: page at offset ${offset} failed three times for ${path} -- discarding the partial result.`);
       return null;
     }
     out.push(...page);
@@ -248,71 +280,36 @@ async function main() {
   // sitemap). Same rule as the sitemap: nations with 30+ games, every
   // tournament, every edition. Titles come from src/lib/intlSeo.ts, which
   // the pages use too.
-  async function writeIntlPages() {
+  // ---- International: nation, tournament and edition heads (early, cheap) --
+  // Two small reads. Writes each page's head (title, description, canonical,
+  // breadcrumb) now; writeIntlFullPages() at the very end overwrites the
+  // nation and edition pages with fully rendered ones if time allows. Until
+  // 6 Oct 2026 the full read ran here, and its ~120 requests delayed the
+  // tennis and finance reads past their timeouts.
+  async function writeIntlHeads() {
     const entry = await import(ENTRY);
     if (!entry.intlTeamHead) return;
-    // Every view read once (~120 requests in all); each page's data is then
-    // cut out by src/lib/intlStatic.ts with the browser loaders' filters.
-    const enc = (cols) => cols.replace(/\s+/g, '');
-    const [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups] = await Promise.all([
-      queryAll(`intl_team_summary?select=${enc(entry.INTL_TEAM_COLUMNS)}&order=slug.asc`),
-      queryAll(`intl_edition_summary?select=${enc(entry.INTL_EDITION_COLUMNS)}&order=competition.asc,season_start.asc`),
-      queryAll(`intl_matches?select=${enc(entry.INTL_MATCH_COLUMNS)}&order=match_key.asc`),
-      queryAll(`intl_fixtures?select=${enc(entry.INTL_FIXTURE_COLUMNS)}&order=fixture_key.asc`),
-      queryAll(`intl_team_competition_totals?select=${entry.INTL_BULK_TOTAL_COLUMNS}&order=team.asc,competition.asc`),
-      queryAll(`intl_pair_records?select=${entry.INTL_BULK_PAIR_COLUMNS}&order=team_a.asc,team_b.asc`),
-      queryAll(`intl_goals?select=${entry.INTL_BULK_GOAL_COLUMNS}&order=match_key.asc,seq.asc`),
-      queryAll(`intl_squads?select=${enc(entry.INTL_SQUAD_COLUMNS)}&order=slug.asc`),
-      queryAll(`intl_squad_players?select=slug,${enc(entry.INTL_SQUAD_PLAYER_COLUMNS)}&order=slug.asc,list.asc,seq.asc`),
-      queryAll(`intl_group_odds?select=${enc(entry.INTL_GROUP_ODDS_COLUMNS)}&order=edition_key.asc,group_label.asc,slug.asc`),
-      queryAll(`intl_stages?select=${entry.INTL_BULK_STAGE_COLUMNS}&order=stage_key.asc`),
-      queryAll(`intl_groups?select=${entry.INTL_BULK_GROUP_COLUMNS}&order=group_key.asc`),
+    const [teams, editions] = await Promise.all([
+      queryAll(`intl_team_summary?select=team,slug,played,won,first_match,elo,elo_rank&played=gte.${entry.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
+      queryAll('intl_edition_summary?select=competition,label,winner,runner_up&order=competition.asc,season_start.asc'),
     ]);
-    // Full pages need every view; if any read failed, fall back to head-only
-    // pages (title, description, canonical) rather than half-filled ones.
-    const full = [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups].every((x) => x != null);
-    const bulk = full ? { teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups } : null;
-    if (!full) console.error('Static: an international view failed to load -- writing head-only international pages.');
-    const writeHtml = (path, page) => {
-      const dir = join(DIST, ...path.split('/').filter(Boolean));
+    const write = (meta) => {
+      const dir = join(DIST, ...meta.path.split('/').filter(Boolean));
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, renderStaticRouteHead(meta)), 'utf8');
     };
     let n = 0;
-    let rendered = 0;
-    for (const t of (teams ?? []).filter((x) => x.played >= entry.INTL_STATIC_TEAM_MIN_GAMES)) {
-      const head = entry.intlTeamHead(t);
-      try {
-        const data = bulk ? entry.intlTeamFromBulk(bulk, t.slug) : null;
-        if (data) { writeHtml(head.path, entry.renderIntlTeamPage(data)); rendered++; } else writeHtml(head.path, renderStaticRouteHead(head));
-        n++;
-      } catch (err) {
-        console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`);
-        try { writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch { /* keep going */ }
-      }
-    }
     const byComp = new Map(entry.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
-    for (const t of entry.INTL_TOURNAMENTS) {
-      try { const head = entry.intlTournamentHead(t); writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); }
-    }
+    for (const t of teams ?? []) { try { write(entry.intlTeamHead(t)); n++; } catch (err) { console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`); } }
+    for (const t of entry.INTL_TOURNAMENTS) { try { write(entry.intlTournamentHead(t)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); } }
     for (const e of editions ?? []) {
       const t = byComp.get(e.competition);
-      if (!t) continue;
-      const head = entry.intlEditionHead(t, e);
-      try {
-        const data = bulk ? entry.intlEditionFromBulk(bulk, t.slug, e.label) : null;
-        const page = data ? entry.renderIntlEditionPage(data) : null;
-        if (page) { writeHtml(head.path, page); rendered++; } else writeHtml(head.path, renderStaticRouteHead(head));
-        n++;
-      } catch (err) {
-        console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`);
-        try { writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch { /* keep going */ }
-      }
+      if (t) { try { write(entry.intlEditionHead(t, e)); n++; } catch (err) { console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`); } }
     }
-    console.log(`Static: wrote ${n} international page(s), ${rendered} fully rendered (${(teams ?? []).length} nations read, ${(editions ?? []).length} editions).`);
+    console.log(`Static: wrote head tags for ${n} international page(s).`);
   }
 
-  await writeIntlPages();
+  await writeIntlHeads();
 
   // ---- Club finance pages --------------------------------------------------
   // Generated for EVERY team with published accounts -- not only the Premier
@@ -572,6 +569,7 @@ async function main() {
           console.error(`Static: failed tennis ${label}: ${err?.message ?? err}`);
         }
       };
+      const h2hManifest = [];
       for (const tour of ['ATP', 'WTA']) {
         // By year: deep offsets over a whole tour take ~1s a page; a year is 3 small pages.
         const latestRow = await query(`tennis_matches?select=year&tour=eq.${tour}&order=match_date.desc&limit=1`);
@@ -645,6 +643,58 @@ async function main() {
           if (p.recent_matches < entry.TENNIS_STATIC_PLAYER_MIN) continue;
           attempt(`player ${tour} ${p.slug}`, () => entry.renderTennisPlayerPage(entry.buildTennisPlayer(p, byPlayer.get(p.player_id) ?? [])));
         }
+        // Rivalries: the most-played pairs between players who still have a
+        // page of their own (50+ recent matches) get a page each, at
+        // /tennis/head-to-head/:tour/:a/:b (slugs in alphabetical order).
+        // The list goes to dist-ssr/tennis-h2h-pairs.json for the sitemap.
+        try {
+          const live = new Map(players.filter((p) => p.recent_matches >= entry.TENNIS_STATIC_PLAYER_MIN).map((p) => [p.player_id, p]));
+          const meetingsByPair = new Map();
+          for (const x of matches) {
+            if (!live.has(x.winner_id) || !live.has(x.loser_id)) continue;
+            const k = x.winner_id < x.loser_id ? `${x.winner_id}|${x.loser_id}` : `${x.loser_id}|${x.winner_id}`;
+            if (!meetingsByPair.has(k)) meetingsByPair.set(k, []);
+            meetingsByPair.get(k).push(x);
+          }
+          const top = [...meetingsByPair.entries()]
+            .filter(([, ms]) => ms.length >= TENNIS_H2H_MIN_MEETINGS)
+            .sort((x, y) => y[1].length - x[1].length || x[0].localeCompare(y[0]))
+            .slice(0, TENNIS_H2H_PAIRS_PER_TOUR);
+          const ids = [...new Set(top.flatMap(([k]) => k.split('|').map(Number)))];
+          const ratings = ids.length ? await queryAll(`tennis_ratings?select=${entry.TENNIS_RATING_COLUMNS}&player_id=in.(${ids.join(',')})&order=player_id.asc`) : [];
+          const keys = top.flatMap(([, ms]) => ms.map((m) => m.source_key));
+          const modelP = {};
+          let modelOk = true;
+          for (let i = 0; i < keys.length; i += 40) {
+            const chunk = keys.slice(i, i + 40).map((k) => `"${k}"`).join(',');
+            const rows = await query(`tennis_match_model?select=source_key,p_winner&source_key=in.(${encodeURIComponent(chunk)})`);
+            if (rows == null) { modelOk = false; break; }
+            for (const r of rows) if (r.p_winner != null) modelP[r.source_key] = r.p_winner;
+          }
+          if (ratings && modelOk) {
+            for (const [, ms] of top) {
+              const [p1, p2] = [live.get(ms[0].winner_id), live.get(ms[0].loser_id)];
+              const [pa, pb] = p1.slug <= p2.slug ? [p1, p2] : [p2, p1];
+              const own = Object.fromEntries(ms.filter((m) => m.source_key in modelP).map((m) => [m.source_key, modelP[m.source_key]]));
+              const before = n;
+              attempt(`head to head ${tour} ${pa.slug} ${pb.slug}`, () => entry.renderTennisH2HPairPage({
+                tour, a: pa, b: pb,
+                ratingsA: ratings.filter((r) => r.player_id === pa.player_id),
+                ratingsB: ratings.filter((r) => r.player_id === pb.player_id),
+                meetings: ms, modelP: own,
+              }));
+              if (n > before) h2hManifest.push({ tour, a: pa.slug, b: pb.slug, last: ms[ms.length - 1].match_date });
+            }
+          } else console.warn(`Static: tennis ${tour} ratings or model unavailable -- rivalry pages skipped.`);
+        } catch (err) {
+          console.error(`Static: failed tennis ${tour} rivalries: ${err?.message ?? err}`);
+        }
+      }
+      try {
+        writeFileSync(join(process.cwd(), 'dist-ssr', 'tennis-h2h-pairs.json'), JSON.stringify(h2hManifest), 'utf8');
+        console.log(`Static: wrote ${h2hManifest.length} tennis rivalry page(s).`);
+      } catch (err) {
+        console.error(`Static: could not write the rivalry list: ${err?.message ?? err}`);
       }
       // Head to head (ATP default pair): the page itself; other pairs load in the browser.
       try {
@@ -1038,7 +1088,86 @@ async function main() {
   console.log(`Static: wrote ${tWritten} team page(s), skipped ${tSkipped}.`);
 
   await writeClubSeasonPages(leagueBulk, shell, buildDocument);
+  await writeIntlFullPages(shell, buildDocument, renderStaticRouteHead);
 }
+
+// ---- International nation and edition pages, fully rendered (LAST) ---------
+// Runs after everything else (club seasons included), only when at least
+// INTL_FULL_MIN_MS remain before the watchdog: one bulk read of every
+// international view (~120 requests), then 248 nation and 174 edition pages
+// overwrite the head-only versions written earlier.
+async function writeIntlFullPages(shell, buildDocument, renderStaticRouteHead) {
+  if (Date.now() - STARTED_AT > WATCHDOG_MS - INTL_FULL_MIN_MS) {
+    console.warn('Static: not enough time left -- international pages stay head-only.');
+    return;
+  }
+  const entry = await import(ENTRY);
+  if (!entry.intlTeamHead) return;
+  // Every view read once (~120 requests in all); each page's data is then
+  // cut out by src/lib/intlStatic.ts with the browser loaders' filters.
+  const enc = (cols) => cols.replace(/\s+/g, '');
+  const [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups] = await Promise.all([
+    queryAll(`intl_team_summary?select=${enc(entry.INTL_TEAM_COLUMNS)}&order=slug.asc`),
+    queryAll(`intl_edition_summary?select=${enc(entry.INTL_EDITION_COLUMNS)}&order=competition.asc,season_start.asc`),
+    queryAll(`intl_matches?select=${enc(entry.INTL_MATCH_COLUMNS)}&order=match_key.asc`),
+    queryAll(`intl_fixtures?select=${enc(entry.INTL_FIXTURE_COLUMNS)}&order=fixture_key.asc`),
+    queryAll(`intl_team_competition_totals?select=${entry.INTL_BULK_TOTAL_COLUMNS}&order=team.asc,competition.asc`),
+    queryAll(`intl_pair_records?select=${entry.INTL_BULK_PAIR_COLUMNS}&order=team_a.asc,team_b.asc`),
+    queryAll(`intl_goals?select=${entry.INTL_BULK_GOAL_COLUMNS}&order=match_key.asc,seq.asc`),
+    queryAll(`intl_squads?select=${enc(entry.INTL_SQUAD_COLUMNS)}&order=slug.asc`),
+    queryAll(`intl_squad_players?select=slug,${enc(entry.INTL_SQUAD_PLAYER_COLUMNS)}&order=slug.asc,list.asc,seq.asc`),
+    queryAll(`intl_group_odds?select=${enc(entry.INTL_GROUP_ODDS_COLUMNS)}&order=edition_key.asc,group_label.asc,slug.asc`),
+    queryAll(`intl_stages?select=${entry.INTL_BULK_STAGE_COLUMNS}&order=stage_key.asc`),
+    queryAll(`intl_groups?select=${entry.INTL_BULK_GROUP_COLUMNS}&order=group_key.asc`),
+  ]);
+  // Full pages need every view; if any read failed, fall back to head-only
+  // pages (title, description, canonical) rather than half-filled ones.
+  if (Date.now() - STARTED_AT > WATCHDOG_MS - 40000) {
+    console.warn('Static: international bulk read finished too late -- keeping the head-only pages.');
+    return;
+  }
+  const full = [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups].every((x) => x != null);
+  const bulk = full ? { teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups } : null;
+  if (!full) console.error('Static: an international view failed to load -- writing head-only international pages.');
+  const writeHtml = (path, page) => {
+    const dir = join(DIST, ...path.split('/').filter(Boolean));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+  };
+  let n = 0;
+  let rendered = 0;
+  for (const t of (teams ?? []).filter((x) => x.played >= entry.INTL_STATIC_TEAM_MIN_GAMES)) {
+    const head = entry.intlTeamHead(t);
+    try {
+      const data = bulk ? entry.intlTeamFromBulk(bulk, t.slug) : null;
+      if (data) { writeHtml(head.path, entry.renderIntlTeamPage(data)); rendered++; } else writeHtml(head.path, renderStaticRouteHead(head));
+      n++;
+    } catch (err) {
+      console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`);
+      try { writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch { /* keep going */ }
+    }
+  }
+  const byComp = new Map(entry.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
+  for (const t of entry.INTL_TOURNAMENTS) {
+    try { const head = entry.intlTournamentHead(t); writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); }
+  }
+  for (const e of editions ?? []) {
+    const t = byComp.get(e.competition);
+    if (!t) continue;
+    const head = entry.intlEditionHead(t, e);
+    try {
+      const data = bulk ? entry.intlEditionFromBulk(bulk, t.slug, e.label) : null;
+      const page = data ? entry.renderIntlEditionPage(data) : null;
+      if (page) { writeHtml(head.path, page); rendered++; } else writeHtml(head.path, renderStaticRouteHead(head));
+      n++;
+    } catch (err) {
+      console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`);
+      try { writeHtml(head.path, renderStaticRouteHead(head)); n++; } catch { /* keep going */ }
+    }
+  }
+  console.log(`Static: wrote ${n} international page(s), ${rendered} fully rendered (${(teams ?? []).length} nations read, ${(editions ?? []).length} editions).`);
+}
+
 
 // ---- Club seasons (/football/teams/:slug/:season) ----------------------------
 // Every English league club-season: story, position after each match,
@@ -1046,7 +1175,7 @@ async function main() {
 // ~160 snapshot queries, so it runs after every other page is written, stops
 // at a time budget well inside the watchdog, and a failure costs only these.
 async function writeClubSeasonPages(bulk, shell, buildDocument) {
-  const BUDGET_MS = WATCHDOG_MS - 30000;
+  const BUDGET_MS = CLUB_SEASON_BUDGET_MS;
   if (!bulk) {
     console.warn('Static: no league data -- club-season pages stay client-rendered.');
     return;
@@ -1124,5 +1253,7 @@ main()
   })
   .finally(() => {
     clearTimeout(watchdog);
+    console.log(`Static: finished in ${Math.round((Date.now() - STARTED_AT) / 1000)}s.`);
+    writeReport();
     process.exit(0);
   });

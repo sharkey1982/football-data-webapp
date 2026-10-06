@@ -21,7 +21,7 @@
 //     never cost a deploy
 // ============================================================================
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
 
@@ -280,6 +280,14 @@ async function main() {
       for (const e of events) { entries.push(urlEntry(mod.tennisEventPath(tour, e.slug), null)); counts.tennis++; }
       const big = (await query(`tennis_editions?select=event_slug,year&tour=eq.${tour}&level_rank=lte.3&order=event_slug.asc,year.asc&limit=1000`)) ?? [];
       for (const e of big) { entries.push(urlEntry(mod.tennisEditionPath(tour, e.event_slug, e.year), null)); counts.tennis++; }
+    }
+    // Rivalry pages: the ones generate-static wrote (it leaves the list in
+    // dist-ssr). lastmod: their latest meeting.
+    try {
+      const pairs = JSON.parse(readFileSync(join(process.cwd(), 'dist-ssr', 'tennis-h2h-pairs.json'), 'utf8'));
+      for (const p of pairs) { entries.push(urlEntry(mod.tennisH2HCanonicalPath(p.tour, p.a, p.b), p.last)); counts.tennis++; }
+    } catch (err) {
+      console.error('Sitemap: no tennis rivalry list --', err?.message ?? err);
     }
   }
 

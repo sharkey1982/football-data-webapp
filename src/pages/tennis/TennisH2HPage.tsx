@@ -10,13 +10,13 @@
 // ============================================================================
 
 import { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { FilterSelect, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
 import TourToggle from '../../components/tennis/TourToggle';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { TENNIS_H2H_PATH, loadTennisH2H, loadTennisPlayers, tennisH2HPath, type TennisH2HData } from '../../lib/tennisApi';
+import { TENNIS_H2H_PATH, loadTennisH2H, loadTennisPlayers, tennisH2HCanonicalPath, tennisH2HPath, type TennisH2HData } from '../../lib/tennisApi';
 import { h2hSentence, h2hSummary } from '../../lib/tennisH2H';
 import { BACKTEST, DEFAULT_PAIR, MODEL_SURFACES, fairOdds, predict, sideFor, type RatingRow } from '../../lib/tennisModel';
 import { DATA_NOTE, parseTour, pctLabel, scoreLabel, shortDate, type TennisMatch, type TennisPlayer, type Tour } from '../../lib/tennisStats';
@@ -74,10 +74,12 @@ function Chance({ nameA, nameB, pA }: { nameA: string; nameB: string; pA: number
 
 export default function TennisH2HPage({ initialData }: { initialData?: TennisH2HData }) {
   const [params] = useSearchParams();
+  // /tennis/head-to-head/:tour/:a/:b, or the older ?tour=&a=&b= form.
+  const path = useParams<{ tour?: string; a?: string; b?: string }>();
   const navigate = useNavigate();
-  const tour = parseTour(params.get('tour')) ?? initialData?.tour ?? 'ATP';
-  const slugA = params.get('a') ?? initialData?.a.slug ?? DEFAULT_PAIR[tour][0];
-  const slugB = params.get('b') ?? initialData?.b.slug ?? DEFAULT_PAIR[tour][1];
+  const tour = parseTour(path.tour ?? params.get('tour')) ?? initialData?.tour ?? 'ATP';
+  const slugA = path.a ?? params.get('a') ?? initialData?.a.slug ?? DEFAULT_PAIR[tour][0];
+  const slugB = path.b ?? params.get('b') ?? initialData?.b.slug ?? DEFAULT_PAIR[tour][1];
   const key = `${tour}/${slugA}/${slugB}`;
   const { data, failed, loading } = useKeyedFetch(
     key,
@@ -95,7 +97,7 @@ export default function TennisH2HPage({ initialData }: { initialData?: TennisH2H
   useDocumentHead({
     title: data ? `${data.a.name} v ${data.b.name}: head to head and prediction` : `${tour} head to head`,
     description: data && s ? `${h2hSentence(data.a.name, data.b.name, s)} Who the model makes favourite on each surface.` : `Any two ${tour} players: their record against each other and who the model makes favourite on each surface.`,
-    path: TENNIS_H2H_PATH,
+    path: data ? tennisH2HCanonicalPath(tour, data.a.slug, data.b.slug) : TENNIS_H2H_PATH,
   });
 
   const sideA = data ? sideFor(data.ratingsA, surface) : null;

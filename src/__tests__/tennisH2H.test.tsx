@@ -8,7 +8,7 @@ import { h2hSentence, h2hSummary } from '../lib/tennisH2H';
 import { predict, sideFor, type RatingRow } from '../lib/tennisModel';
 import type { TennisMatch, TennisPlayer } from '../lib/tennisStats';
 import TennisH2HPage from '../pages/tennis/TennisH2HPage';
-import { renderTennisH2HPage } from '../entry-server';
+import { renderTennisH2HPage, renderTennisH2HPairPage } from '../entry-server';
 
 vi.mock('../lib/tennisApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/tennisApi');
@@ -84,6 +84,19 @@ describe('head-to-head page', () => {
     expect(screen.getByTestId('tennis-h2h-chance').textContent).not.toBe(chanceHard);
     expect(within(screen.getByTestId('tennis-h2h-meetings')).getAllByRole('row').length).toBe(1 + 5);
     expect(screen.getByTestId('tennis-h2h-model-note')).toHaveTextContent('64.8%');
+  });
+  it('a pair has its own URL; the reverse order is the same canonical page', async () => {
+    const { tennisH2HPath, tennisH2HCanonicalPath } = api;
+    expect(tennisH2HPath('ATP', 'sinner-j', 'alcaraz-c')).toBe('/tennis/head-to-head/atp/sinner-j/alcaraz-c');
+    expect(tennisH2HCanonicalPath('ATP', 'sinner-j', 'alcaraz-c')).toBe('/tennis/head-to-head/atp/alcaraz-c/sinner-j');
+    expect(tennisH2HPath('WTA')).toBe('/tennis/head-to-head?tour=wta');
+    mocked.loadTennisH2H.mockResolvedValue(data);
+    render(<MemoryRouter initialEntries={['/tennis/head-to-head/atp/p1/p2']}><Routes><Route path="/tennis/head-to-head/:tour/:a/:b" element={<TennisH2HPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByTestId('tennis-h2h-story')).toHaveTextContent('P2 leads P1 3–1');
+    expect(mocked.loadTennisH2H).toHaveBeenLastCalledWith('ATP', 'p1', 'p2');
+    const pair = renderTennisH2HPairPage(data);
+    expect(pair.canonical).toMatch(/\/tennis\/head-to-head\/atp\/p1\/p2$/);
+    expect(pair.title).toContain('P1 v P2: head to head');
   });
   it('server render', () => {
     const page = renderTennisH2HPage(data);

@@ -45,7 +45,13 @@ export const tennisPlayerPath = (tour: Tour, slug: string) => `${TENNIS_PLAYERS_
 export const tennisSeasonPath = (tour: Tour, year: number) => `${TENNIS_SEASONS_PATH}/${tourParam(tour)}/${year}`;
 export const tennisTournamentsPath = (tour: Tour = 'ATP') => withTour(TENNIS_TOURNAMENTS_PATH, tour);
 export const tennisEventPath = (tour: Tour, slug: string) => `${TENNIS_TOURNAMENTS_PATH}/${tourParam(tour)}/${slug}`;
+/** A pair has its own URL (/tennis/head-to-head/atp/sinner-j/alcaraz-c) so a
+ * rivalry can be indexed; the bare path with ?a=&b= still works. */
+export const tennisH2HPairPath = (tour: Tour, a: string, b: string) => `${TENNIS_H2H_PATH}/${tourParam(tour)}/${a}/${b}`;
+/** The canonical form of a pair: slugs in alphabetical order, so a/b and b/a are one page. */
+export const tennisH2HCanonicalPath = (tour: Tour, a: string, b: string) => (a <= b ? tennisH2HPairPath(tour, a, b) : tennisH2HPairPath(tour, b, a));
 export const tennisH2HPath = (tour: Tour = 'ATP', a?: string, b?: string) => {
+  if (a && b) return tennisH2HPairPath(tour, a, b);
   const q = new URLSearchParams();
   if (tour !== 'ATP') q.set('tour', tourParam(tour));
   if (a) q.set('a', a);

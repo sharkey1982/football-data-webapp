@@ -966,6 +966,14 @@ export default function App() {
             }
           />
           <Route
+            path="tennis/head-to-head/:tour/:a/:b"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TennisH2HPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="tennis/tv-guide"
             element={
               <Suspense fallback={<RouteFallback />}>
