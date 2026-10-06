@@ -262,9 +262,9 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     path: '/tennis/tv-guide',
     footballFile: 'src/pages/football/TvGuidePage.tsx',
     file: 'src/pages/tennis/TennisTvGuidePage.tsx',
-    shared: [],
-    status: 'separate',
-    note: 'By tournament and week, not by match: the source has results only, so coming dates are "usually starts" (design A4) and there are no match times for WatchGuideView.',
+    shared: ['WatchGuideView'],
+    status: 'shared',
+    note: 'The shared TV Guide layout (6 Oct 2026). Rows are tournaments on the day they usually start, or "On now", as the source has results only; no team picker.',
   },
   {
     sport: 'international',
