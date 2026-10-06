@@ -212,3 +212,67 @@ ELO_K_50 = {"UEFA Euro", "Copa América", "African Cup of Nations", "AFC Asian C
             "CONCACAF Championship", "Oceania Nations Cup", "Confederations Cup"}
 ELO_K_40_SUFFIX = " qualification"
 ELO_K_40 = {"UEFA Nations League", "CONCACAF Nations League"}
+
+
+# ---------------------------------------------------------------------------
+# Women's international football (intl_import.py --women; the intlw schema).
+# Source: martj42/womens-international-results, same columns as the men's file
+# (no former_names.csv). Tournament names change over the years in the file;
+# the aliases give each lineage one name so its editions sit together and the
+# pages match the men's (a name prefix maps, so "... qualification" follows).
+# ---------------------------------------------------------------------------
+
+WOMEN_COMPETITION_ALIASES = {
+    "AFC Championship": "AFC Asian Cup",               # AFC Women's Championship, Asian Cup from 2006
+    "African Championship": "African Cup of Nations",   # African Women's Championship, WAFCON from 2016
+    "CONCACAF Gold Cup": "CONCACAF Championship",       # the W Gold Cup years of the W Championship
+    "OFC Championship": "Oceania Nations Cup",          # OFC Women's Nations Cup
+}
+
+# Tournaments whose editions and rounds are worked out from the results.
+WOMEN_CONTINENTAL = [
+    ("FIFA World Cup", "WC"), ("UEFA Euro", "EURO"), ("Olympic Games", "OLY"), ("Copa América", "COPA"),
+    ("African Cup of Nations", "AFCON"), ("AFC Asian Cup", "ASIAN"), ("CONCACAF Championship", "CONC"),
+    ("Oceania Nations Cup", "OFC"), ("UEFA Nations League", "UNL"),
+]
+
+# Editions that don't split cleanly on a 120-day gap: (first day, last day, label).
+WOMEN_EDITION_RANGES = {
+    "UEFA Nations League": [("2023-09-01", "2024-03-31", "2023-24"), ("2025-02-01", "2025-12-31", "2025")],
+}
+
+WOMEN_CONFEDERATION = {
+    "AFC Asian Cup": "AFC", "AFC Olympic Qualifying Tournament": "AFC",
+    "CAF Olympic Qualifying Tournament": "CAF",
+    "CONCACAF Championship": "CONCACAF", "CONCACAF Olympic Qualifying Tournament": "CONCACAF",
+    "CONCACAF Olympic Qualifying Tournament qualification": "CONCACAF",
+}
+
+# The Olympic tournament is a senior women's championship (unlike the men's under-23 event).
+WOMEN_ELO_K_50 = {"Olympic Games"}
+
+# Winners and runners-up from the official record for women's editions whose
+# deciding games the results can't settle (final rounds, two-legged finals,
+# finals the file lists without a shoot-out). Checked against any derived final.
+WOMEN_HAND_WINNERS = {
+    ("UEFA Euro", "1984"): ("Sweden", "England"), ("UEFA Euro", "1989"): ("Germany", "Norway"),
+    ("UEFA Euro", "1991"): ("Germany", "Norway"), ("UEFA Euro", "1993"): ("Norway", "Italy"),
+    ("UEFA Euro", "1995"): ("Germany", "Sweden"), ("UEFA Euro", "2009"): ("Germany", "England"),
+    ("UEFA Euro", "2013"): ("Germany", "Norway"), ("UEFA Euro", "2017"): ("Netherlands", "Denmark"),
+    ("Olympic Games", "2016"): ("Germany", "Sweden"),
+    ("Copa América", "1998"): ("Brazil", "Argentina"), ("Copa América", "2022"): ("Brazil", "Colombia"),
+    ("Copa América", "2025"): ("Brazil", "Colombia"),
+    ("African Cup of Nations", "1991"): ("Nigeria", "Cameroon"), ("African Cup of Nations", "1995"): ("Nigeria", "South Africa"),
+    ("African Cup of Nations", "2002"): ("Nigeria", "Ghana"), ("African Cup of Nations", "2018"): ("Nigeria", "South Africa"),
+    ("African Cup of Nations", "2022"): ("South Africa", "Morocco"),
+    ("AFC Asian Cup", "1991"): ("China", "Japan"), ("AFC Asian Cup", "2006"): ("China", "Australia"),
+    ("AFC Asian Cup", "2010"): ("Australia", "North Korea"), ("AFC Asian Cup", "2014"): ("Japan", "Australia"),
+    ("AFC Asian Cup", "2018"): ("Japan", "Australia"), ("AFC Asian Cup", "2022"): ("China", "South Korea"),
+    ("CONCACAF Championship", "2006"): ("United States", "Canada"), ("CONCACAF Championship", "2014"): ("United States", "Costa Rica"),
+    ("Oceania Nations Cup", "1998"): ("Australia", "New Zealand"),
+    ("UEFA Nations League", "2023-24"): ("Spain", "France"), ("UEFA Nations League", "2025"): ("Spain", "Germany"),
+}
+
+# Score corrections for the women's file (raw row kept): Brazil beat Venezuela
+# 6-0 at the 1991 South American Championship; the file has 6-11.
+WOMEN_SCORE_FIXES = {"1991-05-05|Brazil|Venezuela": (6, 0)}

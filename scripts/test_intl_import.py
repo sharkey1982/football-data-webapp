@@ -212,3 +212,18 @@ def test_hand_winner_must_agree_with_a_derived_final(monkeypatch):
     rows = [("2003-07-27", "Mexico", "Brazil", "1", "0", "Gold Cup", "Mexico City", "Mexico", "FALSE")]
     with pytest.raises(ii.ImportCheckFailed):
         ii.build(src(res(*rows)))
+
+
+def test_women_names_and_edition_ranges(monkeypatch):
+    monkeypatch.setattr(ii, "P", ii.WOMEN)
+    assert ii.women_name("AFC Championship") == "AFC Asian Cup"
+    assert ii.women_name("African Championship qualification") == "African Cup of Nations qualification"
+    assert ii.women_name("CONCACAF Gold Cup") == "CONCACAF Championship"
+    assert ii.women_name("Friendly") == "Friendly"
+    rows = [("2025-02-21", "Spain", "Belgium", "3", "2", "UEFA Nations League", "Valencia", "Spain", "FALSE"),
+            ("2025-12-02", "Spain", "Germany", "3", "0", "UEFA Nations League", "Madrid", "Spain", "FALSE")]
+    s = src(res(*rows), women=True)
+    b = ii.build(s)
+    eds = [e for e in b.editions if e["competition"] == "UEFA Nations League"]
+    assert [e["label"] for e in eds] == ["2025"]      # one edition despite the 9-month gap
+    assert eds[0]["winner"] == "Spain"                 # from WOMEN_HAND_WINNERS (two-team "league" decided by hand)

@@ -52,7 +52,18 @@ TITLE_OVERRIDES = {
 STATUS = ("INJ", "WD", "RET", "PRE", "SUS", "COV", "SEN", "U21", "U23", "DEC", "ILL", "OTH", "TRA")
 
 
+# Women's pages: "<name> women's national football team", with these exceptions.
+WOMEN_TITLE_OVERRIDES = {
+    "United States": "United States women's national soccer team",
+    "Canada": "Canada women's national soccer team",
+    "Australia": "Australia women's national soccer team",
+}
+WOMEN = False   # set by --women: the intlw tables, women's pages, no club matching
+
+
 def page_title(team: str) -> str:
+    if WOMEN:
+        return WOMEN_TITLE_OVERRIDES.get(team, f"{team} women's national football team")
     return TITLE_OVERRIDES.get(team, f"{team} national football team")
 
 
@@ -438,14 +449,18 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--teams", help="comma-separated team names (default: every current nation)")
+    ap.add_argument("--women", action="store_true", help="women's squads into the intlw tables")
     args = ap.parse_args()
+    global WOMEN
+    WOMEN = args.women
+    pre = "intlw_" if WOMEN else "intl_"
     sb = None
     if args.teams:
         teams = [t.strip() for t in args.teams.split(",")]
     else:
         from supabase import create_client
         sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-        rows = sb.table("intl_team_summary").select("team,elo_rank").not_.is_("elo_rank", "null").execute().data
+        rows = sb.table(f"{pre}team_summary").select("team,elo_rank").not_.is_("elo_rank", "null").execute().data
         teams = sorted(r["team"] for r in rows)
     pages = fetch(teams)
     squads, players, missing = [], [], []
@@ -461,7 +476,12 @@ def main() -> None:
     elo_rows = []
     elo_fresh = False       # True only when today's ClubElo table was read
     elo_problem = ""        # why ClubElo wasn't read; the run is then a warning
-    if sb is not None:
+    if sb is not None and WOMEN:
+        # Our club pages and ClubElo are the men's game: women's squads keep the
+        # league country only.
+        site, elo, by_slug = build_indexes([], [])
+        enrich(players, site, elo, by_slug)
+    elif sb is not None:
         try:
             elo_rows = fetch_clubelo()
             elo_fresh = True
@@ -485,29 +505,29 @@ def main() -> None:
     if sb is None:
         from supabase import create_client
         sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    if len(squads) < 50:
+    if len(squads) < (30 if WOMEN else 50):
         print(f"::error::only {len(squads)} squads parsed -- refusing to write")
         sys.exit(1)
-    run = sb.table("pipeline_runs").insert({"job_name": "intl_squads", "status": "running"}).execute().data[0]
+    run = sb.table("pipeline_runs").insert({"job_name": f"{pre}squads", "status": "running"}).execute().data[0]
     try:
         for i in range(0, len(squads), 40):
             chunk = squads[i:i + 40]
             names = {s["team"] for s in chunk}
-            sb.rpc("intl_replace_squads", {"payload": {"squads": chunk, "players": [p for p in players if p["team"] in names]}}).execute()
-        if elo_fresh:
+            sb.rpc(f"{pre}replace_squads", {"payload": {"squads": chunk, "players": [p for p in players if p["team"] in names]}}).execute()
+        if elo_fresh and not WOMEN:
             from datetime import date
             sb.rpc("intl_replace_club_elo", {"payload": [{**r, "fetched_on": date.today().isoformat()} for r in elo_rows]}).execute()
         try:  # squad watch: save a version for every nation whose squad changed
-            changed = sb.rpc("intl_snapshot_squads", {}).execute().data
+            changed = sb.rpc(f"{pre}snapshot_squads", {}).execute().data
             note += f"; squad versions saved: {changed}"
         except Exception as e:  # noqa: BLE001 -- only before migration 20261006110000 is applied
-            if "intl_snapshot_squads" not in str(e):
+            if "snapshot_squads" not in str(e):
                 raise
             print("intl_snapshot_squads not there yet; skipped")
         status = "warning" if elo_problem else "success"
         sb.table("pipeline_runs").update({"status": status, "summary": note, "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()
     except Exception as e:  # noqa: BLE001
-        sb.table("pipeline_runs").update({"status": "failed", "summary": "intl_squads failed", "error_message": str(e)[:2000],
+        sb.table("pipeline_runs").update({"status": "failed", "summary": f"{pre}squads failed", "error_message": str(e)[:2000],
                                           "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()
         raise
 
