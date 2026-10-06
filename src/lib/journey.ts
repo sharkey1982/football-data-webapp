@@ -260,7 +260,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
     title: 'International',
     eyebrow: 'FixtureShark \u00b7 International',
     hubPath: '/international',
-    intro: 'Every men\u2019s international since 1872: results and fixtures, every nation\u2019s record and rating, and every World Cup, continental championship and Nations League.',
+    intro: 'Every men\u2019s international since 1872 and every women\u2019s since 1956: results and fixtures, every nation\u2019s record and rating, and every World Cup, continental championship and Nations League.',
     stages: [
       {
         key: 'discover',
@@ -274,6 +274,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Tournaments', to: '/international/tournaments', blurb: 'Every World Cup, Euro, Copa Am\u00e9rica, AFCON, Asian Cup, Gold Cup and Nations League: brackets, groups and the race for titles.', matchPrefix: ['/international/tournaments'] },
           { label: 'Club Call-ups', to: '/international/clubs', blurb: 'Which clubs and leagues supply the most internationals, how many of each squad play abroad, and how strong their clubs are.' },
           { label: 'Through Time', to: '/international/history', blurb: 'The world\u2019s top ten year by year since 1872, every world number one, and the biggest tournament upsets.' },
+          { label: 'Women\u2019s internationals', to: '/international/women', blurb: 'The same pages for the women\u2019s game: every result since 1956, each nation\u2019s squad and rating, and every Women\u2019s World Cup, Olympics, Euro and continental championship.', matchPrefix: ['/international/women'] },
         ],
       },
     ],

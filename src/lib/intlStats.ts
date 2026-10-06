@@ -172,8 +172,11 @@ export type CompetitionTotal = { team: string; competition: string; competition_
 export type PairRecord = { team_a: string; team_b: string; played: number; a_won: number; drawn: number; b_won: number; a_goals: number; b_goals: number; first_meeting: string; last_meeting: string };
 export type IntlGoal = { match_key: string; seq: number; team: string; scorer: string | null; minute: number | null; own_goal: boolean; penalty: boolean };
 
-/** The competitions with tournament pages, in display order. */
-export const TOURNAMENTS = [
+export type Tournament = { competition: string; slug: string; short: string; code: string; confederation: string; dbSlug: string };
+export type TournamentSlug = string;
+
+/** Men's competitions with tournament pages, in display order. */
+export const MEN_TOURNAMENTS: Tournament[] = [
   { competition: 'FIFA World Cup', slug: 'world-cup', short: 'World Cup', code: 'WC', confederation: 'FIFA', dbSlug: 'fifa-world-cup' },
   { competition: 'UEFA Euro', slug: 'euro', short: 'Euro', code: 'EURO', confederation: 'UEFA', dbSlug: 'uefa-euro' },
   { competition: 'Copa América', slug: 'copa-america', short: 'Copa América', code: 'COPA', confederation: 'CONMEBOL', dbSlug: 'copa-america' },
@@ -182,9 +185,40 @@ export const TOURNAMENTS = [
   { competition: 'Gold Cup', slug: 'gold-cup', short: 'Gold Cup', code: 'GOLD', confederation: 'CONCACAF', dbSlug: 'gold-cup' },
   { competition: 'UEFA Nations League', slug: 'nations-league', short: 'Nations League', code: 'UNL', confederation: 'UEFA', dbSlug: 'uefa-nations-league' },
   { competition: 'Confederations Cup', slug: 'confederations-cup', short: 'Confed Cup', code: 'CONFED', confederation: 'FIFA', dbSlug: 'confederations-cup' },
-] as const;
-export type Tournament = (typeof TOURNAMENTS)[number];
-export type TournamentSlug = (typeof TOURNAMENTS)[number]['slug'];
+];
+
+/** Women's (scripts/intl_static.py WOMEN_CONTINENTAL; tournament names as renamed by the importer). */
+export const WOMEN_TOURNAMENTS: Tournament[] = [
+  { competition: 'FIFA World Cup', slug: 'world-cup', short: 'World Cup', code: 'WC', confederation: 'FIFA', dbSlug: 'fifa-world-cup' },
+  { competition: 'Olympic Games', slug: 'olympics', short: 'Olympics', code: 'OLY', confederation: 'FIFA', dbSlug: 'olympic-games' },
+  { competition: 'UEFA Euro', slug: 'euro', short: 'Euro', code: 'EURO', confederation: 'UEFA', dbSlug: 'uefa-euro' },
+  { competition: 'Copa América', slug: 'copa-america', short: 'Copa América', code: 'COPA', confederation: 'CONMEBOL', dbSlug: 'copa-america' },
+  { competition: 'African Cup of Nations', slug: 'africa-cup-of-nations', short: 'WAFCON', code: 'AFCON', confederation: 'CAF', dbSlug: 'african-cup-of-nations' },
+  { competition: 'AFC Asian Cup', slug: 'asian-cup', short: 'Asian Cup', code: 'ASIAN', confederation: 'AFC', dbSlug: 'afc-asian-cup' },
+  { competition: 'CONCACAF Championship', slug: 'concacaf-championship', short: 'CONCACAF W', code: 'CONC', confederation: 'CONCACAF', dbSlug: 'concacaf-championship' },
+  { competition: 'Oceania Nations Cup', slug: 'oceania-nations-cup', short: 'OFC Nations Cup', code: 'OFC', confederation: 'OFC', dbSlug: 'oceania-nations-cup' },
+  { competition: 'UEFA Nations League', slug: 'nations-league', short: 'Nations League', code: 'UNL', confederation: 'UEFA', dbSlug: 'uefa-nations-league' },
+];
+
+// ---- Men's or women's: set by the route (src/lib/intlApi.ts setIntlGender) ----------------
+export type IntlGender = 'men' | 'women';
+export let INTL_GENDER: IntlGender = 'men';
+/** The competitions with tournament pages for the side being shown (live binding). */
+export let TOURNAMENTS: Tournament[] = MEN_TOURNAMENTS;
+const MEN_NOTE = 'Results: martj42/international_results (CC0), men’s full internationals since 1872. Rounds and groups: openfootball (CC0). Fixtures: fixturedownload.com.';
+const WOMEN_NOTE = 'Results: martj42/womens-international-results (CC0), women’s internationals since 1956 — every major tournament, but not yet every friendly, and updated less often than the men’s file. Rounds worked out from the results.';
+export let DATA_NOTE = MEN_NOTE;
+export function setGenderStats(g: IntlGender): void {
+  INTL_GENDER = g;
+  TOURNAMENTS = g === 'women' ? WOMEN_TOURNAMENTS : MEN_TOURNAMENTS;
+  DATA_NOTE = g === 'women' ? WOMEN_NOTE : MEN_NOTE;
+}
+/** First year of the results for the side being shown. */
+export const sinceYear = () => (INTL_GENDER === 'women' ? 1956 : 1872);
+/** A page title for the side being shown: women's pages say so. */
+export const sideTitle = (t: string) => (INTL_GENDER === 'women' ? `${t} — women’s football` : t);
+/** "men’s" / "women’s". */
+export const sideWord = () => (INTL_GENDER === 'women' ? 'women’s' : 'men’s');
 
 export const tournamentBySlug = (slug: string) => TOURNAMENTS.find((t) => t.slug === slug) ?? null;
 export const tournamentByCompetition = (competition: string) => TOURNAMENTS.find((t) => t.competition === competition) ?? null;
@@ -192,8 +226,6 @@ export const tournamentByCompetition = (competition: string) => TOURNAMENTS.find
 /** Edition label as people say it: "2026", "2024/25". */
 export const editionLabel = (label: string) => label.replace(/^(\d{4})-(\d{2})$/, '$1/$2');
 
-export const DATA_NOTE =
-  'Results: martj42/international_results (CC0), men’s full internationals since 1872. Rounds and groups: openfootball (CC0). Fixtures: fixturedownload.com.';
 
 export const CONFEDERATIONS = ['UEFA', 'CONMEBOL', 'CONCACAF', 'CAF', 'AFC', 'OFC'] as const;
 

@@ -1,7 +1,8 @@
 import { AuthProvider } from './lib/auth';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
+import IntlGenderScope from './components/intl/IntlGenderScope';
 
 // Every page is lazy-loaded rather than bundled into one upfront chunk --
 // requested directly, after confirming this app had a single 1.1MB JS
@@ -125,6 +126,35 @@ const IntlHistoryPage = lazy(() => import('./pages/international/IntlHistoryPage
 const IntlClubsPage = lazy(() => import('./pages/international/IntlClubsPage'));
 const IntlMatchPage = lazy(() => import('./pages/international/IntlMatchPage'));
 const IntlEditionPage = lazy(() => import('./pages/international/IntlEditionPage'));
+const IntlWomenHub = lazy(() => import('./pages/international/IntlWomenHub'));
+
+/** The International pages for one side. Women's has no Discover stage: its hub lists the pages. */
+function intlRoutes(gender: 'men' | 'women') {
+  const base = gender === 'women' ? 'international/women' : 'international';
+  const pages: [string, ReactNode][] = [
+    ['', gender === 'women' ? <IntlWomenHub /> : <IntlHub />],
+    ['/fixtures', <IntlFixturesPage />],
+    ['/teams', <IntlTeamsPage />],
+    ['/teams/:slug', <IntlTeamPage />],
+    ['/tournaments', <IntlTournamentsPage />],
+    ['/tournaments/:competition', <IntlTournamentsPage />],
+    ['/tournaments/:competition/:label', <IntlEditionPage />],
+    ['/matches/:slug', <IntlMatchPage />],
+    ['/clubs', <IntlClubsPage />],
+    ['/history', <IntlHistoryPage />],
+  ];
+  return pages.map(([sub, el]) => (
+    <Route
+      key={`${gender}${sub}`}
+      path={`${base}${sub}`}
+      element={
+        <IntlGenderScope key={gender} gender={gender}>
+          <Suspense fallback={<RouteFallback />}>{el}</Suspense>
+        </IntlGenderScope>
+      }
+    />
+  ));
+}
 // The NFL section's first URLs (4 Oct 2026), moved the same day to match
 // Football's structure; netlify.toml 301s them too.
 function NflOldStandingsRedirect() {
@@ -1008,87 +1038,11 @@ export default function App() {
               </Suspense>
             }
           />
-          {/* International: the same hub -> stage -> page structure (journey.ts). */}
-          <Route
-            path="international"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlHub />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/fixtures"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlFixturesPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/teams"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlTeamsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/teams/:slug"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlTeamPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/tournaments"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlTournamentsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/tournaments/:competition"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlTournamentsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/matches/:slug"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlMatchPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/clubs"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlClubsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/history"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlHistoryPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="international/tournaments/:competition/:label"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <IntlEditionPage />
-              </Suspense>
-            }
-          />
+          {/* International: the same hub -> stage -> page structure (journey.ts),
+              men's at /international/..., women's at /international/women/...
+              (IntlGenderScope switches the data and links). Before :stage. */}
+          {intlRoutes('men')}
+          {intlRoutes('women')}
           <Route
             path="international/:stage"
             element={

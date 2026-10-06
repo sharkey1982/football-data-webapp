@@ -15,7 +15,7 @@ import { ChipGroup, IntlHeader, TitleBadges } from '../../components/intl/IntlBi
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_TEAMS_PATH, intlTeamPath, loadIntlTeams } from '../../lib/intlApi';
-import { CONFEDERATIONS, DATA_NOTE, majorTitles, titleList, type TeamSummary } from '../../lib/intlStats';
+import { CONFEDERATIONS, DATA_NOTE, majorTitles, titleList, type TeamSummary, sideTitle, sinceYear, INTL_GENDER } from '../../lib/intlStats';
 
 const CONF_NAMES: Record<string, string> = { UEFA: 'Europe', CONMEBOL: 'South America', CONCACAF: 'N & C America', CAF: 'Africa', AFC: 'Asia', OFC: 'Oceania' };
 
@@ -25,8 +25,8 @@ export default function IntlTeamsPage() {
   const [conf, setConf] = useState('');
   const [all, setAll] = useState(false);
   useDocumentHead({
-    title: 'International teams: every nation’s rating, record and titles',
-    description: 'Every national team’s World Football Elo rating, all-time record and major titles — World Cups, continental championships and Nations Leagues — since 1872.',
+    title: sideTitle('International teams: every nation’s rating, record and titles'),
+    description: `Every national team’s Elo rating, all-time record and major titles — World Cups, continental championships and Nations Leagues — since ${sinceYear()}.`,
     path: INTL_TEAMS_PATH,
   });
 
@@ -50,7 +50,7 @@ export default function IntlTeamsPage() {
   return (
     <article className="space-y-5">
       <IntlHeader title="Your Team">
-        <p className="text-ink-700 max-w-prose">Every nation’s rating from every result since 1872, its record and its titles. Pick one for its history and head-to-heads.</p>
+        <p className="text-ink-700 max-w-prose">Every nation’s rating from every result since {sinceYear()}, its record and its titles. Pick one for its history and head-to-heads.</p>
       </IntlHeader>
       {failed && <p className="text-ink-700">Nations are unavailable right now.</p>}
       {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
@@ -75,7 +75,7 @@ export default function IntlTeamsPage() {
             <span className="text-xs text-ink-500">{`${rows.length} nation${rows.length === 1 ? '' : 's'}`}</span>
           </div>
           <SortableTable columns={columns} rows={rows} rowKey={(t) => t.team} initialSort={{ key: 'rank', dir: 'asc' }} caption="International teams" testId="intl-teams-table" empty="No nation matches." />
-          <p className="text-xs text-ink-500">{`Elo: the World Football Elo method, computed by FixtureShark from every result (start 1500; weighted by competition and margin; shoot-outs count as draws). Rank is among confederation members who have played in the last four years. Major titles: World Cup, the continental championships (Euro, Copa América, AFCON, Asian Cup, Gold Cup), Nations League and Confederations Cup. Teams are filed under today’s nation (Soviet Union under Russia, West Germany under Germany), as in the source. ${DATA_NOTE}`}</p>
+          <p className="text-xs text-ink-500">{`Elo: the World Football Elo method, computed by FixtureShark from every result (start 1500; weighted by competition and margin; shoot-outs count as draws). Rank is among confederation members who have played in the last four years. Major titles: ${INTL_GENDER === 'women' ? 'World Cup, Olympics, the continental championships (Euro, Copa América, WAFCON, Asian Cup, CONCACAF W, OFC Nations Cup) and Nations League' : 'World Cup, the continental championships (Euro, Copa América, AFCON, Asian Cup, Gold Cup), Nations League and Confederations Cup'}. Teams are filed under today’s nation (Soviet Union under Russia, West Germany under Germany), as in the source. ${DATA_NOTE}`}</p>
         </>
       )}
     </article>

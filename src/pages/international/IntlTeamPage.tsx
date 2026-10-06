@@ -20,7 +20,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { intlTeamHead } from '../../lib/intlSeo';
 import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, loadSquadHistory, type IntlTeamData } from '../../lib/intlApi';
-import { DATA_NOTE, titleList, titleText, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord } from '../../lib/intlStats';
+import { DATA_NOTE, titleList, titleText, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord, sideTitle } from '../../lib/intlStats';
 
 const REACHED_CLASS = (c: HistoryCell) =>
   c.won ? 'bg-amber-500 text-pitch-950 border-amber-600' : c.reached === 'Runner-up' ? 'bg-pitch-800 text-chalk-100 border-pitch-900' : c.order >= 5 ? 'bg-chalk-200 text-pitch-800 border-pitch-600' : 'bg-white text-ink-700 border-chalk-300';
@@ -114,7 +114,7 @@ export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamDa
   const t = data?.team;
   const head = t ? intlTeamHead(t) : null;
   useDocumentHead({
-    title: head?.title ?? 'International team',
+    title: sideTitle(head?.title ?? 'International team'),
     description: head?.description ?? 'A national team’s record, rating and tournament history.',
     path: intlTeamPath(slug),
   });

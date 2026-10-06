@@ -19,7 +19,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { intlTournamentHead } from '../../lib/intlSeo';
 import { INTL_TOURNAMENTS_PATH, editionPathOf, intlTeamPath, intlTournamentPath, loadIntlEditions } from '../../lib/intlApi';
-import { DATA_NOTE, TOURNAMENTS, editionLabel, titlesRace, tournamentBySlug, type EditionSummary, type Tournament } from '../../lib/intlStats';
+import { DATA_NOTE, TOURNAMENTS, editionLabel, titlesRace, tournamentBySlug, type EditionSummary, type Tournament, sideTitle, INTL_GENDER } from '../../lib/intlStats';
 
 type Leader = { team: string; slug: string | null; n: number; last: string };
 
@@ -83,10 +83,10 @@ export default function IntlTournamentsPage() {
   const { data, failed, loading } = useKeyedFetch('editions', () => loadIntlEditions());
   const onlyHead = only ? intlTournamentHead(only) : null;
   useDocumentHead({
-    title: onlyHead?.title ?? 'International tournaments: World Cup, Euro, Copa América, AFCON and more',
+    title: sideTitle(onlyHead?.title ?? (INTL_GENDER === 'women' ? 'International tournaments: World Cup, Olympics, Euro and more' : 'International tournaments: World Cup, Euro, Copa América, AFCON and more')),
     description:
       onlyHead?.description ??
-      'Every World Cup, Euro, Copa América, Africa Cup of Nations, Asian Cup, Gold Cup, Nations League and Confederations Cup: winners, hosts, groups, knockouts and scorers.',
+      INTL_GENDER === 'women' ? 'Every Women’s World Cup, Olympics, Euro, Copa América, WAFCON, Asian Cup, CONCACAF W Championship and Nations League: winners, hosts, groups and knockouts.' : 'Every World Cup, Euro, Copa América, Africa Cup of Nations, Asian Cup, Gold Cup, Nations League and Confederations Cup: winners, hosts, groups, knockouts and scorers.',
     path: only ? intlTournamentPath(only.slug) : INTL_TOURNAMENTS_PATH,
   });
 
@@ -113,7 +113,7 @@ export default function IntlTournamentsPage() {
         <p className="text-ink-700 max-w-prose">
           {only
             ? `Every ${only.competition}: the roll of honour, the race for titles, and each edition’s groups, knockouts and top scorers.`
-            : 'The World Cup, every continental championship, the Nations League and the Confederations Cup: winners, hosts, and every edition round by round.'}
+            : INTL_GENDER === 'women' ? 'The World Cup, the Olympics, every continental championship and the Nations League: winners, hosts, and every edition round by round.' : 'The World Cup, every continental championship, the Nations League and the Confederations Cup: winners, hosts, and every edition round by round.'}
         </p>
       </IntlHeader>
       <ChipGroup options={chips} value={only?.slug ?? ''} onChange={(k) => navigate(k ? intlTournamentPath(k) : INTL_TOURNAMENTS_PATH)} label="Tournament" testId="intl-tournament-chips" />
@@ -126,7 +126,7 @@ export default function IntlTournamentsPage() {
             {TOURNAMENTS.map((t) => <TournamentCard key={t.slug} t={t} rows={rowsOf(t)} />)}
           </div>
           <Section title="The race for major titles" id="intl-titles-race" testId="intl-titles-race">
-            <p className="text-sm text-ink-700 max-w-prose">Every World Cup, continental championship, Nations League and Confederations Cup won, added up year by year since the first Copa América in 1916. Press play.</p>
+            <p className="text-sm text-ink-700 max-w-prose">{INTL_GENDER === 'women' ? 'Every World Cup, Olympics, continental championship and Nations League won, added up year by year since the first Asian Cup in 1975. Press play.' : 'Every World Cup, continental championship, Nations League and Confederations Cup won, added up year by year since the first Copa América in 1916. Press play.'}</p>
             <Timelapse series={raceSeries} frameLabel={(i) => String(race.years[i])} measure="Major titles" top={10} stepMs={450} />
           </Section>
         </>

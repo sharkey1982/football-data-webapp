@@ -24,7 +24,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { INTL_FIXTURES_PATH, editionPathOf, intlTeamPath, loadIntlMatch, type IntlMatchData } from '../../lib/intlApi';
 import { INTL_MATCHES_PATH, ip1Grid, kindOfEdition, summariseGrid, type GridSummary } from '../../lib/intlMatch';
-import { ageOn, editionLabel, isReported, outcomeFor, pct, scoreText, shortDate, tournamentByCompetition, ukDateTime, type IntlMatch, type SquadPlayer, type TeamSummary } from '../../lib/intlStats';
+import { ageOn, editionLabel, isReported, outcomeFor, pct, scoreText, shortDate, tournamentByCompetition, ukDateTime, type IntlMatch, type SquadPlayer, type TeamSummary, sideTitle } from '../../lib/intlStats';
 import type { PreviewTabId } from '../../lib/previewTabs';
 
 const sectionHeading = 'font-display uppercase tracking-wide text-lg text-ink-900';
@@ -114,7 +114,7 @@ export default function IntlMatchPage() {
   const d = data;
   const title = d ? `${d.home.team} v ${d.away.team}` : 'International match';
   useDocumentHead({
-    title: d ? `${title}, ${shortDate(d.date)}: ${d.match ? 'result, ' : ''}prediction and head to head` : 'International match',
+    title: sideTitle(d ? `${title}, ${shortDate(d.date)}: ${d.match ? 'result, ' : ''}prediction and head to head` : 'International match'),
     description: d
       ? `${title} on ${shortDate(d.date)}: ${pred ? `${d.home.team} ${pct(pred.pHome)}, draw ${pct(pred.pDraw)}, ${d.away.team} ${pct(pred.pAway)}; ` : ''}form, head-to-head record and both squads.`
       : 'An international match: prediction, form and head to head.',

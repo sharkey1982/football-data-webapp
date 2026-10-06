@@ -7,18 +7,67 @@
 // ============================================================================
 
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { intlMatchPath } from '../../lib/intlMatch';
 import { INTL_DISCOVER_PATH, INTL_HUB_PATH, editionPathOf, intlTeamPath } from '../../lib/intlApi';
+import { INTL_GENDER, MEN_TOURNAMENTS, WOMEN_TOURNAMENTS, type IntlGender } from '../../lib/intlStats';
 import { pct, eloExpectation, isUpset, scoreText, tournamentByCompetition, ukDateTime, UPSET_BELOW, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
 
+/** The same page on the other side, where it has one: a game goes to Fixtures &
+ * Results, a tournament edition to that tournament (or the list, if the other
+ * side doesn't play it), and the Discover stage to the women's hub. */
+export function otherSidePath(pathname: string, to: IntlGender): string {
+  const sub = pathname.replace(/^\/international(\/women)?/, '').replace(/\/$/, '');
+  const base = to === 'women' ? '/international/women' : '/international';
+  if (sub === '' || sub === '/discover') return base;
+  if (sub.startsWith('/matches')) return `${base}/fixtures`;
+  const t = /^\/tournaments\/([^/]+)/.exec(sub);
+  if (t) {
+    const list = to === 'women' ? WOMEN_TOURNAMENTS : MEN_TOURNAMENTS;
+    return list.some((x) => x.slug === t[1]) ? `${base}/tournaments/${t[1]}` : `${base}/tournaments`;
+  }
+  return `${base}${sub}`;
+}
+
+/** Men | Women: the same page for the other side. */
+export function GenderSwitch({ dark }: { dark?: boolean }) {
+  const { pathname, search } = useLocation();
+  const opts: { key: IntlGender; label: string }[] = [
+    { key: 'men', label: 'Men' },
+    { key: 'women', label: 'Women' },
+  ];
+  return (
+    <nav aria-label="Men's or women's football" className="inline-flex rounded-full border border-chalk-300 bg-white p-0.5 text-sm" data-testid="intl-gender-switch">
+      {opts.map((o) => {
+        const on = o.key === INTL_GENDER;
+        const keep = otherSidePath(pathname, o.key).endsWith('/fixtures') && pathname.includes('/fixtures') ? search : '';
+        return on ? (
+          <span key={o.key} aria-current="page" className={`rounded-full px-3 py-0.5 ${dark ? 'bg-amber-400 text-pitch-950' : 'bg-pitch-800 text-chalk-100'}`}>{o.label}</span>
+        ) : (
+          <Link key={o.key} to={otherSidePath(pathname, o.key) + keep} className="rounded-full px-3 py-0.5 text-ink-700 hover:text-pitch-800">{o.label}</Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function IntlHeader({ title, crumb, children }: { title: string; crumb?: { to: string; label: string }; children?: ReactNode }) {
+  const women = INTL_GENDER === 'women';
   return (
     <header className="space-y-2">
-      <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
-        <Link to={INTL_HUB_PATH} className="hover:underline">International</Link> &middot;{' '}
-        <Link to={crumb?.to ?? INTL_DISCOVER_PATH} className="hover:underline">{crumb?.label ?? 'Discover'}</Link>
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">
+          <Link to={women ? '/international' : INTL_HUB_PATH} className="hover:underline">International</Link> &middot;{' '}
+          {women && <Link to={INTL_HUB_PATH} className="hover:underline">Women</Link>}
+          {women && crumb && <> &middot; </>}
+          {crumb ? (
+            <Link to={crumb.to} className="hover:underline">{crumb.label}</Link>
+          ) : women ? null : (
+            <Link to={INTL_DISCOVER_PATH} className="hover:underline">Discover</Link>
+          )}
+        </p>
+        <GenderSwitch />
+      </div>
       <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">{title}</h1>
       {children}
     </header>
