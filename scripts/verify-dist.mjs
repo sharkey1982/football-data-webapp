@@ -13,8 +13,12 @@ const count = (...p) => {
   const dir = join(DIST, ...p);
   return existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).length : 0;
 };
-const sitemap = join(DIST, 'sitemap.xml');
-const urls = existsSync(sitemap) ? (readFileSync(sitemap, 'utf8').match(/<loc>/g) ?? []).length : 0;
+// /sitemap.xml is an index (since 6 Oct 2026); the URLs are in sitemaps/*.xml.
+const sitemapDir = join(DIST, 'sitemaps');
+const sectionFiles = existsSync(sitemapDir) ? readdirSync(sitemapDir).filter((f) => f.endsWith('.xml')) : [];
+const locsIn = (f) => (readFileSync(join(sitemapDir, f), 'utf8').match(/<loc>/g) ?? []).length;
+const urls = sectionFiles.reduce((n, f) => n + locsIn(f), 0);
+for (const f of sectionFiles) console.log(`Verify: sitemap ${f}: ${locsIn(f)} URLs`);
 
 // Floors are deliberately low -- they catch "section missing", not drift.
 const checks = [
@@ -24,6 +28,12 @@ const checks = [
   ['match pages', count('football', 'matches'), 300],
   ['player pages', count('fpl', 'players'), 300],
   ['/finance index', existsSync(join(DIST, 'finance', 'index.html')) ? 1 : 0, 1],
+  ['NFL team pages', count('nfl', 'teams'), 32],
+  ['NFL game pages', count('nfl', 'games'), 200],
+  ['tennis ATP player pages', count('tennis', 'players', 'atp'), 100],
+  ['tennis season pages', count('tennis', 'seasons', 'atp') + count('tennis', 'seasons', 'wta'), 40],
+  ['tennis tournament pages', count('tennis', 'tournaments', 'atp') + count('tennis', 'tournaments', 'wta'), 100],
+  ['/football/local-clubs', existsSync(join(DIST, 'football', 'local-clubs', 'index.html')) ? 1 : 0, 1],
   // Flat twins (fixtures.html beside fixtures/index.html) -- without them
   // every no-slash canonical URL 301s to its slash form. See write-flat-html.
   ['flat /fixtures.html', existsSync(join(DIST, 'fixtures.html')) ? 1 : 0, 1],

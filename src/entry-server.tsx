@@ -364,6 +364,8 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
 }
 
 export { STATIC_ROUTES };
+export { intlTeamHead, intlTournamentHead, intlEditionHead, INTL_STATIC_TEAM_MIN_GAMES } from './lib/intlSeo';
+export { TOURNAMENTS as INTL_TOURNAMENTS } from './lib/intlStats';
 
 // ---- Club finances ---------------------------------------------------------
 // The finance module, re-exported as ONE namespace so the build scripts group

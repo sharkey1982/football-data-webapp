@@ -1,0 +1,61 @@
+# FixtureShark
+
+> FixtureShark (fixtureshark.com) is a UK sports data site: football results, tables and model predictions; Fantasy Premier League (FPL) projections and tools; club finances; the NFL; international football; and tennis. Every number comes from public data, and every model is tested against the betting market on games it has not seen.
+
+All pages are free to read. Data is updated daily. UK times and UK TV channels are used throughout.
+
+## Football (clubs)
+
+- [Football hub](https://fixtureshark.com/football): fixtures, results, tables and predictions for English and European leagues.
+- [Fixtures and results](https://fixtureshark.com/fixtures): every fixture with the model's prediction and the closing betting market beside it.
+- [League histories](https://fixtureshark.com/football/leagues): every season's final table for each league held (the earliest from 1992/93).
+- [Record book](https://fixtureshark.com/football/records): longest winning and unbeaten runs, biggest wins and season records.
+- [What happened next](https://fixtureshark.com/football/history/what-happened-next): how teams in a given league position after N games finished, from history.
+- [Team strength](https://fixtureshark.com/team-strength): attack and defence ratings and projected final tables.
+- [Model scorecard](https://fixtureshark.com/football/model-scorecard): how the Dixon-Coles model's predictions compare with the closing market (log loss, by league and season).
+- [UK TV guide](https://fixtureshark.com/tv-guide): which football is on UK television and on which channel.
+
+## Fantasy Premier League
+
+- [FPL hub](https://fixtureshark.com/fpl/start): player projections, predicted line-ups, injuries, value and squad tools.
+- [Player projections](https://fixtureshark.com/fpl): expected points per player for the next gameweeks.
+- [Predicted line-ups](https://fixtureshark.com/fpl/line-ups), [Minutes outlook](https://fixtureshark.com/fpl/minutes), [Injuries](https://fixtureshark.com/fpl/injuries), [Value](https://fixtureshark.com/fpl/value), [Set pieces](https://fixtureshark.com/fpl/set-pieces).
+- [Player Scout](https://fixtureshark.com/fpl/player-scout): every FPL player's season-by-season record.
+- [Scoring rules](https://fixtureshark.com/fpl/scoring-rules): FPL's points rules for each season.
+
+## Club finances
+
+- [Club finances](https://fixtureshark.com/finance): revenue, wages, profit and debt for English clubs, from their filed accounts at Companies House.
+- [Compare clubs](https://fixtureshark.com/finance/compare).
+
+## International football
+
+- [International hub](https://fixtureshark.com/international): every men's international since 1872.
+- [Nations](https://fixtureshark.com/international/teams): each national team's record, Elo rating, tournament history and current squad.
+- [Tournaments](https://fixtureshark.com/international/tournaments): every World Cup, Euro, Copa América, Africa Cup of Nations, Asian Cup, Gold Cup and Nations League edition with groups, brackets and scorers.
+- [Through time](https://fixtureshark.com/international/history): the Elo top ten since 1872 and the biggest tournament upsets.
+
+## NFL
+
+- [NFL hub](https://fixtureshark.com/nfl): schedule, results, standings with official tie-breaks, and team pages since 2002.
+- [UK TV guide](https://fixtureshark.com/nfl/tv-guide): how to watch each game in the UK (Sky Sports, DAZN, Channel 5).
+- [Player projections](https://fixtureshark.com/nfl/player-projections): fantasy points projections for QB, RB, WR, TE and K.
+
+## Tennis
+
+- [Tennis hub](https://fixtureshark.com/tennis): ATP results since 2000 and WTA since 2007.
+- [Players](https://fixtureshark.com/tennis/players): each player's record, titles, surface splits and form.
+- [Tournaments](https://fixtureshark.com/tennis/tournaments): champions by year and every edition's draw.
+- [Head to head](https://fixtureshark.com/tennis/head-to-head): any two players' meetings and a surface-adjusted win chance.
+- [UK TV guide](https://fixtureshark.com/tennis/tv-guide).
+
+## Methods
+
+- Football predictions use a Dixon-Coles model fitted to past results; they are shown beside the closing betting market, and the scorecard reports how they compare.
+- Team strength and projected tables use ratings implied by the betting market, which beat the Dixon-Coles model on unseen seasons (root-mean-square error of final points 8.42 v 9.45 in 2025/26).
+- Tennis win chances come from surface-weighted Elo ratings plus ranking and head-to-head terms: on 31,944 matches in 2020-2026 the model picked the winner 64.8% of the time, against 68.1% for the bookmakers' favourite.
+- The NFL model is a margin-based Elo; the international model is Poisson with a Dixon-Coles adjustment on Elo differences.
+
+## Sources
+
+football-data.co.uk (results and odds), the official Fantasy Premier League API, Companies House filings, nflverse (NFL), tennis-data.co.uk (tennis), Wikipedia (CC BY-SA; national squads), Wikidata (CC0; tennis player details) and the martj42 international results dataset.

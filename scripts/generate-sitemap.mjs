@@ -44,11 +44,45 @@ const WATCHDOG_MS = 90000;
 // Supabase response cost the whole sitemap (live /sitemap.xml was 404).
 const entries = [];
 
+// Since 6 Oct 2026 /sitemap.xml is a sitemap INDEX pointing at one file per
+// section (dist/sitemaps/<section>.xml), so Search Console reports discovery
+// and indexing separately for football, international, FPL, NFL, tennis and
+// finance. Which pages get in at all is decided below, family by family
+// (the indexation policy is in docs/seo-indexation.md); the section only
+// decides which file a URL lands in.
+const SECTIONS = ['core', 'football', 'international', 'fpl', 'nfl', 'tennis', 'finance', 'tv'];
+function sectionOf(loc) {
+  if (loc.endsWith('/finances')) return 'finance';   // club finance pages live under /football/teams/:slug
+  const first = loc.split('/').filter(Boolean)[0] ?? '';
+  if (['football', 'international', 'fpl', 'nfl', 'tennis', 'finance'].includes(first)) return first;
+  if (first === 'tv-guide') return 'tv';
+  if (['fixtures', 'results', 'results-data', 'table', 'teams', 'team-strength', 'preview', 'compare'].includes(first)) return 'football';
+  if (first === 'fantasy') return 'fpl';
+  return 'core';
+}
+
 function writeSitemap(label) {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
-  mkdirSync(dirname(OUT), { recursive: true });
+  const seen = new Set();
+  const bySection = new Map(SECTIONS.map((k) => [k, []]));
+  for (const e of entries) {
+    if (seen.has(e.loc)) continue;   // a page listed by two families goes in once
+    seen.add(e.loc);
+    bySection.get(sectionOf(e.loc)).push(e.xml);
+  }
+  const dir = join(dirname(OUT), 'sitemaps');
+  mkdirSync(dir, { recursive: true });
+  const index = [];
+  const counts = [];
+  for (const [section, xmls] of bySection) {
+    if (xmls.length === 0) continue;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmls.join('\n')}\n</urlset>\n`;
+    writeFileSync(join(dir, `${section}.xml`), xml, 'utf8');
+    index.push(`  <sitemap>\n    <loc>${SITE_URL}/sitemaps/${section}.xml</loc>\n  </sitemap>`);
+    counts.push(`${section} ${xmls.length}`);
+  }
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${index.join('\n')}\n</sitemapindex>\n`;
   writeFileSync(OUT, xml, 'utf8');
-  console.log(`Sitemap: wrote ${entries.length} URL(s) [${label}]`);
+  console.log(`Sitemap: wrote ${seen.size} URL(s) in ${index.length} file(s) [${label}]: ${counts.join(', ')}`);
 }
 
 const watchdog = setTimeout(() => {
@@ -88,13 +122,22 @@ async function queryAll(path, pageSize = 1000) {
   const out = [];
   for (let offset = 0; offset <= 200000; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
-    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    if (page == null) return out.length > 0 ? out : null;
+    let page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    // One retry for a transient error. A page that still fails returns null
+    // for the WHOLE query: until 6 Oct the rows before the failure came back
+    // as if complete, so (with oldest-first ordering) the current season was
+    // what silently went missing. null makes the caller skip the section and
+    // verify-dist's minimum page counts fail the build instead.
+    if (page == null) page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    if (page == null) {
+      console.error(`Sitemap: page at offset ${offset} failed twice for ${path} -- discarding the partial result.`);
+      return null;
+    }
     out.push(...page);
     if (page.length < pageSize) return out;
   }
-  console.error('Sitemap: pagination guard tripped for', path);
-  return out;
+  console.error('Sitemap: pagination guard tripped for', path, '-- discarding the result.');
+  return null;
 }
 
 function xmlEscape(s) {
@@ -104,7 +147,7 @@ function xmlEscape(s) {
 function urlEntry(loc, lastmod) {
   const parts = [`    <loc>${xmlEscape(SITE_URL + loc)}</loc>`];
   if (lastmod) parts.push(`    <lastmod>${xmlEscape(String(lastmod).slice(0, 10))}</lastmod>`);
-  return `  <url>\n${parts.join('\n')}\n  </url>`;
+  return { loc, xml: `  <url>\n${parts.join('\n')}\n  </url>` };
 }
 
 async function main() {
@@ -212,8 +255,10 @@ async function main() {
     // Game pages: the latest season's schedule (the ones the static build writes).
     const gameSeason = (await query('nfl_games?select=season&order=season.desc&limit=1'))?.[0]?.season;
     if (gameSeason != null && mod.nflGamePath) {
-      const ids = (await query(`nfl_games?select=game_id&season=eq.${gameSeason}&order=game_id.asc&limit=1000`)) ?? [];
-      for (const g of ids) { entries.push(urlEntry(mod.nflGamePath(g.game_id), null)); counts.nfl++; }
+      // lastmod: the game day once a score is in (the page's last material
+      // change); none before the game, when only the market line moves.
+      const ids = (await query(`nfl_games?select=game_id,gameday,home_score&season=eq.${gameSeason}&order=game_id.asc&limit=1000`)) ?? [];
+      for (const g of ids) { entries.push(urlEntry(mod.nflGamePath(g.game_id), g.home_score != null ? g.gameday : null)); counts.nfl++; }
     }
   }
 
@@ -235,6 +280,27 @@ async function main() {
       for (const e of events) { entries.push(urlEntry(mod.tennisEventPath(tour, e.slug), null)); counts.tennis++; }
       const big = (await query(`tennis_editions?select=event_slug,year&tour=eq.${tour}&level_rank=lte.3&order=event_slug.asc,year.asc&limit=1000`)) ?? [];
       for (const e of big) { entries.push(urlEntry(mod.tennisEditionPath(tour, e.event_slug, e.year), null)); counts.tennis++; }
+    }
+  }
+
+  // International: every tournament and edition, and nations with 30+ games
+  // (the pages generate-static writes heads for; smaller nations are thin and
+  // stay out). lastmod: the date of the latest game on the page.
+  counts.international = 0;
+  if (mod?.intlTeamHead) {
+    const [teams, editions] = await Promise.all([
+      queryAll(`intl_team_summary?select=team,slug,played,won,first_match,last_match,elo,elo_rank&played=gte.${mod.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
+      queryAll('intl_edition_summary?select=competition,label,winner,runner_up,last_match&order=competition.asc,season_start.asc'),
+    ]);
+    const byComp = new Map(mod.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
+    for (const t of teams ?? []) { entries.push(urlEntry(mod.intlTeamHead(t).path, t.last_match)); counts.international++; }
+    for (const t of mod.INTL_TOURNAMENTS) {
+      const last = (editions ?? []).filter((e) => e.competition === t.competition).map((e) => e.last_match).filter(Boolean).sort().pop() ?? null;
+      entries.push(urlEntry(mod.intlTournamentHead(t).path, last)); counts.international++;
+    }
+    for (const e of editions ?? []) {
+      const t = byComp.get(e.competition);
+      if (t) { entries.push(urlEntry(mod.intlEditionHead(t, e).path, e.last_match)); counts.international++; }
     }
   }
 
