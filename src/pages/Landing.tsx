@@ -40,11 +40,11 @@ function GameCard() {
   );
 }
 
-function ThemeButton({ to, title, description }: { to: string; title: string; description: string }) {
+function ThemeButton({ to, title, description, className = '' }: { to: string; title: string; description: string; className?: string }) {
   return (
     <Link
       to={to}
-      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-6 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
+      className={`${className} group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-6 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]`}
     >
       <h2 className="font-display uppercase tracking-wide text-xl sm:text-2xl text-chalk-100 group-hover:text-amber-400 transition-colors">
         {title}
@@ -54,18 +54,27 @@ function ThemeButton({ to, title, description }: { to: string; title: string; de
   );
 }
 
-// One card per section of the site, in the top menu's order, plus club
-// finances (in the Club menu, but its own destination). Until 6 Oct 2026 the
-// page offered only Football and FPL, so NFL, tennis, international football
-// and finances had no link from the home page.
+// One card per top-menu section, in the menu's order. Club finances (The
+// Boardroom) live under Club > Discover since 4 Oct 2026, so they are named
+// in the Club card rather than given their own. The Club card spans the full
+// width wherever the grid has two columns, so five cards never leave a gap.
 const SECTIONS = [
-  { to: '/football', title: 'Club football', description: 'Results, tables and match predictions for English and European leagues, with history back to 1992/93.' },
+  { to: '/football', title: 'Club football', description: 'Results, tables and match predictions for English and European leagues, history back to 1992/93, and club finances in The Boardroom.' },
   { to: '/international', title: 'International', description: 'Every men\u2019s international since 1872: each nation\u2019s record, every World Cup and Euro, and the current squads.' },
   { to: '/fpl/start', title: 'Fantasy Premier League', description: 'Player projections, predicted line-ups, injuries and squad tools.' },
-  { to: '/finance', title: 'Club finances', description: 'Revenue, wages, profit and debt from English clubs\u2019 filed accounts.' },
   { to: '/nfl', title: 'NFL', description: 'Schedule, standings and team records since 2002, game predictions and UK TV times.' },
   { to: '/tennis', title: 'Tennis', description: 'ATP and WTA results, players, tournaments, rivalries and win chances.' },
 ] as const;
+
+// Grid placement for five cards: 1 column on a narrow phone; 2 columns with
+// Club football across the top; on large screens 3 + 2 in a 6-unit grid.
+const PLACEMENT = [
+  'min-[420px]:col-span-2 lg:col-span-2',
+  'lg:col-span-2',
+  'lg:col-span-2',
+  'lg:col-span-3',
+  'lg:col-span-3',
+];
 
 export default function Landing() {
   useDocumentHead({
@@ -88,9 +97,9 @@ export default function Landing() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" data-testid="home-sections">
-        {SECTIONS.map((s) => (
-          <ThemeButton key={s.to} to={s.to} title={s.title} description={s.description} />
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4" data-testid="home-sections">
+        {SECTIONS.map((s, i) => (
+          <ThemeButton key={s.to} to={s.to} title={s.title} description={s.description} className={PLACEMENT[i]} />
         ))}
       </div>
 

@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import Landing from '../pages/Landing';
 
 describe('Landing page', () => {
-  it('links to every section of the site', () => {
+  it('links to every top-menu section, with club finances named in the Club card', () => {
     render(
       <MemoryRouter>
         <Landing />
@@ -13,10 +13,11 @@ describe('Landing page', () => {
     );
     expect(screen.getByText('Pick your side.')).toBeInTheDocument();
     const cards = screen.getByTestId('home-sections').querySelectorAll('a');
-    expect([...cards].map((a) => a.getAttribute('href'))).toEqual(['/football', '/international', '/fpl/start', '/finance', '/nfl', '/tennis']);
+    expect([...cards].map((a) => a.getAttribute('href'))).toEqual(['/football', '/international', '/fpl/start', '/nfl', '/tennis']);
     expect(screen.getByRole('link', { name: /Club football/ })).toHaveAttribute('href', '/football');
     expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
     expect(screen.getByRole('link', { name: /^Tennis/ })).toHaveAttribute('href', '/tennis');
+    expect(screen.getByRole('link', { name: /Club football/ })).toHaveTextContent('The Boardroom');
   });
 
   it('links to Beat the Shark at its proxied address, with the trailing slash', () => {
