@@ -41,6 +41,9 @@ let SEASON_ID = null;
 const EPL_LEAGUE_ID = 1;
 const MODEL_VERSION = 'leaguewide_v6';
 const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
+// Tennis rivalry pages: the most-played pairs per tour (see writeTennisPages).
+const TENNIS_H2H_PAIRS_PER_TOUR = 30;
+const TENNIS_H2H_MIN_MEETINGS = 8;
 const REQUEST_TIMEOUT_MS = 20000;
 const WATCHDOG_MS = 240000;
 const STARTED_AT = Date.now();
@@ -572,6 +575,7 @@ async function main() {
           console.error(`Static: failed tennis ${label}: ${err?.message ?? err}`);
         }
       };
+      const h2hManifest = [];
       for (const tour of ['ATP', 'WTA']) {
         // By year: deep offsets over a whole tour take ~1s a page; a year is 3 small pages.
         const latestRow = await query(`tennis_matches?select=year&tour=eq.${tour}&order=match_date.desc&limit=1`);
@@ -645,6 +649,58 @@ async function main() {
           if (p.recent_matches < entry.TENNIS_STATIC_PLAYER_MIN) continue;
           attempt(`player ${tour} ${p.slug}`, () => entry.renderTennisPlayerPage(entry.buildTennisPlayer(p, byPlayer.get(p.player_id) ?? [])));
         }
+        // Rivalries: the most-played pairs between players who still have a
+        // page of their own (50+ recent matches) get a page each, at
+        // /tennis/head-to-head/:tour/:a/:b (slugs in alphabetical order).
+        // The list goes to dist-ssr/tennis-h2h-pairs.json for the sitemap.
+        try {
+          const live = new Map(players.filter((p) => p.recent_matches >= entry.TENNIS_STATIC_PLAYER_MIN).map((p) => [p.player_id, p]));
+          const meetingsByPair = new Map();
+          for (const x of matches) {
+            if (!live.has(x.winner_id) || !live.has(x.loser_id)) continue;
+            const k = x.winner_id < x.loser_id ? `${x.winner_id}|${x.loser_id}` : `${x.loser_id}|${x.winner_id}`;
+            if (!meetingsByPair.has(k)) meetingsByPair.set(k, []);
+            meetingsByPair.get(k).push(x);
+          }
+          const top = [...meetingsByPair.entries()]
+            .filter(([, ms]) => ms.length >= TENNIS_H2H_MIN_MEETINGS)
+            .sort((x, y) => y[1].length - x[1].length || x[0].localeCompare(y[0]))
+            .slice(0, TENNIS_H2H_PAIRS_PER_TOUR);
+          const ids = [...new Set(top.flatMap(([k]) => k.split('|').map(Number)))];
+          const ratings = ids.length ? await queryAll(`tennis_ratings?select=${entry.TENNIS_RATING_COLUMNS}&player_id=in.(${ids.join(',')})&order=player_id.asc`) : [];
+          const keys = top.flatMap(([, ms]) => ms.map((m) => m.source_key));
+          const modelP = {};
+          let modelOk = true;
+          for (let i = 0; i < keys.length; i += 40) {
+            const chunk = keys.slice(i, i + 40).map((k) => `"${k}"`).join(',');
+            const rows = await query(`tennis_match_model?select=source_key,p_winner&source_key=in.(${encodeURIComponent(chunk)})`);
+            if (rows == null) { modelOk = false; break; }
+            for (const r of rows) if (r.p_winner != null) modelP[r.source_key] = r.p_winner;
+          }
+          if (ratings && modelOk) {
+            for (const [, ms] of top) {
+              const [p1, p2] = [live.get(ms[0].winner_id), live.get(ms[0].loser_id)];
+              const [pa, pb] = p1.slug <= p2.slug ? [p1, p2] : [p2, p1];
+              const own = Object.fromEntries(ms.filter((m) => m.source_key in modelP).map((m) => [m.source_key, modelP[m.source_key]]));
+              const before = n;
+              attempt(`head to head ${tour} ${pa.slug} ${pb.slug}`, () => entry.renderTennisH2HPairPage({
+                tour, a: pa, b: pb,
+                ratingsA: ratings.filter((r) => r.player_id === pa.player_id),
+                ratingsB: ratings.filter((r) => r.player_id === pb.player_id),
+                meetings: ms, modelP: own,
+              }));
+              if (n > before) h2hManifest.push({ tour, a: pa.slug, b: pb.slug, last: ms[ms.length - 1].match_date });
+            }
+          } else console.warn(`Static: tennis ${tour} ratings or model unavailable -- rivalry pages skipped.`);
+        } catch (err) {
+          console.error(`Static: failed tennis ${tour} rivalries: ${err?.message ?? err}`);
+        }
+      }
+      try {
+        writeFileSync(join(process.cwd(), 'dist-ssr', 'tennis-h2h-pairs.json'), JSON.stringify(h2hManifest), 'utf8');
+        console.log(`Static: wrote ${h2hManifest.length} tennis rivalry page(s).`);
+      } catch (err) {
+        console.error(`Static: could not write the rivalry list: ${err?.message ?? err}`);
       }
       // Head to head (ATP default pair): the page itself; other pairs load in the browser.
       try {

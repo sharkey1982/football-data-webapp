@@ -46,7 +46,8 @@ omitted rather than set to the build date.
 | Tennis big editions (Slams, Finals, 1000s) | /tennis/tournaments/atp/wimbledon/2025 | 532 | A | Static draw and paths |
 | Tennis other editions | /tennis/tournaments/atp/doha/2019 | ~2,280 | B | Browser only |
 | Tennis WTA list views | /tennis/players?tour=wta | 4 | B | Query-string view of the ATP list page; canonical is the list page |
-| Tennis head to head | /tennis/head-to-head?a=…&b=… | any pair | B | One canonical page; pairs are query states |
+| Tennis rivalries (most-played pairs) | /tennis/head-to-head/atp/alcaraz-c/sinner-j | up to 30 a tour (8+ meetings, both players active) | A | Static: record, every meeting, model chance by surface; slugs in alphabetical order are canonical |
+| Tennis other pairs | /tennis/head-to-head/atp/:a/:b | any pair | B | Browser only; self-canonical (alphabetical order) |
 | International hub and lists | /international/tournaments | 7 | A | Head static |
 | International nations (30+ games) | /international/teams/england | 248 | A | Full static HTML; record, Elo, tournament history, squad |
 | International nations (<30 games) | /international/teams/… | ~90 | B | Thin |
@@ -55,5 +56,7 @@ omitted rather than set to the build date.
 | Unknown slugs (any section) | /tennis/players/atp/nobody | – | C | `useNoindex` / NotFoundPage (served with HTTP 200 by the app shell) |
 | Admin, login, data-health, source data | /admin/fanteam | – | D | robots.txt |
 
-Follow-ups: path-based WTA list pages, pre-rendering the most-searched
-head-to-heads, and a real 404 status for unknown paths in static sections.
+Follow-ups: path-based WTA list pages. A real 404 status for unknown paths
+isn't possible per section: valid client-rendered pages share the same
+folders (minor players, smaller nations, older NFL games), so missing
+entities get noindex instead.

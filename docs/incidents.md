@@ -21,6 +21,15 @@ fixing something else.
 
 ---
 
+## 2026-10-06 · Main failed to build after two PRs merged within minutes
+- **Reported:** found by this session while rebasing the next change.
+- **Impact:** for about 30 minutes main did not type-check, so any production build in that window would have failed (no bad deploy went out; the previous one stayed live).
+- **Cause:** #238 (squad watch) added two required fields to `IntlTeamData` while #239 (pre-rendered nation pages) was open; #239 built a value of that type and was merged on a preview built from before #238. Each PR passed on its own.
+- **Fix:** #241 supplies the new fields (empty; the browser loads squad history).
+- **Prevention:** rebase on main and re-run `tsc` immediately before merging when another session has merged in the meantime.
+
+---
+
 ## 2026-10-06 · Fixture feed: 47 team names never mapped (postponements, kick-off times, provisional scores)
 - **Reported:** 6 Oct audit, following stale_scheduled_fixtures (red since 1 Oct).
 - **Impact:** every current-season fixture involving 47 clubs was skipped by the daily FixtureDownload refresh: 16 League One, 16 League Two and 15 Championship clubs, plus Tottenham ("Spurs"). Eight League One games postponed on 26 Sep (and Port Vale v Northampton) still showed as due that day with no result coming; 230 League One kick-offs were an hour early (UTC, never corrected); no provisional scores for those clubs. The League One table itself was right: football-data.co.uk has no results for the postponed games either.
