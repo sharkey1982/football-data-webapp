@@ -120,6 +120,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Direct connection for the reads: no 8-second API limit (2026-10-06).
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Refresh FPL projections (pass 2 -- picks up real Monte Carlo bonus)
         run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
