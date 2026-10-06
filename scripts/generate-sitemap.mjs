@@ -94,24 +94,26 @@ watchdog.unref();
 
 async function query(path) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-      signal: controller.signal,
-    });
-    if (!res.ok) {
+  // A 5xx, 429 or network/timeout error is retried twice (1.5s, 5s); a 4xx is final.
+  for (const wait of [0, 1500, 5000]) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        signal: controller.signal,
+      });
+      if (res.ok) return await res.json();
       console.error(`Sitemap: query failed (${res.status}) for ${path}`);
-      return null;
+      if (res.status < 500 && res.status !== 429) return null;
+    } catch (err) {
+      console.error(`Sitemap: query errored for ${path}: ${err?.message ?? err}`);
+    } finally {
+      clearTimeout(timer);
     }
-    return await res.json();
-  } catch (err) {
-    console.error(`Sitemap: query errored for ${path}: ${err?.message ?? err}`);
-    return null;
-  } finally {
-    clearTimeout(timer);
   }
+  return null;
 }
 
 /** PostgREST caps a response at 1,000 rows WITHOUT saying it truncated, so
@@ -122,15 +124,14 @@ async function queryAll(path, pageSize = 1000) {
   const out = [];
   for (let offset = 0; offset <= 200000; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
-    let page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    // One retry for a transient error. A page that still fails returns null
+    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    // query() retries a transient error twice. A page that still fails returns null
     // for the WHOLE query: until 6 Oct the rows before the failure came back
     // as if complete, so (with oldest-first ordering) the current season was
     // what silently went missing. null makes the caller skip the section and
     // verify-dist's minimum page counts fail the build instead.
-    if (page == null) page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
     if (page == null) {
-      console.error(`Sitemap: page at offset ${offset} failed twice for ${path} -- discarding the partial result.`);
+      console.error(`Sitemap: page at offset ${offset} failed after retries for ${path} -- discarding the partial result.`);
       return null;
     }
     out.push(...page);
