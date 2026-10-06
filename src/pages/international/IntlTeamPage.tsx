@@ -15,6 +15,7 @@ import { FixtureRow, GameList, GameRow, IntlHeader, Section, TitleBadges } from 
 import NationPicker from '../../components/intl/NationPicker';
 import GroupChances from '../../components/intl/GroupChances';
 import Squad from '../../components/intl/Squad';
+import SquadWatch from '../../components/intl/SquadWatch';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { intlTeamHead } from '../../lib/intlSeo';
@@ -163,6 +164,12 @@ export default function IntlTeamPage() {
       <Section title="Squad" id="intl-tp-squad" testId="intl-tp-squad">
         <Squad squad={data.squad} players={data.squadPlayers} team={t.team} />
       </Section>
+
+      {data.squadVersions.length > 0 && (
+        <Section title="Squad watch" id="intl-tp-watch" testId="intl-tp-watch">
+          <SquadWatch versions={data.squadVersions} players={data.snapshotPlayers} />
+        </Section>
+      )}
 
       {data.groupOdds.length > 0 && (
         <Section title={`Nations League chances: Group ${data.groupOdds[0].group_label}`} id="intl-tp-odds" testId="intl-tp-odds">

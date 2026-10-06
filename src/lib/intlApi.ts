@@ -24,6 +24,8 @@ import {
   type IntlGroup,
   type IntlSquad,
   type SquadPlayer,
+  type SnapshotPlayer,
+  type SquadVersion,
   type IntlMatch,
   type IntlStage,
   type PairRecord,
@@ -101,7 +103,9 @@ type ViewName =
   | 'intl_club_callups'
   | 'intl_league_exports'
   | 'intl_club_elo'
-  | 'intl_squad_club_strength';
+  | 'intl_squad_club_strength'
+  | 'intl_squad_versions'
+  | 'intl_squad_snapshot_players';
 /** The intl views aren't in the generated database types; a loose query shape keeps the calls readable. */
 export const intlView = (view: ViewName, columns: string): Query =>
   (supabase.from(view as never) as unknown as { select(columns: string): Query }).select(columns);
@@ -175,6 +179,8 @@ export type IntlTeamData = {
   squad: IntlSquad | null;
   squadPlayers: SquadPlayer[];
   groupOdds: GroupOdds[];
+  squadVersions: SquadVersion[];
+  snapshotPlayers: SnapshotPlayer[];
 };
 
 export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
@@ -202,7 +208,8 @@ export async function loadIntlTeam(slug: string): Promise<IntlTeamData | null> {
   const groupOdds = myOdds[0]
     ? await rows<GroupOdds>(intlView('intl_group_odds', myOdds[0].zones !== undefined ? GROUP_ODDS_COLUMNS_ZONES : GROUP_ODDS_COLUMNS).eq('edition_key', myOdds[0].edition_key).eq('group_label', myOdds[0].group_label)).catch(() => myOdds)
     : [];
-  return { team, matches, fixtures, totals, pairs, editions, teams, goals, squad: squads[0] ?? null, squadPlayers, groupOdds };
+  const { squadVersions, snapshotPlayers } = await loadSquadHistory(slug);
+  return { team, matches, fixtures, totals, pairs, editions, teams, goals, squad: squads[0] ?? null, squadPlayers, groupOdds, squadVersions, snapshotPlayers };
 }
 
 // ---- Tournaments -----------------------------------------------------------------
@@ -281,4 +288,21 @@ export async function loadIntlClubs(): Promise<IntlClubsData> {
     rows<ClubEloRow>(intlView('intl_club_elo', 'club,country,level,elo,rank,club_slug,fetched_on,internationals').order('rank', { ascending: true }).limit(100)),
   ]);
   return { clubs: clubs.filter((c) => !NOT_A_CLUB.test(c.club.trim())), leagues, strength, elo };
+}
+
+// ---- Squad watch ------------------------------------------------------------------------
+
+/** A nation's last 30 saved squad versions and their players (empty before migration 20261006110000). */
+export async function loadSquadHistory(slug: string): Promise<{ squadVersions: SquadVersion[]; snapshotPlayers: SnapshotPlayer[] }> {
+  try {
+    const versions = await rows<SquadVersion>(intlView('intl_squad_versions', 'team,slug,version_at,intro,intro_signature,players').eq('slug', slug).order('version_at', { ascending: false }).limit(30));
+    if (!versions.length) return { squadVersions: [], snapshotPlayers: [] };
+    const oldest = versions[versions.length - 1].version_at;
+    const snapshotPlayers = await paged<SnapshotPlayer>(() =>
+      intlView('intl_squad_snapshot_players', 'team,version_at,list,player_key,player,wiki_title,position,number,caps,goals,club,club_slug,status,latest_date,latest_text')
+        .eq('slug', slug).gte('version_at', oldest).order('version_at', { ascending: true }).order('player_key', { ascending: true }));
+    return { squadVersions: versions.reverse(), snapshotPlayers };
+  } catch {
+    return { squadVersions: [], snapshotPlayers: [] };
+  }
 }
