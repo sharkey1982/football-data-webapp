@@ -23,7 +23,7 @@
 const fs=require('fs'),vm=require('vm'),path=require('path');
 process.chdir(path.join(__dirname,'..'));
 const html=fs.readFileSync('index.html','utf8');
-const srcs=[...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m=>m[1]);
+const srcs=[...html.matchAll(/<script src="([^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(m=>m[1]);
 const els={};
 function mk(id){const e={id,_h:"",children:[],onclick:null,style:{},dataset:{},className:"",classList:{add(){}},
   set innerHTML(v){this._h=v;this.children=[]},get innerHTML(){return this._h+this.children.map(c=>c.innerHTML).join("")},

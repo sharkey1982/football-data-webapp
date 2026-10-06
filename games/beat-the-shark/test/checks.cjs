@@ -38,7 +38,7 @@ console.log('\n0. LOADING — files load in order, as a browser runs them');
   const vm = require('vm'), fs = require('fs'), path = require('path');
   const file = process.env.GAME || path.join(__dirname, '..', 'index.html');
   const dir = path.dirname(file), html = fs.readFileSync(file, 'utf8');
-  const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const srcs = [...html.matchAll(/<script src="([^"?]+)(?:\?[^"]*)?"><\/script>/g)].map((m) => m[1]);
   if (!srcs.length) check('split files load in order', true, 'single-file build, not applicable');
   else {
     const el = () => ({ innerHTML: '', textContent: '', onclick: null, style: {}, dataset: {},

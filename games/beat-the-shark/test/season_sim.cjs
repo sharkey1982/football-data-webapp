@@ -15,7 +15,7 @@ const GAME=process.env.GAME||path.join(__dirname,'..','index.html');
    <script> so older one-file builds (and GAME=copy.html) still work. */
 function loadGame(file){
   const html=fs.readFileSync(file,'utf8'),dir=path.dirname(file);
-  const srcs=[...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m=>m[1]);
+  const srcs=[...html.matchAll(/<script src="([^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(m=>m[1]);
   if(srcs.length)return srcs.map(s=>fs.readFileSync(path.join(dir,s),'utf8')).join('\n;\n');
   const inline=html.match(/<script>([\s\S]*)<\/script>/);
   if(!inline)throw new Error('No game script found in '+file);
