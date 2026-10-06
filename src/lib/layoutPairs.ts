@@ -318,6 +318,16 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
   },
   {
     sport: 'international',
+    label: 'Match page',
+    path: '/international/matches/:slug',
+    footballFile: 'src/pages/MatchPreview.tsx',
+    file: 'src/pages/international/IntlMatchPage.tsx',
+    shared: ['ComparisonCard', 'PreviewTabs'],
+    status: 'partial',
+    note: 'Same tabs in the same order as the club and NFL previews (Prediction, Head to Head, then each team) via the shared PreviewTabs and form/prediction card; a played game also shows the result and what the model expected beforehand.',
+  },
+  {
+    sport: 'international',
     label: 'Club Call-ups',
     path: '/international/clubs',
     footballFile: null,
