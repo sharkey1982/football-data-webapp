@@ -146,10 +146,15 @@ jobs:
           random.seed()
           sample = random.sample(locs, min(30, len(locs)))
           bad = []
+          # Always include one NFL game page: on 5-6 Oct sampled game pages
+          # answered 301 while team pages were fine.
+          games = [u for u in locs if "/nfl/games/" in u]
+          if games:
+              sample = sample + [random.choice(games)]
           for u in sample:
-              s, _ = get(u)
+              s, _, h = fetch(u)
               if s != 200:
-                  bad.append(f"{u} -> {s}")
+                  bad.append(f"{u} -> {s} {h.get('Location') or h.get('location') or ''}".rstrip())
           print(f"sampled {len(sample)} sitemap URLs, {len(bad)} failed")
           fails += bad
 
