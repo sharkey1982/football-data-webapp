@@ -222,9 +222,11 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
     ],
   },
   // Tennis (Oct 2026): ATP from 2000 and WTA from 2007, results only. Same page
-  // names as Football and NFL where the job matches (Results ~ Fixtures &
-  // Results, Your Player ~ Your Team, Past seasons). One page per section with
-  // an ATP/WTA toggle (Chris, 4 Oct).
+  // names as Football and NFL where the job matches (Fixtures & Results, Your
+  // Player ~ Your Team, Past seasons; Chris, 6 Oct: "Fixtures & Results" not
+  // "Results"). One page per section with an ATP/WTA toggle (Chris, 4 Oct).
+  // Grand Slams has its own page (6 Oct) and a "Grand Slams only" filter on
+  // Fixtures & Results, Tournaments and Your Player.
   tennis: {
     key: 'tennis',
     title: 'Tennis',
@@ -239,8 +241,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         intro:
           'Everything that has happened at tour level: every result with the rankings and the pre-match favourite, each player\u2019s record and titles, and the story of every season.',
         links: [
-          { label: 'Results', to: '/tennis/results', blurb: 'Every match day by day, with rankings and the upsets.' },
+          { label: 'Fixtures & Results', to: '/tennis/results', blurb: 'Every match day by day, with rankings and the upsets, and the tournaments coming up.' },
           { label: 'Your Player', to: '/tennis/players', blurb: 'Any player\u2019s record by season, surface and level, their titles and best wins.', matchPrefix: ['/tennis/players'] },
+          { label: 'Grand Slams', to: '/tennis/grand-slams', blurb: 'The four majors together: the next Slam and its channel, champions by year and most Slam titles.' },
           { label: 'Tournaments', to: '/tennis/tournaments', blurb: 'Every tournament\u2019s champions and records, and each year\u2019s draw with the road to the final.', matchPrefix: ['/tennis/tournaments'] },
           { label: 'Head to head', to: '/tennis/head-to-head', blurb: 'Any two players: their record against each other and who our model makes favourite on each surface.' },
           { label: 'TV Guide', to: '/tennis/tv-guide', blurb: 'Which tournaments are on this week and next, and the UK channel for each.' },

@@ -268,7 +268,7 @@ async function main() {
   // (the ones the static build writes; the rest are noindex).
   counts.tennis = 0;
   if (mod?.tennisSeasonPath) {
-    for (const p of ['/tennis/results', '/tennis/players', '/tennis/seasons', '/tennis/tournaments', '/tennis/tv-guide', '/tennis/head-to-head']) {
+    for (const p of ['/tennis/results', '/tennis/players', '/tennis/seasons', '/tennis/tournaments', '/tennis/tv-guide', '/tennis/head-to-head', '/tennis/grand-slams']) {
       if (!staticPaths.includes(p)) { entries.push(urlEntry(p, null)); counts.tennis++; }
     }
     for (const tour of ['ATP', 'WTA']) {

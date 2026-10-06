@@ -218,13 +218,13 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
   },
   {
     sport: 'tennis',
-    label: 'Results (Fixtures & Results)',
+    label: 'Fixtures & Results',
     path: '/tennis/results',
     footballFile: 'src/pages/GameweekBrowser.tsx',
     file: 'src/pages/tennis/TennisResultsPage.tsx',
     shared: ['FixtureCalendarHeatmap'],
     status: 'partial',
-    note: 'Calendar shared. "Results" because the source has no upcoming matches; a day’s matches by tournament and round.',
+    note: 'Same name and calendar as Football (6 Oct 2026). A day’s matches by tournament and round; the source has no match fixtures, so the fixtures side lists the coming tournaments on their usual dates. Grand Slams only filter (?slams=1).',
   },
   {
     sport: 'tennis',
@@ -255,6 +255,16 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     shared: [],
     status: 'separate',
     note: 'Football has leagues where tennis has tournaments: a searchable, filterable list; each event page has champions by year, each year its draw and the finalists’ paths.',
+  },
+  {
+    sport: 'tennis',
+    label: 'Grand Slams',
+    path: '/tennis/grand-slams',
+    footballFile: null,
+    file: 'src/pages/tennis/TennisSlamsPage.tsx',
+    shared: [],
+    status: 'sport-only',
+    note: 'Tennis only: the four majors side by side (football’s nearest is a league page). The same "Grand Slams only" switch filters Fixtures & Results, Tournaments and Your Player; the TV Guide has Grand Slam under Competition.',
   },
   {
     sport: 'tennis',

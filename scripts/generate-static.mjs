@@ -593,7 +593,8 @@ async function main() {
           const y = Number(latestDate.slice(0, 4));
           const m = Number(latestDate.slice(5, 7)) - 1;
           const { from, to } = entry.tennisResultsWindow(m === 0 ? y - 1 : y, m === 0 ? 11 : m - 1);
-          attempt('results', () => entry.renderTennisResultsPage({ tour, latestDate, from, to, matches: matches.filter((x) => x.match_date >= from && x.match_date <= to) }));
+          const tourCalendar = (await queryAll(`tennis_calendar?select=${entry.TENNIS_CALENDAR_COLUMNS}&tour=eq.${tour}&order=usual_start.asc`)) ?? undefined;
+          attempt('results', () => entry.renderTennisResultsPage({ tour, latestDate, from, to, matches: matches.filter((x) => x.match_date >= from && x.match_date <= to), calendar: tourCalendar }));
           attempt('players', () => entry.renderTennisPlayersPage({ tour, players }));
           attempt('seasons', () => entry.renderTennisSeasonsPage(entry.buildTennisSeasonIndex(tour, matches.filter((x) => x.round === 'The Final'))));
         }
@@ -603,6 +604,11 @@ async function main() {
         const editions = await queryAll(`tennis_editions?select=${entry.TENNIS_EDITION_COLUMNS}&tour=eq.${tour}&order=tournament_id.asc,year.asc`);
         if (events?.length && editions?.length) {
           if (tour === 'ATP') attempt('tournaments', () => entry.renderTennisTournamentsPage(entry.buildTennisTournaments(tour, events, editions)));
+          if (tour === 'ATP') {
+            const slamCalendar = (await queryAll(`tennis_calendar?select=${entry.TENNIS_CALENDAR_COLUMNS}&tour=eq.${tour}&level=eq.Grand%20Slam&order=usual_start.asc`)) ?? [];
+            const today = new Date().toISOString().slice(0, 10);
+            attempt('grand slams', () => entry.renderTennisSlamsPage({ tour, editions: editions.filter((e) => e.level === 'Grand Slam'), calendar: slamCalendar }, today));
+          }
           const byEdition = new Map();
           for (const x of matches) {
             const k = `${x.tournament_id}|${x.year}`;
