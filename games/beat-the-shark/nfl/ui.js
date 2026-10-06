@@ -67,29 +67,15 @@ function renderSpec(spec,chip,done){
 }
 
 /* ---- start ------------------------------------------------------------------------- */
+/* The opening screen offers the sports, not levels and roles (Chris,
+   6 Oct 2026). The NFL starts as the Beginner head coach's season. The
+   other levels and the GM stay in the code and the checks; pickLevel and
+   pickRole are how the checks reach them. */
 let pickLevel="beginner",pickRole="coach";
 function renderStart(){
-  $("hScore").innerHTML=`—<span class="sub">POSITION</span>`;$("hTwo").innerHTML="";$("hSeason").innerHTML="";
-  $("app").innerHTML=`<div class="card hero">
-    <div class="hero-kicker">BEAT THE SHARK · NFL</div>
-    <div class="mission">Win the division</div>
-    <p class="lede" style="margin-top:8px">FixtureShark's model predicts how many games Your Team wins. Win more.</p>
-    <div class="datechip" style="margin:14px 0 6px">LEVEL</div>
-    <div id="lv"></div>
-    <div class="datechip" style="margin:12px 0 6px">YOU ARE</div>
-    <div id="rl"></div>
-    ${button("start","Start the season","",true)}
-    <div class="seed">Other games: <a href="../" style="color:var(--pitch2)">Football</a></div></div>`;
-  const paint=()=>{
-    $("lv").innerHTML=Object.entries(LEVELS).map(([k,l])=>`<button class="choice" data-lv="${k}" style="${k===pickLevel?"border-color:var(--amber)":""}"><span class="t">${l.name}</span><span class="d">${l.games} games</span></button>`).join("");
-    $("rl").innerHTML=[["coach","Head Coach","Game plans, fourth downs, half time"],["gm","General Manager","Contracts, trades, the cap"]]
-      .map(([k,t,d])=>`<button class="choice" data-rl="${k}" style="${k===pickRole?"border-color:var(--amber)":""}"><span class="t">${t}</span><span class="d">${d}</span></button>`).join("");
-    document.querySelectorAll("[data-lv]").forEach(b=>b.onclick=()=>{pickLevel=b.dataset.lv;paint()});
-    document.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{pickRole=b.dataset.rl;paint()});
-  };
-  paint();
-  $("start").onclick=()=>{$("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating your season…</p></div>`;
-    setTimeout(()=>{beginSeason(pickLevel,pickRole);renderDivision()},30)};
+  S=null;
+  renderGamePicker("nfl","../",()=>{$("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating your season…</p></div>`;
+    setTimeout(()=>{beginSeason(pickLevel,pickRole);renderDivision()},30)});
 }
 function beginSeason(level,role,seed){
   newSeason(level,role,seed);PLAN=planFor(level,role);cursor=0;RECENT=[];

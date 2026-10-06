@@ -42,8 +42,8 @@ function makeWorld(){
 let W;
 try{W=makeWorld();check("scripts load in order, as a browser loads them",true,W.srcs.join(" → "))}
 catch(e){check("scripts load in order, as a browser loads them",false,e.message);process.exit(1)}
-check("the start screen draws",/Win the division/.test(W.els.app.innerHTML));
-check("shared core comes first",W.srcs[0]==="../shared/core.js");
+check("the start screen offers the sports, the NFL to play",/Pick a sport/.test(W.els.app.innerHTML)&&/id="playThis" data-game="nfl"/.test(W.els.app.innerHTML)&&/data-game="football" href="..\/"/.test(W.els.app.innerHTML));
+check("the shared scripts come first",W.srcs[0]==="../shared/games.js"&&W.srcs[1]==="../shared/core.js");
 
 const RUNNER_JS=String.raw`
 function __policyPick(opts,policy,val){
@@ -182,7 +182,7 @@ if(on(5)){
   for(const level of["beginner","intermediate","guru"])for(const role of["coach","gm"]){
     const w=makeWorld();
     w.run(`pickLevel=${JSON.stringify(level)};pickRole=${JSON.stringify(role)}`);
-    w.els.start.onclick();w.drain();
+    w.els.playThis.onclick();w.drain();
     let steps=0,seen=new Set(),bad="";
     const clickables=["go","ko","toT","again"];
     for(;steps<400;steps++){
