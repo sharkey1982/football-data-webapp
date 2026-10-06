@@ -5,15 +5,18 @@ import { MemoryRouter } from 'react-router-dom';
 import Landing from '../pages/Landing';
 
 describe('Landing page', () => {
-  it('offers Football and Fantasy Premier League as the two themes', () => {
+  it('links to every section of the site', () => {
     render(
       <MemoryRouter>
         <Landing />
       </MemoryRouter>
     );
     expect(screen.getByText('Pick your side.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Football/ })).toHaveAttribute('href', '/football');
+    const cards = screen.getByTestId('home-sections').querySelectorAll('a');
+    expect([...cards].map((a) => a.getAttribute('href'))).toEqual(['/football', '/international', '/fpl/start', '/finance', '/nfl', '/tennis']);
+    expect(screen.getByRole('link', { name: /Club football/ })).toHaveAttribute('href', '/football');
     expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
+    expect(screen.getByRole('link', { name: /^Tennis/ })).toHaveAttribute('href', '/tennis');
   });
 
   it('links to Beat the Shark at its proxied address, with the trailing slash', () => {
