@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-06 · FPL start chance: the pecking order was never used
+- **Reported:** Chris -- with Saliba back, Konsa and Mosquera kept their minutes: "The line up pecking order is supposed to deal with this."
+- **Impact:** a returning first choice took no starts from the players below him. Saliba's start chance rose as he came back but Konsa and Mosquera stayed where they were, so Arsenal's centre-backs added up to well over two starters in later gameweeks; the same at every club for every returner. Minutes and expected points for backups were too high, and for first choices with modest start records (e.g. a manually ranked first-choice right-back) too low.
+- **Cause:** each player's start chance was his own availability x his own start rate. The ranks set on Starting Lineups (`team_player_tactical_defaults.depth_rank`) were read by no projection; the club-level scaling only trims when a club's total passes 10 starters, and Arsenal's never did.
+- **Fix:** `scripts/fpl_depth_chart.py`, run in the projections pipeline after the availability refresh, fills each club's places down the pecking order per fixture: one place per first choice by role (the formation adds missing places up to 10); a first choice starts at least 85% of the time when fit (or the admin "first choice when fit" figure); a backup takes an open place 90% of the time; open places pass down the order, then to the rest of the line (DEF/MID-only players, then spare backups). Migration `20261006140000_fpl_depth_chart`: `fpl_depth_start_store`, read first by `fpl_fallback_start_probability_v6`. Goalkeepers and players not ranked keep the previous model. model_change_log entry.
+- **Prevention:** tests in `scripts/test_fpl_depth_chart.py` (backups drop when the first choice is fit, take over when he is out, tied ranks share) run in the pipeline before it writes. The 85% and 90% figures are judgement, not fitted: check them against starts as gameweeks are played. *Lesson: an input people maintain by hand must be traced to the output it is meant to drive.*
+
+---
+
 ## 2026-10-06 · Fixture feed: 47 team names never mapped (postponements, kick-off times, provisional scores)
 - **Reported:** 6 Oct audit, following stale_scheduled_fixtures (red since 1 Oct).
 - **Impact:** every current-season fixture involving 47 clubs was skipped by the daily FixtureDownload refresh: 16 League One, 16 League Two and 15 Championship clubs, plus Tottenham ("Spurs"). Eight League One games postponed on 26 Sep (and Port Vale v Northampton) still showed as due that day with no result coming; 230 League One kick-offs were an hour early (UTC, never corrected); no provisional scores for those clubs. The League One table itself was right: football-data.co.uk has no results for the postponed games either.
