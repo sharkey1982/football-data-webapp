@@ -87,7 +87,7 @@ export function tidyPostcode(raw: string): string {
   return FULL.test(s) ? `${s.slice(0, -3)} ${s.slice(-3)}` : s;
 }
 
-/** Full postcode or just the first half (e.g. "SS1"). Null when postcodes.io
+/** Full postcode or just the first half (e.g. "N7"). Null when postcodes.io
  * doesn't know it. */
 export async function lookupPostcode(raw: string, fetcher: typeof fetch = fetch): Promise<Place | null> {
   const pc = tidyPostcode(raw);

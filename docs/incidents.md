@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-06 · ClubElo: no club rated since the squads launched, reported as success
+- **Reported:** site audit, 6 Oct.
+- **Impact:** since the international squads went live (5 Oct), no squad player had a club rating: the "Club Elo" column was blank, average club ratings showed "–" and the ClubElo top 50 was hidden. Every intl_squads run was logged as success ("0 rated by ClubElo (0 clubs)").
+- **Cause:** api.clubelo.com answers HTTP 502 (IIS) for every date and club request, from GitHub Actions and with or without a browser User-Agent (probe run 37419411598). Its fixtures endpoint now says "Fixtures API deactivated", and clubelo.com is a new site whose pages embed the ratings but offer no data endpoint. The job treated ratings as a bonus: it logged a warning annotation, which nobody reads, and recorded success.
+- **Fix:** `intl_squads.py` keeps the last stored ClubElo table on the squads when the API fails (none exists yet, so clubs stay unrated) and records the run as `warning` with the reason. Migration `20261006070000_intl_squads_club_elo_checks` adds `intl_squads_fresh` and `intl_club_elo_fresh` to `check_intl_integrity()`.
+- **Prevention:** a source that returns nothing is a warning in pipeline_runs and in the daily checks, not a success. *Open:* whether to read the ratings from clubelo.com's pages instead (needs the site owner's agreement) or retire the ClubElo columns.
+
+---
+
 ## 2026-10-05 · FPL start chance: weeks out injured counted like weeks dropped
 - **Reported:** Chris -- the model needs to work as required (follow-up to return dates: returning regulars stayed near zero once fit).
 - **Impact:** outfield start chances came from fixed tiers on this season's appearances. A regular back from injury was rated on the few appearances around his injury (Caicedo 0.03 once fit; Saliba at most 0.15; Amad, Minteh, Mitoma similar), while players who had started while others were injured were rated 0.96 whatever their record.
