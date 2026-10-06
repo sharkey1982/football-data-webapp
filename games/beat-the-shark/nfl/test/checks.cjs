@@ -32,7 +32,7 @@ function makeWorld(){
   const ctx=vm.createContext({document:doc,setTimeout:f=>{q.push(f)},clearTimeout:()=>{},Math,JSON,Object,Array,String,Number,Date,Map,Set,console,
     location:{hash:"",pathname:"/"},MC_SIMS:50,SHARK_RUNS:120});
   const html=fs.readFileSync(path.join(DIR,'index.html'),'utf8');
-  const srcs=[...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m=>m[1]);
+  const srcs=[...html.matchAll(/<script src="([^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(m=>m[1]);
   for(const s of srcs)new vm.Script(fs.readFileSync(path.join(DIR,s),'utf8'),{filename:s}).runInContext(ctx);
   const drain=()=>{let n=0;while(q.length&&n++<20000)q.shift()()};
   return{els,q,drain,run:c=>vm.runInContext(c,ctx),srcs};
@@ -43,6 +43,11 @@ let W;
 try{W=makeWorld();check("scripts load in order, as a browser loads them",true,W.srcs.join(" → "))}
 catch(e){check("scripts load in order, as a browser loads them",false,e.message);process.exit(1)}
 check("the start screen offers the sports, the NFL to play",/Pick a sport/.test(W.els.app.innerHTML)&&/id="playThis" data-game="nfl"/.test(W.els.app.innerHTML)&&/data-game="football" href="..\/"/.test(W.els.app.innerHTML));
+/* Every local script and stylesheet carries ?v=__V__, which the game
+   site's build stamps with the commit, so no browser keeps old files. */
+{const miss=[];for(const f of["../index.html","index.html"]){const h=fs.readFileSync(path.join(DIR,f),'utf8');
+  for(const m of h.matchAll(/<(?:script src|link rel="stylesheet" href)="([^"]+)"/g))if(!/^https?:/.test(m[1])&&!/\?v=__V__$/.test(m[1]))miss.push(`${f}: ${m[1]}`)}
+ check("every game script and stylesheet is versioned for each deploy (?v=__V__)",!miss.length,miss.join(", "))}
 check("the shared scripts come first",W.srcs[0]==="../shared/games.js"&&W.srcs[1]==="../shared/core.js");
 
 const RUNNER_JS=String.raw`

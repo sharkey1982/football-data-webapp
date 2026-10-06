@@ -18,7 +18,11 @@
 [build]
   # No build step. The game is static files -- it deploys in seconds.
   publish = "."
-  command = "echo 'Static game: no build step'"
+  # The one build step: stamp this deploy's commit into every script and
+  # stylesheet address in the pages (?v=__V__), so a browser that kept the
+  # old files must fetch the new ones. Without it, phones kept the old
+  # scripts after the 6 Oct 2026 start-screen change and showed the old game.
+  command = "sed -i \"s/__V__/${COMMIT_REF:-dev}/g\" index.html nfl/index.html"
 
   # Only redeploy when THIS folder changed. Netlify runs this from the base
   # directory, so "." means games/beat-the-shark. Exit 0 = skip the build.
