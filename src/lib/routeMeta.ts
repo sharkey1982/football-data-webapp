@@ -37,9 +37,9 @@ export const STATIC_ROUTES: RouteMeta[] = [
     path: '/',
     // Kept under ~55 chars so the brand suffix still fits inside
     // Google's ~70-char display limit rather than being cut off.
-    title: 'Football results, predictions & FPL projections',
+    title: 'Football, FPL, NFL and tennis: results and predictions',
     description:
-      'A Premier League and EFL archive with Dixon-Coles match predictions, Fantasy Premier League projections, and the model behind them.',
+      'Football results, tables and model predictions, international football since 1872, Fantasy Premier League projections, club finances, the NFL and tennis.',
   },
   {
     path: '/football',

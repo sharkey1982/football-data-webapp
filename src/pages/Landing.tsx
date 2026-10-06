@@ -44,9 +44,9 @@ function ThemeButton({ to, title, description }: { to: string; title: string; de
   return (
     <Link
       to={to}
-      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-8 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
+      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-6 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
     >
-      <h2 className="font-display uppercase tracking-wide text-lg sm:text-3xl text-chalk-100 group-hover:text-amber-400 transition-colors">
+      <h2 className="font-display uppercase tracking-wide text-xl sm:text-2xl text-chalk-100 group-hover:text-amber-400 transition-colors">
         {title}
       </h2>
       <p className="text-chalk-300 mt-2 transition-colors">{description}</p>
@@ -54,12 +54,25 @@ function ThemeButton({ to, title, description }: { to: string; title: string; de
   );
 }
 
+// One card per section of the site, in the top menu's order, plus club
+// finances (in the Club menu, but its own destination). Until 6 Oct 2026 the
+// page offered only Football and FPL, so NFL, tennis, international football
+// and finances had no link from the home page.
+const SECTIONS = [
+  { to: '/football', title: 'Club football', description: 'Results, tables and match predictions for English and European leagues, with history back to 1992/93.' },
+  { to: '/international', title: 'International', description: 'Every men\u2019s international since 1872: each nation\u2019s record, every World Cup and Euro, and the current squads.' },
+  { to: '/fpl/start', title: 'Fantasy Premier League', description: 'Player projections, predicted line-ups, injuries and squad tools.' },
+  { to: '/finance', title: 'Club finances', description: 'Revenue, wages, profit and debt from English clubs\u2019 filed accounts.' },
+  { to: '/nfl', title: 'NFL', description: 'Schedule, standings and team records since 2002, game predictions and UK TV times.' },
+  { to: '/tennis', title: 'Tennis', description: 'ATP and WTA results, players, tournaments, rivalries and win chances.' },
+] as const;
+
 export default function Landing() {
   useDocumentHead({
-    title: 'Football results, predictions & Fantasy Premier League tools',
+    title: 'Football, FPL, NFL and tennis: results and predictions',
     raw: true,
     description:
-      'Browse football results and fixtures, see Dixon-Coles model predictions for upcoming matches, and build your Fantasy Premier League squad.',
+      'Football results, tables and model predictions, international football since 1872, Fantasy Premier League projections, club finances, the NFL and tennis.',
     path: '/',
   });
 
@@ -75,9 +88,10 @@ export default function Landing() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <ThemeButton to="/football" title="Football" description="Results, tables and match predictions." />
-        <ThemeButton to="/fpl/start" title="Fantasy Premier League" description="Projections and an optimal-squad picker." />
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" data-testid="home-sections">
+        {SECTIONS.map((s) => (
+          <ThemeButton key={s.to} to={s.to} title={s.title} description={s.description} />
+        ))}
       </div>
 
       {/* The trivia game moved to the Football and Fantasy hubs, which
