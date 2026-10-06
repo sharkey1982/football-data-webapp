@@ -21,13 +21,13 @@ export const BEAT_THE_SHARK = {
   football: {
     href: '/play/beat-the-shark/',
     title: 'Beat the Shark',
-    blurb: 'The model has already predicted where your club finishes. Take charge for a season and prove it wrong.',
+    blurb: 'Pick the team, manage the money, and win the league.',
     kicker: 'Play · five minutes',
   },
   nfl: {
     href: '/play/beat-the-shark/nfl/',
     title: 'Beat the Shark: NFL',
-    blurb: 'The model has predicted how many games your team wins. Call the game plans and the fourth downs, and prove it wrong.',
+    blurb: 'Call the game plans and the fourth downs, keep the money out of the red, and win the division.',
     kicker: 'Play · ten minutes',
   },
 } satisfies Record<string, BeatTheSharkGame>;

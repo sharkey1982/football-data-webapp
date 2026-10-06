@@ -352,23 +352,19 @@ function sharkForecast(runs=1500){
     return{wins,pos,title,perGame:perGame.map(x=>x/runs)};
   },SEED+"|shark");
 }
-/* The Shark's par so far: the wins it expected from the games played. */
-function sharkPar(){return S.shark.perGame.slice(0,S.wk).reduce((a,b)=>a+b,0)}
 function myWins(){return winsOf(S.table[CLUB])}
-function score(){
-  const done=S.wk>=S.games;
-  const title=done&&posOf(CLUB)===1;
-  return sharkScore(myWins(),done?S.shark.wins[CLUB]:sharkPar(),PER_WIN,title);
-}
+/* The Shark's predicted finish for Your Team: its most likely place. */
+function sharkPlace(){return Math.round(S.shark.pos[CLUB])}
 
 /* ---- the season's state ------------------------------------------------------------ */
-function newSeason(level,role,seed){
+function newSeason(level,seed){
   SEED=seed||("NFL-"+Math.random().toString(36).slice(2,7).toUpperCase());
   R.s=hashSeed(SEED);
   const L=LEVELS[level];
-  S={level,role,games:L.games,neutral:L.neutral,wk:0,full:0,plan:"balanced",
-    off:0,def:0,morale:0,next:{},cap:12,roster:null,table:null,fixtures:null,shark:null,
-    swing:{},log:[],calls:{fourth:[],half:[],plan:[]},alive:true,traded:false};
+  S={level,games:L.games,neutral:L.neutral,wk:0,full:0,plan:"balanced",
+    off:0,def:0,morale:0,next:{},cash:MONEY.start,payroll:MONEY.payroll,gateBonus:0,
+    roster:null,table:null,fixtures:null,shark:null,
+    swing:{},log:[],calls:{fourth:[],half:[],plan:[]},alive:true,fired:false,trades:[]};
   pickRivals();
   S.roster=makeRoster();
   buildFixtures();
@@ -378,15 +374,13 @@ function newSeason(level,role,seed){
   CTX={swing:S.swing,uplift:0};
   return S;
 }
-function unlocked(f){return S.role==="coach"&&S.full>=LEVELS[S.level].unlock[f]}
+function unlocked(f){return S.full>=LEVELS[S.level].unlock[f]}
 
 /* ---- your game -------------------------------------------------------------------- */
 function startMyGame(){
   const[h,a]=myFixture(S.wk),home=h===CLUB,opp=home?a:h;
   const o={neutral:S.neutral,fourths:unlocked("fourth")?FOURTHS_PER_GAME[S.level]:0,twopt:unlocked("twopt")};
   if(home)o.hPlan=S.plan;else o.aPlan=S.plan;
-  /* The GM's coach is competent: he picks the plan himself. */
-  if(S.role==="gm"){const p=bestPlan(opp,home);if(home)o.hPlan=p;else o.aPlan=p;S.plan=p}
   return newGame(h,a,o);
 }
 /* The rest of the week's games, simulated. */
@@ -429,7 +423,8 @@ function reportWins(p,opp,home){
 }
 
 /* ---- events: effects ---------------------------------------------------------------- */
-/* fx keys: off, def (season, rating points), morale, cap ($m), next {off,def,passPen}
+/* fx keys: off, def (season, rating points), morale, cash ($m now), payroll ($m a game),
+   gate ($m a game), next {off,def,passPen}
    (next game only), heal (everyone out returns), injure (a position, games),
    upgrade {pos, by}, swap {pos, nm, r} (a new player in that position). */
 function apply(fx){
@@ -438,7 +433,9 @@ function apply(fx){
   if(fx.off){S.off+=fx.off;tags.push([fx.off>0,`Offence ${fx.off>0?"+":""}${fx.off}`])}
   if(fx.def){S.def+=fx.def;tags.push([fx.def>0,`Defence ${fx.def>0?"+":""}${fx.def}`])}
   if(fx.morale){const before=S.morale;S.morale=clamp(S.morale+fx.morale,-10,10);const d=S.morale-before;if(d)tags.push([d>0,`Locker room ${d>0?"+":""}${d}`])}
-  if(fx.cap){S.cap+=fx.cap;tags.push([fx.cap>0,`Cap space ${fx.cap>0?"+":"−"}$${Math.abs(fx.cap)}m`])}
+  if(fx.cash){S.cash+=fx.cash;tags.push([fx.cash>0,`Cash ${money(fx.cash,true)}`])}
+  if(fx.payroll){S.payroll+=fx.payroll;tags.push([fx.payroll<0,`Payroll ${money(fx.payroll,true)} a game`])}
+  if(fx.gate){S.gateBonus+=fx.gate;tags.push([fx.gate>0,`Gate ${money(fx.gate,true)} a game`])}
   if(fx.next){for(const k in fx.next)S.next[k]=(S.next[k]||0)+fx.next[k];
     const v=(fx.next.off||0)+(fx.next.def||0)-(fx.next.passPen||0);if(v)tags.push([v>0,`Next game ${v>0?"+":""}${v}`])}
   if(fx.heal){const back=S.roster.filter(p=>p.out);back.forEach(p=>p.out=0);if(back.length)tags.push([true,`${back.length} back from injury`])}
@@ -454,4 +451,28 @@ function evalChoice(c){
   try{apply(c.fx);if(c.after)c.after();return myStrength()}
   finally{const o=JSON.parse(snap);S=o.S;R.s=o.R}
 }
-function affordable(c){return!(c.fx&&c.fx.cap<0&&S.cap+c.fx.cap<0)}
+/* ---- money ($m) ------------------------------------------------------------------------ */
+function money(v,signed){const a=Math.abs(Math.round(v*10)/10);return(v<0?"\u2212":signed?"+":"")+"$"+a+"m"}
+/* Before each game: the payroll and one chance card. Once per game. */
+function payWeek(){
+  S.bills=S.bills||{};if(S.bills[S.wk])return S.bills[S.wk];
+  const before=S.cash,card=BILL_CARDS[Math.floor(rng()*BILL_CARDS.length)];
+  S.cash+=card.v-S.payroll;
+  return S.bills[S.wk]={before,payroll:S.payroll,card,after:S.cash};
+}
+/* After each game: the gate, on the result. */
+function gateReceipts(res){const g=MONEY.gate[res]+S.gateBonus;S.cash+=g;return g}
+/* After the gate: deep in the red, you are fired; in the red, a trade is forced. */
+function cashCheck(){if(!S.alive)return null;if(S.cash<MONEY.firedBelow){S.alive=false;S.fired=true;return"fired"}return S.cash<0?"trade":null}
+const OFFENCE=["QB","RB","WR1","WR2","TE"],DEFENCE=["EDGE","DT","LB","CB1","CB2","S"];
+function bestOn(list){return list.map(player).filter(p=>p&&!p.traded).sort((a,b)=>b.r-a.r)[0]}
+function tradeFee(p){return Math.round((p.r-35)*MONEY.tradeFee)}
+/* The forced trade: your best player on that side of the ball goes for a
+   fee; a backup takes his place and the payroll falls. */
+function forcedTrade(side){
+  const p=bestOn(side==="off"?OFFENCE:DEFENCE),fee=tradeFee(p),nm=p.nm,r=p.r;
+  S.cash+=fee;S.payroll=Math.max(6,S.payroll-2);
+  p.traded=true;p.nm="A backup "+p.label.toLowerCase();p.r=Math.max(REPLACEMENT,r-16);p.out=0;p.knock=false;
+  S.trades.push({nm,pos:p.pos,r,fee});
+  return{nm,pos:p.pos,r,fee};
+}

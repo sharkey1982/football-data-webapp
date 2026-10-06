@@ -5,9 +5,9 @@
 
    The NFL game's checks, in the football game's pattern:
      0. LOADING     the scripts in index.html load in order and the start screen draws
-     1. INTEGRITY   every event, in both roles, renders with no undefined/NaN/[object
+     1. INTEGRITY   every event renders with no undefined/NaN/[object, in the black and in the red
      2. ENGINE      the match engine against FixtureShark's real NFL numbers
-     3. STABILITY   whole seasons complete under every policy, level and role
+     3. STABILITY   whole seasons complete under every policy and level
      4. BALANCE     the design targets hold
      5. SCREENS     whole seasons played through the real screens, button by button
 
@@ -53,43 +53,57 @@ function __policyPick(opts,policy,val){
   for(const o of opts.slice(1)){const v=val(o);if(policy==="worst"?v<bv:v>bv){bv=v;best=o}}
   return best;
 };
-function __season(level,role,policy,seed){
-  beginSeason(level,role,seed);
-  const pickSpec=spec=>{const ok=spec.choices.filter(affordable);
-    const c=policy==="none"?(ok.find(x=>x.def)||ok[0]):__policyPick(ok,policy,x=>evalChoice(x));
+/* A competent coach keeps a cash buffer: an option that leaves less than
+   this in hand is taken only when every option does (as the football
+   game's simulator does). */
+const __BUFFER=6;
+function __season(level,policy,seed){
+  beginSeason(level,seed);
+  /* ...and looks ahead: the cash the season would end on at an average
+     gate if nothing else changed must stay above zero. */
+  const val=x=>{const f=x.fx||{},v=evalChoice(x),after=S.cash+(f.cash||0),left=S.games-S.wk;
+    const end=after+left*(12.7+S.gateBonus+(f.gate||0)-S.payroll-(f.payroll||0));
+    return v-(after<__BUFFER?1000+(__BUFFER-after):0)-(end<0?500-end:0)};
+  const pickSpec=spec=>{const ok=spec.choices;
+    const c=policy==="none"?(ok.find(x=>x.def)||ok[0]):__policyPick(ok,policy,val);
     apply(c.fx);if(c.after)c.after();return c};
-  const texts=[];
-  for(cursor=0;cursor<PLAN.length;cursor++){
+  let trades=0;
+  for(cursor=0;cursor<PLAN.length&&S.alive;cursor++){
     const b=PLAN[cursor];
     if(b==="end")break;
-    if(b==="presser")texts.push(pickSpec(presserSpec()));
-    else if(b==="event")texts.push(pickSpec(drawEvent(COACH_EVENTS)));
-    else if(b==="gm")texts.push(pickSpec(drawEvent(GM_EVENTS)));
-    else if(b==="deadline")texts.push(pickSpec(deadlineSpec()));
+    if(b==="presser")pickSpec(presserSpec());
+    else if(b==="event")pickSpec(drawEvent(COACH_EVENTS));
+    else if(b==="bid")pickSpec(bidSpec());
+    else if(b==="sponsor")pickSpec(sponsorSpec());
+    else if(b==="medical")pickSpec(medicalSpec());
+    else if(b==="freeagent")pickSpec(freeAgentSpec());
+    else if(b==="deadline")pickSpec(deadlineSpec());
     else if(b==="game"){
+      payWeek();
       const opp=oppOf(S.wk),[h]=myFixture(S.wk),home=h===CLUB;
       {const p=injuryReport();if(p&&!unlocked("report"))p.benched=true}
-      if(role==="coach"){
-        if(unlocked("report")){const p=injuryReport();if(p){
-          const w=reportWins(p,opp,home),opts=[{id:"play",v:w.play},{id:"rest",v:w.rest}];
-          const c=policy==="none"?opts[0]:__policyPick(opts,policy,o=>o.v);
-          if(c.id==="play"){p.hurt=true;p.playedHurt=true}else p.benched=true}}
-        S.plan=policy==="none"||!unlocked("plan")?"balanced":policy==="random"?pick(Object.keys(PLANS))
-          :__policyPick(Object.keys(PLANS),policy,k=>preview(opp,home,k,Math.round(MC*.8)).win);
-      }
+      if(unlocked("report")){const p=injuryReport();if(p){
+        const w=reportWins(p,opp,home),opts=[{id:"play",v:w.play},{id:"rest",v:w.rest}];
+        const c=policy==="none"?opts[0]:__policyPick(opts,policy,o=>o.v);
+        if(c.id==="play"){p.hurt=true;p.playedHurt=true}else p.benched=true}}
+      S.plan=policy==="none"||!unlocked("plan")?"balanced":policy==="random"?pick(Object.keys(PLANS))
+        :__policyPick(Object.keys(PLANS),policy,k=>preview(opp,home,k,Math.round(MC*.8)).win);
       const g=startMyGame();
-      const coach=role==="coach";
-      const pol=coach?{
+      playOut(g,{
         half:g=>!unlocked("half")||policy==="none"?"steady":__policyPick(halfWins(g),policy,o=>o.win).id,
         fourth:g=>policy==="none"?traditionalFourth(g):__policyPick(fourthWins(g),policy,o=>o.win).id,
-        two:g=>policy==="none"?"xp":__policyPick(twoWins(g),policy,o=>o.win).id
-      }:{half:g=>bestHalf(g),fourth:g=>fourthWins(g).reduce((a,b)=>b.win>a.win?b:a).id,two:g=>"xp"};
-      playOut(g,pol);
-      finishMyGame(g);endWeek(playOthers(S.wk));
+        two:g=>policy==="none"?"xp":__policyPick(twoWins(g),policy,o=>o.win).id});
+      const m=margin(g,g.mine);
+      finishMyGame(g);gateReceipts(m>0?"w":m<0?"l":"t");endWeek(playOthers(S.wk));
+      const cash=cashCheck();
+      if(cash==="trade"){trades++;
+        const side=policy==="none"?"def":__policyPick(["off","def"],policy,sd=>{const snap=JSON.stringify(S);forcedTrade(sd);const v=myStrength();S=JSON.parse(snap);return v});
+        forcedTrade(side)}
     }
   }
-  const won=myWins(),pos=posOf(CLUB),exp=S.shark.wins[CLUB];
-  return{won,exp,pos,score:score(),fav:standings(S.table)[0].n===TEAMS[0].n,texts:texts.length};
+  if(!S.alive)while(S.wk<S.games){const[h,a]=myFixture(S.wk),gg=playOut(newGame(h,a,{neutral:S.neutral}));record(S.table,h,a,gg.hs,gg.as);endWeek(playOthers(S.wk))}
+  const pos=posOf(CLUB);
+  return{pos,pred:sharkPlace(),predAvg:S.shark.pos[CLUB],title:pos===1&&!S.fired,fired:S.fired,trades,cash:S.cash,fav:standings(S.table)[0].n===TEAMS[0].n};
 };
 `;
 /* ---- the headless season runner -------------------------------------------
@@ -105,25 +119,25 @@ const SIM=(()=>{
   const src=W.srcs.map(f=>fs.readFileSync(path.join(DIR,f),'utf8')).join('\n;\n');
   return(0,eval)(src+`;\n${RUNNER_JS};\n({season:__season,run:c=>eval(c)})`);
 })();
-const season=(l,r,p,s)=>SIM.season(l,r,p,s);
+const season=(l,p,s)=>SIM.season(l,p,s);
 
 /* ---- 1. integrity --------------------------------------------------------- */
 if(on(1)){
   const bad=[];
-  for(let k=0;k<40;k++)for(const role of["coach","gm"]){
-    const out=SIM.run(`(()=>{beginSeason("intermediate","${role}","INT${k}");const all=[];
-      for(const f of COACH_EVENTS.concat(GM_EVENTS))all.push(f());all.push(presserSpec(),deadlineSpec());
+  for(let k=0;k<80;k++){const role=k;
+    const out=SIM.run(`(()=>{beginSeason("intermediate","INT${k}");S.cash=${k%3===0?-5:30};const all=[];
+      for(const f of COACH_EVENTS.concat(MONEY_EVENTS))all.push(f());all.push(presserSpec(),deadlineSpec());
       return JSON.stringify(all.map(s=>[s.title,s.lede,s.body||"",...s.choices.flatMap(c=>[c.t,c.d,c.out])]))})()`);
     if(/undefined|NaN|\[object/.test(out))bad.push(`INT${k} ${role}`);
   }
-  check("every event renders cleanly in both roles (80 seasons)",!bad.length,bad.slice(0,3).join(", "));
-  const noDef=SIM.run(`COACH_EVENTS.concat(GM_EVENTS).map(f=>f()).concat([presserSpec(),deadlineSpec()]).filter(s=>!s.choices.some(c=>c.def)).map(s=>s.sig).join(",")`);
+  check("every event renders cleanly (80 seasons, in the black and in the red)",!bad.length,bad.slice(0,3).join(", "));
+  const noDef=SIM.run(`COACH_EVENTS.concat(MONEY_EVENTS).map(f=>f()).concat([presserSpec(),deadlineSpec()]).filter(s=>!s.choices.some(c=>c.def)).map(s=>s.sig).join(",")`);
   check("every event has a do-nothing choice (def)",!noDef,noDef);
 }
 
 /* ---- 2. the engine against the real numbers ----------------------------------- */
 if(on(2)){
-  const r=JSON.parse(SIM.run(`(()=>{beginSeason("intermediate","coach","ENGINE");const T=TEAMS.map(t=>t.n);
+  const r=JSON.parse(SIM.run(`(()=>{beginSeason("intermediate","ENGINE");const T=TEAMS.map(t=>t.n);
     let pts=0,n=0,sq=0,sum=0,home=0;const m={};
     for(let k=0;k<20000;k++){const g=playOut(newGame(T[1+k%4],T[1+(k+2)%4],{neutral:true}));const d=g.hs-g.as;pts+=g.hs+g.as;n+=2;
       m[Math.abs(d)]=(m[Math.abs(d)]||0)+1}
@@ -140,77 +154,84 @@ if(on(2)){
 /* ---- 3. stability ---------------------------------------------------------------- */
 if(on(3)){
   let crashed=0,done=0,err="";
-  for(const level of["beginner","intermediate","guru"])for(const role of["coach","gm"])for(const policy of["none","best","worst","random"])
-    for(let k=0;k<4;k++){try{season(level,role,policy,`ST-${level}-${role}-${policy}-${k}`);done++}catch(e){crashed++;err=e.stack.split("\n").slice(0,2).join(" ")}}
+  for(const level of["beginner","intermediate","guru"])for(const policy of["none","best","worst","random"])
+    for(let k=0;k<8;k++){try{season(level,policy,`ST-${level}-${policy}-${k}`);done++}catch(e){crashed++;err=e.stack.split("\n").slice(0,2).join(" ")}}
   check(`${done+crashed} seasons complete without a crash`,!crashed,err);
 }
 
-/* ---- 4. balance ---------------------------------------------------------------------- */
-function runs(level,role,policy,n){
-  const out=[];for(let k=0;k<n;k++)out.push(season(level,role,policy,`B-${level}-${role}-${policy}-${k}`));
+/* ---- 4. balance ---------------------------------------------------------------------- *
+   One aim, as in the football game: win the division. Money is not scored,
+   but going into the red costs players and, deep in it, the job. */
+function runs(level,policy,n){
+  const out=[];for(let k=0;k<n;k++)out.push(season(level,policy,`B-${level}-${policy}-${k}`));
   const mean=f=>out.reduce((a,x)=>a+f(x),0)/out.length;
-  return{beat:mean(x=>x.won>x.exp),title:mean(x=>x.pos===1),score:mean(x=>x.score),fav:mean(x=>x.fav),wins:mean(x=>x.won),exp:mean(x=>x.exp)};
+  return{title:mean(x=>x.title),pos:mean(x=>x.pos),pred:mean(x=>x.predAvg),fav:mean(x=>x.fav),
+    fired:mean(x=>x.fired),traded:mean(x=>x.trades>0),above:mean(x=>x.pos<x.pred)};
 }
 if(on(4)){
   const t0=Date.now();
-  const best=runs("intermediate","coach","best",N),none=runs("intermediate","coach","none",N),
-    worst=runs("intermediate","coach","worst",Math.round(N/2)),random=runs("intermediate","coach","random",Math.round(N/2));
-  const show=o=>`beats Shark ${(o.beat*100).toFixed(0)}% · title ${(o.title*100).toFixed(1)}% · score ${o.score.toFixed(1)} · wins ${o.wins.toFixed(2)} v ${o.exp.toFixed(2)}`;
+  const best=runs("intermediate","best",N),none=runs("intermediate","none",N),
+    worst=runs("intermediate","worst",Math.round(N/2)),random=runs("intermediate","random",Math.round(N/2));
+  const show=o=>`title ${(o.title*100).toFixed(1)}% · avg finish ${o.pos.toFixed(2)} (Shark ${o.pred.toFixed(2)}) · above the prediction ${(o.above*100).toFixed(0)}% · forced trade ${(o.traded*100).toFixed(0)}% · fired ${(o.fired*100).toFixed(1)}%`;
   console.log(`      best    ${show(best)}`);console.log(`      none    ${show(none)}`);
   console.log(`      random  ${show(random)}`);console.log(`      worst   ${show(worst)}`);
   const fav=(best.fav+none.fav)/2;
   check("favourite (the Stingrays) wins the division 55–80%",fav>=.55&&fav<=.80,(fav*100).toFixed(0)+"%");
-  check("a well-played coach beats the Shark about 6 in 10 (48–72%)",best.beat>=.48&&best.beat<=.72,(best.beat*100).toFixed(0)+"%");
-  check("a well-played coach wins the division 7–20%",best.title>=.07&&best.title<=.20,(best.title*100).toFixed(1)+"%");
-  check("deciding nothing beats the Shark less than 1 in 3",none.beat<.33,(none.beat*100).toFixed(0)+"%");
-  check("good calls beat no calls by 15+ score points",best.score-none.score>=15,(best.score-none.score).toFixed(1));
-  check("the worst calls score lowest",worst.score<none.score&&worst.score<random.score,`${worst.score.toFixed(1)}`);
-  const gm=runs("intermediate","gm","best",Math.round(N/2)),gmNone=runs("intermediate","gm","none",Math.round(N/2));
-  console.log(`      gm best ${show(gm)}`);console.log(`      gm none ${show(gmNone)}`);
-  check("the GM's decisions matter (best beats none)",gm.score>gmNone.score,`${gm.score.toFixed(1)} v ${gmNone.score.toFixed(1)}`);
-  check("the head coach is the more influential role",best.score-none.score>gm.score-gmNone.score,
-    `${(best.score-none.score).toFixed(1)} v ${(gm.score-gmNone.score).toFixed(1)}`);
-  const beg=runs("beginner","coach","best",Math.round(N/2));
-  console.log(`      beginner best ${show(beg)}`);
-  check("Beginner: a well-played coach beats the Shark 45–75%",beg.beat>=.45&&beg.beat<=.75,(beg.beat*100).toFixed(0)+"%");
+  check("a well-played coach wins the division 7–20% (aim 10–15%)",best.title>=.07&&best.title<=.20,(best.title*100).toFixed(1)+"%");
+  check("deciding nothing rarely wins it (under half the well-played rate)",none.title<best.title/2,(none.title*100).toFixed(1)+"%");
+  check("good calls finish half a place higher than no calls, or more",none.pos-best.pos>=.5,(none.pos-best.pos).toFixed(2));
+  check("the worst calls finish lowest",worst.pos>none.pos&&worst.pos>random.pos,worst.pos.toFixed(2));
+  check("a well-played coach is almost never fired (under 2%)",best.fired<.02,(best.fired*100).toFixed(1)+"%");
+  check("careless money costs players: random play forces a trade in 10%+ of seasons",random.traded>=.10,(random.traded*100).toFixed(0)+"%");
+  const beg=runs("beginner","best",Math.round(N/2)),begNone=runs("beginner","none",Math.round(N/2));
+  console.log(`      beginner best ${show(beg)}`);console.log(`      beginner none ${show(begNone)}`);
+  check("Beginner: good calls finish higher than no calls",begNone.pos>beg.pos,`${beg.pos.toFixed(2)} v ${begNone.pos.toFixed(2)}`);
   console.log(`      (${((Date.now()-t0)/1000).toFixed(0)}s)`);
 }
 
 /* ---- 5. screens: whole seasons through the real UI -------------------------------- */
+function playScreens(level,setup){
+  const w=makeWorld();
+  w.run(`pickLevel=${JSON.stringify(level)}`);
+  w.els.playThis.onclick();w.drain();
+  if(setup)w.run(setup);
+  let seen=new Set(),bad="";
+  const clickables=["go","ko","toT","same"];
+  for(let steps=0;steps<500;steps++){
+    const h=w.els.app.innerHTML;
+    if(/undefined|NaN|\[object/.test(h)&&!bad)bad=h.match(/.{0,60}(undefined|NaN|\[object).{0,30}/)[0];
+    if(/class="verdict/.test(h)){seen.add("verdict");if(/>FIRED</.test(h))seen.add("fired");break}
+    const hb=w.els.htBox?w.els.htBox.innerHTML:"";
+    if(/>FOURTH DOWN</.test(hb))seen.add("fourth");if(/>HALF TIME</.test(hb))seen.add("half");if(/THE CONVERSION/.test(hb))seen.add("twopt");
+    if(/THE INJURY REPORT/.test(h))seen.add("report");if(/YOUR GAME PLAN/.test(h))seen.add("plan");
+    if(/BEFORE THE FINAL GAME/.test(h))seen.add("deadline");if(/PAYING THE BILLS/.test(h))seen.add("bills");
+    if(/Gate receipts/.test(h))seen.add("gate");if(/A player must be traded/.test(h))seen.add("trade");
+    const dc=w.els.dc&&w.els.dc.children.length?w.els.dc:null,ch=w.els.ch&&w.els.ch.children.length?w.els.ch:null;
+    if(dc&&/>FOURTH DOWN<|>HALF TIME<|THE CONVERSION/.test(hb)){const b=dc.children[0];w.els.dc.children=[];b.onclick();w.drain();continue}
+    if(ch&&/<div id="ch">/.test(w.els.app._h)){const b=ch.children[0];w.els.ch.children=[];b.onclick();w.drain();continue}
+    const id=clickables.find(k=>w.els[k]&&w.els[k].onclick);
+    if(!id){bad=bad||"stuck: "+h.replace(/<[^>]+>/g," ").slice(0,140);break}
+    const f=w.els[id].onclick;w.els[id].onclick=null;f();w.drain();
+  }
+  return{seen,bad,header:w.els.hTwo.innerHTML};
+}
 if(on(5)){
   const fails=[];
-  for(const level of["beginner","intermediate","guru"])for(const role of["coach","gm"]){
-    const w=makeWorld();
-    w.run(`pickLevel=${JSON.stringify(level)};pickRole=${JSON.stringify(role)}`);
-    w.els.playThis.onclick();w.drain();
-    let steps=0,seen=new Set(),bad="";
-    const clickables=["go","ko","toT","again"];
-    for(;steps<400;steps++){
-      const h=w.els.app.innerHTML;
-      if(/undefined|NaN|\[object/.test(h)&&!bad)bad=h.match(/.{0,60}(undefined|NaN|\[object).{0,30}/)[0];
-      if(/THE VERDICT/.test(h)){seen.add("verdict");break}
-      const hb=w.els.htBox?w.els.htBox.innerHTML:"";
-      if(/>FOURTH DOWN</.test(hb))seen.add("fourth");if(/>HALF TIME</.test(hb))seen.add("half");if(/THE CONVERSION/.test(hb))seen.add("twopt");
-      if(/THE INJURY REPORT/.test(h))seen.add("report");if(/YOUR GAME PLAN/.test(h))seen.add("plan");
-      if(/BEFORE THE FINAL GAME/.test(h))seen.add("deadline");
-      // a pending decision inside the game, or a card of choices
-      const dc=w.els.dc&&w.els.dc.children.length?w.els.dc:null,ch=w.els.ch&&w.els.ch.children.length?w.els.ch:null;
-      if(dc&&/>FOURTH DOWN<|>HALF TIME<|THE CONVERSION/.test(hb)){const b=dc.children[0];w.els.dc.children=[];b.onclick();w.drain();continue}
-      if(ch&&/<div id="ch">/.test(w.els.app._h)){const b=ch.children.find(x=>!x.disabled);w.els.ch.children=[];b.onclick();w.drain();continue}
-      const id=clickables.find(k=>w.els[k]&&w.els[k].onclick);
-      if(!id){bad=bad||"stuck: "+h.replace(/<[^>]+>/g," ").slice(0,140);break}
-      const f=w.els[id].onclick;w.els[id].onclick=null;f();w.drain();
-    }
-    if(!seen.has("verdict"))fails.push(`${level}/${role}: never reached the verdict (${bad})`);
-    else if(bad)fails.push(`${level}/${role}: ${bad}`);
-    if(role==="coach"&&!seen.has("plan"))fails.push(`${level}/coach: no game plan choice`);
-    if(role==="coach"&&!seen.has("half"))fails.push(`${level}/coach: no half-time call`);
-    if(role==="coach"&&!seen.has("fourth"))fails.push(`${level}/coach: no fourth-down call`);
-    if(role==="gm"&&(seen.has("fourth")||seen.has("half")||seen.has("plan")))fails.push(`${level}/gm: shown a coach's decision`);
-    if(!seen.has("deadline"))fails.push(`${level}/${role}: no trade deadline`);
-    console.log(`      ${level}/${role}: ${[...seen].join(", ")}`);
+  for(const level of["beginner","intermediate","guru"]){
+    const{seen,bad,header}=playScreens(level);
+    if(!seen.has("verdict"))fails.push(`${level}: never reached the verdict (${bad})`);else if(bad)fails.push(`${level}: ${bad}`);
+    for(const k of["plan","half","fourth","deadline","bills","gate"])if(!seen.has(k))fails.push(`${level}: never saw ${k}`);
+    if(!/>Cash</.test(header)||/Shark|Score/.test(header))fails.push(`${level}: header should show cash, not a score`);
+    console.log(`      ${level}: ${[...seen].join(", ")}`);
   }
-  check("every level and role plays to the verdict through the real screens",!fails.length,fails.slice(0,3).join(" | "));
+  // In the red after a game: the owner forces a trade, and you choose who goes.
+  const red=playScreens("beginner","S.cash=-12");
+  if(!red.seen.has("trade"))fails.push("in the red: no forced trade");
+  // Deep in the red: fired, and the season ends.
+  const deep=playScreens("beginner","S.cash=-40");
+  if(!deep.seen.has("fired"))fails.push("deep in the red: not fired");
+  console.log(`      in the red: ${[...red.seen].join(", ")}`);console.log(`      deep in the red: ${[...deep.seen].join(", ")}`);
+  check("every level plays to the verdict through the real screens, with bills, gate, forced trades and firing",!fails.length,fails.slice(0,4).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
