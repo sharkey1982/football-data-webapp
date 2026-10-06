@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { ThemeHub } from '../../components/ThemeHub';
+import { BEAT_THE_SHARK } from '../../components/GameCard';
 import { THEMES } from '../../lib/journey';
 import type { TriviaFact } from '../../lib/landingApi';
 import { getNflTrivia } from '../../lib/nflTrivia';
@@ -24,5 +25,5 @@ export default function NflHub() {
       .then(setTrivia)
       .catch(() => setTrivia([]));
   }, []);
-  return <ThemeHub theme={THEMES.nfl} trivia={trivia} />;
+  return <ThemeHub theme={THEMES.nfl} trivia={trivia} game={BEAT_THE_SHARK.nfl} />;
 }

@@ -17,8 +17,10 @@ import { Link } from 'react-router-dom';
 import { TriviaCarousel } from './TriviaCarousel';
 import type { TriviaFact } from '../lib/landingApi';
 import { stagePath, type JourneyTheme } from '../lib/journey';
+import { GameCard, type BeatTheSharkGame } from './GameCard';
 
-export function ThemeHub({ theme, trivia }: { theme: JourneyTheme; trivia: TriviaFact[] }) {
+/** game: the section's Beat the Shark game, shown under the two doors. */
+export function ThemeHub({ theme, trivia, game }: { theme: JourneyTheme; trivia: TriviaFact[]; game?: BeatTheSharkGame }) {
   return (
     <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-5 sm:p-10 space-y-6">
       <div>
@@ -45,6 +47,8 @@ export function ThemeHub({ theme, trivia }: { theme: JourneyTheme; trivia: Trivi
       </div>
 
       {trivia.length > 0 && <TriviaCarousel facts={trivia} />}
+
+      {game && <GameCard game={game} />}
     </div>
   );
 }
