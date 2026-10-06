@@ -34,6 +34,9 @@ const ALLOWED_WORKFLOWS: Record<string, { file: string; inputKeys: string[] }> =
   'simulate-fixture-bonus': { file: 'simulate-fixture-bonus.yml', inputKeys: ['from_matchweek', 'to_matchweek'] },
   'simulate-final-table': { file: 'simulate-final-table.yml', inputKeys: ['season_id'] },
   'refresh-fpl-projections': { file: 'refresh-fpl-projections.yml', inputKeys: ['from_matchweek', 'to_matchweek'] },
+  // The full scheduled pipeline (10 gameweeks, no site rebuild): Minutes
+  // Outlook's "Re-run projections now" after an admin first-choice change.
+  'fpl-projections-pipeline': { file: 'fpl-projections-pipeline.yml', inputKeys: [] },
 };
 
 const REPO_OWNER = 'sharkey1982';

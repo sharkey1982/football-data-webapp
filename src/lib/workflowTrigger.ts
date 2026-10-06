@@ -19,7 +19,7 @@
 
 import { supabase } from './supabase';
 
-export type TriggerableWorkflow = 'simulate-fixture-bonus' | 'simulate-final-table' | 'refresh-fpl-projections';
+export type TriggerableWorkflow = 'simulate-fixture-bonus' | 'simulate-final-table' | 'refresh-fpl-projections' | 'fpl-projections-pipeline';
 
 export async function triggerWorkflow(workflow: TriggerableWorkflow, inputs?: Record<string, string>): Promise<void> {
   const { data } = await supabase.auth.getSession();
