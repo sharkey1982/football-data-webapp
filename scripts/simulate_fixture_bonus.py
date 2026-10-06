@@ -153,7 +153,12 @@ def read_bps(supabase, fixture_id: int) -> list[dict]:
             if db_url:
                 if _conn[0] is None or _conn[0].closed:
                     import psycopg
-                    _conn[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30)
+                    _conn[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30,
+                        # A connection the pooler dropped mid-query otherwise hangs the
+                        # client forever (6 Oct 2026: two pipeline runs stuck with no
+                        # query running): keepalives turn it into an error within ~1 minute.
+                        keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
+                        tcp_user_timeout=60000)
                     _conn[0].execute("set statement_timeout = '120s'")
                 cur = _conn[0].execute(f"select {BPS_COLUMNS} from public.fpl_fixture_bps_projection_v1 where fixture_id = %s", (fixture_id,))
                 names = [c.name for c in cur.description]

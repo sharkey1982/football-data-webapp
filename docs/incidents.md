@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-06 · FPL projections pipeline: runs hung with nothing running
+- **Reported:** found while checking the pecking-order change (#240).
+- **Impact:** three pipeline runs on 6 Oct didn't finish: one failed in the bonus simulation on a single API read (non-JSON gateway error, twice), and two hung in the projection step for 25+ minutes with no query running in the database. Projections from the first pass were written, so the site kept current numbers, but bonus pass 2 and the final-table simulation didn't run.
+- **Cause:** the database was under heavy load that morning (API 500/520/521s and statement timeouts across unrelated pages from 07:35 UTC). The bonus simulation read through the API (8-second limit, no retry). The direct connections had no client-side timeout, so a connection the pooler dropped mid-query left the script waiting forever.
+- **Fix:** the bonus simulation reads over the direct connection with retries (#244). Direct connections use TCP keepalives and a 60-second TCP user timeout, so a dropped connection becomes an error that the existing retries handle. The projection script reconnects after the pecking-order write, and each long pipeline step has its own time limit (30/20/30 minutes).
+- **Prevention:** a hang now fails within the step limit and shows in pipeline_runs (the next run closes it). *Lesson: every network call needs a timeout on the client side, not only a statement limit on the server.*
+
+---
+
 ## 2026-10-06 · FPL start chance: the pecking order was never used
 - **Reported:** Chris -- with Saliba back, Konsa and Mosquera kept their minutes: "The line up pecking order is supposed to deal with this."
 - **Impact:** a returning first choice took no starts from the players below him. Saliba's start chance rose as he came back but Konsa and Mosquera stayed where they were, so Arsenal's centre-backs added up to well over two starters in later gameweeks; the same at every club for every returner. Minutes and expected points for backups were too high, and for first choices with modest start records (e.g. a manually ranked first-choice right-back) too low.

@@ -108,6 +108,7 @@ jobs:
         run: pip install -q pytest && python -m pytest -q scripts/test_fpl_depth_chart.py
 
       - name: Refresh FPL projections (pass 1 -- fallback bonus estimate)
+        timeout-minutes: 30
         run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -116,6 +117,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Simulate fixture bonus
+        timeout-minutes: 20
         run: python scripts/simulate_fixture_bonus.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -124,6 +126,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Refresh FPL projections (pass 2 -- picks up real Monte Carlo bonus)
+        timeout-minutes: 30
         run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ steps.range.outputs.from_matchweek }}" --to-matchweek "${{ steps.range.outputs.to_matchweek }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

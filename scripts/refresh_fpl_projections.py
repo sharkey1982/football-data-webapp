@@ -104,7 +104,12 @@ def main():
     def db():
         if conn_box[0] is None or conn_box[0].closed:
             import psycopg  # only needed on the direct path
-            conn_box[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30)
+            conn_box[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30,
+                    # A connection the pooler dropped mid-query otherwise hangs the
+                    # client forever (6 Oct 2026: two pipeline runs stuck with no
+                    # query running): keepalives turn it into an error within ~1 minute.
+                    keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
+                    tcp_user_timeout=60000)
             conn_box[0].execute("set statement_timeout = '120s'")
         return conn_box[0]
 
@@ -155,6 +160,10 @@ def main():
         else:
             n = supabase.rpc("fpl_replace_depth_start", {"p_rows": depth_rows}).execute().data
         print(f"::notice::Pecking-order start chances refreshed: {n} rows from {len(inputs)} inputs.")
+        # Fresh connection for the fixture loop after the large write.
+        if db_url and conn_box[0] is not None:
+            conn_box[0].close()
+            conn_box[0] = None
     except Exception as e:
         try:
             if conn_box[0] is not None:
