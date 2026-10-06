@@ -1,17 +1,19 @@
 // ============================================================================
 // src/pages/Landing.tsx
 //
-// New homepage (replaces the old default of going straight into the
-// Fixtures table, which is still at /fixtures unchanged). Third design
-// pass, after direct feedback that the second pass read as too flat/
-// static for a first impression. Leans harder into the app's own
-// teleprinter/scoreboard identity rather than introducing a new one: a
-// dark, glowing "terminal screen" panel -- amber-on-black, phosphor glow,
-// bigger and bolder than anything in the lighter, functional pages
-// behind it. That contrast is deliberate: dramatic front door, calm
-// utility rooms once you're through it.
+// The home page: a dark, glowing "terminal screen" panel (amber on pitch,
+// phosphor glow) as the front door to the lighter pages behind it.
+//
+// 6 Oct 2026 (Chris): one tile per top-menu section, laid out like phone
+// app buttons -- an icon, the name and a few words -- instead of cards with
+// a paragraph each, which ran to two screens on a phone. The one sentence
+// under the headline says what the site covers, so the tiles don't have to.
+// Club finances (The Boardroom) live under Club, so they are named in that
+// sentence rather than given a tile. Beat the Shark is the sixth tile, in
+// amber, so the grid is 2 x 3 on a phone and 3 x 2 on desktop.
 // ============================================================================
 
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
@@ -23,49 +25,94 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
    itself, but linking to the right address saves a redirect). */
 const GAME_URL = '/play/beat-the-shark/';
 
-function GameCard() {
+// Line icons, drawn for this page (24-unit grid, stroke = currentColor).
+const ICONS = {
+  football: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5l3.6 2.6-1.4 4.2H9.8L8.4 10.1z" />
+      <path d="M12 7.5V3M15.6 10.1l4.2-1.4M14.2 14.3l2.7 3.6M9.8 14.3l-2.7 3.6M8.4 10.1L4.2 8.7" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
+    </>
+  ),
+  shirt: <path d="M9 3.5L4 6l-1.5 4.5L6 12v8.5h12V12l3.5-1.5L20 6l-5-2.5c-.4 1.5-1.6 2.5-3 2.5s-2.6-1-3-2.5z" />,
+  gridiron: (
+    <>
+      <path d="M4.6 19.4c-1.6-1.6-1.2-6.3 2.6-10.2s8.6-4.2 10.2-2.6 1.2 6.3-2.6 10.2-8.6 4.2-10.2 2.6z" />
+      <path d="M9.5 14.5l5-5M10.5 11.5l2 2M12 10l2 2M9 13l2 2" />
+    </>
+  ),
+  tennis: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M5.6 5.6c3.2 3.2 3.2 9.6 0 12.8M18.4 5.6c-3.2 3.2-3.2 9.6 0 12.8" />
+    </>
+  ),
+  fin: (
+    <>
+      <path d="M6 16c2-6 6-10.5 11-12-1.5 4-1.6 8.4 0 12" />
+      <path d="M2.5 18.5c1.6 0 1.6-1.2 3.2-1.2s1.6 1.2 3.2 1.2 1.6-1.2 3.2-1.2 1.6 1.2 3.2 1.2 1.6-1.2 3.2-1.2 1.6 1.2 3 1.2" />
+    </>
+  ),
+} satisfies Record<string, ReactNode>;
+
+// short: the name on a phone, where tiles are ~150px wide (the menu's label).
+type Tile = { title: string; short?: string; line: string; icon: keyof typeof ICONS };
+
+// The top menu's sections, in its order.
+const SECTIONS: (Tile & { to: string })[] = [
+  { to: '/football', title: 'Club football', line: 'Results, tables and predictions', icon: 'football' },
+  { to: '/international', title: 'International', line: 'Every nation since 1872', icon: 'globe' },
+  { to: '/fpl/start', title: 'Fantasy Premier League', short: 'FPL', line: 'Projections and line-ups', icon: 'shirt' },
+  { to: '/nfl', title: 'NFL', line: 'Games, standings and UK TV', icon: 'gridiron' },
+  { to: '/tennis', title: 'Tennis', line: 'Players, draws and rivalries', icon: 'tennis' },
+];
+const GAME: Tile = { title: 'Beat the Shark', line: 'Play a season in five minutes', icon: 'fin' };
+
+// Square-ish tile: icon, name, a few words. The whole tile is the link, so its
+// accessible name is the name plus the line.
+const TILE =
+  'group flex flex-col justify-between gap-3 min-h-[8rem] sm:min-h-[10rem] rounded-xl border-2 p-3.5 sm:p-5 transition-all ' +
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400';
+
+function TileBody({ tile, play = false }: { tile: Tile; play?: boolean }) {
   return (
-    <a
-      href={GAME_URL}
-      className="group block border-2 border-amber-500/60 hover:border-amber-400 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-6 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
-    >
-      <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">Play · five minutes</p>
-      <h2 className="font-display uppercase tracking-wide text-2xl sm:text-3xl text-chalk-100 group-hover:text-amber-400 transition-colors mt-1">
-        Beat the Shark
-      </h2>
-      <p className="text-chalk-300 mt-2 max-w-prose">
-        The model has already predicted where your club finishes. Take charge for a season and prove it wrong.
-      </p>
-    </a>
+    <>
+      <svg
+        viewBox="0 0 24 24"
+        className={`w-8 h-8 sm:w-9 sm:h-9 ${play ? 'text-pitch-950' : 'text-amber-400'}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {ICONS[tile.icon]}
+      </svg>
+      <span>
+        <span
+          className={`block font-display uppercase tracking-normal sm:tracking-wide text-[1.05rem] min-[400px]:text-lg sm:text-2xl leading-tight ${play ? 'text-pitch-950' : 'text-chalk-100 group-hover:text-amber-400 transition-colors'}`}
+        >
+          {tile.short ? (
+            <>
+              <span className="sm:hidden">{tile.short}</span>
+              <span className="hidden sm:inline">{tile.title}</span>
+            </>
+          ) : (
+            tile.title
+          )}
+        </span>
+        <span className={`block text-[0.8rem] sm:text-sm mt-1 leading-snug ${play ? 'text-pitch-900' : 'text-chalk-300'}`}>{tile.line}</span>
+      </span>
+    </>
   );
 }
-
-function ThemeButton({ to, title, description }: { to: string; title: string; description: string }) {
-  return (
-    <Link
-      to={to}
-      className="group block border-2 border-pitch-700 hover:border-amber-500 rounded-lg bg-pitch-900 hover:bg-pitch-800 p-4 sm:p-6 transition-all hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]"
-    >
-      <h2 className="font-display uppercase tracking-wide text-xl sm:text-2xl text-chalk-100 group-hover:text-amber-400 transition-colors">
-        {title}
-      </h2>
-      <p className="text-chalk-300 mt-2 transition-colors">{description}</p>
-    </Link>
-  );
-}
-
-// One card per section of the site, in the top menu's order, plus club
-// finances (in the Club menu, but its own destination). Until 6 Oct 2026 the
-// page offered only Football and FPL, so NFL, tennis, international football
-// and finances had no link from the home page.
-const SECTIONS = [
-  { to: '/football', title: 'Club football', description: 'Results, tables and match predictions for English and European leagues, with history back to 1992/93.' },
-  { to: '/international', title: 'International', description: 'Every men\u2019s international since 1872: each nation\u2019s record, every World Cup and Euro, and the current squads.' },
-  { to: '/fpl/start', title: 'Fantasy Premier League', description: 'Player projections, predicted line-ups, injuries and squad tools.' },
-  { to: '/finance', title: 'Club finances', description: 'Revenue, wages, profit and debt from English clubs\u2019 filed accounts.' },
-  { to: '/nfl', title: 'NFL', description: 'Schedule, standings and team records since 2002, game predictions and UK TV times.' },
-  { to: '/tennis', title: 'Tennis', description: 'ATP and WTA results, players, tournaments, rivalries and win chances.' },
-] as const;
 
 export default function Landing() {
   useDocumentHead({
@@ -77,26 +124,28 @@ export default function Landing() {
   });
 
   return (
-    <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-6 sm:p-10 space-y-8">
+    <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-4 sm:p-10 space-y-5 sm:space-y-8">
       <div>
-        <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">FixtureShark &middot; Results &amp; Predictions</p>
-        <h1 className="font-display uppercase tracking-wide text-4xl sm:text-6xl text-amber-400 mt-2 glow-amber leading-tight">
-          Pick your side.
-        </h1>
-        <p className="text-chalk-300 mt-4 max-w-prose text-base sm:text-lg">
-          Discover what's real, see what's predicted, check how it held up, then tune the model yourself.
+        <h1 className="font-display uppercase tracking-wide text-3xl sm:text-6xl text-amber-400 glow-amber leading-tight">Pick your side.</h1>
+        <p className="text-chalk-300 mt-3 sm:mt-4 max-w-prose text-base sm:text-lg">
+          Results, tables and model predictions for club and international football, plus Fantasy Premier League tools, club finances, the NFL and tennis.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" data-testid="home-sections">
-        {SECTIONS.map((s) => (
-          <ThemeButton key={s.to} to={s.to} title={s.title} description={s.description} />
+      <nav aria-label="Sections" className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4" data-testid="home-sections">
+        {SECTIONS.map((t) => (
+          <Link
+            key={t.to}
+            to={t.to}
+            className={`${TILE} border-pitch-700 bg-pitch-900 hover:border-amber-500 hover:bg-pitch-800 hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]`}
+          >
+            <TileBody tile={t} />
+          </Link>
         ))}
-      </div>
-
-      {/* The trivia game moved to the Football and Fantasy hubs, which
-          still have it; the home page offers the full game instead. */}
-      <GameCard />
+        <a href={GAME_URL} className={`${TILE} border-amber-400 bg-amber-500 hover:bg-amber-400 hover:shadow-[0_0_30px_rgba(227,180,85,0.45)]`}>
+          <TileBody tile={GAME} play />
+        </a>
+      </nav>
     </div>
   );
 }

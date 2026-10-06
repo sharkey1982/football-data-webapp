@@ -5,18 +5,19 @@ import { MemoryRouter } from 'react-router-dom';
 import Landing from '../pages/Landing';
 
 describe('Landing page', () => {
-  it('links to every section of the site', () => {
+  it('one tile per top-menu section, then Beat the Shark', () => {
     render(
       <MemoryRouter>
         <Landing />
       </MemoryRouter>
     );
     expect(screen.getByText('Pick your side.')).toBeInTheDocument();
-    const cards = screen.getByTestId('home-sections').querySelectorAll('a');
-    expect([...cards].map((a) => a.getAttribute('href'))).toEqual(['/football', '/international', '/fpl/start', '/finance', '/nfl', '/tennis']);
+    const tiles = screen.getByTestId('home-sections').querySelectorAll('a');
+    expect([...tiles].map((a) => a.getAttribute('href'))).toEqual(['/football', '/international', '/fpl/start', '/nfl', '/tennis', '/play/beat-the-shark/']);
     expect(screen.getByRole('link', { name: /Club football/ })).toHaveAttribute('href', '/football');
-    expect(screen.getByRole('link', { name: /Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
-    expect(screen.getByRole('link', { name: /^Tennis/ })).toHaveAttribute('href', '/tennis');
+    expect(screen.getByText('Fantasy Premier League').closest('a')).toHaveAttribute('href', '/fpl/start');
+    // Club finances have no tile (they sit under Club) but are named in the summary.
+    expect(screen.getByText(/club finances, the NFL and tennis/)).toBeInTheDocument();
   });
 
   it('links to Beat the Shark at its proxied address, with the trailing slash', () => {
