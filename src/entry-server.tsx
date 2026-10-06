@@ -131,13 +131,14 @@ import TennisTournamentPage from './pages/tennis/TennisTournamentPage';
 import TennisEditionPage from './pages/tennis/TennisEditionPage';
 import TennisTvGuidePage from './pages/tennis/TennisTvGuidePage';
 import TennisH2HPage from './pages/tennis/TennisH2HPage';
+import TennisSlamsPage from './pages/tennis/TennisSlamsPage';
 import IntlTeamPage from './pages/international/IntlTeamPage';
 import IntlEditionPage from './pages/international/IntlEditionPage';
 import { intlEditionHead as intlEditionHeadFor, intlTeamHead as intlTeamHeadFor } from './lib/intlSeo';
 import type { IntlEditionData, IntlTeamData } from './lib/intlApi';
 import { TOURNAMENTS as INTL_TOURNAMENT_LIST, scoreText as intlScoreText } from './lib/intlStats';
 import { h2hSentence as tennisH2HSentence, h2hSummary as tennisH2HSummary } from './lib/tennisH2H';
-import { editionSentence as tennisEditionSentence, eventSentence as tennisEventSentence, guideGroups as tennisGuideGroups, guideSentence as tennisGuideSentence, tournamentsSentence as tennisTournamentsSentence } from './lib/tennisEvents';
+import { editionSentence as tennisEditionSentence, eventSentence as tennisEventSentence, guideGroups as tennisGuideGroups, guideSentence as tennisGuideSentence, slamLeaders as tennisSlamLeaders, slamsSentence as tennisSlamsSentence, slamTable as tennisSlamTable, tournamentsSentence as tennisTournamentsSentence } from './lib/tennisEvents';
 import {
   TENNIS_HUB_PATH,
   TENNIS_PLAYERS_PATH,
@@ -146,6 +147,7 @@ import {
   TENNIS_TOURNAMENTS_PATH,
   TENNIS_TV_GUIDE_PATH,
   TENNIS_H2H_PATH,
+  TENNIS_SLAMS_PATH,
   type TennisH2HData,
   tennisEditionPath,
   tennisH2HCanonicalPath,
@@ -155,6 +157,7 @@ import {
   type TennisEditionData,
   type TennisEventData,
   type TennisGuideData,
+  type TennisSlamsData,
   type TennisTournamentsData,
   type TennisPlayerData,
   type TennisPlayersData,
@@ -891,10 +894,10 @@ export function renderTennisResultsPage(data: TennisResultsData): RenderedPage {
   const day = data.matches.filter((m) => m.match_date === data.latestDate);
   return {
     html: nflPage(TENNIS_RESULTS_PATH, TENNIS_RESULTS_PATH, <TennisResultsPage initialData={data} />),
-    title: `${data.tour} tennis results by day | ${BRAND_NAME}`,
+    title: `${data.tour} tennis fixtures and results by day | ${BRAND_NAME}`,
     description: tennisResultsSentence(data.tour, data.latestDate, day.length, tennisGroupByTournament(day).length),
     canonical: `${SITE_URL}${TENNIS_RESULTS_PATH}`,
-    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Results', path: TENNIS_RESULTS_PATH }])],
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Fixtures & Results', path: TENNIS_RESULTS_PATH }])],
   };
 }
 
@@ -971,6 +974,16 @@ export function renderTennisEditionPage(data: TennisEditionData): RenderedPage {
     description: tennisEditionSentence(data),
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Tournaments', path: TENNIS_TOURNAMENTS_PATH }, { name: event.name, path: tennisEventPath(event.tour, event.slug) }, { name: String(edition.year), path }])],
+  };
+}
+
+export function renderTennisSlamsPage(data: TennisSlamsData, today: string): RenderedPage {
+  return {
+    html: nflPage(TENNIS_SLAMS_PATH, TENNIS_SLAMS_PATH, <TennisSlamsPage initialData={data} today={today} />),
+    title: `${data.tour} Grand Slams: every champion since ${TENNIS_FIRST_YEAR[data.tour]} | ${BRAND_NAME}`,
+    description: tennisSlamsSentence(data.tour, tennisSlamTable(data.editions), tennisSlamLeaders(data.editions)),
+    canonical: `${SITE_URL}${TENNIS_SLAMS_PATH}`,
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Grand Slams', path: TENNIS_SLAMS_PATH }])],
   };
 }
 

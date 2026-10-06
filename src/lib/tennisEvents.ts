@@ -480,3 +480,95 @@ export function guideSentence(g: GuideGroups): string {
   const slam = [...g.underWay, ...g.thisWeek, ...g.nextWeek].find((r) => r.level === 'Grand Slam');
   return `${n} tournament${n === 1 ? '' : 's'} this week and ${g.nextWeek.length} next week across the ATP and WTA, with the UK channel for each.${slam ? ` ${slam.name} is on.` : ''}`;
 }
+
+// ---------------------------------------------------------------------------
+// Grand Slams (6 Oct 2026): /tennis/grand-slams and the "Grand Slams only"
+// filter on Fixtures & Results, Tournaments and Your Player.
+// ---------------------------------------------------------------------------
+export type Slam = (typeof SLAMS)[number];
+export const isSlam = (name: string): name is Slam => (SLAMS as readonly string[]).includes(name);
+
+/** Adds (or drops) ?slams=1 on a path that may already have a query string. */
+export function withSlams(path: string, on: boolean): string {
+  if (!on) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}slams=1`;
+}
+
+export type SlamYear = { year: number; cells: Record<Slam, TennisEdition | null> };
+
+/** Champions by year: one row per year (newest first), one cell per Slam in calendar order. */
+export function slamTable(editions: TennisEdition[]): SlamYear[] {
+  const byYear = new Map<number, SlamYear>();
+  for (const e of editions) {
+    if (e.level !== 'Grand Slam' || !isSlam(e.name)) continue;
+    const row = byYear.get(e.year) ?? { year: e.year, cells: { 'Australian Open': null, 'French Open': null, Wimbledon: null, 'US Open': null } };
+    row.cells[e.name] = e;
+    byYear.set(e.year, row);
+  }
+  return [...byYear.values()].sort((a, b) => b.year - a.year);
+}
+
+export type SlamLeader = { slug: string; name: string; titles: number; finals: number; bySlam: Record<Slam, number>; first: number; last: number };
+
+/** Players by Grand Slam titles (then finals), with the count at each Slam. */
+export function slamLeaders(editions: TennisEdition[]): SlamLeader[] {
+  const map = new Map<string, SlamLeader>();
+  const get = (slug: string, name: string) => {
+    let r = map.get(slug);
+    if (!r) map.set(slug, (r = { slug, name, titles: 0, finals: 0, bySlam: { 'Australian Open': 0, 'French Open': 0, Wimbledon: 0, 'US Open': 0 }, first: 9999, last: 0 }));
+    return r;
+  };
+  for (const e of editions) {
+    if (e.level !== 'Grand Slam' || !isSlam(e.name)) continue;
+    if (e.winner_slug && e.winner) {
+      const w = get(e.winner_slug, e.winner);
+      w.titles++;
+      w.finals++;
+      w.bySlam[e.name]++;
+      w.first = Math.min(w.first, e.year);
+      w.last = Math.max(w.last, e.year);
+    }
+    if (e.runner_up_slug && e.runner_up) get(e.runner_up_slug, e.runner_up).finals++;
+  }
+  return [...map.values()].sort((a, b) => b.titles - a.titles || b.finals - a.finals || a.name.localeCompare(b.name));
+}
+
+export type SlamStatus = { slam: Slam; slug: string; state: 'on' | 'next'; start: string; end: string; channel: string | null; free_to_air: string | null; last_winner: string | null; last_winner_slug: string | null; edition: TennisEdition | null };
+
+/**
+ * The Slam on now (an edition that started in the last three weeks with no
+ * champion yet) or else the next one on the calendar, for one tour.
+ */
+export function slamNow(calendar: CalendarRow[], editions: TennisEdition[], tour: Tour, today: string): SlamStatus | null {
+  const cal = calendar.filter((c) => c.tour === tour && c.level === 'Grand Slam' && isSlam(c.name));
+  const since = new Date(Date.parse(`${today}T12:00:00Z`) - 21 * 86400000).toISOString().slice(0, 10);
+  const live = editions
+    .filter((e) => e.tour === tour && e.level === 'Grand Slam' && isSlam(e.name) && !e.winner && e.start_date >= since && e.start_date <= today)
+    .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+  if (live) {
+    const c = cal.find((r) => r.slug === live.event_slug);
+    return { slam: live.name as Slam, slug: live.event_slug, state: 'on', start: live.start_date, end: live.end_date, channel: c?.channel ?? null, free_to_air: c?.free_to_air ?? null, last_winner: c?.last_winner ?? null, last_winner_slug: c?.last_winner_slug ?? null, edition: live };
+  }
+  const next = cal.filter((c) => c.usual_end >= today).sort((a, b) => a.usual_start.localeCompare(b.usual_start))[0];
+  if (!next) return null;
+  return { slam: next.name as Slam, slug: next.slug, state: 'next', start: next.usual_start, end: next.usual_end, channel: next.channel, free_to_air: next.free_to_air, last_winner: next.last_winner, last_winner_slug: next.last_winner_slug, edition: null };
+}
+
+/** Tournaments on the calendar after `after` (usual dates), soonest first. */
+export function comingTournaments(calendar: CalendarRow[], tour: Tour, after: string, slamsOnly: boolean, keep = 6): CalendarRow[] {
+  return calendar
+    .filter((c) => c.tour === tour && c.usual_start > after && (!slamsOnly || c.level === 'Grand Slam'))
+    .sort((a, b) => a.usual_start.localeCompare(b.usual_start) || a.level_rank - b.level_rank || a.name.localeCompare(b.name))
+    .slice(0, keep);
+}
+
+/** One line for the Grand Slams page and its meta description. */
+export function slamsSentence(tour: Tour, table: SlamYear[], leaders: SlamLeader[]): string {
+  const played = table.reduce((n, r) => n + SLAMS.filter((s) => r.cells[s]?.winner).length, 0);
+  const top = leaders[0];
+  const champions = leaders.filter((l) => l.titles > 0).length;
+  if (!played || !top) return `Every ${tour} Grand Slam since ${FIRST_YEAR[tour]}: champions by year and most titles.`;
+  const ties = leaders.filter((l) => l.titles === top.titles);
+  const lead = ties.length > 1 ? `${ties.map((l) => l.name).join(' and ')} share the most, ${top.titles} each` : `${top.name} has the most, ${top.titles}`;
+  return `${played} ${tour} Grand Slams since ${FIRST_YEAR[tour]} have had ${champions} different champions. ${lead}.`;
+}

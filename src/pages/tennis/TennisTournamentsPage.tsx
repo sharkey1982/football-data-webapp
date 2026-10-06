@@ -10,12 +10,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { Country, FilterSelect, LevelBadge, PlayerLink, TennisHeader } from '../../components/tennis/TennisBits';
+import { Country, FilterSelect, LevelBadge, PlayerLink, SlamsToggle, TennisHeader, useSlamsParam } from '../../components/tennis/TennisBits';
 import TourToggle from '../../components/tennis/TourToggle';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { TENNIS_TOURNAMENTS_PATH, loadTennisTournaments, tennisEditionPath, tennisEventPath, tennisTournamentsPath, type TennisTournamentsData } from '../../lib/tennisApi';
-import { countryCounts, countryName, matchesSearch, tournamentsSentence, type EventRow } from '../../lib/tennisEvents';
+import { countryCounts, countryName, matchesSearch, tournamentsSentence, withSlams, type EventRow } from '../../lib/tennisEvents';
 import { DATA_NOTE, FIRST_YEAR, LEVEL_LABEL, parseTour, type Level } from '../../lib/tennisStats';
 
 const LEVELS: Level[] = ['Grand Slam', 'Finals', '1000', 'Premier', '500', '250'];
@@ -25,7 +25,14 @@ export default function TennisTournamentsPage({ initialData }: { initialData?: T
   const tour = parseTour(params.get('tour')) ?? initialData?.tour ?? 'ATP';
   const { data, failed, loading } = useKeyedFetch(tour, () => loadTennisTournaments(tour), initialData ? { key: initialData.tour, data: initialData } : undefined);
   const [query, setQuery] = useState('');
-  const [level, setLevel] = useState('');
+  // "Grand Slams only" is the Level filter set to Grand Slam, kept in the URL (?slams=1) as on the other tennis pages.
+  const [slams, setSlams] = useSlamsParam();
+  const [pickedLevel, setPickedLevel] = useState('');
+  const level = slams ? 'Grand Slam' : pickedLevel;
+  const setLevel = (v: string) => {
+    setSlams(v === 'Grand Slam');
+    setPickedLevel(v === 'Grand Slam' ? '' : v);
+  };
   const [surface, setSurface] = useState('');
   const [country, setCountry] = useState('');
   const [current, setCurrent] = useState(true);
@@ -69,7 +76,7 @@ export default function TennisTournamentsPage({ initialData }: { initialData?: T
 
   return (
     <article className="space-y-5">
-      <TennisHeader title="Tournaments" toggle={<TourToggle tour={tour} to={(t) => tennisTournamentsPath(t)} />}>
+      <TennisHeader title="Tournaments" toggle={<TourToggle tour={tour} to={(t) => withSlams(tennisTournamentsPath(t), slams)} />}>
         <p className="text-ink-700 max-w-prose">Every tournament since {FIRST_YEAR[tour]}, kept together through sponsor renames: champions by year, who has won it most, and each year's draw with the finalists' paths.</p>
       </TennisHeader>
       {failed && <p className="text-ink-700">Tournaments are unavailable right now.</p>}
@@ -78,6 +85,7 @@ export default function TennisTournamentsPage({ initialData }: { initialData?: T
         <>
           <p className="text-ink-900 max-w-prose" data-testid="tennis-tournaments-story">{tournamentsSentence(data)}</p>
           <div className="flex flex-wrap items-center gap-3">
+            <SlamsToggle on={slams} onChange={setSlams} />
             <label className="text-sm">
               <span className="sr-only">Search tournaments</span>
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tournament, city or country" className="border border-chalk-300 rounded px-2 py-1 w-60 bg-white" data-testid="tennis-tournament-search" />

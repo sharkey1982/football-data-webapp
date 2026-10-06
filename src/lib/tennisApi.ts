@@ -36,6 +36,7 @@ export const TENNIS_SEASONS_PATH = '/tennis/seasons';
 export const TENNIS_TOURNAMENTS_PATH = '/tennis/tournaments';
 export const TENNIS_TV_GUIDE_PATH = '/tennis/tv-guide';
 export const TENNIS_H2H_PATH = '/tennis/head-to-head';
+export const TENNIS_SLAMS_PATH = '/tennis/grand-slams';
 
 const withTour = (path: string, tour: Tour, extra = '') => (tour === 'ATP' && !extra ? path : `${path}?tour=${tourParam(tour)}${extra}`);
 export const tennisResultsPath = (tour: Tour = 'ATP', date?: string) => withTour(TENNIS_RESULTS_PATH, tour, date ? `&date=${date}` : '');
@@ -43,6 +44,7 @@ export const tennisPlayersPath = (tour: Tour = 'ATP') => withTour(TENNIS_PLAYERS
 export const tennisSeasonsPath = (tour: Tour = 'ATP') => withTour(TENNIS_SEASONS_PATH, tour);
 export const tennisPlayerPath = (tour: Tour, slug: string) => `${TENNIS_PLAYERS_PATH}/${tourParam(tour)}/${slug}`;
 export const tennisSeasonPath = (tour: Tour, year: number) => `${TENNIS_SEASONS_PATH}/${tourParam(tour)}/${year}`;
+export const tennisSlamsPath = (tour: Tour = 'ATP') => withTour(TENNIS_SLAMS_PATH, tour);
 export const tennisTournamentsPath = (tour: Tour = 'ATP') => withTour(TENNIS_TOURNAMENTS_PATH, tour);
 export const tennisEventPath = (tour: Tour, slug: string) => `${TENNIS_TOURNAMENTS_PATH}/${tourParam(tour)}/${slug}`;
 /** A pair has its own URL (/tennis/head-to-head/atp/sinner-j/alcaraz-c) so a
@@ -110,7 +112,8 @@ export async function loadLatestTennisDate(tour: Tour): Promise<string | null> {
 // ---------------------------------------------------------------------------
 // Results: two calendar months at a time
 // ---------------------------------------------------------------------------
-export type TennisResultsData = { tour: Tour; latestDate: string; from: string; to: string; matches: TennisMatch[] };
+/** `calendar` is the tour's tournaments with their usual dates, for the "Next on the calendar" list (the source has no fixtures). */
+export type TennisResultsData = { tour: Tour; latestDate: string; from: string; to: string; matches: TennisMatch[]; calendar?: CalendarRow[] };
 
 /** First day of the month before `date`'s month, and last day of `date`'s month: the two months the calendar shows. */
 export function resultsWindow(year: number, month: number): { from: string; to: string } {
@@ -127,8 +130,11 @@ export async function loadTennisResults(tour: Tour, viewYear: number | null, vie
   const y = viewYear ?? (lm === 0 ? ly - 1 : ly);
   const m = viewMonth ?? (lm === 0 ? 11 : lm - 1);
   const { from, to } = resultsWindow(y, m);
-  const matches = await pagedMatches((q) => q.eq('tour', tour).gte('match_date', from).lte('match_date', to));
-  return { tour, latestDate, from, to, matches };
+  const [matches, calendar] = await Promise.all([
+    pagedMatches((q) => q.eq('tour', tour).gte('match_date', from).lte('match_date', to)),
+    pagedView<CalendarRow>('tennis_calendar', CALENDAR_COLUMNS, (q) => q.eq('tour', tour), 'usual_start'),
+  ]);
+  return { tour, latestDate, from, to, matches, calendar };
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +248,24 @@ export async function loadTennisEdition(tour: Tour, slug: string, year: number):
   if (!edition) return null;
   const matches = await pagedMatches((q) => q.eq('tournament_id', edition.tournament_id).eq('year', year));
   return { event, edition, matches, years: editions.map((e) => e.year) };
+}
+
+// ---------------------------------------------------------------------------
+// Grand Slams (6 Oct 2026)
+// ---------------------------------------------------------------------------
+export type TennisSlamsData = { tour: Tour; editions: TennisEdition[]; calendar: CalendarRow[] };
+
+/** Every Grand Slam edition on a tour (about 100 rows). */
+export function loadTennisSlamEditions(tour: Tour): Promise<TennisEdition[]> {
+  return pagedView<TennisEdition>('tennis_editions', EDITION_COLUMNS, (q) => q.eq('tour', tour).eq('level', 'Grand Slam'), 'tournament_id');
+}
+
+export async function loadTennisSlams(tour: Tour): Promise<TennisSlamsData> {
+  const [editions, calendar] = await Promise.all([
+    loadTennisSlamEditions(tour),
+    pagedView<CalendarRow>('tennis_calendar', CALENDAR_COLUMNS, (q) => q.eq('tour', tour).eq('level', 'Grand Slam'), 'usual_start'),
+  ]);
+  return { tour, editions, calendar };
 }
 
 // ---------------------------------------------------------------------------

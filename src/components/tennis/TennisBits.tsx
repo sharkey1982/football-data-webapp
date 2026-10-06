@@ -6,7 +6,7 @@
 // ============================================================================
 
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { TENNIS_DISCOVER_PATH, TENNIS_HUB_PATH, tennisPlayerPath } from '../../lib/tennisApi';
 import { LEVEL_LABEL, type Level, type Tour } from '../../lib/tennisStats';
 import { countryName } from '../../lib/tennisEvents';
@@ -82,5 +82,36 @@ export function FilterSelect({ label, value, onChange, options, testId }: { labe
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * The "Grand Slams only" switch, the same on Fixtures & Results, Tournaments
+ * and Your Player (Chris, 6 Oct 2026). Kept in the URL as ?slams=1 so a
+ * filtered view can be shared and the tour toggle keeps it.
+ */
+export function useSlamsParam(): [boolean, (on: boolean) => void] {
+  const [params, setParams] = useSearchParams();
+  const on = params.get('slams') === '1';
+  const set = (v: boolean) => {
+    const next = new URLSearchParams(params);
+    if (v) next.set('slams', '1');
+    else next.delete('slams');
+    setParams(next, { replace: true });
+  };
+  return [on, set];
+}
+
+export function SlamsToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      data-testid="tennis-slams-toggle"
+      className={`text-sm rounded-full border px-3 py-1 ${on ? 'bg-pitch-700 border-pitch-700 text-chalk-100' : 'bg-white border-chalk-300 text-ink-700 hover:bg-chalk-200'}`}
+    >
+      Grand Slams only
+    </button>
   );
 }

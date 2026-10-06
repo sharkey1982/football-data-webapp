@@ -12,7 +12,7 @@ import SortableTable, { type Column } from '../../components/SortableTable';
 import { Country, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { loadTennisEvent, tennisEditionPath, tennisEventPath, tennisTournamentsPath, type TennisEventData } from '../../lib/tennisApi';
+import { loadTennisEvent, tennisEditionPath, tennisEventPath, tennisSlamsPath, tennisTournamentsPath, type TennisEventData } from '../../lib/tennisApi';
 import { eventSentence, type Champion, type TennisEdition } from '../../lib/tennisEvents';
 import { DATA_NOTE, parseTour, shortDate } from '../../lib/tennisStats';
 
@@ -59,6 +59,7 @@ export default function TennisTournamentPage({ initialData }: { initialData?: Te
             <Country code={ev.country} />
             <span>{ev.surface}</span>
             <span>{tour}</span>
+            {ev.level === 'Grand Slam' && <Link to={tennisSlamsPath(tour)} className="text-pitch-800 underline underline-offset-2">All four Grand Slams</Link>}
           </p>
         )}
       </TennisHeader>
