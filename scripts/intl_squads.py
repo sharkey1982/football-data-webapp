@@ -367,6 +367,15 @@ def fetch_clubelo() -> list[dict]:
     raise RuntimeError(last or "ClubElo unavailable")
 
 
+def previous_clubelo(sb) -> tuple[list[dict], str | None]:
+    """The last stored ClubElo table (intl.club_elo), so a ClubElo outage keeps
+    yesterday's ratings on the squads instead of blanking them."""
+    rows = (sb.table("intl_club_elo").select("club,country,level,elo,rank,fetched_on")
+            .order("rank").limit(5000).execute().data) or []
+    as_of = max((r["fetched_on"] for r in rows), default=None)
+    return [{k: r[k] for k in ("club", "country", "level", "elo", "rank")} for r in rows], as_of
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -392,14 +401,22 @@ def main() -> None:
     print(note)
     club_note = ""
     elo_rows = []
+    elo_fresh = False       # True only when today's ClubElo table was read
+    elo_problem = ""        # why ClubElo wasn't read; the run is then a warning
     if sb is not None:
         try:
             elo_rows = fetch_clubelo()
+            elo_fresh = True
         except Exception as e:  # noqa: BLE001 -- ratings are a bonus; squads still load
             print(f"::warning::ClubElo not read: {e}")
+            elo_rows, as_of = previous_clubelo(sb)
+            elo_problem = f"ClubElo not read ({str(e)[:160]}); " + (
+                f"kept the ratings from {as_of}" if elo_rows else "no earlier ratings to keep, so clubs are unrated")
         site, elo, by_slug = build_indexes(load_site_teams(sb), elo_rows)
         n = enrich(players, site, elo, by_slug)
         club_note = f"; clubs: {n['site']}/{n['players']} matched to FixtureShark, {n['elo']} rated by ClubElo ({len(elo_rows)} clubs)"
+        if elo_problem:
+            club_note += f"; {elo_problem}"
         note += club_note
         print(club_note)
     if args.dry_run:
@@ -419,15 +436,11 @@ def main() -> None:
             chunk = squads[i:i + 40]
             names = {s["team"] for s in chunk}
             sb.rpc("intl_replace_squads", {"payload": {"squads": chunk, "players": [p for p in players if p["team"] in names]}}).execute()
-        if elo_rows:
+        if elo_fresh:
             from datetime import date
-            try:
-                sb.rpc("intl_replace_club_elo", {"payload": [{**r, "fetched_on": date.today().isoformat()} for r in elo_rows]}).execute()
-            except Exception as e:  # noqa: BLE001
-                if "intl_replace_club_elo" not in str(e):
-                    raise
-                print("intl_replace_club_elo not there yet; skipped")
-        sb.table("pipeline_runs").update({"status": "success", "summary": note, "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()
+            sb.rpc("intl_replace_club_elo", {"payload": [{**r, "fetched_on": date.today().isoformat()} for r in elo_rows]}).execute()
+        status = "warning" if elo_problem else "success"
+        sb.table("pipeline_runs").update({"status": status, "summary": note, "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()
     except Exception as e:  # noqa: BLE001
         sb.table("pipeline_runs").update({"status": "failed", "summary": "intl_squads failed", "error_message": str(e)[:2000],
                                           "finished_at": "now()"}).eq("run_id", run["run_id"]).execute()

@@ -122,3 +122,25 @@ def test_nations_league_zones():
     rows = {o["team"]: o for o in ip.simulate_groups(P, groups, [], [(a, b, False) for g in groups.values() for a in g for b in g if a < b], {"W": 2100, "P": 2100})}
     assert all(abs(sum(o["zones"].values()) - 1) < 1e-6 for o in rows.values())
     assert rows["W"]["zones"].get("QF", 0) > 0.8
+
+
+def test_previous_clubelo_keeps_last_ratings():
+    class Q:
+        def __init__(self, rows): self.rows = rows
+        def select(self, *_): return self
+        def order(self, *_): return self
+        def limit(self, *_): return self
+        def execute(self): return type("R", (), {"data": self.rows})()
+
+    class SB:
+        def __init__(self, rows): self.rows = rows
+        def table(self, name):
+            assert name == "intl_club_elo"
+            return Q(self.rows)
+
+    stored = [{"club": "Arsenal", "country": "ENG", "level": 1, "elo": 2040.3, "rank": 2, "fetched_on": "2026-10-04",
+               "club_slug": "arsenal", "internationals": 20}]
+    rows, as_of = sq.previous_clubelo(SB(stored))
+    assert as_of == "2026-10-04"
+    assert rows == [{"club": "Arsenal", "country": "ENG", "level": 1, "elo": 2040.3, "rank": 2}]
+    assert sq.previous_clubelo(SB([])) == ([], None)

@@ -89,7 +89,7 @@ export default function LocalClubsPage({ initialData }: { initialData?: LocalClu
             value={postcode}
             onChange={(e) => setPostcode(e.target.value)}
             autoComplete="postal-code"
-            placeholder="e.g. SS1 3JB"
+            placeholder="e.g. N7 7AJ"
             className="min-h-11 w-48 px-3 py-2 border border-chalk-300 rounded bg-white uppercase"
           />
         </div>
@@ -102,7 +102,7 @@ export default function LocalClubsPage({ initialData }: { initialData?: LocalClu
           </button>
         )}
       </form>
-      {status === 'unknown' && <p className="text-sm text-loss-600" role="alert">That postcode wasn&rsquo;t found. Try the full postcode, or just the first half (e.g. SS1).</p>}
+      {status === 'unknown' && <p className="text-sm text-loss-600" role="alert">That postcode wasn&rsquo;t found. Try the full postcode, or just the first half (e.g. N7).</p>}
       {status === 'error' && <p className="text-sm text-loss-600" role="alert">The postcode lookup isn&rsquo;t answering right now. Try again in a moment.</p>}
       {failed && <p className="text-ink-700">Club locations are unavailable right now.</p>}
       {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}

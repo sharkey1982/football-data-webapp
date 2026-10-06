@@ -31,7 +31,7 @@ const standings = [
   { team_id: 13, league_name: 'Premier League', tier: 1, season_start_year: 2025 },
 ];
 const data = buildLocalClubs(grounds, teams, standings);
-const home = { lat: 51.537, lon: 0.714, label: 'SS1 3JB' };
+const home = { lat: 51.537, lon: 0.714, label: 'SS2 6NQ' };
 
 describe('Your Local Clubs', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -50,18 +50,18 @@ describe('Your Local Clubs', () => {
     expect(near[0].miles).toBeLessThan(1.2);
     expect(nearestByLevel(near).map((c) => `${c.tier} ${c.name}`)).toEqual(['1 Arsenal', '2 Charlton', '4 Gillingham', '5 Southend']);
     expect(localSentence(home, near)).toBe(
-      'Your nearest club to SS1 3JB is Southend, 1 mile away at Roots Hall (National League). The nearest Premier League club is Arsenal, 35 miles away.'
+      'Your nearest club to SS2 6NQ is Southend, 1 mile away at Roots Hall (National League). The nearest Premier League club is Arsenal, 35 miles away.'
     );
     expect(milesText(12.44)).toBe('12 miles');
   });
 
   it('postcode lookup: full and outward codes go to postcodes.io; unknown and invalid give null', async () => {
-    expect(tidyPostcode(' ss13jb ')).toBe('SS1 3JB');
+    expect(tidyPostcode(' ss26nq ')).toBe('SS2 6NQ');
     const ok = vi.fn(async () => new Response(JSON.stringify({ result: { latitude: 51.537, longitude: 0.714 } }), { status: 200 }));
-    expect(await lookupPostcode('ss1 3jb', ok as unknown as typeof fetch)).toEqual({ lat: 51.537, lon: 0.714, label: 'SS1 3JB' });
-    expect(ok).toHaveBeenLastCalledWith('https://api.postcodes.io/postcodes/SS1%203JB');
-    await lookupPostcode('SS1', ok as unknown as typeof fetch);
-    expect(ok).toHaveBeenLastCalledWith('https://api.postcodes.io/outcodes/SS1');
+    expect(await lookupPostcode('ss2 6nq', ok as unknown as typeof fetch)).toEqual({ lat: 51.537, lon: 0.714, label: 'SS2 6NQ' });
+    expect(ok).toHaveBeenLastCalledWith('https://api.postcodes.io/postcodes/SS2%206NQ');
+    await lookupPostcode('SS2', ok as unknown as typeof fetch);
+    expect(ok).toHaveBeenLastCalledWith('https://api.postcodes.io/outcodes/SS2');
     const missing = vi.fn(async () => new Response('{}', { status: 404 }));
     expect(await lookupPostcode('ZZ9 9ZZ', missing as unknown as typeof fetch)).toBeNull();
     expect(await lookupPostcode('not a postcode', ok as unknown as typeof fetch)).toBeNull();
@@ -72,7 +72,7 @@ describe('Your Local Clubs', () => {
     render(<MemoryRouter><LocalClubsPage initialData={data} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Your Local Clubs');
     expect(screen.getByTestId('local-directory').querySelectorAll('a')).toHaveLength(5);
-    fireEvent.change(screen.getByLabelText('Postcode'), { target: { value: 'SS1 3JB' } });
+    fireEvent.change(screen.getByLabelText('Postcode'), { target: { value: 'SS2 6NQ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find clubs' }));
     const table = await screen.findByTestId('local-by-level');
     expect([...table.querySelectorAll('tbody tr')].map((r) => r.children[1].textContent)).toEqual(['Arsenal', 'Charlton', 'Gillingham', 'Southend']);
