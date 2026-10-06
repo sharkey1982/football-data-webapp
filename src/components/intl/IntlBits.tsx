@@ -8,6 +8,7 @@
 
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { intlMatchPath } from '../../lib/intlMatch';
 import { INTL_DISCOVER_PATH, INTL_HUB_PATH, editionPathOf, intlTeamPath } from '../../lib/intlApi';
 import { pct, eloExpectation, isUpset, scoreText, tournamentByCompetition, ukDateTime, UPSET_BELOW, type IntlFixture, type IntlMatch } from '../../lib/intlStats';
 
@@ -120,7 +121,7 @@ export function GameRow({ m, showDate, showCompetition, team }: { m: IntlMatch; 
       {outcome && <span className={`w-5 shrink-0 font-mono text-xs font-semibold ${outcome === 'W' ? 'text-pitch-700' : outcome === 'L' ? 'text-loss-700' : 'text-ink-500'}`}>{outcome}</span>}
       <span className="min-w-[12rem] flex-1">
         <TeamLink slug={m.home_slug} name={m.home_name} bold={winner === m.home_team} />
-        <span className="font-mono tabular-nums mx-2 whitespace-nowrap">{scoreText({ ...m, shootout_winner: null })}</span>
+        <Link to={intlMatchPath(m.match_date, m.home_slug, m.away_slug)} className="font-mono tabular-nums mx-2 whitespace-nowrap hover:underline" title="Match page: prediction, head to head, squads">{scoreText({ ...m, shootout_winner: null })}</Link>
         <TeamLink slug={m.away_slug} name={m.away_name} bold={winner === m.away_team} />
         {m.shootout_winner && (
           <span className="text-xs text-ink-500">{` (${m.shootout_winner === m.home_team ? m.home_name : m.shootout_winner === m.away_team ? m.away_name : m.shootout_winner} won on penalties)`}</span>
@@ -147,12 +148,15 @@ export function FixtureRow({ f, showDate }: { f: IntlFixture; showDate?: boolean
       <span className="w-24 shrink-0 font-mono text-xs text-ink-500">{showDate ? `${date} ${time}` : time}</span>
       <span className="min-w-[12rem] flex-1">
         <TeamLink slug={f.home_slug} name={f.home_team} />
-        <span className="font-mono mx-2 text-ink-500">{f.home_score != null && f.away_score != null ? `${f.home_score}–${f.away_score}` : 'v'}</span>
+        <Link to={intlMatchPath(date, f.home_slug, f.away_slug)} className="font-mono mx-2 text-ink-500 hover:underline" title="Match page: prediction, head to head, squads">{f.home_score != null && f.away_score != null ? `${f.home_score}–${f.away_score}` : 'v'}</Link>
         <TeamLink slug={f.away_slug} name={f.away_team} />
       </span>
       <span className="w-full sm:w-auto text-xs text-ink-500">{[f.group_label ? `Group ${f.group_label}` : null, f.venue].filter(Boolean).join(' · ')}</span>
       {played && f.home_score == null && <span className="text-xs font-mono text-ink-500">Result to follow</span>}
       {!played && f.home_score == null && f.p_home != null && <Projection f={f} />}
+      <Link to={intlMatchPath(date, f.home_slug, f.away_slug)} className="text-xs text-pitch-800 underline underline-offset-2 whitespace-nowrap" data-testid="intl-fixture-preview">
+        {played || f.home_score != null ? 'Match page' : 'Preview & head to head'}
+      </Link>
     </li>
   );
 }

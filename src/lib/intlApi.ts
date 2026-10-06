@@ -9,6 +9,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { parseIntlMatchSlug } from './intlMatch';
 import {
   TOURNAMENTS,
   type CompetitionTotal,
@@ -105,7 +106,8 @@ type ViewName =
   | 'intl_club_elo'
   | 'intl_squad_club_strength'
   | 'intl_squad_versions'
-  | 'intl_squad_snapshot_players';
+  | 'intl_squad_snapshot_players'
+  | 'intl_model_info';
 /** The intl views aren't in the generated database types; a loose query shape keeps the calls readable. */
 export const intlView = (view: ViewName, columns: string): Query =>
   (supabase.from(view as never) as unknown as { select(columns: string): Query }).select(columns);
@@ -305,4 +307,61 @@ export async function loadSquadHistory(slug: string): Promise<{ squadVersions: S
   } catch {
     return { squadVersions: [], snapshotPlayers: [] };
   }
+}
+
+// ---- Match pages ---------------------------------------------------------------------------
+
+export type IntlMatchData = {
+  date: string;
+  home: TeamSummary;
+  away: TeamSummary;
+  match: IntlMatch | null;          // the result, when the results file has it
+  fixture: IntlFixture | null;      // the fixture-feed row, for coming (or reported) games
+  goals: IntlGoal[];
+  homeForm: IntlMatch[];            // latest 10 before this game, newest first
+  awayForm: IntlMatch[];
+  pair: PairRecord | null;
+  meetings: IntlMatch[];            // newest first
+  homeSquad: SquadPlayer[];
+  awaySquad: SquadPlayer[];
+  groupOdds: GroupOdds[];
+  params: number[] | null;          // model IP1
+};
+
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+
+export async function loadIntlMatch(slug: string): Promise<IntlMatchData | null> {
+  const p = parseIntlMatchSlug(slug);
+  if (!p) return null;
+  const teams = await rows<TeamSummary>(intlView('intl_team_summary', TEAM_COLUMNS).in('slug', [p.home, p.away]));
+  const home = teams.find((t) => t.slug === p.home);
+  const away = teams.find((t) => t.slug === p.away);
+  if (!home || !away) return null;
+  const [played, fixtures, model] = await Promise.all([
+    rows<IntlMatch>(intlView('intl_matches', MATCH_COLUMNS).eq('home_slug', p.home).eq('away_slug', p.away).gte('match_date', addDays(p.date, -1)).lte('match_date', addDays(p.date, 1)).limit(1)),
+    rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).eq('home_slug', p.home).eq('away_slug', p.away).gte('kickoff_utc', `${addDays(p.date, -1)}T00:00:00Z`).lte('kickoff_utc', `${addDays(p.date, 1)}T23:59:59Z`).limit(1)),
+    rows<{ params: number[] }>(intlView('intl_model_info', 'params').eq('model', 'IP1').limit(1)).catch(() => []),
+  ]);
+  const match = played[0] ?? null;
+  const fixture = fixtures[0] ?? null;
+  if (!match && !fixture) return null;
+  const date = match?.match_date ?? p.date;
+  const [a, b] = [home.team, away.team].sort();
+  const [homeForm, awayForm, pairs, meetings, homeSquad, awaySquad, goals, groupOdds] = await Promise.all([
+    rows<IntlMatch>(intlView('intl_matches', MATCH_COLUMNS).or(`home_slug.eq.${p.home},away_slug.eq.${p.home}`).lt('match_date', date).order('match_date', { ascending: false }).limit(10)),
+    rows<IntlMatch>(intlView('intl_matches', MATCH_COLUMNS).or(`home_slug.eq.${p.away},away_slug.eq.${p.away}`).lt('match_date', date).order('match_date', { ascending: false }).limit(10)),
+    rows<PairRecord>(intlView('intl_pair_records', 'team_a,team_b,played,a_won,drawn,b_won,a_goals,b_goals,first_meeting,last_meeting').eq('team_a', a).eq('team_b', b).limit(1)).catch(() => []),
+    rows<IntlMatch>(intlView('intl_matches', MATCH_COLUMNS).or(`and(home_slug.eq.${p.home},away_slug.eq.${p.away}),and(home_slug.eq.${p.away},away_slug.eq.${p.home})`).order('match_date', { ascending: false }).limit(25)),
+    rows<SquadPlayer>(intlView('intl_squad_players', SQUAD_PLAYER_COLUMNS).eq('slug', p.home).eq('list', 'current').order('seq', { ascending: true }).limit(60)).catch(() => []),
+    rows<SquadPlayer>(intlView('intl_squad_players', SQUAD_PLAYER_COLUMNS).eq('slug', p.away).eq('list', 'current').order('seq', { ascending: true }).limit(60)).catch(() => []),
+    match ? rows<IntlGoal>(intlView('intl_goals', 'match_key,seq,team,scorer,minute,own_goal,penalty').eq('match_key', match.match_key).order('seq', { ascending: true })) : Promise.resolve([] as IntlGoal[]),
+    fixture?.group_label
+      ? rows<GroupOdds>(intlView('intl_group_odds', GROUP_ODDS_COLUMNS_ZONES).eq('edition_key', fixture.edition_key).eq('group_label', fixture.group_label)).catch(() => [] as GroupOdds[])
+      : Promise.resolve([] as GroupOdds[]),
+  ]);
+  return {
+    date, home, away, match, fixture, goals, homeForm, awayForm, pair: pairs[0] ?? null,
+    meetings: meetings.filter((m) => !match || m.match_key !== match.match_key),
+    homeSquad, awaySquad, groupOdds, params: model[0]?.params ?? null,
+  };
 }
