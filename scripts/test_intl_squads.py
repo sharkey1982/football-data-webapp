@@ -144,3 +144,37 @@ def test_previous_clubelo_keeps_last_ratings():
     assert as_of == "2026-10-04"
     assert rows == [{"club": "Arsenal", "country": "ENG", "level": 1, "elo": 2040.3, "rank": 2}]
     assert sq.previous_clubelo(SB([])) == ([], None)
+
+
+CLUBELO_PAGE = """
+<table class="ast"><tr><td class="l"><a href="/ENG"><img alt="ENG" src="x/eng.png"/></a> <span class="min481"><small> 2 </small></span> <span class="NonAst">ARS</span><span class="Ast">Arsenal</span></td><td class="r">2040</td></tr>
+<tr><td class="l"><a href="/ENG"><img alt="ENG" src="x/eng.png"/></a> <span class="min481"><small> 3 </small></span> <span class="NonAst">MCI</span><span class="Ast">Man City</span></td><td class="r">2028</td></tr>
+<tr><td class="l"><i> Level 2 (24 teams)</i></td><td><i>&#8960;1500</i><tr><td class="l"><a href="/ENG"><img alt="ENG" src="x/eng.png"/></a> <span class="min481"></span> <span class="NonAst">WBA</span><span class="Ast">West Brom</span></td><td class="r">1610</td></tr></table>
+<table class="ast"><tr><td class="l"><a href="/GER"><img alt="GER" src="x/deu.png"/></a> <span class="min481"><small> 1 </small></span> <span class="NonAst">BMU</span><span class="Ast">Bayern München</span></td><td class="r">2046</td></tr></table>
+<script>
+const data = [
+['<td class="l"><a href="/GER"><img loading="lazy" decoding="async" src="x/deu.png" alt="GER" style="width:20px; opacity:0.8;"></a> <small> 1 </small><a href="/Bayern">Bayern München<span class="min481"></span></a></td>', '2046', '+0.00', '2.38'],
+['<td class="l"><a href="/ENG"><img loading="lazy" decoding="async" src="x/eng.png" alt="ENG" style="width:20px; opacity:0.8;"></a> <small> 2 </small><a href="/Arsenal">Arsenal<span class="min481"></span></a></td>', '2040', '+0.00', '1.03'],
+['<td class="l"><a href="/ENG"><img loading="lazy" decoding="async" src="x/eng.png" alt="ENG" style="width:20px; opacity:0.8;"></a> <small> 3 </small><a href="/ManCity">Man City<span class="min481"></span></a></td>', '2028', '+0.00', '1.44'],
+['<td class="l"><a href="/ENG"><img loading="lazy" decoding="async" src="x/eng.png" alt="ENG" style="width:20px; opacity:0.8;"></a> <small> 90 </small><a href="/WestBrom">West Brom<span class="min481"></span></a></td>', '1610.4', '-1.20', '1.10'],
+['<td class="l"><a href="/ARG"><img loading="lazy" decoding="async" src="x/arg.png" alt="ARG" style="width:20px; opacity:0.8;"></a> <small> 200 </small><a href="/NewellsOldBoys">Newell\\'s<span class="min481"></span></a></td>', '1500', '+0.00', '1.00'],
+];
+</script>
+"""
+
+
+def test_clubelo_site_ranking_page():
+    rows = sq.read_clubelo_site(CLUBELO_PAGE)
+    assert [r["club"] for r in rows] == ["Bayern München", "Arsenal", "Man City", "West Brom", "Newell's"]
+    assert [r["rank"] for r in rows] == [1, 2, 3, 4, 5]
+    assert rows[0] == {"club": "Bayern München", "country": "GER", "level": None, "elo": 2046.0, "alias": "Bayern", "rank": 1}
+    assert rows[2]["alias"] is None              # "ManCity" -> "Man City", same as the name
+    assert rows[3]["elo"] == 1610.4
+    assert rows[4]["alias"] == "Newells Old Boys"
+    assert sq._alias("realmadrid", "Real Madrid") is None and sq._alias("rc-celta", "Celta") == "rc celta"
+    # The old API name (alias) still matches a squad player's club.
+    import club_match as cm  # noqa: F401
+    site, elo, by_slug = sq.build_indexes([], rows)
+    players = [{"club": "Bayern Munich", "club_wiki": "FC Bayern Munich", "club_country": "GER"}]
+    sq.enrich(players, site, elo, by_slug)
+    assert players[0]["clubelo_name"] == "Bayern München" and players[0]["club_elo_rank"] == 1

@@ -274,6 +274,10 @@ def fetch(teams: list[str]) -> list[tuple[str, str, str, str | None]]:
 # ---------------------------------------------------------------------------
 
 CLUBELO_URL = "http://api.clubelo.com/{date}"
+# The API answers 502 to every request since 5 Oct 2026 (its fixtures endpoint
+# says "deactivated"); clubelo.com was rebuilt and its /Ranking page carries
+# the whole world ranking as table data. Read once a day, credited on the pages.
+CLUBELO_RANKING_URL = "https://clubelo.com/Ranking"
 # ClubElo country codes that differ from FIFA's.
 CLUBELO_COUNTRY = {"ROM": "ROU", "SLO": "SVN", "BOS": "BIH", "MAC": "MKD", "LAT": "LVA", "LIT": "LTU", "NIR": "NIR"}
 
@@ -286,6 +290,47 @@ def read_clubelo(text: str) -> list[dict]:
     rows.sort(key=lambda r: -float(r["Elo"]))
     return [{"club": r["Club"], "country": r.get("Country") or None, "level": int(r["Level"]) if (r.get("Level") or "").isdigit() else None,
              "elo": round(float(r["Elo"]), 1), "rank": i + 1} for i, r in enumerate(rows)]
+
+
+def _alias(slug: str, name: str) -> str | None:
+    """ClubElo's link name, when it is a genuinely different name for the club
+    (its old API name: "Bayern" for "Bayern München", "Inter" for
+    "Internazionale"). ManCity -> Man City; rc-celta -> rc celta. None when it
+    is just the name run together ("realmadrid")."""
+    spaced = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", slug).replace("-", " ").strip()
+    flat = lambda x: re.sub(r"[^a-z0-9]", "", x.lower())  # noqa: E731
+    return None if flat(spaced) == flat(name) else spaced
+
+
+def read_clubelo_site(page: str) -> list[dict]:
+    """clubelo.com/Ranking -> rows in read_clubelo's shape, ranked by Elo.
+
+    The world ranking is script data on the page, one row per club:
+      ['<td class="l"><a href="/ENG"><img ... alt="ENG" ...></a> <small> 2 </small>
+        <a href="/Arsenal">Arsenal<span ...></span></a></td>', '2040', '+0.00', '1.03']
+    The league level is left empty: the page's per-country tables don't give
+    it reliably (Stoke came out level 1), and nothing on the site shows it."""
+    import html as htmllib
+    rows = []
+    seen = set()
+    for cell, elo in re.findall(r"\['(<td class=\"l\">.*?</td>)',\s*'([0-9.]+)',\s*'[^']*',\s*'[^']*'\]", page, re.S):
+        cell = cell.replace("\\'", "'")
+        c = re.search(r'alt="([A-Z]{3})"', cell)
+        tail = cell.split("</a>", 1)[1] if "</a>" in cell else cell
+        link = re.search(r'<a href="/([^"]+)">([^<]+)', tail)
+        if not (c and link):
+            continue
+        name = htmllib.unescape(link.group(2)).strip()
+        key = (c.group(1), name)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append({"club": name, "country": c.group(1), "level": None, "elo": round(float(elo), 1),
+                     "alias": _alias(urllib.parse.unquote(link.group(1)), name)})
+    rows.sort(key=lambda r: -r["elo"])
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    return rows
 
 
 def site_country(fifa: str | None) -> str | None:
@@ -305,8 +350,9 @@ def build_indexes(site_teams: list[dict], elo_rows: list[dict]):
     for r in elo_rows:
         fifa = CLUBELO_COUNTRY.get(r["country"] or "", r["country"])
         country = site_country(fifa)
-        elo.add(country, r, r["club"])
-        t = site.find(country, r["club"])
+        names = [r["club"]] + ([r["alias"]] if r.get("alias") else [])
+        elo.add(country, r, *names)
+        t = next((x for x in (site.find(country, n) for n in names) if x is not None), None)
         if t is not None:
             r["club_slug"] = t["slug"]
             by_slug.setdefault(t["slug"], r)
@@ -347,13 +393,25 @@ def load_site_teams(sb) -> list[dict]:
 
 
 def fetch_clubelo() -> list[dict]:
-    """Today's ClubElo table; on an error (ClubElo answered 502 on 5 Oct) retry,
-    then fall back to the two previous days' tables."""
+    """Today's ClubElo ranking from clubelo.com/Ranking (three tries); if that
+    fails, the old API (dead since 5 Oct 2026, kept in case it returns)."""
     from datetime import date, timedelta
     last = None
-    for back in (0, 1, 2):
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(CLUBELO_RANKING_URL, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                rows = read_clubelo_site(r.read().decode("utf-8", "replace"))
+            if len(rows) >= 500:
+                return rows
+            last = f"{CLUBELO_RANKING_URL}: only {len(rows)} clubs read (page layout changed?)"
+        except Exception as e:  # noqa: BLE001
+            last = f"{CLUBELO_RANKING_URL}: {e}"
+        time.sleep(10 * (attempt + 1))
+    print(f"::warning::ClubElo site not read ({last}); trying the old API")
+    for back in (0, 1):
         url = CLUBELO_URL.format(date=(date.today() - timedelta(days=back)).isoformat())
-        for attempt in range(3):
+        for attempt in range(1):
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": UA})
                 with urllib.request.urlopen(req, timeout=60) as r:
