@@ -79,25 +79,30 @@ const watchdog = setTimeout(() => {
 }, WATCHDOG_MS);
 watchdog.unref();
 
+/** One REST read. A 5xx, 429 or network/timeout error is retried twice
+ * (after 1.5s and 5s): on 6 Oct 2026 single reads failing under build-time
+ * load cost whole sections (tennis, team pages, Your Local Clubs). A 4xx is
+ * a bug in the request and returns null at once. */
 async function query(path) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-      signal: controller.signal,
-    });
-    if (!res.ok) {
+  for (const wait of [0, 1500, 5000]) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        signal: controller.signal,
+      });
+      if (res.ok) return await res.json();
       console.error(`Static: query failed (${res.status}) for ${path}`);
-      return null;
+      if (res.status < 500 && res.status !== 429) return null;
+    } catch (err) {
+      console.error(`Static: query errored for ${path}: ${err?.message ?? err}`);
+    } finally {
+      clearTimeout(timer);
     }
-    return await res.json();
-  } catch (err) {
-    console.error(`Static: query errored for ${path}: ${err?.message ?? err}`);
-    return null;
-  } finally {
-    clearTimeout(timer);
   }
+  return null;
 }
 
 /** Paginated variant. PostgREST caps a plain select at 1000 rows and
@@ -109,19 +114,14 @@ async function queryAll(path, pageSize = 1000) {
   const out = [];
   for (let offset = 0; ; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
-    let page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    // Two retries (1.5s, 5s) for a transient error. A page that still fails returns null
+    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    // query() retries a transient error twice. A page that still fails returns null
     // for the WHOLE query: until 6 Oct the rows before the failure came back
     // as if complete, so (with oldest-first ordering) the current season was
     // what silently went missing. null makes the caller skip the section and
     // verify-dist's minimum page counts fail the build instead.
-    for (const wait of [1500, 5000]) {
-      if (page != null) break;
-      await new Promise((r) => setTimeout(r, wait));
-      page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    }
     if (page == null) {
-      console.error(`Static: page at offset ${offset} failed three times for ${path} -- discarding the partial result.`);
+      console.error(`Static: page at offset ${offset} failed after retries for ${path} -- discarding the partial result.`);
       return null;
     }
     out.push(...page);
