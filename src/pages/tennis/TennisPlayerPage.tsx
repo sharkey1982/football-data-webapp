@@ -13,6 +13,7 @@ import { useNoindex } from '../../hooks/useNoindex';
 import React, { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
+import TitlesByLevel from '../../components/tennis/TitlesByLevel';
 import { Country, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
 import PlayerForm from '../../components/tennis/PlayerForm';
 import { ageOn } from '../../lib/tennisEvents';
@@ -117,12 +118,13 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
       {!loading && !failed && !data && <p className="text-ink-700">No {tour} player with that name. <Link to={tennisPlayersPath(tour)} className="underline">Find a player</Link>.</p>}
       {data && s && (
         <>
-          <dl className="grid grid-cols-2 sm:grid-cols-5 gap-3" data-testid="tennis-player-tiles">
+          <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="tennis-player-tiles">
             {[
               ['Record', recordLabel(s.won, s.lost)],
               ['Win %', pctLabel(s.won + s.lost ? s.won / (s.won + s.lost) : null)],
               ['Titles', `${s.titles}`],
               ['Finals', `${s.finals}`],
+              [data.player.latest_rank_date ? `Ranking (${shortDate(data.player.latest_rank_date)})` : 'Ranking', data.player.latest_rank ? `${data.player.latest_rank}` : '–'],
               ['Best ranking', s.bestRank ? `${s.bestRank.rank}` : '–'],
             ].map(([k, v]) => (
               <div key={k} className="border border-chalk-300 rounded-lg bg-white px-3 py-2">
@@ -155,6 +157,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
               <SortableTable columns={splitColumns('Surface')} rows={s.bySurface} rowKey={(r) => r.key} />
             </Section>
             <Section title="By level" id="tp-level">
+              <TitlesByLevel rows={s.byLevel} name={s.name} />
               <SortableTable columns={splitColumns('Level')} rows={s.byLevel} rowKey={(r) => r.key} />
             </Section>
           </div>

@@ -66,7 +66,7 @@ export const tennisEditionPath = (tour: Tour, slug: string, year: number) => `${
 export const MATCH_COLUMNS =
   'source_key,tour,year,match_date,tournament_id,tournament,tournament_slug,location,surface_group,level,level_rank,round,round_order,best_of,' +
   'winner,winner_slug,winner_id,loser,loser_slug,loser_id,w_rank,l_rank,w_games,l_games,result,played,avg_w,avg_l,b365_w,b365_l,ps_w,ps_l';
-export const PLAYER_COLUMNS = 'player_id,tour,name,slug,won,lost,titles,finals,first_year,last_year,last_match,recent_matches,country,full_name,birth_date,hand,wikidata_qid';
+export const PLAYER_COLUMNS = 'player_id,tour,name,slug,won,lost,titles,finals,first_year,last_year,last_match,recent_matches,country,full_name,birth_date,hand,wikidata_qid,latest_rank,latest_rank_date,best_rank';
 export const EVENT_COLUMNS = 'event_id,tour,slug,name,city,country,level,level_rank,surface,first_year,last_year,editions';
 export const EDITION_COLUMNS = 'tournament_id,year,event_id,event_slug,tour,name,city,start_date,end_date,level,level_rank,surface,matches,winner,winner_slug,runner_up,runner_up_slug';
 export const CALENDAR_COLUMNS = 'event_id,tour,slug,name,city,country,level,level_rank,surface,usual_start,usual_end,last_year,last_winner,last_winner_slug,channel,free_to_air';
