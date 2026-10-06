@@ -138,6 +138,14 @@ if(on(1)){
   check("every event renders cleanly (80 seasons, in the black and in the red)",!bad.length,bad.slice(0,3).join(", "));
   const noDef=SIM.run(`COACH_EVENTS.concat(MONEY_EVENTS).map(f=>f()).concat([presserSpec(),deadlineSpec()]).filter(s=>!s.choices.some(c=>c.def)).map(s=>s.sig).join(",")`);
   check("every event has a do-nothing choice (def)",!noDef,noDef);
+  /* Only money is shown after a decision (Chris, 6 Oct: no points-style
+     numbers, as the football game). */
+  const pts=SIM.run(`(()=>{beginSeason("intermediate","TAGS");const bad=[];
+    for(const f of COACH_EVENTS.concat(MONEY_EVENTS,[presserSpec,deadlineSpec]))for(const c of f().choices){
+      const snap=JSON.stringify(S);const tags=apply(c.fx);S=JSON.parse(snap);
+      tags.forEach(([,t])=>{if(!/^(Cash|Payroll|Gate) /.test(t))bad.push(t)})}
+    return bad.join(", ")})()`);
+  check("a decision shows only money, never points",!pts,pts);
 }
 
 /* ---- 2. the engine against the real numbers ----------------------------------- */
@@ -211,8 +219,16 @@ function playScreens(level,setup){
     if(/THE INJURY REPORT/.test(h))seen.add("report");if(/YOUR GAME PLAN/.test(h))seen.add("plan");
     if(/BEFORE THE FINAL GAME/.test(h))seen.add("deadline");if(/PAYING THE BILLS/.test(h))seen.add("bills");
     if(/Gate receipts/.test(h))seen.add("gate");if(/A player must be traded/.test(h))seen.add("trade");
-    const dc=w.els.dc&&w.els.dc.children.length?w.els.dc:null,ch=w.els.ch&&w.els.ch.children.length?w.els.ch:null;
-    if(dc&&/>FOURTH DOWN<|>HALF TIME<|THE CONVERSION/.test(hb)){const b=dc.children[0];w.els.dc.children=[];b.onclick();w.drain();continue}
+    const ch=w.els.ch&&w.els.ch.children.length?w.els.ch:null;
+    // a pick-then-confirm decision: nothing happens on the pick, only on the button
+    const cards=w.els.cards&&w.els.cards.children.length?w.els.cards:null;
+    if(cards&&w.els.pickGo&&w.els.pickGo.onclick){
+      const before=w.els.app.innerHTML+(w.els.htBox?w.els.htBox.innerHTML:"");
+      cards.children[0].onclick();
+      if(w.els.app.innerHTML+(w.els.htBox?w.els.htBox.innerHTML:"")!==before&&!bad)bad="a pick acted before the confirm button";
+      const go=w.els.pickGo.onclick;w.els.pickGo.onclick=null;cards.children=[];go();w.drain();
+      if(/>FOURTH DOWN<|>HALF TIME<|THE CONVERSION/.test(w.els.htBox?w.els.htBox.innerHTML:"")===false)seen.add("cleared");
+      continue}
     if(ch&&/<div id="ch">/.test(w.els.app._h)){const b=ch.children[0];w.els.ch.children=[];b.onclick();w.drain();continue}
     const id=clickables.find(k=>w.els[k]&&w.els[k].onclick);
     if(!id){bad=bad||"stuck: "+h.replace(/<[^>]+>/g," ").slice(0,140);break}
@@ -225,7 +241,7 @@ if(on(5)){
   for(const level of["beginner","intermediate","guru"]){
     const{seen,bad,header}=playScreens(level);
     if(!seen.has("verdict"))fails.push(`${level}: never reached the verdict (${bad})`);else if(bad)fails.push(`${level}: ${bad}`);
-    for(const k of["plan","half","fourth","deadline","bills","gate"])if(!seen.has(k))fails.push(`${level}: never saw ${k}`);
+    for(const k of["plan","half","fourth","deadline","bills","gate","cleared"])if(!seen.has(k))fails.push(`${level}: never saw ${k}`);
     if(!/>Cash</.test(header)||/Shark|Score/.test(header))fails.push(`${level}: header should show cash, not a score`);
     console.log(`      ${level}: ${[...seen].join(", ")}`);
   }

@@ -427,21 +427,23 @@ function reportWins(p,opp,home){
    gate ($m a game), next {off,def,passPen}
    (next game only), heal (everyone out returns), injure (a position, games),
    upgrade {pos, by}, swap {pos, nm, r} (a new player in that position). */
+/* Effects happen silently, as in the football game: only money is shown
+   as a tag (Chris: no points-style numbers on decisions). Team effects show
+   up where they count, in results and the table. */
 function apply(fx){
   if(!fx)return[];
   const tags=[];
-  if(fx.off){S.off+=fx.off;tags.push([fx.off>0,`Offence ${fx.off>0?"+":""}${fx.off}`])}
-  if(fx.def){S.def+=fx.def;tags.push([fx.def>0,`Defence ${fx.def>0?"+":""}${fx.def}`])}
-  if(fx.morale){const before=S.morale;S.morale=clamp(S.morale+fx.morale,-10,10);const d=S.morale-before;if(d)tags.push([d>0,`Locker room ${d>0?"+":""}${d}`])}
+  if(fx.off)S.off+=fx.off;
+  if(fx.def)S.def+=fx.def;
+  if(fx.morale)S.morale=clamp(S.morale+fx.morale,-10,10);
   if(fx.cash){S.cash+=fx.cash;tags.push([fx.cash>0,`Cash ${money(fx.cash,true)}`])}
   if(fx.payroll){S.payroll+=fx.payroll;tags.push([fx.payroll<0,`Payroll ${money(fx.payroll,true)} a game`])}
   if(fx.gate){S.gateBonus+=fx.gate;tags.push([fx.gate>0,`Gate ${money(fx.gate,true)} a game`])}
-  if(fx.next){for(const k in fx.next)S.next[k]=(S.next[k]||0)+fx.next[k];
-    const v=(fx.next.off||0)+(fx.next.def||0)-(fx.next.passPen||0);if(v)tags.push([v>0,`Next game ${v>0?"+":""}${v}`])}
-  if(fx.heal){const back=S.roster.filter(p=>p.out);back.forEach(p=>p.out=0);if(back.length)tags.push([true,`${back.length} back from injury`])}
-  if(fx.injure){const p=player(fx.injure);if(p){p.out=Math.max(p.out,fx.games||1);tags.push([false,`${p.nm} out`])}}
-  if(fx.upgrade){const p=player(fx.upgrade.pos);if(p){p.r+=fx.upgrade.by;tags.push([fx.upgrade.by>0,`${POS_SHORT[p.pos]} ${fx.upgrade.by>0?"+":""}${fx.upgrade.by}`])}}
-  if(fx.swap){const p=player(fx.swap.pos);if(p){p.nm=fx.swap.nm;p.r=fx.swap.r;p.out=0;tags.push([true,`${fx.swap.nm} in`])}}
+  if(fx.next)for(const k in fx.next)S.next[k]=(S.next[k]||0)+fx.next[k];
+  if(fx.heal)S.roster.forEach(p=>p.out=0);
+  if(fx.injure){const p=player(fx.injure);if(p)p.out=Math.max(p.out,fx.games||1)}
+  if(fx.upgrade){const p=player(fx.upgrade.pos);if(p)p.r+=fx.upgrade.by}
+  if(fx.swap){const p=player(fx.swap.pos);if(p){p.nm=fx.swap.nm;p.r=fx.swap.r;p.out=0}}
   return tags;
 }
 /* What a choice is worth, for the checks' look-ahead and the "best" policy:
