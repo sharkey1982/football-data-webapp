@@ -31,7 +31,7 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,3 +57,9 @@ jobs:
       # and whole seasons through the real screens. About a minute.
       - name: NFL game
         run: node games/beat-the-shark/nfl/test/checks.cjs
+
+      # The World Cup game (games/beat-the-shark/world-cup): loading,
+      # integrity, the match model against IP1, stability, balance, and whole
+      # tournaments through the real screens. About two minutes.
+      - name: World Cup game
+        run: node games/beat-the-shark/world-cup/test/checks.cjs

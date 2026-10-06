@@ -8,7 +8,7 @@
 #
 # Netlify site settings for this to work (set once, in the dashboard):
 #   Base directory:     games/beat-the-shark
-#   Build command:      (leave empty -- see below)
+#   Build command:      (set below: stamps the commit into script addresses)
 #   Publish directory:  games/beat-the-shark
 #
 # The main site then proxies /play/* to this site, so the public URL stays
@@ -22,7 +22,7 @@
   # stylesheet address in the pages (?v=__V__), so a browser that kept the
   # old files must fetch the new ones. Without it, phones kept the old
   # scripts after the 6 Oct 2026 start-screen change and showed the old game.
-  command = "sed -i \"s/__V__/${COMMIT_REF:-dev}/g\" index.html nfl/index.html"
+  command = "find . -name index.html -exec sed -i \"s/__V__/${COMMIT_REF:-dev}/g\" {} +"
 
   # Only redeploy when THIS folder changed. Netlify runs this from the base
   # directory, so "." means games/beat-the-shark. Exit 0 = skip the build.

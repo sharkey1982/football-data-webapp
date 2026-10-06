@@ -10,7 +10,8 @@
    =========================================================================== */
 const BTS_GAMES=[
   {id:"football",name:"Football",mission:"Win the league",path:""},
-  {id:"nfl",name:"NFL",mission:"Win the division",path:"nfl/"}
+  {id:"nfl",name:"NFL",mission:"Win the division",path:"nfl/"},
+  {id:"world-cup",name:"World Cup",mission:"Win the World Cup",path:"world-cup/"}
 ];
 /* The picker. The current game's button starts it (onStart); the others
    are plain links to their own folders. */

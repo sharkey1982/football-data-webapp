@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+/* Trailing-slash guard, as in the football game: the scripts load by
+   relative path, so /play/beat-the-shark/world-cup without its slash would load
+   nothing. MUST stay first in <head>. */
+(function(){var p=location.pathname;
+  if(p.length>1&&p.charAt(p.length-1)!=="/"&&!/\.[a-z0-9]+$/i.test(p))
+    location.replace(p+"/"+location.search+location.hash);})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beat the Shark: World Cup — a five-a-side World Cup management game | FixtureShark</title>
+<meta name="description" content="A five-a-side World Cup with real nations and invented players. Pick seven from ten, choose the shapes, manage the money, and win the World Cup.">
+<link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/world-cup/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FixtureShark">
+<meta property="og:title" content="Beat the Shark: World Cup">
+<meta property="og:description" content="Pick seven from ten and win the World Cup.">
+<meta property="og:url" content="https://fixtureshark.com/play/beat-the-shark/world-cup/">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/base.css?v=__V__">
+<style>
+  /* the World Cup game's own touches */
+  .vp .teams{gap:8px;align-items:center}
+  .vp .teams #sb{white-space:nowrap}
+  .seed a{color:var(--pitch2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="homelink" href="https://fixtureshark.com/international">&larr; FixtureShark International</a>
+    <div class="hmain">
+      <div class="bigscore" id="hScore">—<span class="sub">STAGE</span></div>
+      <div class="twos" id="hTwo"></div>
+      <div class="trend fl" id="hTrend"></div>
+    </div>
+    <div class="season" id="hSeason"></div>
+  </header>
+  <main id="app"></main>
+  <div class="foot" id="foot"></div>
+  <!-- Static on purpose: a crawler sees this, and every screen has a way back into the site. -->
+  <footer class="about">
+    <h2>About Beat the Shark: World Cup</h2>
+    <p>A five-a-side World Cup. You manage a real nation, rated by FixtureShark's international Elo, with invented
+      players: pick seven from ten, choose the shape for each match, deal with injuries, suspensions and tired legs,
+      keep the money out of the red, and win the World Cup. Goals come from FixtureShark's international model on the
+      Elo gap. Every player is invented.</p>
+    <ul>
+      <li><a href="https://fixtureshark.com/international/teams">Your Team</a> — any nation's real squad, record and rating</li>
+      <li><a href="https://fixtureshark.com/international/tournaments">Tournaments</a> — every World Cup, bracket by bracket</li>
+      <li><a href="https://fixtureshark.com/international/history">Through Time</a> — the world's top ten since 1872</li>
+    </ul>
+    <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark: football</a> · <a href="https://fixtureshark.com/international">Back to FixtureShark International</a></p>
+  </footer>
+</div>
+<script src="../shared/games.js?v=__V__"></script>
+<script src="../shared/core.js?v=__V__"></script>
+<script src="data.js?v=__V__"></script>
+<script src="config.js?v=__V__"></script>
+<script src="engine.js?v=__V__"></script>
+<script src="content.js?v=__V__"></script>
+<script src="ui.js?v=__V__"></script>
+</body>
+</html>

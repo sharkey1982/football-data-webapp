@@ -30,6 +30,12 @@ export const BEAT_THE_SHARK = {
     blurb: 'Call the game plans and the fourth downs, keep the money out of the red, and win the division.',
     kicker: 'Play · ten minutes',
   },
+  worldCup: {
+    href: '/play/beat-the-shark/world-cup/',
+    title: 'Beat the Shark: World Cup',
+    blurb: 'A five-a-side World Cup: pick seven from ten, choose the shapes, keep the money out of the red, and win it.',
+    kicker: 'Play · ten minutes',
+  },
 } satisfies Record<string, BeatTheSharkGame>;
 
 export function GameCard({ game }: { game: BeatTheSharkGame }) {
