@@ -71,7 +71,18 @@ export type TennisPlayer = {
   birth_date?: string | null;
   hand?: 'Right' | 'Left' | null;
   wikidata_qid?: string | null;
+  /** Ranking on the day of the player's latest match in the data (tennis.player_ratings, migration 20261006200000). */
+  latest_rank?: number | null;
+  latest_rank_date?: string | null;
+  best_rank?: number | null;
 };
+
+/** Ranking bands for the Your Player filter (?rank=10 etc.). */
+export const RANK_BANDS = [10, 20, 50, 100] as const;
+export function parseRankBand(v: string | null | undefined): number | null {
+  const n = Number(v);
+  return (RANK_BANDS as readonly number[]).includes(n) ? n : null;
+}
 
 /** Players with this many played matches in the tour's last three seasons get a static page. */
 export const STATIC_PLAYER_MIN = 50;

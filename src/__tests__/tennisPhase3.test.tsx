@@ -25,6 +25,7 @@ import {
   type TennisEvent,
 } from '../lib/tennisEvents';
 import type { TennisMatch, TennisPlayer } from '../lib/tennisStats';
+import TitlesByLevel from '../components/tennis/TitlesByLevel';
 import TennisPlayersPage from '../pages/tennis/TennisPlayersPage';
 import TennisTournamentsPage from '../pages/tennis/TennisTournamentsPage';
 import TennisEditionPage from '../pages/tennis/TennisEditionPage';
@@ -183,6 +184,33 @@ describe('tennis phase 3 pages', () => {
     fireEvent.change(status, { target: { value: 'active' } });
     fireEvent.change(screen.getByTestId('tennis-player-search'), { target: { value: 'fed' } });
     expect(names()).toEqual(['Federer R.']);
+  });
+
+  it('Your Player: ranked by latest ranking by default, with a Top N filter', async () => {
+    mocked.loadTennisPlayers.mockResolvedValue({
+      tour: 'ATP',
+      players: [
+        player({ latest_rank: 4, latest_rank_date: '2026-09-20', best_rank: 1 }),
+        player({ player_id: 2, name: 'Alcaraz C.', slug: 'alcaraz-c', latest_rank: 1, best_rank: 1 }),
+        player({ player_id: 3, name: 'Musetti L.', slug: 'musetti-l', latest_rank: 35, best_rank: 9 }),
+        player({ player_id: 4, name: 'Unranked U.', slug: 'unranked-u', latest_rank: null }),
+      ],
+    });
+    render(<MemoryRouter initialEntries={['/tennis/players']}><Routes><Route path="/tennis/players" element={<TennisPlayersPage />} /></Routes></MemoryRouter>);
+    const filter = await screen.findByTestId('tennis-rank-filter');
+    const names = () => within(screen.getByTestId('tennis-players-table')).getAllByRole('link').map((a) => a.textContent);
+    expect(names()).toEqual(['Alcaraz C.', 'Sinner J.', 'Musetti L.', 'Unranked U.']);
+    fireEvent.change(filter, { target: { value: '10' } });
+    expect(names()).toEqual(['Alcaraz C.', 'Sinner J.']);
+  });
+
+  it('Player page: titles by level as a donut with a labelled legend', () => {
+    render(<TitlesByLevel name="Djokovic N." rows={[{ key: 'Grand Slam', titles: 24 }, { key: 'Finals', titles: 7 }, { key: '1000', titles: 40 }, { key: '250', titles: 0 }]} />);
+    const fig = screen.getByTestId('tennis-titles-by-level');
+    expect(fig).toHaveTextContent('Djokovic N.: 71 titles by level');
+    expect(fig.querySelectorAll('path')).toHaveLength(3);
+    expect(fig).toHaveTextContent('Most at 1000 level (56%)');
+    expect(within(fig).getByRole('img').getAttribute('aria-label')).toContain('24 Grand Slam');
   });
 
   it('Your Player: filter by country, kept in the URL', async () => {

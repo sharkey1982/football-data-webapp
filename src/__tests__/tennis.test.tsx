@@ -159,7 +159,8 @@ describe('tennis pages', () => {
   it('Your Player: a sortable list with the ATP/WTA toggle and a search', async () => {
     mocked.loadTennisPlayers.mockResolvedValue({
       tour: 'ATP',
-      players: [player({}), player({ player_id: 2, name: 'Alcaraz C.', slug: 'alcaraz-c', titles: 30, recent_matches: 210 }), player({ player_id: 3, name: 'Old P.', slug: 'old-p', titles: 1, recent_matches: 0 })],
+      // Default order: latest ranking (unranked last).
+      players: [player({ latest_rank: 2 }), player({ player_id: 2, name: 'Alcaraz C.', slug: 'alcaraz-c', titles: 30, recent_matches: 210, latest_rank: 1 }), player({ player_id: 3, name: 'Old P.', slug: 'old-p', titles: 1, recent_matches: 0 })],
     });
     render(<MemoryRouter initialEntries={['/tennis/players']}><Routes><Route path="/tennis/players" element={<TennisPlayersPage />} /></Routes></MemoryRouter>);
     const table = await screen.findByTestId('tennis-players-table');
