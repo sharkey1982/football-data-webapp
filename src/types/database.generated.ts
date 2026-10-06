@@ -5616,6 +5616,7 @@ export type Database = {
           depth_rank: number | null
           depth_rank_source: string | null
           fpl_player_id: number
+          manual_return_date: string | null
           manual_status: string | null
           manual_status_note: string | null
           season_id: number
@@ -5629,6 +5630,7 @@ export type Database = {
           depth_rank?: number | null
           depth_rank_source?: string | null
           fpl_player_id: number
+          manual_return_date?: string | null
           manual_status?: string | null
           manual_status_note?: string | null
           season_id: number
@@ -5642,6 +5644,7 @@ export type Database = {
           depth_rank?: number | null
           depth_rank_source?: string | null
           fpl_player_id?: number
+          manual_return_date?: string | null
           manual_status?: string | null
           manual_status_note?: string | null
           season_id?: number

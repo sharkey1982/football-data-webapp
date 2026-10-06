@@ -56,7 +56,34 @@ export type TacticalRoleRow = {
   news: string | null;
   /** Whether `status`/`news` above came from a manual override (true) or the FPL-sourced data (false) -- lets the UI show that a value has been manually set. */
   status_is_manual: boolean;
+  /** Admin-set date he is expected back (YYYY-MM-DD), or null. Used by the projections ahead of FPL's date. */
+  manual_return_date: string | null;
+  /** The date in FPL's own news ("Expected back 18 Oct"), as the projections read it, or null. */
+  fpl_return_date: string | null;
 };
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/**
+ * The return date in FPL's news text, read the same way as the database
+ * (fpl_player_fixture_availability): "back"/"until" + day + month, in the
+ * year the news was posted, or the next year if that would put it more than
+ * two weeks before the news. Returns YYYY-MM-DD or null.
+ */
+export function parseNewsReturnDate(news: string | null | undefined, newsAdded: string | null | undefined, today: Date = new Date()): string | null {
+  if (!news) return null;
+  const m = /(?:back|until)\s+(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.exec(news);
+  if (!m) return null;
+  const posted = newsAdded ? new Date(newsAdded) : today;
+  const y = posted.getUTCFullYear();
+  const month = MONTHS.indexOf(m[2].toLowerCase());
+  const day = Number(m[1]);
+  let d = new Date(Date.UTC(y, month, day));
+  const postedDay = Date.UTC(posted.getUTCFullYear(), posted.getUTCMonth(), posted.getUTCDate());
+  if (d.getTime() < postedDay - 14 * 86400000) d = new Date(Date.UTC(y + 1, month, day));
+  if (d.getUTCMonth() !== month) return null; // e.g. 31 Sep
+  return d.toISOString().slice(0, 10);
+}
 
 export type TeamOption = { team_id: number; team_name: string };
 
@@ -142,7 +169,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // proven elsewhere in this project.
   const { data: playerRows, error: playerErr } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
+    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, news_added, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
     .eq('season_id', await getCurrentFplSeasonId())
     .not('element_type', 'is', null)
     .not('canonical_team_id', 'is', null)
@@ -151,10 +178,10 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
 
   const { data: defaultRows, error: defaultErr } = await supabase
     .from('team_player_tactical_defaults')
-    .select('fpl_player_id, team_id, tactical_role, source_name, confidence, depth_rank, manual_status, manual_status_note')
+    .select('fpl_player_id, team_id, tactical_role, source_name, confidence, depth_rank, manual_status, manual_status_note, manual_return_date')
     .eq('season_id', await getCurrentFplSeasonId());
   if (defaultErr) throw defaultErr;
-  const defaultsByPlayer = new Map<number, { tactical_role: string; source_name: string; confidence: number; depth_rank: number | null; manual_status: string | null; manual_status_note: string | null }>();
+  const defaultsByPlayer = new Map<number, { tactical_role: string; source_name: string; confidence: number; depth_rank: number | null; manual_status: string | null; manual_status_note: string | null; manual_return_date: string | null }>();
   for (const d of defaultRows ?? [])
     defaultsByPlayer.set(d.fpl_player_id, {
       tactical_role: d.tactical_role,
@@ -163,6 +190,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
       depth_rank: d.depth_rank,
       manual_status: d.manual_status ?? null,
       manual_status_note: d.manual_status_note ?? null,
+      manual_return_date: d.manual_return_date ?? null,
     });
 
   // Same merge logic as getFplFixtureProjection: corner_left/corner_right
@@ -209,6 +237,8 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
         status: td?.manual_status ?? p.status ?? null,
         news: td?.manual_status ? td?.manual_status_note ?? null : p.news || null,
         status_is_manual: td?.manual_status != null,
+        manual_return_date: td?.manual_return_date ?? null,
+        fpl_return_date: parseNewsReturnDate(p.news, p.news_added),
       };
     })
     .sort((a: TacticalRoleRow, b: TacticalRoleRow) => a.team_name.localeCompare(b.team_name) || a.element_type - b.element_type || a.web_name.localeCompare(b.web_name));
@@ -276,19 +306,10 @@ export const MANUAL_STATUS_OPTIONS = [
  * Preserves the existing tactical_role/depth_rank the same way the other
  * partial-update functions on this table do.
  *
- * Also writes (or clears) the corresponding row in fpl_player_squad_state
- * -- the table that ACTUALLY feeds expected_minutes, projections, and the
- * optimizer (via fpl_player_squad_state_current -> fixture_player_expected_
- * minutes_resolved_v3). manual_status on team_player_tactical_defaults on
- * its own is display-only (used by this page's badges and depth-chart
- * injury promotion); nothing in the projection pipeline reads it.
- * Confirmed directly (no view in the database references manual_status)
- * after a manual injury tag didn't change the optimal squad -- this was
- * the gap. Uses a fixed sentinel effective_from so repeated edits update
- * the same row rather than accumulating one per edit, and the view
- * (updated alongside this) prioritises this source over the automated
- * feed regardless of which has a more recent effective_from, so a later
- * scheduled import doesn't silently override it. */
+ * Since 6 Oct 2026 the projections read manual_status (and
+ * manual_return_date) directly in fpl_player_fixture_availability, fixture
+ * by fixture. This used to write fpl_player_squad_state instead, which set
+ * a start chance of 0 for every remaining fixture with no way back. */
 export async function saveManualStatus(teamId: number, fplPlayerId: number, elementType: FplElementType, status: string | null, note: string | null): Promise<void> {
   const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
   const { data: existing, error: readErr } = await supabase
@@ -318,50 +339,38 @@ export async function saveManualStatus(teamId: number, fplPlayerId: number, elem
     );
   if (writeErr) throw writeErr;
 
-  // Sentinel effective_from -- far enough in the past to never collide
-  // with real automated-feed rows, and fixed so repeated saves upsert
-  // the same manual-override row instead of piling up.
-  const MANUAL_OVERRIDE_EFFECTIVE_FROM = '2020-01-01T00:00:00Z';
+}
 
-  if (!status) {
-    // Cleared back to "Use FPL status" -- remove the override entirely so
-    // the automated feed (or the normal model fallback) takes over again.
-    const { error: deleteErr } = await supabase
-      .from('fpl_player_squad_state')
-      .delete()
-      .eq('season_id', await getCurrentFplSeasonId())
-      .eq('fpl_player_id', fplPlayerId)
-      .eq('source_name', 'manual_tactical_override');
-    if (deleteErr) throw deleteErr;
-    return;
-  }
-
-  const STATE_BY_STATUS: Record<string, { state: string; availability_probability: number; start_probability_override: number | null }> = {
-    a: { state: 'active', availability_probability: 1, start_probability_override: null },
-    d: { state: 'doubtful', availability_probability: 0.5, start_probability_override: null },
-    i: { state: 'injured', availability_probability: 0, start_probability_override: 0 },
-    s: { state: 'suspended', availability_probability: 0, start_probability_override: 0 },
-  };
-  const mapped = STATE_BY_STATUS[status];
-  if (!mapped) return; // unrecognised status code -- nothing sensible to write downstream
-
-  const { error: squadStateErr } = await supabase.from('fpl_player_squad_state').upsert(
-    {
-      season_id: await getCurrentFplSeasonId(),
-      fpl_player_id: fplPlayerId,
-      team_id: teamId,
-      state: mapped.state,
-      availability_probability: mapped.availability_probability,
-      start_probability_override: mapped.start_probability_override,
-      effective_from: MANUAL_OVERRIDE_EFFECTIVE_FROM,
-      effective_to: null,
-      source_name: 'manual_tactical_override',
-      source_reference: null,
-      evidence: note,
-    },
-    { onConflict: 'season_id,fpl_player_id,effective_from' }
-  );
-  if (squadStateErr) throw squadStateErr;
+/** Saves (or clears, with null) the admin return date (YYYY-MM-DD). The
+ * projections use it ahead of FPL's date from the next run: out before it,
+ * then 75% / 90% / fit. Preserves the row's other fields like the other
+ * partial updates here. */
+export async function saveManualReturnDate(teamId: number, fplPlayerId: number, elementType: FplElementType, returnDate: string | null): Promise<void> {
+  const fallbackRole = elementType === 1 ? 'GK' : elementType === 2 ? 'DEF' : elementType === 3 ? 'MID' : 'CF';
+  const seasonId = await getCurrentFplSeasonId();
+  const { data: existing, error: readErr } = await supabase
+    .from('team_player_tactical_defaults')
+    .select('tactical_role, source_name, confidence')
+    .eq('season_id', seasonId)
+    .eq('team_id', teamId)
+    .eq('fpl_player_id', fplPlayerId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  const { error } = await supabase
+    .from('team_player_tactical_defaults')
+    .upsert(
+      {
+        season_id: seasonId,
+        team_id: teamId,
+        fpl_player_id: fplPlayerId,
+        tactical_role: existing?.tactical_role ?? fallbackRole,
+        source_name: existing?.source_name ?? 'fpl_position_fallback',
+        confidence: existing?.confidence ?? 0.3,
+        manual_return_date: returnDate,
+      },
+      { onConflict: 'season_id,team_id,fpl_player_id' }
+    );
+  if (error) throw error;
 }
 
 /** Last-reviewed timestamp per team, keyed by team_id -- null if never reviewed. */

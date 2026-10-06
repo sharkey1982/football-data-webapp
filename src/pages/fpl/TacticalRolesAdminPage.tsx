@@ -32,6 +32,7 @@ import {
   saveTacticalRoleCorrection,
   saveDepthRankCorrection,
   saveManualStatus,
+  saveManualReturnDate,
   getTeamReviewDates,
   markTeamReviewed,
   getProjectedMinutes,
@@ -63,6 +64,12 @@ import type { FplElementType } from '../../types/database';
 type DisplayMode = 'table' | 'pitch';
 type ScopeMode = 'needs_review' | 'worth_reviewing' | 'everyone';
 type TableSort = 'position' | 'depth';
+
+/** "2026-10-18" -> "18 Oct". */
+function formatShortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
 
 export default function TacticalRolesAdminPage({ adminMode = false }: { adminMode?: boolean } = {}) {
   // Same two-route shape TeamStrengthPage already uses: one component,
@@ -314,11 +321,26 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         setRows(refreshed);
         return;
       }
-      const note = window.prompt('Optional note (e.g. expected return date/detail)', row.news ?? '') ?? undefined;
+      const note = window.prompt('Optional note (set the date he is due back in the Back column)', row.news ?? '') ?? undefined;
       await saveManualStatus(row.team_id, row.fpl_player_id, row.element_type, newStatus, note || null);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, status: newStatus, news: note || null, status_is_manual: true } : r)));
     } catch (e) {
       setSaveError(getErrorMessage(e, `Failed to save the status for ${row.web_name}`));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function handleReturnDateChange(row: TacticalRoleRow, value: string | null) {
+    if (value !== null && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return; // half-typed date
+    setSavingId(row.fpl_player_id);
+    setSaveError(null);
+    try {
+      await saveManualReturnDate(row.team_id, row.fpl_player_id, row.element_type, value);
+      markSaved(row.fpl_player_id);
+      setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, manual_return_date: value } : r)));
+    } catch (e) {
+      setSaveError(getErrorMessage(e, `Failed to save the return date for ${row.web_name}`));
     } finally {
       setSavingId(null);
     }
@@ -510,6 +532,48 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     const formatted = formatSetPieceRoles(row.set_piece_roles);
     if (!formatted) return <span className="text-ink-400">&mdash;</span>;
     return <span className="text-[10px] font-mono font-semibold text-amber-600" title={formatted.full}>{formatted.compact}</span>;
+  }
+
+  /** Expected back: the admin date if set, else the one in FPL's news.
+   * Admins can set or clear it; the projections use it from the next run. */
+  function ReturnDateCell({ row }: { row: TacticalRoleRow }) {
+    const shown = row.manual_return_date ?? row.fpl_return_date;
+    if (!isAdmin) {
+      return (
+        <span className={['text-xs font-mono whitespace-nowrap', row.manual_return_date ? 'text-amber-700' : 'text-ink-700'].join(' ')}>
+          {shown ? formatShortDate(shown) : '\u2014'}
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1 whitespace-nowrap">
+        <input
+          type="date"
+          aria-label={`Expected back: ${row.web_name}`}
+          value={row.manual_return_date ?? ''}
+          disabled={savingId === row.fpl_player_id}
+          onChange={(e) => void handleReturnDateChange(row, e.target.value || null)}
+          className={[
+            'text-xs font-mono border rounded px-1 py-0.5',
+            row.manual_return_date ? 'border-amber-600/60 bg-amber-600/10 text-amber-700' : 'border-chalk-300 text-ink-700',
+          ].join(' ')}
+        />
+        {row.manual_return_date ? (
+          <button
+            type="button"
+            onClick={() => void handleReturnDateChange(row, null)}
+            disabled={savingId === row.fpl_player_id}
+            className="text-xs text-ink-500 hover:text-ink-900 px-1"
+            aria-label={`Clear return date for ${row.web_name}`}
+            title={row.fpl_return_date ? `Clear (use FPL's ${formatShortDate(row.fpl_return_date)})` : "Clear (use FPL's news)"}
+          >
+            &times;
+          </button>
+        ) : row.fpl_return_date ? (
+          <span className="text-[10px] text-ink-500">FPL {formatShortDate(row.fpl_return_date)}</span>
+        ) : null}
+      </span>
+    );
   }
 
   function StatusBadge({ row }: { row: TacticalRoleRow }) {
@@ -888,6 +952,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           </button>
                         </th>
                         <th className="px-2 py-1.5">Status</th>
+                        <th className="px-2 py-1.5" title="Expected back: your date if set, otherwise the one in FPL's news. Out before it, then 75% / 90% / fit in the projections.">Back</th>
                         <th className="px-2 py-1.5">Set pieces</th>
                         <th className="px-2 py-1.5 text-right">Mins</th>
                         <th className="px-2 py-1.5 text-right">Min/Start</th>
@@ -909,6 +974,9 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           </td>
                           <td className="px-2 py-1.5">
                             <StatusBadge row={r} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <ReturnDateCell row={r} />
                           </td>
                           <td className="px-2 py-1.5">
                             <SetPieceBadges row={r} />
