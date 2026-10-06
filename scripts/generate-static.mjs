@@ -52,8 +52,29 @@ const CLUB_SEASON_BUDGET_MS = 210000;
 const INTL_FULL_MIN_MS = 150000;
 const STARTED_AT = Date.now();
 
+// Build report: every "Static:" line of this run, written to
+// dist/build-report.txt so a deploy (preview or live) shows what the
+// generator did -- Netlify build logs can't be read from a Claude session.
+// Counts and query paths only; no keys.
+const REPORT = [];
+for (const level of ['log', 'warn', 'error']) {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => {
+    const line = args.map(String).join(' ');
+    if (line.startsWith('Static:')) REPORT.push(`${Math.round((Date.now() - STARTED_AT) / 1000)}s ${level === 'log' ? '' : level.toUpperCase() + ' '}${line}`.slice(0, 400));
+    orig(...args);
+  };
+}
+function writeReport() {
+  try {
+    mkdirSync(DIST, { recursive: true });
+    writeFileSync(join(DIST, 'build-report.txt'), `Static generation, ${new Date().toISOString()}\n${REPORT.join('\n')}\n`, 'utf8');
+  } catch { /* the report must never cost a deploy */ }
+}
+
 const watchdog = setTimeout(() => {
   console.error('Static: watchdog fired -- exiting rather than hanging the build.');
+  writeReport();
   process.exit(0);
 }, WATCHDOG_MS);
 watchdog.unref();
@@ -89,14 +110,18 @@ async function queryAll(path, pageSize = 1000) {
   for (let offset = 0; ; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
     let page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
-    // One retry for a transient error. A page that still fails returns null
+    // Two retries (1.5s, 5s) for a transient error. A page that still fails returns null
     // for the WHOLE query: until 6 Oct the rows before the failure came back
     // as if complete, so (with oldest-first ordering) the current season was
     // what silently went missing. null makes the caller skip the section and
     // verify-dist's minimum page counts fail the build instead.
-    if (page == null) page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    for (const wait of [1500, 5000]) {
+      if (page != null) break;
+      await new Promise((r) => setTimeout(r, wait));
+      page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    }
     if (page == null) {
-      console.error(`Static: page at offset ${offset} failed twice for ${path} -- discarding the partial result.`);
+      console.error(`Static: page at offset ${offset} failed three times for ${path} -- discarding the partial result.`);
       return null;
     }
     out.push(...page);
@@ -1228,5 +1253,7 @@ main()
   })
   .finally(() => {
     clearTimeout(watchdog);
+    console.log(`Static: finished in ${Math.round((Date.now() - STARTED_AT) / 1000)}s.`);
+    writeReport();
     process.exit(0);
   });
