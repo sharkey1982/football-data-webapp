@@ -11,13 +11,13 @@
 // stand-in he displaces.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { formatRefreshDate } from '../../lib/formatDate';
 import {
-  getMinutesOutlook, getOutlookTeams, ruleText, shortOpponents,
-  type Outlook, type OutlookCell, type OutlookPlayer, type OutlookTeam,
+  compareByRole, getMinutesOutlook, getOutlookTeams, ruleText, shortOpponents,
+  type Outlook, type OutlookActual, type OutlookCell, type OutlookPlayer, type OutlookTeam,
 } from '../../lib/minutesOutlookApi';
 
 type Mode = 'start' | 'minutes';
@@ -31,8 +31,9 @@ function cellValue(c: OutlookCell, mode: Mode): number {
   return mode === 'start' ? c.start / c.fixtures : c.minutes / (90 * c.fixtures);
 }
 
-function Cell({ c, mode }: { c: OutlookCell | undefined; mode: Mode }) {
-  if (!c) return <td className="px-1 py-1 text-center text-ink-500 text-xs">&ndash;</td>;
+function Cell({ c, mode, divider = false }: { c: OutlookCell | undefined; mode: Mode; divider?: boolean }) {
+  const edge = divider ? ' border-l-2 border-ink-500/40 pl-1' : '';
+  if (!c) return <td className={`px-1 py-1 text-center text-ink-500 text-xs${edge}`}>&ndash;</td>;
   const v = Math.max(0, Math.min(1, cellValue(c, mode)));
   const out = c.availability === 0;
   const flagged = c.availability != null && c.availability > 0 && c.availability < 0.999;
@@ -45,7 +46,7 @@ function Cell({ c, mode }: { c: OutlookCell | undefined; mode: Mode }) {
     why,
   ].filter(Boolean).join(' · ');
   return (
-    <td className="px-0.5 py-0.5" title={title}>
+    <td className={`px-0.5 py-0.5${edge}`} title={title}>
       <div
         className={`rounded text-center text-xs tabular-nums leading-7 min-w-10 ${v > 0.55 ? 'text-chalk-100' : 'text-ink-900'}`}
         style={{ backgroundColor: out ? 'transparent' : `color-mix(in srgb, var(--color-pitch-600) ${Math.round(v * 100)}%, transparent)` }}
@@ -59,6 +60,24 @@ function Cell({ c, mode }: { c: OutlookCell | undefined; mode: Mode }) {
             {c.fixtures > 1 && <sup className="ml-px">&times;{c.fixtures}</sup>}
           </>
         )}
+      </div>
+    </td>
+  );
+}
+
+/** What actually happened, in grey so it reads apart from the green projections. */
+function ActualCell({ a, gw }: { a: OutlookActual | undefined; gw: number }) {
+  if (!a) return <td className="px-0.5 py-0.5 text-center text-ink-500 text-xs" title={`GW${gw}: no record (not at the club yet)`}>&ndash;</td>;
+  const out = !a.available && a.minutes === 0;
+  const what = out ? 'Injured or suspended' : a.minutes === 0 ? 'Unused' : a.started ? `Started, ${a.minutes} minutes` : `Came off the bench, ${a.minutes} minutes`;
+  const v = Math.min(1, a.minutes / 90);
+  return (
+    <td className="px-0.5 py-0.5" title={`GW${gw} actual: ${what}`}>
+      <div
+        className={`rounded text-center text-xs tabular-nums leading-7 min-w-10 ${v > 0.55 ? 'text-chalk-100' : 'text-ink-700'}`}
+        style={{ backgroundColor: out ? 'transparent' : `color-mix(in srgb, var(--color-ink-500) ${Math.round(v * 70)}%, transparent)` }}
+      >
+        {out ? <span className="text-loss-700 font-medium">out</span> : <>{a.minutes}{a.minutes > 0 && !a.started && <sup className="ml-px">s</sup>}</>}
       </div>
     </td>
   );
@@ -83,6 +102,7 @@ export default function MinutesOutlookPage() {
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<Mode>('start');
   const [everyone, setEveryone] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useDocumentHead({
     title: 'Minutes Outlook — who plays over the next 10 gameweeks',
@@ -110,6 +130,18 @@ export default function MinutesOutlookPage() {
     return () => { live = false; };
   }, [team]);
 
+  // On a narrow screen the played columns would fill the view: open with the
+  // last two played gameweeks and the projections in sight (swipe back for more).
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || !outlook) return;
+    const firstProj = el.querySelector<HTMLElement>('th[data-first-proj]');
+    const played = el.querySelectorAll<HTMLElement>('th[data-played]');
+    const sticky = el.querySelector<HTMLElement>('th')?.offsetWidth ?? 0;
+    if (!firstProj || played.length < 3) return;
+    el.scrollLeft = Math.max(0, played[played.length - 2].offsetLeft - sticky);
+  }, [outlook, mode, everyone]);
+
   const shown = useMemo(() => {
     if (!outlook) return [];
     return outlook.players.filter((p) => everyone || [...p.cells.values()].some((c) => c.start / c.fixtures >= FRINGE));
@@ -117,7 +149,8 @@ export default function MinutesOutlookPage() {
 
   const groups = useMemo(() => POS_ORDER.map((pos) => ({
     pos,
-    players: shown.filter((p) => p.position === pos).sort((a, b) => b.totalMinutes - a.totalMinutes),
+    // By playing role (left to right), so rivals for the same spot sit together.
+    players: shown.filter((p) => p.position === pos).sort(compareByRole),
   })).filter((g) => g.players.length > 0), [shown]);
 
   const gaining = useMemo(() => (outlook?.players ?? []).filter((p) => p.trend >= 0.15).sort((a, b) => b.trend - a.trend).slice(0, 6), [outlook]);
@@ -188,7 +221,7 @@ export default function MinutesOutlookPage() {
                     <ul className="mt-2 space-y-1 text-sm">
                       {(list as OutlookPlayer[]).map((p) => (
                         <li key={p.fpl_player_id} className="flex justify-between gap-2">
-                          <span><PlayerName p={p} /> <span className="text-ink-500">{p.position}</span></span>
+                          <span><PlayerName p={p} /> <span className="text-ink-500">{p.role ?? p.position}</span></span>
                           <span className="tabular-nums text-ink-700">{startAt(p, first)}% &rarr; {startAt(p, last)}%</span>
                         </li>
                       ))}
@@ -199,13 +232,19 @@ export default function MinutesOutlookPage() {
             </section>
           )}
 
-          <div className="overflow-x-auto border border-chalk-300 rounded-lg bg-white" data-testid="outlook-grid">
+          <div ref={gridRef} className="overflow-x-auto border border-chalk-300 rounded-lg bg-white" data-testid="outlook-grid">
             <table className="text-sm border-separate border-spacing-0">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-white text-left px-2 py-1 font-medium text-ink-700 min-w-28">Player</th>
-                  {outlook.gameweeks.map((gw) => (
-                    <th key={gw} className="px-0.5 py-1 font-medium text-ink-700 text-center">
+                  {outlook.pastGameweeks.map((gw) => (
+                    <th key={`a${gw}`} data-played="" className="px-0.5 py-1 font-medium text-ink-500 text-center">
+                      <div className="text-xs">GW{gw}</div>
+                      <div className="text-[10px] font-normal italic">played</div>
+                    </th>
+                  ))}
+                  {outlook.gameweeks.map((gw, j) => (
+                    <th key={gw} data-first-proj={j === 0 ? '' : undefined} className={`px-0.5 py-1 font-medium text-ink-700 text-center${j === 0 && outlook.pastGameweeks.length > 0 ? ' border-l-2 border-ink-500/40 pl-1' : ''}`}>
                       <div className="text-xs">GW{gw}</div>
                       <div className="text-[10px] font-normal text-ink-500 whitespace-nowrap">{shortOpponents(outlook.opponents.get(gw) ?? '')}</div>
                     </th>
@@ -215,7 +254,7 @@ export default function MinutesOutlookPage() {
               </thead>
               <tbody>
                 {groups.map((g) => (
-                  <GroupRows key={g.pos} label={POS_LABEL[g.pos]} players={g.players} gameweeks={outlook.gameweeks} mode={mode} span={outlook.gameweeks.length + 2} />
+                  <GroupRows key={g.pos} label={POS_LABEL[g.pos]} players={g.players} gameweeks={outlook.gameweeks} mode={mode} span={outlook.pastGameweeks.length + outlook.gameweeks.length + 2} pastGameweeks={outlook.pastGameweeks} />
                 ))}
               </tbody>
             </table>
@@ -223,7 +262,10 @@ export default function MinutesOutlookPage() {
 
           <p className="text-xs text-ink-500 max-w-prose">
             {mode === 'start' ? 'Numbers are the % chance of starting' : 'Numbers are expected minutes'}; darker is more.
-            <span className="text-amber-600"> &bull;</span> marks a player not certain to be available (doubt, returning, or
+            Grey columns are what actually happened (minutes; <sup>s</sup> = came off the bench;{' '}
+            <span className="text-loss-700">out</span> = injured or suspended at the time); green columns are the projections.
+            Players are listed by playing role (left to right), so the ones competing for the same spot sit
+            together. <span className="text-amber-600">&bull;</span> marks a player not certain to be available (doubt, returning, or
             injured with no return date); <span className="text-loss-700">out</span> means not available. Hover a cell for
             the opponent and the reason. A club&rsquo;s start chances add up to about eleven a match, so a returning
             player&rsquo;s gain is someone else&rsquo;s loss.
@@ -235,20 +277,28 @@ export default function MinutesOutlookPage() {
   );
 }
 
-function GroupRows({ label, players, gameweeks, mode, span }: {
-  label: string; players: OutlookPlayer[]; gameweeks: number[]; mode: Mode; span: number;
+function GroupRows({ label, players, gameweeks, pastGameweeks, mode, span }: {
+  label: string; players: OutlookPlayer[]; gameweeks: number[]; pastGameweeks: number[]; mode: Mode; span: number;
 }) {
   return (
     <>
       <tr>
-        <td colSpan={span} className="sticky left-0 bg-chalk-100 px-2 py-1 text-xs font-mono uppercase tracking-widest text-ink-500 border-t border-chalk-300">{label}</td>
+        {/* The label itself is sticky: a sticky full-width cell scrolls away with the grid. */}
+        <td colSpan={span} className="bg-chalk-100 px-2 py-1 text-xs font-mono uppercase tracking-widest text-ink-500 border-t border-chalk-300">
+          <span className="sticky left-2">{label}</span>
+        </td>
       </tr>
-      {players.map((p) => (
+      {players.map((p, i) => (
         <tr key={p.fpl_player_id}>
-          <td className="sticky left-0 z-10 bg-white px-2 py-0.5 whitespace-nowrap border-t border-chalk-200" title={p.news ?? undefined}>
+          {/* A darker line where the role changes: each block is one spot's contenders. */}
+          <td className={`sticky left-0 z-10 bg-white px-2 py-0.5 whitespace-nowrap border-t ${i > 0 && p.role !== players[i - 1].role ? 'border-ink-500/50' : 'border-chalk-200'}`} title={p.news ?? undefined}>
+            <span className="inline-block w-9 font-mono text-[11px] text-ink-500" title={p.role ? 'Playing role in the projections' : 'No specific role known'}>
+              {p.role && p.role !== 'GK' ? p.role : p.role ? '' : '\u2013'}
+            </span>
             <PlayerName p={p} />
           </td>
-          {gameweeks.map((gw) => <Cell key={gw} c={p.cells.get(gw)} mode={mode} />)}
+          {pastGameweeks.map((gw) => <ActualCell key={`a${gw}`} a={p.actual.get(gw)} gw={gw} />)}
+          {gameweeks.map((gw, j) => <Cell key={gw} c={p.cells.get(gw)} mode={mode} divider={j === 0 && pastGameweeks.length > 0} />)}
           <td className="px-2 text-center text-xs tabular-nums"><Trend t={p.trend} /></td>
         </tr>
       ))}
