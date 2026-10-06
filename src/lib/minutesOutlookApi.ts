@@ -35,9 +35,18 @@ export type OutlookPlayer = {
   totalMinutes: number;
   /** Start chance in the last gameweek shown minus the first (positive = gaining a place). */
   trend: number;
+  /** Actual minutes in recent played gameweeks, keyed by gameweek. */
+  actual: Map<number, OutlookActual>;
+  /** Most common specific tactical role over the window (e.g. RCB, DM); null when only a generic DEF/MID is known. */
+  role: string | null;
 };
 
+/** What actually happened in a played gameweek. available = not injured or suspended at the time. */
+export type OutlookActual = { minutes: number; started: boolean; available: boolean };
+
 export type Outlook = {
+  /** Recent played gameweeks with actual minutes, oldest first. */
+  pastGameweeks: number[];
   gameweeks: number[];
   /** Opponents by gameweek, from any player's row (the same for the whole club). */
   opponents: Map<number, string>;
@@ -64,13 +73,39 @@ type Row = {
   fpl_player_id: number; web_name: string; slug: string | null; position_label: string; status: string | null; news: string | null;
   fpl_event_id: number; fixtures: number; opponents: string; start_probability: number | string; expected_minutes: number | string;
   availability: number | string | null; availability_rule: string | null; generated_at: string | null;
+  tactical_role?: string | null;
 };
 
+type ActualRow = { fpl_player_id: number; fpl_event_id: number; minutes: number; started: boolean; available: boolean };
+
+/**
+ * Tactical roles, back to front and left to right within each line, so
+ * players competing for the same spot sit next to each other (Chris, 6 Oct
+ * 2026). Generic labels (DEF, MID, FWD) mean no specific role is known.
+ */
+export const ROLE_ORDER = [
+  'GK',
+  'LWB', 'LB', 'LCB', 'CB', 'RCB', 'RB', 'RWB',
+  'DM', 'CDM', 'CM', 'LM', 'LW', 'AM', 'CAM', 'RW', 'RM',
+  'LF', 'CF', 'ST', 'RF',
+];
+
+export function roleRank(role: string | null): number {
+  const i = role ? ROLE_ORDER.indexOf(role.toUpperCase()) : -1;
+  return i === -1 ? ROLE_ORDER.length : i;
+}
+
+/** Within a position group: by role (left to right), then most minutes first. */
+export function compareByRole(a: OutlookPlayer, b: OutlookPlayer): number {
+  return roleRank(a.role) - roleRank(b.role) || b.totalMinutes - a.totalMinutes;
+}
+
 /** Pure: rows from get_fpl_minutes_outlook into players with per-gameweek cells. Exported for tests. */
-export function buildOutlook(rows: Row[]): Outlook {
+export function buildOutlook(rows: Row[], actualRows: ActualRow[] = []): Outlook {
   const gameweeks = [...new Set(rows.map((r) => Number(r.fpl_event_id)))].sort((a, b) => a - b);
   const opponents = new Map<number, string>();
   const byPlayer = new Map<number, OutlookPlayer>();
+  const roleCounts = new Map<number, Map<string, number>>();
   let generatedAt: string | null = null;
   for (const r of rows) {
     const gw = Number(r.fpl_event_id);
@@ -81,9 +116,15 @@ export function buildOutlook(rows: Row[]): Outlook {
       p = {
         fpl_player_id: Number(r.fpl_player_id), web_name: r.web_name, slug: r.slug,
         position: (['GKP', 'DEF', 'MID', 'FWD'].includes(r.position_label) ? r.position_label : '?') as OutlookPlayer['position'],
-        status: r.status, news: r.news, cells: new Map(), avgStart: 0, totalMinutes: 0, trend: 0,
+        status: r.status, news: r.news, cells: new Map(), avgStart: 0, totalMinutes: 0, trend: 0, role: null, actual: new Map(),
       };
       byPlayer.set(p.fpl_player_id, p);
+    }
+    const role = r.tactical_role?.toUpperCase() ?? null;
+    if (role && ROLE_ORDER.includes(role)) {
+      const m = roleCounts.get(p.fpl_player_id) ?? new Map<string, number>();
+      m.set(role, (m.get(role) ?? 0) + 1);
+      roleCounts.set(p.fpl_player_id, m);
     }
     p.cells.set(gw, {
       fixtures: Number(r.fixtures), opponents: r.opponents,
@@ -100,14 +141,26 @@ export function buildOutlook(rows: Row[]): Outlook {
     p.totalMinutes = cells.reduce((a, c) => a + c.minutes, 0);
     const a = p.cells.get(first), b = p.cells.get(last);
     p.trend = a && b ? b.start / b.fixtures - a.start / a.fixtures : 0;
+    const counts = roleCounts.get(p.fpl_player_id);
+    p.role = counts ? [...counts.entries()].sort((x, y) => y[1] - x[1] || roleRank(x[0]) - roleRank(y[0]))[0][0] : null;
   }
-  return { gameweeks, opponents, players: [...byPlayer.values()], generatedAt };
+  const pastGameweeks = [...new Set(actualRows.map((r) => Number(r.fpl_event_id)))].sort((a, b) => a - b);
+  for (const r of actualRows) {
+    byPlayer.get(Number(r.fpl_player_id))?.actual.set(Number(r.fpl_event_id), {
+      minutes: Number(r.minutes), started: !!r.started, available: !!r.available,
+    });
+  }
+  return { pastGameweeks, gameweeks, opponents, players: [...byPlayer.values()], generatedAt };
 }
 
 export async function getMinutesOutlook(teamId: number): Promise<Outlook> {
-  const { data, error } = await rpc('get_fpl_minutes_outlook', { p_team_id: teamId });
-  if (error) throw error;
-  return buildOutlook((data ?? []) as Row[]);
+  const [proj, act] = await Promise.all([
+    rpc('get_fpl_minutes_outlook', { p_team_id: teamId }),
+    rpc('get_fpl_minutes_actuals', { p_team_id: teamId }),
+  ]);
+  if (proj.error) throw proj.error;
+  // Actuals are context: the projections still show if they fail.
+  return buildOutlook((proj.data ?? []) as Row[], act.error ? [] : ((act.data ?? []) as ActualRow[]));
 }
 
 /** Plain-English reason for a cell's availability, for the hover text. */
