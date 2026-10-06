@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: '30 8 * * *'
   workflow_dispatch:
+    inputs:
+      base:
+        description: 'Fetch from this host instead (e.g. a deploy preview URL); canonicals are still checked against fixtureshark.com'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -25,12 +30,14 @@ jobs:
       # The canonical domain since 27 Sep 2026. The old netlify.app host now
       # 301s everything here, so checking it proved nothing.
       SITE: https://fixtureshark.com
+      BASE: ${{ inputs.base }}
     steps:
       - name: Check sitemap, key pages and a sample of sitemap URLs
         run: |
           python3 - <<'PY'
           import os, random, re, sys, urllib.request, urllib.error
           site = os.environ["SITE"]
+          base = (os.environ.get("BASE") or site).rstrip("/")
           fails = []
 
           # Redirects are NOT followed: a sitemap or canonical URL that 301s
@@ -44,6 +51,8 @@ jobs:
 
           def fetch(path):
               url = path if path.startswith("http") else site + path
+              if base != site and url.startswith(site):
+                  url = base + url[len(site):]
               req = urllib.request.Request(url, headers={"User-Agent": "FixtureShark-site-health"})
               try:
                   with opener.open(req, timeout=30) as r:
@@ -55,7 +64,8 @@ jobs:
 
           def get(path):
               s, body, headers = fetch(path)
-              if s == 200 and "noindex" in (headers.get("X-Robots-Tag") or headers.get("x-robots-tag") or "").lower():
+              # Deploy previews always send noindex; only the live site is checked for it.
+              if s == 200 and base == site and "noindex" in (headers.get("X-Robots-Tag") or headers.get("x-robots-tag") or "").lower():
                   fails.append(f"{path} sends X-Robots-Tag: noindex")
               return s, body
 
@@ -75,6 +85,7 @@ jobs:
                   per_file[f.rsplit("/", 1)[-1].removesuffix(".xml")] = len(n)
                   locs += n
           print(f"sitemap.xml: HTTP {status}, {len(locs)} URLs")
+          print(f"::notice::sitemap {len(locs)} URLs: " + ", ".join(f"{k} {v}" for k, v in per_file.items()))
           if status != 200:
               fails.append(f"/sitemap.xml returned {status}")
           dupes = len(locs) - len(set(locs))
