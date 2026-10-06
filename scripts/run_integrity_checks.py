@@ -2,11 +2,16 @@
 # ============================================================================
 # scripts/run_integrity_checks.py
 #
-# Runs public.check_model_integrity(), check_nfl_integrity(), check_tennis_integrity(), check_intl_integrity() and check_club_grounds() --
-# one guard per incident in
-# docs/incidents.md -- prints each result, logs a pipeline_runs row
-# (success / warning / failed) and exits 1 if any check failed, so the daily
-# workflow goes red instead of a problem sitting unnoticed.
+# Runs every integrity check function -- one guard per incident in
+# docs/incidents.md -- prints each result and exits 1 if any check failed, so
+# the daily workflow goes red instead of a problem sitting unnoticed.
+#
+# pipeline_runs gets one row per area (integrity_football, integrity_nfl,
+# integrity_tennis, integrity_intl, integrity_club_grounds) and the combined
+# row model_integrity_checks. Until 6 Oct only the combined row existed, so a
+# football failure that had been red for days hid any new NFL, tennis or
+# international failure. An area whose function errors or returns nothing is
+# recorded as failed and the other areas still run.
 # ============================================================================
 
 import os
@@ -14,52 +19,57 @@ import sys
 
 from supabase import create_client
 
+AREAS = [
+    ("football", "check_model_integrity"),
+    ("nfl", "check_nfl_integrity"),
+    ("tennis", "check_tennis_integrity"),        # results imported from Chris's PC
+    ("intl", "check_intl_integrity"),
+    ("club_grounds", "check_club_grounds"),      # Your Local Clubs; postcodes.io
+]
+
+
+def area_status(rows: list[dict]) -> str:
+    if any(r["status"] == "failed" for r in rows):
+        return "failed"
+    if any(r["status"] == "warning" for r in rows):
+        return "warning"
+    return "success"
+
+
+def summarise(rows: list[dict]) -> str:
+    failed = [r for r in rows if r["status"] == "failed"]
+    warned = [r for r in rows if r["status"] == "warning"]
+    text = f"{len(rows)} integrity checks: {len(failed)} failed, {len(warned)} warning"
+    if failed or warned:
+        text += " -- " + ", ".join(f"{r['check_name']}={r['found']}" for r in failed + warned)
+    return text
+
 
 def main() -> None:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
-    rows = sb.rpc("check_model_integrity", {}).execute().data or []
-    if not rows:
-        print("::error::check_model_integrity returned nothing")
-        sys.exit(1)
-    # NFL checks live in their own function so football's stays untouched.
-    nfl = sb.rpc("check_nfl_integrity", {}).execute().data or []
-    if not nfl:
-        print("::error::check_nfl_integrity returned nothing")
-        sys.exit(1)
-    rows += nfl
-    # Tennis (results imported from Chris's PC; see scripts/tennis_import.py).
-    tennis = sb.rpc("check_tennis_integrity", {}).execute().data or []
-    if not tennis:
-        print("::error::check_tennis_integrity returned nothing")
-        sys.exit(1)
-    rows += tennis
-    # International football (scripts/intl_import.py).
-    intl = sb.rpc("check_intl_integrity", {}).execute().data or []
-    if not intl:
-        print("::error::check_intl_integrity returned nothing")
-        sys.exit(1)
-    rows += intl
-    # Club grounds (Your Local Clubs; checked against postcodes.io).
-    grounds = sb.rpc("check_club_grounds", {}).execute().data or []
-    if not grounds:
-        print("::error::check_club_grounds returned nothing")
-        sys.exit(1)
-    rows += grounds
-    for r in rows:
-        mark = {"ok": "ok  ", "warning": "WARN", "failed": "FAIL"}.get(r["status"], r["status"])
-        print(f"[{mark}] {r['check_name']}: {r['found']} -- {r['detail']}")
-        if r["status"] == "failed":
-            print(f"::error::{r['check_name']}: {r['found']} -- {r['detail']}")
-        elif r["status"] == "warning":
-            print(f"::warning::{r['check_name']}: {r['found']} -- {r['detail']}")
-    failed = [r for r in rows if r["status"] == "failed"]
-    warned = [r for r in rows if r["status"] == "warning"]
-    status = "failed" if failed else "warning" if warned else "success"
-    summary = f"{len(rows)} integrity checks: {len(failed)} failed, {len(warned)} warning" + (
-        " -- " + ", ".join(f"{r['check_name']}={r['found']}" for r in failed + warned) if failed or warned else "")
+    all_rows: list[dict] = []
+    for area, fn in AREAS:
+        try:
+            rows = sb.rpc(fn, {}).execute().data or []
+            if not rows:
+                raise RuntimeError(f"{fn} returned nothing")
+        except Exception as e:  # noqa: BLE001 -- one broken area must not hide the others
+            rows = [{"check_name": f"{fn}_runs", "status": "failed", "found": 1, "detail": str(e)[:300]}]
+        for r in rows:
+            mark = {"ok": "ok  ", "warning": "WARN", "failed": "FAIL"}.get(r["status"], r["status"])
+            print(f"[{area}] [{mark}] {r['check_name']}: {r['found']} -- {r['detail']}")
+            if r["status"] == "failed":
+                print(f"::error::{area} {r['check_name']}: {r['found']} -- {r['detail']}")
+            elif r["status"] == "warning":
+                print(f"::warning::{area} {r['check_name']}: {r['found']} -- {r['detail']}")
+        sb.table("pipeline_runs").insert({"job_name": f"integrity_{area}", "status": area_status(rows),
+                                          "summary": summarise(rows), "finished_at": "now()"}).execute()
+        all_rows += rows
+    summary = summarise(all_rows)
+    status = area_status(all_rows)
     sb.table("pipeline_runs").insert({"job_name": "model_integrity_checks", "status": status, "summary": summary, "finished_at": "now()"}).execute()
     print(summary)
-    sys.exit(1 if failed else 0)
+    sys.exit(1 if status == "failed" else 0)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   simulate:
     runs-on: ubuntu-latest
@@ -30,7 +33,9 @@ jobs:
       - run: pip install -r scripts/requirements.txt
 
       - name: Simulate fixture bonus
-        run: python scripts/simulate_fixture_bonus.py --from-matchweek "${{ inputs.from_matchweek }}" --to-matchweek "${{ inputs.to_matchweek }}"
+        run: python scripts/simulate_fixture_bonus.py --from-matchweek "${IN_FROM_MATCHWEEK}" --to-matchweek "${IN_TO_MATCHWEEK}"
         env:
+          IN_FROM_MATCHWEEK: ${{ inputs.from_matchweek }}
+          IN_TO_MATCHWEEK: ${{ inputs.to_matchweek }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

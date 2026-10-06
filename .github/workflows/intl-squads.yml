@@ -21,9 +21,14 @@ on:
 permissions:
   contents: read
 
+# One load at a time: schedule, push and migration triggers can coincide.
+concurrency:
+  group: intl-squads
+  cancel-in-progress: false
+
 jobs:
   run:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

@@ -14,6 +14,9 @@ on:
         default: ''
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   simulate:
     runs-on: ubuntu-latest
@@ -32,7 +35,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       - name: Simulate final table
-        run: python scripts/simulate_final_table.py ${{ inputs.season_id && format('--season-id {0}', inputs.season_id) || '' }}
+        run: python scripts/simulate_final_table.py ${IN_SEASON_ID:+--season-id "$IN_SEASON_ID"}
         env:
+          IN_SEASON_ID: ${{ inputs.season_id }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
