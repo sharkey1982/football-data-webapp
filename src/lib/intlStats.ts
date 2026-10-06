@@ -453,3 +453,93 @@ export function bracketRounds(matches: IntlMatch[]): { code: string; games: Intl
 
 /** Squad tables list players without a club this way; they aren't clubs. */
 export const NOT_A_CLUB = /^(free agent|unattached|without (a )?club|no club|unknown|retired|n\/a|-)$/i;
+
+// ---- Squad watch: selection over time ------------------------------------------------
+
+export type SquadVersion = { team: string; slug: string; version_at: string; intro: string | null; intro_signature: string | null; players: number };
+export type SnapshotPlayer = {
+  team: string; version_at: string; list: 'current' | 'recent'; player_key: string; player: string; wiki_title: string | null;
+  position: string | null; number: number | null; caps: number | null; goals: number | null; club: string | null; club_slug: string | null;
+  status: string | null; latest_date: string | null; latest_text: string | null;
+};
+
+/** One squad announcement: the run of versions sharing an intro. */
+export type WatchSquad = { from: string; to: string; intro: string | null; versions: string[] };
+export type WatchCell =
+  | { kind: 'in'; played: number | null; number: number | null }     // in the squad; caps gained while it stood (null: unknown yet)
+  | { kind: 'left'; status: string | null }                          // in the squad, then left it (injury, withdrew...)
+  | { kind: 'out'; status: string | null }                           // a recent call-up with a reason, not in this squad
+  | null;
+export type WatchRow = { key: string; player: string; wiki_title: string | null; position: string | null; caps: number | null; club: string | null; club_slug: string | null; inLatest: boolean; latest: string | null; cells: WatchCell[] };
+export type SquadWatch = { squads: WatchSquad[]; rows: WatchRow[]; gaining: WatchRow[]; losing: WatchRow[]; played: WatchRow[]; unused: WatchRow[]; missing: WatchRow[]; uncapped: WatchRow[] };
+
+/** Squads over time from saved versions: who was in each squad, who left and why,
+ * and caps gained while each squad stood (the appearances made in that window). */
+export function squadWatch(versions: SquadVersion[], players: SnapshotPlayer[]): SquadWatch {
+  const vs = [...versions].sort((a, b) => a.version_at.localeCompare(b.version_at));
+  const squads: WatchSquad[] = [];
+  for (const v of vs) {
+    const last = squads[squads.length - 1];
+    const sig = v.intro_signature ?? v.intro ?? '';
+    if (last && (last as WatchSquad & { sig?: string }).sig === sig) {
+      last.to = v.version_at;
+      last.versions.push(v.version_at);
+    } else {
+      squads.push(Object.assign({ from: v.version_at, to: v.version_at, intro: v.intro, versions: [v.version_at] }, { sig }));
+    }
+  }
+  const at = new Map<string, Map<string, SnapshotPlayer>>(); // version -> key -> player (current preferred)
+  for (const p of players) {
+    const m = at.get(p.version_at) ?? new Map<string, SnapshotPlayer>();
+    if (!m.has(p.player_key) || p.list === 'current') m.set(p.player_key, p);
+    at.set(p.version_at, m);
+  }
+  const latestV = vs[vs.length - 1]?.version_at;
+  const latest = latestV ? at.get(latestV) ?? new Map() : new Map<string, SnapshotPlayer>();
+  const keys = new Set(players.map((p) => p.player_key));
+  const rows: WatchRow[] = [];
+  for (const key of keys) {
+    const cells: WatchCell[] = squads.map((sq, gi) => {
+      const inAny = sq.versions.some((v) => at.get(v)?.get(key)?.list === 'current');
+      const end = at.get(sq.to)?.get(key);
+      if (inAny) {
+        if (end?.list !== 'current') return { kind: 'left', status: end?.status ?? null };
+        // caps gained: from the last version before this squad, else from its first version
+        const prevV = gi > 0 ? squads[gi - 1].to : sq.from;
+        const before = at.get(prevV)?.get(key)?.caps;
+        const firstIn = sq.versions.map((v) => at.get(v)?.get(key)).find((p) => p?.list === 'current');
+        const base = before ?? firstIn?.caps ?? null;
+        const played = end.caps != null && base != null && (gi > 0 || sq.versions.length > 1) ? Math.max(0, end.caps - base) : null;
+        return { kind: 'in', played, number: end.number };
+      }
+      if (end?.list === 'recent' && end.status) return { kind: 'out', status: end.status };
+      return null;
+    });
+    const last = latest.get(key) ?? [...players].reverse().find((p) => p.player_key === key)!;
+    rows.push({
+      key, player: last.player, wiki_title: last.wiki_title, position: last.position, caps: last.caps, club: last.club, club_slug: last.club_slug,
+      inLatest: latest.get(key)?.list === 'current', latest: last.latest_date, cells,
+    });
+  }
+  const POS = ['GK', 'DF', 'MF', 'FW'];
+  rows.sort((a, b) => Number(b.inLatest) - Number(a.inLatest) || (POS.indexOf(a.position ?? '') + 1 || 9) - (POS.indexOf(b.position ?? '') + 1 || 9)
+    || (b.latest ?? '').localeCompare(a.latest ?? '') || (b.caps ?? 0) - (a.caps ?? 0) || a.player.localeCompare(b.player));
+  const n = squads.length;
+  const cell = (r: WatchRow, i: number) => (i >= 0 && i < n ? r.cells[i] : null);
+  const gaining = n >= 2 ? rows.filter((r) => cell(r, n - 1)?.kind === 'in' && cell(r, n - 2)?.kind !== 'in') : [];
+  const losing = n >= 2 ? rows.filter((r) => cell(r, n - 2)?.kind === 'in' && cell(r, n - 1)?.kind !== 'in') : [];
+  const lastCells = rows.map((r) => cell(r, n - 1));
+  const played = rows.filter((_, i) => lastCells[i]?.kind === 'in' && ((lastCells[i] as { played: number | null }).played ?? 0) > 0);
+  const anyKnown = lastCells.some((c) => c?.kind === 'in' && c.played != null);
+  const anyPlayed = played.length > 0;
+  const unused = anyKnown && anyPlayed ? rows.filter((_, i) => lastCells[i]?.kind === 'in' && (lastCells[i] as { played: number | null }).played === 0) : [];
+  // Missing out this window: left the squad, or a recent call-up with a reason dated within 45 days of the latest squad.
+  const cutoff = latestV ? new Date(Date.parse(latestV) - 45 * 864e5).toISOString().slice(0, 10) : '';
+  const missing = rows.filter((r, i) => {
+    const c = lastCells[i];
+    if (c?.kind === 'left') return true;
+    return c?.kind === 'out' && !!c.status && (r.latest ?? '') >= cutoff;
+  });
+  const uncapped = rows.filter((r) => r.inLatest && r.caps === 0);
+  return { squads, rows, gaining, losing, played, unused, missing, uncapped };
+}
