@@ -105,7 +105,7 @@ jobs:
       # The pecking-order start chances (scripts/fpl_depth_chart.py) feed
       # both passes below; its tests run first so a broken change stops here.
       - name: Test pecking-order start chances
-        run: pip install -q pytest && python -m pytest -q scripts/test_fpl_depth_chart.py
+        run: pip install -q pytest && python -m pytest -q scripts/test_fpl_depth_chart.py scripts/test_db_direct.py
 
       - name: Refresh FPL projections (pass 1 -- fallback bonus estimate)
         timeout-minutes: 30
