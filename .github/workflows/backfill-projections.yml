@@ -22,6 +22,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   backfill:
     runs-on: ubuntu-latest
@@ -39,9 +42,9 @@ jobs:
         shell: bash
         run: |
           ARGS=""
-          if [ -n "${{ inputs.from_matchweek }}" ]; then ARGS="$ARGS --from ${{ inputs.from_matchweek }}"; fi
-          if [ -n "${{ inputs.to_matchweek }}" ]; then ARGS="$ARGS --to ${{ inputs.to_matchweek }}"; fi
-          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          if [ -n "${IN_FROM_MATCHWEEK}" ]; then ARGS="$ARGS --from ${IN_FROM_MATCHWEEK}"; fi
+          if [ -n "${IN_TO_MATCHWEEK}" ]; then ARGS="$ARGS --to ${IN_TO_MATCHWEEK}"; fi
+          if [ "${IN_FORCE}" = "true" ]; then ARGS="$ARGS --force"; fi
           echo "Running with:$ARGS"
           set +e
           npx tsx scripts/backfill-projections.ts $ARGS 2>&1 | tee /tmp/backfill.log
@@ -52,5 +55,8 @@ jobs:
           fi
           exit $STATUS
         env:
+          IN_FORCE: ${{ inputs.force }}
+          IN_FROM_MATCHWEEK: ${{ inputs.from_matchweek }}
+          IN_TO_MATCHWEEK: ${{ inputs.to_matchweek }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

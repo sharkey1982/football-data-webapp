@@ -7,9 +7,13 @@
 # GitHub instead, over the session-pooler connection.
 #
 # What it applies:
-#   - on a push to main: every supabase/migrations/*.sql file ADDED by that
-#     push and not yet recorded in public.repo_migrations;
-#   - on demand: the one file named in the input.
+#   - on a push to main, and daily at 05:50 UTC: every supabase/migrations
+#     file on main from FLOOR onwards that is not yet recorded in
+#     public.repo_migrations, in name order. (Until 6 Oct only the files
+#     added by that push were applied, so a push whose queued run was
+#     replaced by a later one lost its files; the daily run also catches
+#     anything a cancelled run left behind.)
+#   - on demand: the file(s) named in the input.
 # Each file runs in a single transaction with ON_ERROR_STOP, so a failure
 # leaves the database unchanged, and is then recorded. Files merged before
 # this workflow existed are never replayed.
@@ -34,6 +38,8 @@ on:
   push:
     branches: [main]
     paths: ['supabase/migrations/**.sql']
+  schedule:
+    - cron: '50 5 * * *'
   workflow_dispatch:
     inputs:
       file:
@@ -58,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 1
 
       - name: Check the secret is set
         env:
@@ -82,8 +88,10 @@ jobs:
           EVENT: ${{ github.event_name }}
           FILE: ${{ inputs.file }}
           MARK_ONLY: ${{ inputs.mark_only }}
-          BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          # Files before this were applied by hand before the workflow existed
+          # and are never replayed; every file from here on is recorded.
+          FLOOR: '20261005100000'
         run: |
           set -euo pipefail
           PSQL=(/usr/lib/postgresql/17/bin/psql "$DB_URL" -Atq -v ON_ERROR_STOP=1)
@@ -97,16 +105,18 @@ jobs:
 
           if [ "$EVENT" = "workflow_dispatch" ]; then
             files=$(printf '%s' "$FILE" | tr ',' ' ')
-          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            files=$(git diff-tree --no-commit-id --name-only --diff-filter=A -r "$SHA" -- 'supabase/migrations/*.sql' | xargs -r -n1 basename)
           else
-            git fetch -q --depth=50 origin "$BEFORE" || true
-            files=$(git diff --name-only --diff-filter=A "$BEFORE" "$SHA" -- 'supabase/migrations/*.sql' | xargs -r -n1 basename)
+            recorded=$("${PSQL[@]}" -c "select filename from public.repo_migrations")
+            files=$(ls supabase/migrations | grep -E '\.sql$' | awk -v floor="$FLOOR" '$0 >= floor' | grep -vxF -f <(printf '%s\n' "$recorded") || true)
           fi
           files=$(printf '%s\n' $files | sort)
-          if [ -z "$files" ]; then echo "No new migration files."; exit 0; fi
+          if [ -z "$files" ]; then echo "No migration files waiting."; exit 0; fi
+          echo "Waiting:"; printf '  %s\n' $files
 
           for f in $files; do
+            if ! printf '%s' "$f" | grep -Eq '^[0-9]{14}_[A-Za-z0-9_]+\.sql$'; then
+              echo "::error::Not a migration file name: $f"; exit 1
+            fi
             path="supabase/migrations/$f"
             [ -f "$path" ] || { echo "::error::$path not found"; exit 1; }
             done_already=$("${PSQL[@]}" -c "select count(*) from public.repo_migrations where filename = '$f'")

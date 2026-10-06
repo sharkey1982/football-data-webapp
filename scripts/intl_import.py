@@ -876,17 +876,11 @@ def write(sb, b: Build) -> dict:
 
 def write_projections(sb, b: Build) -> str:
     """Model IP1: projections for unplayed fixtures and the Nations League
-    group odds (scripts/intl_projections.py). Skipped with a note until
-    migration 20261005210000 is applied."""
+    group odds (scripts/intl_projections.py)."""
     import intl_projections
     kind_of = {c["name"]: c["kind"] for c in b.competitions}
     r = intl_projections.build_projections(b.matches, b.fixtures, kind_of)
-    try:
-        sb.rpc("intl_replace_projections", {"payload": r}).execute()
-    except Exception as e:  # noqa: BLE001
-        if "intl_replace_projections" not in str(e):
-            raise
-        return "projections skipped (migration not applied yet)"
+    sb.rpc("intl_replace_projections", {"payload": r}).execute()
     return f"{len(r['projections'])} projections, {len(r['group_odds'])} group odds"
 
 
@@ -950,12 +944,7 @@ def main() -> None:
         w = write(sb, b)
         reconcile(sb, b)
         sb.rpc("intl_refresh", {}).execute()
-        try:
-            sb.rpc("intl_refresh_visuals", {}).execute()
-        except Exception as e:  # noqa: BLE001 -- only before migration 20261005200000 is applied
-            if "intl_refresh_visuals" not in str(e):
-                raise
-            print("intl_refresh_visuals not there yet; skipped")
+        sb.rpc("intl_refresh_visuals", {}).execute()
         proj_note = write_projections(sb, b)
         finish("success", f"{summary(b)}; {w['written']} written; reconciled per year; {proj_note}")
     except Exception as e:  # noqa: BLE001 -- record any failure, then fail the job

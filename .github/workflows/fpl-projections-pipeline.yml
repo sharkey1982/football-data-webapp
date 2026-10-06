@@ -45,6 +45,9 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   pipeline:
     runs-on: ubuntu-latest
@@ -65,14 +68,16 @@ jobs:
       - name: Determine matchweek range
         id: range
         run: |
-          if [ -n "${{ inputs.from_matchweek }}" ] && [ -n "${{ inputs.to_matchweek }}" ]; then
-            echo "from_matchweek=${{ inputs.from_matchweek }}" >> "$GITHUB_OUTPUT"
-            echo "to_matchweek=${{ inputs.to_matchweek }}" >> "$GITHUB_OUTPUT"
-            echo "Using manually specified range: ${{ inputs.from_matchweek }}-${{ inputs.to_matchweek }}"
+          if [ -n "${IN_FROM_MATCHWEEK}" ] && [ -n "${IN_TO_MATCHWEEK}" ]; then
+            echo "from_matchweek=${IN_FROM_MATCHWEEK}" >> "$GITHUB_OUTPUT"
+            echo "to_matchweek=${IN_TO_MATCHWEEK}" >> "$GITHUB_OUTPUT"
+            echo "Using manually specified range: ${IN_FROM_MATCHWEEK}-${IN_TO_MATCHWEEK}"
           else
             python scripts/get_next_matchweek_range.py --weeks 10
           fi
         env:
+          IN_FROM_MATCHWEEK: ${{ inputs.from_matchweek }}
+          IN_TO_MATCHWEEK: ${{ inputs.to_matchweek }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 

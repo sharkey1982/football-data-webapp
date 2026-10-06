@@ -19,6 +19,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -31,7 +34,9 @@ jobs:
       - run: pip install -r scripts/requirements.txt
 
       - name: Refresh FPL projections
-        run: python scripts/refresh_fpl_projections.py --from-matchweek "${{ inputs.from_matchweek }}" --to-matchweek "${{ inputs.to_matchweek }}"
+        run: python scripts/refresh_fpl_projections.py --from-matchweek "${IN_FROM_MATCHWEEK}" --to-matchweek "${IN_TO_MATCHWEEK}"
         env:
+          IN_FROM_MATCHWEEK: ${{ inputs.from_matchweek }}
+          IN_TO_MATCHWEEK: ${{ inputs.to_matchweek }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
