@@ -99,6 +99,7 @@ const NflSeasonPage = lazy(() => import('./pages/nfl/NflSeasonPage'));
 const NflPlayersPage = lazy(() => import('./pages/nfl/NflPlayersPage'));
 const NflProjectionsPage = lazy(() => import('./pages/nfl/NflProjectionsPage'));
 const NflMatchProjectionsPage = lazy(() => import('./pages/nfl/NflMatchProjectionsPage'));
+const NflSnapOutlookPage = lazy(() => import('./pages/nfl/NflSnapOutlookPage'));
 const NflPlayerPage = lazy(() => import('./pages/nfl/NflPlayerPage'));
 const NflHeatMapPage = lazy(() => import('./pages/nfl/NflHeatMapPage'));
 const NflScoringRulesPage = lazy(() => import('./pages/nfl/NflScoringRulesPage'));
@@ -812,6 +813,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <NflPlayersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="nfl/snap-outlook"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <NflSnapOutlookPage />
               </Suspense>
             }
           />

@@ -22,6 +22,12 @@ export type LayoutStatus = 'shared' | 'partial' | 'separate' | 'nfl-only';
 export type LayoutPair = {
   /** The page name both menus use. */
   label: string;
+  /**
+   * Set only when the NFL page must use a different name for the same job
+   * (e.g. 'Minutes Outlook' -> 'Snap Outlook': the NFL counts snaps, not
+   * minutes). The menu shows this name; `label` stays the Football/FPL name.
+   */
+  nflLabel?: string;
   /** NFL route (as in journey.ts). */
   nflPath: string;
   /** Source files, from the repo root. */
@@ -123,6 +129,16 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     shared: [],
     status: 'separate',
     note: 'Same job (each fixture as a projected match-up) and name. NFL shows one game at a time with team inputs and line-ups side by side; FPL shows a gameweek of fixtures.',
+  },
+  {
+    label: 'Minutes Outlook',
+    nflLabel: 'Snap Outlook',
+    nflPath: '/nfl/snap-outlook',
+    footballFile: 'src/pages/fpl/MinutesOutlookPage.tsx',
+    nflFile: 'src/pages/nfl/NflSnapOutlookPage.tsx',
+    shared: [],
+    status: 'separate',
+    note: 'Same job (who plays, and how much, one club at a time). FPL looks forward over 10 gameweeks of start chance and minutes; NFL shows snap share game by game with the depth chart, injury report and an expected role for the next game.',
   },
   {
     label: 'Player Scout',

@@ -126,6 +126,7 @@ export const NFL_SEASONS_PATH = '/nfl/seasons';
 export const NFL_PLAYERS_PATH = '/nfl/players';
 export const NFL_PROJECTIONS_PATH = '/nfl/player-projections';
 export const NFL_MATCH_PROJECTIONS_PATH = '/nfl/match-projections';
+export const NFL_SNAP_OUTLOOK_PATH = '/nfl/snap-outlook';
 // Game ids are upper case (2026_11_MIA_BUF) but URLs are lower case: Netlify
 // serves files under lower-cased paths and 301s any mixed-case URL to them,
 // so upper-case links and sitemap entries all redirected (found 6 Oct 2026).

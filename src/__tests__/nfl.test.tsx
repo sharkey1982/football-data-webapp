@@ -488,9 +488,11 @@ describe('NFL journey', () => {
   it('uses the same page names as Football and FPL, in the same section', () => {
     // Pages with no counterpart are declared 'nfl-only' in layoutPairs.
     const nflOnly = new Set(LAYOUT_PAIRS.filter((p) => p.status === 'nfl-only').map((p) => p.label));
+    // A page renamed for the NFL (nflLabel) is checked under its Football/FPL name.
+    const renamed = new Map(LAYOUT_PAIRS.filter((p) => p.nflLabel).map((p) => [p.nflLabel!, p.label]));
     for (const stage of THEMES.nfl.stages) {
       const names = [THEMES.football, THEMES.fpl].flatMap((t) => t.stages.filter((s) => s.key === stage.key).flatMap((s) => s.links.map((l) => l.label)));
-      for (const l of stage.links.filter((x) => !nflOnly.has(x.label))) expect(names, `${stage.key}: ${l.label}`).toContain(l.label);
+      for (const l of stage.links.filter((x) => !nflOnly.has(x.label))) expect(names, `${stage.key}: ${l.label}`).toContain(renamed.get(l.label) ?? l.label);
     }
   });
 });
