@@ -99,36 +99,18 @@ def main():
     run_id = run.data[0]["run_id"]
 
     db_url = os.environ.get("SUPABASE_DB_URL")
-    conn_box: list = [None]
-
-    def db():
-        if conn_box[0] is None or conn_box[0].closed:
-            import psycopg  # only needed on the direct path
-            conn_box[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30,
-                    # A connection the pooler dropped mid-query otherwise hangs the
-                    # client forever (6 Oct 2026: two pipeline runs stuck with no
-                    # query running): keepalives turn it into an error within ~1 minute.
-                    keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
-                    tcp_user_timeout=60000)
-            conn_box[0].execute("set statement_timeout = '120s'")
-        return conn_box[0]
+    # Every direct query has a client-side limit too (scripts/db_direct.py):
+    # on 6 Oct 2026 runs hung for 25+ minutes after the database restarted
+    # mid-query.
+    from db_direct import DirectDB
+    direct = DirectDB(db_url) if db_url else None
 
     def call(fn: str, fixture_id=None):
         """Call a database function directly when SUPABASE_DB_URL is set, else via the API."""
-        if db_url:
-            try:
-                if fixture_id is None:
-                    return db().execute(f"select public.{fn}()").fetchone()[0]
-                return db().execute(f"select public.{fn}(%s)", (fixture_id,)).fetchone()[0]
-            except Exception:
-                # Drop a broken connection so the retry reconnects.
-                try:
-                    if conn_box[0] is not None:
-                        conn_box[0].close()
-                except Exception:
-                    pass
-                conn_box[0] = None
-                raise
+        if direct is not None:
+            if fixture_id is None:
+                return direct.query(f"select public.{fn}()")
+            return direct.query(f"select public.{fn}(%s)", (fixture_id,))
         args = {} if fixture_id is None else {"p_fixture_id": fixture_id}
         return supabase.rpc(fn, args).execute().data
 
@@ -146,31 +128,19 @@ def main():
     # the previous stored rows if it fails.
     try:
         from fpl_depth_chart import compute
-        if db_url:
-            cur = db().execute("select * from public.get_fpl_depth_inputs()")
-            names = [c.name for c in cur.description]
-            inputs = [dict(zip(names, r)) for r in cur.fetchall()]
+        if direct is not None:
+            inputs = direct.query("select * from public.get_fpl_depth_inputs()", fetch="all")
         else:
             inputs = supabase.rpc("get_fpl_depth_inputs", {}).execute().data
         depth_rows = compute(inputs)
         import json
         payload = json.dumps(depth_rows)
-        if db_url:
-            n = db().execute("select public.fpl_replace_depth_start(%s::jsonb)", (payload,)).fetchone()[0]
+        if direct is not None:
+            n = direct.query("select public.fpl_replace_depth_start(%s::jsonb)", (payload,))
         else:
             n = supabase.rpc("fpl_replace_depth_start", {"p_rows": depth_rows}).execute().data
         print(f"::notice::Pecking-order start chances refreshed: {n} rows from {len(inputs)} inputs.")
-        # Fresh connection for the fixture loop after the large write.
-        if db_url and conn_box[0] is not None:
-            conn_box[0].close()
-            conn_box[0] = None
     except Exception as e:
-        try:
-            if conn_box[0] is not None:
-                conn_box[0].close()
-        except Exception:
-            pass
-        conn_box[0] = None
         print(f"::warning::Could not refresh pecking-order start chances ({e}); using the previous stored rows.")
 
     def record_failure(message: str) -> None:

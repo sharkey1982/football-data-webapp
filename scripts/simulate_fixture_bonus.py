@@ -136,7 +136,7 @@ def simulate_fixture(rng: np.random.Generator, players: list[dict]) -> dict[int,
 
 
 BPS_COLUMNS = "fpl_player_id, element_type, team_id, expected_bps_score, expected_minutes, expected_goals, expected_assists, clean_sheet_probability"
-_conn: list = [None]
+_direct: list = [None]
 
 
 def read_bps(supabase, fixture_id: int) -> list[dict]:
@@ -151,27 +151,13 @@ def read_bps(supabase, fixture_id: int) -> list[dict]:
     for attempt in range(1, 6):
         try:
             if db_url:
-                if _conn[0] is None or _conn[0].closed:
-                    import psycopg
-                    _conn[0] = psycopg.connect(db_url, autocommit=True, connect_timeout=30,
-                        # A connection the pooler dropped mid-query otherwise hangs the
-                        # client forever (6 Oct 2026: two pipeline runs stuck with no
-                        # query running): keepalives turn it into an error within ~1 minute.
-                        keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
-                        tcp_user_timeout=60000)
-                    _conn[0].execute("set statement_timeout = '120s'")
-                cur = _conn[0].execute(f"select {BPS_COLUMNS} from public.fpl_fixture_bps_projection_v1 where fixture_id = %s", (fixture_id,))
-                names = [c.name for c in cur.description]
-                return [dict(zip(names, r)) for r in cur.fetchall()]
+                if _direct[0] is None:
+                    from db_direct import DirectDB
+                    _direct[0] = DirectDB(db_url)
+                return _direct[0].query(f"select {BPS_COLUMNS} from public.fpl_fixture_bps_projection_v1 where fixture_id = %s", (fixture_id,), fetch="all")
             return supabase.table("fpl_fixture_bps_projection_v1").select(BPS_COLUMNS).eq("fixture_id", fixture_id).execute().data
         except Exception as e:
             last = e
-            try:
-                if _conn[0] is not None:
-                    _conn[0].close()
-            except Exception:
-                pass
-            _conn[0] = None
             wait = min(60, 5 * 2 ** (attempt - 1))
             print(f"::warning::Fixture {fixture_id}: read attempt {attempt} failed ({str(e)[:200]}), retrying in {wait}s...")
             time.sleep(wait)
