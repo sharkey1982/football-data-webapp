@@ -382,6 +382,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [NFL],
   },
   {
+    path: '/nfl/snap-outlook',
+    title: 'NFL Snap Outlook: who plays, and how much',
+    description: 'Every NFL team\u2019s quarterbacks, running backs, receivers and tight ends: share of snaps each game, who is gaining or losing playing time, the depth chart and the injury report.',
+    crumbs: [NFL],
+  },
+  {
     path: '/nfl/match-projections',
     title: 'NFL Match Projections: this week\u2019s fantasy match-ups',
     description: 'Every NFL game this week as a fantasy match-up: expected points, each team\u2019s projected fantasy line-up, and whether it scores through its running backs or its receivers.',

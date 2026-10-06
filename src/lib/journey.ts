@@ -214,6 +214,8 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
         links: [
           { label: 'Player Projections', to: '/nfl/player-projections', blurb: 'Every player\u2019s projected points for his next game, with the range, matchup and injury news.' },
           { label: 'Match Projections', to: '/nfl/match-projections', blurb: 'Each game as a fantasy match-up: the teams\u2019 inputs and key players side by side.', matchPrefix: ['/nfl/match-projections'] },
+          // FPL's Minutes Outlook, renamed: the NFL counts snaps, not minutes (layoutPairs.ts).
+          { label: 'Snap Outlook', to: '/nfl/snap-outlook', blurb: 'Who plays and how much: snap share game by game, the depth chart and the injury report.' },
           { label: 'Fixture Heat Map', to: '/nfl/fixture-heat-map', blurb: 'Which defences give up the most fantasy points to each position, and who faces them next.' },
         ],
       },
