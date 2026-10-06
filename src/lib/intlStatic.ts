@@ -77,7 +77,9 @@ export function intlTeamFromBulk(bulk: IntlBulk, slug: string): IntlTeamData | n
     .slice(0, 200);
   const mine = bulk.groupOdds.filter((o) => o.slug === slug).slice(0, 5);
   const groupOdds = mine[0] ? bulk.groupOdds.filter((o) => o.edition_key === mine[0].edition_key && o.group_label === mine[0].group_label) : [];
-  return { team, matches, fixtures, totals, pairs, editions, teams, goals, squad, squadPlayers, groupOdds };
+  // Squad history (squad watch, #238) is left to the browser: the static page
+  // shows the current squad, and the history loads once the page runs.
+  return { team, matches, fixtures, totals, pairs, editions, teams, goals, squad, squadPlayers, groupOdds, squadVersions: [], snapshotPlayers: [] };
 }
 
 export function intlEditionFromBulk(bulk: IntlBulk, slug: string, label: string): IntlEditionData | null {
