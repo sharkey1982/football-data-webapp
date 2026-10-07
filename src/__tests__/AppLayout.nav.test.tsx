@@ -261,5 +261,6 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Blackjack: basic strategy' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
     expect(screen.getByRole('link', { name: "Blackjack: what's the count?" })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=count');
     expect(screen.getByRole('link', { name: 'Blackjack: beat the house' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=house');
+    expect(screen.getByRole('link', { name: 'Poker: hand strength' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
   });
 });

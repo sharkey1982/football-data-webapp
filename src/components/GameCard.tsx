@@ -48,6 +48,12 @@ export const BEAT_THE_SHARK = {
     blurb: 'Fictional chips, real maths: basic strategy judged decision by decision, a card-counting drill, and betting by the count.',
     kicker: 'Train · any length',
   },
+  poker: {
+    href: '/play/beat-the-shark/poker/',
+    title: 'Beat the Shark: Poker',
+    blurb: "Texas hold'em trainers, one idea at a time: name the hand and who wins first; outs, pot odds and equity next.",
+    kicker: 'Train · any length',
+  },
 } satisfies Record<string, BeatTheSharkGame>;
 
 export function GameCard({ game }: { game: BeatTheSharkGame }) {

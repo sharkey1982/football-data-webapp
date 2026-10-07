@@ -76,3 +76,9 @@ jobs:
       # edge, the training framework and whole sessions through the screens.
       - name: Blackjack trainer
         run: node games/beat-the-shark/blackjack/test/checks.cjs
+
+      # The poker trainers (games/beat-the-shark/poker): the hand evaluator
+      # against every five-card hand and the hold'em frequencies, the
+      # questions, and both parts of Hand strength through the screens.
+      - name: Poker trainers
+        run: node games/beat-the-shark/poker/test/checks.cjs

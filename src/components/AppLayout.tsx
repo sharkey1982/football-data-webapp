@@ -272,6 +272,7 @@ export default function AppLayout() {
           { to: BEAT_THE_SHARK.blackjack.href, label: 'Blackjack: basic strategy', matchPrefix: BEAT_THE_SHARK.blackjack.href, external: true },
           { to: `${BEAT_THE_SHARK.blackjack.href}?mode=count`, label: "Blackjack: what's the count?", matchPrefix: `${BEAT_THE_SHARK.blackjack.href}?mode=count`, external: true },
           { to: `${BEAT_THE_SHARK.blackjack.href}?mode=house`, label: 'Blackjack: beat the house', matchPrefix: `${BEAT_THE_SHARK.blackjack.href}?mode=house`, external: true },
+          { to: BEAT_THE_SHARK.poker.href, label: 'Poker: hand strength', matchPrefix: BEAT_THE_SHARK.poker.href, external: true },
         ],
       },
     ],

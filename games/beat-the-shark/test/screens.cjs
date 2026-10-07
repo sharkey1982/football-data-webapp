@@ -220,6 +220,8 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // opening: since 7 Oct 2026 the games menu (Sports, Casino & probability), a name and a short aim per game: 60 words holds about eight games.
 const BUDGET={screen:230,beginnerTeamSheet:225,opening:60,preseason:55,minutes:12}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
+// the games menu grows with the games: a name and a short aim each (about 7 words), plus the frame
+BUDGET.opening=Math.max(BUDGET.opening,12+7*run("BTS_GAMES.length"));
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);
 ok(`reading budget: pre-season <= ${BUDGET.preseason} words`, words(app())<=BUDGET.preseason, `${words(app())} words`);
