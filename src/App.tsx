@@ -82,6 +82,9 @@ function SquadCheckRedirect() {
 const HindsightOptimalSquadPage = lazy(() => import('./pages/fpl/HindsightOptimalSquadPage'));
 const PlayerProjectionsTablePage = lazy(() => import('./pages/fpl/PlayerProjectionsTablePage'));
 const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
+const FplArticlesPage = lazy(() => import('./pages/fpl/ArticlesPage'));
+const CaptainTopPickArticle = lazy(() => import('./pages/fpl/articles/CaptainTopPickArticle'));
+const HaalandCaptainArticle = lazy(() => import('./pages/fpl/articles/HaalandCaptainArticle'));
 const ActualMatchesPage = lazy(() => import('./pages/fpl/ActualMatchesPage'));
 const ActualMatchDetailPage = lazy(() => import('./pages/fpl/ActualMatchDetailPage'));
 const TacticalRolesAdminPage = lazy(() => import('./pages/fpl/TacticalRolesAdminPage'));
@@ -703,6 +706,30 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <PlayerProjectionsTablePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/articles"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FplArticlesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/articles/always-captain-the-top-pick"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <CaptainTopPickArticle />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/articles/should-you-always-captain-haaland"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <HaalandCaptainArticle />
               </Suspense>
             }
           />

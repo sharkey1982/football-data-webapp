@@ -163,6 +163,22 @@ async function main() {
   }
   console.log(`Static: wrote head tags for ${staticWritten} static route(s).`);
 
+  // ---- FPL articles: static content, so the body is rendered too ----
+  // Overwrites the head-only files written above for the same paths (the
+  // STATIC_ROUTES entries stay: they are what put the pages in the sitemap).
+  let articlesWritten = 0;
+  for (const page of (await import(ENTRY)).renderFplArticlePages()) {
+    try {
+      const dir = join(DIST, ...new URL(page.canonical).pathname.split('/').filter(Boolean));
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      articlesWritten++;
+    } catch (err) {
+      console.error(`Static: failed article ${page.canonical}: ${err?.message ?? err}`);
+    }
+  }
+  console.log(`Static: wrote ${articlesWritten} FPL article page(s).`);
+
 
   // ---- Per-gameweek Team of the Week -------------------------------
   // These are in the sitemap but were getting no head tags, so every
