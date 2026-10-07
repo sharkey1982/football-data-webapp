@@ -61,7 +61,31 @@ over 150,000 hands loses 0.42% ± 0.30 (published: about 0.5%); blackjacks
 4.8%, pushes 8.7%; luck averages zero for good and random play; whole
 sessions through the real screens.
 
+## Three modes (7 Oct 2026), one table, by `?mode=` in the address
+
+- **Basic strategy** (`blackjack/`): every playing decision judged. A right
+  play is a quiet tick; a mistake is a red band (a major one shakes once),
+  the right play, why, its average cost, and the chart's row for the hand
+  with the dealer's card marked. The table waits for "Got it". The lesson sits
+  under the cards, above the controls.
+- **What's the count?** (`?mode=count`, countdrill.js): Hi-Lo drill. Runs of
+  cards at a chosen speed; give the running count (and every third check the
+  true count from the decks left). Wrong answers replay the run with each
+  card's value. Count Score = checks exactly right. Runs lengthen after three
+  right in a row.
+- **Beat the house** (`?mode=house`): basic strategy plus a bet in units
+  (1, 2, 4, 6, 8 × 100) judged against the ramp at the true count (count.js);
+  two scores (play, bets); "Show the count" for learners; the report values
+  the bets at about 0.5% edge per point of true count against flat betting.
+
+Checked: Hi-Lo values, a full shoe counts to 0, true count rounding, the
+ramp; the EV calculator puts the edge at −0.57% off the top and 0.52% per
+point of true count; in simulation hands at +3 or more pay the player
+(+1.2%) and at 0 or less lose (−1.0%), and the ramp returns +0.4% per unit
+staked against −0.3% flat; the drill and Beat the house through the screens.
+
 ## Later
 
-Modes (Practice: judged at the end of the hand; Session; Challenge: 50
-decisions), rule variants, a Shark Score weighted by EV lost, lifetime stats.
+Practice / Challenge timing, count-based playing deviations (the
+"Illustrious 18"), insurance at high counts, rule variants, a Shark Score
+weighted by EV lost, lifetime stats.

@@ -44,8 +44,8 @@ export const BEAT_THE_SHARK = {
   },
   blackjack: {
     href: '/play/beat-the-shark/blackjack/',
-    title: 'Beat the Shark: Blackjack trainer',
-    blurb: 'Fictional chips, real maths: every decision judged against basic strategy, separately from whether the hand won.',
+    title: 'Beat the Shark: Blackjack',
+    blurb: 'Fictional chips, real maths: basic strategy judged decision by decision, a card-counting drill, and betting by the count.',
     kicker: 'Train · any length',
   },
 } satisfies Record<string, BeatTheSharkGame>;

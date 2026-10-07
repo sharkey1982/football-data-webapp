@@ -14,12 +14,17 @@
    straight away, so it is never chosen twice.
    =========================================================================== */
 const BTS_GAMES=[
-  {id:"football",name:"Football",mission:"Win the league",path:""},
-  {id:"nfl",name:"NFL",mission:"Win the division",path:"nfl/"},
-  {id:"world-cup",name:"World Cup",mission:"Win the World Cup",path:"world-cup/"},
-  {id:"nations-cup",name:"Tennis: Nations Cup",mission:"Win the Nations Cup",path:"nations-cup/"},
-  {id:"blackjack",name:"Blackjack trainer",mission:"Play it right",path:"blackjack/"}
+  {id:"football",group:"sports",name:"Football",mission:"Win the league",path:""},
+  {id:"nfl",group:"sports",name:"NFL",mission:"Win the division",path:"nfl/"},
+  {id:"world-cup",group:"sports",name:"World Cup",mission:"Win the World Cup",path:"world-cup/"},
+  {id:"nations-cup",group:"sports",name:"Tennis: Nations Cup",mission:"Win the Nations Cup",path:"nations-cup/"},
+  {id:"blackjack",group:"casino",name:"Blackjack: basic strategy",mission:"Play every hand right",path:"blackjack/"},
+  {id:"blackjack-count",group:"casino",name:"Blackjack: what's the count?",mission:"Keep the Hi-Lo count",path:"blackjack/?mode=count"},
+  {id:"blackjack-house",group:"casino",name:"Blackjack: beat the house",mission:"Bet by the count",path:"blackjack/?mode=house"}
 ];
+/* Two groups on one screen (Chris, 7 Oct 2026: casino games to come), as
+   headings rather than a sub-menu, so every game is still two taps away. */
+const BTS_GROUPS=[{id:"sports",name:"Sports"},{id:"casino",name:"Casino & probability"}];
 let BTS_PICK=null,BTS_CTX=null;
 /* Pick a sport (the card lights up and the button wakes). Nothing starts
    until "Let's go". */
@@ -54,10 +59,11 @@ function renderGamePicker(current,root,onStart){
   show(false);
   app.innerHTML=`<div class="card hero">
     <div class="hero-kicker">BEAT THE SHARK</div>
-    <div class="mission">Pick a sport</div>
-    <div style="margin-top:14px">${BTS_GAMES.map(g=>`<button class="choice" data-game="${g.id}" aria-pressed="false"><span class="t">${g.name}</span><span class="d">${g.mission}</span></button>`).join("")}</div>
+    <div class="mission">Pick a game</div>
+    ${BTS_GROUPS.map(gr=>`<div class="hero-kicker" style="margin:16px 0 6px;text-align:left">${gr.name.toUpperCase()}</div>
+      ${BTS_GAMES.filter(g=>g.group===gr.id).map(g=>`<button class="choice" data-game="${g.id}" aria-pressed="false"><span class="t">${g.name}</span><span class="d">${g.mission}</span></button>`).join("")}`).join("")}
     <button class="choice primary" id="playThis" disabled style="opacity:.5;margin-top:6px;padding:16px 15px;text-align:center">
-      <span class="t" style="font-family:var(--disp);font-size:24px;letter-spacing:.04em;text-transform:uppercase">Let's go</span><span class="d">Pick a sport above</span></button></div>`;
+      <span class="t" style="font-family:var(--disp);font-size:24px;letter-spacing:.04em;text-transform:uppercase">Let's go</span><span class="d">Pick a game above</span></button></div>`;
   if(document.querySelectorAll)document.querySelectorAll('[data-game]').forEach(b=>b.onclick=()=>pickSport(b.dataset.game));
   document.getElementById('playThis').onclick=letsGo;
 }

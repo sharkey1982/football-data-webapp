@@ -22,6 +22,9 @@
      5. TRAINING    severity from EV lost, the Shark Score, the verdict and
                     leak rules, chips and score kept apart
      6. SCREENS     whole sessions through the real screens
+     7. COUNTING    Hi-Lo, the true count, the bet ramp; the edge at each true
+                    count measured with the EV calculator; a counter's bets
+                    beating flat betting; the drill and Beat the house screens
 
    HANDS=n scales the simulation (default 150000).
    =========================================================================== */
@@ -31,7 +34,7 @@ let failures=0;
 function check(name,ok,detail){console.log(`${ok?'PASS':'FAIL'}  ${name}${detail?`  (${detail})`:''}`);if(!ok)failures++}
 const HANDS=+process.env.HANDS||150000;
 
-function makeWorld(){
+function makeWorld(search){
   const els={},q=[];
   function mk(id){return{id,_h:"",children:[],onclick:null,style:{},dataset:{},className:"",disabled:false,classList:{add(){}},
     set innerHTML(v){this._h=v;this.children=[]},get innerHTML(){return this._h+this.children.map(c=>c.innerHTML).join("")},
@@ -39,7 +42,7 @@ function makeWorld(){
     appendChild(c){this.children.push(c)},querySelectorAll(){return[]},querySelector(){return null},setAttribute(){}}}
   const doc={getElementById:id=>els[id]||(els[id]=mk(id)),querySelectorAll:()=>[],querySelector:()=>null,createElement:()=>mk(""),head:{appendChild(){}}};
   const ctx=vm.createContext({document:doc,setTimeout:f=>{q.push(f)},clearTimeout:()=>{},Math,JSON,Object,Array,String,Number,Date,Map,Set,console,
-    location:{hash:"",pathname:"/",hostname:"localhost"},localStorage:{getItem:()=>null}});
+    location:{hash:"",pathname:"/",hostname:"localhost",search:search||""},URLSearchParams,localStorage:{getItem:()=>null}});
   const html=fs.readFileSync(path.join(DIR,'index.html'),'utf8');
   const srcs=[...html.matchAll(/<script src="([^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(m=>m[1]);
   for(const s of srcs)new vm.Script(fs.readFileSync(path.join(DIR,s),'utf8'),{filename:s}).runInContext(ctx);
@@ -304,6 +307,10 @@ A,A      P P P P P P P P P P`;
     for(let k=0;k<60;k++){
       const h=w.els.app.innerHTML;lastHTML=h;
       if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,50}(undefined|NaN|\[object).{0,30}/)[0]);break}
+      if(/id="gotit"/.test(h)){seen.add("gotit");
+        if(/class="acts"/.test(h)||/id="deal"/.test(h))fails.push("a mistake should hold the table until Got it");
+        if(!/role="alert"/.test(h)||!/class="crow"/.test(h))fails.push("a mistake should show the alert band and the chart row");
+        const f=w.els.gotit.onclick;w.els.gotit.onclick=null;f();continue}
       if(/class="acts"/.test(h)){seen.add("actions");
         // play the chart's move half the time, a random legal one otherwise
         const legal=JSON.parse(w.run(`JSON.stringify(affordable(G.R))`)),best=w.run(`bestAction(activeHand(G.R).cards,G.R.dealer[0],G.rules,affordable(G.R))`);
@@ -327,11 +334,104 @@ A,A      P P P P P P P P P P`;
     w.els.refill.onclick();if(!/YOUR STAKE/.test(w.els.app.innerHTML)||w.run("G.chips")!==10000)fails.push("top-up failed");
   }
   console.log(`      seen: ${[...seen].join(", ")}`);
-  for(const x of["actions","result","decisions","mistake-feedback","optimal-feedback","report"])if(!seen.has(x))fails.push("never saw "+x);
+  for(const x of["actions","result","decisions","mistake-feedback","optimal-feedback","report","gotit"])if(!seen.has(x))fails.push("never saw "+x);
   check("whole sessions through the real screens: stake, deal, actions, decision feedback, result v decisions, report, top-up",!fails.length,fails.slice(0,3).join(" | "));
   // fictional chips said plainly
   const html=fs.readFileSync(path.join(DIR,'index.html'),'utf8');
   check("the page says the chips are fictional and worth nothing",/fictional/.test(html)&&/can't be cashed/.test(html)&&/no purchases/.test(html));
+}
+
+/* ---- 7. counting ---------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{const C=r=>({r,s:0}),o={};
+    o.tags=[1,2,3,4,5,6,7,8,9,10,11,12,13].map(r=>hiLo(C(r)));
+    const sh=newShoe(RULES_V1);o.fullShoe=runningCount(sh.cards);
+    o.tc=[[7,3.5],[-5,2],[3,4],[12,2.5],[0,6]].map(([rc,d])=>trueCountFor(rc,d));
+    o.ramp=[-3,0,1,2,3,4,5,9].map(rampUnits);
+    sh.i=78;o.d1=decksLeftShown(sh);sh.i=200;o.d2=decksLeftShown(sh);
+    return JSON.stringify(o)})()`));
+  check("Hi-Lo: 2–6 are +1, 7–9 are 0, tens, faces and aces −1",JSON.stringify(r.tags)==="[-1,1,1,1,1,1,0,0,0,-1,-1,-1,-1]");
+  check("a whole shoe counts to zero (a balanced count)",r.fullShoe===0);
+  check("true count = running ÷ decks left, rounded down (7÷3.5=+2, −5÷2=−3, 3÷4=0, 12÷2.5=+4)",JSON.stringify(r.tc)==="[2,-3,0,4,0]",r.tc.join(","));
+  check("bet ramp: 1 unit to +1, then 2, 4, 6, 8 units from +2 to +5 and above",JSON.stringify(r.ramp)==="[1,1,1,2,4,6,8,8]");
+  check("decks left to the nearest half deck (234 cards = 4.5; 112 = 2)",r.d1===4.5&&r.d2===2);
+  // the edge at each true count, from real shoe compositions, with the EV calculator
+  const e=JSON.parse(run(`(()=>{const pts=[];
+    for(const decks of [2,4])for(const tc of [-2,-1,0,1,2,3,4,5]){
+      // remove cards from a full shoe to leave about 'decks' decks with a running count of tc×decks:
+      // the extra low (or high) cards go, the rest leave in proportion
+      const n=shoeCounts(RULES_V1,[]),removeN=312-decks*52,rc=tc*decks;
+      const lows=Math.round((removeN*20/52+rc)/1),highs=Math.round(removeN*20/52),neutral=removeN-lows-highs;
+      const take=(vals,k)=>{for(let i=0;i<k;i++){const v=vals[i%vals.length];n[v]--}};
+      take([2,3,4,5,6],lows);take([10,10,10,10,1],highs);take([7,8,9],neutral);
+      let run=0;for(let v=1;v<=10;v++){const full=v===10?96:24;run+=(full-n[v])*(v>=2&&v<=6?1:v===1||v===10?-1:0)}
+      const left=n.reduce((a,b)=>a+b,0);pts.push({tc:run/(left/52),ev:roundEV(n,RULES_V1)})}
+    const mx=pts.reduce((a,p)=>a+p.tc,0)/pts.length,my=pts.reduce((a,p)=>a+p.ev,0)/pts.length;
+    const slope=pts.reduce((a,p)=>a+(p.tc-mx)*(p.ev-my),0)/pts.reduce((a,p)=>a+(p.tc-mx)**2,0);
+    return JSON.stringify({slope,off:my-slope*mx,full:roundEV(shoeCounts(RULES_V1,[]),RULES_V1),pts:pts.map(p=>[+p.tc.toFixed(1),+(p.ev*100).toFixed(2)])})})()`));
+  check("the edge off the top is about −0.5% (EV calculator, full shoe)",e.full>-.008&&e.full<-.003,(e.full*100).toFixed(2)+"%");
+  check("each point of true count is worth 0.4–0.65% of edge (the rule of thumb the game teaches: 0.5%)",e.slope>.004&&e.slope<.0065,`${(e.slope*100).toFixed(2)}% per point; break-even at about ${(-e.off/e.slope).toFixed(1)}`);
+  // a counter's bets beat flat betting, in a long simulation
+  const sim=JSON.parse(run(`(()=>{R.s=hashSeed("COUNTSIM");let shoe=newShoe(RULES_V1),rc=0,flat=0,spread=0,wag=0;const byTc={};const n=${Math.round(HANDS*1.5)};
+    for(let k=0;k<n;k++){if(needsShuffle(shoe,RULES_V1)){shoe=newShoe(RULES_V1);rc=0}
+      const tc=trueCountFor(rc,decksLeftShown(shoe)),units=rampUnits(tc);
+      const Rd=newRound(shoe,RULES_V1,1);
+      while(Rd.phase==="player"){const h=activeHand(Rd);act(Rd,shoe,bestAction(h.cards,Rd.dealer[0],RULES_V1,legalActions(Rd)))}
+      flat+=Rd.net;spread+=Rd.net*units;wag+=units;const b=tc<=0?"≤0":tc>=3?"3+":String(tc);(byTc[b]=byTc[b]||{n:0,net:0});byTc[b].n++;byTc[b].net+=Rd.net;
+      rc+=runningCount(Rd.hands.flatMap(h=>h.cards).concat(Rd.dealer))}
+    const t={};for(const k in byTc)t[k]=byTc[k].net/byTc[k].n;
+    return JSON.stringify({flat:flat/n,spread:spread/n,perUnit:spread/wag,byTc:t,n3:byTc["3+"].n})})()`));
+  check("hands at a true count of +3 or more pay the player; at 0 or less they lose",sim.byTc["3+"]>0&&sim.byTc["≤0"]<0,
+    `+3 or more ${(sim.byTc["3+"]*100).toFixed(2)}% (${sim.n3} hands) · ≤0 ${(sim.byTc["≤0"]*100).toFixed(2)}%`);
+  check("betting the ramp turns the edge: more back per unit staked than flat betting",sim.perUnit>sim.flat,
+    `ramp ${(sim.perUnit*100).toFixed(2)}% per unit staked v flat ${(sim.flat*100).toFixed(2)}%`);
+
+  // screens: the drill
+  const fails=[];
+  {const w=makeWorld("?mode=count");
+   if(!/data-game="blackjack-count"/.test(w.els.app.innerHTML))fails.push("picker lacks the count drill");
+   w.run('pickSport("blackjack-count")');w.els.playThis.onclick();w.drain();
+   if(!/THE HI-LO COUNT/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no drill intro with its start button");
+   w.els["sp-fast"].onclick();if(/undefined|NaN/.test(w.els.app.innerHTML+w.els.hTwo.innerHTML+w.els.hSeason.innerHTML))fails.push("speed pick broke the drill intro");
+   w.els.go.onclick();let checks=0,wrong=0,right=0;
+   for(let k=0;k<200&&checks<8;k++){w.drain();const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("drill broken text");break}
+     if(/What's the running count\?/.test(h)){
+       // answer right on even checks, wrong on odd ones
+       const right_=w.run("D.rc"),cur=w.run("D.lastAnswer!=null?D.lastAnswer:D.rcBefore");const want=checks%2?right_+1:right_;
+       for(let i=0;i<Math.abs(want-cur);i++)w.els[want>cur?"rc-p":"rc-m"].onclick();
+       if(/True<\/span>/.test(h)){const tc=w.run("trueCountFor(D.rc,decksLeftShown(D.shoe))");for(let i=0;i<Math.abs(tc);i++)w.els[tc>0?"tc-p":"tc-m"].onclick()}
+       w.els.check.onclick();checks++;const r=w.els.app.innerHTML;if(/✓ <b>Right/.test(r))right++;if(/role="alert"/.test(r))wrong++;
+       if((checks-1)%2===1&&!/class="runrev"/.test(r))fails.push("a wrong count should show the run again with each card's value");
+       continue}
+     if(w.els.next&&w.els.next.onclick&&/Next run/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+   }
+   if(right<3||wrong<3)fails.push(`drill judged ${right} right, ${wrong} wrong (expected 4 and 4)`);
+   w.els.report.onclick();if(!/COUNT SCORE/.test(w.els.app.innerHTML))fails.push("no drill report");
+   if(w.run("sharkScore(D.T)")>60)fails.push("half the answers wrong should not score over 60");}
+  // screens: beat the house
+  {const w=makeWorld("?mode=house");w.run('pickSport("blackjack-house")');w.els.playThis.onclick();w.drain();
+   if(!/THE BET RAMP/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no house intro with its start button");
+   w.els.go.onclick();if(!/BET IN UNITS/.test(w.els.app.innerHTML))fails.push("no bet units");
+   let bets=0,betBad=0;
+   for(let k=0;k<120;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("house broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="gotit"/.test(h)){const f=w.els.gotit.onclick;w.els.gotit.onclick=null;f();continue}
+     if(/class="acts"/.test(h)){const a=w.run(`bestAction(activeHand(G.R).cards,G.R.dealer[0],G.rules,affordable(G.R))`);w.els["a-"+a].onclick();continue}
+     if(w.els.deal&&w.els.deal.onclick){
+       // bet the ramp on even hands, 8 units on odd ones
+       const tc=w.run("countNow().tc"),u=bets%2?8:w.run(`rampUnits(${tc})`);w.els["s-"+u*100].onclick();
+       const f=w.els.deal.onclick;w.els.deal.onclick=null;f();bets++;if(/BET TOO|✗ <b>Bet/.test(w.els.app.innerHTML))betBad++;continue}
+     if(w.els.refill&&/Out of Shark Chips/.test(h)){w.els.refill.onclick();continue}
+     break}
+   const tb=JSON.parse(w.run("JSON.stringify({n:G.TB.decisions.length,ok:G.TB.decisions.filter(d=>d.optimal).length})"));
+   if(tb.n<10)fails.push("too few bets judged");
+   if(Math.abs(tb.ok-tb.n/2)>tb.n/2*.6)fails.push(`bets judged ${tb.ok} of ${tb.n} right; about half expected`);
+   const rc=w.run("G.rc"),seen=w.run("(()=>{return G.rc})()");
+   w.els.report&&w.els.report.onclick&&w.els.report.onclick();if(!/BET SCORE/.test(w.els.app.innerHTML))fails.push("house report lacks the bet score");
+   if(!/flat betting/.test(w.els.app.innerHTML))fails.push("house report lacks the value of the bets");
+   const hdr=w.els.hTwo.innerHTML;if(!/Bet score/.test(hdr))fails.push("house header lacks the bet score");}
+  check("the drill and Beat the house through the real screens: answers and bets judged, wrong counts replayed, reports",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
