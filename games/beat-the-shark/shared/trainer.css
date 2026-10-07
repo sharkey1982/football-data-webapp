@@ -1,0 +1,58 @@
+/* shared/trainer.css — cards, answer feedback and report tiles for the
+   training games (blackjack, poker): one look across them. */
+.seat{margin-bottom:10px}
+.seat.on{outline:2px solid var(--amber);border-radius:9px;padding:5px 6px;margin:0 -6px 10px}
+.who{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--mute);margin-bottom:5px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.who .tot{color:var(--ink);font-size:13px;letter-spacing:0;font-weight:600}
+.who .out{font-size:12px;letter-spacing:0;font-weight:600;margin-left:auto}
+.cards{display:flex;gap:6px;flex-wrap:wrap;min-height:78px}
+.pc{width:54px;height:76px;border-radius:7px;background:#fffdf8;border:1.5px solid var(--line);color:#1a1a17;
+      display:flex;flex-direction:column;justify-content:space-between;padding:4px 6px;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.pc b{font-family:var(--disp);font-size:24px;line-height:1}
+.pc i{font-style:normal;font-size:22px;line-height:1;align-self:flex-end}
+.pc.red{color:#b3261e}
+.pc.back{background:repeating-linear-gradient(45deg,var(--pitch) 0 6px,var(--pitch2) 6px 12px);border-color:var(--pitch)}
+.pc.ghost{background:transparent;border-style:dashed;box-shadow:none}
+.verdictbox{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.vb{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--panel2)}
+.vb .k,.tile .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
+.vb .v{font-weight:600;font-size:15px;margin-top:2px}
+.headline{font-weight:600;color:var(--ink);margin:10px 0 6px;font-size:16px}
+.okline{font-size:14px;color:var(--good);margin:6px 0;padding:4px 2px}
+.okline.bad{color:var(--bad)}
+.lesson{border:2px solid var(--bad);border-radius:11px;overflow:hidden;margin:8px 0}
+.lesson .band{background:var(--bad);color:#fff;font-family:var(--disp);font-size:20px;letter-spacing:.04em;padding:9px 12px;line-height:1.1}
+.lesson.sev-small .band{background:color-mix(in srgb,var(--bad) 75%,var(--amber))}
+.lesson.sev-major{animation:shake .45s ease-in-out 1}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){.lesson.sev-major{animation:none}}
+.lesson .lb{padding:9px 12px;background:color-mix(in srgb,var(--bad) 6%,var(--panel))}
+.lesson p{margin:0 0 6px;color:var(--ink)}
+.lesson .lw{font-weight:500}
+.lesson .lc{font-size:12px;color:var(--ink2);margin:6px 0 0}
+.crow{font-family:var(--mono);font-size:11px;margin:4px 0}
+.crow .ch,.crow .cr{display:grid;grid-template-columns:62px repeat(10,1fr);gap:2px;align-items:center}
+.crow span{color:var(--mute);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow i{font-style:normal;text-align:center;padding:3px 0;border-radius:3px}
+.crow .ch i{color:var(--mute)}
+.crow .ch i.on{color:var(--ink);font-weight:600}
+.crow .cr i{background:var(--panel2);color:var(--ink2)}
+.crow .cr i.c-S{background:color-mix(in srgb,var(--good) 18%,var(--panel2))}
+.crow .cr i.c-D,.crow .cr i.c-X{background:color-mix(in srgb,var(--blue) 18%,var(--panel2))}
+.crow .cr i.c-P{background:color-mix(in srgb,var(--amber) 22%,var(--panel2))}
+.crow .cr i.on{outline:2px solid var(--ink);font-weight:700;color:var(--ink)}
+.crow .cl{color:var(--mute);font-size:9.5px;margin-top:3px;font-family:var(--sans)}
+.rules{margin:6px 0 10px;padding-left:18px;font-size:14px;color:var(--ink2)}
+.rules li{margin:2px 0}
+.twin{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.tile{border:1.5px solid var(--line);border-radius:11px;padding:12px;text-align:center;background:var(--panel2)}
+.tile .big{font-family:var(--disp);font-size:40px;font-weight:700;line-height:1.05}
+.tile .big small{font-size:18px;color:var(--mute)}
+.tile .s{font-size:12px;color:var(--mute)}
+.endrow .choice{text-align:center}
+.flash .pc{width:92px;height:128px;padding:8px 10px}
+.flash .pc b{font-size:40px}
+.flash .pc i{font-size:36px}
+.runrev .pc{width:38px;height:54px;padding:2px 4px}
+.runrev .pc b{font-size:17px}
+.runrev .pc i{font-size:15px}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+/* Trailing-slash guard, as in the other games. MUST stay first in <head>. */
+(function(){var p=location.pathname;
+  if(p.length>1&&p.charAt(p.length-1)!=="/"&&!/\.[a-z0-9]+$/i.test(p))
+    location.replace(p+"/"+location.search+location.hash);})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beat the Shark: Poker hand strength — name the hand, who wins? | FixtureShark</title>
+<meta name="description" content="A Texas hold'em trainer: read your best five from seven cards, then say who wins and why, with the traps people misread. No money, no chips: just the cards.">
+<link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/poker/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FixtureShark">
+<meta property="og:title" content="Beat the Shark: Poker hand strength">
+<meta property="og:description" content="Name the hand, then say who wins: the first poker trainer.">
+<meta property="og:url" content="https://fixtureshark.com/play/beat-the-shark/poker/">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/base.css?v=__V__">
+<link rel="stylesheet" href="../shared/trainer.css?v=__V__">
+<style>
+  /* poker */
+  .pc.in{outline:2.5px solid var(--amber);outline-offset:1px}
+  .pc.out{opacity:.38}
+  .answers{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+  .answers.three{grid-template-columns:1fr 1fr 1fr}
+  .ans{min-height:50px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel2);color:var(--ink);font-weight:600;font-size:14.5px;touch-action:manipulation}
+  .ans:active{border-color:var(--amber)}
+  .answers .ans:last-child:nth-child(odd){grid-column:1/-1}
+  .answers.three .ans:last-child{grid-column:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="homelink" href="https://fixtureshark.com/">&larr; FixtureShark</a>
+    <div class="hmain">
+      <div class="bigscore" id="hScore">—<span class="sub">HAND SCORE</span></div>
+      <div class="twos" id="hTwo"></div>
+      <div class="trend fl" id="hTrend"></div>
+    </div>
+    <div class="season" id="hSeason"></div>
+  </header>
+  <main id="app"></main>
+  <div class="foot" id="foot"></div>
+  <!-- Static on purpose: a crawler sees this, and every screen has a way back into the site. -->
+  <footer class="about">
+    <h2>About the poker trainers</h2>
+    <p>Beat the Shark's poker trainers teach Texas hold'em one idea at a time, starting with reading hands: your best five
+      cards from seven, and which of two hands wins. Every deal is chosen to teach, including the hands people misread.
+      No money or chips are involved. Coming next: outs and draws, pot odds, equity, then pre-flop and post-flop decisions.</p>
+    <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark</a> · <a href="https://fixtureshark.com/">Back to FixtureShark</a></p>
+  </footer>
+</div>
+<script src="../shared/games.js?v=__V__"></script>
+<script src="../shared/core.js?v=__V__"></script>
+<script src="../shared/analytics.js?v=__V__"></script>
+<script src="../shared/training.js?v=__V__"></script>
+<script src="cards.js?v=__V__"></script>
+<script src="quiz.js?v=__V__"></script>
+<script src="ui.js?v=__V__"></script>
+</body>
+</html>
