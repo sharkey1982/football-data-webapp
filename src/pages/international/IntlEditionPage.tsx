@@ -143,7 +143,7 @@ export default function IntlEditionPage({ initialData }: { initialData?: IntlEdi
 
   const head = e && t ? intlEditionHead(t, e, final ? scoreText(final) : null) : null;
   useDocumentHead({
-    title: sideTitle(head?.title ?? 'International tournament'),
+    title: head?.title ?? sideTitle('International tournament'),
     description: head?.description ?? 'An international tournament: groups, knockouts and scorers.',
     path: intlEditionPath(competition, label),
   });

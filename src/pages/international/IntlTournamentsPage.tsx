@@ -83,7 +83,7 @@ export default function IntlTournamentsPage() {
   const { data, failed, loading } = useKeyedFetch('editions', () => loadIntlEditions());
   const onlyHead = only ? intlTournamentHead(only) : null;
   useDocumentHead({
-    title: sideTitle(onlyHead?.title ?? (INTL_GENDER === 'women' ? 'International tournaments: World Cup, Olympics, Euro and more' : 'International tournaments: World Cup, Euro, Copa América, AFCON and more')),
+    title: onlyHead?.title ?? sideTitle(INTL_GENDER === 'women' ? 'International tournaments: World Cup, Olympics, Euro and more' : 'International tournaments: World Cup, Euro, Copa América, AFCON and more'),
     description:
       onlyHead?.description ??
       INTL_GENDER === 'women' ? 'Every Women’s World Cup, Olympics, Euro, Copa América, WAFCON, Asian Cup, CONCACAF W Championship and Nations League: winners, hosts, groups and knockouts.' : 'Every World Cup, Euro, Copa América, Africa Cup of Nations, Asian Cup, Gold Cup, Nations League and Confederations Cup: winners, hosts, groups, knockouts and scorers.',

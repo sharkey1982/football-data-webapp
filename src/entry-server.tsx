@@ -375,6 +375,8 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
 
 export { STATIC_ROUTES };
 export { intlTeamHead, intlTournamentHead, intlEditionHead, INTL_STATIC_TEAM_MIN_GAMES } from './lib/intlSeo';
+/** Switches the heads above (and INTL_TOURNAMENTS) between the men's and women's pages. */
+export { setIntlGender } from './lib/intlApi';
 export {
   intlTeamFromBulk,
   intlEditionFromBulk,

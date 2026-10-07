@@ -289,24 +289,37 @@ async function main() {
   async function writeIntlHeads() {
     const entry = await import(ENTRY);
     if (!entry.intlTeamHead) return;
-    const [teams, editions] = await Promise.all([
-      queryAll(`intl_team_summary?select=team,slug,played,won,first_match,elo,elo_rank&played=gte.${entry.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
-      queryAll('intl_edition_summary?select=competition,label,winner,runner_up&order=competition.asc,season_start.asc'),
-    ]);
     const write = (meta) => {
       const dir = join(DIST, ...meta.path.split('/').filter(Boolean));
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'index.html'), buildDocument(shell, renderStaticRouteHead(meta)), 'utf8');
     };
-    let n = 0;
-    const byComp = new Map(entry.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
-    for (const t of teams ?? []) { try { write(entry.intlTeamHead(t)); n++; } catch (err) { console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`); } }
-    for (const t of entry.INTL_TOURNAMENTS) { try { write(entry.intlTournamentHead(t)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); } }
-    for (const e of editions ?? []) {
-      const t = byComp.get(e.competition);
-      if (t) { try { write(entry.intlEditionHead(t, e)); n++; } catch (err) { console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`); } }
+    // Men's pages (intl_* views, /international/...), then women's (intlw_*,
+    // /international/women/...): setIntlGender moves the heads' paths, titles
+    // and crumbs and the tournament list. Back to men's for the full render.
+    const sides = entry.setIntlGender ? ['men', 'women'] : ['men'];
+    for (const side of sides) {
+      const pre = side === 'women' ? 'intlw_' : 'intl_';
+      entry.setIntlGender?.(side);
+      try {
+        const [teams, editions] = await Promise.all([
+          queryAll(`${pre}team_summary?select=team,slug,played,won,first_match,elo,elo_rank&played=gte.${entry.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
+          queryAll(`${pre}edition_summary?select=competition,label,winner,runner_up&order=competition.asc,season_start.asc`),
+        ]);
+        let n = 0;
+        const byComp = new Map(entry.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
+        for (const t of teams ?? []) { try { write(entry.intlTeamHead(t)); n++; } catch (err) { console.error(`Static: failed intl team ${t.slug}: ${err?.message ?? err}`); } }
+        for (const t of entry.INTL_TOURNAMENTS) { try { write(entry.intlTournamentHead(t)); n++; } catch (err) { console.error(`Static: failed intl tournament ${t.slug}: ${err?.message ?? err}`); } }
+        for (const e of editions ?? []) {
+          const t = byComp.get(e.competition);
+          if (t) { try { write(entry.intlEditionHead(t, e)); n++; } catch (err) { console.error(`Static: failed intl edition ${e.competition} ${e.label}: ${err?.message ?? err}`); } }
+        }
+        console.log(`Static: wrote head tags for ${n} ${side}'s international page(s).`);
+      } catch (err) {
+        console.error(`Static: ${side}'s international heads skipped -- ${err?.message ?? err}`);
+      }
     }
-    console.log(`Static: wrote head tags for ${n} international page(s).`);
+    entry.setIntlGender?.('men');
   }
 
   await writeIntlHeads();
