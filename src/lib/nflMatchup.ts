@@ -11,7 +11,7 @@
 
 import { supabase } from './supabase';
 import { GAME_COLUMNS, TEAM_SEASON_COLUMNS, type NflGame, type NflTeamSeason } from './nflApi';
-import { PROJECTION_COLUMNS, loadProjections, type NflProjection } from './nflProjections';
+import { PROJECTION_COLUMNS, loadProjectionsFor, type NflProjection } from './nflProjections';
 
 export const SKILL = ['QB', 'RB', 'WR', 'TE'] as const;
 export type Skill = (typeof SKILL)[number];
@@ -274,27 +274,57 @@ export async function loadMatchup(gameId: string): Promise<MatchupData | null> {
   return { game, season: home.profile.season, projections: (projRes.data ?? []) as unknown as NflProjection[], home, away: side(game.away_franchise), teamGames: tg, playerActuals: pa };
 }
 
-/** A side's line-up total, or null when the team has no projections for this game yet
- * (the daily job projects each team's next game only: a team playing twice in the
- * window gets this game's projections after the earlier game). */
+/** A side's line-up total, or null when the team has no projections for this game
+ * (projections start with each team's next game inside eight days, and were first
+ * made on 5 Oct 2026, so earlier weeks have none). */
 export type MatchupCard = { game: NflGame; home: number | null; away: number | null; players: number };
 
-/** This week's games that have projections, with each side's projected fantasy points (PPR, top line-up). */
-export async function loadMatchupIndex(): Promise<MatchupCard[]> {
-  const proj = await loadProjections();
-  const ids = [...new Set(proj.map((p) => p.game_id))];
-  if (!ids.length) return [];
-  const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).in('game_id', ids);
+/** One regular-season week, for the week scroller (the FPL gameweek summary shape). */
+export type MatchupWeekSummary = { matchweek: number; first_kickoff: string; last_kickoff: string; fixture_count: number; played_count: number };
+
+export type MatchupWeek = { season: number; week: number; weeks: MatchupWeekSummary[]; cards: MatchupCard[] };
+
+const kick = (g: NflGame) => String(g.kickoff_at ?? g.gameday);
+
+/** Week summaries for a season's regular-season games. */
+export function weekSummaries(games: NflGame[]): MatchupWeekSummary[] {
+  const by = new Map<number, NflGame[]>();
+  for (const g of games) by.set(g.week, [...(by.get(g.week) ?? []), g]);
+  return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([w, gs]) => {
+    const ks = gs.map((g) => g.gameday).sort(); // US calendar dates, as the NFL lists its weeks
+    return { matchweek: w, first_kickoff: ks[0], last_kickoff: ks[ks.length - 1], fixture_count: gs.length, played_count: gs.filter(isPlayed).length };
+  });
+}
+
+/** The week to open on: the first with a game still to play, else the last week. */
+export function currentWeek(weeks: MatchupWeekSummary[]): number | null {
+  if (!weeks.length) return null;
+  return (weeks.find((w) => w.played_count < w.fixture_count) ?? weeks[weeks.length - 1]).matchweek;
+}
+
+/** A regular-season week's games (latest season; default the current week) with each side's projected fantasy points (PPR, key line-up). */
+export async function loadMatchupWeek(week: number | null): Promise<MatchupWeek | null> {
+  const { data: sRow, error: sErr } = await supabase.from('nfl_games' as never).select('season').eq('game_type', 'REG').order('season', { ascending: false }).limit(1);
+  if (sErr) throw sErr;
+  const season = ((sRow ?? []) as { season: number }[])[0]?.season;
+  if (!season) return null;
+  const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('season', season).eq('game_type', 'REG').limit(400);
   if (error) throw error;
-  // Projections are kept after kick-off; the index shows the last week and what's coming.
-  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
-  const games = ((data ?? []) as unknown as NflGame[]).filter((g) => !g.kickoff_at || new Date(g.kickoff_at).getTime() >= cutoff);
+  const all = (data ?? []) as unknown as NflGame[];
+  const weeks = weekSummaries(all);
+  const w = week != null && weeks.some((x) => x.matchweek === week) ? week : currentWeek(weeks);
+  if (w == null) return null;
+  const games = all.filter((g) => g.week === w).sort((a, b) => kick(a).localeCompare(kick(b)));
+  const proj = await loadProjectionsFor(games.map((g) => g.game_id));
   const side = (g: NflGame, slug: string): number | null => {
     const rows = proj.filter((p) => p.game_id === g.game_id && p.team_slug === slug);
     if (!rows.length) return null;
     return lineup(rows, slug).reduce((s, x) => s + (x.player && x.player.injury_status !== 'Out' ? Number(x.player.proj_ppr) : 0), 0);
   };
-  return games
-    .map((g) => ({ game: g, home: side(g, g.home_slug), away: side(g, g.away_slug), players: proj.filter((p) => p.game_id === g.game_id).length }))
-    .sort((a, b) => String(a.game.kickoff_at ?? a.game.gameday).localeCompare(String(b.game.kickoff_at ?? b.game.gameday)));
+  return {
+    season,
+    week: w,
+    weeks,
+    cards: games.map((g) => ({ game: g, home: side(g, g.home_slug), away: side(g, g.away_slug), players: proj.filter((p) => p.game_id === g.game_id).length })),
+  };
 }
