@@ -25,8 +25,8 @@ export default function IntlWomenHub() {
   const links = [
     { label: 'Fixtures & Results', to: INTL_FIXTURES_PATH, blurb: 'Every women’s international day by day: the upsets, and each coming game’s chances and likeliest score; filter to one nation.' },
     { label: 'TV Guide', to: INTL_TV_PATH, blurb: 'Coming women’s internationals and how to watch them live in the UK.' },
-    { label: 'Your Team', to: INTL_TEAMS_PATH, blurb: 'Any nation’s current squad, record, rating, tournament history and head-to-heads.' },
     { label: 'Tournaments', to: INTL_TOURNAMENTS_PATH, blurb: 'Every Women’s World Cup, Olympics, Euro, Copa América, WAFCON, Asian Cup, CONCACAF W Championship and Nations League: brackets, groups and the race for titles.' },
+    { label: 'Your Team', to: INTL_TEAMS_PATH, blurb: 'Any nation’s current squad, record, rating, tournament history and head-to-heads.' },
     { label: 'Club Call-ups', to: INTL_CLUBS_PATH, blurb: 'Which clubs and leagues supply the most internationals, and how many of each squad play abroad.' },
     { label: 'Through Time', to: INTL_HISTORY_PATH, blurb: 'The world’s top ten year by year since 1956, every world number one, and the biggest tournament upsets.' },
   ];
