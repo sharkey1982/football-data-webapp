@@ -80,6 +80,9 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     expect(within(ppv).getByText(/Watch live — pay-per-view/)).toBeInTheDocument();
     expect(within(ppv).getByText(/Extra payment/)).toBeInTheDocument();
 
+    // Not on UK TV is hidden by default and shown by its chip.
+    expect(screen.queryByRole('link', { name: 'Millwall v Lincoln' })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Not on UK TV' }));
     const notLive = row('Millwall v Lincoln');
     expect(within(notLive).getByText('Not televised live in the UK')).toBeInTheDocument();
   });
@@ -115,7 +118,8 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     expect(screen.queryByRole('link', { name: 'Arsenal v Dortmund' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(screen.getAllByRole('link', { name: / v / })).toHaveLength(4);
+    expect(screen.getAllByRole('link', { name: / v / })).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'On TV' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('service filter finds a match through any of its routes (e.g. NOW inside a Sky offer)', async () => {
@@ -244,15 +248,47 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     ]);
     const user = userEvent.setup();
     render_();
-    await screen.findByRole('link', { name: 'Aston Villa v Brentford' });
+    await screen.findByRole('button', { name: 'Not on UK TV' });
+    expect(screen.queryByRole('link', { name: 'Aston Villa v Brentford' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Not on UK TV' }));
     const r = row('Aston Villa v Brentford');
     expect(within(r).getByText('Not televised live in the UK')).toBeInTheDocument();
     expect(within(r).getByText('Saturday 3pm kick-offs are not shown live in the UK.')).toBeInTheDocument();
     expect(within(r).queryByText(/rule:3pm_blackout/)).not.toBeInTheDocument();
     expect(within(r).queryByText(/Verified/)).not.toBeInTheDocument();
     expect(within(r).queryByText(/Broadcaster TBC/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Not on UK TV' }));
-    expect(screen.getByRole('link', { name: 'Aston Villa v Brentford' })).toBeInTheDocument();
+  });
+
+  it('service summary: picking a team counts the games each service shows and the best pair', async () => {
+    const tnt = { broadcaster: 'TNT Sports', channel: 'TNT Sports 1', serviceProduct: 'HBO Max' };
+    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+      fixture(1, 'Arsenal', 'Leeds', [offer({ serviceProduct: 'Sky Sports app / NOW' })]),
+      fixture(2, 'Liverpool', 'Arsenal', [offer()], { kickoffDate: '2099-10-17' }),
+      fixture(3, 'Arsenal', 'Lille', [offer(tnt)], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', competitionType: 'cup', awayTeamCountry: 'France' }),
+      fixture(4, 'Arsenal', 'Dortmund', [offer({ broadcaster: 'Amazon Prime Video', channel: null, streamingService: 'Prime Video' })], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', competitionType: 'cup', awayTeamCountry: 'Germany' }),
+      fixture(5, 'Arsenal', 'Wolves', [offer({ status: 'confirmed_not_televised', broadcaster: null, channel: null, accessType: null })], { kickoffDate: '2099-11-07' }),
+      fixture(6, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
+    ]);
+    const user = userEvent.setup();
+    render_();
+    await screen.findByRole('link', { name: 'Arsenal v Leeds' });
+    expect(screen.queryByRole('region', { name: 'Which service shows the most' })).not.toBeInTheDocument();
+    await user.type(screen.getByRole('combobox', { name: 'Team' }), 'arsenal');
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'Arsenal' }));
+    const card = screen.getByRole('region', { name: 'Which service shows the most' });
+    expect(within(card).getByText(/Arsenal: 4 games on UK TV/)).toBeInTheDocument();
+    expect(within(card).getByText(/1 later game not picked yet/)).toBeInTheDocument();
+    const rows = within(card).getAllByRole('listitem').map((li) => li.textContent);
+    // NOW folds into Sky: Sky 2 games, then Prime 1, TNT 1.
+    expect(rows[0]).toMatch(/^Sky Sports.*2 · 50%/);
+    expect(rows).toHaveLength(3);
+    expect(within(card).getByText(/Sky Sports \+ (Prime Video|TNT Sports) show 3 of 4/)).toBeInTheDocument();
+    expect(within(card).getByText(/Sky Sports games also stream on NOW/)).toBeInTheDocument();
+
+    // A competition counts the same way.
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await user.selectOptions(screen.getByLabelText('Competition'), 'Championship');
+    expect(within(screen.getByRole('region', { name: 'Which service shows the most' })).getByText(/Sky Sports shows all 1/)).toBeInTheDocument();
   });
 
   it('shows an error message if the load fails, rather than a blank page', async () => {

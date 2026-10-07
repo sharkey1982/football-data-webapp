@@ -10,8 +10,10 @@
 // src/lib/layoutPairs.ts and src/__tests__/layoutPairs.test.ts enforce it.
 //
 // Only fixtures with evidence are listed: a fixture missing here is "not
-// yet confirmed", never "not on TV" (the page says so). Filter options are
-// derived from what's loaded, never a fixed list.
+// yet confirmed", never "not on TV" (the page says so). Games confirmed not
+// on UK TV are hidden by default and shown by the "Not on UK TV" chip
+// (Chris, 7 Oct 2026). Filter options are derived from what's loaded,
+// never a fixed list.
 // ============================================================================
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -21,9 +23,10 @@ import { formatMatchDateWithYear } from '../lib/formatDate';
 import type { WatchGuideFixture } from '../lib/broadcastsApi';
 import { getActivePartners, type AffiliatePartner } from '../lib/commercialLinks';
 import WatchOptions from './WatchOptions';
+import ServiceCoverageCard from './ServiceCoverageCard';
 import TeamPicker from './TeamPicker';
 import FixtureCalendarHeatmap from './FixtureCalendarHeatmap';
-import { buildTeamGroups, teamsForValue } from '../lib/teamGroups';
+import { buildTeamGroups, groupOptionLabel, GROUP_PREFIX, teamsForValue } from '../lib/teamGroups';
 import {
   fixtureWatchState,
   isThisWeekend,
@@ -63,7 +66,7 @@ export type WatchGuideViewProps = {
 type Quick = 'all' | 'tonight' | 'weekend' | 'free' | 'subscription' | 'ppv' | 'not_live';
 
 const QUICK: { key: Quick; label: string }[] = [
-  { key: 'all', label: 'All' },
+  { key: 'all', label: 'On TV' },
   { key: 'tonight', label: 'Tonight' },
   { key: 'weekend', label: 'This weekend' },
   { key: 'free', label: 'Free' },
@@ -76,11 +79,13 @@ const selectClass = 'w-full sm:w-52 border border-chalk-300 rounded px-2 py-1.5 
 const labelClass = 'block text-xs font-medium text-ink-500 mb-1';
 
 function matchesQuick(f: WatchGuideItem, q: Quick): boolean {
+  const s = fixtureWatchState(f.offers);
+  if (q === 'not_live') return s.kind === 'not_live';
+  // Every other view leaves out games confirmed not on UK TV.
+  if (s.kind === 'not_live') return false;
   if (q === 'all') return true;
   if (q === 'tonight') return isTonight(f.kickoffDate, f.kickoffTime);
   if (q === 'weekend') return isThisWeekend(f.kickoffDate, f.kickoffTime);
-  const s = fixtureWatchState(f.offers);
-  if (q === 'not_live') return s.kind === 'not_live';
   if (s.kind !== 'watch') return false;
   const tiers = s.groups.map((g) => g.tier);
   if (q === 'free') return tiers.includes('free') || tiers.includes('free_compatible_device');
@@ -131,6 +136,21 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
       (!competition || f.leagueName === competition) &&
       (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
       (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))
+  );
+  // The service summary: the picked team and/or competition, every date,
+  // on TV or not -- the question is which service to have, not this week.
+  const coverageLabel = [
+    team ? (team.startsWith(GROUP_PREFIX) ? groupOptionLabel(team.slice(GROUP_PREFIX.length)) : team) : '',
+    competition,
+  ].filter(Boolean).join(' \u00b7 ');
+  const coverageSet = useMemo(
+    () =>
+      all.filter(
+        (f) =>
+          (!competition || f.leagueName === competition) &&
+          (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))
+      ),
+    [all, competition, team, pickedTeams]
   );
   const filtered = selectedDates.size === 0 ? beforeDates : beforeDates.filter((f) => selectedDates.has(f.kickoffDate));
   const filtersActive = quick !== 'all' || competition !== '' || provider !== '' || team !== '' || selectedDates.size > 0;
@@ -248,6 +268,8 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
           </div>
         </>
       )}
+
+      {coverageLabel && <ServiceCoverageCard label={coverageLabel} fixtures={coverageSet} />}
 
       {all.length > 0 && (
         <div className="mt-4">
