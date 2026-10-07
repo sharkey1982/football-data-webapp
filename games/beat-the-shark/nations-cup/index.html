@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+/* Trailing-slash guard, as in the football game: the scripts load by
+   relative path, so /play/beat-the-shark/nations-cup without its slash would
+   load nothing. MUST stay first in <head>. */
+(function(){var p=location.pathname;
+  if(p.length>1&&p.charAt(p.length-1)!=="/"&&!/\.[a-z0-9]+$/i.test(p))
+    location.replace(p+"/"+location.search+location.hash);})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beat the Shark: Nations Cup — a mixed team tennis management game | FixtureShark</title>
+<meta name="description" content="Captain a real nation through a mixed team tennis event on hard, clay, grass and indoor courts. Pick three men and three women, set the singles, doubles and mixed, manage the money, and win the Nations Cup.">
+<link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/nations-cup/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FixtureShark">
+<meta property="og:title" content="Beat the Shark: Nations Cup">
+<meta property="og:description" content="Captain a nation across four surfaces and win the Nations Cup.">
+<meta property="og:url" content="https://fixtureshark.com/play/beat-the-shark/nations-cup/">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/base.css?v=__V__">
+<style>
+  /* the Nations Cup's own touches */
+  .vp .teams{gap:8px;align-items:center}
+  .vp .teams #sb{white-space:nowrap}
+  .pl .pos{min-width:48px;text-align:center}
+  .pl .nm small+small{margin-top:1px}
+  .market .res{font-size:13px;padding:4px 0;border-bottom:1px solid var(--line)}
+  .market .res:last-child{border-bottom:0}
+  .market .res .n{font-family:var(--mono);font-weight:600;flex:none;margin-left:8px}
+  .rolerow{display:flex;align-items:center;gap:5px;margin:0 0 6px;flex-wrap:wrap}
+  .rolerow .rl{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);width:52px;flex:none}
+  .rolerow .rb{width:auto;margin:0;padding:6px 10px;font-size:13px;flex:1 1 0;min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tbl td.me{font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="homelink" href="https://fixtureshark.com/tennis">&larr; FixtureShark Tennis</a>
+    <div class="hmain">
+      <div class="bigscore" id="hScore">—<span class="sub">ROUND</span></div>
+      <div class="twos" id="hTwo"></div>
+      <div class="trend fl" id="hTrend"></div>
+    </div>
+    <div class="season" id="hSeason"></div>
+  </header>
+  <main id="app"></main>
+  <div class="foot" id="foot"></div>
+  <!-- Static on purpose: a crawler sees this, and every screen has a way back into the site. -->
+  <footer class="about">
+    <h2>About Beat the Shark: Nations Cup</h2>
+    <p>A mixed national team tennis event across four surfaces: hard, clay, grass and indoor hard. Pick a real
+      nation, rated by FixtureShark's tennis Elo, then three men and three women from twelve invented players. Each tie
+      is five rubbers (men's and women's singles, men's, women's and mixed doubles), so nobody plays only what they are
+      best at. Weigh surfaces, left-handers and partnerships, keep the money out of the red, and win the Nations Cup.</p>
+    <ul>
+      <li><a href="https://fixtureshark.com/tennis/head-to-head">Head to head</a> — any two players' chances, by surface</li>
+      <li><a href="https://fixtureshark.com/tennis/players">Your Player</a> — every player's record and surface splits</li>
+      <li><a href="https://fixtureshark.com/tennis/tournaments">Tournaments</a> — every event, draw by draw</li>
+    </ul>
+    <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark: football</a> · <a href="https://fixtureshark.com/tennis">Back to FixtureShark Tennis</a></p>
+  </footer>
+</div>
+<script src="../shared/games.js?v=__V__"></script>
+<script src="../shared/core.js?v=__V__"></script>
+<script src="data.js?v=__V__"></script>
+<script src="config.js?v=__V__"></script>
+<script src="engine.js?v=__V__"></script>
+<script src="content.js?v=__V__"></script>
+<script src="ui.js?v=__V__"></script>
+</body>
+</html>

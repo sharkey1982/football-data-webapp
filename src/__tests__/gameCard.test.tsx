@@ -26,6 +26,15 @@ describe('Beat the Shark game cards on the hubs', () => {
     expect(screen.getByRole('link', { name: /Beat the Shark: World Cup/ })).toHaveAttribute('href', '/play/beat-the-shark/world-cup/');
   });
 
+  it('the Tennis hub links to the Nations Cup game', () => {
+    render(
+      <MemoryRouter>
+        <ThemeHub theme={THEMES.tennis} trivia={[]} game={BEAT_THE_SHARK.nationsCup} />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('link', { name: /Beat the Shark: Nations Cup/ })).toHaveAttribute('href', '/play/beat-the-shark/nations-cup/');
+  });
+
   it('a hub without a game shows no game card', () => {
     render(
       <MemoryRouter>
