@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { ThemeHub } from '../../components/ThemeHub';
+import { BEAT_THE_SHARK } from '../../components/GameCard';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { THEMES } from '../../lib/journey';
 import type { TriviaFact } from '../../lib/landingApi';
@@ -24,5 +25,5 @@ export default function TennisHub() {
       .then(setTrivia)
       .catch(() => setTrivia([]));
   }, []);
-  return <ThemeHub theme={THEMES.tennis} trivia={trivia} />;
+  return <ThemeHub theme={THEMES.tennis} trivia={trivia} game={BEAT_THE_SHARK.nationsCup} />;
 }

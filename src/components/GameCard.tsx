@@ -36,6 +36,12 @@ export const BEAT_THE_SHARK = {
     blurb: 'A five-a-side World Cup: pick seven from ten, choose the shapes, keep the money out of the red, and win it.',
     kicker: 'Play · ten minutes',
   },
+  nationsCup: {
+    href: '/play/beat-the-shark/nations-cup/',
+    title: 'Beat the Shark: Nations Cup',
+    blurb: 'Pick your nation and three men and three women, set the singles, doubles and mixed on four surfaces, and win the Nations Cup.',
+    kicker: 'Play · ten minutes',
+  },
 } satisfies Record<string, BeatTheSharkGame>;
 
 export function GameCard({ game }: { game: BeatTheSharkGame }) {
