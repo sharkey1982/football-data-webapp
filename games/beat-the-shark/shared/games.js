@@ -21,7 +21,8 @@ const BTS_GAMES=[
   {id:"blackjack",group:"casino",name:"Blackjack: basic strategy",mission:"Play every hand right",path:"blackjack/"},
   {id:"blackjack-count",group:"casino",name:"Blackjack: what's the count?",mission:"Keep the Hi-Lo count",path:"blackjack/?mode=count"},
   {id:"blackjack-house",group:"casino",name:"Blackjack: beat the house",mission:"Bet by the count",path:"blackjack/?mode=house"},
-  {id:"poker-hands",group:"casino",name:"Poker: hand strength",mission:"Read the cards",path:"poker/"}
+  {id:"poker-hands",group:"casino",name:"Poker: hand strength",mission:"Read the cards",path:"poker/"},
+  {id:"poker-outs",group:"casino",name:"Poker: outs & draws",mission:"Count your outs",path:"poker/?mode=outs"}
 ];
 /* Two groups on one screen (Chris, 7 Oct 2026: casino games to come), as
    headings rather than a sub-menu, so every game is still two taps away. */

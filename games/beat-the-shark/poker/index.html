@@ -9,7 +9,7 @@
     location.replace(p+"/"+location.search+location.hash);})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Beat the Shark: Poker hand strength — name the hand, who wins? | FixtureShark</title>
+<title>Beat the Shark: Poker trainers — hand strength, outs and draws | FixtureShark</title>
 <meta name="description" content="A Texas hold'em trainer: read your best five from seven cards, then say who wins and why, with the traps people misread. No money, no chips: just the cards.">
 <link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/poker/">
 <meta property="og:type" content="website">
@@ -33,6 +33,13 @@
   .ans:active{border-color:var(--amber)}
   .answers .ans:last-child:nth-child(odd){grid-column:1/-1}
   .answers.three .ans:last-child{grid-column:auto}
+  .goal{font-size:15px;margin-top:2px;padding:7px 10px;border-radius:8px;background:color-mix(in srgb,var(--amber) 12%,var(--panel2))}
+  .minis{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+  .pc.mini{width:34px;height:48px;padding:2px 4px}.pc.mini b{font-size:15px}.pc.mini i{font-size:13px}
+  .stepper{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .stepper .sl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mute);width:62px;text-transform:uppercase}
+  .stepper .sb{width:56px;height:56px;border-radius:12px;border:0;background:var(--pitch);color:var(--onPitch);font-size:30px;line-height:1;touch-action:manipulation}
+  .stepper .sv{font-family:var(--disp);font-size:40px;min-width:72px;text-align:center}
 </style>
 </head>
 <body>
@@ -51,9 +58,10 @@
   <!-- Static on purpose: a crawler sees this, and every screen has a way back into the site. -->
   <footer class="about">
     <h2>About the poker trainers</h2>
-    <p>Beat the Shark's poker trainers teach Texas hold'em one idea at a time, starting with reading hands: your best five
-      cards from seven, and which of two hands wins. Every deal is chosen to teach, including the hands people misread.
-      No money or chips are involved. Coming next: outs and draws, pot odds, equity, then pre-flop and post-flop decisions.</p>
+    <p>Beat the Shark's poker trainers teach Texas hold'em one idea at a time, starting with reading hands (your best five
+      cards from seven, and which of two hands wins) and counting outs (the cards that make your hand, and the chance of
+      getting one). Every deal is chosen to teach. No money or chips are involved. Coming next: pot odds, equity, then
+      pre-flop and post-flop decisions.</p>
     <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark</a> · <a href="https://fixtureshark.com/">Back to FixtureShark</a></p>
   </footer>
 </div>
@@ -63,6 +71,8 @@
 <script src="../shared/training.js?v=__V__"></script>
 <script src="cards.js?v=__V__"></script>
 <script src="quiz.js?v=__V__"></script>
+<script src="outs.js?v=__V__"></script>
+<script src="outsui.js?v=__V__"></script>
 <script src="ui.js?v=__V__"></script>
 </body>
 </html>
