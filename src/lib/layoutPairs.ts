@@ -298,6 +298,16 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
   },
   {
     sport: 'international',
+    label: 'TV Guide',
+    path: '/international/tv-guide',
+    footballFile: 'src/pages/football/TvGuidePage.tsx',
+    file: 'src/pages/international/IntlTvGuidePage.tsx',
+    shared: ['WatchGuideView'],
+    status: 'shared',
+    note: 'The shared TV Guide layout (7 Oct 2026). Viewing routes from the published UK rights (src/lib/intlWatch.ts); fixtures from the feed (Nations League only so far); no team picker.',
+  },
+  {
+    sport: 'international',
     label: 'Your Team',
     path: '/international/teams',
     footballFile: 'src/pages/TeamExplorer.tsx',

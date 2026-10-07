@@ -44,6 +44,7 @@ export let INTL_DISCOVER_PATH = '/international/discover';
 export let INTL_FIXTURES_PATH = '/international/fixtures';
 export let INTL_TEAMS_PATH = '/international/teams';
 export let INTL_TOURNAMENTS_PATH = '/international/tournaments';
+export let INTL_TV_PATH = '/international/tv-guide';
 
 /** Switch every International loader and path between the men's (intl_* views,
  * /international/...) and women's (intlw_* views, /international/women/...)
@@ -57,6 +58,7 @@ export function setIntlGender(g: IntlGender): void {
   INTL_FIXTURES_PATH = `${INTL_BASE}/fixtures`;
   INTL_TEAMS_PATH = `${INTL_BASE}/teams`;
   INTL_TOURNAMENTS_PATH = `${INTL_BASE}/tournaments`;
+  INTL_TV_PATH = `${INTL_BASE}/tv-guide`;
   INTL_HISTORY_PATH = `${INTL_BASE}/history`;
   INTL_CLUBS_PATH = `${INTL_BASE}/clubs`;
   setMatchBase(`${INTL_BASE}/matches`);
@@ -169,6 +171,17 @@ export async function loadIntlFixtures(year: number, month: number): Promise<Int
     rows<{ match_date: string }>(intlView('intl_matches', 'match_date').order('match_date', { ascending: false }).limit(1)),
   ]);
   return { from, to, matches, fixtures, latestResult: latest[0]?.match_date ?? null };
+}
+
+/** TV Guide: every coming fixture (from the start of today, UK) and each team's confederation. */
+export type IntlUpcomingData = { fixtures: IntlFixture[]; confederation: Record<string, string | null> };
+export async function loadIntlUpcoming(): Promise<IntlUpcomingData> {
+  const since = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const [fixtures, teams] = await Promise.all([
+    rows<IntlFixture>(intlView('intl_fixtures', FIXTURE_COLUMNS).gte('kickoff_utc', since).order('kickoff_utc', { ascending: true }).limit(1000)),
+    paged<{ team: string; confederation: string | null }>(() => intlView('intl_team_summary', 'team,confederation').order('team', { ascending: true })),
+  ]);
+  return { fixtures: fixtures.filter((f) => f.home_score == null), confederation: Object.fromEntries(teams.map((t) => [t.team, t.confederation])) };
 }
 
 export type IntlTeamGamesData = { team: TeamSummary; matches: IntlMatch[]; fixtures: IntlFixture[] };
