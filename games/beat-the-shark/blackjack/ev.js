@@ -49,8 +49,8 @@ function standEV(total,dist){
   return ev;
 }
 /* Every play's value for a hand. legal: the actions allowed now. */
-function evaluatePlays(cards,up,seen,rules,legal){
-  const p=probsFrom(shoeCounts(rules,seen)),dist=dealerDist(cardValue(up),p,rules);
+function evaluatePlays(cards,up,seen,rules,legal,counts){
+  const p=probsFrom(counts||shoeCounts(rules,seen)),dist=dealerDist(cardValue(up),p,rules);
   const memo=new Map();
   const best=h=>h.total>=21?standEV(h.total,dist):Math.max(standEV(h.total,dist),hit(h));
   function hit(h){const k=h.total*2+(h.soft?1:0);if(memo.has(k))return memo.get(k);
@@ -72,3 +72,20 @@ function evaluatePlays(cards,up,seen,rules,legal){
   return out;
 }
 function bestByEV(evs){return Object.keys(evs).reduce((a,b)=>evs[b]>evs[a]?b:a)}
+
+/* The value of a whole round before the deal, from a shoe composition
+   (counts by value), playing every hand by its best expected value: what a
+   count is really worth. Blackjacks pay 3 to 2; the dealer checks under an
+   ace or a ten. Used by the checks to measure the edge at each true count. */
+function roundEV(counts,rules){
+  const p=probsFrom(counts),C=v=>({r:v,s:0});let ev=0;
+  for(let a=1;a<=10;a++)for(let b=a;b<=10;b++){const pab=(a===b?1:2)*p[a]*p[b];if(!pab)continue;
+    for(let u=1;u<=10;u++){if(!p[u])continue;const pr=pab*p[u];
+      const q=rules.dealerPeeks&&u===1?p[10]:rules.dealerPeeks&&u===10?p[1]:0;
+      const bj=(a===1&&b===10);
+      if(bj){ev+=pr*(1-q)*rules.blackjackPays;continue}
+      const cards=[C(a),C(b)],legal=["hit","stand","double"].concat(a===b?["split"]:[]);
+      const best=Math.max(...Object.values(evaluatePlays(cards,C(u),null,rules,legal,counts)));
+      ev+=pr*(q*-1+(1-q)*best)}}
+  return ev;
+}

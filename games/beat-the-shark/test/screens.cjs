@@ -217,7 +217,8 @@ const readSecs=h=>prose(h)/250*60+visuals(h)*6;
 // ~3 min of commentary) for a ten-minute season. Lower these as it gets there.
 // screen/team sheet +25 (2026-09-21): the them-v-you table on the team
 // sheet, requested by Chris -- a small table, glanced at.
-const BUDGET={screen:230,beginnerTeamSheet:225,opening:40,preseason:55,minutes:12}; // now counting choice text too (it was missed before)
+// opening: since 7 Oct 2026 the games menu (Sports, Casino & probability), a name and a short aim per game: 60 words holds about eight games.
+const BUDGET={screen:230,beginnerTeamSheet:225,opening:60,preseason:55,minutes:12}; // now counting choice text too (it was missed before)
 run(`LEVEL="beginner";SPEED=null;chooseRole()`);
 ok(`reading budget: opening screen <= ${BUDGET.opening} words`, words(app())<=BUDGET.opening, `${words(app())} words`);
 run(`ROLE=ROLES.manager;boot()`);
@@ -269,9 +270,9 @@ run(`LEVEL="intermediate"`);
 run(`SEED="SOC-S07";LEVEL="beginner";chooseRole()`);
 // Since 6 Oct 2026 (Chris) the opening screen offers the sports; football
 // plays as the Beginner manager's season, and starting it is one tap.
-ok("opening: 'Pick a sport', football to play (Win the league), no roles or levels", /Pick a sport/.test(app())&&/Win the league/.test(app())&&!/data-r=/.test(app())&&!/Coming soon/.test(app()));
+ok("opening: 'Pick a game', football to play (Win the league), no roles or levels", /Pick a game/.test(app())&&/Win the league/.test(app())&&!/data-r=/.test(app())&&!/Coming soon/.test(app()));
 els.playThis.onclick();
-ok("Let's go does nothing until a sport is picked", /Pick a sport/.test(app()));
+ok("Let's go does nothing until a sport is picked", /Pick a game/.test(app()));
 run('pickSport("football")');els.playThis.onclick();
 ok("starting football from the picker begins the Beginner manager's season", run("ROLE.id")==="manager"&&run("LEVEL")==="beginner"&&/THE LEAGUE/.test(app()));
 run(`ROLE=ROLES.manager;boot()`);

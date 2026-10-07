@@ -132,9 +132,15 @@ function NavDropdown({ group }: { group: NavGroup }) {
               <ul>
                 {section.items.map((item) => (
                   <li key={item.label}>
-                    <Link to={item.to} className={navLinkClasses(isItemActive(location.pathname, item))} aria-current={isItemActive(location.pathname, item) ? 'page' : undefined}>
-                      {item.label}
-                    </Link>
+                    {item.external ? (
+                      <a href={String(item.to)} className={navLinkClasses(false)}>
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link to={item.to} className={navLinkClasses(isItemActive(location.pathname, item))} aria-current={isItemActive(location.pathname, item) ? 'page' : undefined}>
+                        {item.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -249,12 +255,25 @@ export default function AppLayout() {
     // At the right-hand end on a wide screen: open leftwards so the menu
     // stays on the page (on a phone it wraps to the left and opens right).
     alignRight: true,
-    items: [
-      { to: BEAT_THE_SHARK.football.href, label: 'Football', matchPrefix: BEAT_THE_SHARK.football.href, external: true },
-      { to: BEAT_THE_SHARK.nfl.href, label: 'NFL', matchPrefix: BEAT_THE_SHARK.nfl.href, external: true },
-      { to: BEAT_THE_SHARK.worldCup.href, label: 'World Cup', matchPrefix: BEAT_THE_SHARK.worldCup.href, external: true },
-      { to: BEAT_THE_SHARK.nationsCup.href, label: 'Tennis: Nations Cup', matchPrefix: BEAT_THE_SHARK.nationsCup.href, external: true },
-      { to: BEAT_THE_SHARK.blackjack.href, label: 'Blackjack trainer', matchPrefix: BEAT_THE_SHARK.blackjack.href, external: true },
+    // Two headed groups, as on the games' own picker (Chris, 7 Oct 2026).
+    sections: [
+      {
+        label: 'Sports',
+        items: [
+          { to: BEAT_THE_SHARK.football.href, label: 'Football', matchPrefix: BEAT_THE_SHARK.football.href, external: true },
+          { to: BEAT_THE_SHARK.nfl.href, label: 'NFL', matchPrefix: BEAT_THE_SHARK.nfl.href, external: true },
+          { to: BEAT_THE_SHARK.worldCup.href, label: 'World Cup', matchPrefix: BEAT_THE_SHARK.worldCup.href, external: true },
+          { to: BEAT_THE_SHARK.nationsCup.href, label: 'Tennis: Nations Cup', matchPrefix: BEAT_THE_SHARK.nationsCup.href, external: true },
+        ],
+      },
+      {
+        label: 'Casino & probability',
+        items: [
+          { to: BEAT_THE_SHARK.blackjack.href, label: 'Blackjack: basic strategy', matchPrefix: BEAT_THE_SHARK.blackjack.href, external: true },
+          { to: `${BEAT_THE_SHARK.blackjack.href}?mode=count`, label: "Blackjack: what's the count?", matchPrefix: `${BEAT_THE_SHARK.blackjack.href}?mode=count`, external: true },
+          { to: `${BEAT_THE_SHARK.blackjack.href}?mode=house`, label: 'Blackjack: beat the house', matchPrefix: `${BEAT_THE_SHARK.blackjack.href}?mode=house`, external: true },
+        ],
+      },
     ],
   };
 

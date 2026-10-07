@@ -252,10 +252,14 @@ describe('AppLayout main nav', () => {
     const user = userEvent.setup();
     renderAt('/');
     await user.click(screen.getByRole('button', { name: /^Play/ }));
+    expect(screen.getByText('Sports')).toBeInTheDocument();
+    expect(screen.getByText('Casino & probability')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Football' })).toHaveAttribute('href', '/play/beat-the-shark/');
     expect(screen.getByRole('link', { name: 'NFL' })).toHaveAttribute('href', '/play/beat-the-shark/nfl/');
     expect(screen.getByRole('link', { name: 'World Cup' })).toHaveAttribute('href', '/play/beat-the-shark/world-cup/');
     expect(screen.getByRole('link', { name: 'Tennis: Nations Cup' })).toHaveAttribute('href', '/play/beat-the-shark/nations-cup/');
-    expect(screen.getByRole('link', { name: 'Blackjack trainer' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
+    expect(screen.getByRole('link', { name: 'Blackjack: basic strategy' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
+    expect(screen.getByRole('link', { name: "Blackjack: what's the count?" })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=count');
+    expect(screen.getByRole('link', { name: 'Blackjack: beat the house' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=house');
   });
 });

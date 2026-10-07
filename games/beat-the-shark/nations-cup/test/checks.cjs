@@ -40,7 +40,7 @@ function makeWorld(){
 let W;
 try{W=makeWorld();check("scripts load in order, as a browser loads them",true,W.srcs.join(" → "))}
 catch(e){check("scripts load in order, as a browser loads them",false,e.message);process.exit(1)}
-check("the start screen offers the sports, the Nations Cup to play",/Pick a sport/.test(W.els.app.innerHTML)&&/data-game="nations-cup"/.test(W.els.app.innerHTML)&&/id="playThis"/.test(W.els.app.innerHTML));
+check("the start screen offers the sports, the Nations Cup to play",/Pick a game/.test(W.els.app.innerHTML)&&/data-game="nations-cup"/.test(W.els.app.innerHTML)&&/id="playThis"/.test(W.els.app.innerHTML));
 {const w=makeWorld(),before=w.els.app.innerHTML;w.els.playThis.onclick();const idle=w.els.app.innerHTML===before;
  w.run('pickSport("nations-cup")');const still=w.els.app.innerHTML===before;w.els.playThis.onclick();w.drain();
  check("picking a sport does nothing until Let's go, which then starts it",idle&&still&&w.els.app.innerHTML!==before)}

@@ -10,8 +10,8 @@
     location.replace(p+"/"+location.search+location.hash);})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Beat the Shark: Blackjack trainer — did you win, or did you play it right? | FixtureShark</title>
-<meta name="description" content="A blackjack trainer with fictional chips. Every decision is judged against basic strategy, separately from whether the hand won: learn the difference between a good result and a good decision.">
+<title>Beat the Shark: Blackjack — basic strategy, card counting and bet sizing | FixtureShark</title>
+<meta name="description" content="A blackjack trainer with fictional chips: basic strategy judged decision by decision, a Hi-Lo card-counting drill, and Beat the house, where the count sets your bet.">
 <link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/blackjack/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FixtureShark">
@@ -56,6 +56,30 @@
   .vb .k,.tile .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
   .vb .v{font-weight:600;font-size:15px;margin-top:2px}
   .headline{font-weight:600;color:var(--ink);margin:10px 0 6px;font-size:16px}
+  .okline{font-size:14px;color:var(--good);margin:6px 0;padding:4px 2px}
+  .okline.bad{color:var(--bad)}
+  .lesson{border:2px solid var(--bad);border-radius:11px;overflow:hidden;margin:8px 0}
+  .lesson .band{background:var(--bad);color:#fff;font-family:var(--disp);font-size:20px;letter-spacing:.04em;padding:9px 12px;line-height:1.1}
+  .lesson.sev-small .band{background:color-mix(in srgb,var(--bad) 75%,var(--amber))}
+  .lesson.sev-major{animation:shake .45s ease-in-out 1}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  @media (prefers-reduced-motion:reduce){.lesson.sev-major{animation:none}}
+  .lesson .lb{padding:9px 12px;background:color-mix(in srgb,var(--bad) 6%,var(--panel))}
+  .lesson p{margin:0 0 6px;color:var(--ink)}
+  .lesson .lw{font-weight:500}
+  .lesson .lc{font-size:12px;color:var(--ink2);margin:6px 0 0}
+  .crow{font-family:var(--mono);font-size:11px;margin:4px 0}
+  .crow .ch,.crow .cr{display:grid;grid-template-columns:62px repeat(10,1fr);gap:2px;align-items:center}
+  .crow span{color:var(--mute);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .crow i{font-style:normal;text-align:center;padding:3px 0;border-radius:3px}
+  .crow .ch i{color:var(--mute)}
+  .crow .ch i.on{color:var(--ink);font-weight:600}
+  .crow .cr i{background:var(--panel2);color:var(--ink2)}
+  .crow .cr i.c-S{background:color-mix(in srgb,var(--good) 18%,var(--panel2))}
+  .crow .cr i.c-D,.crow .cr i.c-X{background:color-mix(in srgb,var(--blue) 18%,var(--panel2))}
+  .crow .cr i.c-P{background:color-mix(in srgb,var(--amber) 22%,var(--panel2))}
+  .crow .cr i.on{outline:2px solid var(--ink);font-weight:700;color:var(--ink)}
+  .crow .cl{color:var(--mute);font-size:9.5px;margin-top:3px;font-family:var(--sans)}
   .dec{border-left:3px solid var(--good);background:color-mix(in srgb,var(--good) 8%,transparent);border-radius:0 7px 7px 0;padding:7px 10px;margin:6px 0;font-size:14px}
   .dec.bad{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,transparent)}
   .dec .dd{font-size:12.5px;color:var(--ink2);margin-top:3px}
@@ -68,6 +92,27 @@
   .tile .big small{font-size:18px;color:var(--mute)}
   .tile .s{font-size:12px;color:var(--mute)}
   .endrow .choice{text-align:center}
+  /* counting */
+  .hilo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 8px}
+  .hilo div{border:1.5px solid var(--line);border-radius:9px;padding:8px;text-align:center;background:var(--panel2)}
+  .hilo b{font-family:var(--disp);font-size:28px;display:block;line-height:1}
+  .hilo span{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+  .flash{display:flex;justify-content:center;align-items:center;min-height:150px}
+  .flash .pc{width:92px;height:128px;padding:8px 10px}
+  .flash .pc b{font-size:40px}.flash .pc i{font-size:36px}
+  .stepper{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .stepper .sl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mute);width:62px;text-transform:uppercase}
+  .stepper .sb{width:56px;height:56px;border-radius:12px;border:0;background:var(--pitch);color:var(--onPitch);font-size:30px;line-height:1;touch-action:manipulation}
+  .stepper .sv{font-family:var(--disp);font-size:40px;min-width:72px;text-align:center}
+  .runrev{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .runrev>span{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .runrev .pc{width:38px;height:54px;padding:2px 4px}.runrev .pc b{font-size:17px}.runrev .pc i{font-size:15px}
+  .runrev em{font-style:normal;font-family:var(--mono);font-size:11px;font-weight:600}
+  .runrev em.t1{color:var(--good)}.runrev em.t-1{color:var(--bad)}.runrev em.t0{color:var(--mute)}
+  .countbar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--ink2);background:var(--panel2);border-radius:8px;padding:6px 9px;margin:2px 0 8px}
+  .linkbtn{background:none;border:0;color:var(--pitch2);text-decoration:underline;font-size:12.5px;padding:4px;flex:none}
+  .stakes.five{grid-template-columns:repeat(5,1fr)}
+  .stk small{display:block;font-size:10px;color:var(--mute);font-weight:400}
   header .hd{font-family:var(--mono);font-size:10px;margin-top:1px}
   header .hd.up{color:#9ce0b9}header .hd.down{color:#ffb3ab}
 </style>
@@ -104,6 +149,8 @@
 <script src="engine.js?v=__V__"></script>
 <script src="strategy.js?v=__V__"></script>
 <script src="ev.js?v=__V__"></script>
+<script src="count.js?v=__V__"></script>
+<script src="countdrill.js?v=__V__"></script>
 <script src="ui.js?v=__V__"></script>
 </body>
 </html>
