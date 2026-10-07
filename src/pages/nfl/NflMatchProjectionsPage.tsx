@@ -1,7 +1,8 @@
 // ============================================================================
 // src/pages/nfl/NflMatchProjectionsPage.tsx
 //
-// /nfl/match-projections          this week's games as fantasy match-ups
+// /nfl/match-projections?week=N  a week's games as fantasy match-ups, with
+//                                 the FPL gameweek scroller (GameweekNav)
 // /nfl/match-projections/:gameId  one game: the two teams' fantasy inputs side
 //                                 by side, then their key players side by side.
 // Same name and menu place as FPL's Match Projections (after Player
@@ -9,7 +10,8 @@
 // ============================================================================
 
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import GameweekNav from '../../components/fpl/season/GameweekNav';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { NFL_HUB_PATH, NFL_MATCH_PROJECTIONS_PATH, NFL_PROJECTIONS_PATH, nflGameIdFromParam, nflGamePath, nflMatchProjectionPath, nflPlayerPath, nflTeamPath, ukKickoff, type NflTeamSeason } from '../../lib/nflApi';
@@ -23,7 +25,7 @@ import {
   statLines,
   lineup,
   loadMatchup,
-  loadMatchupIndex,
+  loadMatchupWeek,
   reliance,
   relianceSentence,
   share,
@@ -303,7 +305,7 @@ function GameView({ gameId }: { gameId: string }) {
         <p className="text-ink-700 mt-1 text-sm">
           {isPlayed(g) && <strong className="text-ink-900" data-testid="nfl-matchup-final">{`Final: ${g.away_short} ${g.away_score}\u2013${g.home_score} ${g.home_short} \u00b7 `}</strong>}
           {`Week ${g.week} · ${ukKickoff(g)} (UK)`} &middot; <Link to={nflGamePath(g.game_id)} className="text-pitch-800 underline underline-offset-2">Game preview</Link> &middot;{' '}
-          <Link to={NFL_MATCH_PROJECTIONS_PATH} className="text-pitch-800 underline underline-offset-2">All this week&rsquo;s match-ups</Link>
+          <Link to={`${NFL_MATCH_PROJECTIONS_PATH}?week=${g.week}`} className="text-pitch-800 underline underline-offset-2">{`All week ${g.week} match-ups`}</Link>
         </p>
       </header>
 
@@ -335,7 +337,7 @@ function GameView({ gameId }: { gameId: string }) {
         {data.projections.length ? (
           <Lineups d={data} fmt={fmt} />
         ) : (
-          <p className="text-sm text-ink-700">Player projections appear once the game is in the next eight days and has a betting line.</p>
+          <p className="text-sm text-ink-700">{isPlayed(g) ? 'No player projections were made for this game (they began on 5 October 2026).' : 'Player projections appear once the game is in the next eight days and has a betting line.'}</p>
         )}
         <p className="text-xs text-ink-500 max-w-prose">
           The highest-projected players at each slot, assuming they play; anyone ruled out is struck through and left out of the total. Range: 6 in 10 games land inside it. * RB and K show the season average.{' '}
@@ -348,10 +350,15 @@ function GameView({ gameId }: { gameId: string }) {
 }
 
 function IndexView() {
-  const { data, failed, loading } = useKeyedFetch('matchup-index', loadMatchupIndex);
+  const [params, setParams] = useSearchParams();
+  const wParam = Number(params.get('week'));
+  const requested = Number.isInteger(wParam) && wParam > 0 ? wParam : null;
+  const { data: wk, failed, loading } = useKeyedFetch(`matchup-week:${requested ?? 'current'}`, () => loadMatchupWeek(requested));
+  const data = wk?.cards;
+  const anyProjected = !!data?.some((c) => c.home != null || c.away != null);
   useDocumentHead({
-    title: 'NFL Match Projections: this week’s fantasy match-ups',
-    description: 'Every NFL game this week as a fantasy match-up: expected points, each team’s projected fantasy line-up, and whether it scores through its running backs or its receivers.',
+    title: wk ? `NFL Match Projections, week ${wk.week}: fantasy match-ups` : 'NFL Match Projections: fantasy match-ups by week',
+    description: 'Every NFL game as a fantasy match-up, week by week: expected points, each team’s projected fantasy line-up, and whether it scores through its running backs or its receivers.',
     path: NFL_MATCH_PROJECTIONS_PATH,
   });
   return (
@@ -360,16 +367,22 @@ function IndexView() {
         <Breadcrumb />
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Match Projections</h1>
         <p className="text-ink-700 mt-2 max-w-prose">
-          Each game this week as a fantasy match-up: the points the betting market expects, each team&rsquo;s key players side by side, and whether a team gains its yards and touchdowns through its running backs or its receivers.
+          Each game as a fantasy match-up: the points the betting market expects, each team&rsquo;s key players side by side, and whether a team gains its yards and touchdowns through its running backs or its receivers. Browse by week.
         </p>
       </header>
+      {wk && wk.weeks.length > 0 && (
+        <div data-testid="nfl-matchup-weeks">
+          <GameweekNav label="Week" matchweek={wk.week} summary={wk.weeks} onSelect={(w) => setParams({ week: String(w) }, { replace: false })} />
+        </div>
+      )}
       {failed && <p className="text-ink-700">Match-ups are unavailable right now.</p>}
       {loading && <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>}
-      {data && data.length === 0 && <p className="text-ink-700">No match-ups yet: they appear once the next week&rsquo;s games have betting lines.</p>}
+      {!loading && !failed && (!wk || !data || data.length === 0) && <p className="text-ink-700">No games found for this week.</p>}
       {data && data.length > 0 && (
         <ul className="grid sm:grid-cols-2 gap-3" data-testid="nfl-matchup-index">
           {data.map(({ game: g, home, away }) => {
             const imp = impliedPoints(g);
+            const noProj = (x: number | null) => (x == null ? (isPlayed(g) ? 'No projection was made for this game' : 'Projected once the game is within eight days and has a betting line') : 'Projected fantasy points, key line-up (PPR)');
             return (
               <li key={g.game_id}>
                 <Link to={nflMatchProjectionPath(g.game_id)} className="block border border-chalk-300 rounded-lg p-3 bg-white hover:border-pitch-700" data-testid="nfl-matchup-card">
@@ -377,10 +390,10 @@ function IndexView() {
                   <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-baseline mt-1 text-sm">
                     <span>{g.away_name}</span>
                     <span className="font-mono text-xs text-ink-500" title="Expected points (betting line)">{imp ? imp.away.toFixed(1) : ''}</span>
-                    <span className="font-mono font-semibold" title={away == null ? 'Projected after their earlier game' : 'Projected fantasy points, key line-up (PPR)'}>{away == null ? '–' : fmt1(away)}</span>
+                    <span className="font-mono font-semibold" title={noProj(away)}>{away == null ? '–' : fmt1(away)}</span>
                     <span>{`${g.neutral_site ? 'v' : 'at'} ${g.home_name}`}</span>
-                    <span className="font-mono text-xs text-ink-500">{imp ? imp.home.toFixed(1) : ''}</span>
-                    <span className="font-mono font-semibold" title={home == null ? 'Projected after their earlier game' : undefined}>{home == null ? '–' : fmt1(home)}</span>
+                    <span className="font-mono text-xs text-ink-500" title="Expected points (betting line)">{imp ? imp.home.toFixed(1) : ''}</span>
+                    <span className="font-mono font-semibold" title={noProj(home)}>{home == null ? '–' : fmt1(home)}</span>
                   </div>
                 </Link>
               </li>
@@ -388,7 +401,12 @@ function IndexView() {
           })}
         </ul>
       )}
-      {data && data.length > 0 && <p className="text-xs text-ink-500">Small figures: points the betting line expects each team to score. Bold: projected fantasy points (PPR) for each team&rsquo;s key line-up (QB, two RBs, three WRs, TE, K). A dash: the team plays an earlier game first, and this one is projected after it.</p>}
+      {data && data.length > 0 && (
+        <p className="text-xs text-ink-500">
+          Small figures: points the betting line expects each team to score. Bold: projected fantasy points (PPR) for each team&rsquo;s key line-up (QB, two RBs, three WRs, TE, K). A dash: no projection
+          {anyProjected ? ' for that team yet' : ' for this week'} &mdash; projections are made once a game is within eight days and has a betting line, and began on 5 October 2026, so earlier weeks show the line and the result only.
+        </p>
+      )}
     </article>
   );
 }

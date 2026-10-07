@@ -5,10 +5,13 @@ export default function GameweekNav({
   matchweek,
   summary,
   onSelect,
+  label = 'Gameweek',
 }: {
   matchweek: number;
   summary: SeasonGameweekSummary[];
   onSelect: (matchweek: number) => void;
+  /** 'Gameweek' (FPL) or 'Week' (NFL). */
+  label?: string;
 }) {
   const current = summary.find((s) => s.matchweek === matchweek);
   const minWeek = summary.length > 0 ? summary[0].matchweek : 1;
@@ -27,7 +30,7 @@ export default function GameweekNav({
         </button>
 
         <div className="text-center">
-          <div className="font-display uppercase tracking-wide text-lg">Gameweek {matchweek}</div>
+          <div className="font-display uppercase tracking-wide text-lg">{`${label} ${matchweek}`}</div>
           {current && (
             <div className="text-xs text-chalk-300 font-mono">
               {formatMatchDate(current.first_kickoff)}
@@ -60,7 +63,7 @@ export default function GameweekNav({
               key={s.matchweek}
               type="button"
               onClick={() => onSelect(s.matchweek)}
-              title={`Gameweek ${s.matchweek}`}
+              title={`${label} ${s.matchweek}`}
               className={[
                 'shrink-0 w-9 h-9 rounded text-xs font-mono font-semibold transition-colors border',
                 isSelected

@@ -10,9 +10,10 @@ import { THEMES } from '../lib/journey';
 
 vi.mock('../lib/nflMatchup', async () => {
   const actual = await vi.importActual<typeof mu>('../lib/nflMatchup');
-  return { ...actual, loadMatchup: vi.fn(), loadMatchupIndex: vi.fn() };
+  return { ...actual, loadMatchup: vi.fn(), loadMatchupWeek: vi.fn() };
 });
 const mocked = mu as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const { weekSummaries, currentWeek } = mu;
 
 const wk = (team: string, position: string, ry: number, recy: number, rtd: number, rectd: number, targets = 0, carries = 0, game_id = 'g1') =>
   ({ team, position, season: 2026, season_type: 'REG', rushing_yards: ry, receiving_yards: recy, rushing_tds: rtd, receiving_tds: rectd, targets, carries, game_id });
@@ -78,7 +79,7 @@ describe('NFL Match Projections page', () => {
   });
 
   it('lists this week’s games and sits after Player Projections in Predict, as in FPL', async () => {
-    mocked.loadMatchupIndex.mockResolvedValue([{ game, home: 61.2, away: 48.9, players: 30 }]);
+    mocked.loadMatchupWeek.mockResolvedValue({ season: 2026, week: 5, weeks: [{ matchweek: 4, first_kickoff: '2026-10-01', last_kickoff: '2026-10-05', fixture_count: 16, played_count: 16 }, { matchweek: 5, first_kickoff: '2026-10-08', last_kickoff: '2026-10-12', fixture_count: 14, played_count: 0 }], cards: [{ game, home: 61.2, away: 48.9, players: 30 }] });
     render(<MemoryRouter initialEntries={['/nfl/match-projections']}><Routes><Route path="/nfl/match-projections" element={<NflMatchProjectionsPage />} /></Routes></MemoryRouter>);
     await waitFor(() => expect(screen.getAllByTestId('nfl-matchup-card')).toHaveLength(1));
     const card = screen.getByTestId('nfl-matchup-card');
@@ -89,8 +90,31 @@ describe('NFL Match Projections page', () => {
     expect(predict.slice(0, 2)).toEqual(['Player Projections', 'Match Projections']);
   });
 
+  it('browses by week with the FPL gameweek scroller', async () => {
+    mocked.loadMatchupWeek.mockResolvedValue({ season: 2026, week: 5, weeks: [{ matchweek: 4, first_kickoff: '2026-10-01', last_kickoff: '2026-10-05', fixture_count: 16, played_count: 16 }, { matchweek: 5, first_kickoff: '2026-10-08', last_kickoff: '2026-10-12', fixture_count: 14, played_count: 0 }], cards: [{ game, home: 61.2, away: 48.9, players: 30 }] });
+    render(<MemoryRouter initialEntries={['/nfl/match-projections']}><Routes><Route path="/nfl/match-projections" element={<NflMatchProjectionsPage />} /></Routes></MemoryRouter>);
+    const nav = await screen.findByTestId('nfl-matchup-weeks');
+    expect(nav.textContent).toContain('Week 5');
+    expect(within(nav).getByTitle('Week 4')).toBeTruthy();
+    expect(mocked.loadMatchupWeek).toHaveBeenLastCalledWith(null);
+    fireEvent.click(within(nav).getByTitle('Week 4'));
+    await waitFor(() => expect(mocked.loadMatchupWeek).toHaveBeenLastCalledWith(4));
+  });
+
+  it('opens on the first week with a game to play', () => {
+    const g = (week: number, played: boolean, day: string) => ({ ...game, game_id: `${week}${day}`, week, gameday: day, home_score: played ? 20 : null, away_score: played ? 17 : null });
+    const weeks = weekSummaries([g(4, true, '2026-10-01'), g(4, true, '2026-10-05'), g(5, false, '2026-10-08'), g(5, false, '2026-10-12')]);
+    expect(weeks).toEqual([
+      { matchweek: 4, first_kickoff: '2026-10-01', last_kickoff: '2026-10-05', fixture_count: 2, played_count: 2 },
+      { matchweek: 5, first_kickoff: '2026-10-08', last_kickoff: '2026-10-12', fixture_count: 2, played_count: 0 },
+    ]);
+    expect(currentWeek(weeks)).toBe(5);
+    expect(currentWeek(weeks.slice(0, 1))).toBe(4);
+    expect(currentWeek([])).toBeNull();
+  });
+
   it('shows a dash, not zero, for a team that plays an earlier game first', async () => {
-    mocked.loadMatchupIndex.mockResolvedValue([{ game, home: null, away: 48.9, players: 12 }]);
+    mocked.loadMatchupWeek.mockResolvedValue({ season: 2026, week: 5, weeks: [{ matchweek: 4, first_kickoff: '2026-10-01', last_kickoff: '2026-10-05', fixture_count: 16, played_count: 16 }, { matchweek: 5, first_kickoff: '2026-10-08', last_kickoff: '2026-10-12', fixture_count: 14, played_count: 0 }], cards: [{ game, home: null, away: 48.9, players: 12 }] });
     render(<MemoryRouter initialEntries={['/nfl/match-projections']}><Routes><Route path="/nfl/match-projections" element={<NflMatchProjectionsPage />} /></Routes></MemoryRouter>);
     await waitFor(() => expect(screen.getAllByTestId('nfl-matchup-card')).toHaveLength(1));
     const card = screen.getByTestId('nfl-matchup-card');

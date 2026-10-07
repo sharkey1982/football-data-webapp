@@ -126,9 +126,9 @@ export const LAYOUT_PAIRS: LayoutPair[] = [
     nflPath: '/nfl/match-projections',
     footballFile: 'src/pages/fpl/GameweekPage.tsx',
     nflFile: 'src/pages/nfl/NflMatchProjectionsPage.tsx',
-    shared: [],
-    status: 'separate',
-    note: 'Same job (each fixture as a projected match-up) and name. NFL shows one game at a time with team inputs and line-ups side by side; FPL shows a gameweek of fixtures.',
+    shared: ['GameweekNav'],
+    status: 'partial',
+    note: 'Same job (each fixture as a projected match-up) and name. Both browse by week with the same scroller (GameweekNav: Gameweek in FPL, Week in NFL). NFL\'s game page shows team inputs and line-ups side by side; FPL lists the gameweek\'s fixtures with player tables.',
   },
   {
     label: 'Minutes Outlook',
