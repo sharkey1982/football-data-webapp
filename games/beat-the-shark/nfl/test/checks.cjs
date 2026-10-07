@@ -42,7 +42,10 @@ function makeWorld(){
 let W;
 try{W=makeWorld();check("scripts load in order, as a browser loads them",true,W.srcs.join(" → "))}
 catch(e){check("scripts load in order, as a browser loads them",false,e.message);process.exit(1)}
-check("the start screen offers the sports, the NFL to play",/Pick a sport/.test(W.els.app.innerHTML)&&/id="playThis" data-game="nfl"/.test(W.els.app.innerHTML)&&/data-game="football" href="..\/"/.test(W.els.app.innerHTML));
+check("the start screen offers the sports, the NFL to play",/Pick a sport/.test(W.els.app.innerHTML)&&/data-game="nfl"/.test(W.els.app.innerHTML)&&/id="playThis"/.test(W.els.app.innerHTML)&&/data-game="football"/.test(W.els.app.innerHTML));
+{const w=makeWorld(),before=w.els.app.innerHTML;w.els.playThis.onclick();const idle=w.els.app.innerHTML===before;
+ w.run('pickSport("nfl")');const still=w.els.app.innerHTML===before;w.els.playThis.onclick();w.drain();
+ check("picking a sport does nothing until Let's go, which then starts it",idle&&still&&w.els.app.innerHTML!==before)}
 /* Every local script and stylesheet carries ?v=__V__, which the game
    site's build stamps with the commit, so no browser keeps old files. */
 {const miss=[];for(const f of["../index.html","index.html"]){const h=fs.readFileSync(path.join(DIR,f),'utf8');
@@ -206,7 +209,7 @@ if(on(4)){
 function playScreens(level,setup){
   const w=makeWorld();
   w.run(`pickLevel=${JSON.stringify(level)}`);
-  w.els.playThis.onclick();w.drain();
+  w.run('pickSport("nfl")');w.els.playThis.onclick();w.drain();
   if(setup)w.run(setup);
   let seen=new Set(),bad="";
   const clickables=["go","ko","toT","same"];

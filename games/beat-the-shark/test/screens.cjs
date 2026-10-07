@@ -178,7 +178,7 @@ ok("intermediate has every lever from the first match, no 'new' banner", (()=>{c
 ok("data guru has every lever but not the long explanations", (()=>{const h=sheetAt("guru",0);return /data-sp=/.test(h)&&!/quarter of goals/.test(h)})());
 // a beginner cannot play someone out of position before it unlocks
 sheetAt("beginner",1);ok("beginner: out of position locked in match 2, open from match 4", run(`can("oop")`)===false&&(sheetAt("beginner",3),run(`can("oop")`)===true));
-ok("the opening screen offers the sports: football starts here, the NFL is a link to its folder", (()=>{run("chooseRole()");const h=app();return /id="playThis" data-game="football"/.test(h)&&/data-game="nfl" href="nfl\/"/.test(h)&&!/data-level=/.test(h)&&!/Owner/.test(h)})());
+ok("the opening screen offers every sport and one Let's go button", (()=>{run("chooseRole()");const h=app();return /data-game="football"/.test(h)&&/data-game="nfl"/.test(h)&&/data-game="nations-cup"/.test(h)&&/id="playThis"/.test(h)&&/Let's go/.test(h)&&!/data-level=/.test(h)&&!/Owner/.test(h)})());
 run(`LEVEL="intermediate"`);
 // 17. PACING (Chris's playtest: "too fast to follow")
 run(`LEVEL="beginner";SPEED=null`);
@@ -271,6 +271,8 @@ run(`SEED="SOC-S07";LEVEL="beginner";chooseRole()`);
 // plays as the Beginner manager's season, and starting it is one tap.
 ok("opening: 'Pick a sport', football to play (Win the league), no roles or levels", /Pick a sport/.test(app())&&/Win the league/.test(app())&&!/data-r=/.test(app())&&!/Coming soon/.test(app()));
 els.playThis.onclick();
+ok("Let's go does nothing until a sport is picked", /Pick a sport/.test(app()));
+run('pickSport("football")');els.playThis.onclick();
 ok("starting football from the picker begins the Beginner manager's season", run("ROLE.id")==="manager"&&run("LEVEL")==="beginner"&&/THE LEAGUE/.test(app()));
 run(`ROLE=ROLES.manager;boot()`);
 ok("then the league, every club on zero, and Begin", /THE LEAGUE/.test(app())&&/class="tbl"/.test(app())&&!/<td class="n">[1-9]\d*<\/td><\/tr>/.test(app())&&/>Begin</.test(app()));

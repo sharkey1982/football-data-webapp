@@ -40,7 +40,10 @@ function makeWorld(){
 let W;
 try{W=makeWorld();check("scripts load in order, as a browser loads them",true,W.srcs.join(" → "))}
 catch(e){check("scripts load in order, as a browser loads them",false,e.message);process.exit(1)}
-check("the start screen offers the sports, the Nations Cup to play",/Pick a sport/.test(W.els.app.innerHTML)&&/id="playThis" data-game="nations-cup"/.test(W.els.app.innerHTML));
+check("the start screen offers the sports, the Nations Cup to play",/Pick a sport/.test(W.els.app.innerHTML)&&/data-game="nations-cup"/.test(W.els.app.innerHTML)&&/id="playThis"/.test(W.els.app.innerHTML));
+{const w=makeWorld(),before=w.els.app.innerHTML;w.els.playThis.onclick();const idle=w.els.app.innerHTML===before;
+ w.run('pickSport("nations-cup")');const still=w.els.app.innerHTML===before;w.els.playThis.onclick();w.drain();
+ check("picking a sport does nothing until Let's go, which then starts it",idle&&still&&w.els.app.innerHTML!==before)}
 {const h=fs.readFileSync(path.join(DIR,'index.html'),'utf8'),miss=[];
  for(const m of h.matchAll(/<(?:script src|link rel="stylesheet" href)="([^"]+)"/g))if(!/^https?:/.test(m[1])&&!/\?v=__V__$/.test(m[1]))miss.push(m[1]);
  check("every script and stylesheet is versioned for each deploy (?v=__V__)",!miss.length,miss.join(", "))}
@@ -201,7 +204,7 @@ if(on(4)){
 
 /* ---- 5. screens ---------------------------------------------------------------------------- */
 function playScreens(level,setup,nationIdx){
-  const w=makeWorld();w.run(`pickLevel=${JSON.stringify(level)}`);w.els.playThis.onclick();w.drain();
+  const w=makeWorld();w.run(`pickLevel=${JSON.stringify(level)}`);w.run('pickSport("nations-cup")');w.els.playThis.onclick();w.drain();
   let bad="";const seen=new Set();
   // the nation list: pick-then-confirm
   {const cards=w.els.cards;if(!cards||!cards.children.length)return{seen,bad:"no nation list",header:""};

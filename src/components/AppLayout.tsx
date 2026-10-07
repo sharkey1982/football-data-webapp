@@ -5,15 +5,16 @@ import { FOOTER_COVERAGE } from '../lib/dataCoverage';
 import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, type To } from 'react-router-dom';
+import { BEAT_THE_SHARK } from './GameCard';
 
-type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[] };
+type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[]; external?: boolean };
 /** A group's items may be split into the four journey stages
  * (Discover / Predict / Validate / Configure) so the menu mirrors the
  * site's own structure. `sections` is optional -- groups that aren't
  * part of that journey (Admin) stay flat, because forcing
  * them into stage headings would invent a structure they don't have. */
 type NavSection = { label: string; to?: string; items: NavItem[] };
-type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[] };
+type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[]; alignRight?: boolean };
 
 /** Every item in a group, whether it's flat or sectioned -- used for
  * group-level highlighting so both shapes behave identically. */
@@ -86,12 +87,21 @@ function NavDropdown({ group }: { group: NavGroup }) {
         <span className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>&#9662;</span>
       </button>
       {open && (
-        <ul className="absolute left-0 top-full mt-1 min-w-[13rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium max-h-[75vh] overflow-y-auto">
+        <ul className={`absolute left-0 ${group.alignRight ? 'sm:left-auto sm:right-0' : ''} top-full mt-1 min-w-[13rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium max-h-[75vh] overflow-y-auto`}>
           {group.items?.map((item) => (
             <li key={item.label}>
-              <Link to={item.to} className={navLinkClasses(isItemActive(location.pathname, item))} aria-current={isItemActive(location.pathname, item) ? 'page' : undefined}>
-                {item.label}
-              </Link>
+              {/* The games are their own site behind a proxy: a plain <a>,
+                  never a router Link (which would look for the route in
+                  this app and show "not found"). See GameCard.tsx. */}
+              {item.external ? (
+                <a href={String(item.to)} className={navLinkClasses(false)}>
+                  {item.label}
+                </a>
+              ) : (
+                <Link to={item.to} className={navLinkClasses(isItemActive(location.pathname, item))} aria-current={isItemActive(location.pathname, item) ? 'page' : undefined}>
+                  {item.label}
+                </Link>
+              )}
             </li>
           ))}
           {group.sections?.map((section, i) => (
@@ -232,8 +242,24 @@ export default function AppLayout() {
   // operational tooling in front of an audience it isn't for.
   const isAdmin = useAuthOptional()?.isAdmin ?? false;
 
+  // Play (Chris, 7 Oct 2026): the Beat the Shark games, one per sport,
+  // after the sports and before Admin.
+  const playGroup: NavGroup = {
+    label: 'Play',
+    // At the right-hand end on a wide screen: open leftwards so the menu
+    // stays on the page (on a phone it wraps to the left and opens right).
+    alignRight: true,
+    items: [
+      { to: BEAT_THE_SHARK.football.href, label: 'Football', matchPrefix: BEAT_THE_SHARK.football.href, external: true },
+      { to: BEAT_THE_SHARK.nfl.href, label: 'NFL', matchPrefix: BEAT_THE_SHARK.nfl.href, external: true },
+      { to: BEAT_THE_SHARK.worldCup.href, label: 'World Cup', matchPrefix: BEAT_THE_SHARK.worldCup.href, external: true },
+      { to: BEAT_THE_SHARK.nationsCup.href, label: 'Tennis: Nations Cup', matchPrefix: BEAT_THE_SHARK.nationsCup.href, external: true },
+    ],
+  };
+
   const navGroups: NavGroup[] = [
     ...themeGroups,
+    playGroup,
     {
       // Renamed from "Data" and re-scoped. Results Data moved into
       // Football > Discover, where it belongs -- it's the curated match
@@ -246,6 +272,7 @@ export default function AppLayout() {
       // it is admin-gated, so showing it to visitors offered a door they
       // couldn't open. Alongside the operational views it belongs with.
       label: 'Admin',
+      alignRight: true,
       items: [
         // Optimiser removed from Admin: it's a Fantasy feature, not an
         // operational one, and listing it twice implied two pages.
