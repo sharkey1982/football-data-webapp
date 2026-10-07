@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-07 · Indexing audit: canonical conflicts, noindexed champions, orphaned player pages
+- **Reported:** Chris's Search Console review (1.22k indexed, 6.3k not indexed); found by a full crawl of the live site (every sitemap URL and link target, 24,695 URLs) plus a rendered sample.
+- **Impact:** (1) /fpl was in the sitemap with a self-canonical, but in the browser it redirected to /fpl/gameweek/N, so the rendered page named a weekly-moving URL canonical. (2) Federer, Nadal, Murray, Serena Williams, Sharapova and ~800 other champions or long-career players were noindex, because the rule was "50+ matches in the last three seasons". (3) 238 ATP/WTA Grand Slam edition pages shared titles (and ~330 pages H1s) with their other-tour twin. (4) The 667 FPL player pages and 1,431 Player Scout pages had no link in any server HTML: the career link waited for a browser fetch. (5) Client-rendered pages answered 200 to trailing-slash and upper-case spellings. (6) 46 player pages linked tennis pairs in reverse order; ~680 links from static pages pointed at filter views whose canonical is a different-content page.
+- **Cause:** each rule was right for the page it was written for and never checked against the whole URL set: the /fpl redirect predates the sitemap; the tennis threshold was chosen for active players; titles were written per edition without the tour; the app-shell fallback says 200 to any path.
+- **Fix:** /fpl shows the current gameweek in place with /fpl as canonical; `isIndexedPlayer` (active, any title, or 200+ matches) drives the page, static build and sitemap; edition titles and H1s carry the tour; FPL player pages link career and club in server HTML and club pages list their FPL players; `CanonicalPathRedirect` normalises client-rendered paths; pair links use `tennisH2HCanonicalPath`; filter-view links are rel="nofollow".
+- **Prevention:** `scripts/check-indexability.mjs` checks every sitemap URL on every build (canonical, noindex, robots, URL shape, duplicate titles; /build-report.txt); `src/__tests__/indexability.test.tsx` pins the rules, robots blocks and link forms; `site-health.yml` now checks sampled canonicals, host/case/slash variants and robots blocks on the live site. *Lesson: an SEO rule has to be checked against every URL family, rendered as Google renders it, not only the page it was written for.*
+
+---
+
 ## 2026-10-06 · FPL projections pipeline: runs hung with nothing running
 - **Reported:** found while checking the pecking-order change (#240).
 - **Impact:** three pipeline runs on 6 Oct didn't finish: one failed in the bonus simulation on a single API read (non-JSON gateway error, twice), and two hung in the projection step for 25+ minutes with no query running in the database. Projections from the first pass were written, so the site kept current numbers, but bonus pass 2 and the final-table simulation didn't run.

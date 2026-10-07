@@ -121,7 +121,7 @@ export {
 } from './lib/nflApi';
 export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
 export { buildGamePreview as buildNflGamePreview };
-export { teamChances } from './lib/teamPageApi';
+export { teamChances, teamFplPlayers } from './lib/teamPageApi';
 export { buildLocalClubs, LOCAL_CLUBS_TIERS };
 export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
 import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
@@ -188,6 +188,7 @@ export {
   tennisSeasonPath,
   tennisYears,
 } from './lib/tennisApi';
+export { isIndexedPlayer as tennisIsIndexedPlayer } from './lib/tennisStats';
 export { STATIC_PLAYER_MIN as TENNIS_STATIC_PLAYER_MIN, seasonIndex as tennisSeasonIndex, seasonSummary as tennisSeasonSummary } from './lib/tennisStats';
 export { eventSummary as tennisEventSummary } from './lib/tennisEvents';
 export { DEFAULT_PAIR as TENNIS_DEFAULT_PAIR } from './lib/tennisModel';
@@ -1045,7 +1046,7 @@ export function renderTennisEditionPage(data: TennisEditionData): RenderedPage {
   const path = tennisEditionPath(event.tour, event.slug, edition.year);
   return {
     html: nflPage(path, '/tennis/tournaments/:tour/:slug/:year', <TennisEditionPage initialData={data} />),
-    title: `${edition.name} ${edition.year}: draw, results and the road to the final | ${BRAND_NAME}`,
+    title: `${edition.name} ${edition.year} (${event.tour}): draw, results and the road to the final | ${BRAND_NAME}`,
     description: tennisEditionSentence(data),
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Tournaments', path: TENNIS_TOURNAMENTS_PATH }, { name: event.name, path: tennisEventPath(event.tour, event.slug) }, { name: String(edition.year), path }])],

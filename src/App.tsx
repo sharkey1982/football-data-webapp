@@ -1,6 +1,7 @@
 import { AuthProvider } from './lib/auth';
 import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import CanonicalPathRedirect from './components/CanonicalPathRedirect';
 import AppLayout from './components/AppLayout';
 import IntlGenderScope from './components/intl/IntlGenderScope';
 
@@ -180,6 +181,7 @@ export default function App() {
   return (
     <AuthProvider>
     <BrowserRouter>
+      <CanonicalPathRedirect>
       <Routes>
         <Route element={<AppLayout />}>
           <Route
@@ -1124,6 +1126,7 @@ export default function App() {
           />
         </Route>
       </Routes>
+      </CanonicalPathRedirect>
     </BrowserRouter>
     </AuthProvider>
   );

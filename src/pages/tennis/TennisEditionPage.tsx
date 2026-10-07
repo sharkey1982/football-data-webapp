@@ -40,7 +40,7 @@ export default function TennisEditionPage({ initialData }: { initialData?: Tenni
   );
   const e = data?.edition;
   useDocumentHead({
-    title: e ? `${e.name} ${year}: draw, results and the road to the final` : `${tour} tournament ${year}`,
+    title: e ? `${e.name} ${year} (${tour}): draw, results and the road to the final` : `${tour} tournament ${year}`,
     description: data ? editionSentence(data) : `A ${tour} tournament's draw and results.`,
     path: tennisEditionPath(tour, slug, year),
   });
@@ -54,7 +54,7 @@ export default function TennisEditionPage({ initialData }: { initialData?: Tenni
   useNoindex(!loading && !failed && !data);
   return (
     <article className="space-y-6">
-      <TennisHeader title={e ? `${e.name} ${year}` : `${year}`} crumb={data ? { to: tennisEventPath(tour, slug), label: data.event.name } : undefined}>
+      <TennisHeader title={e ? `${e.name} ${year} (${tour})` : `${year}`} crumb={data ? { to: tennisEventPath(tour, slug), label: data.event.name } : undefined}>
         {e && (
           <p className="text-sm text-ink-700 flex flex-wrap gap-x-3 items-center">
             <LevelBadge level={e.level} />

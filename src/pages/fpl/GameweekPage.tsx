@@ -27,17 +27,23 @@ function isTimeoutError(message: string): boolean {
   return /statement timeout/i.test(message);
 }
 
-export default function GameweekPage() {
+/** currentWeek/canonicalPath: set when rendered at /fpl, which shows the
+ *  current gameweek in place under its own canonical rather than redirecting
+ *  (7 Oct 2026 SEO audit: /fpl was a sitemap URL whose rendered canonical
+ *  pointed at /fpl/gameweek/N, a URL that changes every week). */
+export default function GameweekPage({ currentWeek, canonicalPath }: { currentWeek?: number; canonicalPath?: string } = {}) {
   const { matchweek: matchweekParam } = useParams<{ matchweek: string }>();
-  const matchweek = Number(matchweekParam);
+  const matchweek = currentWeek ?? Number(matchweekParam);
   const navigate = useNavigate();
 
   useDocumentHead({
-    title: Number.isFinite(matchweek) ? `Gameweek ${matchweek} FPL Projections` : 'Gameweek FPL Projections',
+    title: canonicalPath
+      ? 'Match Projections \u2014 FPL projected returns'
+      : Number.isFinite(matchweek) ? `Gameweek ${matchweek} FPL Projections` : 'Gameweek FPL Projections',
     description: Number.isFinite(matchweek)
       ? `Fantasy Premier League fixtures, expected minutes, and expected points projections for Gameweek ${matchweek}.`
       : 'Fantasy Premier League fixtures, expected minutes, and expected points projections.',
-    path: Number.isFinite(matchweek) ? `/fpl/gameweek/${matchweek}` : undefined,
+    path: canonicalPath ?? (Number.isFinite(matchweek) ? `/fpl/gameweek/${matchweek}` : undefined),
   });
 
   const [summary, setSummary] = useState<SeasonGameweekSummary[]>([]);

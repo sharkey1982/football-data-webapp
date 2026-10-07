@@ -154,11 +154,52 @@ jobs:
           if games:
               sample = sample + [random.choice(games)]
           for u in sample:
-              s, _, h = fetch(u)
+              s, body, h = fetch(u)
               if s != 200:
                   bad.append(f"{u} -> {s} {h.get('Location') or h.get('location') or ''}".rstrip())
+                  continue
+              # Indexability (7 Oct 2026 audit): every sitemap URL must name
+              # itself canonical and carry no noindex in its server HTML.
+              head = body.split("</head>")[0]
+              m = re.search(r'<link rel="canonical" href="([^"]+)"', head)
+              if not m:
+                  bad.append(f"{u} has no canonical in server HTML")
+              elif m.group(1) != u:
+                  bad.append(f"{u} canonical is {m.group(1)}")
+              if re.search(r'<meta[^>]+name="robots"[^>]+noindex', head):
+                  bad.append(f"{u} is in the sitemap but noindex")
           print(f"sampled {len(sample)} sitemap URLs, {len(bad)} failed")
           fails += bad
+
+          # One indexable address per page: host, scheme and case variants
+          # must end (in at most 2 hops) at the https apex URL.
+          def final(url, hops=3):
+              for _ in range(hops):
+                  s, _, h = fetch(url)
+                  loc = h.get("Location") or h.get("location")
+                  if s not in (301, 308) or not loc:
+                      return s, url
+                  url = loc if loc.startswith("http") else re.match(r"https?://[^/]+", url).group(0) + loc
+              return s, url
+          for variant, want in [("http://fixtureshark.com/football", site + "/football"),
+                                ("https://www.fixtureshark.com/football", site + "/football"),
+                                ("http://www.fixtureshark.com/football", site + "/football"),
+                                (site + "/Football/Teams/Arsenal", site + "/football/teams/arsenal"),
+                                (site + "/football/teams/arsenal/finances/", site + "/football/teams/arsenal/finances")]:
+              if base != site and not variant.startswith(site):
+                  continue
+              s, end = final(variant)
+              print(f"{variant} -> {s} {end}")
+              if s != 200 or end != want:
+                  fails.append(f"{variant} should redirect to {want}, ended {s} {end}")
+
+          # Private paths stay blocked and out of the sitemap.
+          _, robots = get("/robots.txt")
+          for p in ["/admin/", "/login", "/data-health", "/source-data", "/data-flow"]:
+              if f"Disallow: {p}" not in robots:
+                  fails.append(f"robots.txt no longer blocks {p}")
+              if any(u.startswith(site + p) for u in locs):
+                  fails.append(f"sitemap lists a private path under {p}")
 
           if fails:
               print("\nFAILURES:")

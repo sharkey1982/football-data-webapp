@@ -86,6 +86,17 @@ export function parseRankBand(v: string | null | undefined): number | null {
 
 /** Players with this many played matches in the tour's last three seasons get a static page. */
 export const STATIC_PLAYER_MIN = 50;
+/** A career this long, or any title, also earns an indexed page. */
+export const INDEXED_CAREER_MIN = 200;
+
+/** Whether a player's page is indexed (static, in the sitemap, no noindex):
+ * active regulars, and any player with a title or a long career. Until
+ * 7 Oct 2026 only the first counted, which noindexed Federer, Nadal, Murray,
+ * Serena Williams and Sharapova (SEO audit). Rivalry pages still need both
+ * players active (STATIC_PLAYER_MIN). */
+export function isIndexedPlayer(p: { recent_matches: number; titles: number; won: number; lost: number }): boolean {
+  return p.recent_matches >= STATIC_PLAYER_MIN || p.titles >= 1 || p.won + p.lost >= INDEXED_CAREER_MIN;
+}
 
 export const LEVEL_LABEL: Record<Level, string> = {
   'Grand Slam': 'Grand Slam',

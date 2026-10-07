@@ -190,11 +190,11 @@ export default function LeagueSeasonPage({ initialData }: { initialData?: League
             )}
             {split && <p className="text-xs text-ink-500 mt-2">After the regular season the league split into groups; the official table ranks within them.</p>}
             <p className="text-sm mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
-              <Link to={`/table?league=${data.league.league_id}&season=${data.season.season_id}&view=timelapse`} className="text-pitch-800 underline underline-offset-2">
+              <Link to={`/table?league=${data.league.league_id}&season=${data.season.season_id}&view=timelapse`} rel="nofollow" className="text-pitch-800 underline underline-offset-2">
                 Watch the season unfold
               </Link>
               {english && (
-                <Link to={`/football/history/what-happened-next?league=${data.league.code}`} className="text-pitch-800 underline underline-offset-2">
+                <Link to={`/football/history/what-happened-next?league=${data.league.code}`} rel="nofollow" className="text-pitch-800 underline underline-offset-2">
                   Where teams in each position finished
                 </Link>
               )}

@@ -75,7 +75,7 @@ export default function TennisSeasonPage({ initialData }: { initialData?: Tennis
   return (
     <article className="space-y-6">
       <TennisHeader
-        title={`${year} season`}
+        title={`${year} ${tour} season`}
         crumb={{ to: tennisSeasonsPath(tour), label: 'Past seasons' }}
         toggle={<TourToggle tour={tour} to={(t) => (year >= FIRST_YEAR[t] ? tennisSeasonPath(t, year) : null)} />}
       >

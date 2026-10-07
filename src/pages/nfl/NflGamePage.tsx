@@ -300,7 +300,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
       <header>
         <p className="text-xs text-ink-500">
           <Link to={NFL_HUB_PATH} className="hover:underline">NFL</Link> &middot;{' '}
-          <Link to={fixturesLink} className="hover:underline">Fixtures &amp; Results</Link>
+          <Link to={fixturesLink} rel="nofollow" className="hover:underline">Fixtures &amp; Results</Link>
         </p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">
           <Link to={nflTeamPath(game.away_slug)} className="hover:underline">{game.away_name}</Link> {game.neutral_site ? 'v' : 'at'}{' '}
@@ -463,7 +463,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
       ))}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-        <Link to={fixturesLink} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">{`${weekLabel(game.game_type, game.week)} fixtures & results`}</Link>
+        <Link to={fixturesLink} rel="nofollow" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">{`${weekLabel(game.game_type, game.week)} fixtures & results`}</Link>
         <Link to={nflTeamPath(game.home_slug)} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">{game.home_name}</Link>
         <Link to={nflTeamPath(game.away_slug)} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">{game.away_name}</Link>
         <Link to={NFL_TV_PATH} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">NFL TV Guide</Link>

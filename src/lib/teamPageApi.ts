@@ -201,3 +201,38 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
     };
   });
 }
+
+/** One current-season FPL player at a club, for the club page's squad links. */
+export type TeamFplPlayer = { slug: string; name: string; position: string };
+
+const FPL_POSITIONS: Record<number, string> = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
+const POSITION_ORDER = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Manager'];
+
+/** Shapes fpl_players rows into the club page's list: position order, then
+ * surname. Shared by the static generator and the client so the two match. */
+export function teamFplPlayers(
+  rows: { slug: string | null; web_name?: string | null; first_name?: string | null; second_name?: string | null; element_type?: number | null }[]
+): TeamFplPlayer[] {
+  return rows
+    .filter((r): r is typeof r & { slug: string } => !!r.slug)
+    .map((r) => ({
+      slug: r.slug,
+      name: [r.first_name, r.second_name].filter(Boolean).join(' ').trim() || r.web_name || r.slug,
+      position: FPL_POSITIONS[r.element_type ?? 0] ?? 'Manager',
+      sort: r.second_name ?? r.web_name ?? r.slug,
+    }))
+    .sort((a, b) => POSITION_ORDER.indexOf(a.position) - POSITION_ORDER.indexOf(b.position) || a.sort.localeCompare(b.sort))
+    .map(({ slug, name, position }) => ({ slug, name, position }));
+}
+
+/** The club's current-season FPL players (empty for clubs outside the Premier League). */
+export async function getTeamFplPlayers(teamId: number, seasonId: number): Promise<TeamFplPlayer[]> {
+  const { data, error } = await supabase
+    .from('fpl_players')
+    .select('slug, web_name, first_name, second_name, element_type')
+    .eq('canonical_team_id', teamId)
+    .eq('season_id', seasonId)
+    .not('slug', 'is', null);
+  if (error) throw error;
+  return teamFplPlayers(data ?? []);
+}

@@ -90,7 +90,7 @@ export default function NflSeasonPage({ initialData }: { initialData?: NflSeason
           <nav aria-label="Other seasons" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
             {prev && <Link to={nflSeasonPath(prev)} className="text-pitch-800 underline underline-offset-2">&larr; {prev}</Link>}
             <Link to={NFL_SEASONS_PATH} className="text-pitch-800 underline underline-offset-2">Every season</Link>
-            <Link to={nflFixturesPath(data.season, 1)} className="text-pitch-800 underline underline-offset-2">{`${data.season} fixtures & results`}</Link>
+            <Link to={nflFixturesPath(data.season, 1)} rel="nofollow" className="text-pitch-800 underline underline-offset-2">{`${data.season} fixtures & results`}</Link>
             {next && <Link to={nflSeasonPath(next)} className="text-pitch-800 underline underline-offset-2">{next} &rarr;</Link>}
           </nav>
 

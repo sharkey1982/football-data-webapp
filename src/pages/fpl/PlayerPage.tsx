@@ -244,9 +244,19 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
             unlikely; if it ever happens this degrades to the scout
             page's own "player not found" state rather than breaking
             anything here. */}
-        {profile.slug && career.length > 0 && (
+        {/* Rendered without waiting for the career fetch (7 Oct 2026 SEO
+            audit): the prerendered page has no career data, so gating on it
+            left every Player Scout page without a single link in server
+            HTML. The scout list holds every player_identity slug, current
+            players included. */}
+        {profile.slug && (
           <Link to={`/fpl/player-scout/${profile.slug}`} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
             Full career record
+          </Link>
+        )}
+        {profile.team_slug && (
+          <Link to={`/football/teams/${profile.team_slug}`} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+            {`${profile.team_name}: fixtures and form`}
           </Link>
         )}
         <Link to="/fpl/player-points" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
