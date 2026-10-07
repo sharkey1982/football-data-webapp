@@ -114,7 +114,7 @@ export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamDa
   const t = data?.team;
   const head = t ? intlTeamHead(t) : null;
   useDocumentHead({
-    title: sideTitle(head?.title ?? 'International team'),
+    title: head?.title ?? sideTitle('International team'),
     description: head?.description ?? 'A national team’s record, rating and tournament history.',
     path: intlTeamPath(slug),
   });

@@ -31,6 +31,7 @@ const FPL = { name: 'Fantasy Premier League', path: '/fpl/start' };
 const NFL = { name: 'NFL', path: '/nfl' };
 const TENNIS = { name: 'Tennis', path: '/tennis' };
 const INTERNATIONAL = { name: 'International', path: '/international' };
+const WOMEN_INTL = { name: 'Women', path: '/international/women' };
 
 export const STATIC_ROUTES: RouteMeta[] = [
   {
@@ -425,7 +426,7 @@ export const STATIC_ROUTES: RouteMeta[] = [
   {
     path: '/international',
     title: 'International football \u2014 every result since 1872, nations and tournaments',
-    description: 'Every men\u2019s international since 1872: results and fixtures, every nation\u2019s record and rating, and every World Cup, Euro and Nations League.',
+    description: 'Every men\u2019s international since 1872 and every women\u2019s since 1956: results and fixtures, every nation\u2019s record and rating, and every World Cup, Euro and Nations League.',
   },
   {
     path: '/international/discover',
@@ -462,5 +463,43 @@ export const STATIC_ROUTES: RouteMeta[] = [
     title: 'International football through time: the Elo race since 1872',
     description: 'The world\u2019s top ten national teams year by year since 1872, every world number one, and the biggest upsets at the major tournaments.',
     crumbs: [INTERNATIONAL],
+  },
+  // Women's side (Oct 2026): the same pages under /international/women. Titles
+  // match the pages' (sideTitle in src/lib/intlStats.ts adds the suffix).
+  {
+    path: '/international/women',
+    title: 'Women\u2019s international football \u2014 results since 1956, nations and tournaments',
+    description: 'Every women\u2019s international since 1956: results and fixtures with the favourite on the day, every nation\u2019s record and rating, and every Women\u2019s World Cup, Olympic tournament, Euro, Copa Am\u00e9rica, WAFCON, Asian Cup and Nations League.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
+    path: '/international/women/fixtures',
+    title: 'International results and fixtures, day by day \u2014 women\u2019s football',
+    description: 'Every women\u2019s international since 1956, day by day: results with the favourite on the day and the upsets.',
+    crumbs: [INTERNATIONAL, WOMEN_INTL],
+  },
+  {
+    path: '/international/women/teams',
+    title: 'International teams: every nation\u2019s rating, record and titles \u2014 women\u2019s football',
+    description: 'Every women\u2019s national team\u2019s Elo rating, all-time record and major titles \u2014 World Cups, Olympics, continental championships and Nations Leagues \u2014 since 1956.',
+    crumbs: [INTERNATIONAL, WOMEN_INTL],
+  },
+  {
+    path: '/international/women/tournaments',
+    title: 'International tournaments: World Cup, Olympics, Euro and more \u2014 women\u2019s football',
+    description: 'Every Women\u2019s World Cup, Olympics, Euro, Copa Am\u00e9rica, WAFCON, Asian Cup, CONCACAF W Championship and Nations League: winners, hosts, groups and knockouts.',
+    crumbs: [INTERNATIONAL, WOMEN_INTL],
+  },
+  {
+    path: '/international/women/clubs',
+    title: 'Where the internationals play: club call-ups for every national squad \u2014 women\u2019s football',
+    description: 'Which clubs and leagues supply the most players to women\u2019s national teams, and how many of each squad play abroad.',
+    crumbs: [INTERNATIONAL, WOMEN_INTL],
+  },
+  {
+    path: '/international/women/history',
+    title: 'International football through time: the Elo race since 1956, world number ones and the biggest upsets \u2014 women\u2019s football',
+    description: 'The world\u2019s top ten women\u2019s national teams year by year since 1956, every world number one, and the biggest upsets at the major tournaments.',
+    crumbs: [INTERNATIONAL, WOMEN_INTL],
   },
 ];

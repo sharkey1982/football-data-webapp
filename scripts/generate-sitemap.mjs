@@ -297,20 +297,26 @@ async function main() {
   // stay out). lastmod: the date of the latest game on the page.
   counts.international = 0;
   if (mod?.intlTeamHead) {
-    const [teams, editions] = await Promise.all([
-      queryAll(`intl_team_summary?select=team,slug,played,won,first_match,last_match,elo,elo_rank&played=gte.${mod.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
-      queryAll('intl_edition_summary?select=competition,label,winner,runner_up,last_match&order=competition.asc,season_start.asc'),
-    ]);
-    const byComp = new Map(mod.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
-    for (const t of teams ?? []) { entries.push(urlEntry(mod.intlTeamHead(t).path, t.last_match)); counts.international++; }
-    for (const t of mod.INTL_TOURNAMENTS) {
-      const last = (editions ?? []).filter((e) => e.competition === t.competition).map((e) => e.last_match).filter(Boolean).sort().pop() ?? null;
-      entries.push(urlEntry(mod.intlTournamentHead(t).path, last)); counts.international++;
+    // Men's then women's (/international/women/...; setIntlGender moves the paths).
+    for (const side of mod.setIntlGender ? ['men', 'women'] : ['men']) {
+      const pre = side === 'women' ? 'intlw_' : 'intl_';
+      mod.setIntlGender?.(side);
+      const [teams, editions] = await Promise.all([
+        queryAll(`${pre}team_summary?select=team,slug,played,won,first_match,last_match,elo,elo_rank&played=gte.${mod.INTL_STATIC_TEAM_MIN_GAMES}&order=slug.asc`),
+        queryAll(`${pre}edition_summary?select=competition,label,winner,runner_up,last_match&order=competition.asc,season_start.asc`),
+      ]);
+      const byComp = new Map(mod.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
+      for (const t of teams ?? []) { entries.push(urlEntry(mod.intlTeamHead(t).path, t.last_match)); counts.international++; }
+      for (const t of mod.INTL_TOURNAMENTS) {
+        const last = (editions ?? []).filter((e) => e.competition === t.competition).map((e) => e.last_match).filter(Boolean).sort().pop() ?? null;
+        entries.push(urlEntry(mod.intlTournamentHead(t).path, last)); counts.international++;
+      }
+      for (const e of editions ?? []) {
+        const t = byComp.get(e.competition);
+        if (t) { entries.push(urlEntry(mod.intlEditionHead(t, e).path, e.last_match)); counts.international++; }
+      }
     }
-    for (const e of editions ?? []) {
-      const t = byComp.get(e.competition);
-      if (t) { entries.push(urlEntry(mod.intlEditionHead(t, e).path, e.last_match)); counts.international++; }
-    }
+    mod.setIntlGender?.('men');
   }
 
   counts.finance = 0;

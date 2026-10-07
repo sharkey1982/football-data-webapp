@@ -5,13 +5,19 @@
 // (scripts/generate-static.mjs writes each nation, tournament and edition
 // page's <head> so crawlers see the right title and canonical before any
 // JavaScript runs). Keep the two in step by using only these.
+//
+// Women's pages (/international/women/...): the same functions after
+// setIntlGender('women') -- paths, crumbs and titles follow the side.
 // ============================================================================
 
 import type { RouteMeta } from './routeMeta';
 import { intlEditionPath, intlTeamPath, intlTournamentPath, INTL_TEAMS_PATH, INTL_TOURNAMENTS_PATH } from './intlApi';
-import { editionLabel, type EditionSummary, type TeamSummary, type Tournament } from './intlStats';
+import { INTL_GENDER, editionLabel, sideTitle, type EditionSummary, type TeamSummary, type Tournament } from './intlStats';
 
 const INTERNATIONAL = { name: 'International', path: '/international' };
+const WOMEN = { name: 'Women', path: '/international/women' };
+/** International, then Women on the women's side (set by setIntlGender). */
+const base = () => (INTL_GENDER === 'women' ? [INTERNATIONAL, WOMEN] : [INTERNATIONAL]);
 
 /** Nations with fewer games than this get no static page and no sitemap
  * entry: a handful of results is a thin page (the browser still shows it). */
@@ -20,18 +26,18 @@ export const INTL_STATIC_TEAM_MIN_GAMES = 30;
 export function intlTeamHead(t: Pick<TeamSummary, 'team' | 'slug' | 'played' | 'won' | 'first_match' | 'elo' | 'elo_rank'>): RouteMeta {
   return {
     path: intlTeamPath(t.slug),
-    title: `${t.team} national team: record, rating and tournament history`,
+    title: sideTitle(`${t.team} national team: record, rating and tournament history`),
     description: `${t.team}: played ${t.played}, won ${t.won} since ${t.first_match.slice(0, 4)}; Elo ${Math.round(t.elo)}${t.elo_rank ? ` (ranked ${t.elo_rank})` : ''}; World Cup, Euro and Nations League history and head-to-heads.`,
-    crumbs: [INTERNATIONAL, { name: 'Your Team', path: INTL_TEAMS_PATH }],
+    crumbs: [...base(), { name: 'Your Team', path: INTL_TEAMS_PATH }],
   };
 }
 
 export function intlTournamentHead(t: Pick<Tournament, 'competition' | 'slug'>): RouteMeta {
   return {
     path: intlTournamentPath(t.slug),
-    title: `Every ${t.competition}: winners, hosts and results`,
+    title: sideTitle(`Every ${t.competition}: winners, hosts and results`),
     description: `Every ${t.competition} edition with its hosts, winner and runner-up, the roll of honour, and each edition's groups, knockouts and scorers.`,
-    crumbs: [INTERNATIONAL, { name: 'Tournaments', path: INTL_TOURNAMENTS_PATH }],
+    crumbs: [...base(), { name: 'Tournaments', path: INTL_TOURNAMENTS_PATH }],
   };
 }
 
@@ -44,10 +50,10 @@ export function intlEditionHead(
   const name = `${t.competition} ${editionLabel(e.label)}`;
   return {
     path: intlEditionPath(t.slug, e.label),
-    title: `${name}: results, groups and scorers`,
+    title: sideTitle(`${name}: results, groups and scorers`),
     description: e.winner
       ? `${name}: ${e.winner} beat ${e.runner_up ?? 'the runners-up'}${finalScore ? ` ${finalScore} in the final` : ''}. Every group, knockout round, scorer and upset.`
       : `${name}: every group, fixture and result.`,
-    crumbs: [INTERNATIONAL, { name: 'Tournaments', path: INTL_TOURNAMENTS_PATH }, { name: t.short, path: intlTournamentPath(t.slug) }],
+    crumbs: [...base(), { name: 'Tournaments', path: INTL_TOURNAMENTS_PATH }, { name: t.short, path: intlTournamentPath(t.slug) }],
   };
 }
