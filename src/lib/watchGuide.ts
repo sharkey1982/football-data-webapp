@@ -159,6 +159,89 @@ export function canWatchWith(o: WatchOffer, services: Set<string>): WithServices
   return 'unknown';
 }
 
+// ---- which service shows the most (for a team or competition) ----
+
+export type ServiceCount = { key: string; label: string; games: number; free: boolean };
+
+export type ServiceCoverage = {
+  /** Games in the set: on TV + not on UK TV + not yet known. */
+  games: number;
+  onTv: number;
+  /** Not on UK TV, up to the last confirmed pick. */
+  notLive: number;
+  /** Games after the last confirmed pick that aren't on TV yet: mostly
+   * Saturday 3pm placeholders, and many will be moved for TV. */
+  notPickedYet: number;
+  /** Services by games shown, most first. */
+  services: ServiceCount[];
+  /** The two services that together show the most games, when one alone
+   * doesn't show them all. */
+  pair: { keys: [string, string]; games: number } | null;
+  /** Latest date with a confirmed broadcast: picks are only known this far. */
+  lastConfirmed: string | null;
+  /** NOW is folded into Sky Sports (it is a way to buy the same channels). */
+  nowFolded: boolean;
+};
+
+/** Per-game service keys for coverage counts. NOW is folded into Sky Sports
+ * when the same offer set has both, so one subscription isn't counted twice. */
+function coverageKeys(offers: WatchOffer[]): { keys: Set<string>; free: Set<string>; folded: boolean } {
+  const keys = new Set<string>();
+  const free = new Set<string>();
+  for (const o of offers) {
+    if (o.status !== 'confirmed_broadcast') continue;
+    const t = tierOf(o);
+    for (const k of providerKeys(o)) {
+      keys.add(k);
+      if (t === 'free' || t === 'free_compatible_device') free.add(k);
+    }
+  }
+  const folded = keys.has('now') && keys.has('sky_sports');
+  if (folded) keys.delete('now');
+  return { keys, free, folded };
+}
+
+export function serviceCoverage(fixtures: { kickoffDate: string; offers: WatchOffer[] }[]): ServiceCoverage {
+  const counts = new Map<string, number>();
+  const freeKeys = new Set<string>();
+  const perGame: Set<string>[] = [];
+  let onTv = 0;
+  const notLiveDates: string[] = [];
+  let lastConfirmed: string | null = null;
+  let nowFolded = false;
+  for (const f of fixtures) {
+    const s = fixtureWatchState(f.offers);
+    if (s.kind === 'not_live') notLiveDates.push(f.kickoffDate);
+    if (s.kind !== 'watch') continue;
+    onTv++;
+    if (!lastConfirmed || f.kickoffDate > lastConfirmed) lastConfirmed = f.kickoffDate;
+    const { keys, free, folded } = coverageKeys(f.offers);
+    nowFolded ||= folded;
+    free.forEach((k) => freeKeys.add(k));
+    perGame.push(keys);
+    keys.forEach((k) => counts.set(k, (counts.get(k) ?? 0) + 1));
+  }
+  const services = [...counts.entries()]
+    .map(([key, games]) => ({ key, label: providerLabel(key), games, free: freeKeys.has(key) }))
+    .sort((a, b) => b.games - a.games || a.label.localeCompare(b.label));
+
+  let pair: ServiceCoverage['pair'] = null;
+  if (services.length > 1 && services[0].games < onTv) {
+    for (let i = 0; i < services.length; i++) {
+      for (let j = i + 1; j < services.length; j++) {
+        const a = services[i].key;
+        const b = services[j].key;
+        const games = perGame.filter((k) => k.has(a) || k.has(b)).length;
+        if (!pair || games > pair.games) pair = { keys: [a, b], games };
+      }
+    }
+    if (pair && pair.games <= services[0].games) pair = null;
+  }
+  const notLive = notLiveDates.filter((d) => !lastConfirmed || d <= lastConfirmed).length;
+  const notPickedYet = lastConfirmed ? fixtures.filter((f) => f.kickoffDate > lastConfirmed! && fixtureWatchState(f.offers).kind !== 'watch').length : 0;
+  return { games: fixtures.length, onTv, notLive, notPickedYet, services, pair, lastConfirmed, nowFolded };
+}
+
 // ---- time filters (UK local dates as stored on fixtures) ----
 
 function ymd(d: Date): string {
