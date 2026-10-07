@@ -263,5 +263,6 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Blackjack: beat the house' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=house');
     expect(screen.getByRole('link', { name: 'Poker: hand strength' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
     expect(screen.getByRole('link', { name: 'Poker: outs & draws' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=outs');
+    expect(screen.getByRole('link', { name: 'Poker: pot odds' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=pot');
   });
 });

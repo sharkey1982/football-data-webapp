@@ -205,5 +205,42 @@ const run=c=>E.run(c);
   check("Outs & draws through the real screens: outs and chance judged, the outs shown, the three chances, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
+/* ---- 6. pot odds ------------------------------------------------------------------ */
+{
+  const r=JSON.parse(run(`(()=>{const o={};
+    o.need=[neededEquity(600,300),neededEquity(100,100),neededEquity(100,50),neededEquity(1000,250)];
+    o.ev=[callValue(.25,600,300),callValue(.35,600,300),callValue(.2,600,300)];
+    o.odds=[oddsText(600,300),oddsText(100,100),oddsText(1000,250)];
+    R.s=hashSeed("POTQ");let call=0,fold=0,close=0,bad=[];
+    for(let k=0;k<120;k++){const q=potQuestion();if(!q){bad.push("null");continue}
+      if(q.answer==="call")call++;else fold++;if(q.close)close++;
+      if(Math.abs(q.need-q.bet/(q.pot+2*q.bet))>1e-12)bad.push("need");
+      if((q.eq>q.need)!==(q.answer==="call"))bad.push("answer");
+      if(Math.abs(q.ev-(q.eq*(q.pot+q.bet)-(1-q.eq)*q.bet))>1e-9)bad.push("ev");
+      if(q.pot<100||q.bet<10)bad.push("sizes")}
+    o.call=call;o.fold=fold;o.close=close;o.bad=[...new Set(bad)];return JSON.stringify(o)})()`));
+  check("needed equity = call ÷ (pot + bet + call): pot 600 bet 300 → 25%; pot-sized → 33.3%; half pot → 25%; quarter pot → 16.7%",
+    Math.abs(r.need[0]-.25)<1e-12&&Math.abs(r.need[1]-1/3)<1e-12&&Math.abs(r.need[2]-.25)<1e-12&&Math.abs(r.need[3]-1/6)<1e-12);
+  check("a call's value: at exactly the needed 25% it is worth 0; at 35% +120 chips (35% of 900 won, 65% of 300 lost); at 20% −60",Math.abs(r.ev[0])<1e-9&&Math.abs(r.ev[1]-120)<1e-9&&Math.abs(r.ev[2]+60)<1e-9,r.ev.map(x=>x.toFixed(1)).join(", "));
+  check("odds in words: 3 to 1, 2 to 1, 5 to 1",r.odds.join("|")==="3 to 1|2 to 1|5 to 1",r.odds.join("|"));
+  check("questions: the answer follows the value of calling; calls and folds balanced; some close ones",!r.bad.length&&r.call>35&&r.fold>35&&r.close>=5,
+    `${r.call} call, ${r.fold} fold, ${r.close} close ${r.bad.join(",")}`);
+  const fails=[];
+  {const w=makeWorld("?mode=pot");if(!/data-game="poker-pot"/.test(w.els.app.innerHTML))fails.push("picker lacks pot odds");
+   w.run('pickSport("poker-pot")');w.els.playThis.onclick();w.drain();if(!/THE SUM/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no pot intro");
+   w.run('R.s=hashSeed("POTSCR")');w.els.go.onclick();const seen=new Set();let nq=0;
+   for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="p-call"/.test(h)){nq++;const right=w.run("PO.q.answer"),a=nq%2?right:(right==="call"?"fold":"call");w.els["p-"+a].onclick();const r2=w.els.app.innerHTML;
+       seen.add(a===right?"right":"wrong");if(!/need <b>/.test(r2)||!/A call is worth/.test(r2))fails.push("price table missing");
+       if(a!==right&&!/role="alert"/.test(r2))fails.push("wrong without band");continue}
+     if(nq>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/POT ODDS SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+     fails.push("stuck");break}
+   for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x);
+   const lost=w.run("PO.lost");if(!(lost>0))fails.push("wrong decisions should give chips away")}
+  check("Pot odds through the real screens: call/fold judged, the price and your chance, chips given away, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
 process.exit(failures?1:0);
