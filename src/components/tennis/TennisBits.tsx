@@ -115,3 +115,17 @@ export function SlamsToggle({ on, onChange }: { on: boolean; onChange: (on: bool
     </button>
   );
 }
+
+/**
+ * Tournament name and level for match tables, always shown (Chris, 7 Oct 2026:
+ * phones showed the opponent but not the tournament). On phones the round
+ * sits underneath, since the separate Round column is hidden there.
+ */
+export function TournamentCell({ name, level, round }: { name: string; level: Level | null; round?: string }) {
+  return (
+    <span>
+      {name} <LevelBadge level={level} />
+      {round && <span className="block sm:hidden text-xs text-ink-500">{round.replace('The Final', 'Final')}</span>}
+    </span>
+  );
+}

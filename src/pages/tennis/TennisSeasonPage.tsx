@@ -9,7 +9,7 @@
 import { useNoindex } from '../../hooks/useNoindex';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
+import { LevelBadge, PlayerLink, Section, TennisHeader, TournamentCell } from '../../components/tennis/TennisBits';
 import TourToggle from '../../components/tennis/TourToggle';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
@@ -35,7 +35,7 @@ function upsetColumns(tour: Tour, by: 'odds' | 'rank'): Column<Upset>[] {
     by === 'odds'
       ? { key: 'odds', label: 'Odds', render: (u) => u.odds?.toFixed(2) ?? '–', sortValue: (u) => u.odds, align: 'right', descFirst: true }
       : { key: 'gap', label: 'Rank gap', render: (u) => u.rankGap ?? '–', sortValue: (u) => u.rankGap, align: 'right', descFirst: true },
-    { key: 'where', label: 'Where', render: (u) => `${u.match.tournament}, ${u.match.round}`, className: 'hidden sm:table-cell' },
+    { key: 'where', label: 'Tournament', render: (u) => <TournamentCell name={u.match.tournament} level={u.match.level} round={u.match.round} />, sortValue: (u) => u.match.tournament },
     { key: 'score', label: 'Score', render: (u) => scoreLabel(u.match), className: 'hidden lg:table-cell' },
   ];
 }

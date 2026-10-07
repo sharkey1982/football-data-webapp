@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
-import { FilterSelect, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
+import { FilterSelect, PlayerLink, Section, TennisHeader, TournamentCell } from '../../components/tennis/TennisBits';
 import TourToggle from '../../components/tennis/TourToggle';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
@@ -113,8 +113,8 @@ export default function TennisH2HPage({ initialData }: { initialData?: TennisH2H
 
   const meetingColumns = (t: Tour, d: TennisH2HData): Column<TennisMatch>[] => [
     { key: 'date', label: 'Date', render: (m) => shortDate(m.match_date), sortValue: (m) => m.match_date, descFirst: true },
-    { key: 'where', label: 'Tournament', render: (m) => <span>{m.tournament} <LevelBadge level={m.level} /></span>, sortValue: (m) => m.tournament, className: 'hidden sm:table-cell' },
-    { key: 'round', label: 'Round', render: (m) => m.round.replace('The Final', 'Final'), sortValue: (m) => m.round_order },
+    { key: 'where', label: 'Tournament', render: (m) => <TournamentCell name={m.tournament} level={m.level} round={m.round} />, sortValue: (m) => m.tournament },
+    { key: 'round', label: 'Round', render: (m) => m.round.replace('The Final', 'Final'), sortValue: (m) => m.round_order, className: 'hidden sm:table-cell' },
     { key: 'surface', label: 'Surface', render: (m) => m.surface_group ?? '–', sortValue: (m) => m.surface_group, className: 'hidden md:table-cell' },
     { key: 'winner', label: 'Winner', render: (m) => <PlayerLink tour={t} slug={m.winner_slug} name={m.winner} rank={m.w_rank} />, sortValue: (m) => m.winner },
     { key: 'score', label: 'Score', render: (m) => scoreLabel(m), className: 'hidden sm:table-cell' },
