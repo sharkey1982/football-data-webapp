@@ -46,6 +46,17 @@ shared/training.js    decision records and scores (as blackjack)
 - `outsui.js`: how many outs (stepper), then the chance (four answers, at
   least 7 points apart); the outs shown as cards; Outs Score; report.
 
+## Pot odds (live, `?mode=pot`)
+
+- `potodds.js`: a draw (from outs.js), a pot and a bet sized as a share of
+  it; needed equity = call ÷ (pot + bet + call); a call's value = equity ×
+  (pot + bet) − (1 − equity) × call. The Shark has the better hand now, so
+  outs are clean; on the flop it is all in (one call sees both cards).
+  Questions balanced between call and fold, with close calls.
+- `potui.js`: Call / Fold; the price, the rule of thumb, the exact chance
+  and the call's value in chips; severity from chips given away as a share of
+  the call; Pot Odds Score and chips given away; report.
+
 ## Checks
 
 ```
@@ -61,3 +72,5 @@ node games/beat-the-shark/poker/test/checks.cjs
 - Outs: 9 / 8 / 4 / 15 / 2 / 4 / 6 for the textbook draws; a flush draw
   35.0% from the flop and 19.6% from the turn; an open-ended draw 31.5%; every
   question's outs recomputed, none already made; the screens.
+- Pot odds: needed equity and call values on worked examples; every
+  question's answer follows the value of calling; the screens.
