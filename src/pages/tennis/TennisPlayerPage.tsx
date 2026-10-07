@@ -13,8 +13,9 @@ import { useNoindex } from '../../hooks/useNoindex';
 import React, { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SortableTable, { type Column } from '../../components/SortableTable';
+import Opponents from '../../components/tennis/Opponents';
 import TitlesByLevel from '../../components/tennis/TitlesByLevel';
-import { Country, LevelBadge, PlayerLink, Section, TennisHeader } from '../../components/tennis/TennisBits';
+import { Country, PlayerLink, Section, TennisHeader, TournamentCell } from '../../components/tennis/TennisBits';
 import PlayerForm from '../../components/tennis/PlayerForm';
 import { ageOn } from '../../lib/tennisEvents';
 import { DEFAULT_PAIR } from '../../lib/tennisModel';
@@ -32,6 +33,13 @@ function splitColumns(label: string, link?: (key: string) => string): Column<Spl
   ];
 }
 
+/** "World ranking" tile label: as at the start of their latest tournament. */
+function worldRankLabel(player: TennisPlayerData['player'], matches?: TennisMatch[]): string {
+  if (!player.latest_rank_date) return 'World ranking';
+  const last = matches?.find((m) => m.match_date === player.latest_rank_date);
+  return `World ranking (${last ? `${last.tournament} ${last.year}` : shortDate(player.latest_rank_date)})`;
+}
+
 function opponent(m: TennisMatch, playerId: number) {
   const won = m.winner_id === playerId;
   return won ? { name: m.loser, slug: m.loser_slug, rank: m.l_rank, won } : { name: m.winner, slug: m.winner_slug, rank: m.w_rank, won };
@@ -40,8 +48,8 @@ function opponent(m: TennisMatch, playerId: number) {
 function matchColumns(tour: Tour, playerId: number): Column<TennisMatch>[] {
   return [
     { key: 'date', label: 'Date', render: (m) => shortDate(m.match_date), sortValue: (m) => m.match_date, descFirst: true },
-    { key: 'tournament', label: 'Tournament', render: (m) => <span>{m.tournament} <LevelBadge level={m.level} /></span>, sortValue: (m) => m.tournament, className: 'hidden sm:table-cell' },
-    { key: 'round', label: 'Round', render: (m) => m.round, sortValue: (m) => m.round_order },
+    { key: 'tournament', label: 'Tournament', render: (m) => <TournamentCell name={m.tournament} level={m.level} round={m.round} />, sortValue: (m) => m.tournament },
+    { key: 'round', label: 'Round', render: (m) => m.round, sortValue: (m) => m.round_order, className: 'hidden sm:table-cell' },
     {
       key: 'opponent',
       label: 'Opponent',
@@ -60,9 +68,10 @@ function winColumns(tour: Tour): Column<NotableWin>[] {
   return [
     { key: 'date', label: 'Date', render: (w) => shortDate(w.match.match_date), sortValue: (w) => w.match.match_date, descFirst: true },
     { key: 'opponent', label: 'Beat', render: (w) => <PlayerLink tour={tour} slug={w.match.loser_slug} name={w.match.loser} />, sortValue: (w) => w.match.loser },
+    { key: 'where', label: 'Tournament', render: (w) => <TournamentCell name={w.match.tournament} level={w.match.level} round={w.match.round} />, sortValue: (w) => w.match.tournament },
     { key: 'rank', label: 'Their rank', render: (w) => w.opponentRank ?? '–', sortValue: (w) => w.opponentRank, align: 'right' },
+    { key: 'round', label: 'Round', render: (w) => w.match.round, sortValue: (w) => w.match.round_order, className: 'hidden sm:table-cell' },
     { key: 'odds', label: 'Odds', render: (w) => (w.odds != null ? w.odds.toFixed(2) : '–'), sortValue: (w) => w.odds, align: 'right', descFirst: true },
-    { key: 'where', label: 'Where', render: (w) => `${w.match.tournament}, ${w.match.round}`, className: 'hidden sm:table-cell' },
   ];
 }
 
@@ -124,8 +133,8 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
               ['Win %', pctLabel(s.won + s.lost ? s.won / (s.won + s.lost) : null)],
               ['Titles', `${s.titles}`],
               ['Finals', `${s.finals}`],
-              [data.player.latest_rank_date ? `Ranking (${shortDate(data.player.latest_rank_date)})` : 'Ranking', data.player.latest_rank ? `${data.player.latest_rank}` : '–'],
-              ['Best ranking', s.bestRank ? `${s.bestRank.rank}` : '–'],
+              [worldRankLabel(data.player, data.matches), data.player.latest_rank ? `${data.player.latest_rank}` : '–'],
+              ['Best world ranking', s.bestRank ? `${s.bestRank.rank}` : '–'],
             ].map(([k, v]) => (
               <div key={k} className="border border-chalk-300 rounded-lg bg-white px-3 py-2">
                 <dt className="text-xs text-ink-500">{k}</dt>
@@ -145,6 +154,10 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
           <Section title="Latest matches" id="tp-recent">
             <SortableTable columns={matchColumns(tour, data.player.player_id)} rows={s.recent} rowKey={(m) => m.source_key} testId="tennis-player-recent" />
           </Section>
+
+          {data.matches && data.matches.length > 0 && (
+            <Opponents tour={tour} playerId={data.player.player_id} playerSlug={data.player.slug} name={s.name} matches={data.matches} />
+          )}
 
           {s.titleYears.length > 0 && (
             <Section title="Titles and finals" id="tp-titles">
@@ -174,7 +187,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
               <SortableTable columns={winColumns(tour)} rows={s.bestWinsByOdds} rowKey={(w) => w.match.source_key} empty="No odds recorded for these wins." />
             </Section>
           </div>
-          <p className="text-xs text-ink-500">{`Rankings are as at each match. Odds are the winner's pre-match average market price (Bet365 or Pinnacle before 2010). ${DATA_NOTE}${data.player.wikidata_qid || data.player.country ? ' Player details: Wikidata (CC0).' : ''}`}</p>
+          <p className="text-xs text-ink-500">{`World rankings are the official ATP/WTA ranking at the start of each tournament (not the seeding). Odds are the winner's pre-match average market price (Bet365 or Pinnacle before 2010). ${DATA_NOTE}${data.player.wikidata_qid || data.player.country ? ' Player details: Wikidata (CC0).' : ''}`}</p>
         </>
       )}
     </article>

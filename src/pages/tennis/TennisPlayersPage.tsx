@@ -87,12 +87,12 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
     { key: 'name', label: 'Player', render: (p) => <PlayerLink tour={p.tour} slug={p.slug} name={p.name} />, sortValue: (p) => p.name },
     {
       key: 'rank',
-      label: 'Rank',
-      render: (p) => (p.latest_rank ? <span title={p.latest_rank_date ? `Ranking on ${shortDate(p.latest_rank_date)}, their latest match` : undefined}>{p.latest_rank}</span> : <span className="text-ink-500">–</span>),
+      label: 'World rank',
+      render: (p) => (p.latest_rank ? <span title={p.latest_rank_date ? `World ranking at the start of their latest tournament (last match ${shortDate(p.latest_rank_date)})` : undefined}>{p.latest_rank}</span> : <span className="text-ink-500">–</span>),
       sortValue: (p) => p.latest_rank ?? null,
       align: 'right',
     },
-    { key: 'best', label: 'Best', render: (p) => p.best_rank ?? '–', sortValue: (p) => p.best_rank ?? null, align: 'right', className: 'hidden md:table-cell' },
+    { key: 'best', label: 'Best rank', render: (p) => p.best_rank ?? '–', sortValue: (p) => p.best_rank ?? null, align: 'right', className: 'hidden md:table-cell' },
     { key: 'status', label: 'Status', render: (p) => (isActive(p, since) ? <span className="text-pitch-800">Active</span> : <span className="text-ink-500">Inactive</span>), sortValue: (p) => (isActive(p, since) ? 1 : 0), descFirst: true, className: 'hidden lg:table-cell' },
     { key: 'country', label: 'Country', render: (p) => <Country code={p.country} short />, sortValue: (p) => (p.country ? countryName(p.country) : null), className: 'hidden sm:table-cell' },
     { key: 'recent', label: 'Last 3 seasons', render: (p) => p.recent_matches, sortValue: (p) => p.recent_matches, align: 'right', descFirst: true, className: 'hidden sm:table-cell' },
@@ -135,7 +135,7 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
               options={STATUS_OPTIONS}
             />
             <FilterSelect
-              label="Ranking"
+              label="World ranking"
               value={band ? String(band) : ''}
               onChange={setBand}
               testId="tennis-rank-filter"
@@ -169,7 +169,7 @@ export default function TennisPlayersPage({ initialData }: { initialData?: Tenni
               {`Show all ${rows.length.toLocaleString('en-GB')}`}
             </button>
           )}
-          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. Rank is the official ranking on the day of the player's latest match here (hover for the date), so two players can share a number; Best is their highest. Country is the nation played for now. Active: a tour-level match since ${since ? shortDate(since) : '–'} (12 months before the latest result); a long injury shows as inactive. ${DATA_NOTE} Player details: Wikidata (CC0).`}</p>
+          <p className="text-xs text-ink-500">{`W–L counts matches played (not walkovers). Titles are tour-level events in this data (no Olympics, Davis Cup or Laver Cup). Win % sorts only for 20+ matches. World rank is the official ATP/WTA ranking at the start of the player's latest tournament here (not the seeding; hover for the date), so two players who last played in different weeks can share a number; Best rank is their highest. Country is the nation played for now. Active: a tour-level match since ${since ? shortDate(since) : '–'} (12 months before the latest result); a long injury shows as inactive. ${DATA_NOTE} Player details: Wikidata (CC0).`}</p>
         </>
       )}
     </article>

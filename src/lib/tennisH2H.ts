@@ -67,3 +67,63 @@ export function h2hSentence(nameA: string, nameB: string, s: H2HSummary): string
   const run = s.streak && s.streak.n >= 2 ? `; ${s.streak.who === 'a' ? nameA : nameB} has won the last ${s.streak.n}` : '';
   return `${lead} in ${n} tour-level meeting${n === 1 ? '' : 's'}${run}.`;
 }
+
+// ---------------------------------------------------------------------------
+// Most played opponents (Chris, 7 Oct 2026): one row per opponent from a
+// player's own matches, which the player page already has. Played meetings
+// only (walkovers don't count), newest form last-to-first.
+// ---------------------------------------------------------------------------
+export type OpponentRecord = {
+  id: number;
+  name: string;
+  slug: string;
+  won: number;
+  lost: number;
+  played: number;
+  finalsWon: number;
+  finalsLost: number;
+  /** Latest played meeting first: 'W' or 'L', up to five. */
+  form: ('W' | 'L')[];
+  last: TennisMatch;
+};
+
+export function opponentRecords(matches: TennisMatch[], playerId: number): OpponentRecord[] {
+  const map = new Map<number, OpponentRecord>();
+  const rows = matches.filter((m) => m.played && (m.winner_id === playerId || m.loser_id === playerId)).sort(byPlayOrder);
+  for (const m of rows) {
+    const won = m.winner_id === playerId;
+    const id = won ? m.loser_id : m.winner_id;
+    let r = map.get(id);
+    if (!r) {
+      r = { id, name: won ? m.loser : m.winner, slug: won ? m.loser_slug : m.winner_slug, won: 0, lost: 0, played: 0, finalsWon: 0, finalsLost: 0, form: [], last: m };
+      map.set(id, r);
+    }
+    r.played++;
+    if (won) r.won++;
+    else r.lost++;
+    if (m.round === 'The Final') {
+      if (won) r.finalsWon++;
+      else r.finalsLost++;
+    }
+    r.last = m;
+    r.form.unshift(won ? 'W' : 'L');
+    if (r.form.length > 5) r.form.pop();
+  }
+  return [...map.values()].sort((a, b) => b.played - a.played || b.last.match_date.localeCompare(a.last.match_date));
+}
+
+/** Ends a sentence on a name without doubling the full stop of "Zverev A.". */
+const stop = (name: string) => (name.endsWith('.') ? name : `${name}.`);
+
+/** One line for the section: the most played rival and the best record against a regular (5+ meetings). */
+export function opponentsSentence(name: string, rows: OpponentRecord[]): string | null {
+  const top = rows[0];
+  if (!top || top.played < 3) return null;
+  const regulars = rows.filter((r) => r.played >= 5);
+  const best = [...regulars].sort((a, b) => b.won / b.played - a.won / a.played || b.played - a.played)[0];
+  const worst = [...regulars].sort((a, b) => a.won / a.played - b.won / b.played || b.played - a.played)[0];
+  let s = `${name} has played ${top.name} most often: ${top.played} times, ${top.won}–${top.lost}.`;
+  if (best && best !== top) s += ` Best record against a regular opponent: ${best.won}–${best.lost} v ${stop(best.name)}`;
+  if (worst && worst !== best && worst !== top && worst.won < worst.lost) s += ` Toughest: ${worst.won}–${worst.lost} v ${stop(worst.name)}`;
+  return s;
+}
