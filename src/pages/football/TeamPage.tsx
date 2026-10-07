@@ -19,11 +19,14 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import {
   getTeamPageBySlug,
   getTeamPageMatches,
+  getTeamFplPlayers,
+  type TeamFplPlayer,
   type TeamPageProfile,
   type TeamPageMatch,
 } from '../../lib/teamPageApi';
 import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { teamHasFinance } from '../../lib/financeApi';
+import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 import TeamHistoryPanel from '../../components/TeamHistoryPanel';
 import ResultFlag from '../../components/ResultFlag';
 import { chanceText, pointsVsExpected, resultFlag, vsExpectedText, type Outcome } from '../../lib/expectation';
@@ -31,7 +34,7 @@ import { chanceText, pointsVsExpected, resultFlag, vsExpectedText, type Outcome 
 /** hasFinance: whether this club has published accounts. Static generation
  *  supplies it from ONE bulk query for every team; when absent the page asks
  *  once on the client. The Finances link appears only when it is true. */
-export type TeamPageData = { profile: TeamPageProfile; matches: TeamPageMatch[]; hasFinance?: boolean };
+export type TeamPageData = { profile: TeamPageProfile; matches: TeamPageMatch[]; hasFinance?: boolean; fplPlayers?: TeamFplPlayer[] };
 
 export default function TeamPage({ initialData }: { initialData?: TeamPageData } = {}) {
   const { slug } = useParams<{ slug: string }>();
@@ -40,6 +43,10 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
   const [matches, setMatches] = useState<TeamPageMatch[]>(initialData?.matches ?? []);
   const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
+  // The club's FPL players: static generation supplies them, otherwise one
+  // client read. They give every FPL player page a link from its club
+  // (7 Oct 2026 SEO audit: those pages had no link in server HTML).
+  const [fplPlayers, setFplPlayers] = useState<TeamFplPlayer[] | null>(initialData?.fplPlayers ?? null);
 
   useEffect(() => {
     if (initialData) return;
@@ -81,6 +88,16 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
       .catch(() => { if (!cancelled) setHasFinance(false); });
     return () => { cancelled = true; };
   }, [hasFinance, profile]);
+
+  useEffect(() => {
+    if (fplPlayers !== null || !profile) return;
+    let cancelled = false;
+    getCurrentFplSeasonId()
+      .then((seasonId) => getTeamFplPlayers(profile.team_id, seasonId))
+      .then((rows) => { if (!cancelled) setFplPlayers(rows); })
+      .catch(() => { if (!cancelled) setFplPlayers([]); });
+    return () => { cancelled = true; };
+  }, [fplPlayers, profile]);
 
   useDocumentHead({
     title: profile ? `${profile.display_name} \u2014 ratings & fixtures` : 'Team',
@@ -252,6 +269,32 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
       </section>
 
       <TeamHistoryPanel teamId={profile.team_id} teamName={profile.display_name} teamSlug={slug} />
+
+      {fplPlayers && fplPlayers.length > 0 && (
+        <section data-testid="team-fpl-players">
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Fantasy Premier League players</h2>
+          <p className="text-sm text-ink-700 mt-1">Each player&rsquo;s projected points, expected minutes and record this season.</p>
+          <dl className="mt-2 space-y-1.5 text-sm">
+            {['Goalkeeper', 'Defender', 'Midfielder', 'Forward'].map((pos) => {
+              const list = fplPlayers.filter((p) => p.position === pos);
+              if (list.length === 0) return null;
+              return (
+                <div key={pos} className="flex flex-wrap gap-x-1">
+                  <dt className="text-ink-500 w-28 shrink-0">{`${pos}s`}</dt>
+                  <dd className="flex-1 min-w-0">
+                    {list.map((p, i) => (
+                      <span key={p.slug}>
+                        {i > 0 && ', '}
+                        <Link to={`/fpl/players/${p.slug}`} className="text-pitch-800 underline underline-offset-2">{p.name}</Link>
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      )}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/teams" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

@@ -34,7 +34,10 @@
   # beside each <path>/index.html so /fixtures answers 200 instead of a 301
   # to /fixtures/ (canonicals and the sitemap use the no-slash form). See
   # the script's header. Exits 0 always, like the other post-build steps.
-  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/write-flat-html.mjs && node scripts/verify-dist.mjs"
+  # check-indexability checks every sitemap URL against its generated file
+  # (canonical, noindex, robots, URL shape, duplicate titles) and appends the
+  # result to /build-report.txt. Report-only, exits 0.
+  command = "npm run build && npm run build:ssr && npm run static && npm run sitemap && node scripts/write-flat-html.mjs && node scripts/verify-dist.mjs && node scripts/check-indexability.mjs"
   publish = "dist"
 
   # Skip the analytics build when a push ONLY touches the game or docs.

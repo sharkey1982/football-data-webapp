@@ -164,7 +164,7 @@ export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamDa
 
       <Section title="Latest results" id="intl-tp-latest">
         <GameList testId="intl-tp-latest">{latest.map((m) => <GameRow key={m.match_key} m={m} showDate showCompetition team={t.team} />)}</GameList>
-        <p className="text-sm"><Link to={intlFixturesPath({ team: t.slug })} className="text-pitch-800 underline underline-offset-2">Results and fixtures</Link></p>
+        <p className="text-sm"><Link to={intlFixturesPath({ team: t.slug })} rel="nofollow" className="text-pitch-800 underline underline-offset-2">Results and fixtures</Link></p>
       </Section>
 
       <Section title="Squad" id="intl-tp-squad" testId="intl-tp-squad">

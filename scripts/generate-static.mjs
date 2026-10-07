@@ -140,7 +140,7 @@ async function main() {
     return;
   }
 
-  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument, projectionDetail, PROJECTION_DETAIL_COLUMNS, teamChances } = await import(ENTRY);
+  const { renderMatchPage, renderPlayerPage, renderTeamPage, renderStaticRouteHead, STATIC_ROUTES, buildDocument, projectionDetail, PROJECTION_DETAIL_COLUMNS, teamChances, teamFplPlayers } = await import(ENTRY);
   const shell = readFileSync(SHELL, 'utf8');
 
   // ---- Static routes: correct head tags per page --------------------
@@ -675,7 +675,7 @@ async function main() {
           byPlayer.get(id).push(x);
         }
         for (const p of players) {
-          if (p.recent_matches < entry.TENNIS_STATIC_PLAYER_MIN) continue;
+          if (!entry.tennisIsIndexedPlayer(p)) continue;
           attempt(`player ${tour} ${p.slug}`, () => entry.renderTennisPlayerPage(entry.buildTennisPlayer(p, byPlayer.get(p.player_id) ?? [])));
         }
         // Rivalries: the most-played pairs between players who still have a
@@ -1106,6 +1106,7 @@ async function main() {
       },
       matches: teamMatches,
       hasFinance: financeTeamIds.has(teamId),
+      fplPlayers: teamFplPlayers((players ?? []).filter((p) => p.canonical_team_id === teamId)),
     };
 
     try {

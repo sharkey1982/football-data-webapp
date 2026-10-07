@@ -274,7 +274,8 @@ async function main() {
     for (const tour of ['ATP', 'WTA']) {
       const latest = (await query(`tennis_matches?select=year&tour=eq.${tour}&order=match_date.desc&limit=1`))?.[0]?.year;
       if (latest != null) for (const y of mod.tennisYears(tour, latest)) { entries.push(urlEntry(mod.tennisSeasonPath(tour, y), null)); counts.tennis++; }
-      const players = (await query(`tennis_players?select=slug&tour=eq.${tour}&recent_matches=gte.${mod.TENNIS_STATIC_PLAYER_MIN}&order=slug.asc`)) ?? [];
+      // Same rule as the page's noindex and the static build (isIndexedPlayer).
+      const players = ((await queryAll(`tennis_players?select=slug,recent_matches,titles,won,lost&tour=eq.${tour}&order=slug.asc`)) ?? []).filter((p) => mod.tennisIsIndexedPlayer(p));
       for (const p of players) { entries.push(urlEntry(mod.tennisPlayerPath(tour, p.slug), null)); counts.tennis++; }
       // Phase 3: every tournament, and the Grand Slam, Tour Finals and 1000 editions (the static ones).
       const events = (await query(`tennis_events?select=slug&tour=eq.${tour}&order=slug.asc&limit=1000`)) ?? [];

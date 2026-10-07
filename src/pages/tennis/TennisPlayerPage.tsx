@@ -3,8 +3,9 @@
 //
 // /tennis/players/:tour/:slug -- one player: record, titles and finals by
 // year, splits by surface, level and season, best wins (by opponent rank and
-// by odds) and latest matches. Static pages for players with 50+ matches in
-// the tour's last three seasons; everyone else client-side (noindex).
+// by odds) and latest matches. Static, indexed pages for players who pass
+// isIndexedPlayer (active regulars, any title, or a long career); everyone
+// else client-side (noindex).
 // Phase 3: country, age and playing hand (Wikidata), and form by surface and
 // at each Grand Slam for chosen seasons (PlayerForm).
 // ============================================================================
@@ -21,8 +22,8 @@ import { ageOn } from '../../lib/tennisEvents';
 import { DEFAULT_PAIR } from '../../lib/tennisModel';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { loadTennisPlayer, tennisH2HPath, tennisPlayerPath, tennisPlayersPath, tennisSeasonPath, type TennisPlayerData } from '../../lib/tennisApi';
-import { DATA_NOTE, parseTour, pctLabel, playerSentence, recordLabel, scoreLabel, shortDate, STATIC_PLAYER_MIN, type NotableWin, type SplitRow, type TennisMatch, type TitleRow, type Tour } from '../../lib/tennisStats';
+import { loadTennisPlayer, tennisH2HCanonicalPath, tennisPlayerPath, tennisPlayersPath, tennisSeasonPath, type TennisPlayerData } from '../../lib/tennisApi';
+import { DATA_NOTE, parseTour, pctLabel, playerSentence, recordLabel, scoreLabel, shortDate, isIndexedPlayer, type NotableWin, type SplitRow, type TennisMatch, type TitleRow, type Tour } from '../../lib/tennisStats';
 
 function splitColumns(label: string, link?: (key: string) => string): Column<SplitRow>[] {
   return [
@@ -92,7 +93,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
     path: tennisPlayerPath(tour, slug),
   });
   // Only players with a static page are meant to be indexed (design doc, section 7).
-  const noindex = data ? data.player.recent_matches < STATIC_PLAYER_MIN : false;
+  const noindex = data ? !isIndexedPlayer(data.player) : false;
   useEffect(() => {
     if (!noindex) return;
     const tag = document.createElement('meta');
@@ -116,7 +117,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
         {s && <p className="text-ink-900 max-w-prose" data-testid="tennis-player-story">{playerSentence(s)}</p>}
         {data && (
           <p className="text-sm">
-            <Link to={tennisH2HPath(tour, data.player.slug, DEFAULT_PAIR[tour][0] === data.player.slug ? DEFAULT_PAIR[tour][1] : DEFAULT_PAIR[tour][0])} className="text-pitch-800 underline underline-offset-2" data-testid="tennis-player-h2h-link">
+            <Link to={tennisH2HCanonicalPath(tour, data.player.slug, DEFAULT_PAIR[tour][0] === data.player.slug ? DEFAULT_PAIR[tour][1] : DEFAULT_PAIR[tour][0])} className="text-pitch-800 underline underline-offset-2" data-testid="tennis-player-h2h-link">
               Head to head with another player
             </Link>
           </p>
