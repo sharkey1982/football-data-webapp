@@ -22,7 +22,9 @@
   # stylesheet address in the pages (?v=__V__), so a browser that kept the
   # old files must fetch the new ones. Without it, phones kept the old
   # scripts after the 6 Oct 2026 start-screen change and showed the old game.
-  command = "find . -name index.html -exec sed -i \"s/__V__/${COMMIT_REF:-dev}/g\" {} +"
+  # Then the Google Analytics measurement ID into shared/analytics.js, from
+  # this site's GA_MEASUREMENT_ID setting (unset: the games send nothing).
+  command = "find . -name index.html -exec sed -i \"s/__V__/${COMMIT_REF:-dev}/g\" {} + && sed -i \"s/__GA_ID__/${GA_MEASUREMENT_ID:-}/\" shared/analytics.js"
 
   # Only redeploy when THIS folder changed. Netlify runs this from the base
   # directory, so "." means games/beat-the-shark. Exit 0 = skip the build.

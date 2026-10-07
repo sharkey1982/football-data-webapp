@@ -69,3 +69,10 @@ jobs:
       # whole events through the real screens. About three minutes.
       - name: Nations Cup game
         run: node games/beat-the-shark/nations-cup/test/checks.cjs
+
+      # The blackjack trainer (games/beat-the-shark/blackjack): cards, every
+      # rule on stacked shoes, every cell of the published basic-strategy
+      # chart, the expected-value calculator against it, a simulated house
+      # edge, the training framework and whole sessions through the screens.
+      - name: Blackjack trainer
+        run: node games/beat-the-shark/blackjack/test/checks.cjs

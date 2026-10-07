@@ -42,6 +42,12 @@ export const BEAT_THE_SHARK = {
     blurb: 'Pick your nation and three men and three women, set the singles, doubles and mixed on four surfaces, and win the Nations Cup.',
     kicker: 'Play · ten minutes',
   },
+  blackjack: {
+    href: '/play/beat-the-shark/blackjack/',
+    title: 'Beat the Shark: Blackjack trainer',
+    blurb: 'Fictional chips, real maths: every decision judged against basic strategy, separately from whether the hand won.',
+    kicker: 'Train · any length',
+  },
 } satisfies Record<string, BeatTheSharkGame>;
 
 export function GameCard({ game }: { game: BeatTheSharkGame }) {

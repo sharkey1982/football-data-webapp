@@ -248,7 +248,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Your Team' }).getAttribute('href')).toBe('/international/women/teams');
     expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('/international/women');
   });
-  it('Play menu: the four Beat the Shark games, as plain links to the game site', async () => {
+  it('Play menu: the Beat the Shark games, as plain links to the game site', async () => {
     const user = userEvent.setup();
     renderAt('/');
     await user.click(screen.getByRole('button', { name: /^Play/ }));
@@ -256,5 +256,6 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'NFL' })).toHaveAttribute('href', '/play/beat-the-shark/nfl/');
     expect(screen.getByRole('link', { name: 'World Cup' })).toHaveAttribute('href', '/play/beat-the-shark/world-cup/');
     expect(screen.getByRole('link', { name: 'Tennis: Nations Cup' })).toHaveAttribute('href', '/play/beat-the-shark/nations-cup/');
+    expect(screen.getByRole('link', { name: 'Blackjack trainer' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
   });
 });

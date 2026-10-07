@@ -17,7 +17,8 @@ const BTS_GAMES=[
   {id:"football",name:"Football",mission:"Win the league",path:""},
   {id:"nfl",name:"NFL",mission:"Win the division",path:"nfl/"},
   {id:"world-cup",name:"World Cup",mission:"Win the World Cup",path:"world-cup/"},
-  {id:"nations-cup",name:"Tennis: Nations Cup",mission:"Win the Nations Cup",path:"nations-cup/"}
+  {id:"nations-cup",name:"Tennis: Nations Cup",mission:"Win the Nations Cup",path:"nations-cup/"},
+  {id:"blackjack",name:"Blackjack trainer",mission:"Play it right",path:"blackjack/"}
 ];
 let BTS_PICK=null,BTS_CTX=null;
 /* Pick a sport (the card lights up and the button wakes). Nothing starts
