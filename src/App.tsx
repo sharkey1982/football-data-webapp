@@ -126,6 +126,7 @@ const IntlHistoryPage = lazy(() => import('./pages/international/IntlHistoryPage
 const IntlClubsPage = lazy(() => import('./pages/international/IntlClubsPage'));
 const IntlMatchPage = lazy(() => import('./pages/international/IntlMatchPage'));
 const IntlEditionPage = lazy(() => import('./pages/international/IntlEditionPage'));
+const IntlTvGuidePage = lazy(() => import('./pages/international/IntlTvGuidePage'));
 const IntlWomenHub = lazy(() => import('./pages/international/IntlWomenHub'));
 
 /** The International pages for one side. Women's has no Discover stage: its hub lists the pages. */
@@ -142,6 +143,7 @@ function intlRoutes(gender: 'men' | 'women') {
     ['/matches/:slug', <IntlMatchPage />],
     ['/clubs', <IntlClubsPage />],
     ['/history', <IntlHistoryPage />],
+    ['/tv-guide', <IntlTvGuidePage />],
   ];
   return pages.map(([sub, el]) => (
     <Route

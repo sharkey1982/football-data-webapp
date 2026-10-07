@@ -282,11 +282,11 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           'Everything that has happened in international football: every game since 1872 with the favourite on the day, each nation\u2019s record, rating and tournament history, and every World Cup, continental championship and Nations League round by round, with how it all changed since 1872.',
         links: [
           { label: 'Fixtures & Results', to: '/international/fixtures', blurb: 'Every international day by day: the upsets, and each coming game\u2019s chances and likeliest score; filter to one nation.', matchPrefix: ['/international/fixtures', '/international/matches'] },
+          { label: 'TV Guide', to: '/international/tv-guide', blurb: 'Coming internationals and how to watch them live in the UK: ITV, the BBC and Prime Video.' },
           { label: 'Tournaments', to: '/international/tournaments', blurb: 'Every World Cup, Euro, Copa Am\u00e9rica, AFCON, Asian Cup, Gold Cup and Nations League: brackets, groups and the race for titles.', matchPrefix: ['/international/tournaments'] },
           { label: 'Your Team', to: '/international/teams', blurb: 'Any nation\u2019s current squad, record, rating, tournament history and head-to-heads.', matchPrefix: ['/international/teams'] },
           { label: 'Club Call-ups', to: '/international/clubs', blurb: 'Which clubs and leagues supply the most internationals, how many of each squad play abroad, and how strong their clubs are.' },
           { label: 'Through Time', to: '/international/history', blurb: 'The world\u2019s top ten year by year since 1872, every world number one, and the biggest tournament upsets.' },
-          { label: 'Women\u2019s internationals', to: '/international/women', blurb: 'The same pages for the women\u2019s game: every result since 1956, each nation\u2019s squad and rating, and every Women\u2019s World Cup, Olympics, Euro and continental championship.', matchPrefix: ['/international/women'] },
         ],
       },
     ],

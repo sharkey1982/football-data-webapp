@@ -441,6 +441,18 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [INTERNATIONAL],
   },
   {
+    path: '/international/tv-guide',
+    title: 'Internationals on TV \u2014 UK Watch Guide',
+    description: 'Coming internationals in UK time, with how to watch them live in the UK: ITV for England, the BBC for Scotland, Wales and Northern Ireland, Prime Video for the rest.',
+    crumbs: [INTERNATIONAL],
+  },
+  {
+    path: '/international/women/tv-guide',
+    title: 'Women\u2019s internationals on TV \u2014 UK Watch Guide',
+    description: 'Coming women\u2019s internationals in UK time, with how to watch them live in the UK: ITV for the Lionesses, the BBC for Scotland, Wales and Northern Ireland.',
+    crumbs: [INTERNATIONAL, WOMEN_INTL],
+  },
+  {
     path: '/international/teams',
     title: 'International teams: every nation\u2019s rating, record and titles',
     description: 'Every national team\u2019s World Football Elo rating, all-time record and major titles, since 1872.',

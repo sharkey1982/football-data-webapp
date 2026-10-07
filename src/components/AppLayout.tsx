@@ -1,4 +1,4 @@
-import { THEMES, stagePath } from '../lib/journey';
+import { THEMES, stagePath, type JourneyLink } from '../lib/journey';
 import { trackPageView } from '../lib/analytics';
 import { CookieConsent } from './CookieConsent';
 import { FOOTER_COVERAGE } from '../lib/dataCoverage';
@@ -168,6 +168,15 @@ export default function AppLayout() {
 
   const fixturesTo: To = { pathname: '/fixtures', search: lastFixturesSearch.current };
 
+  // International: on the women's side (/international/women/...) the menu
+  // links go to the women's pages, so the menu follows the Men | Women switch.
+  const womenSide = location.pathname.startsWith('/international/women');
+  const sideLink = (key: string) => (link: JourneyLink): JourneyLink => {
+    if (key !== 'international' || !womenSide) return link;
+    const w = (p: string) => p.replace(/^\/international(?=\/|$)/, '/international/women');
+    return { ...link, to: w(link.to), matchPrefix: link.matchPrefix ? [link.matchPrefix].flat().map(w) : undefined };
+  };
+
   // Three top-level headings -- Football, Fantasy, Admin -- each a
   // dropdown, no separate flat top-level items alongside them.
   // Mirrors the site's own structure: two themes, each following the
@@ -194,12 +203,15 @@ export default function AppLayout() {
       // Overview sits above the stage headings as a plain item, not an
       // empty section -- a heading with nothing under it reads as a
       // rendering bug.
-      items: [{ to: theme.hubPath, label: 'Overview', exact: true, matchPrefix: theme.hubPath }],
+      items: [(() => {
+        const hub = key === 'international' && womenSide ? '/international/women' : theme.hubPath;
+        return { to: hub, label: 'Overview', exact: true, matchPrefix: hub };
+      })()],
       sections: [
         ...theme.stages.map((stage) => ({
           label: stage.title,
-          to: stagePath(theme, stage),
-          items: stage.links.map((link) => ({
+          to: key === 'international' && womenSide ? '/international/women' : stagePath(theme, stage),
+          items: stage.links.map(sideLink(key)).map((link) => ({
             // Fixtures keeps its remembered search string, so returning
             // to it from elsewhere preserves the division/season you had
             // selected rather than resetting.

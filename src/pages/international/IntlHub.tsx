@@ -12,6 +12,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { THEMES } from '../../lib/journey';
 import type { TriviaFact } from '../../lib/landingApi';
 import { getIntlTrivia } from '../../lib/intlTrivia';
+import { GenderSwitch } from '../../components/intl/IntlBits';
 
 export default function IntlHub() {
   useDocumentHead({
@@ -25,5 +26,13 @@ export default function IntlHub() {
       .then(setTrivia)
       .catch(() => setTrivia([]));
   }, []);
-  return <ThemeHub theme={THEMES.international} trivia={trivia} game={BEAT_THE_SHARK.worldCup} />;
+  // Men | Women: the women's side is reached here and from every page's header.
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <GenderSwitch />
+      </div>
+      <ThemeHub theme={THEMES.international} trivia={trivia} game={BEAT_THE_SHARK.worldCup} />
+    </div>
+  );
 }
