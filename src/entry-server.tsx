@@ -891,6 +891,7 @@ export function renderNflScoringPage(): RenderedPage {
 // ---- Tennis -----------------------------------------------------------------
 const TENNIS_CRUMB = { name: 'Tennis', path: TENNIS_HUB_PATH };
 const TENNIS_DISCOVER_CRUMB = { name: 'Discover', path: '/tennis/discover' };
+const TENNIS_PREDICT_CRUMB = { name: 'Predict', path: '/tennis/predict' };
 
 export function renderTennisResultsPage(data: TennisResultsData): RenderedPage {
   const day = data.matches.filter((m) => m.match_date === data.latestDate);
@@ -1006,7 +1007,7 @@ export function renderTennisH2HPage(data: TennisH2HData): RenderedPage {
     title: `Tennis head to head and match predictor: ${data.a.name} v ${data.b.name} | ${BRAND_NAME}`,
     description: `${tennisH2HSentence(data.a.name, data.b.name, s)} Compare any two players and see who the model makes favourite on each surface.`,
     canonical: `${SITE_URL}${TENNIS_H2H_PATH}`,
-    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_DISCOVER_CRUMB, { name: 'Head to head', path: TENNIS_H2H_PATH }])],
+    structuredData: [breadcrumb([TENNIS_CRUMB, TENNIS_PREDICT_CRUMB, { name: 'Head to Heads', path: TENNIS_H2H_PATH }])],
   };
 }
 
@@ -1021,7 +1022,7 @@ export function renderTennisH2HPairPage(data: TennisH2HData): RenderedPage {
     title: `${name}: head to head and prediction | ${BRAND_NAME}`,
     description: `${tennisH2HSentence(data.a.name, data.b.name, s)} Who the model makes favourite on each surface.`,
     canonical: `${SITE_URL}${path}`,
-    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Head to head', path: TENNIS_H2H_PATH }, { name, path }])],
+    structuredData: [breadcrumb([TENNIS_CRUMB, { name: 'Head to Heads', path: TENNIS_H2H_PATH }, { name, path }])],
   };
 }
 
