@@ -79,6 +79,10 @@ import { buildGamePreview, gameSentence, type NflGamePreview } from './lib/nflGa
 import NflSeasonsPage from './pages/nfl/NflSeasonsPage';
 import NflSeasonPage from './pages/nfl/NflSeasonPage';
 import NflScoringRulesPage from './pages/nfl/NflScoringRulesPage';
+import FplArticlesPage from './pages/fpl/ArticlesPage';
+import CaptainTopPickArticle from './pages/fpl/articles/CaptainTopPickArticle';
+import HaalandCaptainArticle from './pages/fpl/articles/HaalandCaptainArticle';
+import { ARTICLES, ARTICLES_PATH, CAPTAIN_ARTICLE, HAALAND_ARTICLE, type ArticleMeta } from './lib/fplArticles';
 import {
   NFL_FIXTURES_PATH,
   NFL_HUB_PATH,
@@ -374,6 +378,74 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
 }
 
 export { STATIC_ROUTES };
+
+// ---- FPL articles -------------------------------------------------------------
+// Static content with no data fetch, so the body is pre-rendered too. Each
+// article carries Article and FAQPage JSON-LD built from what the page
+// states (its question and short answer).
+
+const FPL_CRUMB = { name: 'Fantasy Premier League', path: '/fpl/start' };
+const ARTICLES_CRUMB = { name: 'Articles', path: ARTICLES_PATH };
+
+function staticPage(path: string, element: ReactElement): string {
+  return renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path={path} element={element} />
+      </Routes>
+    </StaticRouter>
+  );
+}
+
+function articlePage(meta: ArticleMeta, element: ReactElement): RenderedPage {
+  const url = `${SITE_URL}${meta.path}`;
+  return {
+    html: staticPage(meta.path, element),
+    title: `${meta.title} | ${BRAND_NAME}`,
+    description: meta.description,
+    canonical: url,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: meta.title,
+        description: meta.description,
+        datePublished: meta.published,
+        mainEntityOfPage: url,
+        author: { '@type': 'Organization', name: BRAND_NAME, url: SITE_URL },
+        publisher: { '@type': 'Organization', name: BRAND_NAME, url: SITE_URL },
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: [{ '@type': 'Question', name: meta.question, acceptedAnswer: { '@type': 'Answer', text: meta.verdict } }],
+      },
+      breadcrumb([FPL_CRUMB, ARTICLES_CRUMB, { name: meta.title, path: meta.path }]),
+    ],
+  };
+}
+
+/** The articles hub and every article, fully rendered. */
+export function renderFplArticlePages(): RenderedPage[] {
+  return [
+    {
+      html: staticPage(ARTICLES_PATH, <FplArticlesPage />),
+      title: `FPL articles: captaincy and strategy questions answered with data | ${BRAND_NAME}`,
+      description: 'Common Fantasy Premier League questions, answered from four seasons of FPL points and betting-market prices.',
+      canonical: `${SITE_URL}${ARTICLES_PATH}`,
+      structuredData: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          itemListElement: ARTICLES.map((a, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE_URL}${a.path}`, name: a.title })),
+        },
+        breadcrumb([FPL_CRUMB, ARTICLES_CRUMB]),
+      ],
+    },
+    articlePage(CAPTAIN_ARTICLE, <CaptainTopPickArticle />),
+    articlePage(HAALAND_ARTICLE, <HaalandCaptainArticle />),
+  ];
+}
 export { intlTeamHead, intlTournamentHead, intlEditionHead, INTL_STATIC_TEAM_MIN_GAMES } from './lib/intlSeo';
 /** Switches the heads above (and INTL_TOURNAMENTS) between the men's and women's pages. */
 export { setIntlGender } from './lib/intlApi';

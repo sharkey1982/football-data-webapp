@@ -348,6 +348,26 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/articles',
+    title: 'FPL articles: captaincy and strategy questions answered with data',
+    description: 'Common Fantasy Premier League questions, answered from four seasons of FPL points and betting-market prices.',
+    crumbs: [FPL],
+  },
+  {
+    path: '/fpl/articles/always-captain-the-top-pick',
+    title: 'Should you always captain the top-projected player?',
+    description:
+      'Four FPL seasons of captain picks tested: what the top-ranked captain scored against the second choice, the most-owned player and hindsight, and why the right pick still loses so often.',
+    crumbs: [FPL, { name: 'Articles', path: '/fpl/articles' }],
+  },
+  {
+    path: '/fpl/articles/should-you-always-captain-haaland',
+    title: 'Should you always captain Haaland, even away at Arsenal?',
+    description:
+      'Haaland in FPL from 2022/23 to 2025/26: home against away, easy against hard fixtures, how much of his total came from a few hauls, and what always captaining him cost.',
+    crumbs: [FPL, { name: 'Articles', path: '/fpl/articles' }],
+  },
+  {
     path: '/fpl/scoring-rules',
     title: 'FPL scoring rules',
     description: 'Exactly how every Fantasy Premier League point is earned.',

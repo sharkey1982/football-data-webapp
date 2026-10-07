@@ -133,6 +133,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // Hindsight, not forecast -- what the best squad WAS. That's a
           // record of what happened, so it belongs in Discover.
           { label: 'Set-and-Forget XI', to: '/fpl/season-xi', blurb: 'The best XI of 2025/26 you could have picked in August and never touched.' },
+          // Analysis of what happened, answering one manager question each
+          // (Chris, 7 Oct 2026: questions people ask on Reddit).
+          { label: 'Articles', to: '/fpl/articles', blurb: 'Captaincy and strategy questions, answered from four seasons of data.', matchPrefix: ['/fpl/articles'] },
           { label: 'Scoring Rules', to: '/fpl/scoring-rules', blurb: 'Exactly how every point is earned.' },
         ],
       },
