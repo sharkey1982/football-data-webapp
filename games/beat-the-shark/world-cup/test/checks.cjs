@@ -220,7 +220,7 @@ if(on(5)){
       if(!/>Cash</.test(header))fails.push(`${level}: header should show cash`);
       console.log(`      ${level}: ${[...seen].join(", ")}`)}
   }
-  const red=playScreens("beginner",`S.cash=-3.5`);if(!red.seen.has("home"))fails.push("in the red: nobody sent home");
+  const red=playScreens("beginner",`S.cash=-0.5`); // in the red after the first match, not so deep it is sacked firstif(!red.seen.has("home"))fails.push("in the red: nobody sent home");
   const deep=playScreens("beginner",`S.cash=-30`);if(!deep.seen.has("sacked"))fails.push("deep in the red: not sacked");
   console.log(`      in the red: ${[...red.seen].join(", ")}`);console.log(`      deep in the red: ${[...deep.seen].join(", ")}`);
   check("whole tournaments through the real screens: squad, bills, shapes, prize money, sent home, sacked",!fails.length,fails.slice(0,4).join(" | "));

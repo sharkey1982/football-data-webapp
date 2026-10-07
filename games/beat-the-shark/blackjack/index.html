@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+/* Trailing-slash guard, as in the other games: the scripts load by relative
+   path. MUST stay first in <head>. */
+(function(){var p=location.pathname;
+  if(p.length>1&&p.charAt(p.length-1)!=="/"&&!/\.[a-z0-9]+$/i.test(p))
+    location.replace(p+"/"+location.search+location.hash);})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beat the Shark: Blackjack trainer — did you win, or did you play it right? | FixtureShark</title>
+<meta name="description" content="A blackjack trainer with fictional chips. Every decision is judged against basic strategy, separately from whether the hand won: learn the difference between a good result and a good decision.">
+<link rel="canonical" href="https://fixtureshark.com/play/beat-the-shark/blackjack/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FixtureShark">
+<meta property="og:title" content="Beat the Shark: Blackjack trainer">
+<meta property="og:description" content="Did you win? Did you play it right? Two different questions.">
+<meta property="og:url" content="https://fixtureshark.com/play/beat-the-shark/blackjack/">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/base.css?v=__V__">
+<style>
+  /* the blackjack trainer's own touches: plain cards on the site's pitch
+     colours, no casino felt, no chip stacks */
+  .table{padding:13px}
+  .seat{margin-bottom:10px}
+  .seat.on{outline:2px solid var(--amber);border-radius:9px;padding:5px 6px;margin:0 -6px 10px}
+  .who{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--mute);margin-bottom:5px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .who .tot{color:var(--ink);font-size:13px;letter-spacing:0;font-weight:600}
+  .who .out{font-size:12px;letter-spacing:0;font-weight:600;margin-left:auto}
+  .cards{display:flex;gap:6px;flex-wrap:wrap;min-height:78px}
+  .pc{width:54px;height:76px;border-radius:7px;background:#fffdf8;border:1.5px solid var(--line);color:#1a1a17;
+      display:flex;flex-direction:column;justify-content:space-between;padding:4px 6px;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .pc b{font-family:var(--disp);font-size:24px;line-height:1}
+  .pc i{font-style:normal;font-size:22px;line-height:1;align-self:flex-end}
+  .pc.red{color:#b3261e}
+  .pc.back{background:repeating-linear-gradient(45deg,var(--pitch) 0 6px,var(--pitch2) 6px 12px);border-color:var(--pitch)}
+  .pc.ghost{background:transparent;border-style:dashed;box-shadow:none}
+  .stakeline{display:flex;justify-content:space-between;font-size:14px;color:var(--ink2);border-top:1px solid var(--line);padding:8px 0;margin-top:2px}
+  .stakeline b{font-family:var(--mono);color:var(--ink)}
+  .acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 6px}
+  .act{min-height:58px;border-radius:10px;border:0;background:var(--pitch);color:var(--onPitch);
+       font-family:var(--disp);font-size:20px;letter-spacing:.05em;text-transform:uppercase;touch-action:manipulation}
+  .act:disabled{background:var(--panel2);color:var(--mute);border:1.5px dashed var(--line);cursor:not-allowed}
+  .act:not(:disabled):active{transform:translateY(1px)}
+  .stakes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+  .stk{min-height:46px;border-radius:9px;border:1.5px solid var(--line);background:var(--panel2);color:var(--ink);font-family:var(--mono);font-weight:600;font-size:15px}
+  .stk[aria-pressed="true"]{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 16%,var(--panel2))}
+  .stk:disabled{opacity:.4}
+  .verdictbox{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+  .vb{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--panel2)}
+  .vb .k,.tile .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
+  .vb .v{font-weight:600;font-size:15px;margin-top:2px}
+  .headline{font-weight:600;color:var(--ink);margin:10px 0 6px;font-size:16px}
+  .dec{border-left:3px solid var(--good);background:color-mix(in srgb,var(--good) 8%,transparent);border-radius:0 7px 7px 0;padding:7px 10px;margin:6px 0;font-size:14px}
+  .dec.bad{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,transparent)}
+  .dec .dd{font-size:12.5px;color:var(--ink2);margin-top:3px}
+  .dec .dd.ev{font-family:var(--mono);font-size:11.5px}
+  .rules{margin:6px 0 10px;padding-left:18px;font-size:14px;color:var(--ink2)}
+  .rules li{margin:2px 0}
+  .twin{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .tile{border:1.5px solid var(--line);border-radius:11px;padding:12px;text-align:center;background:var(--panel2)}
+  .tile .big{font-family:var(--disp);font-size:40px;font-weight:700;line-height:1.05}
+  .tile .big small{font-size:18px;color:var(--mute)}
+  .tile .s{font-size:12px;color:var(--mute)}
+  .endrow .choice{text-align:center}
+  header .hd{font-family:var(--mono);font-size:10px;margin-top:1px}
+  header .hd.up{color:#9ce0b9}header .hd.down{color:#ffb3ab}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="homelink" href="https://fixtureshark.com/">&larr; FixtureShark</a>
+    <div class="hmain">
+      <div class="bigscore" id="hScore">—<span class="sub">SHARK SCORE</span></div>
+      <div class="twos" id="hTwo"></div>
+      <div class="trend fl" id="hTrend"></div>
+    </div>
+    <div class="season" id="hSeason"></div>
+  </header>
+  <main id="app"></main>
+  <div class="foot" id="foot"></div>
+  <!-- Static on purpose: a crawler sees this, and every screen has a way back into the site. -->
+  <footer class="about">
+    <h2>About the Blackjack trainer</h2>
+    <p>A blackjack trainer, not a gambling game. You play with Shark Chips, which are fictional: there are no
+      deposits, no purchases, no prizes, and chips can't be cashed or swapped for anything. Every decision you make
+      is checked against basic strategy for the table's rules, with what it costs on average when it isn't the
+      best play, and kept separate from whether the hand won. A good result can follow a bad decision, and a
+      good decision can lose: over many hands, the decisions are what count.</p>
+    <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark: football</a> · <a href="https://fixtureshark.com/">Back to FixtureShark</a></p>
+  </footer>
+</div>
+<script src="../shared/games.js?v=__V__"></script>
+<script src="../shared/core.js?v=__V__"></script>
+<script src="../shared/analytics.js?v=__V__"></script>
+<script src="../shared/training.js?v=__V__"></script>
+<script src="rules.js?v=__V__"></script>
+<script src="engine.js?v=__V__"></script>
+<script src="strategy.js?v=__V__"></script>
+<script src="ev.js?v=__V__"></script>
+<script src="ui.js?v=__V__"></script>
+</body>
+</html>

@@ -254,6 +254,7 @@ export default function AppLayout() {
       { to: BEAT_THE_SHARK.nfl.href, label: 'NFL', matchPrefix: BEAT_THE_SHARK.nfl.href, external: true },
       { to: BEAT_THE_SHARK.worldCup.href, label: 'World Cup', matchPrefix: BEAT_THE_SHARK.worldCup.href, external: true },
       { to: BEAT_THE_SHARK.nationsCup.href, label: 'Tennis: Nations Cup', matchPrefix: BEAT_THE_SHARK.nationsCup.href, external: true },
+      { to: BEAT_THE_SHARK.blackjack.href, label: 'Blackjack trainer', matchPrefix: BEAT_THE_SHARK.blackjack.href, external: true },
     ],
   };
 
