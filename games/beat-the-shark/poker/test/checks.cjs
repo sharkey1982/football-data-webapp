@@ -12,6 +12,9 @@
      3. QUESTIONS   each question shows what it says it shows; every kind of
                     hand and every trap comes up; answers recomputed
      4. SCREENS     both parts through the real screens, right and wrong
+     5. OUTS        outs counted exactly for every kind of draw; the chance by
+                    the river against the published figures; the questions
+                    and the Outs & draws screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -149,6 +152,57 @@ const run=c=>E.run(c);
   }
   for(const x of["name-right","name-wrong","who-right","who-wrong","report-name","report-who"])if(!seen.has(x))fails.push("never saw "+x);
   check("both parts through the real screens: right ticks, wrong bands, best five lit, reports",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 5. outs & draws -------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{const C=s=>s.split(" ").map(x=>({r:"23456789TJQKA".indexOf(x[0])+2,s:"shdc".indexOf(x[1])}));
+    const O=(h,b,t)=>outsFor(C(h),C(b),t).length,o={};
+    o.flush=O("Ah Kh","2h 7h 9c",{cat:5});o.oesd=O("8c 9d","Ts Jh 2c",{cat:4});o.gut=O("8c 9d","Js Qh 2c",{cat:4});
+    o.combo=O("8h 9h","Th Jc 2h",{cat:4});o.set=O("5c 5d","Kh 9s 2c",{setOf:5});o.boat=O("Kc 9d","Kh 9s 2c",{cat:6});
+    o.overs=O("Ac Qd","9h 7s 2c",{overPair:true,top:9});
+    o.flushRiver=chanceByRiver(C("Ah Kh"),C("2h 7h 9c"),{cat:5});o.flushTurn=chanceByRiver(C("Ah Kh"),C("2h 7h 9c 3s"),{cat:5});
+    o.oesdRiver=chanceByRiver(C("8c 9d"),C("Ts Jh 2c"),{cat:4});o.oesdOuts=chanceFromOuts(8,47,2);
+    o.thumb=[ruleOfThumb(9,2),ruleOfThumb(9,1)];
+    R.s=hashSeed("OUTSQ");const kinds={},bad=[],outsByKind={};let opts=0;
+    for(let k=0;k<160;k++){const q=outsQuestion();if(!q){bad.push("null");continue}kinds[q.kind]=(kinds[q.kind]||0)+1;
+      const all=q.hole.concat(q.board);if(new Set(all.map(pkText)).size!==all.length)bad.push("dup");
+      if(meets(q.target,q.hole,q.board,bestHand(all)))bad.push("already made: "+q.kind);
+      if(outsFor(q.hole,q.board,q.target).length!==q.outs.length)bad.push("outs");
+      (outsByKind[q.kind]=outsByKind[q.kind]||new Set()).add(q.outs.length);
+      const op=chanceOptions(q);if(op.length!==4||op.filter(x=>x.right).length!==1)bad.push("options");
+      const vs=op.map(x=>x.v).sort((a,b)=>a-b);for(let i=1;i<4;i++)if(vs[i]-vs[i-1]<7)bad.push("options too close");opts++}
+    o.kinds=kinds;o.bad=[...new Set(bad)];o.outsByKind=Object.fromEntries(Object.entries(outsByKind).map(([k,v])=>[k,[...v].sort((a,b)=>a-b)]));
+    return JSON.stringify(o)})()`));
+  check("outs counted exactly: flush draw 9, open-ended 8, gutshot 4, flush + open-ended 15, set 2, two pair to a full house 4, two overcards 6",
+    r.flush===9&&r.oesd===8&&r.gut===4&&r.combo===15&&r.set===2&&r.boat===4&&r.overs===6,JSON.stringify([r.flush,r.oesd,r.gut,r.combo,r.set,r.boat,r.overs]));
+  check("a flush draw: 35.0% by the river from the flop, 19.6% from the turn (the published figures)",Math.abs(r.flushRiver-.3497)<.0005&&Math.abs(r.flushTurn-9/46)<1e-9,
+    `${(r.flushRiver*100).toFixed(2)}% · ${(r.flushTurn*100).toFixed(2)}%`);
+  check("an open-ended straight draw: about 31.5% from the flop, exact and from the outs",Math.abs(r.oesdRiver-.3145)<.004&&Math.abs(r.oesdOuts-.3145)<.0005,
+    `${(r.oesdRiver*100).toFixed(2)}% · ${(r.oesdOuts*100).toFixed(2)}%`);
+  check("the rule of 4 and 2: 9 outs is 36% with two cards to come, 18% with one",r.thumb[0]===.36&&r.thumb[1]===.18);
+  check("draw questions: every kind comes up, none already made, outs recomputed, four well-spaced answers",
+    Object.keys(r.kinds).length===7&&!r.bad.length,JSON.stringify(r.kinds)+" "+r.bad.join(","));
+  check("...and each kind has the outs it should",JSON.stringify(r.outsByKind.flush)==="[9]"&&JSON.stringify(r.outsByKind.oesd)==="[8]"&&JSON.stringify(r.outsByKind.gutshot)==="[4]"&&
+    JSON.stringify(r.outsByKind.set)==="[2]"&&JSON.stringify(r.outsByKind.boat)==="[4]"&&JSON.stringify(r.outsByKind.overs)==="[6]"&&r.outsByKind.combo.every(n=>n>=12&&n<=15),JSON.stringify(r.outsByKind));
+  // screens
+  const fails=[];
+  {const w=makeWorld("?mode=outs");if(!/data-game="poker-outs"/.test(w.els.app.innerHTML))fails.push("picker lacks outs");
+   w.run('pickSport("poker-outs")');w.els.playThis.onclick();w.drain();
+   if(!/RULE OF 4 AND 2/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no outs intro");
+   w.run('R.s=hashSeed("OUTSCR")');w.els.go.onclick();const seen=new Set();let nq=0;
+   for(let k=0;k<20;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text");break}
+     if(/id="check"/.test(h)){nq++;const right=w.run("O.q.outs.length"),want=nq%2?right:right+1;for(let i=0;i<want;i++)w.els["ov-p"].onclick();w.els.check.onclick();
+       const r=w.els.app.innerHTML;seen.add(want===right?"outs-right":"outs-wrong");if(!/class="minis"/.test(r))fails.push("outs not shown");
+       if(want!==right&&!/role="alert"/.test(r))fails.push("wrong outs without the band");
+       const i=w.run("O.opts.findIndex(o=>o.right)"),pick=nq%3?i:(i+1)%4;w.els["o-"+pick].onclick();const r2=w.els.app.innerHTML;
+       seen.add(pick===i?"chance-right":"chance-wrong");if(!/Rule of/.test(r2)||!/Exact/.test(r2))fails.push("chance table missing");continue}
+     if(k>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/OUTS SCORE/.test(w.els.app.innerHTML))fails.push("no report score");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+     fails.push("stuck: "+h.replace(/<[^>]+>/g," ").replace(/\s+/g," ").slice(0,80));break}
+   for(const x of["outs-right","outs-wrong","chance-right","chance-wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Outs & draws through the real screens: outs and chance judged, the outs shown, the three chances, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

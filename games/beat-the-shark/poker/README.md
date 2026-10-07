@@ -34,6 +34,18 @@ shared/training.js    decision records and scores (as blackjack)
   best five cards are lit and the hand is said in words; who-wins explains the
   deciding card. Hand Score = share right; report by kind of question.
 
+## Outs & draws (live, `?mode=outs`)
+
+- `outs.js`: draws of seven kinds (flush, open-ended, gutshot, flush plus
+  straight, pocket pair to a set, two pair to a full house, two overcards),
+  on the flop or turn, not yet made; straight and flush draws from a pair or
+  less so no full-house outs muddle the count. Outs are counted exactly (every
+  unseen card added); the chance by the river exactly over every remaining
+  card or pair of cards (so runner-runner counts), beside the outs-only figure
+  and the rule of 4 and 2.
+- `outsui.js`: how many outs (stepper), then the chance (four answers, at
+  least 7 points apart); the outs shown as cards; Outs Score; report.
+
 ## Checks
 
 ```
@@ -46,3 +58,6 @@ node games/beat-the-shark/poker/test/checks.cjs
   published hold'em frequencies.
 - The hands people misread, explanations, questions (each shows what it says,
   every kind and trap appears), both parts through the screens.
+- Outs: 9 / 8 / 4 / 15 / 2 / 4 / 6 for the textbook draws; a flush draw
+  35.0% from the flop and 19.6% from the turn; an open-ended draw 31.5%; every
+  question's outs recomputed, none already made; the screens.
