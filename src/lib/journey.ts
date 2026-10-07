@@ -287,7 +287,6 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Your Team', to: '/international/teams', blurb: 'Any nation\u2019s current squad, record, rating, tournament history and head-to-heads.', matchPrefix: ['/international/teams'] },
           { label: 'Club Call-ups', to: '/international/clubs', blurb: 'Which clubs and leagues supply the most internationals, how many of each squad play abroad, and how strong their clubs are.' },
           { label: 'Through Time', to: '/international/history', blurb: 'The world\u2019s top ten year by year since 1872, every world number one, and the biggest tournament upsets.' },
-          { label: 'Women\u2019s internationals', to: '/international/women', blurb: 'The same pages for the women\u2019s game: every result since 1956, each nation\u2019s squad and rating, and every Women\u2019s World Cup, Olympics, Euro and continental championship.', matchPrefix: ['/international/women'] },
         ],
       },
     ],

@@ -30,9 +30,9 @@ import { INTL_GENDER, pct, ukDateTime, type IntlFixture } from './intlStats';
 export const INTL_RULES_CHECKED = '7 October 2026';
 
 export const INTL_TV_SOURCES = [
-  { label: 'ITV: England men 2024–28', url: 'https://www.itv.com/presscentre/node/21476' },
-  { label: 'ITV: Lionesses 2025–29', url: 'https://www.itv.com/presscentre/node/38791' },
-  { label: 'BBC: Scotland, Wales and Northern Ireland to 2028', url: 'https://www.advanced-television.com/2026/06/25/scotland-wales-northern-ireland-football-remains-fta-on-bbc/' },
+  { label: 'ITV (England men): 2024–28', url: 'https://www.itv.com/presscentre/node/21476' },
+  { label: 'ITV (Lionesses): 2025–29', url: 'https://www.itv.com/presscentre/node/38791' },
+  { label: 'BBC (Scotland, Wales, NI): Scotland, Wales and Northern Ireland to 2028', url: 'https://www.advanced-television.com/2026/06/25/scotland-wales-northern-ireland-football-remains-fta-on-bbc/' },
   { label: 'Prime Video: UEFA games pay-per-view', url: 'https://www.sportcal.com/media/amazon-to-offer-uefa-nations-league-matches-ppv-in-uk/' },
 ];
 

@@ -364,7 +364,7 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
     file: 'src/pages/international/IntlWomenHub.tsx',
     shared: [],
     status: 'sport-only',
-    note: 'The women’s side (Oct 2026): a short list of the same five pages under /international/women/..., which reuse the men’s pages with the women’s data (IntlGenderScope); every page has a Men | Women switch.',
+    note: 'The women’s side (Oct 2026): the same pages under /international/women/..., reusing the men’s pages with the women’s data (IntlGenderScope). Reached by the Men | Women switch on the hub and every page header (not a menu item); on the women’s side the menu links go to the women’s pages.',
   },
   {
     sport: 'tennis',

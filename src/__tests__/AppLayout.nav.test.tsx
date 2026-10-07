@@ -38,6 +38,7 @@ function renderAt(path: string) {
           <Route path="fpl/tactical-roles" element={<Stub />} />
           <Route path="results-data" element={<Stub />} />
           <Route path="source-data" element={<Stub />} />
+          <Route path="*" element={<Stub />} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -234,5 +235,17 @@ describe('AppLayout main nav', () => {
     mockedAuth.useAuthOptional.mockReturnValue({ isAdmin: true });
     renderAt('/');
     expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
+  });
+
+  it('International menu: no separate women’s item; on the women’s side the links go to the women’s pages', async () => {
+    renderAt('/international/teams');
+    await userEvent.click(screen.getByRole('button', { name: /^Intnl/ }));
+    expect(screen.queryByRole('link', { name: /Women/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Your Team' }).getAttribute('href')).toBe('/international/teams');
+    cleanup();
+    renderAt('/international/women/teams');
+    await userEvent.click(screen.getByRole('button', { name: /^Intnl/ }));
+    expect(screen.getByRole('link', { name: 'Your Team' }).getAttribute('href')).toBe('/international/women/teams');
+    expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('/international/women');
   });
 });
