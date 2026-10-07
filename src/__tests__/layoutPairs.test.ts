@@ -71,7 +71,22 @@ describe('sport layout pairs (tennis and later sports)', () => {
 // use the same sections in the same order, and wherever a page shares its name
 // with a Football or FPL page in the same section, the shared pages appear in
 // that menu's order. Sport-only pages may sit anywhere between them.
+// Pages that do the same job under a sport's own name (Chris, 7 Oct 2026:
+// "line up" the menus). They are held to the reference page's position.
+const SAME_JOB: Record<string, string> = {
+  'Your Player': 'Your Team',
+  Tournaments: 'League Table',
+};
+
 describe('menu order matches Football and FPL', () => {
+  // The first pages of Discover are the same everywhere they exist: Fixtures &
+  // Results, then the TV Guide straight after it.
+  it.each(Object.keys(THEMES) as (keyof typeof THEMES)[])('%s: TV Guide sits straight after Fixtures & Results', (k) => {
+    const labels = (THEMES[k].stages.find((s) => s.key === 'discover')?.links ?? []).map((l) => l.label);
+    if (labels.includes('Fixtures & Results')) expect(labels[0], `${k}: Fixtures & Results first`).toBe('Fixtures & Results');
+    if (labels.includes('TV Guide')) expect(labels.indexOf('TV Guide'), `${k}: TV Guide after Fixtures & Results`).toBe(labels.indexOf('Fixtures & Results') + 1);
+  });
+
   const REFERENCE = ['football', 'fpl'] as const;
   const others = (Object.keys(THEMES) as (keyof typeof THEMES)[]).filter((k) => !(REFERENCE as readonly string[]).includes(k));
   const sectionOrder = THEMES.football.stages.map((s) => s.key);
@@ -92,7 +107,7 @@ describe('menu order matches Football and FPL', () => {
           const refStage = THEMES[ref].stages.find((s) => s.key === stage.key);
           if (!refStage) continue;
           const refLabels = refStage.links.map((l) => l.label);
-          const shared = stage.links.map((l) => l.label).filter((l) => refLabels.includes(l));
+          const shared = stage.links.map((l) => SAME_JOB[l.label] ?? l.label).filter((l) => refLabels.includes(l));
           const expected = refLabels.filter((l) => shared.includes(l));
           expect(shared, `${k} ${stage.key}: pages shared with ${ref} must follow its order`).toEqual(expected);
         }

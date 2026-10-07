@@ -366,7 +366,7 @@ export function slamGrid(matches: TennisMatch[], playerId: number): SlamGrid {
     }
     void y;
   }
-  const years = Object.keys(cells).map(Number).sort((a, b) => a - b);
+  const years = Object.keys(cells).map(Number).sort((a, b) => b - a);
   return { years, cells, totals };
 }
 
@@ -384,7 +384,7 @@ export function surfaceGrid(matches: TennisMatch[], playerId: number): SurfaceGr
   }
   for (const row of Object.values(cells)) for (const c of Object.values(row)) if (c) c.pct = pct(c.won, c.lost);
   return {
-    years: Object.keys(cells).map(Number).sort((a, b) => a - b),
+    years: Object.keys(cells).map(Number).sort((a, b) => b - a),
     surfaces: SURFACES.filter((s) => seen.has(s)),
     cells,
   };

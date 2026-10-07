@@ -136,7 +136,7 @@ export default function TennisH2HPage({ initialData }: { initialData?: TennisH2H
 
   return (
     <article className="space-y-6">
-      <TennisHeader title={title} toggle={<TourToggle tour={tour} to={(t) => tennisH2HPath(t, ...DEFAULT_PAIR[t])} />}>
+      <TennisHeader title={title} crumb={{ to: '/tennis/predict', label: 'Predict' }} toggle={<TourToggle tour={tour} to={(t) => tennisH2HPath(t, ...DEFAULT_PAIR[t])} />}>
         <p className="text-ink-700 max-w-prose">Pick any two players for their record against each other and who our model makes favourite, on each surface.</p>
       </TennisHeader>
       <div className="flex flex-wrap items-end gap-4" data-testid="tennis-h2h-pickers">

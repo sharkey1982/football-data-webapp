@@ -226,7 +226,10 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
   // Player ~ Your Team, Past seasons; Chris, 6 Oct: "Fixtures & Results" not
   // "Results"). One page per section with an ATP/WTA toggle (Chris, 4 Oct).
   // Grand Slams has its own page (6 Oct) and a "Grand Slams only" filter on
-  // Fixtures & Results, Tournaments and Your Player.
+  // Fixtures & Results, Tournaments and Your Player. Menu order follows
+  // Football's (Chris, 7 Oct): Fixtures & Results, TV Guide, the competition
+  // pages (Tournaments ~ League Table), Your Player ~ Your Team, Past seasons;
+  // Head to Heads sits under Predict, as Football's does.
   tennis: {
     key: 'tennis',
     title: 'Tennis',
@@ -242,12 +245,21 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           'Everything that has happened at tour level: every result with the rankings and the pre-match favourite, each player\u2019s record and titles, and the story of every season.',
         links: [
           { label: 'Fixtures & Results', to: '/tennis/results', blurb: 'Every match day by day, with rankings and the upsets, and the tournaments coming up.' },
-          { label: 'Your Player', to: '/tennis/players', blurb: 'Any player\u2019s record by season, surface and level, their titles and best wins.', matchPrefix: ['/tennis/players'] },
-          { label: 'Grand Slams', to: '/tennis/grand-slams', blurb: 'The four majors together: the next Slam and its channel, champions by year and most Slam titles.' },
-          { label: 'Tournaments', to: '/tennis/tournaments', blurb: 'Every tournament\u2019s champions and records, and each year\u2019s draw with the road to the final.', matchPrefix: ['/tennis/tournaments'] },
-          { label: 'Head to head', to: '/tennis/head-to-head', blurb: 'Any two players: their record against each other and who our model makes favourite on each surface.' },
           { label: 'TV Guide', to: '/tennis/tv-guide', blurb: 'Which tournaments are on this week and next, and the UK channel for each.' },
+          { label: 'Tournaments', to: '/tennis/tournaments', blurb: 'Every tournament\u2019s champions and records, and each year\u2019s draw with the road to the final.', matchPrefix: ['/tennis/tournaments'] },
+          { label: 'Grand Slams', to: '/tennis/grand-slams', blurb: 'The four majors together: the next Slam and its channel, champions by year and most Slam titles.' },
+          { label: 'Your Player', to: '/tennis/players', blurb: 'Any player\u2019s record by season, surface and level, their titles and best wins.', matchPrefix: ['/tennis/players'] },
           { label: 'Past seasons', to: '/tennis/seasons', blurb: 'Grand Slam champions, title leaders and the title race for every season.', matchPrefix: ['/tennis/seasons'] },
+        ],
+      },
+      {
+        key: 'predict',
+        title: 'Predict',
+        tagline: 'Who wins, and why.',
+        intro:
+          'A surface-aware rating model for any two players, with its chance for each surface and its track record against the betting market.',
+        links: [
+          { label: 'Head to Heads', to: '/tennis/head-to-head', blurb: 'Any two players: their record against each other and who our model makes favourite on each surface.' },
         ],
       },
     ],
@@ -270,8 +282,8 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           'Everything that has happened in international football: every game since 1872 with the favourite on the day, each nation\u2019s record, rating and tournament history, and every World Cup, continental championship and Nations League round by round, with how it all changed since 1872.',
         links: [
           { label: 'Fixtures & Results', to: '/international/fixtures', blurb: 'Every international day by day: the upsets, and each coming game\u2019s chances and likeliest score; filter to one nation.', matchPrefix: ['/international/fixtures', '/international/matches'] },
-          { label: 'Your Team', to: '/international/teams', blurb: 'Any nation\u2019s current squad, record, rating, tournament history and head-to-heads.', matchPrefix: ['/international/teams'] },
           { label: 'Tournaments', to: '/international/tournaments', blurb: 'Every World Cup, Euro, Copa Am\u00e9rica, AFCON, Asian Cup, Gold Cup and Nations League: brackets, groups and the race for titles.', matchPrefix: ['/international/tournaments'] },
+          { label: 'Your Team', to: '/international/teams', blurb: 'Any nation\u2019s current squad, record, rating, tournament history and head-to-heads.', matchPrefix: ['/international/teams'] },
           { label: 'Club Call-ups', to: '/international/clubs', blurb: 'Which clubs and leagues supply the most internationals, how many of each squad play abroad, and how strong their clubs are.' },
           { label: 'Through Time', to: '/international/history', blurb: 'The world\u2019s top ten year by year since 1872, every world number one, and the biggest tournament upsets.' },
           { label: 'Women\u2019s internationals', to: '/international/women', blurb: 'The same pages for the women\u2019s game: every result since 1956, each nation\u2019s squad and rating, and every Women\u2019s World Cup, Olympics, Euro and continental championship.', matchPrefix: ['/international/women'] },

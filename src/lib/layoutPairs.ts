@@ -358,7 +358,7 @@ export const SPORT_LAYOUT_PAIRS: SportLayoutPair[] = [
   },
   {
     sport: 'tennis',
-    label: 'Head to head',
+    label: 'Head to Heads',
     path: '/tennis/head-to-head',
     footballFile: null,
     file: 'src/pages/tennis/TennisH2HPage.tsx',
