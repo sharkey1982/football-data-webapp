@@ -55,10 +55,16 @@ shared/training.js    decision records and scores (as blackjack)
 
 - `potodds.js`: a draw (from outs.js), a pot and a bet sized as a share of
   it; needed equity = call ÷ (pot + bet + call); a call's value = equity ×
-  (pot + bet) − (1 − equity) × call. The Shark has the better hand now, so
-  outs are clean; on the flop it is all in (one call sees both cards).
+  (pot + bet) − (1 − equity) × call. The Shark has the better hand now and
+  it is face up (a pair or two pair, none of your flush suit); your equity is
+  exact against it over every card to come, so outs that also help the Shark
+  don't count. On the flop it is all in (one call sees both cards).
+- Since 8 Oct 2026 (Chris: a 10-high one-card flush draw was called a must-call,
+  a bad habit): a flush draw with one card of the suit in your hand is dealt
+  only when it is the ace, in Outs and Pot odds alike; and the Shark's hand is
+  shown rather than assumed to leave the outs clean.
   Questions balanced between call and fold, with close calls.
-- `potui.js`: Call / Fold; the price, the rule of thumb, the exact chance
+- `potui.js`: Call / Fold; the Shark's hand; the price, the rule of thumb, the chance of making the hand and the exact chance against the Shark
   and the call's value in chips; severity from chips given away as a share of
   the call; Pot Odds Score and chips given away; report.
 
