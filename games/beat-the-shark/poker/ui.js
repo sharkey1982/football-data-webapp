@@ -6,8 +6,10 @@
    wrong, and either way the best five cards lit up with the hand in words.
    Scored with the shared training framework (Hand Score). Last line starts.
    =========================================================================== */
-const PK_MODE=(()=>{try{const m=new URLSearchParams(location.search||"").get("mode");return m||"hands"}catch(e){return"hands"}})();
-const PK_PICKER_ID={hands:"poker-hands",outs:"poker-outs",pot:"poker-pot",equity:"poker-equity",preflop:"poker-preflop",ranges:"poker-ranges",match:"poker-match",postflop:"poker-postflop",bluff:"poker-bluff",sizing:"poker-sizing",detective:"poker-detective"}[PK_MODE]||"poker-hands";
+/* No mode: the poker path (path.js), the list of every trainer. The games'
+   picker has one Poker entry; on a trainer's page it starts that trainer. */
+const PK_MODE=(()=>{try{const m=new URLSearchParams(location.search||"").get("mode");return m||"path"}catch(e){return"path"}})();
+const PK_PICKER_ID="poker";
 let Q=null;
 
 function pkCardHTML(c,cls){const red=c.s===1||c.s===2;
@@ -16,6 +18,7 @@ function pkCardHTML(c,cls){const red=c.s===1||c.s===2;
 function rowHTML(cards,best,shown){return cards.map(c=>pkCardHTML(c,shown&&best?(best.five.some(x=>sameCard(x,c))?"in":"out"):"")).join("")}
 
 function paintHeader(){
+  if(PK_MODE==="path")return paintPathHeader();
   if(PK_MODE==="outs")return paintOutsHeader();
   if(PK_MODE==="pot")return paintPotHeader();
   if(PK_MODE==="equity")return paintEquityHeader();
@@ -35,7 +38,9 @@ function paintHeader(){
 function screen(html){paintHeader();$("app").innerHTML=html}
 
 /* ---- start ------------------------------------------------------------------------- */
-function renderStart(){Q=null;renderGamePicker(PK_PICKER_ID,"../",PK_MODE==="outs"?renderOutsIntro:PK_MODE==="pot"?renderPotIntro:PK_MODE==="equity"?renderEquityIntro:PK_MODE==="preflop"?renderPreflopIntro:PK_MODE==="ranges"?renderRangesIntro:PK_MODE==="match"?renderMatchIntro:PK_MODE==="postflop"?renderPostflopIntro:PK_MODE==="bluff"?renderBluffIntro:PK_MODE==="sizing"?renderSizingIntro:PK_MODE==="detective"?renderDetectiveIntro:renderIntro)}
+function renderStart(){Q=null;
+  const f=$("foot");if(f&&PK_MODE!=="path")f.innerHTML=`<a href="./">← All the poker trainers</a>`;
+  renderGamePicker(PK_PICKER_ID,"../",PK_MODE==="path"?renderPath:PK_MODE==="outs"?renderOutsIntro:PK_MODE==="pot"?renderPotIntro:PK_MODE==="equity"?renderEquityIntro:PK_MODE==="preflop"?renderPreflopIntro:PK_MODE==="ranges"?renderRangesIntro:PK_MODE==="match"?renderMatchIntro:PK_MODE==="postflop"?renderPostflopIntro:PK_MODE==="bluff"?renderBluffIntro:PK_MODE==="sizing"?renderSizingIntro:PK_MODE==="detective"?renderDetectiveIntro:renderIntro)}
 const EXAMPLES=[[[14,0],[14,1],[14,2],[14,3],[13,0]],[[13,2],[13,3],[13,1],[9,0],[9,2]]];
 function renderIntro(){
   paintHeader();
@@ -114,6 +119,7 @@ const TRAP_NOTE={
 
 /* ---- the report ----------------------------------------------------------------- */
 function renderReport(){
+  pkMarkDone("hands");
   const S=summarise(Q.T,3);btsTrack("pk_hands_report",{answered:S.decisions,score:S.score==null?-1:S.score});
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
   screen(`<div class="card"><div class="datechip">HAND STRENGTH · ${S.decisions} ANSWERED</div>

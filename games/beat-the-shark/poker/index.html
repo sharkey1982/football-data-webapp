@@ -51,6 +51,10 @@
   .pfgrid span.in{background:var(--pitch);color:var(--onPitch)}
   .pfgrid span.me{outline:2.5px solid var(--amber);outline-offset:0;position:relative;z-index:1;font-weight:600}
   .pfkey{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--panel2);border:1px solid var(--line);vertical-align:-1px}.pfkey.in{background:var(--pitch);border-color:var(--pitch)}
+  .pathno{flex:0 0 30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;background:var(--panel);border:1.5px solid var(--line);color:var(--mute)}
+  .pathno.done{background:var(--good);border-color:var(--good);color:#fff}
+  .choice.primary .pathno{background:var(--onPitch);color:var(--pitch);border-color:var(--onPitch)}
+  .foot a{color:inherit}
 </style>
 </head>
 <body>
@@ -107,6 +111,7 @@
 <script src="sizingui.js?v=__V__"></script>
 <script src="detective.js?v=__V__"></script>
 <script src="detectiveui.js?v=__V__"></script>
+<script src="path.js?v=__V__"></script>
 <script src="ui.js?v=__V__"></script>
 </body>
 </html>

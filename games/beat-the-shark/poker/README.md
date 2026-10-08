@@ -7,8 +7,13 @@ against the Shark scored on results and decision quality separately
 Hand strength → Outs → Pot odds → Equity → Pre-flop → Ranges → Post-flop →
 the full trainer (heads-up hands, then a session report).
 
-One folder, one engine; each trainer is a mode (`?mode=`) with its own entry
-on the picker under Casino & probability. No money or chips in the trainers
+One folder, one engine; each trainer is a mode (`?mode=`). The games'
+picker has a single **Poker** entry (Casino & probability) that opens the
+**poker path** (`poker/` with no mode, path.js): every trainer in order,
+grouped (the cards / before the flop / after the flop / play the Shark),
+each ticked once you reach its report (`pkMarkDone`, this browser's
+localStorage; works without it), the first unticked one marked next. Each
+trainer's footer links back to the path. Hand strength is `?mode=hands`. No money or chips in the trainers
 until the full game, which will use fictional chips as the blackjack trainer
 does.
 
