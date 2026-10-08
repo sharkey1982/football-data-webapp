@@ -208,7 +208,14 @@ async function main() {
   const lowEvidence = all.filter(isLowEvidence);
   console.log(`${rows.length} rows, ${all.length} players, ${dupes} second fixtures, ${lowEvidence.length} low-evidence`);
 
-  const byName = (n: string) => { const p = all.find((q) => q.name === n); if (!p) throw new Error(`No player ${n}`); return p; };
+  // By FPL id, not name: two players share "Palmer" (Chelsea's midfielder
+  // and a £4.0m goalkeeper) -- found 8 Oct 2026.
+  const IDS: Record<string, number> = { Haaland: 411, Saka: 12, 'B.Fernandes': 426, Palmer: 154, Isak: 379, Tavernier: 68, Mbeumo: 427 };
+  const byName = (n: string) => {
+    const p = players.get(IDS[n]);
+    if (!p || p.name !== n) throw new Error(`Player ${n} (id ${IDS[n]}) not found or renamed`);
+    return p;
+  };
   const haaland = byName('Haaland');
   const named = ['Haaland', 'Saka', 'B.Fernandes', 'Palmer', 'Isak', 'Tavernier', 'Mbeumo'].map(byName);
 
