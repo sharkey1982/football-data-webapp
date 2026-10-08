@@ -70,6 +70,7 @@ function sizingFeedback(){
       <p class="lt">${why}${typeNote}</p>${table}${gap}</div></div>`;
 }
 function renderSizingReport(){
+  pkMarkDone("sizing");
   const S=summarise(SZ.T,3);btsTrack("pk_sz_report",{answered:S.decisions,score:S.score==null?-1:S.score});
   paintSizingHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);

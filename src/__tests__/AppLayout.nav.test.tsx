@@ -261,16 +261,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Blackjack: basic strategy' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
     expect(screen.getByRole('link', { name: "Blackjack: what's the count?" })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=count');
     expect(screen.getByRole('link', { name: 'Blackjack: beat the house' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=house');
-    expect(screen.getByRole('link', { name: 'Poker: hand strength' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
-    expect(screen.getByRole('link', { name: 'Poker: outs & draws' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=outs');
-    expect(screen.getByRole('link', { name: 'Poker: pot odds' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=pot');
-    expect(screen.getByRole('link', { name: 'Poker: equity' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=equity');
-    expect(screen.getByRole('link', { name: 'Poker: pre-flop' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=preflop');
-    expect(screen.getByRole('link', { name: 'Poker: ranges' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=ranges');
-    expect(screen.getByRole('link', { name: 'Poker: post-flop' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=postflop');
-    expect(screen.getByRole('link', { name: 'Poker: bluff or value?' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=bluff');
-    expect(screen.getByRole('link', { name: 'Poker: bet sizing' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=sizing');
-    expect(screen.getByRole('link', { name: 'Poker: range detective' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=detective');
+    expect(screen.getByRole('link', { name: 'Poker: all the trainers' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
     expect(screen.getByRole('link', { name: 'Poker: heads-up v the Shark' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=match');
   });
 });

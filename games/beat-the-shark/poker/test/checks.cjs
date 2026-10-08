@@ -67,7 +67,7 @@ function makeWorld(search){
 let W;
 try{W=makeWorld();check("scripts load in order, as a browser loads them",true,W.srcs.join(" → "))}
 catch(e){check("scripts load in order, as a browser loads them",false,e.message);process.exit(1)}
-check("the picker offers the poker trainer under Casino & probability",/data-game="poker-hands"/.test(W.els.app.innerHTML)&&/CASINO/.test(W.els.app.innerHTML));
+check("the picker offers the poker trainer under Casino & probability",/data-game="poker"/.test(W.els.app.innerHTML)&&/CASINO/.test(W.els.app.innerHTML));
 {const h=fs.readFileSync(path.join(DIR,'index.html'),'utf8'),miss=[];
  for(const m of h.matchAll(/<(?:script src|link rel="stylesheet" href)="([^"]+)"/g))if(!/^https?:/.test(m[1])&&!/\?v=__V__$/.test(m[1]))miss.push(m[1]);
  check("every script and stylesheet is versioned for each deploy (?v=__V__)",!miss.length,miss.join(", "))}
@@ -157,7 +157,7 @@ const run=c=>E.run(c);
 {
   const fails=[];const seen=new Set();
   for(const part of["name","who"]){
-    const w=makeWorld();w.run('pickSport("poker-hands")');w.els.playThis.onclick();w.drain();
+    const w=makeWorld("?mode=hands");w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();
     if(!/THE HANDS, BEST FIRST/.test(w.els.app.innerHTML))fails.push("no intro");
     w.run(`R.s=hashSeed("SCR-${part}")`);
     const cards=w.els.cards;cards.children[part==="name"?0:1].onclick();w.els.pickGo.onclick();
@@ -213,8 +213,8 @@ const run=c=>E.run(c);
     JSON.stringify(r.outsByKind.set)==="[2]"&&JSON.stringify(r.outsByKind.boat)==="[4]"&&JSON.stringify(r.outsByKind.overs)==="[6]"&&r.outsByKind.combo.every(n=>n>=12&&n<=15),JSON.stringify(r.outsByKind));
   // screens
   const fails=[];
-  {const w=makeWorld("?mode=outs");if(!/data-game="poker-outs"/.test(w.els.app.innerHTML))fails.push("picker lacks outs");
-   w.run('pickSport("poker-outs")');w.els.playThis.onclick();w.drain();
+  {const w=makeWorld("?mode=outs");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks outs");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();
    if(!/RULE OF 4 AND 2/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no outs intro");
    w.run('R.s=hashSeed("OUTSCR")');w.els.go.onclick();const seen=new Set();let nq=0;
    for(let k=0;k<20;k++){const h=w.els.app.innerHTML;
@@ -262,8 +262,8 @@ const run=c=>E.run(c);
   check("questions: the answer follows the value of calling; calls and folds balanced; some close ones",!r.bad.length&&r.call>35&&r.fold>35&&r.close>=5,
     `${r.call} call, ${r.fold} fold, ${r.close} close ${r.bad.join(",")}`);
   const fails=[];
-  {const w=makeWorld("?mode=pot");if(!/data-game="poker-pot"/.test(w.els.app.innerHTML))fails.push("picker lacks pot odds");
-   w.run('pickSport("poker-pot")');w.els.playThis.onclick();w.drain();if(!/THE SUM/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no pot intro");
+  {const w=makeWorld("?mode=pot");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks pot odds");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/THE SUM/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no pot intro");
    w.run('R.s=hashSeed("POTSCR")');w.els.go.onclick();const seen=new Set();let nq=0;
    for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -323,8 +323,8 @@ const run=c=>E.run(c);
     Object.entries(fv).map(([k,v])=>`${k} ${(v*100).toFixed(0)}`).join(", "));
   check("bands: within 5 points Close, 5–10 Some way off, over 10 Well off",run(`[eqBand(0).id,eqBand(-5).id,eqBand(5.1).id,eqBand(-10).id,eqBand(10.5).id,eqBand(60).id].join()`)==="close,close,off,off,far,far");
   const fails=[];
-  {const w=makeWorld("?mode=equity");if(!/data-game="poker-equity"/.test(w.els.app.innerHTML))fails.push("picker lacks equity");
-   w.run('pickSport("poker-equity")');w.els.playThis.onclick();w.drain();if(!/RULES OF THUMB/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no equity intro");
+  {const w=makeWorld("?mode=equity");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks equity");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/RULES OF THUMB/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no equity intro");
    w.run('R.s=hashSeed("EQSCR")');w.els.go.onclick();const seen=new Set();let nq=0;
    for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -377,8 +377,8 @@ const run=c=>E.run(c);
   check("questions: the answer follows the value; both seats get both answers; some close ones; the cards are the hand named",
     !r.bad.length&&r.seen["sb:shove"]>20&&r.seen["sb:fold"]>20&&r.seen["bb:call"]>20&&r.seen["bb:fold"]>20&&r.seen.close>=3,JSON.stringify(r.seen)+" "+r.bad.join(","));
   const fails=[];
-  {const w=makeWorld("?mode=preflop");if(!/data-game="poker-preflop"/.test(w.els.app.innerHTML))fails.push("picker lacks pre-flop");
-   w.run('pickSport("poker-preflop")');w.els.playThis.onclick();w.drain();if(!/Shove or fold\?/.test(w.els.app.innerHTML))fails.push("no pre-flop intro");
+  {const w=makeWorld("?mode=preflop");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks pre-flop");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/Shove or fold\?/.test(w.els.app.innerHTML))fails.push("no pre-flop intro");
    w.run('R.s=hashSeed("PFSCR")');w.run('newPreflop("sb");nextPreflop()');const seen=new Set();let nq=0;
    for(let k=0;k<40;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -427,8 +427,8 @@ const run=c=>E.run(c);
     sim.every(([,,a,b])=>Math.abs(a-b)<.025),sim.map(([n,S,a,b])=>`${n}@${S}: ${(b*100).toFixed(1)} v sim ${(a*100).toFixed(1)}`).join(", "));
   check("what calling a shove needs: (S − 1) ÷ 2S, so 45% at 10 big blinds, 37.5% at 4",Math.abs(run("rgNeeded(10)")-.45)<1e-12&&Math.abs(run("rgNeeded(4)")-.375)<1e-12);
   const fails=[];
-  {const w=makeWorld("?mode=ranges");if(!/data-game="poker-ranges"/.test(w.els.app.innerHTML))fails.push("picker lacks ranges");
-   w.run('pickSport("poker-ranges")');w.els.playThis.onclick();w.drain();if(!/COUNTING COMBOS/.test(w.els.app.innerHTML))fails.push("no ranges intro");
+  {const w=makeWorld("?mode=ranges");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks ranges");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/COUNTING COMBOS/.test(w.els.app.innerHTML))fails.push("no ranges intro");
    w.run('R.s=hashSeed("RGSCR")');w.run('newRanges("combos");nextRanges()');const seen=new Set();let nq=0;
    for(let k=0;k<40;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -473,8 +473,8 @@ const run=c=>E.run(c);
   check("luck averages out: over 300 matches the cards' gift (result − expected) is within 3 standard errors of zero",
     Math.abs(P.best.luckMean)<3*P.best.luckSE+1,`${P.best.luckMean.toFixed(1)} ± ${P.best.luckSE.toFixed(1)} chips a match`);
   const fails=[];let msg=false;
-  {const w=makeWorld("?mode=match");if(!/data-game="poker-match"/.test(w.els.app.innerHTML))fails.push("picker lacks the match");
-   w.run('pickSport("poker-match")');w.els.playThis.onclick();w.drain();if(!/Start playing/.test(w.els.app.innerHTML))fails.push("no match intro");
+  {const w=makeWorld("?mode=match");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks the match");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/Start playing/.test(w.els.app.innerHTML))fails.push("no match intro");
    for(let game=0;game<6&&!(msg&&game>=2);game++){
      w.run(`R.s=hashSeed("MTSCR${game}")`);w.run(game===0?'newMatchGame();nextMatchHand()':'nextGame()');let n=0,ended=false;
      for(let k=0;k<1200;k++){const h=w.els.app.innerHTML;
@@ -518,8 +518,8 @@ const run=c=>E.run(c);
   check("post-flop questions: no visible card in the range; only pre-flop hands; every combo in its class; honest never bluffs, the others bluff their share; equity recomputed; the answer follows the value",
     !r.bad.length&&r.seen.call>=4&&r.seen.fold>=4&&Object.keys(r.types).length===3,JSON.stringify(r.seen)+" "+JSON.stringify(r.types)+" "+r.bad.join(","));
   const fails=[];
-  {const w=makeWorld("?mode=postflop");if(!/data-game="poker-postflop"/.test(w.els.app.innerHTML))fails.push("picker lacks post-flop");
-   w.run('pickSport("poker-postflop")');w.els.playThis.onclick();w.drain();if(!/THE SHARK'S RANGE/.test(w.els.app.innerHTML))fails.push("no post-flop intro");
+  {const w=makeWorld("?mode=postflop");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks post-flop");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/THE SHARK'S RANGE/.test(w.els.app.innerHTML))fails.push("no post-flop intro");
    w.run('R.s=hashSeed("POSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
    for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -554,8 +554,8 @@ const run=c=>E.run(c);
     !r.bad.length&&Object.keys(r.types).length===5&&(r.ans.call||0)>=5&&(r.ans.fold||0)>=5,JSON.stringify(r.types)+" "+JSON.stringify(r.ans)+" "+r.bad.join(","));
   check("a balanced Shark makes calling break even: within 1.5% of the call (rounding to whole combos)",r.bal.length>=3&&r.bal.every(x=>Math.abs(x)<.015),r.bal.map(x=>(x*100).toFixed(1)+"%").join(", "));
   const fails=[];
-  {const w=makeWorld("?mode=bluff");if(!/data-game="poker-bluff"/.test(w.els.app.innerHTML))fails.push("picker lacks bluff");
-   w.run('pickSport("poker-bluff")');w.els.playThis.onclick();w.drain();if(!/Catch the bluff/.test(w.els.app.innerHTML))fails.push("no intro");
+  {const w=makeWorld("?mode=bluff");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks bluff");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/Catch the bluff/.test(w.els.app.innerHTML))fails.push("no intro");
    w.run('R.s=hashSeed("BLSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
    for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -591,8 +591,8 @@ const run=c=>E.run(c);
   check("sizing questions: the range never holds a visible card; every option's value recounted; the best is the highest; at least four different best answers, checks among them",
     !r.bad.length&&Object.keys(r.best).length>=4&&r.best.check>=1,JSON.stringify(r.best)+" "+r.bad.join(","));
   const fails=[];
-  {const w=makeWorld("?mode=sizing");if(!/data-game="poker-sizing"/.test(w.els.app.innerHTML))fails.push("picker lacks sizing");
-   w.run('pickSport("poker-sizing")');w.els.playThis.onclick();w.drain();if(!/THE SHARK'S RULE/.test(w.els.app.innerHTML))fails.push("no intro");
+  {const w=makeWorld("?mode=sizing");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks sizing");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/THE SHARK'S RULE/.test(w.els.app.innerHTML))fails.push("no intro");
    w.run('R.s=hashSeed("SZSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
    for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -629,8 +629,8 @@ const run=c=>E.run(c);
     !r.bad.length&&r.seen>=5,r.seen+" style/size pairs "+r.bad.join(","));
   check("the size changes the answer: the same hand calls one size and folds the other in a good share of deals",r.flips>=8,`${r.flips} of 36`);
   const fails=[];
-  {const w=makeWorld("?mode=detective");if(!/data-game="poker-detective"/.test(w.els.app.innerHTML))fails.push("picker lacks detective");
-   w.run('pickSport("poker-detective")');w.els.playThis.onclick();w.drain();if(!/Read the bet/.test(w.els.app.innerHTML))fails.push("no intro");
+  {const w=makeWorld("?mode=detective");if(!/data-game="poker"/.test(w.els.app.innerHTML))fails.push("picker lacks detective");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();if(!/Read the bet/.test(w.els.app.innerHTML))fails.push("no intro");
    w.run('R.s=hashSeed("DTSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
    for(let k=0;k<40;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
@@ -643,6 +643,27 @@ const run=c=>E.run(c);
      fails.push("stuck");break}
    for(const x of["read-right","read-wrong","call-right","report"])if(!seen.has(x))fails.push("never saw "+x)}
   check("Range detective through the real screens: the stated strategy, read the bet with counts, call or fold, the other size, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 15. the poker path ------------------------------------------------------------ */
+{
+  const fails=[];
+  {const w=makeWorld();const h=w.els.app.innerHTML;
+   if((h.match(/data-game="poker"/g)||[]).length!==1||/data-game="poker-/.test(h))fails.push("the picker should offer Poker once");
+   w.run('pickSport("poker")');w.els.playThis.onclick();w.drain();const p=w.els.app.innerHTML;
+   const modes=[...p.matchAll(/href="\?mode=([a-z]+)#play"/g)].map(m=>m[1]);
+   if(modes.join()!=="hands,outs,pot,equity,preflop,ranges,postflop,bluff,sizing,detective,match")fails.push("path order: "+modes.join());
+   if(!/· next/.test(p)||(p.match(/· next/g)||[]).length!==1)fails.push("one 'next'");
+   for(const m of modes){if(!w.run(`typeof ${{hands:"renderIntro",outs:"renderOutsIntro",pot:"renderPotIntro",equity:"renderEquityIntro",preflop:"renderPreflopIntro",ranges:"renderRangesIntro",postflop:"renderPostflopIntro",bluff:"renderBluffIntro",sizing:"renderSizingIntro",detective:"renderDetectiveIntro",match:"renderMatchIntro"}[m]}`)==="function")fails.push("no intro for "+m)}}
+  /* ticks: with storage, reaching a report marks the trainer done and moves 'next' on */
+  {const w=makeWorld("?mode=outs");
+   w.run(`(()=>{const m={};localStorage={getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v)}};})()`);
+   w.run('pkMarkDone("hands");pkMarkDone("outs");pkMarkDone("outs")');const d=w.run("JSON.stringify([...pkDoneSet()])");
+   if(d!=='["hands","outs"]')fails.push("ticks "+d);
+   w.run("renderPath()");const p=w.els.app.innerHTML;if((p.match(/pathno done/g)||[]).length!==2||!/Pot odds · next/.test(p))fails.push("ticked path wrong");
+   if(!/2<span class="sub">OF 11 DONE/.test(w.els.hScore.innerHTML))fails.push("header count")}
+  {const w=makeWorld("?mode=pot");if(!/All the poker trainers/.test(w.els.foot.innerHTML))fails.push("no way back to the path")}
+  check("the poker path: Poker once on the picker; every trainer in order with its intro; one 'next'; ticks kept and counted; each trainer links back",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

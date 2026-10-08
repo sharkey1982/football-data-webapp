@@ -72,6 +72,7 @@ function potFeedback(){
 }
 const a2=x=>x==="call"?"Calling":"Folding";
 function renderPotReport(){
+  pkMarkDone("pot");
   const S=summarise(PO.T,3);btsTrack("pk_pot_report",{answered:S.decisions,score:S.score==null?-1:S.score});
   paintPotHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);

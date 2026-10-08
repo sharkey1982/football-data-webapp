@@ -90,6 +90,7 @@ function rangesFeedback(){
     :`<div class="lesson sev-${r.severity}" role="alert"><div class="band">✗ ${Math.abs(err).toFixed(1)} POINTS ${err>0?"TOO HIGH":"TOO LOW"}</div><div class="lb">${call}</div></div>`;
 }
 function renderRangesReport(){
+  pkMarkDone("ranges");
   const S=summarise(RG.T,3);btsTrack("pk_rg_report",{answered:S.decisions,score:S.score==null?-1:S.score});
   paintRangesHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);

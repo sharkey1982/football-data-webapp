@@ -75,6 +75,7 @@ function bluffFeedback(){
       <p class="lt">${why}</p>${table}<p class="lc">${r.chosen==="call"?"Calling":"Folding"} gives away about ${chips(q.ev)} chips on average here.</p></div></div><p class="small">${who}</p>`;
 }
 function renderBluffReport(){
+  pkMarkDone("bluff");
   const S=summarise(BL.T,3);btsTrack("pk_bl_report",{answered:S.decisions,score:S.score==null?-1:S.score});
   paintBluffHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);

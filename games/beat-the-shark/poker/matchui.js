@@ -107,6 +107,7 @@ function matchResultHTML(){
     <p class="lt">${headline}</p>${table}</div></div>`;
 }
 function renderGameEnd(){
+  pkMarkDone("match");
   const M=MT.M;if(!M.counted){M.counted=true;MT.games.push(M.winner)}
   const sc=mtScore(),youWon=M.winner==="you",ds=MT.T.decisions.slice(MT.gameStart),ok=ds.filter(d=>d.optimal).length;
   btsTrack("pk_match_game",{won:youWon?1:0,hands:M.hand});paintMatchHeader();

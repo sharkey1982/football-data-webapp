@@ -76,6 +76,7 @@ function postflopFeedback(){
       <p class="lt">${why}${typeNote}</p>${table}<p class="lc">${r.chosen==="call"?"Calling":"Folding"} gives away about ${chips(q.ev)} chips on average here.</p></div></div>`;
 }
 function renderPostflopReport(){
+  pkMarkDone("postflop");
   const S=summarise(PO2.T,3);btsTrack("pk_po_report",{answered:S.decisions,score:S.score==null?-1:S.score});
   paintPostflopHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
