@@ -36,6 +36,8 @@
     12. BLUFF       river bluff-catching: value beats you, bluffs lose to you;
                     the balanced Shark makes calling break even; answers
                     follow the value; the screens
+    13. SIZING      the calling rule; every option's value recounted; the
+                    nuts bets biggest; answers vary; the screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -563,6 +565,44 @@ const run=c=>E.run(c);
      fails.push("stuck");break}
    for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
   check("Bluff or value through the real screens: the range counted, the type hidden until you answer, the bluffs v the price, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 13. bet sizing ---------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{const o={};o.calls=[szCalls(300,"balanced",600,300),szCalls(300,"balanced",600,600),szCalls(300,"tight",600,600),szCalls(300,"sticky",600,200)];
+    R.s=hashSeed("SZQ");const bad=[],best={},nuts=[];
+    for(let k=0;k<40;k++){const q=sizingQuestion();best[q.best.id]=(best[q.best.id]||0)+1;
+      const n=q.range.length,vis=q.hole.concat(q.board),me=eval7(vis);
+      if(q.range.some(x=>x.h.some(c=>vis.some(v=>sameCard(v,c)))||!poPreflop(x.h)))bad.push("range");
+      if(q.range.some(x=>x.res!==(x.s>me?-1:x.s<me?1:0)))bad.push("result");
+      for(const v of q.vals){let tot=0;
+        if(!v.f){for(const x of q.range)tot+=x.res>0?q.pot:x.res===0?q.pot/2:0}
+        else{const c=Math.min(n,Math.round(n*Math.min(1,PO_TYPES&&SZ_TYPES[q.type].f*q.pot/(q.pot+v.bet))));
+          q.range.forEach((x,i)=>{tot+=i<c?(x.res>0?q.pot+v.bet:x.res===0?q.pot/2:-v.bet):q.pot})}
+        if(Math.abs(tot/n-v.value)>1e-9)bad.push("value "+v.id)}
+      if(q.vals.some(v=>v.value>q.best.value))bad.push("best");
+      if(q.beats===1)nuts.push(q.best.id)}
+    o.bad=[...new Set(bad)];o.best=best;o.nuts=nuts;return JSON.stringify(o)})()`));
+  check("the calling rule: balanced calls 2/3 of 300 hands facing a half-pot bet and 1/2 facing a pot bet; tight 70% of that; sticky more",
+    r.calls.join()==="200,150,105,293",r.calls.join());
+  check("sizing questions: the range never holds a visible card; every option's value recounted; the best is the highest; at least four different best answers, checks among them",
+    !r.bad.length&&Object.keys(r.best).length>=4&&r.best.check>=1,JSON.stringify(r.best)+" "+r.bad.join(","));
+  const fails=[];
+  {const w=makeWorld("?mode=sizing");if(!/data-game="poker-sizing"/.test(w.els.app.innerHTML))fails.push("picker lacks sizing");
+   w.run('pickSport("poker-sizing")');w.els.playThis.onclick();w.drain();if(!/THE SHARK'S RULE/.test(w.els.app.innerHTML))fails.push("no intro");
+   w.run('R.s=hashSeed("SZSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
+   for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="sz-check"/.test(h)){nq++;const best=w.run("SZ.q.best.id"),a=nq%2?best:(best==="check"?"big":"check");w.els["sz-"+a].onclick();const r2=w.els.app.innerHTML;
+       seen.add(w.run("SZ.rec.optimal")?"right":"wrong");if(!/← you/.test(r2)||(r2.match(/<tr/g)||[]).length<7)fails.push("options table missing");continue}
+     if(nq>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/SIZING SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();w.drain();continue}
+     fails.push("stuck");break}
+   for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Bet sizing through the real screens: six options, every one's value shown, report",!fails.length,fails.slice(0,3).join(" | "));
+  {const nb=JSON.parse(run(`(()=>{const nuts=Array.from({length:300},()=>({res:1})),half=Array.from({length:300},(_,i)=>({res:i<150?-1:1}));
+     return JSON.stringify(Object.keys(SZ_TYPES).map(t=>[szValues(nuts,t,600).reduce((a,b)=>b.value>a.value?b:a).id,szValues(half,t,600).reduce((a,b)=>b.value>a.value?b:a).id]))})()`));
+   check("a hand that beats the whole range bets biggest against every type; one that loses to the top half of the range checks",nb.every(([a,b])=>a==="big"&&b==="check"),JSON.stringify(nb))}
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

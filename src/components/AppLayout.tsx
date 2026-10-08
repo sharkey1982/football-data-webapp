@@ -280,6 +280,7 @@ export default function AppLayout() {
           { to: `${BEAT_THE_SHARK.poker.href}?mode=ranges`, label: 'Poker: ranges', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=ranges`, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=postflop`, label: 'Poker: post-flop', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=postflop`, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=bluff`, label: 'Poker: bluff or value?', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=bluff`, external: true },
+          { to: `${BEAT_THE_SHARK.poker.href}?mode=sizing`, label: 'Poker: bet sizing', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=sizing`, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=match`, label: 'Poker: heads-up v the Shark', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=match`, external: true },
         ],
       },
