@@ -88,7 +88,7 @@ function renderEquityReport(){
     <table class="tbl" style="margin-top:10px"><tbody>${groups.map(([g,o])=>`<tr><td>${g}</td><td class="n">${o.ok} of ${o.n}</td></tr>`).join("")}</tbody></table>
     ${S.leak?`<div class="outcome" style="border-left-color:var(--bad);margin-top:10px"><b>To work on: ${S.leak.group}</b> · ${S.leak.ok} of ${S.leak.n} close.</div>`:""}
     ${hi+lo>=3&&Math.max(hi,lo)>=2*Math.min(hi,lo)?`<p class="small" style="margin-top:8px">Your misses lean <b>${hi>lo?"too high":"too low"}</b>: ${hi>lo?"you rate your hand better than it is.":"your hand is stronger than you think."}</p>`:""}
-    <p class="small" style="margin-top:8px">Next in the poker trainers: pre-flop, where you decide which hands to play at all.</p>
+    <p class="small" style="margin-top:8px">Next: pre-flop, heads-up shove or fold against the Shark.</p>
     ${button("next","Keep going","",true)}</div>`;
   $("next").onclick=nextEquity;
 }
