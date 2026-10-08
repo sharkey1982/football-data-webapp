@@ -30,6 +30,9 @@
                     end; the best play wins more than folding or shoving
                     everything; luck averages out; the screens, with "You won
                     the pot. The Shark says it was a bad ..."
+    11. POST-FLOP   ranges by class on known hands; no seen card in a range;
+                    the types' mixes; equity against the range recomputed;
+                    answers follow the value; the screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -482,6 +485,45 @@ const run=c=>E.run(c);
    const chk=w.run("MT.M.you+MT.M.shark");if(chk!==2000)fails.push("chips "+chk);
    const g=w.run("MT.games.length"),d=w.run("MT.T.decisions.length");if(g<2)fails.push("games not counted");if(d<5)fails.push("decisions not kept across games")}
   check("the match through the real screens: hands, the Shark's verdict on each decision, 'You won the pot. The Shark says it was a bad ...', games counted, the session report with skill and luck apart",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 11. post-flop ---------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{const C=(r,s)=>({r,s}),o={};
+    const b1=[C(13,0),C(7,2),C(2,3)],b2=[C(13,0),C(7,0),C(2,2)],b3=[C(13,0),C(7,2),C(4,3)];
+    o.cls=[poClassify([C(14,1),C(13,2)],b1),poClassify([C(7,0),C(7,1)],b1),poClassify([C(12,0),C(12,1)],b1),poClassify([C(14,0),C(14,1)],b1),
+      poClassify([C(9,0),C(8,0)],b2),poClassify([C(6,1),C(5,1)],b3),poClassify([C(12,1),C(11,2)],b1),poClassify([C(7,0),C(3,1)],b1)];
+    R.s=hashSeed("POQ");const bad=[],seen={},types={},kinds={};
+    for(let k=0;k<24;k++){const q=postflopQuestion();types[q.type]=(types[q.type]||0)+1;kinds[q.kind.k]=1;seen[q.answer]=(seen[q.answer]||0)+1;if(q.close)seen.close=(seen.close||0)+1;
+      const vis=q.hole.concat(q.board),all=[...q.range.value,...q.range.draw,...q.range.bluff];
+      if(all.some(h=>h.some(c=>vis.some(v=>sameCard(v,c)))))bad.push("seen card in range");
+      if(all.some(h=>!poPreflop(h)))bad.push("outside the pre-flop range");
+      for(const k2 of["value","draw","bluff"])if(q.range[k2].some(h=>poClassify(h,q.board)!==k2))bad.push("class "+k2);
+      if(q.type==="honest"&&q.range.bluff.length)bad.push("honest bluffs");
+      if(q.type!=="honest"&&Math.abs(q.range.bluff.length-Math.round(q.range.value.length*PO_TYPES[q.type].bluffs))>0)bad.push("bluff count");
+      if(!poYourHandOK(q.kind.k,q.hole,q.board))bad.push("your hand");
+      if(k<3){let s=0;for(const h of all)s+=equity(q.hole,h,q.board).eq;if(Math.abs(s/all.length-q.eq.all)>1e-9)bad.push("equity")}
+      if(Math.abs(q.ev-(q.eq.all*(q.pot+q.bet)-(1-q.eq.all)*q.bet))>1e-6||(q.ev>0)!==(q.answer==="call"))bad.push("answer")}
+    o.bad=[...new Set(bad)];o.seen=seen;o.types=types;o.kinds=Object.keys(kinds).length;return JSON.stringify(o)})()`));
+  check("the range's classes: ace-king on K-7-2 is value (top pair), sevens a set, queens a weak pair (out), aces value, nine-eight of the suit a flush draw, six-five a straight draw, queen-jack a bluff, seven-three a weak pair",
+    r.cls.join()==="value,value,weak,value,draw,draw,bluff,weak",r.cls.join());
+  check("post-flop questions: no visible card in the range; only pre-flop hands; every combo in its class; honest never bluffs, the others bluff their share; equity recomputed; the answer follows the value",
+    !r.bad.length&&r.seen.call>=4&&r.seen.fold>=4&&Object.keys(r.types).length===3,JSON.stringify(r.seen)+" "+JSON.stringify(r.types)+" "+r.bad.join(","));
+  const fails=[];
+  {const w=makeWorld("?mode=postflop");if(!/data-game="poker-postflop"/.test(w.els.app.innerHTML))fails.push("picker lacks post-flop");
+   w.run('pickSport("poker-postflop")');w.els.playThis.onclick();w.drain();if(!/THE SHARK'S RANGE/.test(w.els.app.innerHTML))fails.push("no post-flop intro");
+   w.run('R.s=hashSeed("POSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
+   for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="po-call"/.test(h)){nq++;if(!/Value<\/b> · \d+ way/.test(h))fails.push("range not shown");
+       const right=w.run("PO2.q.answer"),a=nq%2?right:(right==="call"?"fold":"call");w.els["po-"+a].onclick();const r2=w.els.app.innerHTML;
+       seen.add(a===right?"right":"wrong");if(!/against the whole range/.test(r2)||!/you \d+%/.test(r2))fails.push("equity by part missing");
+       if(a!==right&&!w.run("PO2.q.close")&&!/role="alert"/.test(r2))fails.push("wrong without band");continue}
+     if(nq>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/POST-FLOP SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();w.drain();continue}
+     fails.push("stuck");break}
+   for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Post-flop through the real screens: the range by part, call/fold judged, equity against each part and the whole, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
