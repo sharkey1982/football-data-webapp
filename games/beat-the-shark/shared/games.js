@@ -29,6 +29,7 @@ const BTS_GAMES=[
   {id:"poker-ranges",group:"casino",name:"Poker: ranges",mission:"What could the Shark have?",path:"poker/?mode=ranges"},
   {id:"poker-postflop",group:"casino",name:"Poker: post-flop",mission:"Call or fold v a range",path:"poker/?mode=postflop"},
   {id:"poker-bluff",group:"casino",name:"Poker: bluff or value?",mission:"Catch the bluff",path:"poker/?mode=bluff"},
+  {id:"poker-sizing",group:"casino",name:"Poker: bet sizing",mission:"Bet the right amount",path:"poker/?mode=sizing"},
   {id:"poker-match",group:"casino",name:"Poker: heads-up v the Shark",mission:"Short stacks: a match",path:"poker/?mode=match"}
 ];
 /* Two groups on one screen (Chris, 7 Oct 2026: casino games to come), as

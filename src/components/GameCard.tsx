@@ -51,7 +51,7 @@ export const BEAT_THE_SHARK = {
   poker: {
     href: '/play/beat-the-shark/poker/',
     title: 'Beat the Shark: Poker',
-    blurb: "Texas hold'em trainers, one idea at a time: name the hand, who wins, outs, pot odds, equity, pre-flop, ranges, post-flop and bluff or value, then a heads-up match against the Shark.",
+    blurb: "Texas hold'em trainers, one idea at a time: name the hand, who wins, outs, pot odds, equity, pre-flop, ranges, post-flop, bluff or value and bet sizing, then a heads-up match against the Shark.",
     kicker: 'Train · any length',
   },
 } satisfies Record<string, BeatTheSharkGame>;

@@ -24,6 +24,7 @@ poker/ranges.js, rangesui.js   Ranges: counting combos; your equity against the 
 poker/match.js, matchui.js     Heads-up v the Shark: a short-stack match, decisions and luck scored apart
 poker/postflop.js, postflopui.js Post-flop: call or fold against the Shark's range, shown by part
 poker/bluff.js, bluffui.js     Bluff or value?: catch the bluff on the river against a counted range
+poker/sizing.js, sizingui.js   Bet sizing: check or bet how much on the river, against a stated calling rule
 poker/ui.js           screens; its last line starts the game
 poker/test/checks.cjs evaluator against every five-card hand and the hold'em frequencies; questions; screens
 shared/trainer.css    cards, feedback bands and report tiles shared with the blackjack trainer
@@ -160,6 +161,19 @@ shared/training.js    decision records and scores (as blackjack)
 - Feedback: bluff share against the price, the call's value in chips, the
   type, and how many bluffs a balanced Shark would have had.
 
+## Bet sizing (live, `?mode=sizing`)
+
+- The river, your turn, a hand worth thinking about betting (a straight or
+  better, two pair or a set, top pair with a jack-or-better kicker, second
+  pair) on an unpaired board. Check, ⅓, ½, ¾, pot or 1½ pots.
+- The Shark's range: its pre-flop hands that can still be dealt, strongest
+  first. Its stated rule: facing a bet it calls with its best pot ÷ (pot +
+  bet) of them (balanced; tight 0.7×, sticky 1.3×); facing a check it
+  checks. Each option's value exact in chips counting the pot; within 2% of
+  the pot of the best is right.
+- Feedback: every option's value, how often the Shark calls it and how often
+  you win when it does, and why. Report: too small or too big.
+
 ## Heads-up v the Shark (live, `?mode=match`)
 
 - A session of games against the Shark: 1,000 chips each, blinds 25/50
@@ -228,3 +242,7 @@ node games/beat-the-shark/poker/test/checks.cjs
   lose, ties tie; no visible card; pre-flop hands only; each type bluffs its
   share; a balanced Shark's call within 1.5% of break-even; the type hidden
   until you answer; the screens.
+- Bet sizing: the calling rule (2/3 of hands v half pot, 1/2 v pot); every
+  option's value recounted; a hand that beats the whole range bets biggest
+  and one that loses to the top half checks, against every type; the
+  screens.
