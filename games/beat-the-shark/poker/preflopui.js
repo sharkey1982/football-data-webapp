@@ -95,7 +95,7 @@ function renderPreflopReport(){
     <table class="tbl" style="margin-top:10px"><tbody>${groups.map(([g,o])=>`<tr><td>${g}</td><td class="n">${o.ok} of ${o.n}</td></tr>`).join("")}</tbody></table>
     ${S.leak?`<div class="outcome" style="border-left-color:var(--bad);margin-top:10px"><b>To work on: ${S.leak.group}</b> · ${S.leak.ok} of ${S.leak.n} right.</div>`:""}
     ${ds.length>=3&&tight!==loose?`<p class="small" style="margin-top:8px">Your mistakes lean <b>${tight>loose?"too tight":"too loose"}</b>: ${tight>loose?"you fold hands worth playing. Short-stacked, the blinds are worth fighting for.":"you play hands that lose money against the Shark's range."}</p>`:""}
-    <p class="small" style="margin-top:8px">Next in the poker trainers: ranges, reading which hands the Shark can have.</p>
+    <p class="small" style="margin-top:8px">Next: ranges, counting the ways the Shark can hold a hand and playing against all of them.</p>
     ${button("next","Keep going","",true)}${button("switch",PF.role==="sb"?"Switch to the big blind":"Switch to the small blind","")}</div>`;
   $("next").onclick=nextPreflop;$("switch").onclick=()=>{PF.role=PF.role==="sb"?"bb":"sb";nextPreflop()};
 }

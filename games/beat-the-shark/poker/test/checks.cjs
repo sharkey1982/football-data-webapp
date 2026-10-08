@@ -23,6 +23,9 @@
      8. PRE-FLOP    the push/fold equilibrium against HoldemResources'
                     published heads-up table; the values; the questions; the
                     screens for both seats
+     9. RANGES      combos by the textbook (16 / 12 / 4 / 6, blockers);
+                    every question's count recounted by brute force; equity
+                    against the Shark's range against a simulation; screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -379,6 +382,54 @@ const run=c=>E.run(c);
    for(const x of["sb-right","sb-wrong","bb-right","bb-wrong","report"])if(!seen.has(x))fails.push("never saw "+x);
    if(!(w.run("PF.lost")>0))fails.push("wrong answers should give big blinds away")}
   check("Pre-flop through the real screens: both seats, shove/call/fold judged in big blinds, the chart line and the 13×13 range with your hand, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 9. ranges -------------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{const C=(r,s)=>({r,s}),cnt=(seen,t)=>rgCombos(seen,t).length,o={};
+    const AK=(a,b)=>(a.r===14&&b.r===13)||(a.r===13&&b.r===14),S=(a,b)=>a.s===b.s,mine=[C(14,0),C(13,2)];
+    o.fresh=[cnt([],AK),cnt([],(a,b)=>AK(a,b)&&S(a,b)),cnt([],(a,b)=>AK(a,b)&&!S(a,b)),cnt([],(a,b)=>a.r===13&&b.r===13)];
+    o.block=[cnt(mine,AK),cnt(mine,(a,b)=>AK(a,b)&&S(a,b)),cnt(mine,(a,b)=>AK(a,b)&&!S(a,b)),cnt(mine,(a,b)=>a.r===13&&b.r===13),cnt(mine,(a,b)=>a.r===14&&b.r===14)];
+    const flop=[C(13,0),C(7,2),C(2,3)],mono=[C(13,1),C(7,1),C(2,1)];
+    o.sets=cnt(flop,(a,b)=>a.r===b.r&&[13,7,2].includes(a.r));o.flush=cnt(mono,(a,b)=>a.s===1&&b.s===1);
+    R.s=hashSeed("RGQ");const bad=[],kinds={};
+    for(let k=0;k<200;k++){const q=comboQuestion();kinds[q.t.kind]=(kinds[q.t.kind]||0)+1;const seen=q.hole.concat(q.board);let n=0;
+      const d=pkDeck();for(let i=0;i<52;i++)for(let j=i+1;j<52;j++){if(seen.some(c=>sameCard(c,d[i])||sameCard(c,d[j])))continue;if(q.t.test(d[i],d[j]))n++}
+      if(n!==q.answer)bad.push(q.t.kind+" count");
+      if(/undefined|NaN/.test(q.t.sum+q.t.ask))bad.push("text");if(q.fresh<q.answer)bad.push("fresh")}
+    o.kinds=kinds;o.bad=[...new Set(bad)];return JSON.stringify(o)})()`));
+  check("combos by the textbook: ace-king 16 ways (4 suited, 12 offsuit), kings 6; holding A♠ K♥: ace-king 9 (2 suited, 7 offsuit), kings 3, aces 3; sets on K-7-2 9; a flush on a one-suit flop 45",
+    r.fresh.join()==="16,4,12,6"&&r.block.join()==="9,2,7,3,3"&&r.sets===9&&r.flush===45,`${r.fresh} | ${r.block} | ${r.sets} ${r.flush}`);
+  check("combo questions: every kind comes up; every count recounted over all 1,326 two-card hands",Object.keys(r.kinds).length===7&&!r.bad.length,JSON.stringify(r.kinds)+" "+r.bad.join(","));
+  /* Equity against the shoving range, from the solved values, against a simulation: deal the
+     Shark random hands, keep those its equilibrium shoves, run the board out. */
+  const sim=JSON.parse(run(`(()=>{R.s=hashSeed("RGSIM");const out=[];
+    for(const [name,S] of [["Q9o",10],["22",8],["A5s",15],["K7o",5]]){const i=pfIndex(name),me=pfDeal(name);let w=0,n=0;
+      while(n<6000){const d=shuffle(unseenCards(me)),sh=d.slice(0,2);if(!pfPlays("sb",S,pfIndex(pfNameOf(sh))))continue;
+        const bd=d.slice(2,7),x=eval7(me.concat(bd)),y=eval7(sh.concat(bd));w+=x>y?1:x===y?.5:0;n++}
+      out.push([name,S,w/n,rgRangeEquity(S,i)])}return JSON.stringify(out)})()`));
+  check("equity against the Shark's shoving range (from the solved values) agrees with a simulation within 2.5 points",
+    sim.every(([,,a,b])=>Math.abs(a-b)<.025),sim.map(([n,S,a,b])=>`${n}@${S}: ${(b*100).toFixed(1)} v sim ${(a*100).toFixed(1)}`).join(", "));
+  check("what calling a shove needs: (S − 1) ÷ 2S, so 45% at 10 big blinds, 37.5% at 4",Math.abs(run("rgNeeded(10)")-.45)<1e-12&&Math.abs(run("rgNeeded(4)")-.375)<1e-12);
+  const fails=[];
+  {const w=makeWorld("?mode=ranges");if(!/data-game="poker-ranges"/.test(w.els.app.innerHTML))fails.push("picker lacks ranges");
+   w.run('pickSport("poker-ranges")');w.els.playThis.onclick();w.drain();if(!/COUNTING COMBOS/.test(w.els.app.innerHTML))fails.push("no ranges intro");
+   w.run('R.s=hashSeed("RGSCR")');w.run('newRanges("combos");nextRanges()');const seen=new Set();let nq=0;
+   for(let k=0;k<40;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="lock"/.test(h)){nq++;const part=w.run("RG.part"),step=part==="combos"?1:5,start=w.run("RG.v");
+       const truth=part==="combos"?w.run("RG.q.answer"):w.run("RG.q.eq*100"),target=nq%2?truth:truth+(part==="combos"?3:20),steps=Math.round((Math.min(part==="combos"?60:100,target)-start)/step);
+       for(let i=0;i<Math.abs(steps);i++)w.els[steps>0?"rg-p":"rg-m"].onclick();
+       w.els.lock.onclick();const r2=w.els.app.innerHTML,ok=w.run("RG.rec.optimal");seen.add(part+(ok?"-right":"-wrong"));
+       if(part==="range"&&(!/Calling needs/.test(r2)||(r2.match(/ me">/g)||[]).length!==1))fails.push("range answer incomplete");
+       if(part==="combos"&&!/Here: /.test(r2))fails.push("no sum");
+       if(!ok&&!/role="alert"/.test(r2))fails.push("wrong without band");
+       if(nq===8)w.els.switch.onclick();continue}
+     if(nq>12&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/RANGE SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+     fails.push("stuck");break}
+   for(const x of["combos-right","combos-wrong","range-right","range-wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Ranges through the real screens: combos counted with the sum, equity against a range with the grid and what calling needs, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
