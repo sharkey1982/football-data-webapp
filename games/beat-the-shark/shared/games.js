@@ -25,7 +25,8 @@ const BTS_GAMES=[
   {id:"poker-outs",group:"casino",name:"Poker: outs & draws",mission:"Count your outs",path:"poker/?mode=outs"},
   {id:"poker-pot",group:"casino",name:"Poker: pot odds",mission:"Call or fold at the price",path:"poker/?mode=pot"},
   {id:"poker-equity",group:"casino",name:"Poker: equity",mission:"Estimate your chance",path:"poker/?mode=equity"},
-  {id:"poker-preflop",group:"casino",name:"Poker: pre-flop",mission:"Shove or fold",path:"poker/?mode=preflop"}
+  {id:"poker-preflop",group:"casino",name:"Poker: pre-flop",mission:"Shove or fold",path:"poker/?mode=preflop"},
+  {id:"poker-ranges",group:"casino",name:"Poker: ranges",mission:"What could the Shark have?",path:"poker/?mode=ranges"}
 ];
 /* Two groups on one screen (Chris, 7 Oct 2026: casino games to come), as
    headings rather than a sub-menu, so every game is still two taps away. */
