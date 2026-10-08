@@ -119,8 +119,8 @@ const TRAP_NOTE={
 
 /* ---- the report ----------------------------------------------------------------- */
 function renderReport(){
-  pkMarkDone("hands");
   const S=summarise(Q.T,3);btsTrack("pk_hands_report",{answered:S.decisions,score:S.score==null?-1:S.score});
+  pkRecord("hands",S);
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
   screen(`<div class="card"><div class="datechip">HAND STRENGTH · ${S.decisions} ANSWERED</div>
     <div class="twin"><div class="tile"><div class="k">HAND SCORE</div><div class="big">${S.score}<small>/100</small></div><div class="s">Answers right</div></div>

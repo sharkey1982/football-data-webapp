@@ -85,8 +85,8 @@ function dtCallFeedback(){
       <p class="lt">${why}</p>${table}<p class="lc">${r.chosen==="call"?"Calling":"Folding"} gives away about ${chips(q.ev)} chips on average.</p></div></div>${contrast}`;
 }
 function renderDetectiveReport(){
-  pkMarkDone("detective");
   const S=summarise(DT.T,3);btsTrack("pk_dt_report",{answered:S.decisions,score:S.score==null?-1:S.score});
+  pkRecord("detective",S);
   paintDetectiveHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
   $("app").innerHTML=`<div class="card"><div class="datechip">RANGE DETECTIVE · ${DT.n} HANDS</div>

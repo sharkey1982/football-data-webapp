@@ -78,8 +78,8 @@ function equityFeedback(){
       <p class="lt">Your share here is <b>${pc1(q.eq)}</b>.</p>${table}<p class="lw">${q.match.name}. ${q.match.thumb}</p></div></div>`;
 }
 function renderEquityReport(){
-  pkMarkDone("equity");
   const S=summarise(EQ.T,3),av=eqAvg();btsTrack("pk_eq_report",{answered:S.decisions,score:S.score==null?-1:S.score});
+  pkRecord("equity",S);
   paintEquityHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
   const hi=EQ.errs.filter(e=>e>5).length,lo=EQ.errs.filter(e=>e<-5).length;

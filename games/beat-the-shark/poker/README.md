@@ -12,7 +12,11 @@ picker has a single **Poker** entry (Casino & probability) that opens the
 **poker path** (`poker/` with no mode, path.js): every trainer in order,
 grouped (the cards / before the flop / after the flop / play the Shark),
 each ticked once you reach its report (`pkMarkDone`, this browser's
-localStorage; works without it), the first unticked one marked next. Each
+localStorage; works without it), the first unticked one marked next.
+**Report card** on the path: each trainer's best and latest score
+(`pkRecord`, from any report of 5+ answers, key `bts-poker-scores`), the
+average of best scores, the strongest, and a "work on" link to the weakest
+when it's under 80; "Clear them" resets ticks and scores. Each
 trainer's footer links back to the path. Hand strength is `?mode=hands`. No money or chips in the trainers
 until the full game, which will use fictional chips as the blackjack trainer
 does.

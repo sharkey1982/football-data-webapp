@@ -663,7 +663,16 @@ const run=c=>E.run(c);
    w.run("renderPath()");const p=w.els.app.innerHTML;if((p.match(/pathno done/g)||[]).length!==2||!/Pot odds · next/.test(p))fails.push("ticked path wrong");
    if(!/2<span class="sub">OF 11 DONE/.test(w.els.hScore.innerHTML))fails.push("header count")}
   {const w=makeWorld("?mode=pot");if(!/All the poker trainers/.test(w.els.foot.innerHTML))fails.push("no way back to the path")}
-  check("the poker path: Poker once on the picker; every trainer in order with its intro; one 'next'; ticks kept and counted; each trainer links back",!fails.length,fails.slice(0,3).join(" | "));
+  /* the report card: a real report records best and last; small reports only tick */
+  {const w=makeWorld("?mode=pot");w.run(`(()=>{const m={};localStorage={getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v)},removeItem:k=>{delete m[k]}};})()`);
+   w.run('pkRecord("pot",{score:70,decisions:12});pkRecord("pot",{score:90,decisions:10});pkRecord("pot",{score:60,decisions:12});pkRecord("outs",{score:40,decisions:3});pkRecord("equity",{score:55,decisions:8})');
+   const sc=JSON.parse(w.run("JSON.stringify(pkScores())"));
+   if(!sc.pot||sc.pot.best!==90||sc.pot.last!==60||sc.outs||!w.run('pkDoneSet().has("outs")'))fails.push("scores "+JSON.stringify(sc));
+   w.run("renderPath()");const p=w.els.app.innerHTML;
+   if(!/YOUR REPORT CARD/.test(p)||!/AVERAGE BEST<\/div><div class="big">73/.test(p)||!/Work on: Equity/.test(p)||!/last 60/.test(p))fails.push("report card wrong: "+p.replace(/<[^>]+>/g," ").replace(/\s+/g," ").slice(0,160));
+   if(/function pkCardHTML\(c/.test(w.run("String(pkCardHTML)"))===false)fails.push("card renderer overwritten");
+   w.run("pkClear();renderPath()");if(/YOUR REPORT CARD/.test(w.els.app.innerHTML)||/pathno done/.test(w.els.app.innerHTML))fails.push("clear")}
+  check("the poker path: Poker once on the picker; every trainer in order with its intro; one 'next'; ticks kept and counted; each trainer links back; the report card (best and last, average, what to work on, clear)",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

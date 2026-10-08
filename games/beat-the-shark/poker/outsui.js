@@ -92,8 +92,8 @@ function chanceFeedback(){
     :`<div class="lesson sev-mistake" role="alert" style="margin-top:10px"><div class="band">✗ ABOUT ${pc(q.exact)}, NOT ${r.chosen}%</div><div class="lb">${table}${note}</div></div>`;
 }
 function renderOutsReport(){
-  pkMarkDone("outs");
   const S=summarise(O.T,3);btsTrack("pk_outs_report",{answered:S.decisions,score:S.score==null?-1:S.score});
+  pkRecord("outs",S);
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
   paintOutsHeader();
   $("app").innerHTML=`<div class="card"><div class="datechip">OUTS & DRAWS · ${O.n} DRAWS</div>
