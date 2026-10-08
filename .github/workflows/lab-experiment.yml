@@ -40,6 +40,12 @@ name: Model Lab
 #   ownership-weighted field (chance of a top-1% week); and set-and-forget
 #   2025/26 (how many fixed XIs came within 1/2/3/5% of the best). Writes
 #   analysis_results.
+#
+# analysis_captain_partnerships: one-off analysis for the "one captain or
+#   two?" article (changes nothing on the site). Rotation gain for every
+#   possible second captain alongside Haaland, and exact squad solves
+#   (forced-in pairs, budget curve) on the live projections, GW from-to.
+#   Writes analysis_results (captain_partnerships).
 
 on:
   workflow_dispatch:
@@ -47,7 +53,7 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance]
+        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships]
         default: f1
       open_holdout:
         description: "f1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
@@ -117,3 +123,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/analysis_squad_variance.py --part both
+      - uses: actions/setup-node@v4
+        if: inputs.job == 'analysis_captain_partnerships'
+        with:
+          node-version: '22'
+      - name: Captain partnerships analysis
+        if: inputs.job == 'analysis_captain_partnerships'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          npm install --no-save --no-audit --no-fund
+          npx tsx scripts/analysis_captain_partnerships.ts --from 6 --to 15
