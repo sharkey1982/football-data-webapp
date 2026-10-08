@@ -20,6 +20,9 @@
                     and ace-king suited v queens over all 1,712,304 boards
                     against the published figures; flop and turn counted
                     exactly; the matchups clean; the screens
+     8. PRE-FLOP    the push/fold equilibrium against HoldemResources'
+                    published heads-up table; the values; the questions; the
+                    screens for both seats
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -311,6 +314,61 @@ const run=c=>E.run(c);
      fails.push("stuck");break}
    for(const x of["close","far","report"])if(!seen.has(x))fails.push("never saw "+x)}
   check("Equity through the real screens: the stepper, Lock in, close and far judged, the exact share and the rule of thumb, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 8. pre-flop: heads-up push/fold ---------------------------------------------- */
+{
+  /* HoldemResources, heads-up Nash push/fold, no ante (holdemresources.net/hune):
+     the largest stack (bb) each hand is shoved / called with; 20 = "20+". */
+  const PUB_SHOVE={"72o":1.6,"32o":1.4,"K2o":11.6,"Q2o":7.0,"J2o":4.6,"T2o":2.9,"92o":2.2,"82o":1.8,"63o":1.7,"T5o":4.1,"J5o":6.0,"K2s":19.3,"Q2s":12.7,"22":20,"A2o":20,"54s":20};
+  const PUB_CALL={"A2o":15.8,"K2o":8.1,"Q2o":5.6,"22":15.0,"K9o":17.1,"Q9o":11.7,"J9o":9.5,"T9o":8.4};
+  const r=JSON.parse(run(`(()=>{const o={},I=n=>PF_HANDS.indexOf(n);
+    o.n=PF_HANDS.length;o.combos=PF_HANDS.reduce((a,n)=>a+pfCombos(n),0);o.stacks=Object.keys(PF_EV).map(Number);
+    o.shove=${JSON.stringify(Object.keys(PUB_SHOVE))}.map(n=>Math.min(20,PF_SHOVE_TO[I(n)]));
+    o.call=${JSON.stringify(Object.keys(PUB_CALL))}.map(n=>Math.min(20,PF_CALL_TO[I(n)]));
+    o.aa=o.stacks.every(S=>pfPlays("sb",S,I("AA"))&&pfPlays("bb",S,I("AA")));
+    o.shares=o.stacks.map(S=>[PF_EV[S].shoveShare,PF_EV[S].callShare]);
+    o.grid=new Set();for(let r=0;r<13;r++)for(let c=0;c<13;c++)o.grid.add(pfGridName(r,c));o.grid=[...o.grid].filter(n=>I(n)>=0).length;
+    o.names=[pfNameOf([{r:14,s:0},{r:13,s:0}]),pfNameOf([{r:7,s:1},{r:2,s:3}]),pfNameOf([{r:9,s:1},{r:9,s:3}]),pfNameOf([{r:2,s:1},{r:7,s:3}])];
+    o.cons=0;o.tot=0;for(const S of o.stacks)for(let i=0;i<169;i++){o.tot++;if((S<=PF_SHOVE_TO[i])===pfPlays("sb",S,i))o.cons++}
+    R.s=hashSeed("PFQ");const bad=[],seen={};
+    for(let k=0;k<300;k++){const role=k%2?"bb":"sb",q=pfQuestion(role);seen[role+":"+q.answer]=(seen[role+":"+q.answer]||0)+1;if(q.close)seen.close=(seen.close||0)+1;
+      if(pfNameOf(q.cards)!==q.name)bad.push("cards "+q.name);if((q.gain>0)!==(q.answer!=="fold"))bad.push("answer");
+      if(q.S<2||q.S>20)bad.push("stack");if(Math.abs(q.foldV-(role==="sb"?-.5:-1))>1e-12)bad.push("fold value")}
+    o.bad=[...new Set(bad)];o.seen=seen;return JSON.stringify(o)})()`));
+  check("pre-flop data: the 169 hands make all 1,326 combos; the 13×13 grid names each once; stacks 2–20; hands named from cards",
+    r.n===169&&r.combos===1326&&r.grid===169&&r.stacks.length===19&&r.stacks[0]===2&&r.names.join()==="AKs,72o,99,72o",r.names.join());
+  const dS=Object.keys(PUB_SHOVE).map((n,k)=>[n,r.shove[k]-PUB_SHOVE[n]]),dC=Object.keys(PUB_CALL).map((n,k)=>[n,r.call[k]-PUB_CALL[n]]);
+  const worst=dS.concat(dC).reduce((a,b)=>Math.abs(b[1])>Math.abs(a[1])?b:a);
+  check("the equilibrium matches HoldemResources' published heads-up table: 24 thresholds, each within 0.35 bb (K2o shoved to 11.6, K9o called to 17.1...)",
+    Math.abs(worst[1])<=.35,dS.concat(dC).map(([n,d])=>`${n} ${d>=0?"+":""}${d.toFixed(1)}`).join(" "));
+  check("aces are shoved and called at every stack; the deeper the stacks, the fewer hands shoved and called",
+    r.aa&&r.shares[0][0]>r.shares[18][0]&&r.shares[0][1]>r.shares[18][1]&&r.shares[0][0]>.9&&r.shares[18][0]<.7,
+    `shove ${(r.shares[0][0]*100).toFixed(0)}% at 2 bb → ${(r.shares[18][0]*100).toFixed(0)}% at 20; call ${(r.shares[0][1]*100).toFixed(0)}% → ${(r.shares[18][1]*100).toFixed(0)}%`);
+  check("the chart's thresholds agree with the values at the game's stacks (99%+ of hand-stack pairs; the rest are the equilibrium's small gaps)",r.cons/r.tot>=.99,`${r.cons} of ${r.tot}`);
+  check("questions: the answer follows the value; both seats get both answers; some close ones; the cards are the hand named",
+    !r.bad.length&&r.seen["sb:shove"]>20&&r.seen["sb:fold"]>20&&r.seen["bb:call"]>20&&r.seen["bb:fold"]>20&&r.seen.close>=3,JSON.stringify(r.seen)+" "+r.bad.join(","));
+  const fails=[];
+  {const w=makeWorld("?mode=preflop");if(!/data-game="poker-preflop"/.test(w.els.app.innerHTML))fails.push("picker lacks pre-flop");
+   w.run('pickSport("poker-preflop")');w.els.playThis.onclick();w.drain();if(!/Shove or fold\?/.test(w.els.app.innerHTML))fails.push("no pre-flop intro");
+   w.run('R.s=hashSeed("PFSCR")');w.run('newPreflop("sb");nextPreflop()');const seen=new Set();let nq=0;
+   for(let k=0;k<40;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="pf-play"/.test(h)){nq++;const right=w.run("PF.q.answer"),role=w.run("PF.q.role"),play=role==="sb"?"shove":"call",close=w.run("PF.q.close");
+       const a=nq%3?right:(right==="fold"?play:"fold");w.els[a==="fold"?"pf-fold":"pf-play"].onclick();const r2=w.els.app.innerHTML;
+       seen.add(role+(a===right?"-right":"-wrong"));
+       if((r2.match(/<span class="(in)?( me)?">/g)||[]).length!==169)fails.push("grid not 169 cells");
+       if((r2.match(/ me">/g)||[]).length!==1)fails.push("your hand not marked once");
+       if(!/Folding<\/td>/.test(r2)||!/better by/.test(r2))fails.push("values missing");
+       if(a!==right&&!close&&!/role="alert"/.test(r2))fails.push("wrong without band");
+       if(nq===8){w.els.switch.onclick();continue}
+       continue}
+     if(nq>12&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/PRE-FLOP SCORE/.test(w.els.app.innerHTML)||!/GIVEN AWAY/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+     fails.push("stuck");break}
+   for(const x of["sb-right","sb-wrong","bb-right","bb-wrong","report"])if(!seen.has(x))fails.push("never saw "+x);
+   if(!(w.run("PF.lost")>0))fails.push("wrong answers should give big blinds away")}
+  check("Pre-flop through the real screens: both seats, shove/call/fold judged in big blinds, the chart line and the 13×13 range with your hand, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

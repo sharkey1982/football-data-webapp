@@ -7,7 +7,7 @@
    Scored with the shared training framework (Hand Score). Last line starts.
    =========================================================================== */
 const PK_MODE=(()=>{try{const m=new URLSearchParams(location.search||"").get("mode");return m||"hands"}catch(e){return"hands"}})();
-const PK_PICKER_ID={hands:"poker-hands",outs:"poker-outs",pot:"poker-pot",equity:"poker-equity"}[PK_MODE]||"poker-hands";
+const PK_PICKER_ID={hands:"poker-hands",outs:"poker-outs",pot:"poker-pot",equity:"poker-equity",preflop:"poker-preflop"}[PK_MODE]||"poker-hands";
 let Q=null;
 
 function pkCardHTML(c,cls){const red=c.s===1||c.s===2;
@@ -19,6 +19,7 @@ function paintHeader(){
   if(PK_MODE==="outs")return paintOutsHeader();
   if(PK_MODE==="pot")return paintPotHeader();
   if(PK_MODE==="equity")return paintEquityHeader();
+  if(PK_MODE==="preflop")return paintPreflopHeader();
   const T=Q&&Q.T,sc=T?sharkScore(T):null,n=T?T.decisions.length:0,ok=T?T.decisions.filter(d=>d.optimal).length:0;
   $("hScore").innerHTML=`${sc==null?"—":sc}<span class="sub">HAND SCORE</span>`;
   $("hTwo").innerHTML=`<div class="two"><div class="k">Right</div><div class="v">${ok} / ${n}</div></div>
@@ -28,7 +29,7 @@ function paintHeader(){
 function screen(html){paintHeader();$("app").innerHTML=html}
 
 /* ---- start ------------------------------------------------------------------------- */
-function renderStart(){Q=null;renderGamePicker(PK_PICKER_ID,"../",PK_MODE==="outs"?renderOutsIntro:PK_MODE==="pot"?renderPotIntro:PK_MODE==="equity"?renderEquityIntro:renderIntro)}
+function renderStart(){Q=null;renderGamePicker(PK_PICKER_ID,"../",PK_MODE==="outs"?renderOutsIntro:PK_MODE==="pot"?renderPotIntro:PK_MODE==="equity"?renderEquityIntro:PK_MODE==="preflop"?renderPreflopIntro:renderIntro)}
 const EXAMPLES=[[[14,0],[14,1],[14,2],[14,3],[13,0]],[[13,2],[13,3],[13,1],[9,0],[9,2]]];
 function renderIntro(){
   paintHeader();

@@ -46,6 +46,11 @@
   .stepper .sl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mute);width:62px;text-transform:uppercase}
   .stepper .sb{width:56px;height:56px;border-radius:12px;border:0;background:var(--pitch);color:var(--onPitch);font-size:30px;line-height:1;touch-action:manipulation}
   .stepper .sv{font-family:var(--disp);font-size:40px;min-width:100px;text-align:center}
+  .pfgrid{display:grid;grid-template-columns:repeat(13,1fr);gap:1.5px;margin-top:4px}
+  .pfgrid span{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8.5px;letter-spacing:-.04em;background:var(--panel2);color:var(--mute);border-radius:2px}
+  .pfgrid span.in{background:var(--pitch);color:var(--onPitch)}
+  .pfgrid span.me{outline:2.5px solid var(--amber);outline-offset:0;position:relative;z-index:1;font-weight:600}
+  .pfkey{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--panel2);border:1px solid var(--line);vertical-align:-1px}.pfkey.in{background:var(--pitch);border-color:var(--pitch)}
 </style>
 </head>
 <body>
@@ -67,7 +72,8 @@
     <p>Beat the Shark's poker trainers teach Texas hold'em one idea at a time, starting with reading hands (your best five
       cards from seven, and which of two hands wins) and counting outs (the cards that make your hand, and the chance of
       getting one). Every deal is chosen to teach. No money or chips are involved. Then pot odds: whether the price is right to call;
-      and equity: both hands face up, how often each wins. Coming next: pre-flop and post-flop decisions.</p>
+      equity: both hands face up, how often each wins; and pre-flop: heads-up shove or fold against the equilibrium.
+      Coming next: ranges and post-flop decisions.</p>
     <p><a href="https://fixtureshark.com/play/beat-the-shark/">Beat the Shark</a> · <a href="https://fixtureshark.com/">Back to FixtureShark</a></p>
   </footer>
 </div>
@@ -83,6 +89,9 @@
 <script src="potui.js?v=__V__"></script>
 <script src="equity.js?v=__V__"></script>
 <script src="equityui.js?v=__V__"></script>
+<script src="pushfold-data.js?v=__V__"></script>
+<script src="preflop.js?v=__V__"></script>
+<script src="preflopui.js?v=__V__"></script>
 <script src="ui.js?v=__V__"></script>
 </body>
 </html>
