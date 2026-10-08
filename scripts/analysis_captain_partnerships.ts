@@ -257,31 +257,49 @@ async function main() {
   // A fresh solver per solve: one HiGHS (wasm) instance aborts after about
   // a dozen large solves (seen on the first run, 8 Oct 2026).
   const solve = async (include: number[], exclude: number[], budget: number) => {
-    const highs = await highsLoader();
     const t0 = Date.now();
     const lp = buildLp(all, weeks, budget, new Set(include), new Set(exclude));
-    const res: any = highs.solve(lp, { time_limit: 240, mip_rel_gap: 1e-6 } as any);
+    // Exact first; a hard instance can exhaust the wasm build's memory
+    // ("Aborted()", the no-Haaland squad on 8 Oct 2026), so retry with a
+    // 0.01% optimality gap and record which tolerance was used.
+    let res: any = null, gap = 1e-6;
+    for (const g of [1e-6, 1e-4, 1e-3]) {
+      try { res = (await highsLoader()).solve(lp, { time_limit: 240, mip_rel_gap: g } as any); gap = g; break; }
+      catch (e) { console.log(`solve aborted at gap ${g}: ${String(e).slice(0, 80)}`); }
+    }
+    if (!res) throw new Error('Solver aborted at every tolerance');
     const ids = new Set(all.filter((_p, i) => Math.round(res.Columns[`x_${i}`]?.Primal ?? 0) === 1).map((p) => p.id));
     const squad = all.filter((p) => ids.has(p.id));
     if (squad.length !== 15) throw new Error(`Solve gave ${squad.length} players (${res.Status})`);
     const bad = Object.values(squad.reduce((m: Record<number, number>, p) => ({ ...m, [p.teamId]: (m[p.teamId] ?? 0) + 1 }), {})).some((n) => n > 3);
     if (bad) throw new Error('Club limit violated');
-    return { status: res.Status, objective: +(res.ObjectiveValue ?? 0).toFixed(2), seconds: +((Date.now() - t0) / 1000).toFixed(1), ...describeSquad(squad, weeks) };
+    return { status: res.Status, mip_rel_gap: gap, objective: +(res.ObjectiveValue ?? 0).toFixed(2), seconds: +((Date.now() - t0) / 1000).toFixed(1), ...describeSquad(squad, weeks) };
   };
   const squads: any[] = [];
   for (const sc of scenarios) {
     for (const variant of ['published', 'evidence'] as const) {
       const exclude = variant === 'evidence' ? [...sc.exclude, ...lowIds.filter((id) => !sc.include.includes(id))] : sc.exclude;
-      const r = await solve(sc.include, exclude, 100);
-      console.log(`${sc.key}/${variant}: ${r.total} (${r.status}, ${r.seconds}s)`);
-      squads.push({ key: sc.key, label: sc.label, variant, ...r });
+      try {
+        const r = await solve(sc.include, exclude, 100);
+        console.log(`${sc.key}/${variant}: ${r.total} (${r.status}, gap ${r.mip_rel_gap}, ${r.seconds}s)`);
+        squads.push({ key: sc.key, label: sc.label, variant, ...r });
+      } catch (e) {
+        console.log(`${sc.key}/${variant}: FAILED ${String(e).slice(0, 120)}`);
+        squads.push({ key: sc.key, label: sc.label, variant, failed: String(e).slice(0, 200) });
+      }
     }
   }
   const budgetCurve: any[] = [];
   for (const b of [95, 97.5, 100, 102.5, 105]) {
-    const r = await solve([], lowIds, b);
-    console.log(`budget ${b}: ${r.total}`);
-    budgetCurve.push({ budget: b, total: r.total, captain_points: r.captain_points, cost: r.cost, status: r.status });
+    try {
+      const r = await solve([], lowIds, b);
+      console.log(`budget ${b}: ${r.total} (gap ${r.mip_rel_gap})`);
+      budgetCurve.push({ budget: b, total: r.total, captain_points: r.captain_points, cost: r.cost, status: r.status, mip_rel_gap: r.mip_rel_gap,
+        premiums: r.squad.filter((p) => p.price >= 9).map((p) => p.name) });
+    } catch (e) {
+      console.log(`budget ${b}: FAILED`);
+      budgetCurve.push({ budget: b, failed: String(e).slice(0, 200) });
+    }
   }
 
   const result = {
