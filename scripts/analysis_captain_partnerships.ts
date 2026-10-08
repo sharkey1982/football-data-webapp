@@ -173,8 +173,6 @@ async function main() {
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
   const sb = createClient(url, key, { auth: { persistSession: false } });
-  const highs = await highsLoader();
-
   const { data: feed, error } = await sb.rpc('get_fpl_optimizer_candidates_json', { p_from_matchweek: from, p_to_matchweek: to });
   if (error) throw error;
   const rows = (typeof feed === 'string' ? JSON.parse(feed) : feed) as any[];
@@ -256,7 +254,10 @@ async function main() {
     { key: 'no_haaland', label: 'No Haaland', include: [], exclude: [haaland.id] },
   ];
   const lowIds = lowEvidence.map((p) => p.id);
-  const solve = (include: number[], exclude: number[], budget: number) => {
+  // A fresh solver per solve: one HiGHS (wasm) instance aborts after about
+  // a dozen large solves (seen on the first run, 8 Oct 2026).
+  const solve = async (include: number[], exclude: number[], budget: number) => {
+    const highs = await highsLoader();
     const t0 = Date.now();
     const lp = buildLp(all, weeks, budget, new Set(include), new Set(exclude));
     const res: any = highs.solve(lp, { time_limit: 240, mip_rel_gap: 1e-6 } as any);
@@ -271,14 +272,14 @@ async function main() {
   for (const sc of scenarios) {
     for (const variant of ['published', 'evidence'] as const) {
       const exclude = variant === 'evidence' ? [...sc.exclude, ...lowIds.filter((id) => !sc.include.includes(id))] : sc.exclude;
-      const r = solve(sc.include, exclude, 100);
+      const r = await solve(sc.include, exclude, 100);
       console.log(`${sc.key}/${variant}: ${r.total} (${r.status}, ${r.seconds}s)`);
       squads.push({ key: sc.key, label: sc.label, variant, ...r });
     }
   }
   const budgetCurve: any[] = [];
   for (const b of [95, 97.5, 100, 102.5, 105]) {
-    const r = solve([], lowIds, b);
+    const r = await solve([], lowIds, b);
     console.log(`budget ${b}: ${r.total}`);
     budgetCurve.push({ budget: b, total: r.total, captain_points: r.captain_points, cost: r.cost, status: r.status });
   }
