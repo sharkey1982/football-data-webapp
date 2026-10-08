@@ -362,10 +362,13 @@ function apply(fx){
 }
 
 /* ---- the season's state --------------------------------------------------------------- */
-function newSeason(level,seed){
+/* nation: the one you chose (Chris, 7 Oct 2026: its real strength is the
+   difficulty). Without one (the checks, a shared tournament code), one is
+   drawn from MY_RANKS. */
+function newSeason(level,seed,nation){
   SEED=seed||("WC-"+Math.random().toString(36).slice(2,7).toUpperCase());
   R.s=hashSeed(SEED);
-  const pool=NATIONS.slice(MY_RANKS[0]-1,MY_RANKS[1]);const me=pick(pool);
+  const pool=NATIONS.slice(MY_RANKS[0]-1,MY_RANKS[1]);const drawn=pick(pool),me=NATIONS.find(x=>x.n===nation)||drawn;
   S={level,me:me.n,myElo:me.elo,pool:null,squad:[],cash:MONEY.start,camp:MONEY.camp,bonusPerWin:0,morale:0,recovery:0,
     played:0,alive:true,sacked:false,sentHome:[],t:null,record:{w:0,d:0,l:0},calls:{shape:[]},shark:null};
   S.base=Math.round(ratingOfElo(me.elo));S.pool=makePool(S.base+GOLDEN);

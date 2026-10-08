@@ -42,14 +42,47 @@ function renderSpec(spec,chip,done){
 }
 
 /* ---- start ------------------------------------------------------------------- */
-let pickLevel="beginner";
+let pickLevel="beginner",pickNation=null;
 function renderStart(){
   S=null;
-  renderGamePicker("world-cup","../",()=>{$("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating the tournament…</p></div>`;
-    setTimeout(()=>{beginSeason(pickLevel);renderNation()},30)});
+  renderGamePicker("world-cup","../",renderNationPick);
 }
-function beginSeason(level,seed){
-  newSeason(level,seed);CUR="squad";EVENT_I=0;
+/* Pick your nation (Chris, 7 Oct 2026): its real strength, FixtureShark's
+   international Elo, is the difficulty. The best nation has the best chance. */
+const NATION_TIERS=[
+  {from:1,to:3,name:"Favourites",d:"The best chance of winning it"},
+  {from:4,to:12,name:"Contenders",d:"A real chance, with the favourites in the way"},
+  {from:13,to:30,name:"Dark horses",d:"It takes a well-run campaign"},
+  {from:31,to:48,name:"Underdogs",d:"The hardest: a run to the semi-final is a success"}];
+function tierOf(rank){return NATION_TIERS.find(t=>rank>=t.from&&rank<=t.to)||NATION_TIERS[3]}
+function renderNationPick(){
+  pickNation=null;
+  $("hScore").innerHTML=`48<span class="sub">NATIONS</span>`;$("hTwo").innerHTML="";$("hSeason").innerHTML=`<div class="lbl"><span>THE WORLD CUP · PICK YOUR NATION</span><span></span></div>`;
+  $("app").innerHTML=`<div class="card hero"><div class="hero-kicker">THE WORLD CUP</div>
+    <div class="mission">Pick your nation</div>
+    <p class="lede" style="margin-top:8px">Every nation plays at its real strength (FixtureShark's international Elo), so your nation is the difficulty: the stronger it is, the better your chance.</p>
+    ${button("surprise","Surprise me","A dark horse, drawn at random")}</div>
+    <div class="card">${NATION_TIERS.map(t=>`<div class="benchh" style="margin-top:4px">${t.name.toUpperCase()} · ${t.d}</div>
+      <div class="natgrid">${NATIONS.slice(t.from-1,t.to).map((x,i)=>`<button class="nat" data-nat="${x.n}" aria-pressed="false"><span class="nn">${x.n}${HOSTS.includes(x.n)?' <i title="Host: home advantage">H</i>':""}</span><span class="ne">${ord(t.from+i)} · Elo ${x.elo}</span></button>`).join("")}</div>`).join("")}
+    <p class="small">H: a host nation, with home advantage in every match.</p>
+    <div class="natgo"><button class="choice primary" id="natGo" disabled style="opacity:.5;text-align:center"><span class="t">Play</span><span class="d">Pick a nation above</span></button></div></div>`;
+  natButtons().forEach(b=>b.onclick=()=>chooseNation(b.dataset.nat));
+  $("natGo").onclick=()=>{if(pickNation)startAs(pickNation)};
+  $("surprise").onclick=()=>startAs(null);
+}
+const natButtons=()=>Array.from(document.querySelectorAll?document.querySelectorAll("[data-nat]"):[]);
+function chooseNation(n){pickNation=n;const g=$("natGo");g.disabled=false;if(g.style)g.style.opacity=1;
+    const t=g.querySelector&&g.querySelector(".t");if(t)t.textContent="Play as "+n;
+    const d=g.querySelector&&g.querySelector(".d");if(d)d.textContent=tierOf(rankOf(n)).name.replace(/s$/,"")+" · "+ord(rankOf(n))+" in the world";
+  natButtons().forEach(b=>b.setAttribute("aria-pressed",b.dataset.nat===n));
+}
+function startAs(n){
+  $("app").innerHTML=`<div class="card"><p class="lede">The Shark is simulating the tournament…</p></div>`;
+  setTimeout(()=>{beginSeason(pickLevel,null,n);renderNation()},30);
+  if(typeof btsTrack==="function")btsTrack("wc_nation",{nation:n||"surprise"});
+}
+function beginSeason(level,seed,nation){
+  newSeason(level,seed,nation);CUR="squad";EVENT_I=0;
   const sq=sharkSquad();S.sharkSquad=sq; // sharkSquad() simulates, which restores S from a copy
   /* forecast() restores S from a copy, so assign after it returns */
   const fc=forecast(S.sharkSquad,typeof SHARK_RUNS==="number"?SHARK_RUNS:SHARK_RUNS_DEFAULT);S.shark=fc;

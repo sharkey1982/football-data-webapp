@@ -24,8 +24,13 @@ world-cup/test/checks.cjs   loading, integrity, engine, stability, balance, scre
 
 ## How it plays
 
-- **Your nation:** drawn from Elo ranks 18–30, with a golden generation
-  (`GOLDEN`): good enough that a well-run campaign can win it.
+- **Your nation:** you pick it from all 48, in four tiers by Elo rank
+  (Favourites 1–3, Contenders 4–12, Dark horses 13–30, Underdogs 31–48). Its
+  real strength is the difficulty (Chris, 7 Oct 2026): with the Shark's squad
+  on the Beginner field, Spain win about 41% and reach the semi-final 98%;
+  Japan (15th) 12% and 80%; Peru (45th) 2% and 54%. "Surprise me" draws from
+  Elo ranks 18–30 as before. Every nation gets the golden generation
+  (`GOLDEN`), so good management beats its Elo.
 - **The field.** Beginner (the one on the picker): eight nations in two
   groups of four; your group has a stronger side, a similar one and a weaker
   one; the other holds the favourite. Semi-finals and a final: up to five
