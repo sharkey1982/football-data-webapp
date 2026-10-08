@@ -15,6 +15,9 @@ does.
 ```
 poker/cards.js        cards; the evaluator (best five of up to seven: kind, tie-breaks, score); hands in words; who wins and why
 poker/quiz.js         Hand strength questions: deals chosen by kind of hand or by trap
+poker/outs.js, outsui.js       Outs & draws
+poker/potodds.js, potui.js     Pot odds
+poker/equity.js, equityui.js   Equity: seven-card scores, exact and sampled equity, matchups
 poker/ui.js           screens; its last line starts the game
 poker/test/checks.cjs evaluator against every five-card hand and the hold'em frequencies; questions; screens
 shared/trainer.css    cards, feedback bands and report tiles shared with the blackjack trainer
@@ -57,6 +60,23 @@ shared/training.js    decision records and scores (as blackjack)
   and the call's value in chips; severity from chips given away as a share of
   the call; Pot Odds Score and chips given away; report.
 
+## Equity (live, `?mode=equity`)
+
+- `equity.js`: `eval7`, a fast seven-card score on the same scale as
+  `bestHand`; `equity(a, b, board)`, exact after the flop (990 turn-and-river
+  boards) or turn (44 rivers), a seeded sample of 30,000 deals before the flop
+  (about ±0.45 points; exact would be 1,712,304 boards, a few seconds).
+  Seven matchups, each with its rule of thumb: pair v two overs, pair v pair,
+  same high card with a better kicker, overs v unders, pair v one over and
+  one under (pre-flop); flush draw v top pair (flop), top pair v open-ended
+  draw (turn). Post-flop deals are kept clean: the drawing hand has only its
+  draw, the pair hand only top pair.
+- `equityui.js`: the Shark's cards face up; your estimate on a stepper (5%
+  steps from 50), Lock in; the exact share with win / split / lose, how it was
+  counted, the matchup and rule of thumb. Within 5 points Close (right), 5–10 a
+  mistake, more than 10 a major one. Equity Score = share Close; average miss;
+  the report also says if misses lean too high or too low.
+
 ## Checks
 
 ```
@@ -74,3 +94,8 @@ node games/beat-the-shark/poker/test/checks.cjs
   question's outs recomputed, none already made; the screens.
 - Pot odds: needed equity and call values on worked examples; every
   question's answer follows the value of calling; the screens.
+- Equity: eval7 equals bestHand on 100,000 random hands and every straight
+  flush; aces v kings over all 1,712,304 boards wins 81.06% and splits 0.38%,
+  ace-king suited v queens 46.02% and 0.39% (the published figures); the
+  sample within a point; a turn counted by hand (15 of 44); every matchup's
+  favourite near its rule of thumb; the screens.
