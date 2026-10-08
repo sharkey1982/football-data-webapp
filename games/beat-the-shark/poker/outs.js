@@ -55,6 +55,12 @@ function straightRanks(cards){const out=[];
 function flushDrawSuit(hole,board){const all=hole.concat(board);
   for(let s=0;s<4;s++){if(all.filter(c=>c.s===s).length===4&&hole.some(c=>c.s===s))return s}return-1}
 
+/* A flush draw with only one of your cards in the suit (three on the board)
+   is dealt only when that card is the ace: a lower one can be beaten by any
+   player holding a higher card of the suit, so its outs are not clean
+   (Chris, 8 Oct 2026: no habits the trainer shouldn't teach). Two suited
+   cards in your hand can be any ranks. */
+function cleanFlushDraw(hole,fs){const mine=hole.filter(c=>c.s===fs);return mine.length===2||mine.some(c=>c.r===14)}
 /* A question: a draw of the asked kind, on the flop (two cards to come) or
    the turn (one), not yet made. */
 function outsQuestion(){
@@ -67,10 +73,10 @@ function outsQuestion(){
     const fs=flushDrawSuit(hole,board),sr=straightRanks(all),holeHelps=sr.length>0&&sr.every(r=>!hasStraight(board.concat([{r,s:9}])));
     let ok=false;
     // straight and flush draws from a pair or less, so no full-house outs muddle the count
-    if(kind==="flush")ok=fs>=0&&sr.length===0&&best.cat<=1;
+    if(kind==="flush")ok=fs>=0&&cleanFlushDraw(hole,fs)&&sr.length===0&&best.cat<=1;
     else if(kind==="oesd")ok=fs<0&&sr.length===2&&holeHelps&&best.cat<=1;
     else if(kind==="gutshot")ok=fs<0&&sr.length===1&&holeHelps&&best.cat<=1;
-    else if(kind==="combo")ok=fs>=0&&sr.length>=1&&holeHelps&&best.cat<=1;
+    else if(kind==="combo")ok=fs>=0&&cleanFlushDraw(hole,fs)&&sr.length>=1&&holeHelps&&best.cat<=1;
     else if(kind==="set")ok=hole[0].r===hole[1].r&&best.cat===1&&maxSuit(all)<4&&sr.length===0;
     else if(kind==="boat")ok=best.cat===2&&hole[0].r!==hole[1].r&&hole.every(h=>board.some(b=>b.r===h.r))&&maxSuit(all)<4&&sr.length===0&&new Set(board.map(c=>c.r)).size===board.length;
     else if(kind==="overs"){const top=Math.max(...board.map(c=>c.r));ok=best.cat===0&&hole.every(h=>h.r>top)&&hole[0].r!==hole[1].r&&maxSuit(all)<4&&sr.length===0}

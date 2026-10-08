@@ -27,7 +27,7 @@ function renderPotIntro(){
         <tr><td>Pot 600, the Shark bets 300</td><td class="n">you call 300</td></tr>
         <tr><td>The pot you'd win</td><td class="n">600 + 300 + 300 = 1,200</td></tr>
         <tr><td>The equity you need</td><td class="n">300 ÷ 1,200 = 25%</td></tr></tbody></table>
-      <p class="small">Then compare it with your chance from your outs. Here the Shark always has the better hand now, so you win if your draw comes in and lose if it doesn't. On the flop the Shark is all in, so one call sees both cards.</p>
+      <p class="small">Then compare it with your chance. The Shark's hand is face up, so your chance is exact: count your outs, then check none of them helps the Shark too. On the flop the Shark is all in, so one call sees both cards.</p>
       ${button("go","Deal a hand","",true)}</div>`;
   $("go").onclick=()=>{newPot();nextPot()};
 }
@@ -35,6 +35,7 @@ function nextPot(){PO.q=potQuestion();PO.n++;PO.rec=null;renderPot()}
 function renderPot(){
   const q=PO.q,done=!!PO.rec;paintPotHeader();
   $("app").innerHTML=`<div class="card"><div class="datechip">HAND ${PO.n} · ON THE ${q.street.toUpperCase()}${q.street==="flop"?" · THE SHARK IS ALL IN":""}</div>
+    <div class="seat"><div class="who">THE SHARK <span class="tot">${describeHand(q.sharkBest)}</span></div><div class="cards">${q.shark.map(c=>pkCardHTML(c)).join("")}</div></div>
     <div class="seat"><div class="who">THE BOARD</div><div class="cards">${q.board.map(c=>pkCardHTML(c)).join("")}</div></div>
     <div class="seat"><div class="who">YOUR CARDS <span class="tot">${q.draw.name}</span></div><div class="cards">${q.hole.map(c=>pkCardHTML(c)).join("")}</div></div>
     <div class="potline"><div><span>POT</span><b>${q.pot.toLocaleString("en-GB")}</b></div><div><span>THE SHARK BETS</span><b>${q.bet.toLocaleString("en-GB")}</b></div><div><span>TO CALL</span><b>${q.bet.toLocaleString("en-GB")}</b></div></div>
@@ -58,13 +59,16 @@ function potFeedback(){
   const table=`<table class="tbl" style="margin-top:6px"><tbody>
     <tr><td>The price: ${q.bet.toLocaleString("en-GB")} to win ${(q.pot+q.bet).toLocaleString("en-GB")} (${oddsText(q.pot,q.bet)})</td><td class="n">need <b>${pc(q.need)}</b></td></tr>
     <tr><td>Your chance: ${q.outs.length} outs, rule of ${q.toCome===2?"4":"2"}</td><td class="n">${Math.round(q.thumb*100)}%</td></tr>
-    <tr><td><b>Your chance, exactly</b></td><td class="n"><b>${pc(q.eq)}</b></td></tr>
+    <tr><td>Making ${q.draw.goal}, exactly</td><td class="n">${pc(q.exact)}</td></tr>
+    <tr><td><b>Your chance against the Shark's hand</b></td><td class="n"><b>${pc(q.eq)}</b></td></tr>
     <tr><td>A call is worth, on average</td><td class="n" style="color:${q.ev>0?"var(--good)":"var(--bad)"}">${q.ev>0?"+":"−"}${chips(q.ev)} chips</td></tr></tbody></table>`;
+  const gap=q.eq-q.exact,note=gap<-.015?`<p class="small">Your chance against the Shark is lower than your chance of making the hand: some of the cards that make it help the Shark more, or still lose.</p>`
+    :gap>.015?`<p class="small">Your chance against the Shark is higher than your chance of making the hand: some other cards win too (a higher pair, say), or split the pot.</p>`:"";
   const why=q.answer==="call"?`Your ${pc(q.eq)} beats the ${pc(q.need)} the price needs: calling makes money over time, even though you'll miss ${Math.round((1-q.eq)*100)}% of the time.`
     :`Your ${pc(q.eq)} is short of the ${pc(q.need)} the price needs: calling loses money over time, even on the hands where you hit.`;
-  return r.optimal?`<div class="okline">✓ <b>Right</b>: ${q.answer==="call"?"call":"fold"}.${q.close?" A close one.":""}</div>${table}<p class="small">${why}</p>`
+  return r.optimal?`<div class="okline">✓ <b>Right</b>: ${q.answer==="call"?"call":"fold"}.${q.close?" A close one.":""}</div>${table}${note}<p class="small">${why}</p>`
     :`<div class="lesson sev-${r.severity}" role="alert"><div class="band">✗ ${sev.name.toUpperCase()} · ${q.answer==="call"?"CALL":"FOLD"} WAS RIGHT</div><div class="lb">
-      <p class="lt">${why}</p>${table}<p class="lc">${a2(r.chosen)} gives away about ${chips(q.ev)} chips on average here (${pc(Math.abs(q.ev)/q.bet)} of the call).</p></div></div>`;
+      <p class="lt">${why}</p>${table}${note}<p class="lc">${a2(r.chosen)} gives away about ${chips(q.ev)} chips on average here (${pc(Math.abs(q.ev)/q.bet)} of the call).</p></div></div>`;
 }
 const a2=x=>x==="call"?"Calling":"Folding";
 function renderPotReport(){

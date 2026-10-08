@@ -231,6 +231,16 @@ const run=c=>E.run(c);
     Math.abs(r.need[0]-.25)<1e-12&&Math.abs(r.need[1]-1/3)<1e-12&&Math.abs(r.need[2]-.25)<1e-12&&Math.abs(r.need[3]-1/6)<1e-12);
   check("a call's value: at exactly the needed 25% it is worth 0; at 35% +120 chips (35% of 900 won, 65% of 300 lost); at 20% −60",Math.abs(r.ev[0])<1e-9&&Math.abs(r.ev[1]-120)<1e-9&&Math.abs(r.ev[2]+60)<1e-9,r.ev.map(x=>x.toFixed(1)).join(", "));
   check("odds in words: 3 to 1, 2 to 1, 5 to 1",r.odds.join("|")==="3 to 1|2 to 1|5 to 1",r.odds.join("|"));
+  {const h=JSON.parse(run(`(()=>{R.s=hashSeed("HONEST");const bad=[];let flush=0,oneCard=0,dirty=0;
+     for(let k=0;k<80;k++){const q=potQuestion();if(!q)continue;const fs=flushDrawSuit(q.hole,q.board);
+       if(fs>=0){flush++;const mine=q.hole.filter(c=>c.s===fs);if(mine.length===1){oneCard++;if(mine[0].r!==14)bad.push("one-card flush draw without the ace")}
+         if(q.shark.some(c=>c.s===fs))bad.push("the Shark holds the flush suit")}
+       if(eval7(q.shark.concat(q.board))<=eval7(q.hole.concat(q.board)))bad.push("the Shark isn't ahead");
+       const e=equity(q.hole,q.shark,q.board);if(Math.abs(e.eq-q.eq)>1e-12)bad.push("equity");if(q.eq<q.exact-.015)dirty++}
+     for(let k=0;k<200;k++){const d=outsQuestion();const fs=d&&flushDrawSuit(d.hole,d.board);if(fs>=0){const m=d.hole.filter(c=>c.s===fs);if(m.length===1&&m[0].r!==14)bad.push("outs: one-card flush draw without the ace")}}
+     return JSON.stringify({bad:[...new Set(bad)],flush,oneCard,dirty})})()`));
+   check("honest draws (Chris, 8 Oct): one-card flush draws only with the ace; the Shark's hand face up, ahead now, none of your suit; equity exact against it",
+     !h.bad.length&&h.flush>5,`${h.flush} flush draws, ${h.oneCard} one-card (all ace), ${h.dirty} with outs that don't all win ${h.bad.join(",")}`)}
   check("questions: the answer follows the value of calling; calls and folds balanced; some close ones",!r.bad.length&&r.call>35&&r.fold>35&&r.close>=5,
     `${r.call} call, ${r.fold} fold, ${r.close} close ${r.bad.join(",")}`);
   const fails=[];
@@ -240,7 +250,7 @@ const run=c=>E.run(c);
    for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
      if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
      if(/id="p-call"/.test(h)){nq++;const right=w.run("PO.q.answer"),a=nq%2?right:(right==="call"?"fold":"call");w.els["p-"+a].onclick();const r2=w.els.app.innerHTML;
-       seen.add(a===right?"right":"wrong");if(!/need <b>/.test(r2)||!/A call is worth/.test(r2))fails.push("price table missing");
+       seen.add(a===right?"right":"wrong");if(!/need <b>/.test(r2)||!/A call is worth/.test(r2)||!/against the Shark's hand/.test(r2))fails.push("price table missing");
        if(a!==right&&!/role="alert"/.test(r2))fails.push("wrong without band");continue}
      if(nq>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/POT ODDS SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
      if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
