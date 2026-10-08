@@ -85,8 +85,8 @@ function preflopFeedback(){
 const a3=x=>x;
 const A3={fold:"Folding",shove:"Shoving",call:"Calling"};
 function renderPreflopReport(){
-  pkMarkDone("preflop");
   const S=summarise(PF.T,3);btsTrack("pk_pf_report",{answered:S.decisions,score:S.score==null?-1:S.score});
+  pkRecord("preflop",S);
   paintPreflopHeader();
   const groups=Object.entries(S.byGroup).sort((a,b)=>a[1].ok/a[1].n-b[1].ok/b[1].n);
   const ds=PF.T.decisions.filter(d=>!d.optimal),tight=ds.filter(d=>d.chosen==="fold").length,loose=ds.length-tight;

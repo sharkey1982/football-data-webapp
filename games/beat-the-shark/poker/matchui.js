@@ -120,6 +120,7 @@ function renderGameEnd(){
 }
 function renderMatchEnd(){
   const M=MT.M,S=summarise(MT.T,3),V=verdictOf(S),sc=mtScore(),youWon=sc.you>sc.shark;
+  pkRecord("match",S);
   btsTrack("pk_match_end",{games:MT.games.length,won:sc.you,score:S.score==null?-1:S.score});
   paintMatchHeader();
   const lostBB=MT.T.decisions.reduce((a,d)=>a+(d.optimal?0:d.lostBB),0);
