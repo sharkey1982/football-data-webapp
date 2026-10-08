@@ -275,6 +275,7 @@ export default function AppLayout() {
           { to: BEAT_THE_SHARK.poker.href, label: 'Poker: hand strength', matchPrefix: BEAT_THE_SHARK.poker.href, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=outs`, label: 'Poker: outs & draws', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=outs`, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=pot`, label: 'Poker: pot odds', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=pot`, external: true },
+          { to: `${BEAT_THE_SHARK.poker.href}?mode=equity`, label: 'Poker: equity', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=equity`, external: true },
         ],
       },
     ],

@@ -76,7 +76,7 @@ function renderPotReport(){
       <div class="tile"><div class="k">CHIPS GIVEN AWAY</div><div class="big ${PO.lost>0?"down":""}">${Math.round(PO.lost).toLocaleString("en-GB")}</div><div class="s">on average, by wrong calls and folds</div></div></div>
     <table class="tbl" style="margin-top:10px"><tbody>${groups.map(([g,o])=>`<tr><td>${g}</td><td class="n">${o.ok} of ${o.n}</td></tr>`).join("")}</tbody></table>
     ${S.leak?`<div class="outcome" style="border-left-color:var(--bad);margin-top:10px"><b>To work on: ${S.leak.group}</b> · ${S.leak.ok} of ${S.leak.n} right.</div>`:""}
-    <p class="small" style="margin-top:8px">Next in the poker trainers: equity, where the other hand is shown and you estimate your chance against it.</p>
+    <p class="small" style="margin-top:8px">Next: equity, where the Shark's hand is face up and you estimate your share against it.</p>
     ${button("next","Keep going","",true)}</div>`;
   $("next").onclick=nextPot;
 }

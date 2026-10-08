@@ -15,6 +15,11 @@
      5. OUTS        outs counted exactly for every kind of draw; the chance by
                     the river against the published figures; the questions
                     and the Outs & draws screens
+     6. POT ODDS    needed equity and call values; questions; screens
+     7. EQUITY      the seven-card evaluator against bestHand; aces v kings
+                    and ace-king suited v queens over all 1,712,304 boards
+                    against the published figures; flop and turn counted
+                    exactly; the matchups clean; the screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -240,6 +245,72 @@ const run=c=>E.run(c);
    for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x);
    const lost=w.run("PO.lost");if(!(lost>0))fails.push("wrong decisions should give chips away")}
   check("Pot odds through the real screens: call/fold judged, the price and your chance, chips given away, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 7. equity -------------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{R.s=hashSeed("EQ7");let bad=0;for(let k=0;k<100000;k++){const d=shuffle(pkDeck()).slice(0,5+(k%3));if(eval7(d)!==bestHand(d).score)bad++}
+    /* every straight flush and four of a kind, which random hands rarely give */
+    let rare=0;for(let s=0;s<4;s++)for(let h=5;h<=14;h++){const cs=[];for(let k=0;k<5;k++)cs.push({r:h-k===1?14:h-k,s});cs.push({r:h===14?2:14,s:(s+1)%4},{r:h===9?3:9,s:(s+2)%4});if(eval7(cs)!==bestHand(cs).score)rare++}
+    const C=(r,s)=>({r,s}),AK=[C(14,0),C(13,0)],QQ=[C(12,1),C(12,2)];
+    const fl=equity(AK,QQ,[C(2,0),C(7,0),C(9,3)]),tu=equity(AK,QQ,[C(2,0),C(7,0),C(9,3),C(3,1)]);
+    /* the turn by hand: 44 rivers; AK wins with the 3 aces, 3 kings and 8 diamonds... no: spades, suit 0 */
+    return JSON.stringify({bad,rare,fl,tu})})()`));
+  check("eval7 gives the same score as bestHand on 100,000 random five-, six- and seven-card hands, and every straight flush",r.bad===0&&r.rare===0,`${r.bad} + ${r.rare} differ`);
+  check("after the flop every turn and river is counted (990 boards); after the turn every river (44)",r.fl.exact&&r.fl.n===990&&r.tu.exact&&r.tu.n===44);
+  /* the turn by hand: A♠K♠ v Q♥Q♦ on 2♠7♠9♣3♥: the ace-king wins with 2 spades... count it */
+  {const outs=r.tu.win*44;check("turn equity counted by hand: ace-king of spades v queens on 2♠ 7♠ 9♣ 3♥ wins on 9 spades + 3 aces + 3 kings = 15 of 44 rivers",Math.abs(outs-15)<1e-9&&r.tu.tie===0,`${outs.toFixed(2)} of 44`)}
+  /* Exact pre-flop, every board, in the vm (optimised code): published 81.06% / 0.38% and 46.02% / 0.39%. */
+  const w=makeWorld("?mode=equity");
+  const ex=JSON.parse(w.run(`(()=>{const C=(r,s)=>({r,s});
+    function all(a,b){const known=a.concat(b),d=pkDeck().filter(c=>!known.some(k=>sameCard(k,c)));let wn=0,t=0,n=0;const L=d.length;
+      for(let i=0;i<L;i++)for(let j=i+1;j<L;j++)for(let k=j+1;k<L;k++)for(let l=k+1;l<L;l++)for(let m=l+1;m<L;m++){const bd=[d[i],d[j],d[k],d[l],d[m]];
+        const x=eval7(a.concat(bd)),y=eval7(b.concat(bd));if(x>y)wn++;else if(x===y)t++;n++}return{n,win:wn/n,tie:t/n,eq:(wn+t/2)/n}}
+    const aa=all([C(14,0),C(14,1)],[C(13,2),C(13,3)]),ak=all([C(14,0),C(13,0)],[C(12,1),C(12,2)]);
+    R.s=hashSeed("EQS");const sa=equity([C(14,0),C(14,1)],[C(13,2),C(13,3)],[]),sk=equity([C(14,0),C(13,0)],[C(12,1),C(12,2)],[]);
+    return JSON.stringify({aa,ak,sa,sk})})()`));
+  check("aces v kings (no shared suit), all 1,712,304 boards: wins 81.06%, splits 0.38% (published)",ex.aa.n===1712304&&Math.abs(ex.aa.win-.8106)<.0002&&Math.abs(ex.aa.tie-.0038)<.0002,`${(ex.aa.win*100).toFixed(2)}% / ${(ex.aa.tie*100).toFixed(2)}%`);
+  check("ace-king suited v queens, all boards: wins 46.02%, splits 0.39% (published)",Math.abs(ex.ak.win-.4602)<.0002&&Math.abs(ex.ak.tie-.0039)<.0002,`${(ex.ak.win*100).toFixed(2)}% / ${(ex.ak.tie*100).toFixed(2)}%`);
+  check("the game's 30,000-deal sample is within a point of the exact figure",Math.abs(ex.sa.eq-ex.aa.eq)<.01&&Math.abs(ex.sk.eq-ex.ak.eq)<.01&&!ex.sa.exact&&ex.sa.n===30000,
+    `${(ex.sa.eq*100).toFixed(1)} v ${(ex.aa.eq*100).toFixed(1)}; ${(ex.sk.eq*100).toFixed(1)} v ${(ex.ak.eq*100).toFixed(1)}`);
+  const q=JSON.parse(run(`(()=>{R.s=hashSeed("EQQ");const seen={},bad=[],eqs={};
+    for(let k=0;k<70;k++){const q=equityQuestion();seen[q.type]=(seen[q.type]||0)+1;(eqs[q.type]=eqs[q.type]||[]).push(q.eq);
+      const all=q.a.concat(q.b,q.board);if(new Set(all.map(pkText)).size!==all.length)bad.push("dup card");
+      const want={"pre-flop":0,flop:3,turn:4}[q.street];if(q.board.length!==want)bad.push("street");
+      if(Math.abs(q.eq-(q.win+q.tie/2))>1e-12)bad.push("eq sum");
+      if(q.type==="drawVsPair"||q.type==="madeVsDraw"){const dr=catOf(q.a.concat(q.board))===0?q.a:q.b,pr=dr===q.a?q.b:q.a;
+        if(catOf(pr.concat(q.board))!==1||catOf(dr.concat(q.board))!==0)bad.push(q.type+" hands");
+        if(q.type==="drawVsPair"&&flushDrawSuit(dr,q.board)<0)bad.push("no flush draw");
+        if(q.type==="madeVsDraw"&&straightRanks(dr.concat(q.board)).length!==2)bad.push("no open-ended draw")}}
+    const mean=t=>{const e=eqs[t].map(x=>Math.max(x,1-x));return e.reduce((a,b)=>a+b,0)/e.length};
+    return JSON.stringify({seen,bad:[...new Set(bad)],fav:Object.fromEntries(Object.keys(eqs).map(t=>[t,mean(t)]))})})()`));
+  check("questions: every matchup comes up; no card twice; the board fits the street; drawing hands only draw, pair hands only pair",
+    Object.keys(q.seen).length===7&&!q.bad.length,JSON.stringify(q.seen)+" "+q.bad.join(","));
+  const fv=q.fav,inR=(t,lo,hi)=>fv[t]>=lo&&fv[t]<=hi;
+  check("each matchup's favourite wins about what its rule of thumb says (pair v overs 52–58%, pair v pair 78–84%, kicker 65–77%, overs v unders 58–68%, pair v one over 65–74%, flush draw v pair 58–67%, top pair v open-ended 78–86%)",
+    inR("pairOvers",.52,.58)&&inR("pairPair",.78,.84)&&inR("dominated",.65,.77)&&inR("oversUnders",.58,.68)&&inR("pairOneOver",.65,.74)&&inR("drawVsPair",.58,.67)&&inR("madeVsDraw",.78,.86),
+    Object.entries(fv).map(([k,v])=>`${k} ${(v*100).toFixed(0)}`).join(", "));
+  check("bands: within 5 points Close, 5–10 Some way off, over 10 Well off",run(`[eqBand(0).id,eqBand(-5).id,eqBand(5.1).id,eqBand(-10).id,eqBand(10.5).id,eqBand(60).id].join()`)==="close,close,off,off,far,far");
+  const fails=[];
+  {const w=makeWorld("?mode=equity");if(!/data-game="poker-equity"/.test(w.els.app.innerHTML))fails.push("picker lacks equity");
+   w.run('pickSport("poker-equity")');w.els.playThis.onclick();w.drain();if(!/RULES OF THUMB/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no equity intro");
+   w.run('R.s=hashSeed("EQSCR")');w.els.go.onclick();const seen=new Set();let nq=0;
+   for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="lock"/.test(h)){nq++;const truth=w.run("EQ.q.eq*100");
+       /* alternately aim close and far: step the stepper as a player would */
+       const target=nq%2?truth:(truth>50?truth-25:truth+25),steps=Math.round((target-50)/5);
+       for(let i=0;i<Math.abs(steps);i++)w.els[steps>0?"eq-p":"eq-m"].onclick();
+       if(w.els["eq-v"].textContent!==w.run("EQ.guess")+"%")fails.push("stepper shows the wrong value");
+       w.els.lock.onclick();const r2=w.els.app.innerHTML,band=w.run("EQ.rec.band");seen.add(band);
+       if(!/Your equity/.test(r2)||!/win \/ split/.test(r2))fails.push("answer table missing");
+       if(band!=="close"&&!/role="alert"/.test(r2))fails.push("miss without band");
+       if(band==="far"&&!/sev-major/.test(r2))fails.push("far miss should be major");continue}
+     if(nq>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/EQUITY SCORE/.test(w.els.app.innerHTML)||!/AVERAGE MISS/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+     fails.push("stuck");break}
+   for(const x of["close","far","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Equity through the real screens: the stepper, Lock in, close and far judged, the exact share and the rule of thumb, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
