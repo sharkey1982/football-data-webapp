@@ -354,6 +354,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/articles/one-captain-or-two',
+    title: 'One captain or two? The mathematics of FPL captaincy',
+    description:
+      'How much a second or third captaincy option is worth in FPL: rotation gain, vice-captain insurance, the \u00a3100m opportunity cost, and exact squad solves on FixtureShark projections.',
+    crumbs: [FPL, { name: 'Articles', path: '/fpl/articles' }],
+  },
+  {
     path: '/fpl/articles/always-captain-the-top-pick',
     title: 'Should you always captain the top-projected player?',
     description:

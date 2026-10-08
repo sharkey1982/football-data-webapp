@@ -32,6 +32,10 @@ export type ArticleMeta = {
   /** One-sentence answer shown on the hub and at the top of the article. */
   verdict: string;
   published: string; // ISO date
+  /** ISO date of the last substantive revision; defaults to published. */
+  updated?: string;
+  /** Shown in the byline; defaults to ARTICLES_DATA_AS_OF. */
+  dataAsOf?: string;
 };
 
 export const CAPTAIN_ARTICLE: ArticleMeta = {
@@ -58,7 +62,21 @@ export const HAALAND_ARTICLE: ArticleMeta = {
   published: '2026-10-07',
 };
 
-export const ARTICLES: ArticleMeta[] = [CAPTAIN_ARTICLE, HAALAND_ARTICLE];
+export const CAPTAIN_PAIRS_ARTICLE: ArticleMeta = {
+  slug: 'one-captain-or-two',
+  path: `${ARTICLES_PATH}/one-captain-or-two`,
+  title: 'One captain or two? The mathematics of FPL captaincy',
+  question: 'Do I need two premium captaincy options in my FPL squad, or is one enough?',
+  description:
+    'How much a second or third captaincy option is worth in FPL: the rotation-gain maths, vice-captain insurance, the \u00a3100m opportunity cost, and exact squad solves on FixtureShark\u2019s projections for gameweeks 6 to 15 of 2026/27.',
+  verdict:
+    'A second captaincy option helps, but the armband alone rarely pays for him. Alongside Haaland, Saka adds about 3.6 projected captain points over ten gameweeks; he is worth owning for his own points. Forcing in Bruno or Palmer as an extra option costs points.',
+  published: '2026-10-08',
+  dataAsOf: '8 Oct 2026',
+};
+
+// Newest first.
+export const ARTICLES: ArticleMeta[] = [CAPTAIN_PAIRS_ARTICLE, CAPTAIN_ARTICLE, HAALAND_ARTICLE];
 
 // ---- Captaincy ------------------------------------------------------------
 

@@ -32,6 +32,8 @@ type Props = {
   /** Draw y upside down (for league positions: 1 at the top). */
   invertY?: boolean;
   height?: number;
+  /** Hover text for a dot; defaults to "label: y after x" (matches played). */
+  pointTitle?: (s: LineSeries, p: LinePoint) => string;
 };
 
 const W = 640;
@@ -44,7 +46,7 @@ function niceStep(range: number): number {
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
 }
 
-export default function LineChart({ series, bands = [], xLabel, yLabel, ariaLabel, yMin, yMax, invertY = false, height = 300 }: Props) {
+export default function LineChart({ series, bands = [], xLabel, yLabel, ariaLabel, yMin, yMax, invertY = false, height = 300, pointTitle }: Props) {
   const all = [...series.flatMap((s) => s.points), ...bands.flatMap((b) => [...b.lower, ...b.upper])];
   if (all.length === 0) return null;
   const xs = all.map((p) => p.x);
@@ -106,9 +108,7 @@ export default function LineChart({ series, bands = [], xLabel, yLabel, ariaLabe
           {s.dots &&
             s.points.map((p) => (
               <circle key={p.x} cx={x(p.x)} cy={y(p.y)} r="3" className={s.strokeClass.replace('stroke-', 'fill-')}>
-                <title>
-                  {s.label}: {p.y} after {p.x}
-                </title>
+                <title>{pointTitle ? pointTitle(s, p) : `${s.label}: ${p.y} after ${p.x}`}</title>
               </circle>
             ))}
         </g>
