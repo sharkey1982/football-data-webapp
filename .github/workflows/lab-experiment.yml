@@ -132,6 +132,12 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        shell: bash
         run: |
-          npm install --no-save --no-audit --no-fund
-          npx tsx scripts/analysis_captain_partnerships.ts --from 6 --to 15
+          set +e
+          { npm install --no-save --no-audit --no-fund && npx tsx scripts/analysis_captain_partnerships.ts --from 6 --to 15; } 2>&1 | tee /tmp/cp.log
+          STATUS=${PIPESTATUS[0]}
+          # Logs can't be read from a cloud session; annotations can.
+          ENCODED=$(tail -c 3000 /tmp/cp.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
