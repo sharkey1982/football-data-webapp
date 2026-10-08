@@ -71,7 +71,7 @@ function comboQuestion(){
 function rgRangeEquity(S,i){return(PF_EV[S].call[i]+S)/(2*S)}
 function rgNeeded(S){return(S-1)/(2*S)}
 function rangeQuestion(){
-  const stacks=Object.keys(PF_EV).map(Number).filter(S=>S>=3),S=pick(stacks);
+  const stacks=Object.keys(PF_EV).map(Number).filter(S=>S>=3&&S%1===0),S=pick(stacks);
   const i=rng()<.5?weightedPick(PF_HANDS.map(pfCombos)):pick(PF_HANDS.map((_,k)=>k).filter(k=>Math.abs(rgRangeEquity(S,k)-.5)<.12));
   const name=PF_HANDS[i],eq=rgRangeEquity(S,i);
   return{part:"range",S,i,name,cards:pfDeal(name),eq,need:rgNeeded(S),share:PF_EV[S].shoveShare,call:eq>rgNeeded(S)};

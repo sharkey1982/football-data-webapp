@@ -278,6 +278,7 @@ export default function AppLayout() {
           { to: `${BEAT_THE_SHARK.poker.href}?mode=equity`, label: 'Poker: equity', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=equity`, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=preflop`, label: 'Poker: pre-flop', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=preflop`, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=ranges`, label: 'Poker: ranges', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=ranges`, external: true },
+          { to: `${BEAT_THE_SHARK.poker.href}?mode=match`, label: 'Poker: heads-up v the Shark', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=match`, external: true },
         ],
       },
     ],
