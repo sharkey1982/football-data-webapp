@@ -33,6 +33,9 @@
     11. POST-FLOP   ranges by class on known hands; no seen card in a range;
                     the types' mixes; equity against the range recomputed;
                     answers follow the value; the screens
+    12. BLUFF       river bluff-catching: value beats you, bluffs lose to you;
+                    the balanced Shark makes calling break even; answers
+                    follow the value; the screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -524,6 +527,42 @@ const run=c=>E.run(c);
      fails.push("stuck");break}
    for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
   check("Post-flop through the real screens: the range by part, call/fold judged, equity against each part and the whole, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 12. bluff or value ------------------------------------------------------------ */
+{
+  const r=JSON.parse(run(`(()=>{R.s=hashSeed("BLQ");const bad=[],types={},ans={};const bal=[];
+    for(let k=0;k<40;k++){const q=bluffQuestion();types[q.type]=(types[q.type]||0)+1;ans[q.close?"close":q.answer]=(ans[q.close?"close":q.answer]||0)+1;
+      const me=eval7(q.hole.concat(q.board)),vis=q.hole.concat(q.board),all=[...q.range.value,...q.range.ties,...q.range.bluff];
+      if(all.some(h=>h.some(c=>vis.some(v=>sameCard(v,c)))))bad.push("seen card");
+      if(all.some(h=>!poPreflop(h)))bad.push("pre-flop");
+      if(q.range.value.some(h=>eval7(h.concat(q.board))<=me))bad.push("value doesn't beat you");
+      if(q.range.bluff.some(h=>eval7(h.concat(q.board))>=me||catOf(h.concat(q.board))!==0))bad.push("bluff isn't a bluff");
+      if(q.range.ties.some(h=>eval7(h.concat(q.board))!==me))bad.push("tie");
+      const n=all.length,ev=(q.range.bluff.length*(q.pot+q.bet)-q.range.value.length*q.bet+q.range.ties.length*q.pot/2)/n;
+      if(Math.abs(ev-q.ev)>1e-9||((q.ev>0)!==(q.answer==="call")))bad.push("answer");
+      if(Math.abs(q.need-q.bet/(q.pot+2*q.bet))>1e-12)bad.push("need");
+      if(Math.abs(q.range.bluff.length-q.range.want)>0)bad.push("bluff count");
+      if(q.type==="balanced")bal.push(q.ev/q.bet)}
+    return JSON.stringify({bad:[...new Set(bad)],types,ans,bal})})()`));
+  check("bluff-or-value questions: value always beats your hand, bluffs never pair and always lose to it, ties tie; no visible card; only pre-flop hands; each type bluffs its share; the answer follows the value",
+    !r.bad.length&&Object.keys(r.types).length===5&&(r.ans.call||0)>=5&&(r.ans.fold||0)>=5,JSON.stringify(r.types)+" "+JSON.stringify(r.ans)+" "+r.bad.join(","));
+  check("a balanced Shark makes calling break even: within 1.5% of the call (rounding to whole combos)",r.bal.length>=3&&r.bal.every(x=>Math.abs(x)<.015),r.bal.map(x=>(x*100).toFixed(1)+"%").join(", "));
+  const fails=[];
+  {const w=makeWorld("?mode=bluff");if(!/data-game="poker-bluff"/.test(w.els.app.innerHTML))fails.push("picker lacks bluff");
+   w.run('pickSport("poker-bluff")');w.els.playThis.onclick();w.drain();if(!/Catch the bluff/.test(w.els.app.innerHTML))fails.push("no intro");
+   w.run('R.s=hashSeed("BLSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
+   for(let k=0;k<30;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="bl-call"/.test(h)){nq++;if(!/Bluffs<\/b> · \d+ way/.test(h))fails.push("range not shown");if(/BETTING RANGE · /.test(h))fails.push("type shown before the answer");
+       const right=w.run("BL.q.answer"),a=nq%2?right:(right==="call"?"fold":"call");w.els["bl-"+a].onclick();const r2=w.els.app.innerHTML;
+       seen.add(a===right?"right":"wrong");if(!/need <b>|need \d/.test(r2)||!/This was <b>/.test(r2))fails.push("feedback missing");
+       if(a!==right&&!w.run("BL.q.close")&&!/role="alert"/.test(r2))fails.push("wrong without band");continue}
+     if(nq>7&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/BLUFF SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();w.drain();continue}
+     fails.push("stuck");break}
+   for(const x of["right","wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Bluff or value through the real screens: the range counted, the type hidden until you answer, the bluffs v the price, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

@@ -23,6 +23,7 @@ poker/preflop.js, preflopui.js Pre-flop: shove or fold, call or fold
 poker/ranges.js, rangesui.js   Ranges: counting combos; your equity against the Shark's shoving range
 poker/match.js, matchui.js     Heads-up v the Shark: a short-stack match, decisions and luck scored apart
 poker/postflop.js, postflopui.js Post-flop: call or fold against the Shark's range, shown by part
+poker/bluff.js, bluffui.js     Bluff or value?: catch the bluff on the river against a counted range
 poker/ui.js           screens; its last line starts the game
 poker/test/checks.cjs evaluator against every five-card hand and the hold'em frequencies; questions; screens
 shared/trainer.css    cards, feedback bands and report tiles shared with the blackjack trainer
@@ -144,6 +145,21 @@ shared/training.js    decision records and scores (as blackjack)
   price, the call's value in chips, and why ("behind its value hands, but 25%
   of the range is draws...").
 
+## Bluff or value? (live, `?mode=bluff`)
+
+- The river; you hold a bluff-catcher (top pair with a kicker of ten or
+  less, second pair, or a pocket pair between the top two board cards) on an
+  unpaired board. The Shark bets a third of the pot to twice the pot, with
+  its betting range counted: value (every pre-flop-range hand that beats
+  you), ties, and bluffs (no pair, missed draws first).
+- Five Shark types, hidden until you answer: honest, slightly honest,
+  balanced, slightly loose, aggressive (0.4 / 0.7 / 1 / 1.4 / 2 times the
+  break-even bluffs, `blBreakEven`: bluffs × (pot + bet) = value × bet −
+  ties × pot ÷ 2). So the player reads the range from its counts; a
+  balanced Shark leaves calling and folding worth the same.
+- Feedback: bluff share against the price, the call's value in chips, the
+  type, and how many bluffs a balanced Shark would have had.
+
 ## Heads-up v the Shark (live, `?mode=match`)
 
 - A session of games against the Shark: 1,000 chips each, blinds 25/50
@@ -208,3 +224,7 @@ node games/beat-the-shark/poker/test/checks.cjs
   suited 9-8 a flush draw, 6-5 a straight draw, Q-J a bluff); no visible
   card in a range; only pre-flop hands; honest never bluffs; equity
   recomputed; the answer follows the value; the screens.
+- Bluff or value: value always beats you, bluffs never pair and always
+  lose, ties tie; no visible card; pre-flop hands only; each type bluffs its
+  share; a balanced Shark's call within 1.5% of break-even; the type hidden
+  until you answer; the screens.

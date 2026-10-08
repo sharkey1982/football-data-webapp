@@ -268,6 +268,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Poker: pre-flop' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=preflop');
     expect(screen.getByRole('link', { name: 'Poker: ranges' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=ranges');
     expect(screen.getByRole('link', { name: 'Poker: post-flop' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=postflop');
+    expect(screen.getByRole('link', { name: 'Poker: bluff or value?' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=bluff');
     expect(screen.getByRole('link', { name: 'Poker: heads-up v the Shark' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=match');
   });
 });
