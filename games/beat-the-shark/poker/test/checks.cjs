@@ -26,6 +26,10 @@
      9. RANGES      combos by the textbook (16 / 12 / 4 / 6, blockers);
                     every question's count recounted by brute force; equity
                     against the Shark's range against a simulation; screens
+    10. MATCH       heads-up v the Shark: chips kept, blinds rise, matches
+                    end; the best play wins more than folding or shoving
+                    everything; luck averages out; the screens, with "You won
+                    the pot. The Shark says it was a bad ..."
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -336,7 +340,7 @@ const run=c=>E.run(c);
   const PUB_SHOVE={"72o":1.6,"32o":1.4,"K2o":11.6,"Q2o":7.0,"J2o":4.6,"T2o":2.9,"92o":2.2,"82o":1.8,"63o":1.7,"T5o":4.1,"J5o":6.0,"K2s":19.3,"Q2s":12.7,"22":20,"A2o":20,"54s":20};
   const PUB_CALL={"A2o":15.8,"K2o":8.1,"Q2o":5.6,"22":15.0,"K9o":17.1,"Q9o":11.7,"J9o":9.5,"T9o":8.4};
   const r=JSON.parse(run(`(()=>{const o={},I=n=>PF_HANDS.indexOf(n);
-    o.n=PF_HANDS.length;o.combos=PF_HANDS.reduce((a,n)=>a+pfCombos(n),0);o.stacks=Object.keys(PF_EV).map(Number);
+    o.n=PF_HANDS.length;o.combos=PF_HANDS.reduce((a,n)=>a+pfCombos(n),0);o.stacks=Object.keys(PF_EV).map(Number).sort((a,b)=>a-b);
     o.shove=${JSON.stringify(Object.keys(PUB_SHOVE))}.map(n=>Math.min(20,PF_SHOVE_TO[I(n)]));
     o.call=${JSON.stringify(Object.keys(PUB_CALL))}.map(n=>Math.min(20,PF_CALL_TO[I(n)]));
     o.aa=o.stacks.every(S=>pfPlays("sb",S,I("AA"))&&pfPlays("bb",S,I("AA")));
@@ -349,15 +353,15 @@ const run=c=>E.run(c);
       if(pfNameOf(q.cards)!==q.name)bad.push("cards "+q.name);if((q.gain>0)!==(q.answer!=="fold"))bad.push("answer");
       if(q.S<2||q.S>20)bad.push("stack");if(Math.abs(q.foldV-(role==="sb"?-.5:-1))>1e-12)bad.push("fold value")}
     o.bad=[...new Set(bad)];o.seen=seen;return JSON.stringify(o)})()`));
-  check("pre-flop data: the 169 hands make all 1,326 combos; the 13×13 grid names each once; stacks 2–20; hands named from cards",
-    r.n===169&&r.combos===1326&&r.grid===169&&r.stacks.length===19&&r.stacks[0]===2&&r.names.join()==="AKs,72o,99,72o",r.names.join());
+  check("pre-flop data: the 169 hands make all 1,326 combos; the 13×13 grid names each once; stacks 1.5–20 in halves; hands named from cards",
+    r.n===169&&r.combos===1326&&r.grid===169&&r.stacks.length===38&&r.stacks[0]===1.5&&r.names.join()==="AKs,72o,99,72o",r.names.join());
   const dS=Object.keys(PUB_SHOVE).map((n,k)=>[n,r.shove[k]-PUB_SHOVE[n]]),dC=Object.keys(PUB_CALL).map((n,k)=>[n,r.call[k]-PUB_CALL[n]]);
   const worst=dS.concat(dC).reduce((a,b)=>Math.abs(b[1])>Math.abs(a[1])?b:a);
   check("the equilibrium matches HoldemResources' published heads-up table: 24 thresholds, each within 0.35 bb (K2o shoved to 11.6, K9o called to 17.1...)",
     Math.abs(worst[1])<=.35,dS.concat(dC).map(([n,d])=>`${n} ${d>=0?"+":""}${d.toFixed(1)}`).join(" "));
   check("aces are shoved and called at every stack; the deeper the stacks, the fewer hands shoved and called",
-    r.aa&&r.shares[0][0]>r.shares[18][0]&&r.shares[0][1]>r.shares[18][1]&&r.shares[0][0]>.9&&r.shares[18][0]<.7,
-    `shove ${(r.shares[0][0]*100).toFixed(0)}% at 2 bb → ${(r.shares[18][0]*100).toFixed(0)}% at 20; call ${(r.shares[0][1]*100).toFixed(0)}% → ${(r.shares[18][1]*100).toFixed(0)}%`);
+    r.aa&&r.shares[1][0]>r.shares[37][0]&&r.shares[1][1]>r.shares[37][1]&&r.shares[1][0]>.9&&r.shares[37][0]<.7,
+    `shove ${(r.shares[1][0]*100).toFixed(0)}% at 2 bb → ${(r.shares[37][0]*100).toFixed(0)}% at 20; call ${(r.shares[1][1]*100).toFixed(0)}% → ${(r.shares[37][1]*100).toFixed(0)}%`);
   check("the chart's thresholds agree with the values at the game's stacks (99%+ of hand-stack pairs; the rest are the equilibrium's small gaps)",r.cons/r.tot>=.99,`${r.cons} of ${r.tot}`);
   check("questions: the answer follows the value; both seats get both answers; some close ones; the cards are the hand named",
     !r.bad.length&&r.seen["sb:shove"]>20&&r.seen["sb:fold"]>20&&r.seen["bb:call"]>20&&r.seen["bb:fold"]>20&&r.seen.close>=3,JSON.stringify(r.seen)+" "+r.bad.join(","));
@@ -430,6 +434,54 @@ const run=c=>E.run(c);
      fails.push("stuck");break}
    for(const x of["combos-right","combos-wrong","range-right","range-wrong","report"])if(!seen.has(x))fails.push("never saw "+x)}
   check("Ranges through the real screens: combos counted with the sum, equity against a range with the grid and what calling needs, report",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- 10. heads-up match ------------------------------------------------------------- */
+{
+  const r=JSON.parse(run(`(()=>{const o={};
+    const a=pfAt(10),b=PF_EV[10],c=pfAt(10.25),d=PF_EV[10.5];
+    o.interp=a.shove.every((v,i)=>v===b.shove[i])&&c.call.every((v,i)=>Math.abs(v-(b.call[i]+d.call[i])/2)<1e-9);
+    function sim(policy,seed){R.s=hashSeed(seed);const M=newMatchState();let exp=0,res=0,bad=0,levels=new Set(),sharkOK=true;
+      while(!M.over&&M.hand<400){const h=mtDeal(M),c=mtYourChoice(h);levels.add(h.BB);let mv=null;
+        if(h.sb==="shark"&&!h.auto&&(h.sharkMove==="shove")!==(pfAt(h.S).shove[pfIndex(h.sharkName)]>-.5))sharkOK=false;
+        if(c){const best=c.playV>c.foldV?c.play:"fold";mv=policy==="best"?best:policy==="fold"?"fold":policy==="play"?c.play:(rng()<.5?c.play:"fold");exp+=(mv==="fold"?c.foldV:c.playV)*h.BB}
+        const y0=M.you;mtPlay(M,h,mv);if(M.you+M.shark!==2*MT_START)bad++;if(c)res+=M.you-y0}
+      return{won:M.winner==="you",hands:M.hand,over:M.over,bad,levels:levels.size,sharkOK,luck:res-exp}}
+    const P={};for(const pol of["best","fold","play","random"]){let w=0,h=0,bad=0,over=0,lv=0,sk=true,luck=[];
+      for(let k=0;k<300;k++){const x=sim(pol,pol+k);w+=x.won;h+=x.hands;bad+=x.bad;over+=x.over;lv=Math.max(lv,x.levels);sk=sk&&x.sharkOK;luck.push(x.luck)}
+      const m=luck.reduce((a,b)=>a+b,0)/luck.length,sd=Math.sqrt(luck.reduce((a,b)=>a+(b-m)**2,0)/luck.length);
+      P[pol]={win:w/300,hands:h/300,bad,over,lv,sk,luckMean:m,luckSE:sd/Math.sqrt(300)}}
+    o.P=P;return JSON.stringify(o)})()`));
+  const P=r.P;
+  check("match values at any stack: exact at each half big blind, a straight line between",r.interp);
+  check("matches: chips always add up to 2,000; every match ends; the blinds rise; the Shark plays its strategy",
+    Object.values(P).every(p=>p.bad===0&&p.over===300&&p.sk)&&P.best.lv>=4,Object.entries(P).map(([k,p])=>`${k}: ${p.hands.toFixed(0)} hands, ${p.lv} levels`).join("; "));
+  check("the Shark's best play wins more matches than folding everything, shoving everything or guessing; folding everything nearly always loses",
+    P.best.win>P.play.win&&P.best.win>P.random.win&&P.best.win>P.fold.win&&P.fold.win<.1&&P.best.win>=.42,
+    Object.entries(P).map(([k,p])=>`${k} ${(p.win*100).toFixed(0)}%`).join(", "));
+  check("luck averages out: over 300 matches the cards' gift (result − expected) is within 3 standard errors of zero",
+    Math.abs(P.best.luckMean)<3*P.best.luckSE+1,`${P.best.luckMean.toFixed(1)} ± ${P.best.luckSE.toFixed(1)} chips a match`);
+  const fails=[];let msg=false;
+  {const w=makeWorld("?mode=match");if(!/data-game="poker-match"/.test(w.els.app.innerHTML))fails.push("picker lacks the match");
+   w.run('pickSport("poker-match")');w.els.playThis.onclick();w.drain();if(!/Start playing/.test(w.els.app.innerHTML))fails.push("no match intro");
+   for(let game=0;game<6&&!(msg&&game>=2);game++){
+     w.run(`R.s=hashSeed("MTSCR${game}")`);w.run(game===0?'newMatchGame();nextMatchHand()':'nextGame()');let n=0,ended=false;
+     for(let k=0;k<1200;k++){const h=w.els.app.innerHTML;
+       if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+       if(/id="mt-play"/.test(h)){n++;const best=w.run("(()=>{const c=mtYourChoice(MT.h);return c.playV>c.foldV?c.play:'fold'})()");
+         const play=w.run("mtYourChoice(MT.h).play"),mv=n%3===0?(best==="fold"?play:"fold"):best;w.els[mv==="fold"?"mt-fold":"mt-play"].onclick();
+         const r2=w.els.app.innerHTML;if(!/On average, against the hands/.test(r2))fails.push("no decision verdict");
+         if(/You won the pot\. The Shark says it was a bad/.test(r2))msg=true;continue}
+       if(/class="mission">(You win the game|The Shark wins the game)/.test(h)){ended=true;
+         if(game===1){w.els.report.onclick();const rp=w.els.app.innerHTML;if(!/SHARK SCORE/.test(rp)||!/was luck/.test(rp)||!/Games: you \d+, the Shark \d+/.test(rp))fails.push("session report incomplete")}
+         break}
+       if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();continue}
+       fails.push("stuck: "+h.replace(/<[^>]+>/g," ").replace(/\s+/g," ").slice(0,80));break}
+     if(!ended)fails.push("match "+game+" did not end")}
+   if(!msg)fails.push("never said 'You won the pot. The Shark says it was a bad ...'");
+   const chk=w.run("MT.M.you+MT.M.shark");if(chk!==2000)fails.push("chips "+chk);
+   const g=w.run("MT.games.length"),d=w.run("MT.T.decisions.length");if(g<2)fails.push("games not counted");if(d<5)fails.push("decisions not kept across games")}
+  check("the match through the real screens: hands, the Shark's verdict on each decision, 'You won the pot. The Shark says it was a bad ...', games counted, the session report with skill and luck apart",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

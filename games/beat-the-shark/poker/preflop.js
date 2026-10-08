@@ -38,7 +38,7 @@ const PF_STACK_W=S=>S<4?.5:S<=15?1.2:.8;
 /* A question for a role (sb / bb). Most are near the edge of the range,
    where the lesson is; some are dealt at random, as cards come. */
 function pfQuestion(role){
-  const stacks=Object.keys(PF_EV).map(Number),S=stacks[weightedPick(stacks.map(PF_STACK_W))];
+  const stacks=Object.keys(PF_EV).map(Number).filter(S=>S>=2&&S%1===0),S=stacks[weightedPick(stacks.map(PF_STACK_W))];
   const gains=PF_HANDS.map((_,i)=>pfValues(role,S,i).gain);
   let i;const x=rng();
   if(x<.55){const near=PF_HANDS.map((_,k)=>k).filter(k=>Math.abs(gains[k])<.45);i=pick(near.length?near:PF_HANDS.map((_,k)=>k))}
@@ -50,4 +50,9 @@ function pfQuestion(role){
 }
 /* "up to 11.6 big blinds" / "at every stack, 25 big blinds and beyond" */
 function pfToText(to){return to>=25?"at every stack, 25 big blinds and beyond":`up to ${to} big blinds`}
+/* Values at any stack from 1.5 to 20 big blinds: straight from the data at
+   each half big blind, in a straight line between (the match's stacks are
+   whatever the chips make them). Below 1.5 the 1.5 values stand in. */
+function pfAt(S){const lo=Math.max(1.5,Math.min(20,Math.floor(S*2)/2)),hi=Math.min(20,lo+.5),t=hi>lo?Math.max(0,Math.min(1,(S-lo)/(hi-lo))):0,a=PF_EV[lo],b=PF_EV[hi];
+  const mix=(x,y)=>x.map((v,i)=>v+(y[i]-v)*t);return{shove:mix(a.shove,b.shove),call:mix(a.call,b.call),shoveShare:a.shoveShare+(b.shoveShare-a.shoveShare)*t,callShare:a.callShare+(b.callShare-a.callShare)*t}}
 function pfStackGroup(S){return S<=7?"short (2–7)":S<=13?"middling (8–13)":"deeper (14–20)"}
