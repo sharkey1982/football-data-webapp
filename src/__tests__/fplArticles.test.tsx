@@ -86,3 +86,50 @@ describe('FPL article plumbing', () => {
     }
   });
 });
+
+// ---- One captain or two? ----------------------------------------------------
+import CaptainPairsArticle from '../pages/fpl/articles/CaptainPairsArticle';
+import { BUDGET_CURVE, CANDIDATES, COMBOS, GWS, PARTNERS, SQUADS } from '../lib/fplArticleCaptainPairs';
+import { CAPTAIN_PAIRS_ARTICLE } from '../lib/fplArticles';
+
+describe('One captain or two: figures', () => {
+  const xp = (n: string) => CANDIDATES.find((c) => c.name === n)!.xp;
+  it('rotation gain = sum of weekly maxima minus Haaland alone, and paths pick the higher projection', () => {
+    const h = xp('Haaland'), s = xp('Saka'), b = xp('Bruno'), p = xp('Palmer');
+    const gain = (others: number[][]) => GWS.reduce((t, _g, i) => t + Math.max(h[i], ...others.map((o) => o[i])) - h[i], 0);
+    expect(gain([s])).toBeCloseTo(COMBOS.find((c) => c.key === 'hs')!.gain, 1);
+    expect(gain([b])).toBeCloseTo(COMBOS.find((c) => c.key === 'hb')!.gain, 1);
+    expect(gain([p])).toBeCloseTo(COMBOS.find((c) => c.key === 'hp')!.gain, 1);
+    expect(gain([s, b])).toBeCloseTo(COMBOS.find((c) => c.key === 'hsb')!.gain, 1);
+    for (const c of COMBOS) {
+      expect(c.path).toHaveLength(GWS.length);
+      expect(c.path.reduce((t, [, v]) => t + v, 0)).toBeCloseTo(c.captainPoints, 1);
+      expect(c.captainPoints - COMBOS[0].captainPoints).toBeCloseTo(c.gain, 1);
+    }
+    expect(PARTNERS[0]).toMatchObject({ name: 'Saka', weeks: 5 });
+  });
+
+  it('candidate totals and squad totals are consistent', () => {
+    for (const c of CANDIDATES) expect(c.xp.reduce((t, v) => t + v, 0)).toBeCloseTo(c.xp10, 1);
+    for (const s of SQUADS) expect(s.cost).toBeLessThanOrEqual(100);
+    // The optimiser's own squad is best of all squads at £100m, and matches the budget curve.
+    expect(Math.max(...SQUADS.map((s) => s.total))).toBe(SQUADS[0].total);
+    expect(BUDGET_CURVE.find((b) => b.budget === 100)!.total).toBe(SQUADS[0].total);
+    // Budget curve rises with budget.
+    for (let i = 1; i < BUDGET_CURVE.length; i++) expect(BUDGET_CURVE[i].total).toBeGreaterThan(BUDGET_CURVE[i - 1].total);
+  });
+});
+
+describe('One captain or two: page', () => {
+  it('renders the formula, both parts, the charts and the squad table', () => {
+    render(<MemoryRouter><CaptainPairsArticle /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(CAPTAIN_PAIRS_ARTICLE.title);
+    expect(screen.getByText(/rotation gain = /)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Part one/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Part two/ })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /captain each week/ })).toHaveTextContent('GW15');
+    expect(screen.getByRole('table', { name: /Exact squad solves/ })).toHaveTextContent('633.8');
+    expect(screen.getAllByRole('img').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText(/data to 8 Oct 2026/)).toBeInTheDocument();
+  });
+});

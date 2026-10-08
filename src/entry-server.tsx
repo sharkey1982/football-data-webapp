@@ -82,7 +82,8 @@ import NflScoringRulesPage from './pages/nfl/NflScoringRulesPage';
 import FplArticlesPage from './pages/fpl/ArticlesPage';
 import CaptainTopPickArticle from './pages/fpl/articles/CaptainTopPickArticle';
 import HaalandCaptainArticle from './pages/fpl/articles/HaalandCaptainArticle';
-import { ARTICLES, ARTICLES_PATH, CAPTAIN_ARTICLE, HAALAND_ARTICLE, type ArticleMeta } from './lib/fplArticles';
+import { ARTICLES, ARTICLES_PATH, CAPTAIN_ARTICLE, CAPTAIN_PAIRS_ARTICLE, HAALAND_ARTICLE, type ArticleMeta } from './lib/fplArticles';
+import CaptainPairsArticle from './pages/fpl/articles/CaptainPairsArticle';
 import {
   NFL_FIXTURES_PATH,
   NFL_HUB_PATH,
@@ -412,6 +413,7 @@ function articlePage(meta: ArticleMeta, element: ReactElement): RenderedPage {
         headline: meta.title,
         description: meta.description,
         datePublished: meta.published,
+        dateModified: meta.updated ?? meta.published,
         mainEntityOfPage: url,
         author: { '@type': 'Organization', name: BRAND_NAME, url: SITE_URL },
         publisher: { '@type': 'Organization', name: BRAND_NAME, url: SITE_URL },
@@ -443,6 +445,7 @@ export function renderFplArticlePages(): RenderedPage[] {
         breadcrumb([FPL_CRUMB, ARTICLES_CRUMB]),
       ],
     },
+    articlePage(CAPTAIN_PAIRS_ARTICLE, <CaptainPairsArticle />),
     articlePage(CAPTAIN_ARTICLE, <CaptainTopPickArticle />),
     articlePage(HAALAND_ARTICLE, <HaalandCaptainArticle />),
   ];

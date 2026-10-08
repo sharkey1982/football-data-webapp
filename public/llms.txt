@@ -22,7 +22,7 @@ All pages are free to read. Data is updated daily. UK times and UK TV channels a
 - [Predicted line-ups](https://fixtureshark.com/fpl/line-ups), [Minutes outlook](https://fixtureshark.com/fpl/minutes), [Injuries](https://fixtureshark.com/fpl/injuries), [Value](https://fixtureshark.com/fpl/value), [Set pieces](https://fixtureshark.com/fpl/set-pieces).
 - [Player Scout](https://fixtureshark.com/fpl/player-scout): every FPL player's season-by-season record.
 - [Scoring rules](https://fixtureshark.com/fpl/scoring-rules): FPL's points rules for each season.
-- [FPL articles](https://fixtureshark.com/fpl/articles): FPL questions answered from four seasons of data: [should you always captain the top-projected player?](https://fixtureshark.com/fpl/articles/always-captain-the-top-pick) and [should you always captain Haaland?](https://fixtureshark.com/fpl/articles/should-you-always-captain-haaland)
+- [FPL articles](https://fixtureshark.com/fpl/articles): FPL questions answered from four seasons of data: [one captain or two? the mathematics of FPL captaincy](https://fixtureshark.com/fpl/articles/one-captain-or-two), [should you always captain the top-projected player?](https://fixtureshark.com/fpl/articles/always-captain-the-top-pick) and [should you always captain Haaland?](https://fixtureshark.com/fpl/articles/should-you-always-captain-haaland)
 
 ## Club finances
 

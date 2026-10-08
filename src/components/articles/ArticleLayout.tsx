@@ -32,7 +32,7 @@ export default function ArticleLayout({ meta, method, next, children }: Props) {
         </p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">{meta.title}</h1>
         <p className="font-mono text-xs text-ink-500 mt-2">
-          Published {new Date(`${meta.published}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} &middot; data to {ARTICLES_DATA_AS_OF}
+          Published {new Date(`${meta.published}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} &middot; data to {meta.dataAsOf ?? ARTICLES_DATA_AS_OF}
         </p>
       </header>
 
@@ -95,7 +95,7 @@ export function DataTable({ caption, head, rows }: { caption: string; head: stri
                 j === 0 ? (
                   <th key={j} scope="row" className="text-left px-3 py-1.5 font-normal whitespace-nowrap">{c}</th>
                 ) : (
-                  <td key={j} className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{c}</td>
+                  <td key={j} className="px-3 py-1.5 text-right font-mono text-xs tabular-nums whitespace-nowrap">{c}</td>
                 )
               )}
             </tr>
