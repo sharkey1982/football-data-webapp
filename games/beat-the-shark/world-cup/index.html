@@ -29,6 +29,12 @@
   .vp .teams{gap:8px;align-items:center}
   .vp .teams #sb{white-space:nowrap}
   .seed a{color:var(--pitch2)}
+  .natgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 12px}
+  .nat{display:block;text-align:left;background:var(--panel2);color:var(--ink);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;cursor:pointer;min-height:48px;touch-action:manipulation}
+  .nat .nn{display:block;font-weight:600;font-size:14px}.nat .nn i{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber);border-radius:4px;padding:0 3px;margin-left:3px}
+  .nat .ne{display:block;font-family:var(--mono);font-size:11px;color:var(--mute);margin-top:2px}
+  .nat[aria-pressed="true"],.nat.on{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,var(--panel2))}
+  .natgo{position:sticky;bottom:10px;background:var(--panel);padding-top:6px}
 </style>
 </head>
 <body>

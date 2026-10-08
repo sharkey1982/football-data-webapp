@@ -44,6 +44,18 @@ check("the start screen offers the sports, the World Cup to play",/Pick a game/.
 {const w=makeWorld(),before=w.els.app.innerHTML;w.els.playThis.onclick();const idle=w.els.app.innerHTML===before;
  w.run('pickSport("world-cup")');const still=w.els.app.innerHTML===before;w.els.playThis.onclick();w.drain();
  check("picking a sport does nothing until Let's go, which then starts it",idle&&still&&w.els.app.innerHTML!==before)}
+/* Pick your nation (Chris, 7 Oct 2026): real strength is the difficulty. */
+{const w=makeWorld();w.run('pickSport("world-cup")');w.els.playThis.onclick();w.drain();const h=w.els.app.innerHTML,f=[];
+ const n=(h.match(/data-nat="/g)||[]).length;if(n!==48)f.push(n+" nations offered");
+ for(const t of["FAVOURITES","CONTENDERS","DARK HORSES","UNDERDOGS"])if(!h.includes(t))f.push("no "+t);
+ if(!/id="natGo" disabled/.test(h))f.push("Play should wait for a pick");
+ const before=w.els.app.innerHTML;w.els.natGo.onclick();if(w.els.app.innerHTML!==before)f.push("Play started with nothing picked");
+ w.run('chooseNation("Spain")');if(w.els.natGo.disabled)f.push("Play still disabled");
+ w.els.natGo.onclick();w.drain();if(!/You are Spain/.test(w.els.app.innerHTML))f.push("not Spain: "+w.els.app.innerHTML.replace(/<[^>]+>/g," ").slice(0,60));
+ if(w.run("S.myElo")!==2327)f.push("Spain's real Elo not used");
+ const w2=makeWorld();w2.run('pickSport("world-cup")');w2.els.playThis.onclick();w2.drain();w2.els.surprise.onclick();w2.drain();
+ const rk=w2.run("rankOf(S.me)");if(!(rk>=18&&rk<=30))f.push("surprise drew rank "+rk);
+ check("pick your nation: all 48 in four tiers; Play waits for a pick; Spain plays as Spain at its real Elo; Surprise me draws a dark horse",!f.length,f.join(" | "))}
 {const h=fs.readFileSync(path.join(DIR,'index.html'),'utf8'),miss=[];
  for(const m of h.matchAll(/<(?:script src|link rel="stylesheet" href)="([^"]+)"/g))if(!/^https?:/.test(m[1])&&!/\?v=__V__$/.test(m[1]))miss.push(m[1]);
  check("every script and stylesheet is versioned for each deploy (?v=__V__)",!miss.length,miss.join(", "))}
@@ -187,6 +199,7 @@ if(on(4)){
 /* ---- 5. screens ---------------------------------------------------------------------------- */
 function playScreens(level,setup){
   const w=makeWorld();w.run(`pickLevel=${JSON.stringify(level)}`);w.run('pickSport("world-cup")');w.els.playThis.onclick();w.drain();
+  w.els.surprise.onclick();w.drain();
   if(setup)w.run(setup);
   const seen=new Set();let bad="";
   for(let steps=0;steps<600;steps++){
@@ -224,6 +237,16 @@ if(on(5)){
   const deep=playScreens("beginner",`S.cash=-30`);if(!deep.seen.has("sacked"))fails.push("deep in the red: not sacked");
   console.log(`      in the red: ${[...red.seen].join(", ")}`);console.log(`      deep in the red: ${[...deep.seen].join(", ")}`);
   check("whole tournaments through the real screens: squad, bills, shapes, prize money, sent home, sacked",!fails.length,fails.slice(0,4).join(" | "));
+}
+
+/* ---- 6. your nation is the difficulty ---------------------------------------------- */
+if(on(6)){
+  const r=JSON.parse(SIM.run(`(()=>{const o={};for(const rank of [1,15,45]){const n=NATIONS[rank-1].n;let c=0,sf=0;
+    for(let k=0;k<3;k++){newSeason("beginner","NAT"+rank+"-"+k,n);const sq=sharkSquad();const f=forecast(sq,150);c+=f.Champions/3;sf+=reachChance(f,"Semi-final")/3}
+    o[rank]={n,c,sf}}return JSON.stringify(o)})()`));
+  check("the stronger your nation, the better your chance: 1st > 15th > 45th to win it and to reach the semi-final",
+    r[1].c>r[15].c&&r[15].c>r[45].c&&r[1].sf>r[15].sf&&r[15].sf>r[45].sf,
+    Object.values(r).map(x=>`${x.n} win ${(x.c*100).toFixed(0)}% semi ${(x.sf*100).toFixed(0)}%`).join(", "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");
