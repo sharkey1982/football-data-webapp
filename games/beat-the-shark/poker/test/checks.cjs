@@ -38,6 +38,9 @@
                     follow the value; the screens
     13. SIZING      the calling rule; every option's value recounted; the
                     nuts bets biggest; answers vary; the screens
+    14. DETECTIVE   the stated strategy (big = strongest + bluffs, small =
+                    next + bluffs); counts and call values recounted; the
+                    other size changes answers; the screens
    =========================================================================== */
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const DIR=path.join(__dirname,'..');
@@ -603,6 +606,43 @@ const run=c=>E.run(c);
   {const nb=JSON.parse(run(`(()=>{const nuts=Array.from({length:300},()=>({res:1})),half=Array.from({length:300},(_,i)=>({res:i<150?-1:1}));
      return JSON.stringify(Object.keys(SZ_TYPES).map(t=>[szValues(nuts,t,600).reduce((a,b)=>b.value>a.value?b:a).id,szValues(half,t,600).reduce((a,b)=>b.value>a.value?b:a).id]))})()`));
    check("a hand that beats the whole range bets biggest against every type; one that loses to the top half of the range checks",nb.every(([a,b])=>a==="big"&&b==="check"),JSON.stringify(nb))}
+}
+
+/* ---- 14. range detective ------------------------------------------------------------ */
+{
+  const r=JSON.parse(run(`(()=>{R.s=hashSeed("DTQ");const bad=[],seen={},flips={n:0};
+    for(let k=0;k<36;k++){const q=detectiveQuestion();seen[q.style+"/"+q.size]=1;const S=q.S,b=q.board,me=eval7(q.hole.concat(b)),st=q.ST;
+      const all=S.big.concat(S.small),vis=q.hole.concat(b);
+      if(all.some(x=>x.h.some(c=>vis.some(v=>sameCard(v,c)))||!poPreflop(x.h)))bad.push("range");
+      if(new Set(all.map(x=>x.h.map(pkText).sort().join(""))).size!==all.length)bad.push("a hand in both sizes");
+      const bigV=S.big.length-S.bigBluffs,smV=S.small.length-S.smallBluffs;
+      if(bigV!==Math.round(S.n*DT_BIG)||smV!==Math.round(S.n*DT_SMALL))bad.push("value shares");
+      if(S.bigBluffs>Math.round(bigV*st.big)||S.smallBluffs>Math.round(smV*st.small))bad.push("bluff counts");
+      if(Math.min(...S.big.slice(0,bigV).map(x=>x.s))<Math.max(...S.small.slice(0,smV).map(x=>x.s)))bad.push("big value weaker than small");
+      if([...S.big.slice(bigV),...S.small.slice(smV)].some(x=>catOf(x.h.concat(b))!==0))bad.push("bluff with a pair");
+      const m={strong:0,pair:0,missed:0,nothing:0};for(const x of q.part)m[dtGroup(x.h,b)]++;
+      if(JSON.stringify(m)!==JSON.stringify(q.counts)||!q.likely.every(l=>q.counts[l]===Math.max(...Object.values(m))))bad.push("counts");
+      let v=0;for(const x of q.part)v+=x.s>me?-q.bet:x.s<me?q.pot+q.bet:q.pot/2;if(Math.abs(v/q.part.length-q.ev)>1e-9||(q.ev>0)!==(q.answer==="call"))bad.push("call value");
+      if(q.answer!==q.otherAnswer)flips.n++}
+    return JSON.stringify({bad:[...new Set(bad)],seen:Object.keys(seen).length,flips:flips.n})})()`));
+  check("range detective: big bets are its strongest 15% plus bluffs, small the next 25% plus bluffs, no hand in both, bluffs never pair, each style's bluff count; counts and call values recounted",
+    !r.bad.length&&r.seen>=5,r.seen+" style/size pairs "+r.bad.join(","));
+  check("the size changes the answer: the same hand calls one size and folds the other in a good share of deals",r.flips>=8,`${r.flips} of 36`);
+  const fails=[];
+  {const w=makeWorld("?mode=detective");if(!/data-game="poker-detective"/.test(w.els.app.innerHTML))fails.push("picker lacks detective");
+   w.run('pickSport("poker-detective")');w.els.playThis.onclick();w.drain();if(!/Read the bet/.test(w.els.app.innerHTML))fails.push("no intro");
+   w.run('R.s=hashSeed("DTSCR")');w.els.go.onclick();w.drain();const seen=new Set();let nq=0;
+   for(let k=0;k<40;k++){const h=w.els.app.innerHTML;
+     if(/undefined|NaN|\[object/.test(h)){fails.push("broken text: "+h.match(/.{0,40}(undefined|NaN|\[object).{0,20}/)[0]);break}
+     if(/id="dt-strong"/.test(h)){nq++;const l=w.run("DT.q.likely[0]"),a=nq%2?l:(l==="nothing"?"strong":"nothing");w.els["dt-"+a].onclick();seen.add(a===l?"read-right":"read-wrong");
+       if(!/ways? · \d+%/.test(w.els.app.innerHTML))fails.push("counts missing");continue}
+     if(/id="dt-call"/.test(h)){const right=w.run("DT.q.answer"),a=nq%3?right:(right==="call"?"fold":"call");w.els["dt-"+a].onclick();const r2=w.els.app.innerHTML;
+       seen.add(a===right?"call-right":"call-wrong");if(!/Had it bet/.test(r2))fails.push("no other-size contrast");continue}
+     if(nq>5&&/id="report"/.test(h)){w.els.report.onclick();seen.add("report");if(!/DETECTIVE SCORE/.test(w.els.app.innerHTML))fails.push("no report");break}
+     if(/id="next"/.test(h)){const f=w.els.next.onclick;w.els.next.onclick=null;f();w.drain();continue}
+     fails.push("stuck");break}
+   for(const x of["read-right","read-wrong","call-right","report"])if(!seen.has(x))fails.push("never saw "+x)}
+  check("Range detective through the real screens: the stated strategy, read the bet with counts, call or fold, the other size, report",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

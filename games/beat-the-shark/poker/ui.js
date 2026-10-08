@@ -7,7 +7,7 @@
    Scored with the shared training framework (Hand Score). Last line starts.
    =========================================================================== */
 const PK_MODE=(()=>{try{const m=new URLSearchParams(location.search||"").get("mode");return m||"hands"}catch(e){return"hands"}})();
-const PK_PICKER_ID={hands:"poker-hands",outs:"poker-outs",pot:"poker-pot",equity:"poker-equity",preflop:"poker-preflop",ranges:"poker-ranges",match:"poker-match",postflop:"poker-postflop",bluff:"poker-bluff",sizing:"poker-sizing"}[PK_MODE]||"poker-hands";
+const PK_PICKER_ID={hands:"poker-hands",outs:"poker-outs",pot:"poker-pot",equity:"poker-equity",preflop:"poker-preflop",ranges:"poker-ranges",match:"poker-match",postflop:"poker-postflop",bluff:"poker-bluff",sizing:"poker-sizing",detective:"poker-detective"}[PK_MODE]||"poker-hands";
 let Q=null;
 
 function pkCardHTML(c,cls){const red=c.s===1||c.s===2;
@@ -25,6 +25,7 @@ function paintHeader(){
   if(PK_MODE==="postflop")return paintPostflopHeader();
   if(PK_MODE==="bluff")return paintBluffHeader();
   if(PK_MODE==="sizing")return paintSizingHeader();
+  if(PK_MODE==="detective")return paintDetectiveHeader();
   const T=Q&&Q.T,sc=T?sharkScore(T):null,n=T?T.decisions.length:0,ok=T?T.decisions.filter(d=>d.optimal).length:0;
   $("hScore").innerHTML=`${sc==null?"—":sc}<span class="sub">HAND SCORE</span>`;
   $("hTwo").innerHTML=`<div class="two"><div class="k">Right</div><div class="v">${ok} / ${n}</div></div>
@@ -34,7 +35,7 @@ function paintHeader(){
 function screen(html){paintHeader();$("app").innerHTML=html}
 
 /* ---- start ------------------------------------------------------------------------- */
-function renderStart(){Q=null;renderGamePicker(PK_PICKER_ID,"../",PK_MODE==="outs"?renderOutsIntro:PK_MODE==="pot"?renderPotIntro:PK_MODE==="equity"?renderEquityIntro:PK_MODE==="preflop"?renderPreflopIntro:PK_MODE==="ranges"?renderRangesIntro:PK_MODE==="match"?renderMatchIntro:PK_MODE==="postflop"?renderPostflopIntro:PK_MODE==="bluff"?renderBluffIntro:PK_MODE==="sizing"?renderSizingIntro:renderIntro)}
+function renderStart(){Q=null;renderGamePicker(PK_PICKER_ID,"../",PK_MODE==="outs"?renderOutsIntro:PK_MODE==="pot"?renderPotIntro:PK_MODE==="equity"?renderEquityIntro:PK_MODE==="preflop"?renderPreflopIntro:PK_MODE==="ranges"?renderRangesIntro:PK_MODE==="match"?renderMatchIntro:PK_MODE==="postflop"?renderPostflopIntro:PK_MODE==="bluff"?renderBluffIntro:PK_MODE==="sizing"?renderSizingIntro:PK_MODE==="detective"?renderDetectiveIntro:renderIntro)}
 const EXAMPLES=[[[14,0],[14,1],[14,2],[14,3],[13,0]],[[13,2],[13,3],[13,1],[9,0],[9,2]]];
 function renderIntro(){
   paintHeader();

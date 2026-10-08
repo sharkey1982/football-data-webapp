@@ -25,6 +25,7 @@ poker/match.js, matchui.js     Heads-up v the Shark: a short-stack match, decisi
 poker/postflop.js, postflopui.js Post-flop: call or fold against the Shark's range, shown by part
 poker/bluff.js, bluffui.js     Bluff or value?: catch the bluff on the river against a counted range
 poker/sizing.js, sizingui.js   Bet sizing: check or bet how much on the river, against a stated calling rule
+poker/detective.js, detectiveui.js Range detective: read the Shark's hand from the size of its bet
 poker/ui.js           screens; its last line starts the game
 poker/test/checks.cjs evaluator against every five-card hand and the hold'em frequencies; questions; screens
 shared/trainer.css    cards, feedback bands and report tiles shared with the blackjack trainer
@@ -174,6 +175,19 @@ shared/training.js    decision records and scores (as blackjack)
 - Feedback: every option's value, how often the Shark calls it and how often
   you win when it does, and why. Report: too small or too big.
 
+## Range detective (live, `?mode=detective`)
+
+- The river. The Shark's stated strategy: it bets the pot with its
+  strongest 15% of hands plus bluffs, a third of the pot with the next 25%
+  plus bluffs, and checks the rest. Its style (shown) sets the bluffs per
+  value hand: bluffs big (0.8 big, 0 small), bluffs small (0.1 / 0.6) or
+  balanced (0.5 / 0.25, the break-even ratios).
+- Two answers a hand: which group it most likely holds (two pair or better,
+  one pair, a missed draw, nothing; counted combo by combo in the part of the
+  range that bets this size), then call or fold (exact). The feedback adds
+  the other size: the same hand facing the other bet, and whether that
+  flips the answer (it does in about 4 deals in 9).
+
 ## Heads-up v the Shark (live, `?mode=match`)
 
 - A session of games against the Shark: 1,000 chips each, blinds 25/50
@@ -246,3 +260,7 @@ node games/beat-the-shark/poker/test/checks.cjs
   option's value recounted; a hand that beats the whole range bets biggest
   and one that loses to the top half checks, against every type; the
   screens.
+- Range detective: big bets are the strongest 15% + bluffs, small the
+  next 25% + bluffs, no hand in both, bluffs never pair, each style's bluff
+  count; counts and call values recounted; the size flips the answer often;
+  the screens.
