@@ -1,5 +1,5 @@
 export type FantasyFocus = 'attack' | 'defence';
-export type FantasyColourBasis = 'model' | 'fdr';
+export type FantasyColourBasis = 'model' | 'dc' | 'fdr';
 export type FantasyMetric = 'xgf' | 'xga' | 'cleansheet' | 'fdr';
 
 const METRIC_LABEL: Record<FantasyMetric, string> = {
@@ -35,6 +35,9 @@ export interface FantasyHeatmapCell {
   value: number;
   /** 1 (easiest) to 5 (hardest), already oriented for the current focus/metric. */
   difficulty: number;
+  /** Set when the market and Dixon-Coles disagree by more than the page's
+   * threshold: the cell is marked and this text goes in its tooltip. */
+  disagreement?: string;
 }
 
 export interface FantasyHeatmapRow {
@@ -131,12 +134,15 @@ export default function FantasyFixtureHeatmap({
                       difficultyTextClass(cell.difficulty),
                     ].join(' ')}
                     style={{ backgroundColor: difficultyColor(cell.difficulty) }}
-                    title={`GW${mw}: ${row.team_name} ${cell.is_home ? 'vs' : '@'} ${cell.opponent_name} -- ${METRIC_LABEL[metric]} ${formatMetricValue(metric, cell.value)}`}
+                    title={`GW${mw}: ${row.team_name} ${cell.is_home ? 'vs' : '@'} ${cell.opponent_name} -- ${METRIC_LABEL[metric]} ${formatMetricValue(metric, cell.value)}${cell.disagreement ? ` (${cell.disagreement})` : ''}`}
                   >
                     <div className="leading-tight font-semibold">
                       {cell.opponent_name.slice(0, 3).toUpperCase()} - {cell.is_home ? 'H' : 'A'}
                     </div>
-                    <div className="leading-tight opacity-80">{formatMetricValue(metric, cell.value)}</div>
+                    <div className="leading-tight opacity-80">
+                      {formatMetricValue(metric, cell.value)}
+                      {cell.disagreement && <span data-testid="model-disagreement" aria-label="models disagree">*</span>}
+                    </div>
                   </td>
                 );
               })}

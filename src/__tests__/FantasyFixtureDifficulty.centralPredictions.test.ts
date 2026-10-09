@@ -10,6 +10,10 @@ function makeBuilder(rows: any[]) {
       filtered = filtered.filter((r: any) => r[col] === val);
       return api;
     },
+    in: (col: string, vals: any[]) => {
+      filtered = filtered.filter((r: any) => vals.includes(r[col]));
+      return api;
+    },
     neq: (col: string, val: any) => {
       filtered = filtered.filter((r: any) => r[col] !== val);
       return api;
@@ -23,7 +27,7 @@ function makeBuilder(rows: any[]) {
 }
 
 describe('getFantasyFixtureDifficulty', () => {
-  it('uses the central, stored predicted_home_goals/predicted_away_goals -- never recomputes its own xG', async () => {
+  it('with no market prices, uses the central, stored Dixon-Coles goals -- never recomputes its own xG', async () => {
     const { supabase } = await import('../lib/supabase');
     const tables: Record<string, any[]> = {
       model_fit_runs: [{ fit_run_id: 1, league_id: 1, status: 'accepted', fitted_at: '2026-09-15', rho: -0.15, home_advantage: 0.3 }],
@@ -86,5 +90,44 @@ describe('getFantasyFixtureDifficulty', () => {
     const result = await getFantasyFixtureDifficulty(1, 13);
 
     expect(result.teams.find((t) => t.team_name === 'Man City')).toBeUndefined();
+  });
+
+  it('uses market goals when both sides are priced, keeps Dixon-Coles beside them, and maps FPL FDR', async () => {
+    const { supabase } = await import('../lib/supabase');
+    const tables: Record<string, any[]> = {
+      model_fit_runs: [{ fit_run_id: 1, league_id: 1, status: 'accepted', fitted_at: '2026-09-15', rho: -0.15, home_advantage: 0.3 }],
+      team_ratings: [
+        { team_id: 1, fit_run_id: 1, attack_strength: 0.9, defence_strength: -0.2, is_estimated: false, estimation_note: null, team: { canonical_name: 'Man City' } },
+        { team_id: 2, fit_run_id: 1, attack_strength: -0.6, defence_strength: 0.5, is_estimated: false, estimation_note: null, team: { canonical_name: 'Sunderland' } },
+      ],
+      fixtures: [
+        {
+          fixture_id: 41, kickoff_date: '2026-09-20', matchweek: 5, status: 'scheduled', season_id: 13, league_id: 1,
+          home_team_id: 1, away_team_id: 2,
+          predicted_home_goals: 1.6715, predicted_away_goals: 1.4963,
+          market_home_goals: 2.2, market_away_goals: 0.8,
+          home_team: { canonical_name: 'Man City' }, away_team: { canonical_name: 'Sunderland' },
+        },
+      ],
+      fpl_fixtures: [{ canonical_fixture_id: 41, season_id: 13, team_h_difficulty: 2, team_a_difficulty: 5 }],
+    };
+    (supabase.from as any).mockImplementation((table: string) => makeBuilder(tables[table] ?? []));
+
+    const { getFantasyFixtureDifficulty } = await import('../lib/api');
+    const result = await getFantasyFixtureDifficulty(1, 13);
+
+    const city = result.teams.find((t) => t.team_name === 'Man City')!.fixtures[0];
+    expect(city.goals_source).toBe('market');
+    expect(city.expected_goals_for).toBe(2.2);
+    expect(city.expected_goals_against).toBe(0.8);
+    expect(city.clean_sheet_probability).toBeCloseTo(Math.exp(-0.8), 10);
+    expect(city.model_goals_for).toBe(1.6715);
+    expect(city.model_clean_sheet_probability).toBeCloseTo(Math.exp(-1.4963), 10);
+    expect(city.fpl_fdr).toBe(2);
+
+    const sunderland = result.teams.find((t) => t.team_name === 'Sunderland')!.fixtures[0];
+    expect(sunderland.expected_goals_for).toBe(0.8);
+    expect(sunderland.model_goals_for).toBe(1.4963);
+    expect(sunderland.fpl_fdr).toBe(5);
   });
 });

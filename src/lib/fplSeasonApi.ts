@@ -364,6 +364,7 @@ export async function getGameweekPlayerProjections(
         'fixture_id, fpl_player_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties, lineup_confidence'
       )
       .eq('model_version', SEASON_XPTS_MODEL_VERSION)
+      .eq('scenario_key', 'baseline')
       .in('fixture_id', fixtureIds)
       .in('fpl_player_id', playerIds);
     if (xptsError) throw xptsError;
@@ -574,6 +575,7 @@ export async function getSeasonActualVsProjected(leagueId: number, seasonId: num
     .from('fpl_player_projections')
     .select('fpl_player_id, fixture_id, expected_fpl_points')
     .eq('model_version', SEASON_XPTS_MODEL_VERSION)
+    .eq('scenario_key', 'baseline')
     .in('fpl_player_id', playerIds)
     .in('fixture_id', playedFixtureIds);
   if (projError) throw projError;

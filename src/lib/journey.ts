@@ -151,6 +151,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // slicing it rather than the other way round.
           { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          // Next to the projections it compares: up to five players side by
+          // side, minutes included (Chris, 9 Oct 2026).
+          { label: 'Compare Players', to: '/fpl/compare', blurb: 'Up to five players side by side: points, xG, minutes and fixtures.' },
           // Also listed under Discover, where the week's results live: this
           // page is both a record of what happened and the honest check on
           // the projections above, so it belongs in each (Chris).

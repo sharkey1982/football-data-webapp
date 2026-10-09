@@ -457,10 +457,20 @@ export interface FantasyFixtureCell {
   opponent_team_id: number;
   opponent_name: string;
   is_home: boolean;
+  /** Team goals the FPL projections use: market-rated when both sides are
+   * priced (fixtures.market_*_goals), otherwise Dixon-Coles. */
   expected_goals_for: number;
   expected_goals_against: number;
-  /** P(this team keeps a clean sheet), 0-1 -- P(opponent scores 0), read off the Dixon-Coles score grid. */
+  /** P(this team keeps a clean sheet), 0-1 -- Poisson P(0) from the opponent's expected goals above. */
   clean_sheet_probability: number;
+  /** Which model the three numbers above come from. */
+  goals_source: 'market' | 'model';
+  /** Dixon-Coles goals and clean sheet, always (shown beside the market, never blended). */
+  model_goals_for: number;
+  model_goals_against: number;
+  model_clean_sheet_probability: number;
+  /** FPL's own fixture difficulty for this team (1-5), when FPL has published it. */
+  fpl_fdr: number | null;
   opponent_attack_strength: number;
   opponent_defence_strength: number;
 }
@@ -479,8 +489,9 @@ export interface FantasyFixtureData {
 }
 
 /**
- * Builds the per-team list of upcoming fixtures with Dixon-Coles expected
- * goals for/against, for the Fantasy fixture-difficulty heat map. "Upcoming"
+ * Builds the per-team list of upcoming fixtures with expected goals
+ * for/against (market-rated where priced, else Dixon-Coles, as the FPL
+ * projections use), for the Fantasy fixture-difficulty heat map. "Upcoming"
  * means any fixture not yet played (scheduled or postponed) -- postponed
  * fixtures are kept even without a firm date since they'll still count
  * against a team's near-term run once rescheduled.
@@ -506,6 +517,7 @@ export async function getFantasyFixtureDifficulty(
       `
       fixture_id, kickoff_date, matchweek, status,
       home_team_id, away_team_id, predicted_home_goals, predicted_away_goals,
+      market_home_goals, market_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)
     `
@@ -527,7 +539,23 @@ export async function getFantasyFixtureDifficulty(
     return entry;
   };
 
-  for (const row of (data ?? [])) {
+  // FPL's own difficulty ratings, keyed by our fixture id.
+  const fixtureIds = (data ?? []).map((r: any) => r.fixture_id);
+  const fdrByFixture = new Map<number, { home: number | null; away: number | null }>();
+  if (fixtureIds.length > 0) {
+    const { data: fdrRows, error: fdrError } = await supabase
+      .from('fpl_fixtures')
+      .select('canonical_fixture_id, team_h_difficulty, team_a_difficulty')
+      .eq('season_id', seasonId)
+      .in('canonical_fixture_id', fixtureIds);
+    if (fdrError) throw fdrError;
+    for (const r of (fdrRows ?? []) as any[]) {
+      if (r.canonical_fixture_id == null) continue;
+      fdrByFixture.set(r.canonical_fixture_id, { home: r.team_h_difficulty ?? null, away: r.team_a_difficulty ?? null });
+    }
+  }
+
+  for (const row of (data ?? []) as any[]) {
     const homeRating = ratingByTeam.get(row.home_team_id);
     const awayRating = ratingByTeam.get(row.away_team_id);
     // Requested directly: this used to recompute xG client-side via the
@@ -546,10 +574,18 @@ export async function getFantasyFixtureDifficulty(
     // P(0) = exp(-opponent's expected goals), no Dixon-Coles tau
     // correction) for the same reason -- one consistent number app-wide.
     if (row.predicted_home_goals === null || row.predicted_away_goals === null || !homeRating || !awayRating) continue;
-    const homeGoals = +row.predicted_home_goals;
-    const awayGoals = +row.predicted_away_goals;
+    // Market-rated goals when both sides are priced -- the same rule the FPL
+    // projection views use (COALESCE(market, model)), so the heat map agrees
+    // with Player Projections. Dixon-Coles is kept alongside, never blended.
+    const modelHome = +row.predicted_home_goals;
+    const modelAway = +row.predicted_away_goals;
+    const hasMarket = row.market_home_goals != null && row.market_away_goals != null;
+    const homeGoals = hasMarket ? +row.market_home_goals : modelHome;
+    const awayGoals = hasMarket ? +row.market_away_goals : modelAway;
+    const goalsSource: 'market' | 'model' = hasMarket ? 'market' : 'model';
     const homeCleanSheetProb = Math.exp(-awayGoals);
     const awayCleanSheetProb = Math.exp(-homeGoals);
+    const fdr = fdrByFixture.get(row.fixture_id);
 
     const homeName = row.home_team?.canonical_name ?? 'Unknown';
     const awayName = row.away_team?.canonical_name ?? 'Unknown';
@@ -564,6 +600,11 @@ export async function getFantasyFixtureDifficulty(
       expected_goals_for: homeGoals,
       expected_goals_against: awayGoals,
       clean_sheet_probability: homeCleanSheetProb,
+      goals_source: goalsSource,
+      model_goals_for: modelHome,
+      model_goals_against: modelAway,
+      model_clean_sheet_probability: Math.exp(-modelAway),
+      fpl_fdr: fdr?.home ?? null,
       opponent_attack_strength: awayRating.attack_strength,
       opponent_defence_strength: awayRating.defence_strength,
     });
@@ -578,6 +619,11 @@ export async function getFantasyFixtureDifficulty(
       expected_goals_for: awayGoals,
       expected_goals_against: homeGoals,
       clean_sheet_probability: awayCleanSheetProb,
+      goals_source: goalsSource,
+      model_goals_for: modelAway,
+      model_goals_against: modelHome,
+      model_clean_sheet_probability: Math.exp(-modelHome),
+      fpl_fdr: fdr?.away ?? null,
       opponent_attack_strength: homeRating.attack_strength,
       opponent_defence_strength: homeRating.defence_strength,
     });

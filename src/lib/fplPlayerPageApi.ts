@@ -149,6 +149,7 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
     .select('fixture_id, expected_fpl_points, expected_minutes, generated_at, model_version, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_goals_conceded, xpts_saves, xpts_defensive_contribution, xpts_penalties, xpts_bonus, xpts_cards_own_goals, start_probability, tactical_role')
     .eq('fpl_player_id', fplPlayerId)
     .eq('model_version', MODEL_VERSION)
+    .eq('scenario_key', 'baseline')
     .in('fixture_id', fixtureIds);
   if (projError) throw projError;
   const projByFixture = new Map<number, any>((projRows ?? []).map((p) => [p.fixture_id, p]));

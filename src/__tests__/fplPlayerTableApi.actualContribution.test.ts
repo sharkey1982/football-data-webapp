@@ -146,7 +146,7 @@ describe('double gameweeks (via getPlayerGameweekPointsRange)', () => {
       source_payload: { stats: {} },
     });
     const proj = (fid: number, pts: number, sp: number) => ({
-      fpl_player_id: 601, fixture_id: fid, model_version: 'leaguewide_v6', expected_fpl_points: pts, xpts_appearance: 1.8, xpts_goals: pts - 1.8,
+      fpl_player_id: 601, fixture_id: fid, model_version: 'leaguewide_v6', scenario_key: 'baseline', expected_fpl_points: pts, xpts_appearance: 1.8, xpts_goals: pts - 1.8,
       xpts_assists: 0, xpts_clean_sheet: 0, xpts_saves: 0, xpts_defensive_contribution: 0, xpts_cards_own_goals: 0, xpts_bonus: 0,
       xpts_goals_conceded: 0, xpts_penalties: 0, start_probability: sp,
     });

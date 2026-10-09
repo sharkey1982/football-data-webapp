@@ -321,6 +321,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/compare',
+    title: 'Compare FPL players \u2014 projections and minutes side by side',
+    description:
+      'Up to five Fantasy Premier League players side by side: projected points, expected goals and assists, expected minutes and start chance, fixtures and season record.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/player-points',
     title: 'Player Projections \u2014 every FPL player, sortable',
     description: 'Every Fantasy Premier League player, sortable, across any gameweek range.',
