@@ -142,3 +142,71 @@ describe('One captain or two: transfers update', () => {
     expect(order('transfers')).toEqual(order('fixed'));
   });
 });
+
+// ---- Three decisions, three horizons ------------------------------------------
+import DecisionHorizonsArticle from '../pages/fpl/articles/DecisionHorizonsArticle';
+import { DECISIONS_ARTICLE } from '../lib/fplArticles';
+import * as Dec from '../lib/fplArticleDecisions';
+
+describe('Three decisions: figures', () => {
+  it('the optimal squad re-scores to the solver total and is legal', () => {
+    const r = Dec.weeklyXI(Dec.OPTIMAL_SQUAD);
+    expect(r.total).toBeCloseTo(Dec.OPTIMAL_TOTAL, 0);
+    expect(Dec.sum(Dec.OPTIMAL_SQUAD.map((p) => p.price))).toBeLessThanOrEqual(100);
+    const byClub = new Map<string, number>();
+    for (const p of Dec.OPTIMAL_SQUAD) byClub.set(p.team, (byClub.get(p.team) ?? 0) + 1);
+    expect(Math.max(...byClub.values())).toBeLessThanOrEqual(3);
+    expect([1, 2, 3, 4].map((pos) => Dec.OPTIMAL_SQUAD.filter((p) => p.pos === pos).length)).toEqual([2, 5, 5, 3]);
+    expect(r.starts.get('Forster')).toBe(0);
+  });
+
+  it('opening and transfer examples', () => {
+    expect(Dec.ISIDOR.xp[0]).toBeGreaterThan(Dec.CALVERT_LEWIN.xp[0]);
+    expect(Dec.sum(Dec.ISIDOR.xp)).toBeCloseTo(14.7, 1);
+    expect(Dec.sum(Dec.CALVERT_LEWIN.xp)).toBeCloseTo(49.0, 1);
+    const g = Dec.cumulativeGain(Dec.WISSA.xp, Dec.CALVERT_LEWIN.xp);
+    expect(g[0]).toBeLessThan(0);
+    expect(g.findIndex((x) => x > 0)).toBe(2); // GW8
+    expect(g.findIndex((x) => x > Dec.HIT)).toBe(6); // GW12
+    expect(g[9]).toBeCloseTo(8.2, 1);
+  });
+
+  it('value claims: Haaland lowest points per £m of any regular starter, and lowest marginal value among attackers', () => {
+    const r = Dec.weeklyXI(Dec.OPTIMAL_SQUAD);
+    const regular = Dec.OPTIMAL_SQUAD.filter((p) => (r.starts.get(p.name) ?? 0) >= 5);
+    const ppm = (p: Dec.SquadPlayer) => Dec.sum(p.xp) / p.price;
+    expect([...regular].sort((a, b) => ppm(a) - ppm(b))[0].name).toBe('Haaland');
+    const attackers = Dec.OPTIMAL_SQUAD.filter((p) => p.pos >= 3 && p.price - Dec.REPLACEMENT[p.pos].price >= 0.5);
+    const mv = (p: Dec.SquadPlayer) => (Dec.sum(p.xp) - Dec.REPLACEMENT[p.pos].xp10) / (p.price - Dec.REPLACEMENT[p.pos].price);
+    expect([...attackers].sort((a, b) => mv(a) - mv(b))[0].name).toBe('Haaland');
+    // GW6: the top projection is not the most-owned player.
+    const [top] = [...Dec.GW6_CAPTAINS].sort((a, b) => b.xp - a.xp);
+    const owned = [...Dec.GW6_CAPTAINS].sort((a, b) => b.own - a.own)[0];
+    expect(top.name).toBe('Saka');
+    expect(owned.name).toBe('Haaland');
+  });
+
+  it('"due" test: no effect within two standard errors', () => {
+    for (const r of Dec.DUE_TEST) expect(Math.abs(r.diff)).toBeLessThan(2 * r.se + 0.05);
+  });
+});
+
+describe('Three decisions: page', () => {
+  it('renders the worked examples', () => {
+    render(<MemoryRouter><DecisionHorizonsArticle /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(DECISIONS_ARTICLE.title);
+    expect(screen.getByRole('table', { name: 'The three FPL decisions' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /same swaps judged over different horizons/ })).toHaveTextContent('+8.2');
+    expect(screen.getByText(/Clears a 4-point hit only by gameweek 12/)).toBeInTheDocument();
+    expect(screen.getAllByRole('img').length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('Three decisions: partner claim', () => {
+  it('captaincy is a small part of what the second premium adds', () => {
+    const p = Dec.PARTNER_SQUADS;
+    const cap = p.captainPoints - p.captainPointsNoPartner, all = p.withPartner - p.noPartner;
+    expect(cap).toBeGreaterThan(0);
+    expect(cap / all).toBeLessThan(0.2);
+  });
+});
