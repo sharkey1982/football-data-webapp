@@ -123,7 +123,7 @@ describe('FantasyFixtures page', () => {
 
     // The FDR colour toggle is disabled while Clean sheet % is selected --
     // there's no FDR equivalent for a model-derived probability.
-    expect(screen.getByRole('button', { name: 'Simple FDR (1-5)' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'FPL FDR (1-5)' })).toBeDisabled();
   });
 
   it('skips a partially-played gameweek by default, with a tick box to include it (the shared filter)', async () => {
@@ -211,5 +211,33 @@ describe('FantasyFixtures page', () => {
     expect(colourOf('Delta')).toBe(RED); // 0.8: 1 or less
     expect(colourOf('Alpha')).not.toBe(GREEN); // 1.9: nearly, but not fully green
     expect(colourOf('Bravo')).not.toBe(RED); // 1.1: nearly, but not fully red
+  });
+
+  it('marks fixtures where the market and Dixon-Coles disagree, and can show Dixon-Coles instead', async () => {
+    mockedApi.getLeagues.mockResolvedValue([{ league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' }]);
+    mockedApi.getMostRecentFixtureSeason.mockResolvedValue({ season_id: 13, label: '2026/27' });
+    const fx = (id: number, name: string, market: number, model: number) => ({ team_id: id, team_name: name, fixtures: [{
+      fixture_id: id, kickoff_date: '2026-10-01', matchweek: 5, opponent_team_id: 99, opponent_name: 'Opp', is_home: true,
+      expected_goals_for: market, expected_goals_against: 1.2, clean_sheet_probability: Math.exp(-1.2),
+      goals_source: 'market', model_goals_for: model, model_goals_against: 1.2, model_clean_sheet_probability: Math.exp(-1.2),
+      fpl_fdr: 3, opponent_attack_strength: 0, opponent_defence_strength: 0 }] });
+    mockedApi.getFantasyFixtureDifficulty.mockResolvedValue({
+      fitRun: { fit_run_id: 1, league_id: 1, rho: -0.1, home_advantage: 0.3 } as any,
+      ratings: [],
+      // Spurs-like: market 1.52, Dixon-Coles 1.06 (30% apart). Fulham: within 20%.
+      teams: [fx(1, 'Spurs', 1.52, 1.06), fx(2, 'Fulham', 1.5, 1.4)],
+    });
+    render(<FantasyFixtures />);
+    await waitFor(() => expect(screen.getAllByTestId('team-row-name').length).toBe(2));
+    expect(screen.getAllByTestId('model-disagreement')).toHaveLength(1);
+    expect(screen.getByTitle(/^GW5: Spurs .*market 1\.52 v Dixon-Coles 1\.06/)).toBeInTheDocument();
+    expect(screen.getByTestId('goals-source-note')).toHaveTextContent('betting-market team ratings');
+
+    // Default view ranks on the market numbers the player projections use.
+    expect(screen.getAllByTestId('team-row-name')[0]).toHaveTextContent('Spurs');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Dixon-Coles' }));
+    await waitFor(() => expect(screen.getAllByTestId('team-row-name')[0]).toHaveTextContent('Fulham'));
+    expect(screen.getAllByTestId('team-window-total')[1]).toHaveTextContent('1.1');
   });
 });

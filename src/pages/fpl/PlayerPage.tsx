@@ -259,6 +259,11 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
             {`${profile.team_name}: fixtures and form`}
           </Link>
         )}
+        {profile.slug && (
+          <Link to={`/fpl/compare?players=${profile.slug}`} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+            Compare with other players
+          </Link>
+        )}
         <Link to="/fpl/player-points" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
           All player projections
         </Link>

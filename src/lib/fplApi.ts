@@ -432,7 +432,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
     // penalty_points_share aren't part of the v6 feed, so those specific
     // fields still come from fpl_player_projections -- filtered to the
     // SAME current model_version, not the old default.
-    supabase.from('fpl_player_projections').select('*').eq('fixture_id', fixtureId).eq('model_version', CURRENT_MODEL_VERSION),
+    supabase.from('fpl_player_projections').select('*').eq('fixture_id', fixtureId).eq('model_version', CURRENT_MODEL_VERSION).eq('scenario_key', 'baseline'),
     supabase.from('set_piece_hierarchies').select('*').in('team_id', [homeTeamId, awayTeamId]),
     supabase.from('player_squad_hierarchy').select('*').in('team_id', [homeTeamId, awayTeamId]),
   ]);

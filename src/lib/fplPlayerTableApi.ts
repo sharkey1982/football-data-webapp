@@ -228,6 +228,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
         'fpl_player_id, fixture_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties, start_probability'
       )
       .eq('model_version', PLAYER_TABLE_MODEL_VERSION)
+      .eq('scenario_key', 'baseline')
       .in('fixture_id', fixtureIds)
       .range(from, to)
   );
@@ -386,14 +387,20 @@ export type TeamFixtureGoals = {
   opponent_name: string;
   is_home: boolean;
   status: string;
+  /** Goals the FPL projections use: market-rated when priced, else Dixon-Coles. */
   predicted_goals_for: number | null;
   predicted_goals_against: number | null;
+  goals_source: 'market' | 'model' | null;
+  /** Dixon-Coles goals, shown beside the market. */
+  model_goals_for: number | null;
+  model_goals_against: number | null;
   actual_goals_for: number | null;
   actual_goals_against: number | null;
 };
 
-/** One team's own fixtures across a matchweek range, with predicted (Dixon-
- * Coles) and actual goals for/against, resolved to that team's own
+/** One team's own fixtures across a matchweek range, with predicted goals
+ * (market-rated where priced, else Dixon-Coles -- what the player projections
+ * share out), Dixon-Coles beside them, and actual goals for/against, resolved to that team's own
  * perspective regardless of home/away -- requested directly, to show what
  * Team Strength actually produced for a real club (Arsenal, Everton, etc,
  * not an FPL squad selection) as context alongside that team's players'
@@ -404,7 +411,7 @@ export type TeamFixtureGoals = {
 export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number, toMatchweek: number): Promise<TeamFixtureGoals[]> {
   const { data: fixtureRows, error: fixtureError } = await supabase
     .from('fixtures')
-    .select('fixture_id, matchweek, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)')
+    .select('fixture_id, matchweek, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, market_home_goals, market_away_goals, home_team:teams!fixtures_home_team_id_fkey(canonical_name:display_name), away_team:teams!fixtures_away_team_id_fkey(canonical_name:display_name)')
     .eq('league_id', 1)
     .eq('season_id', await getCurrentFplSeasonId())
     .gte('matchweek', fromMatchweek)
@@ -439,16 +446,24 @@ export async function getTeamFixtureGoals(teamId: number, fromMatchweek: number,
     const isHome = f.home_team_id === teamId;
     const opponentId = isHome ? f.away_team_id : f.home_team_id;
     const opponentName = (isHome ? f.away_team?.canonical_name : f.home_team?.canonical_name) ?? 'Unknown';
-    const predictedFor = isHome ? f.predicted_home_goals : f.predicted_away_goals;
-    const predictedAgainst = isHome ? f.predicted_away_goals : f.predicted_home_goals;
+    const num = (v: unknown) => (v !== null && v !== undefined ? Number(v) : null);
+    const modelFor = num(isHome ? f.predicted_home_goals : f.predicted_away_goals);
+    const modelAgainst = num(isHome ? f.predicted_away_goals : f.predicted_home_goals);
+    // Same rule as the FPL projection views: market goals when both sides are priced.
+    const hasMarket = f.market_home_goals != null && f.market_away_goals != null;
+    const marketFor = num(isHome ? f.market_home_goals : f.market_away_goals);
+    const marketAgainst = num(isHome ? f.market_away_goals : f.market_home_goals);
     const actual = actualByOpponentAndVenue.get(`${opponentId}:${isHome}`);
     return {
       matchweek: f.matchweek,
       opponent_name: opponentName,
       is_home: isHome,
       status: f.status,
-      predicted_goals_for: predictedFor !== null && predictedFor !== undefined ? Number(predictedFor) : null,
-      predicted_goals_against: predictedAgainst !== null && predictedAgainst !== undefined ? Number(predictedAgainst) : null,
+      predicted_goals_for: hasMarket ? marketFor : modelFor,
+      predicted_goals_against: hasMarket ? marketAgainst : modelAgainst,
+      goals_source: hasMarket ? 'market' : modelFor !== null ? 'model' : null,
+      model_goals_for: modelFor,
+      model_goals_against: modelAgainst,
       actual_goals_for: actual?.for ?? null,
       actual_goals_against: actual?.against ?? null,
     };

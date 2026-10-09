@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  computeFdrQuintiles,
   getFantasyFixtureDifficulty,
   getLeagues,
   getMostRecentFixtureSeason,
@@ -20,6 +19,8 @@ import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
 type FantasyDefenceMetric = 'goals' | 'cleansheet';
 
 const DEFAULT_RANK_WINDOW = 10;
+/** Mark a cell when the market and Dixon-Coles differ by more than this share. */
+const DISAGREEMENT_SHARE = 0.2;
 
 export default function FantasyFixtures() {
   const [seasonLabel, setSeasonLabel] = useState<string | null>(null);
@@ -38,10 +39,9 @@ export default function FantasyFixtures() {
   const [toGw, setToGw] = useState<number | null>(null);
   const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
-  // Clean sheet probability only exists as a Dixon-Coles model output --
-  // there's no FDR-quintile equivalent -- so switching to it forces the
-  // colour scale back to the model rather than leaving it on a stale FDR
-  // selection that the clean sheet numbers can't actually honour.
+  // Clean sheet probability is a goals-model output -- FDR has no
+  // equivalent -- so switching to it forces the colour scale back to the
+  // model rather than leaving it on an FDR selection it can't honour.
   useEffect(() => {
     if (focus === 'defence' && defenceMetric === 'cleansheet' && colourBasis === 'fdr') {
       setColourBasis('model');
@@ -98,8 +98,6 @@ export default function FantasyFixtures() {
     };
   }, []);
 
-  const fdrByTeam = useMemo(() => (data ? computeFdrQuintiles(data.ratings) : new Map()), [data]);
-
   const allMatchweeks = useMemo(() => {
     if (!data) return [];
     const seen = new Set<number>();
@@ -154,18 +152,28 @@ export default function FantasyFixtures() {
 
         for (const f of team.fixtures) {
           if (f.matchweek === null || !windowSet.has(f.matchweek)) continue;
-          const fdr = fdrByTeam.get(f.opponent_team_id) ?? { attack_fdr: 3, defence_fdr: 3 };
-
+          // FPL's own FDR is one number per team per fixture, so it serves
+          // both focuses; 3 (neutral) only if FPL hasn't published it.
+          const dc = colourBasis === 'dc';
           const value =
             colourBasis === 'fdr'
-              ? focus === 'attack'
-                ? fdr.defence_fdr
-                : fdr.attack_fdr
+              ? (f.fpl_fdr ?? 3)
               : focus === 'attack'
-                ? f.expected_goals_for
+                ? (dc ? f.model_goals_for : f.expected_goals_for)
                 : defenceMetric === 'cleansheet'
-                  ? f.clean_sheet_probability
-                  : f.expected_goals_against;
+                  ? (dc ? f.model_clean_sheet_probability : f.clean_sheet_probability)
+                  : (dc ? f.model_goals_against : f.expected_goals_against);
+
+          // Flag where the two goal models disagree, so a number that rests on
+          // one model alone is visible (both are shown in the tooltip).
+          let disagreement: string | undefined;
+          if (colourBasis !== 'fdr' && f.goals_source === 'market') {
+            const market = focus === 'attack' ? f.expected_goals_for : f.expected_goals_against;
+            const model = focus === 'attack' ? f.model_goals_for : f.model_goals_against;
+            if (Math.abs(market - model) > DISAGREEMENT_SHARE * Math.max(market, model)) {
+              disagreement = `market ${market.toFixed(2)} v Dixon-Coles ${model.toFixed(2)} goals`;
+            }
+          }
 
           cellsByMatchweek.set(f.matchweek, {
             matchweek: f.matchweek,
@@ -173,6 +181,7 @@ export default function FantasyFixtures() {
             is_home: f.is_home,
             value,
             difficulty: value, // placeholder, rescaled below for model mode
+            disagreement,
           });
 
           windowSum += value;
@@ -188,7 +197,7 @@ export default function FantasyFixtures() {
         };
       })
       .filter((row) => row.cellsByMatchweek.size > 0);
-  }, [data, displayedMatchweeks, colourBasis, focus, defenceMetric, fdrByTeam]);
+  }, [data, displayedMatchweeks, colourBasis, focus, defenceMetric]);
 
   // Model mode uses raw values (expected goals, or clean sheet probability)
   // which need rescaling to the 1-5 difficulty range based on the actual
@@ -204,7 +213,7 @@ export default function FantasyFixtures() {
     const max = Math.max(...allValues);
     const range = max - min || 1;
 
-    // ATTACK (Dixon-Coles expected goals) is on an ABSOLUTE scale (Chris):
+    // ATTACK (expected goals, either model) is on an ABSOLUTE scale (Chris):
     // 1.0 or less is fully red, 2.0 or more fully green, linear between --
     // so a colour means the same thing every week, whatever else is on screen.
     if (focus === 'attack') {
@@ -309,7 +318,7 @@ export default function FantasyFixtures() {
         <div>
           <div className="text-xs font-medium text-ink-500 mb-1">Colour scale</div>
           <div className="flex rounded-md overflow-hidden border border-chalk-300">
-            {(['model', 'fdr'] as const).map((c) => {
+            {(['model', 'dc', 'fdr'] as const).map((c) => {
               const fdrDisabled = c === 'fdr' && focus === 'defence' && defenceMetric === 'cleansheet';
               return (
                 <button
@@ -317,7 +326,7 @@ export default function FantasyFixtures() {
                   type="button"
                   disabled={fdrDisabled}
                   onClick={() => setColourBasis(c)}
-                  title={fdrDisabled ? 'Clean sheet % is only available on the Dixon-Coles model' : undefined}
+                  title={fdrDisabled ? 'Clean sheet % comes from a goals model, not FDR' : undefined}
                   className={[
                     'px-3 py-1.5 text-sm font-medium transition-colors',
                     fdrDisabled
@@ -327,7 +336,7 @@ export default function FantasyFixtures() {
                         : 'bg-white text-ink-700 hover:bg-chalk-100',
                   ].join(' ')}
                 >
-                  {c === 'model' ? 'Dixon-Coles xG' : 'Simple FDR (1-5)'}
+                  {c === 'model' ? 'Expected goals' : c === 'dc' ? 'Dixon-Coles' : 'FPL FDR (1-5)'}
                 </button>
               );
             })}
@@ -376,6 +385,14 @@ export default function FantasyFixtures() {
               are sorted from the best matchups to the worst for the selected focus.
             </span>
           </div>
+          <p data-testid="goals-source-note" className="text-xs text-ink-500">
+            {colourBasis === 'model'
+              ? 'Expected goals come from betting-market team ratings, the same numbers behind Player Projections; Dixon-Coles where no prices exist yet.'
+              : colourBasis === 'dc'
+                ? 'Dixon-Coles goals, from results. Player Projections use the market-rated goals (Expected goals).'
+                : 'FPL’s own fixture difficulty ratings.'}
+            {colourBasis !== 'fdr' && ' * The market and Dixon-Coles differ by more than 20% (hover or tap for both).'}
+          </p>
         </>
       )}
     </div>

@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-09 · FPL Fixture Heat Map used a different goals model from the player projections
+- **Reported:** an outside analysis summed `leaguewide_v6` player xG for GW6–10 and found Spurs 3rd of mid-table attacks (7.59), while the Fixture Heat Map ranked Spurs last.
+- **Impact:** the heat map (and its home-page trivia question) showed Dixon-Coles team goals while every other FPL page used market-rated goals. Over GW6–10 the two differed by up to 2.9 goals per team (Arsenal 7.66 v 10.57; Spurs 5.31 v 7.59, 20th v 6th over GW6–15); Dixon-Coles also ran about 4% lower overall. The Player Projections team panel showed Dixon-Coles too, beside players whose numbers came from the market. The heat map's "Simple FDR" was FixtureShark's own quintile of Dixon-Coles ratings, not FPL's FDR. No figure was wrong for its model; the pages disagreed about which model they showed.
+- **Cause:** PR #146 moved the FPL projections to `COALESCE(market, model)` goals and the FPL fixture header followed, but `getFantasyFixtureDifficulty()` and `getTeamFixtureGoals()` still read `predicted_*_goals` directly.
+- **Fix:** both read market goals when the fixture is priced, else Dixon-Coles, and keep Dixon-Coles beside them. The heat map offers Expected goals (default), Dixon-Coles and FPL FDR (FPL's own ratings), marks with * any fixture where the two models differ by more than 20%, and says which model it is showing. Every read of `fpl_player_projections` that lacked it now filters `scenario_key = 'baseline'` as well as `model_version` (harmless today, only baseline rows exist; would have double-counted a second scenario).
+- **Prevention:** tests pin the market-else-model rule, the Dixon-Coles view, the disagreement marker and the scenario filter. Checked live: summed player xG equals market team goals for all 20 teams. *Lesson: when a model input changes, search for every page that reads the old column, not just the views that feed the model.*
+
+---
+
 ## 2026-10-09 · FPL start chance: seeded first choices held at 85% with no evidence
 - **Reported:** found while validating projections for the captaincy article (8 Oct).
 - **Impact:** 20 outfield players with under 200 minutes this season had start chances of 0.68-0.90, mostly a flat 0.85: Doku (15 minutes), Bard (18), Sakamoto (31, 0 starts from 5 available), Flemming (60, 0 from 3), Šeško (76, 0 from 5). Their expected minutes and points were too high, and the players actually starting in their place (Ndiaye, Emersonn) too low. The chances were labelled `nailed_history`, which they were not. It did not change any squad in the captaincy article (checked by re-solving without them).

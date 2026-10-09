@@ -135,6 +135,10 @@ export default function PlayerProjectionsTablePage() {
   const [viewMode, setViewMode] = useState<ViewMode>('by_gameweek');
   // Rendered only when opened: keeps the page light and the table's numbers unique.
   const [plannerOpen, setPlannerOpen] = useState(false);
+  // Players ticked for /fpl/compare (up to five, in the order ticked).
+  const [compareSlugs, setCompareSlugs] = useState<string[]>([]);
+  const toggleCompare = (slug: string) =>
+    setCompareSlugs((cur) => (cur.includes(slug) ? cur.filter((s) => s !== slug) : cur.length >= 5 ? cur : [...cur, slug]));
   const [positionFilter, setPositionFilter] = useState<number | 'all'>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -385,7 +389,7 @@ export default function PlayerProjectionsTablePage() {
       {teamFilter !== 'all' && !loading && !error && (
         <div className="border border-chalk-300 rounded-lg bg-white overflow-hidden">
           <div className="px-3 py-2 border-b border-chalk-200 bg-chalk-100 text-xs font-medium text-ink-500 uppercase tracking-wide">
-            {teamFilter}&rsquo;s own fixtures &mdash; what Team Strength produced, before Tactical Roles allocates it to players below
+            {teamFilter}&rsquo;s own fixtures &mdash; the team goals shared out to the players below
           </div>
           {teamGoalsLoading && <p className="text-ink-500 font-mono text-xs px-3 py-2">{'Loading\u2026'}</p>}
           {teamGoalsError && <p className="text-loss-700 text-xs px-3 py-2">{teamGoalsError}</p>}
@@ -396,8 +400,10 @@ export default function PlayerProjectionsTablePage() {
                   <tr className="text-left text-xs font-medium text-ink-500 border-b border-chalk-200">
                     <th className="px-3 py-1.5">GW</th>
                     <th className="px-2 py-1.5">Opponent</th>
-                    <th className="px-2 py-1.5 text-right">Predicted GF</th>
-                    <th className="px-2 py-1.5 text-right">Predicted GA</th>
+                    <th className="px-2 py-1.5 text-right" title="Market-rated where priced, else Dixon-Coles">Expected GF</th>
+                    <th className="px-2 py-1.5 text-right">Expected GA</th>
+                    <th className="px-2 py-1.5 text-right">Dixon-Coles GF</th>
+                    <th className="px-2 py-1.5 text-right">Dixon-Coles GA</th>
                     <th className="px-2 py-1.5 text-right">Actual GF</th>
                     <th className="px-2 py-1.5 text-right">Actual GA</th>
                   </tr>
@@ -416,13 +422,19 @@ export default function PlayerProjectionsTablePage() {
                       <td className="px-2 py-1.5 text-right font-mono text-xs text-loss-700 font-semibold">
                         {g.predicted_goals_against !== null ? g.predicted_goals_against.toFixed(2) : '\u2014'}
                       </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-500">
+                        {g.model_goals_for != null ? g.model_goals_for.toFixed(2) : '\u2014'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-500">
+                        {g.model_goals_against != null ? g.model_goals_against.toFixed(2) : '\u2014'}
+                      </td>
                       <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{g.actual_goals_for ?? '\u2014'}</td>
                       <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{g.actual_goals_against ?? '\u2014'}</td>
                     </tr>
                   ))}
                   {teamGoals.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-2 text-ink-500 text-xs">
+                      <td colSpan={8} className="px-3 py-2 text-ink-500 text-xs">
                         No fixtures found for this team in the selected gameweek range.
                       </td>
                     </tr>
@@ -431,6 +443,21 @@ export default function PlayerProjectionsTablePage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {compareSlugs.length > 0 && (
+        <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 bg-pitch-800 text-chalk-100 rounded-lg px-3 py-2 text-sm" data-testid="compare-bar">
+          <span>{compareSlugs.length} of 5 ticked</span>
+          <Link
+            to={`/fpl/compare?players=${compareSlugs.join(',')}${fromMatchweek != null && toMatchweek != null ? `&from=${fromMatchweek}&to=${toMatchweek}` : ''}`}
+            className="font-semibold underline underline-offset-2"
+          >
+            Compare side by side &rarr;
+          </Link>
+          <button type="button" className="ml-auto text-xs opacity-80 hover:opacity-100" onClick={() => setCompareSlugs([])}>
+            Clear
+          </button>
         </div>
       )}
 
@@ -478,6 +505,17 @@ export default function PlayerProjectionsTablePage() {
                       {/* Links to the player's own canonical page -- makes those
                           pages genuinely reachable rather than orphaned behind
                           this table's client-side filter state. */}
+                      {r.slug && (
+                        <input
+                          type="checkbox"
+                          className="mr-1.5 align-middle rounded border-chalk-300"
+                          aria-label={`Compare ${r.web_name}`}
+                          title="Tick up to five players to compare"
+                          checked={compareSlugs.includes(r.slug)}
+                          disabled={!compareSlugs.includes(r.slug) && compareSlugs.length >= 5}
+                          onChange={() => toggleCompare(r.slug as string)}
+                        />
+                      )}
                       {r.slug ? (
                         <Link to={`/fpl/players/${r.slug}`} className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
                           {r.web_name}
