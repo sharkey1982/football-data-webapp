@@ -76,8 +76,21 @@ export const CAPTAIN_PAIRS_ARTICLE: ArticleMeta = {
   dataAsOf: '8 Oct 2026',
 };
 
+export const DECISIONS_ARTICLE: ArticleMeta = {
+  slug: 'three-decisions-three-horizons',
+  path: `${ARTICLES_PATH}/three-decisions-three-horizons`,
+  title: 'Three FPL decisions, three time horizons: captaincy, transfers and squad building',
+  question: 'Should I choose my FPL captain, my transfers and my squad in the same way?',
+  description:
+    'Why captaincy, transfers and squad building are different FPL problems: one-week captain picks, transfer gains over the weeks you keep a player, and squads built within the rules, with worked examples from FixtureShark projections.',
+  verdict:
+    'No. Captain the highest projection for this gameweek; judge a transfer by what it adds to your XI over the weeks you will keep him; build the squad as one constrained problem, where points per £m misleads. The best player next week can be the worst transfer.',
+  published: '2026-10-09',
+  dataAsOf: '9 Oct 2026',
+};
+
 // Newest first.
-export const ARTICLES: ArticleMeta[] = [CAPTAIN_PAIRS_ARTICLE, CAPTAIN_ARTICLE, HAALAND_ARTICLE];
+export const ARTICLES: ArticleMeta[] = [DECISIONS_ARTICLE, CAPTAIN_PAIRS_ARTICLE, CAPTAIN_ARTICLE, HAALAND_ARTICLE];
 
 // ---- Captaincy ------------------------------------------------------------
 

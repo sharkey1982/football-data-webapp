@@ -354,6 +354,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/articles/three-decisions-three-horizons',
+    title: 'Three FPL decisions, three time horizons: captaincy, transfers and squad building',
+    description:
+      'Why captaincy, transfers and squad building are different FPL problems, with worked examples from FixtureShark projections: one-week captain picks, transfer gains over time, and squads built within the rules.',
+    crumbs: [FPL, { name: 'Articles', path: '/fpl/articles' }],
+  },
+  {
     path: '/fpl/articles/one-captain-or-two',
     title: 'One captain or two? The mathematics of FPL captaincy',
     description:

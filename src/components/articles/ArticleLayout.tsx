@@ -76,7 +76,8 @@ export function StatRow({ stats }: { stats: { value: string; label: string }[] }
 }
 
 /** Simple data table in the site's table style. */
-export function DataTable({ caption, head, rows }: { caption: string; head: string[]; rows: (string | number)[][] }) {
+/** text: a table of words, not numbers -- left-aligned, normal font, wrapping. */
+export function DataTable({ caption, head, rows, text = false }: { caption: string; head: string[]; rows: (string | number)[][]; text?: boolean }) {
   return (
     <div className="overflow-x-auto">
       <table className="text-sm border border-chalk-300 rounded-lg overflow-hidden">
@@ -84,7 +85,7 @@ export function DataTable({ caption, head, rows }: { caption: string; head: stri
         <thead className="bg-chalk-200 text-ink-500">
           <tr>
             {head.map((h, i) => (
-              <th key={h} scope="col" className={`${i === 0 ? 'text-left' : 'text-right'} font-medium text-xs px-3 py-2`}>{h}</th>
+              <th key={h} scope="col" className={`${i === 0 || text ? 'text-left' : 'text-right'} font-medium text-xs px-3 py-2`}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -93,9 +94,9 @@ export function DataTable({ caption, head, rows }: { caption: string; head: stri
             <tr key={i} className={i % 2 ? 'bg-chalk-100/60' : undefined}>
               {r.map((c, j) =>
                 j === 0 ? (
-                  <th key={j} scope="row" className="text-left px-3 py-1.5 font-normal whitespace-nowrap">{c}</th>
+                  <th key={j} scope="row" className={`text-left px-3 py-1.5 font-normal whitespace-nowrap${text ? ' align-top' : ''}`}>{c}</th>
                 ) : (
-                  <td key={j} className="px-3 py-1.5 text-right font-mono text-xs tabular-nums whitespace-nowrap">{c}</td>
+                  <td key={j} className={text ? 'px-3 py-1.5 text-left text-sm text-ink-700 align-top min-w-[9rem]' : 'px-3 py-1.5 text-right font-mono text-xs tabular-nums whitespace-nowrap'}>{c}</td>
                 )
               )}
             </tr>
