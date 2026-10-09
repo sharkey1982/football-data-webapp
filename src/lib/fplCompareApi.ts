@@ -244,3 +244,150 @@ export function parsePlayersParam(raw: string | null): string[] {
   if (!raw) return [];
   return [...new Set(raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))].slice(0, MAX_COMPARE);
 }
+
+// ----------------------------------------------------------------------------
+// History: what actually happened. All of it is FPL's own data:
+//   this season, per gameweek -- fpl_player_gameweeks (minutes, points, xG, xA)
+//   this season, starts       -- fpl_player_start_record (starts, available matches)
+//   last season               -- fpl_player_gameweek_history by fpl_code
+// FPL doesn't give us a start flag per gameweek this season, so starts are a
+// season total ("4 of 5"), never inferred from minutes.
+// ----------------------------------------------------------------------------
+
+/** How many recent gameweeks the history block lists. */
+export const HISTORY_WEEKS = 6;
+
+export type HistoryWeek = {
+  gw: number;
+  /** Null when the player has no row for the gameweek (not in the squad yet, or a blank). */
+  minutes: number | null;
+  points: number | null;
+  goals: number;
+  assists: number;
+  xg: number;
+  xa: number;
+};
+
+export type PlayerHistory = {
+  fpl_player_id: number;
+  weeks: HistoryWeek[];
+  /** This season. */
+  team_games: number;
+  minutes: number;
+  points: number;
+  xg: number;
+  xa: number;
+  starts: number | null;
+  available: number | null;
+  last_season: null | {
+    label: string;
+    appearances: number;
+    starts: number;
+    minutes: number;
+    points: number;
+    xg: number;
+    xa: number;
+  };
+};
+
+/** '2627' -> '2526'. */
+export function previousSeasonLabel(label: string): string | null {
+  if (!/^\d{4}$/.test(label)) return null;
+  const a = Number(label.slice(0, 2));
+  const prev = (a + 99) % 100;
+  return `${String(prev).padStart(2, '0')}${String(a).padStart(2, '0')}`;
+}
+
+export async function getCompareHistory(playerIds: number[]): Promise<PlayerHistory[]> {
+  if (playerIds.length === 0) return [];
+  const seasonId = await getCurrentFplSeasonId();
+
+  const [{ data: gwRows, error: gwError }, { data: startRows, error: startError }, { data: idRows, error: idError }, { data: seasonRows, error: seasonError }] =
+    await Promise.all([
+      supabase
+        .from('fpl_player_gameweeks' as any)
+        .select('fpl_player_id, fpl_event_id, minutes, total_points, goals_scored, assists, expected_goals, expected_assists')
+        .eq('season_id', seasonId)
+        .in('fpl_player_id', playerIds),
+      supabase
+        .from('fpl_player_start_record' as any)
+        .select('fpl_player_id, starts, available_matches')
+        .eq('season_id', seasonId)
+        .in('fpl_player_id', playerIds),
+      supabase.from('fpl_players').select('fpl_player_id, fpl_code').eq('season_id', seasonId).in('fpl_player_id', playerIds),
+      supabase.from('seasons').select('season_id, label'),
+    ]);
+  if (gwError) throw gwError;
+  if (startError) throw startError;
+  if (idError) throw idError;
+  if (seasonError) throw seasonError;
+
+  const seasons = (seasonRows ?? []) as any[];
+  const currentLabel = seasons.find((s) => s.season_id === seasonId)?.label ?? null;
+  const prevLabel = currentLabel ? previousSeasonLabel(currentLabel) : null;
+  const prevSeason = prevLabel ? seasons.find((s) => s.label === prevLabel) : undefined;
+
+  const codeById = new Map<number, number>();
+  for (const r of (idRows ?? []) as any[]) if (r.fpl_code != null) codeById.set(r.fpl_player_id, Number(r.fpl_code));
+  const codes = [...new Set(codeById.values())];
+
+  let lastRows: any[] = [];
+  if (prevSeason && codes.length) {
+    const { data, error } = await supabase
+      .from('fpl_player_gameweek_history' as any)
+      .select('fpl_code, minutes, starts, total_points, expected_goals, expected_assists')
+      .eq('season_id', prevSeason.season_id)
+      .in('fpl_code', codes);
+    if (error) throw error;
+    lastRows = (data ?? []) as any[];
+  }
+
+  const rows = (gwRows ?? []) as any[];
+  // The recent gameweeks, taken from the gameweeks these players have rows for.
+  const allGws = [...new Set(rows.map((r) => Number(r.fpl_event_id)))].sort((a, b) => a - b);
+  const recent = allGws.slice(-HISTORY_WEEKS);
+
+  return playerIds.map((id) => {
+    const mine = rows.filter((r) => r.fpl_player_id === id);
+    const weeks: HistoryWeek[] = recent.map((gw) => {
+      const g = mine.filter((r) => Number(r.fpl_event_id) === gw);
+      if (g.length === 0) return { gw, minutes: null, points: null, goals: 0, assists: 0, xg: 0, xa: 0 };
+      return {
+        gw,
+        minutes: g.reduce((s, r) => s + n(r.minutes), 0),
+        points: g.reduce((s, r) => s + n(r.total_points), 0),
+        goals: g.reduce((s, r) => s + n(r.goals_scored), 0),
+        assists: g.reduce((s, r) => s + n(r.assists), 0),
+        xg: g.reduce((s, r) => s + n(r.expected_goals), 0),
+        xa: g.reduce((s, r) => s + n(r.expected_assists), 0),
+      };
+    });
+    const start = ((startRows ?? []) as any[]).find((r) => r.fpl_player_id === id);
+    const code = codeById.get(id);
+    const last = code != null ? lastRows.filter((r) => Number(r.fpl_code) === code) : [];
+    return {
+      fpl_player_id: id,
+      weeks,
+      // One row per team fixture, played or not, so this counts the team's games.
+      team_games: mine.length,
+      minutes: mine.reduce((s, r) => s + n(r.minutes), 0),
+      points: mine.reduce((s, r) => s + n(r.total_points), 0),
+      xg: mine.reduce((s, r) => s + n(r.expected_goals), 0),
+      xa: mine.reduce((s, r) => s + n(r.expected_assists), 0),
+      starts: start ? n(start.starts) : null,
+      available: start ? n(start.available_matches) : null,
+      last_season:
+        prevLabel && last.length
+          ? {
+              label: prevLabel,
+              appearances: last.filter((r) => n(r.minutes) > 0).length,
+              starts: last.reduce((s, r) => s + n(r.starts), 0),
+              minutes: last.reduce((s, r) => s + n(r.minutes), 0),
+              points: last.reduce((s, r) => s + n(r.total_points), 0),
+              xg: last.reduce((s, r) => s + n(r.expected_goals), 0),
+              xa: last.reduce((s, r) => s + n(r.expected_assists), 0),
+            }
+          : null,
+    };
+  });
+}

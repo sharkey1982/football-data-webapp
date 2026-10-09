@@ -11,15 +11,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import { seasonNameFromLabel } from '../../lib/seasonLabels';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getDefaultMatchweek, getGameweekInPlay } from '../../lib/fplSeasonApi';
 import {
   MAX_COMPARE,
   getComparePlayerOptions,
   getComparison,
+  getCompareHistory,
   parsePlayersParam,
   per90,
   type ComparePlayer,
+  type PlayerHistory,
   type ComparePlayerOption,
 } from '../../lib/fplCompareApi';
 
@@ -78,6 +81,10 @@ export default function ComparePlayersPage() {
 
   const [options, setOptions] = useState<ComparePlayerOption[] | null>(null);
   const [players, setPlayers] = useState<ComparePlayer[] | null>(null);
+  // What actually happened, keyed by player. Loaded beside the projections;
+  // if it fails the projections still show, with a note.
+  const [history, setHistory] = useState<Map<number, PlayerHistory> | null>(null);
+  const [historyError, setHistoryError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -118,7 +125,14 @@ export default function ComparePlayersPage() {
     setLoading(true);
     setError(null);
     getComparison(slugs, fromGw, toGw)
-      .then((p) => { if (live) setPlayers(p); })
+      .then((p) => {
+        if (!live) return;
+        setPlayers(p);
+        setHistoryError(false);
+        getCompareHistory(p.map((x) => x.fpl_player_id))
+          .then((h) => { if (live) setHistory(new Map(h.map((x) => [x.fpl_player_id, x]))); })
+          .catch(() => { if (live) { setHistory(new Map()); setHistoryError(true); } });
+      })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : 'Could not load the comparison.'); })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
@@ -157,12 +171,24 @@ export default function ComparePlayersPage() {
     { key: 'start', label: 'Start chance', value: (p) => p.totals.start, format: pct, best: true },
     { key: 'ppm', label: 'Points per £m', hint: 'Projected points over the range ÷ price', value: (p) => (p.price ? p.totals.xpts / p.price : null), format: f2, best: true },
   ];
+  const hist = (p: ComparePlayer) => history?.get(p.fpl_player_id) ?? null;
+  const perGame = (v: number, games: number) => (games > 0 ? v / games : null);
   const seasonMeasures: Measure[] = [
-    { key: 'pts', label: 'Points', value: (p) => p.season_points, format: (v) => v.toFixed(0) },
-    { key: 'mins', label: 'Minutes', value: (p) => p.season_minutes, format: (v) => v.toFixed(0) },
-    { key: 'sxg', label: 'xG', value: (p) => p.season_xg, format: f2 },
-    { key: 'sxa', label: 'xA', value: (p) => p.season_xa, format: f2 },
+    { key: 'amin', label: 'Minutes a game', hint: 'Minutes \u00f7 the team\u2019s games so far', value: (p) => { const h = hist(p); return h ? perGame(h.minutes, h.team_games) : null; }, format: (v) => v.toFixed(0), best: true },
+    { key: 'apts', label: 'Points', value: (p) => hist(p)?.points ?? p.season_points, format: (v) => v.toFixed(0), best: true },
+    { key: 'appg', label: 'Points a game', hint: 'Points \u00f7 the team\u2019s games so far', value: (p) => { const h = hist(p); return h ? perGame(h.points, h.team_games) : null; }, format: f1, best: true },
+    { key: 'axg', label: 'xG', value: (p) => hist(p)?.xg ?? p.season_xg, format: f2, best: true },
+    { key: 'axg90', label: 'xG per 90', value: (p) => { const h = hist(p); return h ? per90(h.xg, h.minutes) : null; }, format: f2, best: true },
+    { key: 'axa90', label: 'xA per 90', value: (p) => { const h = hist(p); return h ? per90(h.xa, h.minutes) : null; }, format: f2, best: true },
   ];
+  const lastLabel = shown.map((p) => hist(p)?.last_season?.label).find(Boolean) ?? null;
+  const lastMeasures: Measure[] = [
+    { key: 'lmin', label: 'Minutes', value: (p) => hist(p)?.last_season?.minutes ?? null, format: (v) => v.toFixed(0) },
+    { key: 'lpts', label: 'Points', value: (p) => hist(p)?.last_season?.points ?? null, format: (v) => v.toFixed(0) },
+    { key: 'lxg90', label: 'xG per 90', value: (p) => { const l = hist(p)?.last_season; return l ? per90(l.xg, l.minutes) : null; }, format: f2 },
+    { key: 'lxa90', label: 'xA per 90', value: (p) => { const l = hist(p)?.last_season; return l ? per90(l.xa, l.minutes) : null; }, format: f2 },
+  ];
+  const historyWeeks = shown.map((p) => hist(p)?.weeks.map((w) => w.gw) ?? []).find((w) => w.length) ?? [];
   const generated = shown.map((p) => p.generated_at).filter(Boolean).sort().pop() ?? null;
 
   const labelCell = 'sticky left-0 z-10 bg-white text-left text-[11px] sm:text-xs font-medium text-ink-700 px-2 py-1.5 min-w-[6.25rem] max-w-[6.25rem] sm:min-w-[9rem] sm:max-w-[9rem] border-r border-chalk-200';
@@ -304,6 +330,63 @@ export default function ComparePlayersPage() {
               )}
               {rangeMeasures.map(measureRow)}
 
+              {sectionRow('This season so far', 'What happened \u00b7 official FPL figures')}
+              {history == null ? (
+                <tr><td colSpan={shown.length + 1} className="px-2 py-1.5 text-xs text-ink-500">Loading&hellip;</td></tr>
+              ) : historyError ? (
+                <tr><td colSpan={shown.length + 1} className="px-2 py-1.5 text-xs text-loss-700">This season&rsquo;s figures could not be loaded just now.</td></tr>
+              ) : (
+                <>
+                  <tr className="border-t border-chalk-200">
+                    <th scope="row" className={labelCell} title="Starts \u00f7 matches he was available for">Starts</th>
+                    {shown.map((p) => {
+                      const h = hist(p);
+                      return (
+                        <td key={p.slug} data-testid="cell-starts" className="px-1.5 sm:px-2 py-1.5 text-right font-mono text-sm text-ink-900">
+                          {h?.starts == null ? '\u2014' : `${h.starts} of ${h.available ?? h.team_games}`}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  {seasonMeasures.map(measureRow)}
+                  {historyWeeks.map((gw) => (
+                    <tr key={`h${gw}`} className="border-t border-chalk-200">
+                      <th scope="row" className={labelCell}>GW{gw}</th>
+                      {shown.map((p) => {
+                        const w = hist(p)?.weeks.find((x) => x.gw === gw);
+                        if (!w || w.minutes == null) return <td key={p.slug} className="px-1.5 sm:px-2 py-1.5 text-right text-xs text-ink-500">&mdash;</td>;
+                        const returns = [w.goals ? `${w.goals}G` : '', w.assists ? `${w.assists}A` : ''].filter(Boolean).join(' ');
+                        return (
+                          <td
+                            key={p.slug}
+                            data-testid="history-cell"
+                            title={`${w.minutes} minutes, ${w.points} points, xG ${w.xg.toFixed(2)}, xA ${w.xa.toFixed(2)}`}
+                            className={['px-1.5 sm:px-2 py-1.5 text-right text-xs font-mono', w.minutes === 0 ? 'text-ink-500' : 'text-ink-900'].join(' ')}
+                          >
+                            {w.minutes}&prime; &middot; {w.points} {w.points === 1 ? 'pt' : 'pts'}
+                            {returns && <div className="text-[10px] text-pitch-800 font-semibold">{returns}</div>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+
+                  {sectionRow(lastLabel ? `Last season (${seasonNameFromLabel(lastLabel)})` : 'Last season', 'Premier League \u00b7 official FPL figures')}
+                  <tr className="border-t border-chalk-200">
+                    <th scope="row" className={labelCell}>Starts</th>
+                    {shown.map((p) => {
+                      const l = hist(p)?.last_season;
+                      return (
+                        <td key={p.slug} data-testid="cell-lstarts" className="px-1.5 sm:px-2 py-1.5 text-right font-mono text-sm text-ink-900">
+                          {l ? `${l.starts} (${l.appearances} apps)` : <span className="text-xs text-ink-500">Not in the PL</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  {lastMeasures.map(measureRow)}
+                </>
+              )}
+
               {sectionRow('Minutes, week by week', 'Start chance · expected minutes')}
               {Array.from({ length: weeksInRange }, (_, i) => (fromGw as number) + i).map((gw) => (
                 <tr key={`m${gw}`} className="border-t border-chalk-200">
@@ -365,8 +448,7 @@ export default function ComparePlayersPage() {
                 </tr>
               ))}
 
-              {sectionRow('Season so far', 'Official FPL figures')}
-              {seasonMeasures.map(measureRow)}
+
             </tbody>
           </table>
         </div>
@@ -376,7 +458,7 @@ export default function ComparePlayersPage() {
         <p className="text-xs text-ink-500">
           Projections are estimates from FixtureShark&rsquo;s model{generated ? `, last updated ${ukTime(generated)}` : ''}; the best value in each
           projection row is highlighted. Expected minutes count the chance of starting and of coming off the bench, so a player who might
-          not start has fewer. Season figures are FPL&rsquo;s own.
+          not start has fewer. &ldquo;This season&rdquo; and &ldquo;Last season&rdquo; are FPL&rsquo;s own figures; FPL doesn&rsquo;t mark starts week by week, so starts are a season total.
         </p>
       )}
     </div>
