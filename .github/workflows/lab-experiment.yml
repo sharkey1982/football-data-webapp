@@ -174,7 +174,7 @@ jobs:
         run: |
           set +e
           pip install -q highspy 2>&1 | tail -1
-          python scripts/analysis_transfer_captaincy.py --from 6 --to 15 2>&1 | tee /tmp/tc.log
+          python scripts/analysis_transfer_captaincy.py --from 6 --to 15 --gap 0.00001 2>&1 | tee /tmp/tc.log
           STATUS=${PIPESTATUS[0]}
           ENCODED=$(tail -c 3500 /tmp/tc.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
           if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
