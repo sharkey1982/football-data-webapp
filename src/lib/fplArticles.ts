@@ -72,6 +72,7 @@ export const CAPTAIN_PAIRS_ARTICLE: ArticleMeta = {
   verdict:
     'A second captaincy option helps, but the armband alone rarely pays for him. Alongside Haaland, Saka adds about 3.6 projected captain points over ten gameweeks; he is worth owning for his own points. Forcing in Bruno or Palmer as an extra option costs points.',
   published: '2026-10-08',
+  updated: '2026-10-09',
   dataAsOf: '8 Oct 2026',
 };
 

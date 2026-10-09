@@ -162,3 +162,23 @@ describe('PlayerProjectionsTablePage', () => {
     expect(screen.queryByText('Saka')).not.toBeInTheDocument();
   });
 });
+
+describe('PlayerProjectionsTablePage captain planner', () => {
+  it('opens the planner with the two highest-projected players', async () => {
+    mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
+    mockedTableApi.getPlayerGameweekPointsRange.mockResolvedValue([
+      baseRow({ matchweek: 6, actual_points: null, projected_points: 7.3 }),
+      baseRow({ fpl_player_id: 2, web_name: 'Saka', team_name: 'Arsenal', matchweek: 6, actual_points: null, projected_points: 8.1 }),
+      baseRow({ fpl_player_id: 3, web_name: 'Low', team_name: 'Arsenal', matchweek: 6, actual_points: null, projected_points: 1.0 }),
+    ]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Haaland')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
+    const summary = screen.getByText('Captain planner');
+    const details = summary.closest('details')!;
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    await waitFor(() => expect(screen.getByText(/Gain over Saka every week/)).toBeInTheDocument());
+    expect(screen.queryByText('Low (Arsenal)')).toBeNull();
+  });
+});

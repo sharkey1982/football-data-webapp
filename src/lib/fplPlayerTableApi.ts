@@ -138,6 +138,8 @@ export type PlayerGameweekPoints = {
   xpts_penalties: number | null;
   /** Per-component breakdown of actual_points, reconstructed from real stats -- null wherever actual_points is null. Kept entirely separate from the projected breakdown above; never blended. */
   actual_contribution: ContributionBreakdown | null;
+  /** Model start probability for the gameweek (the higher of two fixtures in a double gameweek); null where not projected. */
+  start_probability: number | null;
 };
 
 /**
@@ -218,11 +220,12 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     xpts_bonus: number | null;
     xpts_goals_conceded: number | null;
     xpts_penalties: number | null;
+    start_probability: number | null;
   }>((from, to) =>
     supabase
       .from('fpl_player_projections')
       .select(
-        'fpl_player_id, fixture_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties'
+        'fpl_player_id, fixture_id, expected_fpl_points, xpts_appearance, xpts_goals, xpts_assists, xpts_clean_sheet, xpts_saves, xpts_defensive_contribution, xpts_cards_own_goals, xpts_bonus, xpts_goals_conceded, xpts_penalties, start_probability'
       )
       .eq('model_version', PLAYER_TABLE_MODEL_VERSION)
       .in('fixture_id', fixtureIds)
@@ -315,25 +318,33 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
       xpts_goals_conceded: null,
       xpts_penalties: null,
       actual_contribution: null,
+      start_probability: null,
     };
   };
+
+  // A double gameweek has two fixtures for the same (player, gameweek) row:
+  // add them, never overwrite (9 Oct 2026 -- the second fixture used to
+  // replace the first, losing its points from the cells AND the total).
+  const add = (a: number | null, b: number | null) => (b === null ? a : (a ?? 0) + b);
 
   for (const p of projRows) {
     const mw = matchweekByFixture.get(p.fixture_id);
     if (mw === undefined) continue;
     const key = keyOf(p.fpl_player_id, mw);
     const row = rowByKey.get(key) ?? emptyRow(p.fpl_player_id, mw);
-    row.projected_points = num(p.expected_fpl_points);
-    row.xpts_appearance = num(p.xpts_appearance);
-    row.xpts_goals = num(p.xpts_goals);
-    row.xpts_assists = num(p.xpts_assists);
-    row.xpts_clean_sheet = num(p.xpts_clean_sheet);
-    row.xpts_saves = num(p.xpts_saves);
-    row.xpts_defensive_contribution = num(p.xpts_defensive_contribution);
-    row.xpts_cards_own_goals = num(p.xpts_cards_own_goals);
-    row.xpts_bonus = num(p.xpts_bonus);
-    row.xpts_goals_conceded = num(p.xpts_goals_conceded);
-    row.xpts_penalties = num(p.xpts_penalties);
+    row.projected_points = add(row.projected_points, num(p.expected_fpl_points));
+    row.xpts_appearance = add(row.xpts_appearance, num(p.xpts_appearance));
+    row.xpts_goals = add(row.xpts_goals, num(p.xpts_goals));
+    row.xpts_assists = add(row.xpts_assists, num(p.xpts_assists));
+    row.xpts_clean_sheet = add(row.xpts_clean_sheet, num(p.xpts_clean_sheet));
+    row.xpts_saves = add(row.xpts_saves, num(p.xpts_saves));
+    row.xpts_defensive_contribution = add(row.xpts_defensive_contribution, num(p.xpts_defensive_contribution));
+    row.xpts_cards_own_goals = add(row.xpts_cards_own_goals, num(p.xpts_cards_own_goals));
+    row.xpts_bonus = add(row.xpts_bonus, num(p.xpts_bonus));
+    row.xpts_goals_conceded = add(row.xpts_goals_conceded, num(p.xpts_goals_conceded));
+    row.xpts_penalties = add(row.xpts_penalties, num(p.xpts_penalties));
+    const sp = num(p.start_probability);
+    if (sp !== null) row.start_probability = Math.max(row.start_probability ?? 0, sp);
     rowByKey.set(key, row);
   }
 
@@ -342,10 +353,10 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     if (mw === undefined || g.total_points === null) continue;
     const key = keyOf(g.fpl_player_id, mw);
     const row = rowByKey.get(key) ?? emptyRow(g.fpl_player_id, mw);
-    row.actual_points = g.total_points;
+    row.actual_points = (row.actual_points ?? 0) + g.total_points;
     const stats = g.source_payload?.stats ?? {};
     const defensiveActions = Number(stats.clearances_blocks_interceptions ?? 0) + Number(stats.tackles ?? 0) + (row.fpl_position === 3 || row.fpl_position === 4 ? Number(stats.recoveries ?? 0) : 0);
-    row.actual_contribution = computeActualContribution(row.fpl_position, {
+    const contribution = computeActualContribution(row.fpl_position, {
       minutes: g.minutes,
       goals_scored: g.goals_scored,
       assists: g.assists,
@@ -360,6 +371,10 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
       bonus: g.bonus,
       defensive_actions: defensiveActions,
     });
+    const prev = row.actual_contribution;
+    row.actual_contribution = prev
+      ? (Object.fromEntries(Object.keys(contribution).map((k) => [k, prev[k as keyof ContributionBreakdown] + contribution[k as keyof ContributionBreakdown]])) as ContributionBreakdown)
+      : contribution;
     rowByKey.set(key, row);
   }
 
