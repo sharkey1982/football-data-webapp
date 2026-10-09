@@ -106,3 +106,23 @@ export const BUDGET_CURVE = [
 /** Players with under 200 minutes this season but a projected start probability of 0.6+ (the line-up depth chart's floor). */
 export const LOW_EVIDENCE_COUNT = 20;
 export const LOW_EVIDENCE_EXAMPLES = 'Doku (15 minutes, 0.85), Bard (18, 0.85), Flemming (60, 0.85)';
+
+/** Update, 9 Oct 2026: the same squads re-solved with FPL transfers (1 free a
+ * week, up to 5 banked, -4 per extra; first week free; prices fixed), on the
+ * projections of 9 Oct 03:16 UK time (after the start-chance fix), so the
+ * fixed totals differ from the case study above. analysis_results
+ * 'transfer_captaincy' (scripts/analysis_transfer_captaincy.py); every solve
+ * within 0.001% of optimal. */
+export const TRANSFERS = {
+  projectedAt: '9 Oct 2026, 03:16 UK time',
+  rows: [
+    { key: 'free', label: 'Optimiser chooses', fixed: 644.12, transfers: 652.37 },
+    { key: 'haaland_saka', label: 'Haaland + Saka held', fixed: 644.12, transfers: 652.12 },
+    { key: 'haaland_bruno', label: 'Haaland + Bruno held', fixed: 643.98, transfers: 651.48 },
+    { key: 'no_haaland', label: 'Never Haaland', fixed: 631.3, transfers: 640.23 },
+    { key: 'haaland_alone', label: 'Haaland, no £9m+ partner', fixed: 626.05, transfers: 632.74 },
+  ],
+  captainPoints: 75.52,
+  transfersUsed: 9,
+  hits: 0,
+};

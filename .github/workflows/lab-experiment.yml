@@ -51,6 +51,10 @@ name: Model Lab
 #   when he is fit and not picked predict GW3-5 starts better? Rule and
 #   decision fixed in the script before it ran. Writes analysis_results
 #   (depth_floor_backtest).
+#
+# analysis_transfer_captaincy: the captaincy squads re-solved with FPL
+#   transfers (1 free a week, 5 banked, -4 hits) against the fixed squad,
+#   on the same projections. Writes analysis_results (transfer_captaincy).
 
 on:
   workflow_dispatch:
@@ -58,7 +62,7 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor]
+        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, analysis_transfer_captaincy]
         default: f1
       open_holdout:
         description: "f1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
@@ -71,7 +75,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -159,5 +163,19 @@ jobs:
           python scripts/backtest_depth_floor.py 2>&1 | tee -a /tmp/bt.log
           STATUS=${PIPESTATUS[0]}
           ENCODED=$(tail -c 3000 /tmp/bt.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
+      - name: Transfer-aware captaincy analysis
+        if: inputs.job == 'analysis_transfer_captaincy'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        shell: bash
+        run: |
+          set +e
+          pip install -q highspy 2>&1 | tail -1
+          python scripts/analysis_transfer_captaincy.py --from 6 --to 15 --gap 0.00001 2>&1 | tee /tmp/tc.log
+          STATUS=${PIPESTATUS[0]}
+          ENCODED=$(tail -c 3500 /tmp/tc.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
           if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
           exit $STATUS

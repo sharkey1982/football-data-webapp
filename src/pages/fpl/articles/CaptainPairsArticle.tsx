@@ -24,6 +24,7 @@ import {
   PARTNERS,
   PLAYER_COLOUR,
   SQUADS,
+  TRANSFERS,
 } from '../../../lib/fplArticleCaptainPairs';
 
 const H3 = 'font-display uppercase tracking-wide text-base text-ink-900';
@@ -331,6 +332,26 @@ export default function CaptainPairsArticle() {
         </div>
       </section>
 
+      <section aria-labelledby="transfers-heading" className="space-y-3">
+        <h2 id="transfers-heading" className={H2}>What if you make transfers?</h2>
+        <p className="rounded-lg border-l-4 border-amber-500 bg-chalk-100 px-4 py-2 text-sm text-ink-700 max-w-prose">
+          Added 9 Oct 2026. The same squads re-solved with transfers allowed (one free a week, up to five banked, 4 points for each extra), on the projections of {TRANSFERS.projectedAt}. Projections had changed since the case study, so compare within this table only.
+        </p>
+        <DataTable
+          caption="Squads with and without transfers, GW6 to 15"
+          head={['Squad', 'Fixed squad', 'With transfers', 'Gain from transfers']}
+          rows={TRANSFERS.rows.map((r) => [r.label, r.fixed.toFixed(1), r.transfers.toFixed(1), `+${(r.transfers - r.fixed).toFixed(1)}`])}
+        />
+        <div className={PROSE}>
+          <p>
+            Transfers add about {(TRANSFERS.rows[0].transfers - TRANSFERS.rows[0].fixed).toFixed(0)} points over the ten weeks ({TRANSFERS.transfersUsed} free transfers, no hits), and none of it is captaincy: the captain points ({TRANSFERS.captainPoints.toFixed(1)}) and who gets the armband are the same as in the fixed squad. The order doesn&rsquo;t change either: Haaland with Saka is still best, forcing Bruno in still costs a little, and going without a &pound;9m+ partner still costs most.
+          </p>
+          <p>
+            One thing the solver does that you shouldn&rsquo;t copy: left free, it sells Haaland for the Arsenal away week and buys him back. That only pays because prices are held fixed here; in FPL you keep only half of any price rise when you sell, and he may rise while you are out.
+          </p>
+        </div>
+      </section>
+
       <section aria-labelledby="limits-heading" className="space-y-3">
         <h2 id="limits-heading" className={H2}>What the models can&rsquo;t predict</h2>
         <ul className="list-disc pl-5 text-ink-700 max-w-prose space-y-2">
@@ -344,7 +365,7 @@ export default function CaptainPairsArticle() {
             <strong>Playing time.</strong> The model gives nailed starters an appearance chance of effectively 100%. That makes vice-captain insurance worth almost nothing on its numbers (0.02 points over ten weeks in the optimal squad), which understates late withdrawals. It also gives some players with few minutes a high start chance; we checked these did not affect any result here.
           </li>
           <li>
-            <strong>No transfers.</strong> Every squad here is held for ten weeks. With free transfers you can bring a partner in for his good run, so real squads can capture more rotation value than a fixed squad can.
+            <strong>Transfers.</strong> The main case study holds one squad for ten weeks. Allowing transfers (section above) adds ordinary points but no captaincy value here; it ignores price changes and selling prices.
           </li>
           <li>
             <strong>Linked outcomes.</strong> In GW12 Haaland and Saka play each other; goals for one side are goals against the other. Projections treat each player separately.
