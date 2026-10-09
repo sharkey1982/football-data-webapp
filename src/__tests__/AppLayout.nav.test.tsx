@@ -258,9 +258,7 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'NFL' })).toHaveAttribute('href', '/play/beat-the-shark/nfl/');
     expect(screen.getByRole('link', { name: 'World Cup' })).toHaveAttribute('href', '/play/beat-the-shark/world-cup/');
     expect(screen.getByRole('link', { name: 'Tennis: Nations Cup' })).toHaveAttribute('href', '/play/beat-the-shark/nations-cup/');
-    expect(screen.getByRole('link', { name: 'Blackjack: basic strategy' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
-    expect(screen.getByRole('link', { name: "Blackjack: what's the count?" })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=count');
-    expect(screen.getByRole('link', { name: 'Blackjack: beat the house' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/?mode=house');
+    expect(screen.getByRole('link', { name: 'Blackjack: all the games' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
     expect(screen.getByRole('link', { name: 'Poker: all the trainers' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
     expect(screen.getByRole('link', { name: 'Poker: heads-up v the Shark' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=match');
   });

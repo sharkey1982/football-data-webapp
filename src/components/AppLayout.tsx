@@ -269,9 +269,7 @@ export default function AppLayout() {
       {
         label: 'Casino & probability',
         items: [
-          { to: BEAT_THE_SHARK.blackjack.href, label: 'Blackjack: basic strategy', matchPrefix: BEAT_THE_SHARK.blackjack.href, external: true },
-          { to: `${BEAT_THE_SHARK.blackjack.href}?mode=count`, label: "Blackjack: what's the count?", matchPrefix: `${BEAT_THE_SHARK.blackjack.href}?mode=count`, external: true },
-          { to: `${BEAT_THE_SHARK.blackjack.href}?mode=house`, label: 'Blackjack: beat the house', matchPrefix: `${BEAT_THE_SHARK.blackjack.href}?mode=house`, external: true },
+          { to: BEAT_THE_SHARK.blackjack.href, label: 'Blackjack: all the games', matchPrefix: BEAT_THE_SHARK.blackjack.href, external: true },
           { to: BEAT_THE_SHARK.poker.href, label: 'Poker: all the trainers', matchPrefix: BEAT_THE_SHARK.poker.href, external: true },
           { to: `${BEAT_THE_SHARK.poker.href}?mode=match`, label: 'Poker: heads-up v the Shark', matchPrefix: `${BEAT_THE_SHARK.poker.href}?mode=match`, external: true },
         ],

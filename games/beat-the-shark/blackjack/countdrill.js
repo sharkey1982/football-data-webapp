@@ -103,6 +103,7 @@ function judge(rc,tc,decks){
 }
 function renderCountReport(){
   const S=summarise(D.T,99),g=S.byGroup;
+  bjRecord("count",S);
   btsTrack("bj_count_report",{checks:D.checks,score:S.score==null?-1:S.score});
   const acc=o=>o&&o.n?`${o.ok} of ${o.n} (${Math.round(100*o.ok/o.n)}%)`:"—";
   paintCountHeader();
