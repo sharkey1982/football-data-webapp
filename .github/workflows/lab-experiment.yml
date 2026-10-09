@@ -46,6 +46,11 @@ name: Model Lab
 #   possible second captain alongside Haaland, and exact squad solves
 #   (forced-in pairs, budget curve) on the live projections, GW from-to.
 #   Writes analysis_results (captain_partnerships).
+#
+# backtest_depth_floor: does wearing down a first choice's 85% start floor
+#   when he is fit and not picked predict GW3-5 starts better? Rule and
+#   decision fixed in the script before it ran. Writes analysis_results
+#   (depth_floor_backtest).
 
 on:
   workflow_dispatch:
@@ -53,7 +58,7 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships]
+        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor]
         default: f1
       open_holdout:
         description: "f1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
@@ -139,5 +144,20 @@ jobs:
           STATUS=${PIPESTATUS[0]}
           # Logs can't be read from a cloud session; annotations can.
           ENCODED=$(tail -c 3000 /tmp/cp.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
+      - name: Depth floor backtest
+        if: inputs.job == 'backtest_depth_floor'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q scripts/test_fpl_depth_chart.py 2>&1 | tail -3 | tee /tmp/bt.log
+          python scripts/backtest_depth_floor.py 2>&1 | tee -a /tmp/bt.log
+          STATUS=${PIPESTATUS[0]}
+          ENCODED=$(tail -c 3000 /tmp/bt.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
           if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
           exit $STATUS

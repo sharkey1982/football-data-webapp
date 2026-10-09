@@ -42,6 +42,13 @@ from itertools import groupby
 
 RANK1_FLOOR = 0.85   # a first choice starts at least this often when fit
 RANK1_CAP = 0.97
+# How many matches of evidence the seeded pecking order is worth (9 Oct
+# 2026). A first choice's chance is max(his start rate,
+# (starts + RANK1_FLOOR x K) / (available matches + K)): with no matches
+# available (a regular returning from injury) he gets the full floor; each
+# match he is fit and not picked wears it down. None = the old flat floor.
+# Adopted 9 Oct 2026 (GW3-5 backtest: Brier 0.0841 -> 0.0784).
+RANK1_SEED_MATCHES: float | None = 3.0
 BACKUP_TAKE = 0.90   # a backup takes an open place this often when fit
 OUTFIELD_PLACES = 10
 
@@ -78,6 +85,8 @@ class Player:
     rate: float | None            # start rate when fit (start record), None if unknown
     first_choice: float | None = None  # admin "start chance when fit"
     element_type: int = 0
+    starts: float | None = None      # starts this season (start record)
+    available: float | None = None   # team matches he was available for this season
     group: str | None = field(default=None, init=False)
     line: str | None = field(default=None, init=False)
     generic: bool = field(default=False, init=False)
@@ -101,7 +110,11 @@ class Player:
         if self.first_choice is not None:
             return self.first_choice
         if self.depth_rank <= 1:
-            return min(RANK1_CAP, max(self.rate or 0.0, RANK1_FLOOR))
+            k = RANK1_SEED_MATCHES
+            if k is None or self.starts is None or self.available is None:
+                return min(RANK1_CAP, max(self.rate or 0.0, RANK1_FLOOR))
+            seeded = (self.starts + RANK1_FLOOR * k) / (self.available + k)
+            return min(RANK1_CAP, max(self.rate or 0.0, seeded))
         return BACKUP_TAKE
 
 
@@ -250,6 +263,8 @@ def compute(rows: list[dict]) -> list[dict]:
                 rate=None if r.get("rate") is None else float(r["rate"]),
                 first_choice=None if r.get("start_if_fit") is None else float(r["start_if_fit"]),
                 element_type=int(r.get("element_type") or 0),
+                starts=None if r.get("starts") is None else float(r["starts"]),
+                available=None if r.get("available") is None else float(r["available"]),
             )
             for r in grp
         ]
