@@ -210,3 +210,60 @@ describe('Three decisions: partner claim', () => {
     expect(cap / all).toBeLessThan(0.2);
   });
 });
+
+// ---- xG or FDR? ------------------------------------------------------------------
+import XgOrFdrArticle from '../pages/fpl/articles/XgOrFdrArticle';
+import { ARTICLES as ALL_ARTICLES, XG_FDR_ARTICLE } from '../lib/fplArticles';
+import * as XF from '../lib/fplArticleXgFdr';
+
+describe('xG or FDR: the claims match the figures', () => {
+  it('between players: the xG rating and the market beat FDR, and FDR is the weakest number', () => {
+    expect(XF.BETWEEN.ALL.xg).toBeGreaterThan(XF.BETWEEN.ALL.fdr);
+    expect(XF.BETWEEN.ALL.mkt).toBeGreaterThan(XF.BETWEEN.ALL.xg);
+    expect(Math.min(...Object.values(XF.BETWEEN.ALL))).toBe(XF.BETWEEN.ALL.fdr);
+    expect(XF.BETWEEN_DIFF.xg.lo).toBeGreaterThan(0);
+    for (const p of ['GK', 'DEF', 'MID', 'FWD'] as const) expect(XF.BETWEEN[p].xg).toBeGreaterThan(XF.BETWEEN[p].fdr);
+    // midfielders: the player's xGI/90 beats both fixture ratings except the market
+    expect(XF.BETWEEN.MID.xgi90).toBeGreaterThan(XF.BETWEEN.MID.xg);
+    expect(XF.BETWEEN.MID.xgi90).toBeGreaterThan(XF.BETWEEN.MID.fdr);
+  });
+
+  it('same player: no xG rating beats FDR, the 10-GW one loses, the market wins', () => {
+    const fdr = XF.SAME_VARIANTS.find((v) => v.key === 'fdr')!.right;
+    for (const v of XF.SAME_VARIANTS.filter((v) => v.key.startsWith('xg') || v.key.startsWith('opp'))) {
+      expect(v.right).toBeLessThanOrEqual(fdr);
+      expect(v.lo as number).toBeLessThan(0.05); // never clearly above FDR
+    }
+    const main = XF.SAME_VARIANTS.find((v) => v.main)!;
+    expect(main.hi as number).toBeLessThan(0);
+    const mkt = XF.SAME_VARIANTS.find((v) => v.key === 'mkt')!;
+    expect(mkt.lo as number).toBeGreaterThan(0);
+    expect(XF.SAME.ALL.xg).toBe(main.right);
+    expect(XF.SAME_H2H.xg.hi).toBeLessThan(50);
+    expect(XF.SAME_BY_SEASON.filter((s) => s.fdr > s.xg).length).toBe(3);
+  });
+
+  it('defender points fall at each FDR step, and FDR 1 is merged', () => {
+    const b = XF.mergedBands(XF.BY_FDR.DEF);
+    expect(b.map((r) => r.label)).toEqual(['1–2', '3', '4', '5']);
+    for (let i = 1; i < b.length; i++) expect(b[i].pts).toBeLessThan(b[i - 1].pts);
+    expect(b[0].pts).toBeCloseTo(3.495, 2);
+    expect(b.reduce((s, r) => s + r.n, 0)).toBe(XF.BY_FDR.DEF.reduce((s, r) => s + r.n, 0));
+  });
+
+  it('is listed first on the hub', () => {
+    expect(ALL_ARTICLES[0]).toBe(XG_FDR_ARTICLE);
+  });
+});
+
+describe('xG or FDR: page', () => {
+  it('renders both questions with charts and tables', () => {
+    render(<MemoryRouter><XgOrFdrArticle /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(XG_FDR_ARTICLE.title);
+    expect(screen.getByRole('heading', { name: /xG beats FDR/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /FDR holds its own/ })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Each rating against FDR, same player' })).toHaveTextContent('−1.3');
+    expect(screen.getByRole('table', { name: /points per start by the FDR/ })).toHaveTextContent('1.85');
+    expect(screen.getAllByRole('img').length).toBeGreaterThanOrEqual(2);
+  });
+});

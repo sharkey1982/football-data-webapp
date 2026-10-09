@@ -82,7 +82,8 @@ import NflScoringRulesPage from './pages/nfl/NflScoringRulesPage';
 import FplArticlesPage from './pages/fpl/ArticlesPage';
 import CaptainTopPickArticle from './pages/fpl/articles/CaptainTopPickArticle';
 import HaalandCaptainArticle from './pages/fpl/articles/HaalandCaptainArticle';
-import { ARTICLES, ARTICLES_PATH, CAPTAIN_ARTICLE, CAPTAIN_PAIRS_ARTICLE, DECISIONS_ARTICLE, HAALAND_ARTICLE, type ArticleMeta } from './lib/fplArticles';
+import { ARTICLES, ARTICLES_PATH, CAPTAIN_ARTICLE, CAPTAIN_PAIRS_ARTICLE, DECISIONS_ARTICLE, HAALAND_ARTICLE, XG_FDR_ARTICLE, type ArticleMeta } from './lib/fplArticles';
+import XgOrFdrArticle from './pages/fpl/articles/XgOrFdrArticle';
 import DecisionHorizonsArticle from './pages/fpl/articles/DecisionHorizonsArticle';
 import CaptainPairsArticle from './pages/fpl/articles/CaptainPairsArticle';
 import {
@@ -446,6 +447,7 @@ export function renderFplArticlePages(): RenderedPage[] {
         breadcrumb([FPL_CRUMB, ARTICLES_CRUMB]),
       ],
     },
+    articlePage(XG_FDR_ARTICLE, <XgOrFdrArticle />),
     articlePage(DECISIONS_ARTICLE, <DecisionHorizonsArticle />),
     articlePage(CAPTAIN_PAIRS_ARTICLE, <CaptainPairsArticle />),
     articlePage(CAPTAIN_ARTICLE, <CaptainTopPickArticle />),

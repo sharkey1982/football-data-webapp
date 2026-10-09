@@ -354,6 +354,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/articles/xg-or-fdr',
+    title: 'xG or FDR: which predicts FPL points better?',
+    description:
+      'Four seasons of FPL starts tested: FPL\u2019s fixture difficulty rating (FDR) as it stood before kick-off, rolling xG fixture ratings and market-implied team goals, at choosing between players and at timing the same player\u2019s weeks.',
+    crumbs: [FPL, { name: 'Articles', path: '/fpl/articles' }],
+  },
+  {
     path: '/fpl/articles/three-decisions-three-horizons',
     title: 'Three FPL decisions, three time horizons: captaincy, transfers and squad building',
     description:
