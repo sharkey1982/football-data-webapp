@@ -89,8 +89,21 @@ export const DECISIONS_ARTICLE: ArticleMeta = {
   dataAsOf: '9 Oct 2026',
 };
 
+export const XG_FDR_ARTICLE: ArticleMeta = {
+  slug: 'xg-or-fdr',
+  path: `${ARTICLES_PATH}/xg-or-fdr`,
+  title: 'xG or FDR: which predicts FPL points better?',
+  question: 'Should I plan FPL transfers with FDR or with expected goals (xG)?',
+  description:
+    'Four seasons of FPL starts tested: FPL\u2019s fixture difficulty rating (FDR) as it stood before kick-off, rolling xG fixture ratings and market-implied team goals, at choosing between players and at timing the same player\u2019s weeks.',
+  verdict:
+    'It depends on the job. To choose between players, an xG fixture rating beats FDR, because it knows how strong your own team is and FDR doesn\u2019t. To pick a player\u2019s best weeks, FDR did as well as every xG rating we built and better than a 10-gameweek one. Market-implied team goals beat both at both jobs.',
+  published: '2026-10-09',
+  dataAsOf: 'end of 2025/26',
+};
+
 // Newest first.
-export const ARTICLES: ArticleMeta[] = [DECISIONS_ARTICLE, CAPTAIN_PAIRS_ARTICLE, CAPTAIN_ARTICLE, HAALAND_ARTICLE];
+export const ARTICLES: ArticleMeta[] = [XG_FDR_ARTICLE, DECISIONS_ARTICLE, CAPTAIN_PAIRS_ARTICLE, CAPTAIN_ARTICLE, HAALAND_ARTICLE];
 
 // ---- Captaincy ------------------------------------------------------------
 

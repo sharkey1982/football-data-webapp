@@ -88,6 +88,7 @@ const CaptainTopPickArticle = lazy(() => import('./pages/fpl/articles/CaptainTop
 const HaalandCaptainArticle = lazy(() => import('./pages/fpl/articles/HaalandCaptainArticle'));
 const CaptainPairsArticle = lazy(() => import('./pages/fpl/articles/CaptainPairsArticle'));
 const DecisionHorizonsArticle = lazy(() => import('./pages/fpl/articles/DecisionHorizonsArticle'));
+const XgOrFdrArticle = lazy(() => import('./pages/fpl/articles/XgOrFdrArticle'));
 const ActualMatchesPage = lazy(() => import('./pages/fpl/ActualMatchesPage'));
 const ActualMatchDetailPage = lazy(() => import('./pages/fpl/ActualMatchDetailPage'));
 const TacticalRolesAdminPage = lazy(() => import('./pages/fpl/TacticalRolesAdminPage'));
@@ -726,6 +727,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <CaptainTopPickArticle />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/articles/xg-or-fdr"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <XgOrFdrArticle />
               </Suspense>
             }
           />
