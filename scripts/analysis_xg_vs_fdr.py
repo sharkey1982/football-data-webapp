@@ -101,8 +101,8 @@ def load() -> tuple[pd.DataFrame, float]:
     return df, float(np.sqrt(hg / ag))
 
 
-def prior_window(keys: pd.DataFrame, key: str, cols: list[str]) -> pd.DataFrame:
-    """For each (key, seq) row, sums of `cols` over the previous WINDOW rows
+def prior_window(keys: pd.DataFrame, key: str, cols: list[str], window: int = WINDOW) -> pd.DataFrame:
+    """For each (key, seq) row, sums of `cols` over the previous `window` rows
     of the same key (earlier gameweeks only), this season and last only."""
     out = []
     for _, g in keys.sort_values([key, 'seq']).groupby(key, sort=False):
@@ -110,7 +110,7 @@ def prior_window(keys: pd.DataFrame, key: str, cols: list[str]) -> pd.DataFrame:
         vals = g[cols].to_numpy(dtype=float)
         kval = g[key].iloc[0]
         for i in range(len(g)):
-            lo = max(0, i - WINDOW)
+            lo = max(0, i - window)
             idx = [j for j in range(lo, i) if seas[j] >= seas[i] - 1]
             s = vals[idx].sum(axis=0) if idx else np.zeros(len(cols))
             out.append((kval, seqs[i], *s))
@@ -140,17 +140,22 @@ def build(df: pd.DataFrame, home: float) -> pd.DataFrame:
     side = side.merge(side[['fixture_id', 'season_id', 'team_id', 'xg']].rename(columns={'team_id': 'opp_id', 'xg': 'xga'}),
                       on=['season_id', 'fixture_id', 'opp_id'])
     tg = side.groupby(['team_id', 'season_id', 'seq'], as_index=False).agg(xgf=('xg', 'sum'), xga=('xga', 'sum'), n=('xg', 'size'))
-    tp = prior_window(tg, 'team_id', ['xgf', 'xga', 'n'])
-    tp['att'] = tp['p_xgf'] / tp['p_n'].replace(0, np.nan)
-    tp['dfn'] = tp['p_xga'] / tp['p_n'].replace(0, np.nan)
-    tp.loc[tp['p_n'] < 5, ['att', 'dfn']] = np.nan
     league = float(side['xg'].mean())
-    df = df.merge(tp[['team_id', 'seq', 'att', 'dfn']], on=['team_id', 'seq'], how='left')
-    df = df.merge(tp[['team_id', 'seq', 'att', 'dfn']].rename(columns={'team_id': 'opp_id', 'att': 'opp_att', 'dfn': 'opp_dfn'}),
-                  on=['opp_id', 'seq'], how='left')
     hf = np.where(df['was_home'], home, 1 / home)
-    df['xg_att'] = df['att'] * df['opp_dfn'] / league * hf
-    df['xg_def'] = df['opp_att'] * df['dfn'] / league / hf
+    for w in (WINDOW, 20, 38):
+        sfx = '' if w == WINDOW else f'_{w}'
+        tp = prior_window(tg, 'team_id', ['xgf', 'xga', 'n'], w)
+        tp['att'] = tp['p_xgf'] / tp['p_n'].replace(0, np.nan)
+        tp['dfn'] = tp['p_xga'] / tp['p_n'].replace(0, np.nan)
+        tp.loc[tp['p_n'] < 5, ['att', 'dfn']] = np.nan
+        t = tp[['team_id', 'seq', 'att', 'dfn']]
+        m = df[['team_id', 'opp_id', 'seq']].merge(t, on=['team_id', 'seq'], how='left').merge(
+            t.rename(columns={'team_id': 'opp_id', 'att': 'opp_att', 'dfn': 'opp_dfn'}), on=['opp_id', 'seq'], how='left')
+        df[f'xg_att{sfx}'] = (m['att'] * m['opp_dfn'] / league * hf).to_numpy()
+        df[f'xg_def{sfx}'] = (m['opp_att'] * m['dfn'] / league / hf).to_numpy()
+        # opponent only: what the opponent concedes / creates, home or away
+        df[f'opp_att{sfx}'] = (m['opp_dfn'] * hf).to_numpy()
+        df[f'opp_def{sfx}'] = (m['opp_att'] / hf).to_numpy()
 
     # player form
     pg = df.groupby(['fpl_code', 'season_id', 'seq'], as_index=False).agg(minutes=('minutes', 'sum'), xgi=('xgi', 'sum'), pts=('pts', 'sum'))
@@ -172,6 +177,12 @@ def predictors(pos: str) -> dict[str, str]:
         'xg_fix': 'xg_att' if att else 'n_xg_def',
         'mkt_fix': 'mkt_att' if att else 'n_mkt_def',
         'xgi90': 'xgi90', 'pts90': 'pts90', 'price': 'price',
+        # sensitivity variants, added after the 10-gameweek rating lost to
+        # FDR on timing; all are reported, none replaces the main one
+        'xg_fix_20': 'xg_att_20' if att else 'n_xg_def_20',
+        'xg_fix_38': 'xg_att_38' if att else 'n_xg_def_38',
+        'opp_only': 'opp_att' if att else 'n_opp_def',
+        'opp_only_38': 'opp_att_38' if att else 'n_opp_def_38',
     }
 
 
@@ -260,7 +271,7 @@ def means_by(df: pd.DataFrame, col: str, bins=None) -> list[dict]:
 def main() -> None:
     raw, home = load()
     df = build(raw, home)
-    for c in ('fdr', 'fdr_end', 'xg_def', 'mkt_def'):
+    for c in ('fdr', 'fdr_end', 'xg_def', 'mkt_def', 'xg_def_20', 'xg_def_38', 'opp_def', 'opp_def_38'):
         df[f'n_{c}'] = -df[c]
     need = ['pos', 'fdr', 'fdr_end', 'xg_att', 'xg_def', 'mkt_att', 'mkt_def', 'xgi90', 'pts90', 'price']
     starts = df[df['started']]
@@ -280,14 +291,14 @@ def main() -> None:
         if pos == 'ALL':
             # position-appropriate fixture signal per row, standardised within position
             sub = sub.copy()
-            for nm in ('xg_fix', 'mkt_fix'):
+            for nm in ('xg_fix', 'mkt_fix', 'xg_fix_20', 'xg_fix_38', 'opp_only', 'opp_only_38'):
                 vals = pd.Series(np.nan, index=sub.index)
                 for p in POS.values():
                     m = sub['pos'] == p
                     v = sub.loc[m, predictors(p)[nm]]
                     vals[m] = (v - v.mean()) / v.std()
                 sub[f'all_{nm}'] = vals
-            cols = {**predictors('MID'), 'xg_fix': 'all_xg_fix', 'mkt_fix': 'all_mkt_fix'}
+            cols = {**predictors('MID'), **{nm: f'all_{nm}' for nm in ('xg_fix', 'mkt_fix', 'xg_fix_20', 'xg_fix_38', 'opp_only', 'opp_only_38')}}
         else:
             cols = predictors(pos)
         r: dict = {'n': int(len(sub)), 'mean_pts': round(float(sub['pts'].mean()), 3),
@@ -297,6 +308,9 @@ def main() -> None:
         r['between_players'] = evaluate(sub, gb, names, cols)
         fix_names = ['fdr', 'fdr_end', 'xg_fix', 'mkt_fix']
         r['same_player'] = evaluate(sub, ['fpl_code', 'season_id'], fix_names, cols)
+        var_names = ['fdr', 'xg_fix', 'xg_fix_20', 'xg_fix_38', 'opp_only', 'opp_only_38', 'mkt_fix']
+        r['variants_same_player'] = {k: v for k, v in evaluate(sub, ['fpl_code', 'season_id'], var_names, cols).items() if not k.startswith('h2h')}
+        r['variants_between'] = {k: v for k, v in evaluate(sub, gb, var_names, cols).items() if not k.startswith('h2h')}
         r['same_player_by_season'] = {int(s): {k: v for k, v in evaluate(g, ['fpl_code', 'season_id'], fix_names, cols).items()
                                                if k in ('fdr', 'xg_fix', 'mkt_fix')}
                                       for s, g in sub.groupby('season_id')}
@@ -313,6 +327,8 @@ def main() -> None:
               f"mkt {bp['mkt_fix']['concordance']:.3f} xgi90 {bp['xgi90']['concordance']:.3f} pts90 {bp['pts90']['concordance']:.3f} price {bp['price']['concordance']:.3f} "
               f"| same: fdr {sp['fdr']['concordance']:.3f} end {sp['fdr_end']['concordance']:.3f} xg {sp['xg_fix']['concordance']:.3f} mkt {sp['mkt_fix']['concordance']:.3f} "
               f"| h2h xg {sp['h2h_xg_fix_v_fdr']['fix_right']} ({sp['h2h_xg_fix_v_fdr']['disagree_pairs']}) mkt {sp['h2h_mkt_fix_v_fdr']['fix_right']}")
+        vs = r['variants_same_player']
+        print('    same-player variants: ' + ' '.join(f"{k} {vs[k]['concordance']:.3f}" for k in var_names))
     print(json.dumps({k: summary[k] for k in ('sample', 'starts', 'dropped', 'by_season', 'fdr_revised_share')}))
 
     if os.environ.get('SUPABASE_SERVICE_KEY'):
