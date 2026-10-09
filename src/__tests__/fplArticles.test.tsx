@@ -133,3 +133,12 @@ describe('One captain or two: page', () => {
     expect(screen.getByText(/data to 8 Oct 2026/)).toBeInTheDocument();
   });
 });
+
+describe('One captain or two: transfers update', () => {
+  it('transfers never lower a squad, and the order of squads holds', async () => {
+    const { TRANSFERS } = await import('../lib/fplArticleCaptainPairs');
+    for (const r of TRANSFERS.rows) expect(r.transfers).toBeGreaterThanOrEqual(r.fixed);
+    const order = (k: 'fixed' | 'transfers') => [...TRANSFERS.rows].sort((a, b) => b[k] - a[k]).map((r) => r.key);
+    expect(order('transfers')).toEqual(order('fixed'));
+  });
+});
