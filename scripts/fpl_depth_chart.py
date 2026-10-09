@@ -47,8 +47,8 @@ RANK1_CAP = 0.97
 # (starts + RANK1_FLOOR x K) / (available matches + K)): with no matches
 # available (a regular returning from injury) he gets the full floor; each
 # match he is fit and not picked wears it down. None = the old flat floor.
-# Set from the backtest in scripts/backtest_depth_floor.py.
-RANK1_SEED_MATCHES: float | None = None
+# Adopted 9 Oct 2026 (GW3-5 backtest: Brier 0.0841 -> 0.0784).
+RANK1_SEED_MATCHES: float | None = 3.0
 BACKUP_TAKE = 0.90   # a backup takes an open place this often when fit
 OUTFIELD_PLACES = 10
 

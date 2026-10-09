@@ -115,3 +115,38 @@ def test_spare_backup_covers_other_role_in_line():
     out = allocate(players, None)
     # LCB out with no LCB backup: the spare RCB backup moves across.
     assert out[3][0] > 0.85
+
+
+# ---- Evidence wears down a seeded first choice (9 Oct 2026) ----------------
+
+def _rw(first_starts, first_avail, first_rate=0.2):
+    P = Player
+    return [
+        P(1, "RW", 1, 1.0, first_rate, None, 3, starts=first_starts, available=first_avail),   # seeded first choice
+        P(2, "RW", 2, 1.0, 0.8, None, 3, starts=4, available=5),                               # has been starting
+    ]
+
+
+def test_returning_regular_keeps_floor():
+    # Back from injury: no matches available yet, so the pecking order stands.
+    out = allocate(_rw(0, 0), None)
+    assert out[1][0] == pytest.approx(0.85)
+
+
+def test_fit_and_unpicked_first_choice_wears_down():
+    # Fit for five matches, started none: (0 + 0.85 x 3) / (5 + 3).
+    out = allocate(_rw(0, 5, first_rate=0.03), None)
+    assert out[1][0] == pytest.approx(0.85 * 3 / 8, abs=1e-4)
+    # The backup who has been playing picks up the place.
+    assert out[2][0] > 0.55
+
+
+def test_regular_starter_unchanged():
+    out = allocate(_rw(5, 5, first_rate=0.97), None)
+    assert out[1][0] == pytest.approx(0.97)
+
+
+def test_no_start_record_keeps_old_rule():
+    P = Player
+    out = allocate([P(1, "RW", 1, 1.0, 0.1, None, 3)], None)
+    assert out[1][0] == pytest.approx(0.85)
