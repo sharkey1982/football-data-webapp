@@ -61,6 +61,16 @@ over 150,000 hands loses 0.42% ± 0.30 (published: about 0.5%); blackjacks
 4.8%, pushes 8.7%; luck averages zero for good and random play; whole
 sessions through the real screens.
 
+## The blackjack page (9 Oct 2026)
+
+The games' picker has a single **Blackjack** entry; it opens `blackjack/`
+with no mode: the three games in order (basic strategy → what's the count?
+→ beat the house), each ticked once you reach its report, with its best and
+latest score (`bjRecord`, reports of 5+ decisions, this browser's
+localStorage), the next one highlighted, and "Clear them". Each game's
+footer links back. Basic strategy is now `?mode=basic`; `?mode=count` and
+`?mode=house` are unchanged. Same pattern as the poker path.
+
 ## Three modes (7 Oct 2026), one table, by `?mode=` in the address
 
 - **Basic strategy** (`blackjack/`): every playing decision judged. A right

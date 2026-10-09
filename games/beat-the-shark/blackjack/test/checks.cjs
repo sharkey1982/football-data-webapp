@@ -300,7 +300,7 @@ A,A      P P P P P P P P P P`;
 {
   const fails=[];const seen=new Set();let lastHTML="";
   for(let s=0;s<4;s++){
-    const w=makeWorld();w.run('pickSport("blackjack")');w.els.playThis.onclick();w.drain();
+    const w=makeWorld("?mode=basic");w.run('pickSport("blackjack")');w.els.playThis.onclick();w.drain();
     if(!/Did you win\?/.test(w.els.app.innerHTML))fails.push("no intro");
     w.els.go.onclick();if(!/YOUR STAKE/.test(w.els.app.innerHTML))fails.push("no stake screen");
     w.run(`R.s=hashSeed("SCREENS${s}")`);
@@ -389,8 +389,8 @@ A,A      P P P P P P P P P P`;
   // screens: the drill
   const fails=[];
   {const w=makeWorld("?mode=count");
-   if(!/data-game="blackjack-count"/.test(w.els.app.innerHTML))fails.push("picker lacks the count drill");
-   w.run('pickSport("blackjack-count")');w.els.playThis.onclick();w.drain();
+   if(!/data-game="blackjack"/.test(w.els.app.innerHTML))fails.push("picker lacks the count drill");
+   w.run('pickSport("blackjack")');w.els.playThis.onclick();w.drain();
    if(!/THE HI-LO COUNT/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no drill intro with its start button");
    w.els["sp-fast"].onclick();if(/undefined|NaN/.test(w.els.app.innerHTML+w.els.hTwo.innerHTML+w.els.hSeason.innerHTML))fails.push("speed pick broke the drill intro");
    w.els.go.onclick();let checks=0,wrong=0,right=0;
@@ -410,7 +410,7 @@ A,A      P P P P P P P P P P`;
    w.els.report.onclick();if(!/COUNT SCORE/.test(w.els.app.innerHTML))fails.push("no drill report");
    if(w.run("sharkScore(D.T)")>60)fails.push("half the answers wrong should not score over 60");}
   // screens: beat the house
-  {const w=makeWorld("?mode=house");w.run('pickSport("blackjack-house")');w.els.playThis.onclick();w.drain();
+  {const w=makeWorld("?mode=house");w.run('pickSport("blackjack")');w.els.playThis.onclick();w.drain();
    if(!/THE BET RAMP/.test(w.els.app.innerHTML)||!/id="go"/.test(w.els.app.innerHTML))fails.push("no house intro with its start button");
    w.els.go.onclick();if(!/BET IN UNITS/.test(w.els.app.innerHTML))fails.push("no bet units");
    let bets=0,betBad=0;
@@ -432,6 +432,24 @@ A,A      P P P P P P P P P P`;
    if(!/flat betting/.test(w.els.app.innerHTML))fails.push("house report lacks the value of the bets");
    const hdr=w.els.hTwo.innerHTML;if(!/Bet score/.test(hdr))fails.push("house header lacks the bet score");}
   check("the drill and Beat the house through the real screens: answers and bets judged, wrong counts replayed, reports",!fails.length,fails.slice(0,3).join(" | "));
+}
+
+/* ---- the blackjack page --------------------------------------------------------- */
+{
+  const fails=[];
+  {const w=makeWorld();const h=w.els.app.innerHTML;
+   if((h.match(/data-game="blackjack"/g)||[]).length!==1||/data-game="blackjack-/.test(h))fails.push("the picker should offer Blackjack once");
+   w.run('pickSport("blackjack")');w.els.playThis.onclick();w.drain();const p=w.els.app.innerHTML;
+   const modes=[...p.matchAll(/href="\?mode=([a-z]+)#play"/g)].map(m=>m[1]);
+   if(modes.join()!=="basic,count,house")fails.push("order: "+modes.join());
+   if((p.match(/· next/g)||[]).length!==1||!/Basic strategy · next/.test(p))fails.push("next");}
+  {const w=makeWorld("?mode=count");if(!/All the blackjack games/.test(w.els.foot.innerHTML))fails.push("no way back");
+   w.run(`(()=>{const m={};localStorage={getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v)},removeItem:k=>{delete m[k]}};})()`);
+   w.run('bjRecord("basic",{score:80,decisions:30});bjRecord("basic",{score:70,decisions:25});bjRecord("count",{score:50,decisions:2})');
+   const sc=JSON.parse(w.run("JSON.stringify(bjScores())"));if(!sc.basic||sc.basic.best!==80||sc.basic.last!==70||sc.count||!w.run('bjDoneSet().has("count")'))fails.push("scores "+JSON.stringify(sc));
+   w.run("renderBjPath()");const p=w.els.app.innerHTML;if((p.match(/pathno done/g)||[]).length!==2||!/Beat the house · next/.test(p)||!/last 70/.test(p))fails.push("ticked page wrong");
+   w.run("bjClear();renderBjPath()");if(/pathno done/.test(w.els.app.innerHTML))fails.push("clear")}
+  check("the blackjack page: Blackjack once on the picker; the three games in order; one 'next'; ticks, best and last scores; each game links back; clear",!fails.length,fails.slice(0,3).join(" | "));
 }
 
 console.log(failures?`\n${failures} check(s) FAILED`:"\nAll checks passed");

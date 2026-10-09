@@ -11,8 +11,10 @@ const START_CHIPS=10000;
      count  What's the count? — the Hi-Lo drill (countdrill.js)
      house  Beat the house — basic strategy plus the count: bet by the true count
    chosen by ?mode= in the address, so each has its own entry on the picker. */
-const MODE_ID=(()=>{try{const m=new URLSearchParams(location.search||"").get("mode");return m==="count"||m==="house"?m:"basic"}catch(e){return"basic"}})();
-const PICKER_ID={basic:"blackjack",count:"blackjack-count",house:"blackjack-house"}[MODE_ID];
+/* No mode: the blackjack page (path.js), the three games in order. The
+   games' picker has one Blackjack entry; on a game's page it starts that game. */
+const MODE_ID=(()=>{try{const m=new URLSearchParams(location.search||"").get("mode");return m==="count"||m==="house"||m==="basic"?m:"path"}catch(e){return"path"}})();
+const PICKER_ID="blackjack";
 const UNIT=100;
 const STAKES=MODE_ID==="house"?BET_UNITS.map(u=>u*UNIT):[100,250,500,1000];
 const MODE="learn"; // feedback timing; later: "practice" (judged at the end of the hand), "session", "challenge"
@@ -35,7 +37,9 @@ function paintHeader(){
 function screen(html){paintHeader();$("app").innerHTML=html}
 
 /* ---- start --------------------------------------------------------------------- */
-function renderStart(){G=null;renderGamePicker(PICKER_ID,"../",MODE_ID==="count"?renderCountIntro:renderIntro)}
+function renderStart(){G=null;
+  const f=$("foot");if(f&&MODE_ID!=="path")f.innerHTML=`<a href="./" style="color:inherit">← All the blackjack games</a>`;
+  renderGamePicker(PICKER_ID,"../",MODE_ID==="path"?renderBjPath:MODE_ID==="count"?renderCountIntro:renderIntro)}
 function renderIntro(){
   $("hScore").innerHTML=`—<span class="sub">SHARK SCORE</span>`;
   $("hTwo").innerHTML=`<div class="two"><div class="k">Shark Chips</div><div class="v">${fmt(START_CHIPS)}</div></div><div class="two"><div class="k">Decisions</div><div class="v">0</div></div>`;
@@ -236,6 +240,7 @@ const LEAK_NOTE={
   "Hard 17+":"Seventeen or more: stand.","Hard 8 or less":"Eight or less: you can't bust, so take a card.","Soft 19–21":"Soft 19 or more: stand."};
 function renderReport(){
   const S=summarise(G.T,8),V=verdictOf(S);
+  bjRecord(MODE_ID==="house"?"house":"basic",S);
   btsTrack("bj_session_report",{hands:S.hands,decisions:S.decisions,score:S.score==null?-1:S.score});
   const acc=(o)=>o&&o.n?`${o.ok} of ${o.n} (${pctTxt(o.ok/o.n)})`:"—";
   const result=S.result;

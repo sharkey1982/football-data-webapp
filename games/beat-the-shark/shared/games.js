@@ -18,9 +18,7 @@ const BTS_GAMES=[
   {id:"nfl",group:"sports",name:"NFL",mission:"Win the division",path:"nfl/"},
   {id:"world-cup",group:"sports",name:"World Cup",mission:"Win the World Cup",path:"world-cup/"},
   {id:"nations-cup",group:"sports",name:"Tennis: Nations Cup",mission:"Win the Nations Cup",path:"nations-cup/"},
-  {id:"blackjack",group:"casino",name:"Blackjack: basic strategy",mission:"Play every hand right",path:"blackjack/"},
-  {id:"blackjack-count",group:"casino",name:"Blackjack: what's the count?",mission:"Keep the Hi-Lo count",path:"blackjack/?mode=count"},
-  {id:"blackjack-house",group:"casino",name:"Blackjack: beat the house",mission:"Bet by the count",path:"blackjack/?mode=house"},
+  {id:"blackjack",group:"casino",name:"Blackjack",mission:"Three steps to beat the house",path:"blackjack/"},
   {id:"poker",group:"casino",name:"Poker",mission:"Ten trainers, then a match v the Shark",path:"poker/"}
 ];
 /* Two groups on one screen (Chris, 7 Oct 2026: casino games to come), as
