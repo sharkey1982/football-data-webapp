@@ -71,7 +71,7 @@ export default function CaptainPairsArticle() {
     <ArticleLayout
       meta={CAPTAIN_PAIRS_ARTICLE}
       next={[
-        { label: 'Player Projections: this week’s expected points for every player', to: '/fpl/player-points' },
+        { label: 'Captain planner (on Player Projections): try any two or three captains over any range', to: '/fpl/player-points' },
         { label: 'Optimiser: the best squad under budget, with forced picks', to: '/fpl/optimal-squad' },
         { label: CAPTAIN_ARTICLE.title, to: CAPTAIN_ARTICLE.path },
         { label: HAALAND_ARTICLE.title, to: HAALAND_ARTICLE.path },
@@ -83,7 +83,7 @@ export default function CaptainPairsArticle() {
             <strong>Projections.</strong> FixtureShark&rsquo;s player projections (model {CASE_STUDY.modelVersion}, baseline scenario) for gameweeks {CASE_STUDY.fromGw} to {CASE_STUDY.toGw} of {CASE_STUDY.season}, generated {CASE_STUDY.projectedAt}, with that day&rsquo;s FPL prices. They are read through the same feed the <Link to="/fpl/optimal-squad" className={LINK}>Optimiser</Link> uses: 6,670 rows, one per player per gameweek (667 players, no blank or double gameweeks in the range).
           </p>
           <p>
-            <strong>Checks before use.</strong> Player identities by FPL id (two players are called Palmer: Chelsea&rsquo;s midfielder and a goalkeeper); one projection per player and fixture at the current model version (older-version rows for gameweeks 6 to 10 are ignored); prices and availability against FPL&rsquo;s current data; start probabilities against minutes played this season. That last check found {LOW_EVIDENCE_COUNT} players with under 200 minutes but a projected start probability of 0.6 or more, for example {LOW_EVIDENCE_EXAMPLES}. Every squad below was solved with and without them: no optimal squad picked any of them, and every total was identical. The model was not changed.
+            <strong>Checks before use.</strong> Player identities by FPL id (two players are called Palmer: Chelsea&rsquo;s midfielder and a goalkeeper); one projection per player and fixture at the current model version (older-version rows for gameweeks 6 to 10 are ignored); prices and availability against FPL&rsquo;s current data; start probabilities against minutes played this season. That last check found {LOW_EVIDENCE_COUNT} players with under 200 minutes but a projected start probability of 0.6 or more, for example {LOW_EVIDENCE_EXAMPLES}. Every squad below was solved with and without them: no optimal squad picked any of them, and every total was identical. The model was not changed for this article. <em>Update, 9 Oct 2026:</em> that start-chance rule has since been fixed (a first choice&rsquo;s chance now falls when he is fit and not picked); the case study keeps the projections of 8 Oct.
           </p>
           <p>
             <strong>Squads.</strong> An exact integer programme (the same formulation as the site&rsquo;s exact optimiser, solved with HiGHS, proven optimal): one 15-man squad for all ten gameweeks, &pound;100m, 2&ndash;5&ndash;5&ndash;3, at most three per club, the best legal XI and captain chosen each week. Bench players score only if they start. No transfers are modelled. One solve, &ldquo;no Haaland&rdquo; with every player, exhausted the solver&rsquo;s memory; it is reported from the solve without the {LOW_EVIDENCE_COUNT} low-evidence players, which made no difference in every case that did solve both ways.

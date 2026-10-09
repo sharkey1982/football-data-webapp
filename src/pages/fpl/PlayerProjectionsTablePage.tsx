@@ -15,6 +15,7 @@ import { getPlayerGameweekPointsRange, getTeamFixtureGoals, type PlayerGameweekP
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getErrorMessage } from '../../lib/errorMessage';
+import CaptainPlanner, { type PlannerPlayer } from '../../components/fpl/CaptainPlanner';
 
 type ViewMode = 'by_gameweek' | 'by_contribution';
 
@@ -27,6 +28,7 @@ type PlayerRow = {
   fpl_position_label: string;
   price: number | null;
   byMatchweek: Map<number, { actual: number | null; projected: number | null }>;
+  startByMatchweek: Map<number, number>;
   total: number;
   hasAnyActual: boolean;
   hasAnyProjected: boolean;
@@ -72,6 +74,7 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
         fpl_position_label: r.fpl_position_label,
         price: r.price,
         byMatchweek: new Map(),
+        startByMatchweek: new Map(),
         total: 0,
         hasAnyActual: false,
         hasAnyProjected: false,
@@ -80,6 +83,7 @@ function buildPlayerRows(raw: PlayerGameweekPoints[]): PlayerRow[] {
       byPlayer.set(r.fpl_player_id, row);
     }
     row.byMatchweek.set(r.matchweek, { actual: r.actual_points, projected: r.projected_points });
+    if (r.start_probability != null) row.startByMatchweek.set(r.matchweek, r.start_probability);
     const shown = r.actual_points ?? r.projected_points;
     if (shown !== null) row.total += shown;
     if (r.actual_points !== null) row.hasAnyActual = true;
@@ -129,6 +133,8 @@ export default function PlayerProjectionsTablePage() {
   const [fromMatchweek, setFromMatchweek] = useState<number | null>(null);
   const [toMatchweek, setToMatchweek] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('by_gameweek');
+  // Rendered only when opened: keeps the page light and the table's numbers unique.
+  const [plannerOpen, setPlannerOpen] = useState(false);
   const [positionFilter, setPositionFilter] = useState<number | 'all'>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -222,6 +228,24 @@ export default function PlayerProjectionsTablePage() {
 
   const allRows = useMemo(() => buildPlayerRows(rawRows ?? []), [rawRows]);
 
+  // Captain planner: projections only (a played week has no armband decision left).
+  const planner = useMemo(() => {
+    const players: PlannerPlayer[] = [];
+    for (const r of allRows) {
+      const xp = new Map<number, number>();
+      for (const mw of matchweeks) {
+        const v = r.byMatchweek.get(mw);
+        if (v && v.actual === null && v.projected !== null) xp.set(mw, v.projected);
+      }
+      if (xp.size === 0) continue;
+      players.push({ id: r.fpl_player_id, name: r.web_name, team: r.team_name, price: r.price, xp, start: r.startByMatchweek });
+    }
+    const gws = matchweeks.filter((mw) => players.some((p) => p.xp.has(mw)));
+    const total = (p: PlannerPlayer) => gws.reduce((t, mw) => t + (p.xp.get(mw) ?? 0), 0);
+    const defaults = [...players].sort((a, b) => total(b) - total(a)).slice(0, 2).map((p) => p.id);
+    return { players: players.sort((a, b) => a.name.localeCompare(b.name)), gws, defaults };
+  }, [allRows, matchweeks]);
+
   const teamOptions = useMemo(() => [...new Set(allRows.map((r) => r.team_name))].sort((a, b) => a.localeCompare(b)), [allRows]);
 
   const filtered = useMemo(() => {
@@ -293,6 +317,17 @@ export default function PlayerProjectionsTablePage() {
           presets={['this', 'next', 'next10', 'custom']}
         />
       </div>
+
+      {planner.players.length > 0 && (
+        <details className="bg-white border border-chalk-300 rounded-lg px-3 py-2" onToggle={(e) => setPlannerOpen((e.currentTarget as HTMLDetailsElement).open)}>
+          <summary className="text-sm font-medium text-ink-900 cursor-pointer">Captain planner</summary>
+          {plannerOpen && (
+            <div className="mt-3">
+              <CaptainPlanner key={`${fromMatchweek}-${toMatchweek}`} players={planner.players} gws={planner.gws} defaults={planner.defaults} />
+            </div>
+          )}
+        </details>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 bg-white border border-chalk-300 rounded-lg px-3 py-2">
         <div className="flex rounded-lg border border-chalk-300 overflow-hidden">

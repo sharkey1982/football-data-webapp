@@ -137,3 +137,43 @@ describe('actual-points contribution reconstruction (via getPlayerGameweekPoints
     expect(total).toBe(14);
   });
 });
+
+describe('double gameweeks (via getPlayerGameweekPointsRange)', () => {
+  it('adds both fixtures of a double gameweek instead of keeping only the last', async () => {
+    const gw = (fid: number, pts: number, goals: number) => ({
+      fpl_player_id: 601, fpl_fixture_id: fid, total_points: pts, minutes: 90, goals_scored: goals, assists: 0, clean_sheets: 0,
+      goals_conceded: 1, own_goals: 0, penalties_saved: 0, penalties_missed: 0, yellow_cards: 0, red_cards: 0, saves: 0, bonus: 0,
+      source_payload: { stats: {} },
+    });
+    const proj = (fid: number, pts: number, sp: number) => ({
+      fpl_player_id: 601, fixture_id: fid, model_version: 'leaguewide_v6', expected_fpl_points: pts, xpts_appearance: 1.8, xpts_goals: pts - 1.8,
+      xpts_assists: 0, xpts_clean_sheet: 0, xpts_saves: 0, xpts_defensive_contribution: 0, xpts_cards_own_goals: 0, xpts_bonus: 0,
+      xpts_goals_conceded: 0, xpts_penalties: 0, start_probability: sp,
+    });
+    const data: Record<string, any[]> = {
+      fixtures: [
+        { fixture_id: 70, matchweek: 7, league_id: 1, season_id: 13 },
+        { fixture_id: 71, matchweek: 7, league_id: 1, season_id: 13 },
+        { fixture_id: 80, matchweek: 8, league_id: 1, season_id: 13 },
+        { fixture_id: 81, matchweek: 8, league_id: 1, season_id: 13 },
+      ],
+      fpl_fixtures: [70, 71, 80, 81].map((id) => ({ fpl_fixture_id: id, canonical_fixture_id: id, season_id: 13 })),
+      // GW7 played twice; GW8 projected twice.
+      fpl_player_gameweeks: [gw(70, 6, 1), gw(71, 2, 0)],
+      fpl_player_projections: [proj(80, 5, 0.9), proj(81, 4, 0.8)],
+      fpl_players: [{ fpl_player_id: 601, web_name: 'Twice', element_type: 4, canonical_team_id: 1, season_id: 13, now_cost: 80 }],
+      teams: [{ team_id: 1, canonical_name: 'Arsenal' }],
+    };
+    const { supabase } = await import('../lib/supabase');
+    (supabase.from as any) = (table: string) => makeBuilder(data[table] ? [...data[table]] : []);
+    const { getPlayerGameweekPointsRange } = await import('../lib/fplPlayerTableApi');
+    const rows = await getPlayerGameweekPointsRange(7, 8);
+    const g7 = rows.find((r) => r.matchweek === 7)!;
+    const g8 = rows.find((r) => r.matchweek === 8)!;
+    expect(g7.actual_points).toBe(8);
+    expect(g7.actual_contribution!.appearance).toBe(4);
+    expect(g8.projected_points).toBeCloseTo(9);
+    expect(g8.xpts_appearance).toBeCloseTo(3.6);
+    expect(g8.start_probability).toBeCloseTo(0.9);
+  });
+});
