@@ -5,11 +5,11 @@
 // predicted XIs (Chris, 10 Oct 2026: "one of the most popular resources ...
 // I want to easily compare and scrutinise differences").
 //
-// FFS is a subscription site and is not fetched: paste their line-ups (or
-// upload a screenshot, read in the browser) and save them per club. Stored
-// admin-only; not an input to the projections. For each club the page shows
-// where the two disagree: FFS starters we make under 50%, and our 50%+
-// starters FFS leaves out.
+// FFS's public team-news page is read twice a day (scripts/ffs_team_news.py,
+// workflow ffs-team-news; "Fetch from FFS now" runs it). Line-ups can still
+// be pasted or read off a screenshot. Stored admin-only; not an input to the
+// projections. For each club the page shows where the two disagree: FFS
+// starters we make under 50%, and our 50%+ starters FFS leaves out.
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -18,9 +18,10 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useAuthOptional } from '../../lib/auth';
 import { parseLineups, type ParsedClub, type SquadPlayer, type ClubRef } from '../../lib/externalLineupParse';
 import {
-  buildComparison, clearExternalLineup, getComparison, getGameweeks, getSquadsAndClubs, saveExternalLineup,
-  START_LINE, type ClubComparison, type CompareRow, type Gameweek,
+  buildComparison, clearExternalLineup, getComparison, getFetchRuns, getGameweeks, getSquadsAndClubs, saveExternalLineup,
+  START_LINE, type ClubComparison, type CompareRow, type FetchRun, type Gameweek,
 } from '../../lib/lineupCompareApi';
+import { triggerWorkflow } from '../../lib/workflowTrigger';
 
 const BTN = 'min-h-11 px-4 rounded text-sm font-medium disabled:opacity-40';
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -49,7 +50,7 @@ function PlayerLine({ r }: { r: CompareRow }) {
   );
 }
 
-function ClubCard({ c, onClear, busy }: { c: ClubComparison; onClear: () => void; busy: boolean }) {
+function ClubCard({ c, run, onClear, busy }: { c: ClubComparison; run: FetchRun | undefined; onClear: () => void; busy: boolean }) {
   const [confirm, setConfirm] = useState(false);
   return (
     <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-2" data-testid={`club-${c.team_id}`}>
@@ -73,8 +74,16 @@ function ClubCard({ c, onClear, busy }: { c: ClubComparison; onClear: () => void
         <summary className="cursor-pointer text-ink-700 text-xs min-h-8 flex items-center">Both have him starting ({c.agree.length})</summary>
         <ul className="divide-y divide-chalk-200">{c.agree.map((r) => <PlayerLine key={r.fpl_player_id} r={r} />)}</ul>
       </details>
+      {run && run.unmatched.length > 0 && (
+        <p className="text-[11px] text-amber-700">
+          FFS names not matched to the squad: {run.unmatched.join(', ')}{run.saved ? '' : ' \u2014 line-up not updated'}
+        </p>
+      )}
       <footer className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-500">
-        <span>FFS line-up entered {when(c.enteredAt)}</span>
+        <span>
+          {run ? `Read from FFS ${when(run.fetched_at)}` : `Entered ${when(c.enteredAt)}`}
+          {run?.source_updated ? ` \u00b7 FFS updated ${run.source_updated.replace(/^last updated\s*/i, '')}` : ''}
+        </span>
         {confirm ? (
           <span className="flex gap-2">
             <button type="button" className="min-h-9 px-3 rounded bg-loss-700 text-chalk-100" disabled={busy} onClick={onClear}>Remove</button>
@@ -141,6 +150,7 @@ export default function LineupComparePage() {
   const [gws, setGws] = useState<Gameweek[]>([]);
   const [event, setEvent] = useState<number | null>(params.get('gw') ? Number(params.get('gw')) : null);
   const [rows, setRows] = useState<CompareRow[] | null>(null);
+  const [runs, setRuns] = useState<Map<number, FetchRun>>(new Map());
   const [squads, setSquads] = useState<Map<number, SquadPlayer[]>>(new Map());
   const [clubs, setClubs] = useState<(ClubRef & { label: string })[]>([]);
   const [text, setText] = useState('');
@@ -169,7 +179,11 @@ export default function LineupComparePage() {
 
   const load = useCallback(async () => {
     if (event == null) return;
-    try { setRows(await getComparison(event)); } catch (e) { setMsg(errText(e)); }
+    try {
+      const [r, fr] = await Promise.all([getComparison(event), getFetchRuns(event).catch(() => new Map<number, FetchRun>())]);
+      setRows(r);
+      setRuns(fr);
+    } catch (e) { setMsg(errText(e)); }
   }, [event]);
   // load() sets state only after its await.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -223,6 +237,14 @@ export default function LineupComparePage() {
     } catch (e) { setMsg(errText(e)); } finally { setOcr(null); }
   };
 
+  const fetchNow = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      await triggerWorkflow('ffs-team-news');
+      setMsg('Fetching from Fantasy Football Scout: about a minute. Reload the page after.');
+    } catch (e) { setMsg(errText(e)); } finally { setBusy(false); }
+  };
+
   const totalStarters = entered.reduce((n, c) => n + c.agree.length + c.ffsOnly.length, 0);
   const totalAgree = entered.reduce((n, c) => n + c.agree.length, 0);
 
@@ -231,12 +253,14 @@ export default function LineupComparePage() {
       <div className="space-y-1">
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Line-ups v Fantasy Football Scout</h1>
         <p className="text-sm text-ink-700 max-w-prose">
-          Our chance of each player starting against Fantasy Football Scout&rsquo;s predicted XIs. Paste their line-ups below; they
-          are kept for admins only and don&rsquo;t change our projections. Fix a difference you agree with on{' '}
+          Our chance of each player starting against Fantasy Football Scout&rsquo;s predicted XIs, read from their team-news page
+          twice a day (or paste them below). Kept for admins only; they don&rsquo;t change our projections. Fix a
+          difference you agree with on{' '}
           <Link to="/fpl/line-ups" className="underline underline-offset-2 text-pitch-800">Starting Lineups</Link>.
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
       <label className="flex items-center gap-2 text-sm">
         Gameweek
         <select className="min-h-11 border border-chalk-300 rounded px-2 bg-white text-base" value={event ?? ''}
@@ -244,9 +268,11 @@ export default function LineupComparePage() {
           {gws.map((g) => <option key={g.fpl_event_id} value={g.fpl_event_id}>GW{g.fpl_event_id}</option>)}
         </select>
       </label>
+      <button type="button" className={`${BTN} border border-chalk-300`} disabled={busy} onClick={() => void fetchNow()}>Fetch from FFS now</button>
+      </div>
 
       <details className="border border-chalk-300 rounded-lg bg-white p-3" open={addOpen ?? (entered.length === 0 || parsed.length > 0)} onToggle={(e) => setAddOpen(e.currentTarget.open)}>
-        <summary className="cursor-pointer min-h-11 flex items-center font-display uppercase tracking-wide text-sm text-ink-900">Add FFS line-ups</summary>
+        <summary className="cursor-pointer min-h-11 flex items-center font-display uppercase tracking-wide text-sm text-ink-900">Paste FFS line-ups</summary>
         <div className="space-y-3 mt-2 text-sm">
           <textarea className="w-full min-h-40 border border-chalk-300 rounded p-2 text-base font-mono" value={text} onChange={(e) => setText(e.target.value)}
             aria-label="FFS line-ups" placeholder={'Arsenal: Raya; Timber, Saliba, Gabriel, Calafiori; Rice, Lewis-Skelly; Saka, Odegaard, Eze; Havertz\nAston Villa: ...'} />
@@ -284,7 +310,7 @@ export default function LineupComparePage() {
             </p>
           )}
           <div className="grid lg:grid-cols-2 gap-3">
-            {entered.map((c) => <ClubCard key={c.team_id} c={c} busy={busy} onClear={() => void clear(c.team_id)} />)}
+            {entered.map((c) => <ClubCard key={c.team_id} c={c} run={runs.get(c.team_id)} busy={busy} onClear={() => void clear(c.team_id)} />)}
           </div>
           {notEntered.length > 0 && (
             <p className="text-xs text-ink-500">

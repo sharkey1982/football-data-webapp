@@ -37,6 +37,7 @@ const ALLOWED_WORKFLOWS: Record<string, { file: string; inputKeys: string[] }> =
   // The full scheduled pipeline (10 gameweeks, no site rebuild): Minutes
   // Outlook's "Re-run projections now" after an admin first-choice change.
   'fpl-projections-pipeline': { file: 'fpl-projections-pipeline.yml', inputKeys: [] },
+  'ffs-team-news': { file: 'ffs-team-news.yml', inputKeys: [] },
 };
 
 const REPO_OWNER = 'sharkey1982';

@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-10 · Tactical roles from Fantasy Football Scout: left and right swapped
+- **Reported:** Chris -- "Their images show the goal keeper at the top and left and right the other way around to our images."
+- **Impact:** since the 14 Sep seed, all 88 left/right roles still sourced from FFS were mirrored (Gvardiol, Shaw, Robertson and Mykolenko at right-back; Dalot at left-back; Rashford on the right). Pitches drew them on the wrong side, and the depth chart had them competing for the wrong place (a left-back's backup covering the right).
+- **Cause:** FFS line-up graphics have the keeper at the top, so screen-left is the team's right; the seed assumed our orientation (keeper at the bottom).
+- **Fix:** migration `20261010150000_ffs_roles_mirror_fix` flips L/R on FFS-sourced roles; admin-set roles untouched. The new FFS fetch (`scripts/ffs_team_news.py`) reads starters only, not positions, and says why in its header.
+- **Prevention:** any future read of positions from another site's graphic must check its orientation against two known players first (e.g. a known left-back). *Lesson: "left" in a picture is the viewer's left.*
+
+---
+
 ## 2026-10-10 · FPL start chance: a backup's run in the side outweighed the first choice's return
 - **Reported:** Chris -- Timber (1st choice at right-back, back in the side) projected below Ben White.
 - **Impact:** Timber 44% to start v White 53% for GW7. The same pattern applies at every club where a backup started while the first choice was missing and the first choice has since won his place back.
