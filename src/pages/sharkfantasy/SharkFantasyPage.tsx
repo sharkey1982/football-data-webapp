@@ -22,6 +22,7 @@ import LeaderboardTab from './LeaderboardTab';
 import TableTab from './TableTab';
 import PlayersTab from './PlayersTab';
 import { when } from './format';
+import TestControls from './TestControls';
 
 const TABS = [
   { id: 'team', label: 'My team' },
@@ -58,7 +59,7 @@ export default function SharkFantasyPage() {
   const season = useMemo(() => {
     if (!seasons?.length) return null;
     const u = params.get('u');
-    return seasons.find((s) => s.universe_id === u) ?? seasons.find((s) => s.state !== 'done') ?? seasons[0];
+    return seasons.find((s) => s.universe_id === u) ?? seasons.find((s) => s.state !== 'done' && !s.is_test) ?? seasons.find((s) => s.state !== 'done') ?? seasons[0];
   }, [seasons, params]);
 
   const signedIn = !!auth?.session;
@@ -102,6 +103,13 @@ export default function SharkFantasyPage() {
           </label>
         )}
       </header>
+
+      {isAdmin && seasons && (
+        <TestControls season={season} onDone={async (u) => {
+          const list = await loadSeasons(); setSeasons(list);
+          if (u && u !== season?.universe_id) set({ u, r: null }); else await reload();
+        }} />
+      )}
 
       <nav className="flex flex-wrap gap-1 border-b border-chalk-300" aria-label="Shark Fantasy">
         {TABS.map((t) => (

@@ -133,6 +133,12 @@ vi.mock('../lib/sharkFantasyApi', async () => {
     joinSeason: (...a: unknown[]) => (joinSeason as unknown as (...x: unknown[]) => unknown)(...a),
   };
 });
+const playNextRound = vi.fn(async () => 'ok');
+const newTestLeague = vi.fn(async () => 't-new');
+vi.mock('../lib/sharkFantasyTest', () => ({
+  playNextRound: (...a: unknown[]) => (playNextRound as unknown as (...x: unknown[]) => unknown)(...a),
+  newTestLeague: (...a: unknown[]) => (newTestLeague as unknown as (...x: unknown[]) => unknown)(...a),
+}));
 const { default: SharkFantasyPage } = await import('../pages/sharkfantasy/SharkFantasyPage');
 const renderAt = (url: string) => render(<MemoryRouter initialEntries={[url]}><SharkFantasyPage /></MemoryRouter>);
 
@@ -183,5 +189,20 @@ describe('SharkFantasyPage', () => {
     expect(within(fx).getAllByRole('listitem')).toHaveLength(5);
     renderAt('/shark-fantasy?tab=leaderboard');
     expect(await screen.findByText('Bot Rovers')).toBeInTheDocument();
+  });
+
+  it('test controls: a test league can be played a round at a time; a weekly league offers only a new test league', async () => {
+    const first = renderAt('/shark-fantasy');
+    const box = await screen.findByTestId('sf-test-controls');
+    expect(within(box).getByRole('button', { name: 'New test league' })).toBeInTheDocument();
+    expect(within(box).queryByTestId('sf-play-round')).toBeNull();
+    first.unmount();
+    season.is_test = true;
+    renderAt('/shark-fantasy?tab=table');
+    const play = await screen.findByTestId('sf-play-round');
+    expect(play.textContent).toBe('Lock and play round 1');
+    await userEvent.click(play);
+    await waitFor(() => expect(playNextRound).toHaveBeenCalledWith('ui', expect.any(Function)));
+    season.is_test = false;
   });
 });

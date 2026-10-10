@@ -15,7 +15,7 @@ const db = supabase as any;
 
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
 
-export interface SfSeason { season_id: number; universe_id: string; universe: string; number: number; state: string; shield_winner: string | null; current_round: number | null; open_round: number | null }
+export interface SfSeason { season_id: number; universe_id: string; universe: string; number: number; state: string; shield_winner: string | null; current_round: number | null; open_round: number | null; is_test?: boolean }
 export interface SfRound { season_id: number; number: number; kind: 'league' | 'finals'; deadline_at: string; kickoff_at: string; state: 'upcoming' | 'open' | 'locked' | 'final' }
 export interface SfClub { club_id: string; name: string; short: string; manager: string }
 export interface SfPlayer {
