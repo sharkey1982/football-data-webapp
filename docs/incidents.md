@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-10 · FPL start chance: a backup's run in the side outweighed the first choice's return
+- **Reported:** Chris -- Timber (1st choice at right-back, back in the side) projected below Ben White.
+- **Impact:** Timber 44% to start v White 53% for GW7. The same pattern applies at every club where a backup started while the first choice was missing and the first choice has since won his place back.
+- **Cause:** Timber played no minutes in GW1-3. FPL's data (snapshots from 13 Sep) has him fit then, so those games counted in full as "fit and not picked" and wore his first-choice floor down; his half-time return in GW4 and start in GW5 (White unused) counted no more than August.
+- **Fix:** migration `20261010090000_fpl_start_record_recency`: the depth chart's start record weights each earlier match 0.5^(matches since / 3). Registered backtest (`scripts/backtest_depth_recency.py`, GW3-5): Brier 0.07830 -> 0.07624, log loss 0.27018 -> 0.26363.
+- **Prevention:** model changes to start chances are judged by a backtest registered before scoring. *Open:* availability before 13 Sep is inferred from one snapshot, so a summer injury that cleared before then is invisible; recency weighting limits how long that matters.
+
+---
+
 ## 2026-10-10 · Pitches: players drawn where they don't play; tied backups shown as starters
 - **Reported:** Chris -- Starting Lineups showed Zubimendi at centre-back; Match Projections showed Zubimendi starting beside Rice although Lewis-Skelly is far likelier to. "Inaccurate information here damages the site."
 - **Impact:** both pitches drew exactly one player per slot. On Starting Lineups' 2nd-choice view Arsenal had more midfielders than midfield slots, so the extra one was put in an empty defensive slot. On Match Projections the second DM slot went to whichever of three tied 2nd-choice midfielders came first, each at 43%, with nothing showing that the place was shared.
