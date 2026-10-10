@@ -60,7 +60,11 @@ export type TacticalRoleRow = {
   manual_return_date: string | null;
   /** The date in FPL's own news ("Expected back 18 Oct"), as the projections read it, or null. */
   fpl_return_date: string | null;
+  /** Other positions he plays, with his rank in each ("Also plays"). */
+  other_positions: OtherPosition[];
 };
+
+export type OtherPosition = { role: string; rank: number };
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
@@ -216,6 +220,16 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
 
   const gamesInvolvedByPlayer = await getGamesInvolvedCounts((playerRows ?? []).map((p: any) => p.fpl_player_id));
 
+  // Other positions: optional (the table may not exist on an old database).
+  const othersByPlayer = new Map<number, OtherPosition[]>();
+  const { data: otherRows } = await supabase
+    .from('team_player_other_positions' as never)
+    .select('fpl_player_id, tactical_role, depth_rank')
+    .eq('season_id', await getCurrentFplSeasonId());
+  for (const o of (otherRows ?? []) as { fpl_player_id: number; tactical_role: string; depth_rank: number }[]) {
+    othersByPlayer.set(o.fpl_player_id, [...(othersByPlayer.get(o.fpl_player_id) ?? []), { role: o.tactical_role, rank: o.depth_rank }].sort((a, b) => a.rank - b.rank));
+  }
+
   return (playerRows ?? [])
     .map((p: any) => {
       const td = defaultsByPlayer.get(p.fpl_player_id);
@@ -239,6 +253,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
         status_is_manual: td?.manual_status != null,
         manual_return_date: td?.manual_return_date ?? null,
         fpl_return_date: parseNewsReturnDate(p.news, p.news_added),
+        other_positions: othersByPlayer.get(p.fpl_player_id) ?? [],
       };
     })
     .sort((a: TacticalRoleRow, b: TacticalRoleRow) => a.team_name.localeCompare(b.team_name) || a.element_type - b.element_type || a.web_name.localeCompare(b.web_name));
@@ -371,6 +386,42 @@ export async function saveManualReturnDate(teamId: number, fplPlayerId: number, 
       { onConflict: 'season_id,team_id,fpl_player_id' }
     );
   if (error) throw error;
+}
+
+/** Adds (or re-ranks) another position a player plays. Admin only (RLS). */
+export async function saveOtherPosition(teamId: number, fplPlayerId: number, role: string, rank: number): Promise<void> {
+  const { error } = await supabase
+    .from('team_player_other_positions' as never)
+    .upsert({ season_id: await getCurrentFplSeasonId(), team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, depth_rank: rank, set_at: new Date().toISOString() } as never,
+      { onConflict: 'season_id,team_id,fpl_player_id,tactical_role' });
+  if (error) throw error;
+}
+
+export async function removeOtherPosition(teamId: number, fplPlayerId: number, role: string): Promise<void> {
+  const { error } = await supabase
+    .from('team_player_other_positions' as never)
+    .delete()
+    .eq('season_id', await getCurrentFplSeasonId())
+    .eq('team_id', teamId)
+    .eq('fpl_player_id', fplPlayerId)
+    .eq('tactical_role', role);
+  if (error) throw error;
+}
+
+/** Chance of starting in each position next gameweek ({LW: 0.31, RW: 0.05}), keyed by player. */
+export async function getProjectedPlaceShares(matchweek: number): Promise<Map<number, Record<string, number>>> {
+  const { data: fixtureRows, error: fixtureErr } = await supabase
+    .from('fixtures').select('fixture_id').eq('matchweek', matchweek).eq('season_id', await getCurrentFplSeasonId()).eq('league_id', 1);
+  if (fixtureErr) throw fixtureErr;
+  const ids = (fixtureRows ?? []).map((f: { fixture_id: number }) => f.fixture_id);
+  const out = new Map<number, Record<string, number>>();
+  if (ids.length === 0) return out;
+  const { data, error } = await supabase.from('fpl_depth_start_store' as never).select('fpl_player_id, group_shares').in('fixture_id', ids);
+  if (error) throw error;
+  for (const r of (data ?? []) as { fpl_player_id: number; group_shares: Record<string, number> | null }[]) {
+    if (r.group_shares && Object.keys(r.group_shares).length > 0 && !out.has(r.fpl_player_id)) out.set(r.fpl_player_id, r.group_shares);
+  }
+  return out;
 }
 
 /** Last-reviewed timestamp per team, keyed by team_id -- null if never reviewed. */

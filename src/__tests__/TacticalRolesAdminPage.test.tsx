@@ -36,6 +36,9 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveManualStatus: vi.fn(),
     saveManualReturnDate: vi.fn(),
     getProjectedStarts: vi.fn(),
+    getProjectedPlaceShares: vi.fn(),
+    saveOtherPosition: vi.fn(),
+    removeOtherPosition: vi.fn(),
     getProjectedMinutes: vi.fn(),
     getSetPieceHierarchyForTeam: vi.fn(),
     reorderSetPieceTaker: vi.fn(),
@@ -75,6 +78,7 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
     news: null,
     manual_return_date: null,
     fpl_return_date: null,
+    other_positions: [],
     ...overrides,
   };
 }
@@ -88,6 +92,7 @@ describe('TacticalRolesAdminPage', () => {
     // still override these with a more specific mock where relevant.
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+    mockedApi.getProjectedPlaceShares.mockResolvedValue(new Map());
     mockedApi.getProjectedStarts.mockResolvedValue(new Map());
     mockedOutlook.getMinutesOutlook.mockRejectedValue(new Error('not mocked'));
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
@@ -352,6 +357,29 @@ describe('TacticalRolesAdminPage', () => {
     expect(timberRow.textContent).toContain('48');
     await user.click(screen.getByRole('button', { name: 'Start %' }));
     expect(timberRow.textContent).toContain('56');
+  });
+
+  it('lets an admin add and remove another position a player plays', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 16, web_name: 'Madueke', element_type: 3, tactical_role: 'RW', depth_rank: 2, source_name: 'manual', confidence: 1, other_positions: [{ role: 'AM', rank: 3 }] }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-2-3-1');
+    mockedApi.saveOtherPosition.mockResolvedValue(undefined);
+    mockedApi.removeOtherPosition.mockResolvedValue(undefined);
+
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    await user.click(await screen.findByRole('button', { name: '1st' }));
+    await user.selectOptions(await screen.findByLabelText('Also plays: Madueke'), 'LW');
+    await user.selectOptions(screen.getByLabelText('Rank at LW: Madueke'), '2nd');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(mockedApi.saveOtherPosition).toHaveBeenCalledWith(1, 16, 'LW', 2));
+    await user.click(screen.getByRole('button', { name: 'Remove AM for Madueke' }));
+    await waitFor(() => expect(mockedApi.removeOtherPosition).toHaveBeenCalledWith(1, 16, 'AM'));
   });
 
   it('shows the set-piece taking order for the selected team, and lets a taker be reordered, added, and removed', async () => {

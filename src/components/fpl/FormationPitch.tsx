@@ -442,7 +442,29 @@ export type StackedLayout = { slots: StackedSlot[]; others: FplFixtureProjection
  *  - anyone who fits no slot is listed under the pitch, never placed.
  * Players below minChance are left off (a fringe player at 2% is noise).
  */
+/** A representative role for each place group (for placing a player's other positions). */
+const GROUP_ROLE: Record<string, string> = { LB: 'LB', RB: 'RB', LCB: 'LCB', RCB: 'RCB', CB: 'CB', PIV: 'DM', LW: 'LW', RW: 'RW', AM: 'AM', CF: 'CF' };
+
+/**
+ * A player who can start in more than one position (place_shares from the
+ * depth chart, 10 Oct 2026) becomes one entry per position, each with his
+ * chance of starting there; he is never the headline in two slots.
+ */
+function expandPlaces(players: FplFixtureProjectionPlayer[]): FplFixtureProjectionPlayer[] {
+  const out: FplFixtureProjectionPlayer[] = [];
+  for (const p of players) {
+    const shares = p.place_shares ? Object.entries(p.place_shares).filter(([g]) => GROUP_ROLE[g]) : [];
+    if (shares.length <= 1) { out.push(p); continue; }
+    const own = placeGroup(p.tactical_role);
+    for (const [g, v] of shares) {
+      out.push({ ...p, tactical_role: g === own ? p.tactical_role : GROUP_ROLE[g], start_probability: v });
+    }
+  }
+  return out;
+}
+
 export function layoutStacked(players: FplFixtureProjectionPlayer[], formation: string | null, minChance = 0.1): StackedLayout {
+  players = expandPlaces(players);
   const isGk = (p: FplFixtureProjectionPlayer) => p.tactical_role?.toUpperCase() === 'GK' || p.fpl_position === 1;
   const byChance = (a: FplFixtureProjectionPlayer, b: FplFixtureProjectionPlayer) => startChance(b) - startChance(a);
   const keep = (p: FplFixtureProjectionPlayer) => startChance(p) >= minChance;
@@ -471,13 +493,20 @@ export function layoutStacked(players: FplFixtureProjectionPlayer[], formation: 
     if (g && slotsByGroup.has(g)) byGroup.set(g, [...(byGroup.get(g) ?? []), p]);
     else leftovers.push(p);
   }
-  for (const [g, list] of byGroup) {
+  // Likeliest first across all positions, so a player listed in two
+  // positions headlines where he is likeliest and stacks in the other.
+  const all = [...byGroup].flatMap(([g, list]) => list.map((p) => ({ g, p }))).sort((a, b) => byChance(a.p, b.p));
+  const nextExtra = new Map<string, number>();
+  for (const { g, p } of all) {
     const idx = slotsByGroup.get(g)!;
-    list.sort(byChance);
-    list.forEach((p, n) => {
-      if (n < idx.length) held[idx[n]] = p;
-      else extras[idx[(n - idx.length) % idx.length]].push(p);
-    });
+    const free = idx.find((i) => !held[i]);
+    if (free !== undefined && !held.some((h) => h?.fpl_player_id === p.fpl_player_id)) {
+      held[free] = p;
+    } else {
+      const k = nextExtra.get(g) ?? 0;
+      extras[idx[k % idx.length]].push(p);
+      nextExtra.set(g, k + 1);
+    }
   }
 
   // 1b. A slot nobody in its group can fill takes a spare from a nearby role
@@ -488,6 +517,7 @@ export function layoutStacked(players: FplFixtureProjectionPlayer[], formation: 
       if (held[to]) return;
       extras.forEach((list, from) =>
         list.forEach((p, at) => {
+          if (held.some((h) => h?.fpl_player_id === p.fpl_player_id)) return; // already starting elsewhere
           const fit = placeFit(p, slot.role);
           const w = startChance(p) * fit;
           if (fit >= 0.5 && (!move || w > move.w)) move = { from, at, to, w };
@@ -513,7 +543,7 @@ export function layoutStacked(players: FplFixtureProjectionPlayer[], formation: 
       if (fit > bestFit) { best = i; bestFit = fit; }
       if (!held[i] && fit > bestEmptyFit) { bestEmpty = i; bestEmptyFit = fit; }
     });
-    if (bestEmpty >= 0) held[bestEmpty] = p;
+    if (bestEmpty >= 0 && !held.some((h) => h?.fpl_player_id === p.fpl_player_id)) held[bestEmpty] = p;
     // Stacked under a filled slot only with a confirmed role; a player we
     // only know as "a midfielder" is listed under the pitch instead.
     else if (best >= 0 && isKnownRole(p.tactical_role)) extras[best].push(p);
