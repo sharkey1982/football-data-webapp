@@ -55,6 +55,7 @@ const ModelChangesPage = lazy(() => import('./pages/admin/ModelChangesPage'));
 const AiLabPage = lazy(() => import('./pages/admin/AiLabPage'));
 const FanTeamPage = lazy(() => import('./pages/admin/FanTeamPage'));
 const LastManStandingPage = lazy(() => import('./pages/admin/LastManStandingPage'));
+const LineupComparePage = lazy(() => import('./pages/admin/LineupComparePage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
@@ -483,6 +484,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <LastManStandingPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/lineup-compare"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <LineupComparePage />
               </Suspense>
             }
           />
