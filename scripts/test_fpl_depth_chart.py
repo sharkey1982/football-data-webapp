@@ -150,3 +150,33 @@ def test_no_start_record_keeps_old_rule():
     P = Player
     out = allocate([P(1, "RW", 1, 1.0, 0.1, None, 3)], None)
     assert out[1][0] == pytest.approx(0.85)
+
+
+def test_tied_rank_weighted_by_start_rate():
+    import fpl_depth_chart as dc
+    old = dc.TIE_WEIGHT_BY_RATE
+    dc.TIE_WEIGHT_BY_RATE = True
+    try:
+        P = Player
+        players = [P(1, "DM", 1, 1.0, 0.97, None, 3),
+                   P(5, "DM", 1, 0.0, 0.90, None, 3),   # injured partner: one place reaches the 2nds
+                   P(2, "DM", 2, 1.0, 0.69, None, 3),   # Lewis-Skelly: starting
+                   P(3, "DM", 2, 1.0, 0.15, None, 3),   # Zubimendi: on the bench
+                   P(4, "DM", 2, 1.0, 0.29, None, 3)]
+        equal = None
+        out = allocate(players, None)
+        dc.TIE_WEIGHT_BY_RATE = False
+        equal = allocate(players, None)
+    finally:
+        dc.TIE_WEIGHT_BY_RATE = old
+    tier = lambda o: sum(o[i][0] for i in (2, 3, 4))
+    assert tier(out) == pytest.approx(tier(equal), abs=0.01)   # same places in total
+    assert out[2][0] > out[4][0] > out[3][0]
+    assert out[2][0] <= 1.0
+
+
+def test_share_by_weight_caps_and_redistributes():
+    from fpl_depth_chart import share_by_weight
+    got = share_by_weight(1.2, {1: 10, 2: 1, 3: 1}, {1: 0.9, 2: 0.9, 3: 0.9})
+    assert got[1] == pytest.approx(0.9)
+    assert got[2] == pytest.approx(0.15) and got[3] == pytest.approx(0.15)

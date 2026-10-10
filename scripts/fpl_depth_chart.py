@@ -50,6 +50,12 @@ RANK1_CAP = 0.97
 # Adopted 9 Oct 2026 (GW3-5 backtest: Brier 0.0841 -> 0.0784).
 RANK1_SEED_MATCHES: float | None = 3.0
 BACKUP_TAKE = 0.90   # a backup takes an open place this often when fit
+# Players sharing a rank (10 Oct 2026). False: equal shares (Arsenal's three
+# 2nd-choice midfielders 43% each). True: the places that reach the tier are
+# shared in proportion to each player's own start rate this season, so
+# Lewis-Skelly (4 starts in 5) leads Zubimendi (0 in 5). The tier's total is
+# unchanged; nobody gets more than his chance of a place being open.
+TIE_WEIGHT_BY_RATE = False
 OUTFIELD_PLACES = 10
 
 ROLE_GROUP = {
@@ -155,6 +161,11 @@ def fill_group(places: int, players: list[Player]) -> tuple[dict[int, float], li
                     continue
                 share += po * sum(pr * min(1.0, o / (r + 1)) for r, pr in enumerate(others))
             starts[p.fpl_player_id] = ready[i] * share
+        if TIE_WEIGHT_BY_RATE and len(tier) > 1:
+            p_open = sum(po for o, po in enumerate(open_dist) if o > 0)
+            caps = {p.fpl_player_id: ready[i] * p_open for i, p in enumerate(tier)}
+            weights = {p.fpl_player_id: ready[i] * max(0.01, p.rate if p.rate is not None else 0.20) for i, p in enumerate(tier)}
+            starts.update(share_by_weight(sum(starts[p.fpl_player_id] for p in tier), weights, caps))
         all_ready = poisson_binomial(ready)
         nxt = [0.0] * (places + 1)
         for o, po in enumerate(open_dist):
@@ -162,6 +173,31 @@ def fill_group(places: int, players: list[Player]) -> tuple[dict[int, float], li
                 nxt[max(0, o - r)] += po * pr
         open_dist = nxt
     return starts, open_dist
+
+
+def share_by_weight(total: float, weights: dict[int, float], caps: dict[int, float]) -> dict[int, float]:
+    """Split `total` in proportion to weights, no one above his cap; any
+    excess goes to the rest in the same proportions (water-filling)."""
+    out = {pid: 0.0 for pid in weights}
+    free = {pid for pid, w in weights.items() if w > 0 and caps[pid] > 0}
+    remaining = total
+    while remaining > 1e-12 and free:
+        wsum = sum(weights[pid] for pid in free)
+        capped = set()
+        for pid in free:
+            give = remaining * weights[pid] / wsum
+            if out[pid] + give >= caps[pid] - 1e-12:
+                capped.add(pid)
+        if not capped:
+            for pid in free:
+                out[pid] += remaining * weights[pid] / wsum
+            remaining = 0.0
+            break
+        for pid in capped:
+            remaining -= caps[pid] - out[pid]
+            out[pid] = caps[pid]
+        free -= capped
+    return out
 
 
 def fill_line(open_dist: list[float], weights: dict[int, float]) -> dict[int, float]:
