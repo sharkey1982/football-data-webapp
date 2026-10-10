@@ -1,11 +1,16 @@
 name: Shark Fantasy round
 
-# Phase 3 prototype: manual dispatch only (design §1). Drives a universe through
+# Phase 3 prototype (design §1): manual dispatch, plus the weekly round of the
+# `proto` league on Sundays (deadline 12:00 UK, kick-off 15:00). Drives a universe through
 # scripts/sf/run-round.ts with the service role: create a season, let the bots
 # move, lock at the deadline, play and commit the round. Every step is safe to
 # re-run: a round already locked or final is a no-op, and a result can never be
-# written twice. A Sunday schedule comes later, once the game is public.
+# written twice. The Sunday runs are at 11:05 and 12:05 UTC so that one of them
+# follows the 12:00 UK deadline in summer time and in winter; the other finds
+# the round still open (or already played) and does nothing.
 on:
+  schedule:
+    - cron: '5 11,12 * * 0'
   workflow_dispatch:
     inputs:
       command:
@@ -29,7 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: sf-round-${{ inputs.universe }}
+  group: sf-round-${{ inputs.universe || 'proto' }}
   cancel-in-progress: false
 
 jobs:
@@ -50,9 +55,9 @@ jobs:
           if [ -n "$FIRST_DEADLINE" ]; then ARGS+=(--first-deadline "$FIRST_DEADLINE"); fi
           npx tsx scripts/sf/run-round.ts "${ARGS[@]}"
         env:
-          CMD: ${{ inputs.command }}
-          UNIVERSE: ${{ inputs.universe }}
-          FORCE: ${{ inputs.force }}
-          FIRST_DEADLINE: ${{ inputs.first_deadline }}
+          CMD: ${{ inputs.command || 'advance' }}
+          UNIVERSE: ${{ inputs.universe || 'proto' }}
+          FORCE: ${{ inputs.force || false }}
+          FIRST_DEADLINE: ${{ inputs.first_deadline || '' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

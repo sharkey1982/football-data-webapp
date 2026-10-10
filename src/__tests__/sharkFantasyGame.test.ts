@@ -213,3 +213,16 @@ describe('the round runner', () => {
     expect((p.snapshot as { state: Record<string, unknown> }).state.world).toBeUndefined();
   });
 });
+
+describe('weekly deadlines in UK time', () => {
+  it('12:00 stays 12:00 across the end of British Summer Time; kick-off three hours later', async () => {
+    const { createSeason, zoneOffset } = await import('../sharkfantasy/runner');
+    expect(zoneOffset(Date.parse('2026-07-01T12:00:00Z'), 'Europe/London')).toBe(3_600_000);
+    expect(zoneOffset(Date.parse('2026-12-01T12:00:00Z'), 'Europe/London')).toBe(0);
+    let p: { rounds: { deadline_at: string; kickoff_at: string }[] } = { rounds: [] };
+    await createSeason({ rpc: async (_f, a) => { p = a.p as typeof p; return 1; }, hash: () => '' },
+      { universe: 'u', name: 'U', seed: 'tz', firstDeadline: new Date('2026-10-18T11:00:00Z'), spacingMinutes: 10080, kickoffAfterMinutes: 180, zone: 'Europe/London' });
+    expect(p.rounds.slice(0, 3).map(r => r.deadline_at)).toEqual(['2026-10-18T11:00:00.000Z', '2026-10-25T12:00:00.000Z', '2026-11-01T12:00:00.000Z']);
+    expect(p.rounds[1].kickoff_at).toBe('2026-10-25T15:00:00.000Z');
+  });
+});

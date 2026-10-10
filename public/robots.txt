@@ -25,6 +25,7 @@ Disallow: /login
 Disallow: /admin/team-ratings
 # Other admin-only pages (they show "for admins" to everyone else).
 Disallow: /admin/
+Disallow: /shark-fantasy
 Disallow: /data-flow
 Disallow: /build-report.txt
 
@@ -47,6 +48,7 @@ Disallow: /data-health
 Disallow: /fpl/tactical-roles
 Disallow: /login
 Disallow: /admin/
+Disallow: /shark-fantasy
 Disallow: /data-flow
 Disallow: /build-report.txt
 

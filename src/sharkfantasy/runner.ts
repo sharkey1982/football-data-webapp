@@ -50,6 +50,13 @@ function projectionRows(ss: SeasonState, fromRound: number) {
 }
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
+/** A zone's offset from UTC at an instant, in ms (Europe/London: 0 in winter, 3,600,000 in summer). */
+export function zoneOffset(t: number, zone: string): number {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    .formatToParts(new Date(t)).filter((x) => x.type !== 'literal').map((x) => [x.type, Number(x.value)]));
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - Math.floor(t / 1000) * 1000;
+}
+
 export interface CreateOptions {
   universe: string;
   name: string;
@@ -58,6 +65,9 @@ export interface CreateOptions {
   firstDeadline: Date;
   spacingMinutes: number;
   kickoffAfterMinutes: number;
+  /** Keep the same wall-clock time in this zone every week (e.g. 'Europe/London':
+   *  12:00 stays 12:00 across the clock change). Only with a whole-week spacing. */
+  zone?: string;
 }
 
 export async function createSeason(d: RunnerDeps, o: CreateOptions): Promise<number> {
@@ -69,7 +79,12 @@ export async function createSeason(d: RunnerDeps, o: CreateOptions): Promise<num
   for (const p of world.players) xpSeason[p.id] = 0;
   for (const x of proj) if (x.round <= 9) xpSeason[x.player_id] += x.x_points;
   const prices = initialPrices(world.players.map(p => ({ id: p.id, clubId: p.clubId, position: p.position, xp: xpSeason[p.id] })));
-  const at = (n: number, extra = 0) => new Date(o.firstDeadline.getTime() + ((n - 1) * o.spacingMinutes + extra) * 60_000).toISOString();
+  const at = (n: number, extra = 0) => {
+    const naive = o.firstDeadline.getTime() + ((n - 1) * o.spacingMinutes + extra) * 60_000;
+    if (!o.zone) return new Date(naive).toISOString();
+    // the same local time as round 1: correct by the change in the zone's offset since then
+    return new Date(naive + (zoneOffset(o.firstDeadline.getTime(), o.zone) - zoneOffset(naive, o.zone))).toISOString();
+  };
   const fixtures = [];
   for (let r = 1; r <= 9; r++) for (const f of roundFixtures(ss, r)) fixtures.push({ round: r, fixture_key: `s1|r${r}|${f.homeId}-${f.awayId}`, home_id: f.homeId, away_id: f.awayId, kind: f.kind });
   const state = stateOf(ss);

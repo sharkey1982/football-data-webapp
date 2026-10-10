@@ -110,3 +110,16 @@ End-to-end check against a local Postgres (stub of Supabase's roles and auth):
 bots and checks that every bot scores exactly what the same season gives in
 memory, then idempotency, immutability, visibility by role, and a signed-in
 manager's squad, transfers and hits.
+
+## Phase 3c: the pages (admin-only)
+
+`/shark-fantasy` (Play menu → Fantasy, shown to admins only; disallowed in
+robots.txt). Tabs: My team, Round, Leaderboard, Table, Players. Code:
+`src/pages/sharkfantasy/`, data `src/lib/sharkFantasyApi.ts`, the team
+editor's rules `src/lib/sharkFantasyDraft.ts` (the same functions as the bots;
+the database checks again on save).
+
+The `proto` league runs weekly: `sf-round.yml` runs `advance --universe proto`
+on Sundays at 11:05 and 12:05 UTC, so one run follows the 12:00 UK deadline in
+summer and in winter. Deadlines are 12:00 UK time every week (`zone:
+'Europe/London'` in the runner), kick-off 15:00.
