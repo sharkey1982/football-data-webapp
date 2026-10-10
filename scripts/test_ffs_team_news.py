@@ -47,3 +47,8 @@ def test_match_name_handles_ffs_spellings():
 
 def test_match_name_does_not_guess():
     assert match_name("Zinchenko", ARS) is None
+
+
+def test_match_name_one_distinctive_word():
+    squad = ARS + [{"fpl_player_id": 77, "web_name": "Philogene", "first_name": "Jaden", "second_name": "Philogene"}]
+    assert match_name("Philogene-Bidace", squad)["fpl_player_id"] == 77

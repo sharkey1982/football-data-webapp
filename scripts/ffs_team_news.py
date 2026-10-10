@@ -34,7 +34,6 @@ import os
 import re
 import sys
 import unicodedata
-from datetime import datetime, timezone
 
 URL = "https://www.fantasyfootballscout.co.uk/team-news"
 SOURCE = "fantasy_football_scout"
@@ -118,6 +117,8 @@ def match_name(text: str, squad: list[dict]) -> dict | None:
     for test in (
         lambda p: t in keys(p),
         lambda p: bool(tw) and tw <= pwords(p) and any(len(w) >= 3 for w in tw),
+        # One distinctive written word is one of his ("Philogene-Bidace" -> Philogene).
+        lambda p: any(len(w) >= 5 and w in pwords(p) for w in tw),
         lambda p: any(min(len(k), len(t)) >= 4 and (t.endswith(k) or k.endswith(t)) for k in keys(p)),
     ):
         hits = [p for p in squad if test(p)]
@@ -208,10 +209,12 @@ def main() -> None:
     try:
         if not resp.is_success:
             raise RuntimeError(f"team-news page answered {resp.status_code}")
-        now = datetime.now(timezone.utc).isoformat()
-        gws = sb.table("fpl_gameweeks").select("fpl_event_id, deadline_time").eq("season_id", season).gt("deadline_time", now).order("deadline_time").limit(1).execute().data
+        # The gameweek FFS's page is about: the first one not finished. Not the
+        # next deadline -- after Saturday's deadline the page still shows that
+        # weekend's line-ups (first run, 10 Oct, filed GW6 under GW7).
+        gws = sb.table("fpl_gameweeks").select("fpl_event_id").eq("season_id", season).eq("finished", False).order("fpl_event_id").limit(1).execute().data
         if not gws:
-            raise RuntimeError("no upcoming gameweek")
+            raise RuntimeError("no unfinished gameweek")
         event = int(gws[0]["fpl_event_id"])
         players = sb.table("fpl_players").select("fpl_player_id, web_name, first_name, second_name, canonical_team_id, status").eq("season_id", season).neq("status", "u").execute().data
         squads: dict[int, list[dict]] = {}

@@ -59,6 +59,8 @@ import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tactica
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import FormationPitch from '../../components/fpl/FormationPitch';
+import { Cell, ActualCell, type Mode as MinutesMode } from '../../components/fpl/MinutesCells';
+import { getMinutesOutlook, type Outlook } from '../../lib/minutesOutlookApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
@@ -159,6 +161,9 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   const [projectedMinutesGw, setProjectedMinutesGw] = useState<number | null>(null);
   const [projectedMinutes, setProjectedMinutes] = useState<Map<number, number>>(new Map());
   const [projectedStarts, setProjectedStarts] = useState<Map<number, number>>(new Map());
+  // The selected club's minutes, as on Minutes Outlook: last 3 played, next 5 projected.
+  const [teamOutlook, setTeamOutlook] = useState<Outlook | null>(null);
+  const [minutesMode, setMinutesMode] = useState<MinutesMode>('minutes');
   const [reviewDates, setReviewDates] = useState<Map<number, string>>(new Map());
   const [markingReviewed, setMarkingReviewed] = useState(false);
   // The team's STORED default formation, and whether it's a manual
@@ -228,6 +233,16 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       cancelled = true;
     };
   }, [selectedTeamId, displayMode]);
+
+  useEffect(() => {
+    if (selectedTeamId === null) return;
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => getMinutesOutlook(selectedTeamId))
+      .then((o) => { if (!cancelled) setTeamOutlook(o ?? null); })
+      .catch(() => { if (!cancelled) setTeamOutlook(null); }); // the table falls back to season totals
+    return () => { cancelled = true; };
+  }, [selectedTeamId]);
 
   function reloadSetPieceHierarchy(teamId: number) {
     setSetPieceLoading(true);
@@ -430,6 +445,12 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     return visible;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, scopeMode, positionFilter, reviewTeamFilter, nonFringeWorklistIds]);
+
+  const outlookCols = useMemo(() => {
+    if (!teamOutlook || teamOutlook.gameweeks.length === 0) return null;
+    return { past: teamOutlook.pastGameweeks.slice(-3), next: teamOutlook.gameweeks.slice(0, 5) };
+  }, [teamOutlook]);
+  const outlookByPlayer = useMemo(() => new Map((teamOutlook?.players ?? []).map((p) => [p.fpl_player_id, p])), [teamOutlook]);
 
   const selectedTeamRows = useMemo(() => {
     if (selectedTeamId === null) return [];
@@ -967,6 +988,20 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                     </select>
                   </label>
                 </div>
+                {outlookCols && (
+                  <div className="flex flex-wrap items-center gap-2 mb-2 text-xs text-ink-500">
+                    <span>Last {outlookCols.past.length} played (grey) and next {outlookCols.next.length} projected (green), as on</span>
+                    <Link to="/fpl/minutes" className="underline underline-offset-2 text-pitch-800">Minutes Outlook</Link>
+                    <span className="flex rounded-md border border-chalk-300 overflow-hidden ml-auto">
+                      {(['minutes', 'start'] as const).map((m) => (
+                        <button key={m} type="button" onClick={() => setMinutesMode(m)}
+                          className={['px-2.5 py-1 text-xs font-medium', minutesMode === m ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}>
+                          {m === 'minutes' ? 'Minutes' : 'Start %'}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                )}
                 <div className="overflow-x-auto max-w-full">
                   <table className="w-full text-sm">
                     <thead>
@@ -986,10 +1021,21 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                         <th className="px-2 py-1.5">Status</th>
                         <th className="px-2 py-1.5" title="Expected back: your date if set, otherwise the one in FPL's news. Out before it, then 75% / 90% / fit in the projections.">Back</th>
                         <th className="px-2 py-1.5">Set pieces</th>
-                        <th className="px-2 py-1.5 text-right">Mins</th>
-                        <th className="px-2 py-1.5 text-right">Min/Start</th>
                         <th className="px-2 py-1.5 text-right">PPG</th>
-                        <th className="px-2 py-1.5 text-right">{projectedMinutesGw !== null ? `Proj GW${projectedMinutesGw}` : 'Proj Min'}</th>
+                        {outlookCols ? (
+                          <>
+                            {outlookCols.past.map((gw) => <th key={`p${gw}`} className="px-0.5 py-1.5 text-center font-medium" title="Minutes played">GW{gw}</th>)}
+                            {outlookCols.next.map((gw, j) => (
+                              <th key={gw} className={`px-0.5 py-1.5 text-center font-medium${j === 0 ? ' border-l-2 border-ink-500/40 pl-1' : ''}`} title={minutesMode === 'minutes' ? 'Expected minutes' : 'Chance of starting, %'}>GW{gw}</th>
+                            ))}
+                          </>
+                        ) : (
+                          <>
+                            <th className="px-2 py-1.5 text-right">Mins</th>
+                            <th className="px-2 py-1.5 text-right">Min/Start</th>
+                            <th className="px-2 py-1.5 text-right">{projectedMinutesGw !== null ? `Proj GW${projectedMinutesGw}` : 'Proj Min'}</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1013,10 +1059,19 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           <td className="px-2 py-1.5">
                             <SetPieceBadges row={r} />
                           </td>
-                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.minutes !== null ? r.minutes : '\u2014'}</td>
-                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.avg_minutes_per_start !== null ? Math.round(r.avg_minutes_per_start) : '\u2014'}</td>
                           <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.points_per_game !== null ? r.points_per_game.toFixed(1) : '\u2014'}</td>
-                          <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{projectedMinutes.has(r.fpl_player_id) ? Math.round(projectedMinutes.get(r.fpl_player_id)!) : '\u2014'}</td>
+                          {outlookCols ? (
+                            <>
+                              {outlookCols.past.map((gw) => <ActualCell key={`p${gw}`} a={outlookByPlayer.get(r.fpl_player_id)?.actual.get(gw)} gw={gw} />)}
+                              {outlookCols.next.map((gw, j) => <Cell key={gw} c={outlookByPlayer.get(r.fpl_player_id)?.cells.get(gw)} mode={minutesMode} fit={false} divider={j === 0} />)}
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.minutes !== null ? r.minutes : '\u2014'}</td>
+                              <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{r.avg_minutes_per_start !== null ? Math.round(r.avg_minutes_per_start) : '\u2014'}</td>
+                              <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">{projectedMinutes.has(r.fpl_player_id) ? Math.round(projectedMinutes.get(r.fpl_player_id)!) : '\u2014'}</td>
+                            </>
+                          )}
                         </tr>
                       ))}
                     </tbody>
