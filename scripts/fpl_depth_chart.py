@@ -55,7 +55,11 @@ BACKUP_TAKE = 0.90   # a backup takes an open place this often when fit
 # shared in proportion to each player's own start rate this season, so
 # Lewis-Skelly (4 starts in 5) leads Zubimendi (0 in 5). The tier's total is
 # unchanged; nobody gets more than his chance of a place being open.
-TIE_WEIGHT_BY_RATE = False
+# Adopted 10 Oct 2026 (GW3-5 backtest, scripts/backtest_depth_ties.py: Brier
+# 0.07836 -> 0.07830, log loss 0.27046 -> 0.27018; tied players only 0.07661
+# -> 0.07615. Small -- 243 tied player-matches -- but better on both
+# measures, as the registered rule required).
+TIE_WEIGHT_BY_RATE = True
 OUTFIELD_PLACES = 10
 
 ROLE_GROUP = {

@@ -416,6 +416,33 @@ export async function getProjectedMinutes(matchweek: number): Promise<Map<number
   return out;
 }
 
+/** Chance of starting in the given matchweek, keyed by fpl_player_id (the
+ * same projections as above; a double gameweek keeps the likelier game). */
+export async function getProjectedStarts(matchweek: number): Promise<Map<number, number>> {
+  const { data: fixtureRows, error: fixtureErr } = await supabase
+    .from('fixtures')
+    .select('fixture_id')
+    .eq('matchweek', matchweek)
+    .eq('season_id', await getCurrentFplSeasonId())
+    .eq('league_id', 1);
+  if (fixtureErr) throw fixtureErr;
+  const fixtureIds = (fixtureRows ?? []).map((f: { fixture_id: number }) => f.fixture_id);
+  const out = new Map<number, number>();
+  if (fixtureIds.length === 0) return out;
+  const { data, error } = await supabase
+    .from('fpl_player_projections')
+    .select('fpl_player_id, start_probability')
+    .eq('model_version', 'leaguewide_v6')
+    .eq('scenario_key', 'baseline')
+    .in('fixture_id', fixtureIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const v = Number(row.start_probability ?? 0);
+    out.set(row.fpl_player_id, Math.max(out.get(row.fpl_player_id) ?? 0, v));
+  }
+  return out;
+}
+
 export type SetPieceHierarchyType = 'penalty' | 'direct_free_kick' | 'indirect_free_kick' | 'corner_left' | 'corner_right';
 
 export interface SetPieceHierarchyRow {

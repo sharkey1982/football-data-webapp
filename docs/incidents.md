@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-10 · Pitches: players drawn where they don't play; tied backups shown as starters
+- **Reported:** Chris -- Starting Lineups showed Zubimendi at centre-back; Match Projections showed Zubimendi starting beside Rice although Lewis-Skelly is far likelier to. "Inaccurate information here damages the site."
+- **Impact:** both pitches drew exactly one player per slot. On Starting Lineups' 2nd-choice view Arsenal had more midfielders than midfield slots, so the extra one was put in an empty defensive slot. On Match Projections the second DM slot went to whichever of three tied 2nd-choice midfielders came first, each at 43%, with nothing showing that the place was shared.
+- **Cause:** (1) the pitch had no way to show competition for a place, so a fit-scoring rule placed surplus players in the nearest empty slot, two tactical groups away if need be; (2) the depth chart split a tied rank equally whatever each player's record.
+- **Fix:** both pitches now show the likeliest starter in each slot with everyone competing for that place stacked under him, start chance on each. A player only covers a slot that is his job or an agreed cover (a third centre-back at right-back; never a holding midfielder at full-back); anyone else is listed under the pitch. Starting Lineups opens on the next gameweek's projections, with the 1st/2nd/3rd views kept. Tied ranks now share places by start rate (registered backtest, GW3-5: better on Brier and log loss; Lewis-Skelly ~63%, Zubimendi ~14%).
+- **Prevention:** tests in `src/__tests__/FormationPitch.stacked.test.ts` (no midfielder in the back line; ties stack; unconfirmed roles listed, not placed) and `scripts/test_fpl_depth_chart.py`. *Lesson: a display that must show one answer will make one up; show the uncertainty the model actually has.*
+
+---
+
 ## 2026-10-09 · FPL Fixture Heat Map used a different goals model from the player projections
 - **Reported:** an outside analysis summed `leaguewide_v6` player xG for GW6–10 and found Spurs 3rd of mid-table attacks (7.59), while the Fixture Heat Map ranked Spurs last.
 - **Impact:** the heat map (and its home-page trivia question) showed Dixon-Coles team goals while every other FPL page used market-rated goals. Over GW6–10 the two differed by up to 2.9 goals per team (Arsenal 7.66 v 10.57; Spurs 5.31 v 7.59, 20th v 6th over GW6–15); Dixon-Coles also ran about 4% lower overall. The Player Projections team panel showed Dixon-Coles too, beside players whose numbers came from the market. The heat map's "Simple FDR" was FixtureShark's own quintile of Dixon-Coles ratings, not FPL's FDR. No figure was wrong for its model; the pages disagreed about which model they showed.

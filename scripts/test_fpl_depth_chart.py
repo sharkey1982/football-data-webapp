@@ -63,7 +63,7 @@ def test_tied_backups_share_second_dm_place():
     a, b = out[9][0], out[10][0]
     # About one place between them, plus covering rotated midfield places.
     assert 0.95 < a + b < 1.3
-    assert a == pytest.approx(b)                  # same rank, same share
+    assert a > b                                  # same rank: the one starting more often leads
 
 
 def test_goalkeepers_left_out():
