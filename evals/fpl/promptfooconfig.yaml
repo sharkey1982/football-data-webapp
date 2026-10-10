@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# FixtureShark FPL eval pilot: objective checks (the pass/fail verdict).
+# Development only. Run by hand; see README.md. Nothing here touches the site,
+# Supabase or Netlify.
+description: FixtureShark FPL analysis - objective checks (fpl_analyst_v1)
+
+prompts:
+  - id: file://prompts/fpl_analyst_v1.mjs
+    label: fpl_analyst_v1
+
+# Live provider: the same Anthropic model the AI Lab uses by default
+# (supabase/functions/ai-lab-run DEFAULT_MODEL). Reads ANTHROPIC_API_KEY
+# from the environment. Offline runs replace it with -r (see README.md).
+providers:
+  - id: anthropic:messages:claude-sonnet-5
+    label: claude-sonnet-5
+    config:
+      temperature: 0
+      max_tokens: 1500
+
+tests: file://tests/load-tests.mjs
+
+# Deterministic only: five javascript checks per case, added by the loader.
+# The qualitative judge is a separate run (promptfooconfig.judge.yaml) so a
+# model's opinion can never turn a failed numerical check into a pass.
+evaluateOptions:
+  maxConcurrency: 2
+
+sharing: false

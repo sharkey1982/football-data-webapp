@@ -1,0 +1,85 @@
+{
+  "_about": "Frozen inputs for the FPL eval pilot. Nothing here is read from the live database at run time. scripts/check-snapshots.mjs recomputes every hash below and fails if a file has changed. To refresh, capture a NEW dated snapshot alongside these; never edit these files in place.",
+  "snapshots": [
+    {
+      "file": "raw/gw6_players.psv",
+      "description": "FPL gameweek 6 (2026/27) pre-deadline capture: FixtureShark projection (model leaguewide_v6, scenario baseline) joined to FPL's own price, status and news captured at the same moment. 230 of 667 players: projected 2.0+ points, or 3%+ owned, or flagged (d/i/s) and 1%+ owned.",
+      "captured_from": "Supabase project ppzfmpbnojyjeblelsuz, read-only SELECT",
+      "snapshot_at": "2026-10-10T09:00:00.026217Z",
+      "deadline": "2026-10-10T10:00:00Z",
+      "projection_generated_at": "2026-10-10T05:39:52Z to 2026-10-10T05:43:58Z",
+      "queried_at": "2026-10-10T19:04:15Z",
+      "tables": [
+        "fpl_projection_snapshots (fpl_event_id 6, snapshot_kind pre_deadline, model_version leaguewide_v6)",
+        "fpl_deadline_player_state (fpl_event_id 6, snapshot_kind pre_deadline)",
+        "fpl_players (web_name, slug; season 13)",
+        "fpl_teams (short_name; season 13)"
+      ],
+      "columns": [
+        "fpl_player_id",
+        "web_name",
+        "slug",
+        "team",
+        "position",
+        "price_m",
+        "status",
+        "chance_this_round",
+        "selected_by_percent",
+        "start_probability",
+        "expected_minutes",
+        "expected_goals",
+        "expected_assists",
+        "clean_sheet_probability",
+        "expected_fpl_points",
+        "season_points",
+        "season_minutes",
+        "fixture_id",
+        "news"
+      ],
+      "rows": 230,
+      "db_md5_of_rows": "7067d02de0a5fd171474e5c1bd6ced9e",
+      "note": "db_md5_of_rows is md5 of the rows joined by newlines with no trailing newline, computed in Postgres at capture time; the file reproduces it exactly."
+    },
+    {
+      "file": "raw/gw6_10_fixtures.psv",
+      "description": "Premier League fixtures for FPL gameweeks 6-10 (2026/27) with FPL's FDR for each side, FixtureShark market-implied goals and Dixon-Coles goals, as stored at capture time. FDR and goals can change later in the season; this file keeps the values seen on 10 Oct.",
+      "captured_from": "Supabase project ppzfmpbnojyjeblelsuz, read-only SELECT",
+      "queried_at": "2026-10-10T19:04:30Z",
+      "tables": [
+        "fpl_fixtures (team_h_difficulty, team_a_difficulty)",
+        "fixtures (market_home_goals, market_away_goals, predicted_home_goals, predicted_away_goals)",
+        "fpl_teams"
+      ],
+      "columns": [
+        "gw",
+        "fixture_id",
+        "home",
+        "away",
+        "fdr_home",
+        "fdr_away",
+        "market_home_goals",
+        "market_away_goals",
+        "dc_home_goals",
+        "dc_away_goals",
+        "kickoff_date_uk"
+      ],
+      "rows": 50,
+      "db_md5_of_rows": "bceeac7151bf253f771fa0f03930784a"
+    },
+    {
+      "file": "articles.json",
+      "description": "Fixed figures from FixtureShark's published FPL articles (Haaland captaincy history, transfer projections of 9 Oct, xG v FDR study).",
+      "captured_from": "football-data-webapp repo at commit b5bf651e9ada2fb235fccc5a883e1c1a27dd2aad",
+      "source_files_sha256": {
+        "src/lib/fplArticles.ts": "507da7f4dc964309e9d9dcc06b469efbcb444ddf52f12595a86784fce28de41e",
+        "src/lib/fplArticleDecisions.ts": "ab715908a33276b125f302a753a69e499896da0bf0caafaf5feb54ccc8e64282",
+        "src/lib/fplArticleXgFdr.ts": "5ef29703aad4e0769a19707da1b5a080fc4dd1d2074406d6521ca39e1b047799"
+      }
+    }
+  ],
+  "file_sha256": {
+    "raw/gw6_players.psv": "b289fc6c32e354422fd6f40edcf84fa680d155e65dc64d33fe07679e45e7b193",
+    "raw/gw6_10_fixtures.psv": "7d7d4850a8db3666565d10c660d8ac5641c8ea4828a1cfb0b09ac3de2a4a81f4",
+    "articles.json": "7d8d91504561c4e35184a403d548af8cf493a0360749a3f25ef2c546d78c67d7"
+  }
+}
