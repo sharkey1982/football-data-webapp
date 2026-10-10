@@ -193,3 +193,23 @@ describe('a bot league', () => {
     expect(Math.abs(xp / act - 1)).toBeLessThan(0.15);
   });
 });
+
+describe('the round runner', () => {
+  it('canonical JSON sorts keys and drops undefined, so a state read back from jsonb hashes the same', async () => {
+    const { canonical } = await import('../sharkfantasy/runner');
+    expect(canonical({ b: 1, a: { d: [1, { y: 2, x: undefined, w: 'z' }], c: null } })).toBe('{"a":{"c":null,"d":[1,{"w":"z","y":2}]},"b":1}');
+    expect(canonical(JSON.parse(JSON.stringify({ z: 0.1 + 0.2, a: -0 })))).toBe(canonical({ a: 0, z: 0.30000000000000004 }));
+  });
+  it('creates a season: public tables carry no hidden attributes; the hidden ones go only to the world and player_hidden', async () => {
+    const { createSeason } = await import('../sharkfantasy/runner');
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+    await createSeason({ rpc: async (fn, args) => { calls.push({ fn, args }); return 7; }, hash: s => String(s.length) },
+      { universe: 'u', name: 'U', seed: 'runner-test', firstDeadline: new Date('2026-10-18T11:00:00Z'), spacingMinutes: 10080, kickoffAfterMinutes: 180 });
+    expect(calls.map(c => c.fn)).toEqual(['sf_create_season']);
+    const p = calls[0].args.p as Record<string, unknown>;
+    for (const k of ['players', 'clubs', 'scouting', 'prices', 'projections', 'fixtures']) expect(JSON.stringify(p[k])).not.toMatch(/"(hidden|finishing|goalkeeping|injuryProneness|potential)"/);
+    expect((p.fixtures as unknown[]).length).toBe(45);
+    expect((p.rounds as { deadline_at: string; kickoff_at: string }[])[1]).toEqual({ number: 2, kind: 'league', deadline_at: '2026-10-25T11:00:00.000Z', kickoff_at: '2026-10-25T14:00:00.000Z' });
+    expect((p.snapshot as { state: Record<string, unknown> }).state.world).toBeUndefined();
+  });
+});

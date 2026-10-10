@@ -28,9 +28,11 @@ export interface LeagueResult {
   priceMoves: number;
 }
 
-export function runLeague(seed: string, lineup: Partial<Record<BotKind, number>>, solve: Solver): LeagueResult {
+/** `o.universe` and `o.botPrefix` let a test reproduce a universe run through the database
+ *  (scripts/sf/run-round.ts names its bots `${universe}|${kind}-${n}`). */
+export function runLeague(seed: string, lineup: Partial<Record<BotKind, number>>, solve: Solver, o: { universe?: string; botPrefix?: string } = {}): LeagueResult {
   const rules = GAME_RULES_V1;
-  const world = generateWorld(seed);
+  const world = generateWorld(seed, o.universe);
   const ss = startSeason(world, 1);
   const infoMap = new Map<string, PlayerInfo>(world.players.map(p => [p.id, { id: p.id, clubId: p.clubId, position: p.position }]));
   const info = (id: string) => infoMap.get(id)!;
@@ -54,7 +56,7 @@ export function runLeague(seed: string, lineup: Partial<Record<BotKind, number>>
   const price = (id: string) => priceNow[id];
 
   const bots: Bot[] = [];
-  for (const [kind, n] of Object.entries(lineup) as [BotKind, number][]) for (let i = 0; i < n; i++) bots.push(newBot(`${kind}-${i + 1}`, kind, seed, players));
+  for (const [kind, n] of Object.entries(lineup) as [BotKind, number][]) for (let i = 0; i < n; i++) bots.push(newBot(`${o.botPrefix ?? ''}${kind}-${i + 1}`, kind, seed, players));
   const transfers: Record<string, number> = {}, wildcard: Record<string, number | null> = {};
   for (const b of bots) { transfers[b.id] = 0; wildcard[b.id] = null; }
 
