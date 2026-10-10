@@ -16,6 +16,11 @@
 # club in fpl_external_lineup_runs (names not matched included), and in
 # pipeline_runs. Admin-only data; not a projection input.
 #
+# Positions are NOT read from FFS. If they ever are: FFS's line-up graphics
+# put the goalkeeper at the TOP, so their left-hand side is the team's
+# right. The 14 Sep role seed read them the other way and every left/right
+# role came out mirrored (fixed 10 Oct 2026, migration 20261010150000).
+#
 #   python scripts/ffs_team_news.py            # fetch and save
 #   python scripts/ffs_team_news.py --probe    # store page structure in analysis_results, save nothing
 #

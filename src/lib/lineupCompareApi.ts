@@ -144,3 +144,19 @@ export async function getSquadsAndClubs(): Promise<{ squads: Map<number, SquadPl
     .sort((a, b) => a.label.localeCompare(b.label));
   return { squads, clubs };
 }
+
+export type FetchRun = { team_id: number; fetched_at: string; names_read: number; matched: number; unmatched: string[]; saved: boolean; source_updated: string | null };
+
+/** The latest automatic read of FFS's team-news page for each club this gameweek. */
+export async function getFetchRuns(event: number): Promise<Map<number, FetchRun>> {
+  const { data, error } = await rpc('get_fpl_external_lineup_runs', { p_event: event, p_source: FFS_SOURCE });
+  if (error) throw error;
+  const out = new Map<number, FetchRun>();
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    out.set(Number(r.team_id), {
+      team_id: Number(r.team_id), fetched_at: String(r.fetched_at), names_read: Number(r.names_read), matched: Number(r.matched),
+      unmatched: (r.unmatched as string[] | null) ?? [], saved: Boolean(r.saved), source_updated: r.source_updated == null ? null : String(r.source_updated),
+    });
+  }
+  return out;
+}
