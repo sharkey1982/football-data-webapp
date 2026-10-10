@@ -7,7 +7,8 @@
 // when the team is saved (sf.save_team); this only explains problems early.
 // ============================================================================
 
-import { GAME_RULES_V1 as R } from '../sharkfantasy/fantasy/rules';
+import { GAME_RULES_V1 } from '../sharkfantasy/fantasy/rules';
+import type { GameRules } from '../sharkfantasy/fantasy/rules';
 import { squadProblems, lineupProblems } from '../sharkfantasy/fantasy/squad';
 import type { PlayerInfo } from '../sharkfantasy/fantasy/squad';
 import { bestXI } from '../sharkfantasy/fantasy/bots';
@@ -45,13 +46,13 @@ function orderBench(bench: string[], info: (id: string) => PlayerInfo): string[]
   return [...gk, ...bench.filter((id) => info(id).position !== 'GK')];
 }
 
-export function canAdd(d: Draft, id: string, info: (id: string) => PlayerInfo): boolean {
+export function canAdd(d: Draft, id: string, info: (id: string) => PlayerInfo, R: GameRules = GAME_RULES_V1): boolean {
   const p = info(id);
-  return !d.squad.includes(id) && d.squad.length < 15 && count(d.squad, p.position, info) < R.squad[p.position];
+  return !d.squad.includes(id) && d.squad.length < R.squadSize && count(d.squad, p.position, info) < R.squadMax[p.position];
 }
 
-export function addPlayer(d: Draft, id: string, info: (id: string) => PlayerInfo): Draft {
-  if (!canAdd(d, id, info)) return d;
+export function addPlayer(d: Draft, id: string, info: (id: string) => PlayerInfo, R: GameRules = GAME_RULES_V1): Draft {
+  if (!canAdd(d, id, info, R)) return d;
   const pos = info(id).position;
   const toXi = d.xi.length < 11 && count(d.xi, pos, info) < R.xiMax[pos] && !(pos === 'GK' && count(d.xi, 'GK', info) >= 1);
   return {
@@ -105,8 +106,8 @@ export function setVice(d: Draft, id: string): Draft {
 }
 
 /** The best XI, bench order and captaincy for a score (the public projection). Needs a full squad. */
-export function suggest(d: Draft, score: (id: string) => number, info: (id: string) => PlayerInfo): Draft {
-  if (d.squad.length !== 15) return d;
+export function suggest(d: Draft, score: (id: string) => number, info: (id: string) => PlayerInfo, R: GameRules = GAME_RULES_V1): Draft {
+  if (d.squad.length !== R.squadSize) return d;
   const s = bestXI(d.squad, score, info, R);
   return { ...d, xi: s.xi, bench: s.bench, captain: s.captain, vice: s.vice };
 }
@@ -134,7 +135,7 @@ export interface SavedTeam {
  * firstDeadline: no deadline has passed for this entry yet, so changes are free
  * and the whole budget is available.
  */
-export function summarise(d: Draft, saved: SavedTeam | null, price: (id: string) => number, info: (id: string) => PlayerInfo, firstDeadline: boolean): DraftSummary {
+export function summarise(d: Draft, saved: SavedTeam | null, price: (id: string) => number, info: (id: string) => PlayerInfo, firstDeadline: boolean, R: GameRules = GAME_RULES_V1): DraftSummary {
   const owned = new Map((saved?.picks ?? []).map((p) => [p.player_id, p.selling_price]));
   const budget = firstDeadline || !saved?.picks.length ? R.budget : saved.bank + [...owned.values()].reduce((a, b) => a + b, 0);
   const costOf = (id: string) => (!firstDeadline && owned.has(id) ? owned.get(id)! : price(id));
@@ -148,7 +149,7 @@ export function summarise(d: Draft, saved: SavedTeam | null, price: (id: string)
 
   const picks = d.squad.map((id) => ({ playerId: id, purchasePrice: price(id) }));
   const problems = [...squadProblems(picks, info, price, R, left)];
-  if (d.squad.length === 15) {
+  if (d.squad.length === R.squadSize) {
     const lp = lineupProblems({ xi: d.xi, bench: d.bench, captain: d.captain ?? '', vice: d.vice ?? '' }, picks, info, R);
     problems.push(...lp);
   }

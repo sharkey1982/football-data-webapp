@@ -5,10 +5,12 @@ import SortableTable, { type Column } from '../../components/SortableTable';
 import { joinSeason, saveTeam, type SeasonData, type SfEntryRound, type SfMyTeam, type SfPlayer, type SfRound, type SfSeason } from '../../lib/sharkFantasyApi';
 import { addPlayer, canAdd, emptyDraft, fromSaved, moveBench, removePlayer, setCaptain, setVice, suggest, summarise, swap, toSave, type Draft } from '../../lib/sharkFantasyDraft';
 import type { PlayerInfo } from '../../sharkfantasy/fantasy/squad';
+import { rulesFor, type GameRules } from '../../sharkfantasy/fantasy/rules';
+import { TYPE_BY_NAME } from '../../sharkfantasy/engine/catalogue';
 import { POS_ORDER, price, unavailable, when, xp } from './format';
 
-/** "Hamish Kinnaird" → "H. Kinnaird" (two players in a squad can share a surname). */
-const shortName = (n: string) => { const w = n.split(' '); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : n; };
+/** A player type's one-line character ("does nothing except score"). */
+const character = (name: string) => TYPE_BY_NAME.get(name)?.line ?? '';
 
 interface Props {
   season: SfSeason; data: SeasonData; mine: SfMyTeam | null; myRounds: SfEntryRound[]; round: SfRound | null;
@@ -82,7 +84,8 @@ function Editor({ season, data, mine, myRounds, round, onSaved }: { season: SfSe
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const firstDeadline = myRounds.length === 0;
-  const sum = summarise(draft, mine, priceOf, info, firstDeadline);
+  const R: GameRules = rulesFor(season.rules_version);
+  const sum = summarise(draft, mine, priceOf, info, firstDeadline, R);
   const canWildcard = !firstDeadline && mine.wildcards_left > 0 && !mine.wildcard_this_round;
 
   const click = (id: string) => {
@@ -108,7 +111,7 @@ function Editor({ season, data, mine, myRounds, round, onSaved }: { season: SfSe
     return (
       <button key={id} type="button" onClick={() => click(id)} data-testid={`sf-card-${id}`}
         className={`w-28 sm:w-32 rounded border px-2 py-1 text-left text-xs leading-tight ${selected === id ? 'border-amber-500 ring-2 ring-amber-400' : 'border-chalk-300'} ${bench ? 'bg-chalk-200' : 'bg-white'}`}>
-        <span className="flex justify-between gap-1"><span className="font-medium text-ink-900 truncate">{shortName(p.name)}</span>
+        <span className="flex justify-between gap-1"><span className="font-medium text-ink-900">{p.name}</span>
           {draft.captain === id && <span className="px-1 rounded bg-amber-400 text-ink-900 font-semibold">C</span>}
           {draft.vice === id && <span className="px-1 rounded bg-chalk-300 text-ink-900 font-semibold">V</span>}
         </span>
@@ -124,19 +127,19 @@ function Editor({ season, data, mine, myRounds, round, onSaved }: { season: SfSe
         {POS_ORDER.map((pos) => (
           <div key={pos} className="flex flex-wrap justify-center gap-2">{draft.xi.filter((id) => info(id).position === pos).map((id) => card(id))}</div>
         ))}
-        {!draft.squad.length && <p className="text-center text-sm text-chalk-200 py-6">Add 15 players from the list below.</p>}
+        {!draft.squad.length && <p className="text-center text-sm text-chalk-200 py-6">Add {R.squadSize} players from the list below.</p>}
       </section>
-      <section className="space-y-1" aria-label="Bench">
-        <h2 className="text-sm font-semibold text-ink-900">Bench</h2>
+      {R.squadSize > 11 && <section className="space-y-1" aria-label="Bench">
+        <h2 className="text-sm font-semibold text-ink-900">{R.squadSize === 12 ? 'Sub' : 'Bench'}</h2>
         <div className="flex flex-wrap gap-2">{draft.bench.map((id) => card(id, true))}</div>
-      </section>
+      </section>}
 
       {selected && (
         <div className="flex flex-wrap gap-2 text-sm" data-testid="sf-actions">
           <span className="text-ink-700 self-center">{players.get(selected)?.name}:</span>
           {draft.xi.includes(selected) && <button type="button" className="px-2 py-1 rounded border border-chalk-300" onClick={() => setDraft(setCaptain(draft, selected))}>Captain</button>}
           {draft.xi.includes(selected) && <button type="button" className="px-2 py-1 rounded border border-chalk-300" onClick={() => setDraft(setVice(draft, selected))}>Vice-captain</button>}
-          {draft.bench.includes(selected) && info(selected).position !== 'GK' && <>
+          {draft.bench.length > 1 && draft.bench.includes(selected) && info(selected).position !== 'GK' && <>
             <button type="button" className="px-2 py-1 rounded border border-chalk-300" onClick={() => setDraft(moveBench(draft, selected, -1, info))}>Bench up</button>
             <button type="button" className="px-2 py-1 rounded border border-chalk-300" onClick={() => setDraft(moveBench(draft, selected, 1, info))}>Bench down</button>
           </>}
@@ -161,13 +164,13 @@ function Editor({ season, data, mine, myRounds, round, onSaved }: { season: SfSe
 
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={save} disabled={busy || sum.problems.length > 0 || !sum.changed} className="px-3 py-1.5 rounded bg-pitch-700 text-chalk-100 text-sm disabled:opacity-50" data-testid="sf-save">Save team</button>
-        <button type="button" onClick={() => setDraft(suggest(draft, score, info))} disabled={draft.squad.length !== 15} className="px-3 py-1.5 rounded border border-chalk-300 text-sm disabled:opacity-50">Best XI by projection</button>
+        <button type="button" onClick={() => setDraft(suggest(draft, score, info, R))} disabled={draft.squad.length !== R.squadSize} className="px-3 py-1.5 rounded border border-chalk-300 text-sm disabled:opacity-50">Best XI by projection</button>
         <button type="button" onClick={() => { setDraft(mine.picks.length ? fromSaved(mine.picks) : emptyDraft()); setSelected(null); }} disabled={!sum.changed} className="px-3 py-1.5 rounded border border-chalk-300 text-sm disabled:opacity-50">Undo changes</button>
         <span className="text-xs text-ink-500 self-center">Deadline {when(round.deadline_at)}</span>
       </div>
       {msg && <p className={`text-sm ${msg.ok ? 'text-pitch-700' : 'text-loss-700'}`} role="status">{msg.text}</p>}
 
-      <Market data={data} draft={draft} round={round} canAddId={(id) => canAdd(draft, id, info) && priceOf(id) <= sum.left} onAdd={(id) => setDraft(addPlayer(draft, id, info))} />
+      <Market data={data} draft={draft} round={round} canAddId={(id) => canAdd(draft, id, info, R) && priceOf(id) <= sum.left} onAdd={(id) => setDraft(addPlayer(draft, id, info, R))} />
     </div>
   );
 }
@@ -179,8 +182,9 @@ function Market({ data, draft, round, canAddId, onAdd }: { data: SeasonData; dra
   const rows = data.players.filter((p) => (!pos || p.position === pos) && (!club || p.club_id === club) && (!q || p.name.toLowerCase().includes(q.toLowerCase())));
   const cols: Column<SfPlayer>[] = [
     { key: 'add', label: '', render: (p) => draft.squad.includes(p.player_id) ? <span className="text-xs text-ink-500">In squad</span>
-      : <button type="button" disabled={!canAddId(p.player_id)} onClick={() => onAdd(p.player_id)} className="px-2 py-0.5 rounded border border-chalk-300 text-xs disabled:opacity-40" aria-label={`Add ${p.name}`}>Add</button> },
-    { key: 'name', label: 'Player', render: (p) => <>{p.name}{unavailable(p, round.number) && <span className="ml-1 text-xs text-loss-700">out until round {p.available_from}</span>}</>, sortValue: (p) => p.name },
+      : <button type="button" disabled={!canAddId(p.player_id)} onClick={() => onAdd(p.player_id)} className="px-2 py-0.5 rounded border border-chalk-300 text-xs disabled:opacity-40" aria-label={`Add ${p.name} (${p.club})`}>Add</button> },
+    { key: 'name', label: 'Player', render: (p) => <>{p.name}{unavailable(p, round.number) && <span className="ml-1 text-xs text-loss-700">out until round {p.available_from}</span>}
+      <span className="block text-xs text-ink-500">{character(p.name)}</span></>, sortValue: (p) => p.name },
     { key: 'pos', label: 'Pos', render: (p) => p.position, sortValue: (p) => POS_ORDER.indexOf(p.position) },
     { key: 'club', label: 'Club', render: (p) => p.club, sortValue: (p) => p.club },
     { key: 'price', label: 'Price', render: (p) => price(p.price), sortValue: (p) => p.price, align: 'right', descFirst: true },

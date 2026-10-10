@@ -22,10 +22,13 @@ import { createSeason, advance } from '../../src/sharkfantasy/runner';
 import type { Rpc } from '../../src/sharkfantasy/runner';
 import { runLeague } from '../../src/sharkfantasy/fantasy/league';
 import type { BotKind, Solver } from '../../src/sharkfantasy/fantasy/bots';
+import { rulesFor } from '../../src/sharkfantasy/fantasy/rules';
 
 const i = process.argv.indexOf('--psql');
 if (i < 0) throw new Error('--psql "<connection args>" is required');
 const conn = process.argv[i + 1].split(' ');
+const ri = process.argv.indexOf('--rules');
+const R = rulesFor(ri >= 0 ? process.argv[ri + 1] : 'sf-game-2-nosub');
 const ADMIN = '00000000-0000-0000-0000-00000000000a', USER = '00000000-0000-0000-0000-00000000000b';
 
 /** Run SQL as a role (and user); returns rows as JSON, or throws the error text. */
@@ -61,8 +64,9 @@ async function main() {
   const universe = 'check', seed = 'check-1';
   const lineup: Partial<Record<BotKind, number>> = { optimiser: 4, template: 4, setforget: 4, chaser: 4, random: 8 };
 
-  const season = await createSeason(d, { universe, name: 'Check', seed, firstDeadline: new Date(Date.now() + 86400_000), spacingMinutes: 1440, kickoffAfterMinutes: 180 });
-  check(await createSeason(d, { universe, name: 'Check', seed, firstDeadline: new Date(), spacingMinutes: 1, kickoffAfterMinutes: 0 }) === season, 'creating the season again returns the same season');
+  console.log(`rules ${R.version}`);
+  const season = await createSeason(d, { universe, name: 'Check', seed, firstDeadline: new Date(Date.now() + 86400_000), spacingMinutes: 1440, kickoffAfterMinutes: 180, rules: R });
+  check(await createSeason(d, { universe, name: 'Check', seed, firstDeadline: new Date(), spacingMinutes: 1, kickoffAfterMinutes: 0, rules: R }) === season, 'creating the season again returns the same season');
 
   // 4. a signed-in manager (admin, since the universe is not public) joins before round 1
   check(/permission denied/.test(sqlError(`select public.sf_join(${season}, 'Nobody')`, { role: 'anon' }) ?? ''), 'anon cannot join');
@@ -71,27 +75,38 @@ async function main() {
   check(entry > 0, 'an admin joins');
   // a legal squad from the cheapest players (two per club at most)
   const players = sql(`select player_id, position, club_id, price from public.sf_players where season_id = ${season} order by price, player_id`, { role: 'authenticated', user: ADMIN }) as { player_id: string; position: string; club_id: string; price: number }[];
-  check(players.length === 200, 'an admin sees 200 players in the view');
-  const need: Record<string, number> = { GK: 2, DEF: 5, MID: 5, FWD: 3 }, perClub: Record<string, number> = {};
+  check(players.length === 150, 'an admin sees 150 players in the view');
+  // XI 1-4-4-2, then the bench: sf-game-1 a keeper and 5/5/3 in all; sf-game-2 one midfielder; no-sub none
+  const need: Record<string, number> = R.squadSize === 15 ? { GK: 2, DEF: 5, MID: 5, FWD: 3 } : R.squadSize === 12 ? { GK: 1, DEF: 4, MID: 5, FWD: 2 } : { GK: 1, DEF: 4, MID: 4, FWD: 2 };
+  const perClub: Record<string, number> = {};
   const squad: typeof players = [];
   for (const p of players) if (need[p.position] > 0 && (perClub[p.club_id] ?? 0) < 2) { squad.push(p); need[p.position]--; perClub[p.club_id] = (perClub[p.club_id] ?? 0) + 1; }
   const byPos = (pos: string) => squad.filter(p => p.position === pos);
-  const order = [byPos('GK')[0], ...byPos('DEF').slice(0, 4), ...byPos('MID').slice(0, 4), ...byPos('FWD').slice(0, 2), byPos('GK')[1], byPos('DEF')[4], byPos('MID')[4], byPos('FWD')[2]];
+  const order = [byPos('GK')[0], ...byPos('DEF').slice(0, 4), ...byPos('MID').slice(0, 4), ...byPos('FWD').slice(0, 2),
+    ...(R.squadSize === 15 ? [byPos('GK')[1], byPos('DEF')[4], byPos('MID')[4], byPos('FWD')[2]] : R.squadSize === 12 ? [byPos('MID')[4]] : [])];
+  const N = R.squadSize;
   const team = (o: typeof order, extra = {}) => JSON.stringify({ picks: o.map((p, k) => ({ player_id: p.player_id, slot: k + 1 })), captain: o[9].player_id, vice: o[5].player_id, ...extra });
   const save = (t: string) => sql(`select public.sf_save_team(${season}, '${t}'::jsonb) r`, { role: 'authenticated', user: ADMIN }) as { r: { bank: number; transfers: number; hits_if_deadline_now: number } }[];
   const tryTeam = (o: typeof order) => sqlError(`select public.sf_save_team(${season}, '${team(o)}'::jsonb)`, { role: 'authenticated', user: ADMIN }) ?? '';
-  const bad = [...order]; [bad[11], bad[12]] = [bad[12], bad[11]];
-  check(/reserve keeper/.test(tryTeam(bad)), 'a lineup without the reserve keeper first on the bench is refused, with the reason');
-  const dup = [...order]; dup[14] = order[13];
+  if (R.reserveKeeperFirst) {
+    const bad = [...order]; [bad[11], bad[12]] = [bad[12], bad[11]];
+    check(/reserve keeper/.test(tryTeam(bad)), 'a lineup without the reserve keeper first on the bench is refused, with the reason');
+  } else {
+    const gk2 = players.find(p => p.position === 'GK' && p.player_id !== order[0].player_id && (perClub[p.club_id] ?? 0) < 3)!;
+    const bad = [...order]; bad[1] = gk2;     // two keepers in the XI, three defenders
+    check(/GK in the XI|GK \(/.test(tryTeam(bad)), 'a lineup with two keepers starting is refused, with the reason');
+  }
+  const dup = [...order]; dup[N - 1] = order[N - 2];
   check(/used twice/.test(tryTeam(dup)), 'a player picked twice is refused');
   const rich = players.filter(p => p.position === 'MID').slice(-5);
   const richF = players.filter(p => p.position === 'FWD').slice(-3);
-  const pricey = [...order]; [0, 1, 2, 3].forEach(j => { pricey[5 + j] = rich[j]; }); pricey[13] = rich[4];
-  pricey[9] = richF[0]; pricey[10] = richF[1]; pricey[14] = richF[2];
+  const richD = players.filter(p => p.position === 'DEF').slice(-4);
+  const pricey = [...order]; [0, 1, 2, 3].forEach(j => { pricey[5 + j] = rich[j]; pricey[1 + j] = richD[j]; });
+  pricey[9] = richF[0]; pricey[10] = richF[1];
   check(/over budget|from one club/.test(tryTeam(pricey)), 'an over-budget squad is refused');
   const r1 = save(team(order))[0].r;
-  check(r1.bank === 1000 - squad.reduce((a, p) => a + p.price, 0) && r1.transfers === 0, `the first squad is free and costs its prices (bank ${r1.bank})`);
-  check((sql(`select count(*)::int n from public.sf_my_team where entry_id = ${entry}`, { role: 'authenticated', user: ADMIN }) as { n: number }[])[0].n === 15, 'the owner sees the squad');
+  check(r1.bank === R.budget - squad.reduce((a, p) => a + p.price, 0) && r1.transfers === 0, `the first squad is free and costs its prices (bank ${r1.bank})`);
+  check((sql(`select count(*)::int n from public.sf_my_team where entry_id = ${entry}`, { role: 'authenticated', user: ADMIN }) as { n: number }[])[0].n === N, 'the owner sees the squad');
   check((sql(`select count(*)::int n from sf.entry_picks`, { role: 'authenticated', user: USER }) as { n: number }[])[0].n === 0, 'another user sees no current picks');
 
   // 1. the season through the database, step by step
@@ -106,7 +121,7 @@ async function main() {
       check(r2.transfers === 2 && r2.hits_if_deadline_now === 4, `two transfers with one free cost 4 points (${r2.transfers}, ${r2.hits_if_deadline_now})`);
     }
   }
-  const mem = runLeague(seed, lineup, solve, { universe, botPrefix: `${universe}|` });
+  const mem = runLeague(seed, lineup, solve, { universe, botPrefix: `${universe}|`, rules: R });
   const db = sql(`select m.bot_key, sum(s.total)::int total from sf.entries e join sf.fantasy_managers m on m.id = e.manager_id
     join sf.entry_round_scores s on s.entry_id = e.id where e.season_id = ${season} and m.is_bot group by m.bot_key`) as { bot_key: string; total: number }[];
   const dbTotal = Object.fromEntries(db.map(x => [x.bot_key, x.total]));
@@ -147,7 +162,7 @@ async function main() {
   const tbl = sql(`select sum(p)::int p, sum(pts)::int pts from public.sf_league_table where season_id = ${season}`, { role: 'authenticated', user: ADMIN }) as { p: number; pts: number }[];
   check(tbl[0].p === 90, `the league table has 90 appearances (45 league matches), ${tbl[0].pts} points`);
   exec(`update sf.universes set is_public = true where id = '${universe}'`);
-  check((sql(`select count(*)::int n from public.sf_players`, { role: 'anon' }) as { n: number }[])[0].n === 200, 'once public, anon sees the players');
+  check((sql(`select count(*)::int n from public.sf_players`, { role: 'anon' }) as { n: number }[])[0].n === 150, 'once public, anon sees the players');
   check((sql(`select count(*)::int n from public.sf_my_team`, { role: 'authenticated', user: USER }) as { n: number }[])[0].n === 0, 'a user without an entry has no team');
   exec(`update sf.universes set is_public = false where id = '${universe}'`);
 
@@ -158,7 +173,7 @@ async function main() {
     return rows[0].r;
   };
   const adminD = { rpc: testRpc({ role: 'authenticated', user: ADMIN }), hash: d.hash, solve };
-  const tSeason = await createSeason(adminD, { universe: 't-check', name: 'T', seed: 't-check-1', firstDeadline: new Date(Date.now() + 7 * 86400_000), spacingMinutes: 10080, kickoffAfterMinutes: 180, zone: 'Europe/London' });
+  const tSeason = await createSeason(adminD, { universe: 't-check', name: 'T', seed: 't-check-1', firstDeadline: new Date(Date.now() + 7 * 86400_000), spacingMinutes: 10080, kickoffAfterMinutes: 180, zone: 'Europe/London', rules: R });
   check(tSeason > 0, 'an admin creates a test league');
   check((sql(`select is_test from sf.universes where id = 't-check'`) as { is_test: boolean }[])[0].is_test, 'it is flagged as a test league');
   check(await advance(adminD, 't-check', { force: true, lineup: { optimiser: 1, random: 2 } }) === 'ok', 'the admin plays round 1 at once (bots, early lock, play)');

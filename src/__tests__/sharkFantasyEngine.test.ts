@@ -3,6 +3,7 @@
 // The full calibration (1,000 seasons) is scripts/sf/sim-season.ts.
 import { describe, expect, it } from 'vitest';
 import { generateWorld } from '../sharkfantasy/engine/world';
+import { CLUBS, TYPES, TYPE_BY_NAME } from '../sharkfantasy/engine/catalogue';
 import { playSeason, roundRobin } from '../sharkfantasy/engine/season';
 import { bonusForMatch, fantasyPoints, sharkRating } from '../sharkfantasy/engine/scoring';
 import { calibrate } from '../sharkfantasy/engine/calibrate';
@@ -12,16 +13,28 @@ const world = generateWorld('test-world');
 const season = playSeason(world, 1);
 
 describe('world', () => {
-  it('has 10 clubs of 20 (2 GK, 6 DEF, 7 MID, 5 FWD), unique names and ids', () => {
-    expect(world.clubs).toHaveLength(10);
+  it('has the ten clubs of the Beat the Shark world, 15 players each (2 GK, 5 DEF, 5 MID, 3 FWD), every player a type', () => {
+    expect(world.clubs.map(c => c.name)).toEqual(CLUBS.map(c => c.name));
     for (const c of world.clubs) {
       const sq = world.players.filter(p => p.clubId === c.id);
-      expect(sq).toHaveLength(20);
-      expect(['GK', 'DEF', 'MID', 'FWD'].map(pos => sq.filter(p => p.position === pos).length)).toEqual([2, 6, 7, 5]);
+      expect(sq).toHaveLength(15);
+      expect(['GK', 'DEF', 'MID', 'FWD'].map(pos => sq.filter(p => p.position === pos).length)).toEqual([2, 5, 5, 3]);
+      expect(new Set(sq.map(p => p.name)).size).toBe(15);                       // no type twice at a club
+      for (const p of sq) expect(TYPE_BY_NAME.get(p.name)?.pos).toBe(p.position);
+      for (const sig of CLUBS.find(x => x.id === c.id)!.signature) expect(sq.map(p => p.name)).toContain(sig);
     }
-    expect(new Set(world.players.map(p => p.name)).size).toBe(200);
-    expect(new Set(world.players.map(p => p.id)).size).toBe(200);
-    expect(new Set(world.clubs.map(c => c.name)).size).toBe(10);
+    expect(new Set(world.players.map(p => p.id)).size).toBe(150);
+  });
+  it('star types exist once in the league, at their club', () => {
+    for (const t of TYPES.filter(x => x.unique)) {
+      const at = world.players.filter(p => p.name === t.name);
+      expect(at).toHaveLength(1);
+      expect(CLUBS.find(c => c.id === at[0].clubId)!.signature).toContain(t.name);
+    }
+  });
+  it('the Golden Ball Forward is the best finisher in the league', () => {
+    const gbf = world.players.find(p => p.name === 'Golden Ball Forward')!;
+    expect(Math.max(...world.players.map(p => p.hidden.finishing))).toBe(gbf.hidden.finishing);
   });
 });
 

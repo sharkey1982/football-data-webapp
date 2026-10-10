@@ -20,7 +20,8 @@ import type { SeasonState } from './engine/season';
 import type { World } from './engine/types';
 import { ENGINE_VERSION } from './engine/params';
 import { SCORING_V1, bonusForMatch } from './engine/scoring';
-import { GAME_RULES_V1 } from './fantasy/rules';
+import { GAME_RULES_V2_NOSUB, rulesFor } from './fantasy/rules';
+import type { GameRules } from './fantasy/rules';
 import type { PlayerInfo, Selection } from './fantasy/squad';
 import { roundScore } from './fantasy/squad';
 import { initialPrices, formPriceChange } from './fantasy/market';
@@ -65,6 +66,8 @@ export interface CreateOptions {
   firstDeadline: Date;
   spacingMinutes: number;
   kickoffAfterMinutes: number;
+  /** The game rules version (default: the current one, sf-game-2-nosub: pick 11, all play). */
+  rules?: GameRules;
   /** Keep the same wall-clock time in this zone every week (e.g. 'Europe/London':
    *  12:00 stays 12:00 across the clock change). Only with a whole-week spacing. */
   zone?: string;
@@ -78,7 +81,8 @@ export async function createSeason(d: RunnerDeps, o: CreateOptions): Promise<num
   const xpSeason: Record<string, number> = {};
   for (const p of world.players) xpSeason[p.id] = 0;
   for (const x of proj) if (x.round <= 9) xpSeason[x.player_id] += x.x_points;
-  const prices = initialPrices(world.players.map(p => ({ id: p.id, clubId: p.clubId, position: p.position, xp: xpSeason[p.id] })));
+  const rules = o.rules ?? GAME_RULES_V2_NOSUB;
+  const prices = initialPrices(world.players.map(p => ({ id: p.id, clubId: p.clubId, position: p.position, xp: xpSeason[p.id] })), rules);
   const at = (n: number, extra = 0) => {
     const naive = o.firstDeadline.getTime() + ((n - 1) * o.spacingMinutes + extra) * 60_000;
     if (!o.zone) return new Date(naive).toISOString();
@@ -94,7 +98,7 @@ export async function createSeason(d: RunnerDeps, o: CreateOptions): Promise<num
     managers: world.managers, clubs: world.clubs,
     players: world.players.map(p => ({ id: p.id, clubId: p.clubId, name: p.name, nationality: p.nationality, age: p.age, position: p.position })),
     hidden: world.players.map(p => ({ player_id: p.id, attrs: p.hidden })),
-    season: { number: 1, rules_version: GAME_RULES_V1.version, scoring_version: SCORING_V1.version },
+    season: { number: 1, rules_version: rules.version, scoring_version: SCORING_V1.version },
     rounds: Array.from({ length: 10 }, (_, i) => ({ number: i + 1, kind: i === 9 ? 'finals' : 'league', deadline_at: at(i + 1), kickoff_at: at(i + 1, o.kickoffAfterMinutes) })),
     fixtures,
     scouting: pv.players.map(p => ({ player_id: p.id, ...p.scout })),
@@ -108,7 +112,7 @@ export async function createSeason(d: RunnerDeps, o: CreateOptions): Promise<num
 }
 
 interface RunnerState {
-  season: { id: number; universe_id: string; number: number; state: string };
+  season: { id: number; universe_id: string; number: number; state: string; rules_version: string };
   world: World;
   snapshot: { after_round: number; state: EngineState; hash: string };
   round: { season_id: number; number: number; state: string; deadline_at: string } | null;
@@ -154,7 +158,7 @@ export async function botsMove(d: RunnerDeps, universe: string, lineup: Partial<
   const xp: Record<string, number[]> = {};
   for (const p of players) xp[p.id] = Array(10).fill(0);
   for (const x of projectRounds(publicView(ss), Array.from({ length: 11 - round }, (_, i) => round + i))) xp[x.playerId][x.round - 1] = x.xPoints;
-  const ctx: BotContext = { round, players, info: id => infoMap.get(id)!, price: id => st.prices[id], xp, points: ss.points, solve: d.solve, rules: GAME_RULES_V1 };
+  const ctx: BotContext = { round, players, info: id => infoMap.get(id)!, price: id => st.prices[id], xp, points: ss.points, solve: d.solve, rules: rulesFor(st.season.rules_version) };
   let moved = 0;
   for (const e of st.entries.filter(x => x.is_bot)) {
     const bot = newBot(e.bot_key!, e.bot_kind!, ss.world.seed, players);
@@ -189,7 +193,7 @@ export async function lockRound(d: RunnerDeps, universe: string, force = false) 
 export async function playLockedRound(d: RunnerDeps, universe: string) {
   const { st, ss } = await load(d, universe);
   if (!st.round || st.round.state !== 'locked') { d.log?.(`play: round ${st.round?.number ?? '-'} is ${st.round?.state ?? 'over'}, nothing to play`); return 'noop'; }
-  const round = st.round.number;
+  const round = st.round.number, rules = rulesFor(st.season.rules_version);
   if (ss.roundsPlayed !== round - 1) throw new Error(`engine has played ${ss.roundsPlayed} rounds, the database is on round ${round}`);
   const want = st.fixtures.filter(f => f.round === round).map(f => f.fixture_key).sort();
   const results = playRound(ss);
@@ -200,7 +204,7 @@ export async function playLockedRound(d: RunnerDeps, universe: string) {
   const info = (id: string) => infoMap.get(id)!;
   const pts = (id: string) => ss.points[id][round - 1], mins = (id: string) => ss.minutes[id][round - 1];
   const scores = st.entries.filter(e => e.snapshot).map(e => {
-    const s = roundScore(selectionFromPicks(e.snapshot!.picks), pts, mins, info, GAME_RULES_V1);
+    const s = roundScore(selectionFromPicks(e.snapshot!.picks), pts, mins, info, rules);
     return { entry_id: e.id, points: s.total, captain_used: s.captainUsed, subs: s.subs };
   });
 
@@ -208,7 +212,7 @@ export async function playLockedRound(d: RunnerDeps, universe: string) {
   const prices = [];
   if (round < 10) for (const sp of st.season_players) {
     const now = st.prices[sp.player_id], recent = ss.points[sp.player_id].slice(Math.max(0, round - 3), round);
-    const next = formPriceChange(now, sp.start_price, Number(sp.expected_per_round), recent, info(sp.player_id).position, GAME_RULES_V1);
+    const next = formPriceChange(now, sp.start_price, Number(sp.expected_per_round), recent, info(sp.player_id).position, rules);
     if (next !== now) prices.push({ player_id: sp.player_id, price: next, inputs: { from: now, recent, expected: Number(sp.expected_per_round) } });
   }
   const pv = publicView(ss);

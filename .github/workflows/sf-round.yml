@@ -1,7 +1,7 @@
 name: Shark Fantasy round
 
 # Phase 3 prototype (design §1): manual dispatch, plus the weekly round of the
-# `proto` league on Sundays (deadline 12:00 UK, kick-off 15:00). Drives a universe through
+# `weekly` league on Sundays (deadline 12:00 UK, kick-off 15:00). Drives a universe through
 # scripts/sf/run-round.ts with the service role: create a season, let the bots
 # move, lock at the deadline, play and commit the round. Every step is safe to
 # re-run: a round already locked or final is a no-op, and a result can never be
@@ -34,7 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: sf-round-${{ inputs.universe || 'proto' }}
+  group: sf-round-${{ inputs.universe || 'weekly' }}
   cancel-in-progress: false
 
 jobs:
@@ -56,7 +56,7 @@ jobs:
           npx tsx scripts/sf/run-round.ts "${ARGS[@]}"
         env:
           CMD: ${{ inputs.command || 'advance' }}
-          UNIVERSE: ${{ inputs.universe || 'proto' }}
+          UNIVERSE: ${{ inputs.universe || 'weekly' }}
           FORCE: ${{ inputs.force || false }}
           FIRST_DEADLINE: ${{ inputs.first_deadline || '' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -12,6 +12,7 @@
 import { generateWorld } from '../engine/world';
 import { startSeason, playRound } from '../engine/season';
 import { GAME_RULES_V1 } from './rules';
+import type { GameRules } from './rules';
 import type { PlayerInfo } from './squad';
 import { roundScore, lineupProblems, squadProblems } from './squad';
 import { initialPrices, formPriceChange, closeTransferWindow } from './market';
@@ -30,8 +31,8 @@ export interface LeagueResult {
 
 /** `o.universe` and `o.botPrefix` let a test reproduce a universe run through the database
  *  (scripts/sf/run-round.ts names its bots `${universe}|${kind}-${n}`). */
-export function runLeague(seed: string, lineup: Partial<Record<BotKind, number>>, solve: Solver, o: { universe?: string; botPrefix?: string } = {}): LeagueResult {
-  const rules = GAME_RULES_V1;
+export function runLeague(seed: string, lineup: Partial<Record<BotKind, number>>, solve: Solver, o: { universe?: string; botPrefix?: string; rules?: GameRules } = {}): LeagueResult {
+  const rules = o.rules ?? GAME_RULES_V1;
   const world = generateWorld(seed, o.universe);
   const ss = startSeason(world, 1);
   const infoMap = new Map<string, PlayerInfo>(world.players.map(p => [p.id, { id: p.id, clubId: p.clubId, position: p.position }]));
