@@ -74,4 +74,22 @@ describe('LastManStandingPage', () => {
     await waitFor(() => expect(screen.getByTestId('best-1').querySelector('p.text-lg')?.textContent).not.toMatch(/^Man United/), { timeout: 20000 });
     expect(within(screen.getByTestId('lms-candidates-1')).queryByText('Man United')).toBeNull();
   }, 40000);
+  it('pasted pick counts set the field: entrants, fitted favouritism and the teams the field has used', async () => {
+    renderAt('/admin/last-man-standing?gw=7');
+    await screen.findByTestId('lms-field', {}, { timeout: 20000 });
+    await userEvent.selectOptions(screen.getByTestId('lms-field-gw'), '6');
+    await userEvent.type(screen.getByTestId('lms-field-text'), 'Game Week 1{enter}Arsenal 1802{enter}Chelsea 843{enter}Man Utd 640{enter}Spurs 23{enter}Wolves 3');
+    await userEvent.click(screen.getByRole('button', { name: 'Add round' }));
+    expect(screen.getByTestId('lms-field-msg').textContent).toMatch(/GW6: 3,308 picks on 4 teams\. Not recognised, left out: Wolves/);
+    const rounds = await screen.findByTestId('lms-field-rounds');
+    expect(rounds.textContent).toMatch(/3,308/);
+    expect(rounds.textContent).toMatch(/still to play/);
+    expect(screen.getByTestId('lms-field-fit').textContent).toMatch(/Favouritism fitted to 3,308 picks over 1 round/);
+    expect(screen.getByTestId('lms-field-used').textContent).toMatch(/has used \(expected, results to come\): Arsenal/);
+    // entrants at start now come from the pasted round
+    expect((screen.getByLabelText('Entrants at start') as HTMLInputElement).value).toBe('3308');
+    await screen.findByTestId('best-1', {}, { timeout: 20000 });
+    await userEvent.click(screen.getByRole('button', { name: 'Remove GW6' }));
+    expect(screen.queryByTestId('lms-field-rounds')).toBeNull();
+  }, 40000);
 });

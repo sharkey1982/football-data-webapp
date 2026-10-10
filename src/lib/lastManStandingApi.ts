@@ -9,6 +9,7 @@
 
 import { supabase } from './supabase';
 import { outcomeProbs, type Cell, type Problem } from './lastManStanding';
+import type { FieldRound } from './lmsField';
 
 export const LMS_LEAGUES = {
   E0: { leagueId: 1, label: 'Premier League', game: 'PremSkins' },
@@ -30,6 +31,9 @@ export type LmsFixture = {
   marketAway: number | null;
   dcHome: number | null;
   dcAway: number | null;
+  /** Full-time score once known (matches, else the reported score). */
+  homeGoals?: number | null;
+  awayGoals?: number | null;
 };
 
 export type LmsPrice = { fixtureId: number; home: number; draw: number; away: number; capturedAt: string };
@@ -42,6 +46,7 @@ export async function loadLmsData(league: LmsLeague, seasonId: number): Promise<
     .select(`
       fixture_id, matchweek, status, kickoff_date, kickoff_time, home_team_id, away_team_id,
       market_home_goals, market_away_goals, predicted_home_goals, predicted_away_goals,
+      reported_home_goals, reported_away_goals,
       home_team:teams!fixtures_home_team_id_fkey(display_name),
       away_team:teams!fixtures_away_team_id_fkey(display_name)
     `)
@@ -64,10 +69,29 @@ export async function loadLmsData(league: LmsLeague, seasonId: number): Promise<
     marketAway: r.market_away_goals,
     dcHome: r.predicted_home_goals,
     dcAway: r.predicted_away_goals,
+    homeGoals: r.reported_home_goals ?? null,
+    awayGoals: r.reported_away_goals ?? null,
   }));
 
-  // prices exist only for the next round or two: ask for those fixtures only
-  const next = fixtures.filter((f) => f.status !== 'played').slice(0, 40).map((f) => f.fixtureId);
+  // results, for the field's survivors (matches is keyed by the home/away pair, unique in a league-season)
+  const { data: res, error: re } = await supabase
+    .from('matches')
+    .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals')
+    .eq('league_id', LMS_LEAGUES[league].leagueId)
+    .eq('season_id', seasonId);
+  if (re) throw re;
+  const byPair = new Map((res ?? []).map((m) => [`${m.home_team_id}-${m.away_team_id}`, m]));
+  for (const f of fixtures) {
+    const m = byPair.get(`${f.homeId}-${f.awayId}`);
+    if (m && m.full_time_home_goals != null && m.full_time_away_goals != null) {
+      f.homeGoals = m.full_time_home_goals;
+      f.awayGoals = m.full_time_away_goals;
+    }
+  }
+
+  // prices: the next rounds, plus the last price before kick-off for the season's played games
+  // (the field's past rounds are scored at the chances the field saw)
+  const next = fixtures.map((f) => f.fixtureId);
   const prices = new Map<number, LmsPrice>();
   if (next.length) {
     const { data: px, error: pe } = await supabase
@@ -81,6 +105,38 @@ export async function loadLmsData(league: LmsLeague, seasonId: number): Promise<
     }
   }
   return { fixtures, prices };
+}
+
+/**
+ * One round of the real field: pasted counts by team id → the engine's team
+ * order, with each team's pre-match win chance and result. Win chances are
+ * the last price before kick-off where captured, else the goals model, so a
+ * played round is judged on what the field could see.
+ */
+export function fieldRound(data: LmsData, gw: number, source: ProbSource, teams: { id: number }[], counts: Map<number, number>): FieldRound {
+  const index = new Map(teams.map((t, i) => [t.id, i]));
+  const T = teams.length;
+  const out: FieldRound = { gw, counts: new Array(T).fill(0), p: new Array(T).fill(null), won: new Array(T).fill(null) };
+  for (const [id, n] of counts) { const i = index.get(id); if (i != null) out.counts[i] += n; }
+  const games = data.fixtures.filter((f) => f.matchweek === gw && f.status !== 'postponed')
+    .sort((a, b) => `${a.kickoffDate ?? ''} ${a.kickoffTime ?? ''}`.localeCompare(`${b.kickoffDate ?? ''} ${b.kickoffTime ?? ''}`));
+  for (const f of games) {
+    const hi = index.get(f.homeId), ai = index.get(f.awayId);
+    if (hi == null || ai == null || out.p[hi] != null || out.p[ai] != null) continue;
+    let pH: number | null = null, pA: number | null = null;
+    const price = data.prices.get(f.fixtureId);
+    if (source === 'market' && price && price.home > 0 && price.away > 0) { pH = price.home; pA = price.away; }
+    else {
+      const [gh, ga] = source === 'market' && f.marketHome != null && f.marketAway != null ? [f.marketHome, f.marketAway] : [f.dcHome, f.dcAway];
+      if (gh != null && ga != null) { const [h, , a] = outcomeProbs(gh, ga); pH = h; pA = a; }
+    }
+    out.p[hi] = pH; out.p[ai] = pA;
+    if (f.homeGoals != null && f.awayGoals != null) {
+      out.won[hi] = f.homeGoals > f.awayGoals ? 1 : 0;
+      out.won[ai] = f.awayGoals > f.homeGoals ? 1 : 0;
+    }
+  }
+  return out;
 }
 
 /** Gameweeks that still have an unplayed fixture, in order. */
