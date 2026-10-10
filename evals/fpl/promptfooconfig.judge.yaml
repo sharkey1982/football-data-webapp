@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# FixtureShark FPL eval pilot: qualitative judge (advisory only).
+# Grades the outputs of an earlier run (replayed, not regenerated) for reasoning
+# and usefulness with an LLM rubric. Its scores are reported beside the
+# objective verdict and never change it. Costs API calls: run only on request.
+#   REPLAY_FROM=results/<live run>.json npx promptfoo eval -c promptfooconfig.judge.yaml ...
+description: FixtureShark FPL analysis - qualitative judge (advisory)
+
+prompts:
+  - id: file://prompts/fpl_analyst_v1.mjs
+    label: fpl_analyst_v1
+
+providers:
+  - id: file://providers/replay.mjs
+    label: replay
+
+tests: file://tests/load-judge-tests.mjs
+
+defaultTest:
+  options:
+    provider:
+      id: anthropic:messages:claude-sonnet-5
+      config:
+        temperature: 0
+        max_tokens: 800
+
+evaluateOptions:
+  maxConcurrency: 2
+
+sharing: false

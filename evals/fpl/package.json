@@ -1,0 +1,20 @@
+{
+  "name": "fixtureshark-evals-fpl",
+  "private": true,
+  "description": "Development-only Promptfoo evaluation pilot for FixtureShark FPL analysis. Not part of the site build.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "check:snapshots": "node scripts/check-snapshots.mjs",
+    "cases": "node scripts/show-cases.mjs",
+    "eval:offline": "node scripts/run.mjs offline",
+    "eval:live": "node scripts/run.mjs live",
+    "eval:judge": "node scripts/run.mjs judge",
+    "report": "node scripts/report.mjs"
+  },
+  "devDependencies": {
+    "promptfoo": "0.124.1"
+  }
+}
