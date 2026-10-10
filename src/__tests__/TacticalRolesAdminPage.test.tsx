@@ -48,6 +48,13 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
 
 const mockedApi = adminApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
+vi.mock('../lib/minutesOutlookApi', async () => {
+  const actual = await vi.importActual<typeof import('../lib/minutesOutlookApi')>('../lib/minutesOutlookApi');
+  return { ...actual, getMinutesOutlook: vi.fn() };
+});
+import * as outlookApi from '../lib/minutesOutlookApi';
+const mockedOutlook = outlookApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
+
 function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.TacticalRoleRow {
   return {
     fpl_player_id: 0,
@@ -82,6 +89,7 @@ describe('TacticalRolesAdminPage', () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
     mockedApi.getProjectedStarts.mockResolvedValue(new Map());
+    mockedOutlook.getMinutesOutlook.mockRejectedValue(new Error('not mocked'));
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
     // Same reasoning as above: the worklist panel loads on mount.
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);
@@ -314,6 +322,36 @@ describe('TacticalRolesAdminPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear return date for White' }));
     await waitFor(() => expect(mockedApi.saveManualReturnDate).toHaveBeenCalledWith(1, 6, 2, null));
+  });
+
+  it('squad table shows last-played and projected minutes per gameweek, like Minutes Outlook', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 5, web_name: 'Timber', element_type: 2, tactical_role: 'RB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 10, web_name: 'White', element_type: 2, tactical_role: 'RB', depth_rank: 2, source_name: 'manual', confidence: 1 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-2-3-1');
+    const cell = (minutes: number, start: number) => ({ fixtures: 1, opponents: 'LEE (H)', start, minutes, availability: 1, rule: 'available', fitStart: start, fitMinutes: minutes, firstChoice: false });
+    mockedOutlook.getMinutesOutlook.mockResolvedValue({
+      pastGameweeks: [4, 5], gameweeks: [6, 7], opponents: new Map(), generatedAt: null,
+      players: [
+        { fpl_player_id: 5, web_name: 'Timber', cells: new Map([[6, cell(48, 0.56)], [7, cell(50, 0.58)]]), actual: new Map([[4, { minutes: 45, started: false, available: true }], [5, { minutes: 59, started: true, available: true }]]) },
+        { fpl_player_id: 10, web_name: 'White', cells: new Map([[6, cell(36, 0.43)], [7, cell(34, 0.41)]]), actual: new Map([[4, { minutes: 45, started: true, available: true }], [5, { minutes: 0, started: false, available: true }]]) },
+      ],
+    });
+
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Everyone' }));
+    await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    await waitFor(() => expect(screen.getByText('GW7')).toBeInTheDocument());
+    const timberRow = screen.getAllByText('Timber').map((el) => el.closest('tr')).find(Boolean)!;
+    expect(timberRow.textContent).toContain('59');
+    expect(timberRow.textContent).toContain('48');
+    await user.click(screen.getByRole('button', { name: 'Start %' }));
+    expect(timberRow.textContent).toContain('56');
   });
 
   it('shows the set-piece taking order for the selected team, and lets a taker be reordered, added, and removed', async () => {

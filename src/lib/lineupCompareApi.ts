@@ -109,14 +109,14 @@ export async function clearExternalLineup(event: number, teamId: number): Promis
 
 export type Gameweek = { fpl_event_id: number; deadline_time: string };
 
-/** Gameweeks with the next one first in the default selection. */
+/** Gameweeks, and the default: the first not finished. */
 export async function getGameweeks(): Promise<{ list: Gameweek[]; next: number | null }> {
   const season = await getCurrentFplSeasonId();
-  const { data, error } = await supabase.from('fpl_gameweeks').select('fpl_event_id, deadline_time').eq('season_id', season).order('fpl_event_id');
+  const { data, error } = await supabase.from('fpl_gameweeks').select('fpl_event_id, deadline_time, finished').eq('season_id', season).order('fpl_event_id');
   if (error) throw error;
   const list = (data ?? []).map((g) => ({ fpl_event_id: Number(g.fpl_event_id), deadline_time: String(g.deadline_time) }));
-  const now = Date.now();
-  const next = list.find((g) => new Date(g.deadline_time).getTime() > now)?.fpl_event_id ?? list.at(-1)?.fpl_event_id ?? null;
+  // The gameweek being played or next to be played (the one FFS's line-ups are for), not the next deadline.
+  const next = (data ?? []).find((g) => !g.finished)?.fpl_event_id ?? list.at(-1)?.fpl_event_id ?? null;
   return { list, next };
 }
 
