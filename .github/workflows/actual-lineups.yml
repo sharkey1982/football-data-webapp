@@ -6,10 +6,11 @@ name: Actual line-ups
 on:
   workflow_dispatch:
     inputs:
-      probe:
-        description: Check sources only (no save)
-        type: boolean
-        default: true
+      mode:
+        description: What to run
+        type: choice
+        options: [check, probe]
+        default: check
 
 permissions:
   contents: read
@@ -29,4 +30,5 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: python scripts/actual_lineups.py ${{ inputs.probe && '--probe' || '' }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+        run: python scripts/actual_lineups.py --${{ inputs.mode }}
