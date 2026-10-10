@@ -23,7 +23,7 @@ import { stream } from '../engine/rng';
 import { GAME_RULES_V1 } from './rules';
 import type { GameRules } from './rules';
 import type { Entry, PlayerInfo, Selection } from './squad';
-import { squadProblems, lineupProblems } from './squad';
+import { squadProblems, lineupProblems, hasValidXi } from './squad';
 import { applyTransfers, sellingPrice } from './market';
 
 export type BotKind = 'optimiser' | 'template' | 'setforget' | 'chaser' | 'random';
@@ -93,11 +93,13 @@ export function solveSquad(ctx: BotContext, now: Record<string, number>, later: 
   });
   for (const pos of POS) {
     const idx = ps.map((p, i) => (p.position === pos ? i : -1)).filter(i => i >= 0);
-    cons.push(`sq_${pos}: ${idx.map(i => `+ p${i}`).join(' ')} = ${rules.squad[pos]}`);
+    cons.push(`sqmin_${pos}: ${idx.map(i => `+ p${i}`).join(' ')} >= ${rules.squadMin[pos]}`);
+    cons.push(`sqmax_${pos}: ${idx.map(i => `+ p${i}`).join(' ')} <= ${rules.squadMax[pos]}`);
     cons.push(`xmin_${pos}: ${idx.map(i => `+ s${i}`).join(' ')} >= ${rules.xiMin[pos]}`);
     cons.push(`xmax_${pos}: ${idx.map(i => `+ s${i}`).join(' ')} <= ${rules.xiMax[pos]}`);
   }
   cons.push(`xi: ${ps.map((_, i) => `+ s${i}`).join(' ')} = 11`);
+  cons.push(`size: ${ps.map((_, i) => `+ p${i}`).join(' ')} = ${rules.squadSize}`);
   cons.push(`cap: ${ps.map((_, i) => `+ c${i}`).join(' ')} = 1`);
   cons.push(`budget: ${ps.map((p, i) => `+ ${cost(p.id)} p${i}`).join(' ')} <= ${money}`);
   for (const club of new Set(ps.map(p => p.clubId))) cons.push(`club_${club.replace(/\W/g, '_')}: ${ps.map((p, i) => (p.clubId === club ? `+ p${i}` : '')).filter(Boolean).join(' ')} <= ${rules.maxPerClub}`);
@@ -147,20 +149,30 @@ export function bestXI(squad: string[], score: (id: string) => number, info: (id
 function greedySquad(ctx: BotContext, order: string[], keep: string[] = [], money: number = (ctx.rules ?? GAME_RULES_V1).budget): string[] | null {
   const rules = ctx.rules ?? GAME_RULES_V1;
   const squad = keep.slice();
-  const need = (pos: Position) => rules.squad[pos] - squad.filter(id => ctx.info(id).position === pos).length;
+  const count = (pos: Position) => squad.filter(id => ctx.info(id).position === pos).length;
+  const need = (pos: Position) => Math.max(0, rules.squadMin[pos] - count(pos));
   const club = (c: string) => squad.filter(id => ctx.info(id).clubId === c).length;
   const cheapest: Record<Position, number[]> = { GK: [], DEF: [], MID: [], FWD: [] };
   for (const p of ctx.players) cheapest[p.position].push(ctx.price(p.id));
   for (const pos of POS) cheapest[pos].sort((a, b) => a - b);
-  const reserve = (except: Position) => POS.reduce((s, pos) => s + cheapest[pos].slice(0, Math.max(0, need(pos) - (pos === except ? 1 : 0))).reduce((a, b) => a + b, 0), 0);
+  const cheapestAny = Math.min(...POS.map(pos => cheapest[pos][0]));
+  // money to keep back after adding a player of position `pos`: the cheapest fill of every remaining place
+  const reserve = (pos: Position) => {
+    const needs = POS.reduce((s2, x) => s2 + Math.max(0, need(x) - (x === pos ? 1 : 0)), 0);
+    const free = rules.squadSize - squad.length - 1 - needs;
+    return POS.reduce((s2, x) => s2 + cheapest[x].slice(0, Math.max(0, need(x) - (x === pos ? 1 : 0))).reduce((a, b) => a + b, 0), 0) + Math.max(0, free) * cheapestAny;
+  };
   let spent = squad.reduce((a, id) => a + ctx.price(id), 0);
   for (const id of order) {
+    if (squad.length >= rules.squadSize) break;
     const p = ctx.info(id);
-    if (squad.includes(id) || need(p.position) <= 0 || club(p.clubId) >= rules.maxPerClub) continue;
+    if (squad.includes(id) || count(p.position) >= rules.squadMax[p.position] || club(p.clubId) >= rules.maxPerClub) continue;
+    const needsElsewhere = POS.reduce((s2, x) => s2 + (x === p.position ? 0 : need(x)), 0);
+    if (need(p.position) === 0 && rules.squadSize - squad.length - 1 < needsElsewhere) continue;
     if (spent + ctx.price(id) + reserve(p.position) > money) continue;
     squad.push(id); spent += ctx.price(id);
   }
-  return squad.length === 15 ? squad : null;
+  return squad.length === rules.squadSize && hasValidXi(squad.map(id => ctx.info(id).position), rules) ? squad : null;
 }
 
 function randomSquad(ctx: BotContext, rng: Rng): string[] {
@@ -181,7 +193,7 @@ function randomSelection(squad: string[], ctx: BotContext, rng: Rng): Selection 
       if (f >= rules.xiMin.FWD && f <= rules.xiMax.FWD) shapes.push({ GK: 1, DEF: d, MID: m, FWD: f });
     }
     const shape = rng.pick(shapes);
-    if (POS.some(pos => shape[pos] > rules.squad[pos])) continue;
+    if (POS.some(pos => shape[pos] > squad.filter(id => ctx.info(id).position === pos).length)) continue;
     const xi: string[] = [];
     for (const pos of POS) xi.push(...rng.shuffle(squad.filter(id => ctx.info(id).position === pos)).slice(0, shape[pos]));
     const captain = rng.pick(xi);

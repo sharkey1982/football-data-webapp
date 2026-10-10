@@ -25,7 +25,7 @@ const flat = (n: number) => () => n;
 function makeSquad(): string[] {
   const out: string[] = [];
   let c = 0;
-  for (const pos of ['GK', 'DEF', 'MID', 'FWD'] as Position[]) for (let k = 0; k < R.squad[pos]; k++) {
+  for (const pos of ['GK', 'DEF', 'MID', 'FWD'] as Position[]) for (let k = 0; k < R.squadMin[pos]; k++) {
     const club = world.clubs[c++ % 10].id;
     out.push(world.players.find(p => p.clubId === club && p.position === pos && !out.includes(p.id))!.id);
   }
@@ -165,7 +165,7 @@ describe('the public view and the projection', () => {
   });
   it('projects every player for the next round, sensibly', () => {
     const rows = projectRounds(pv, [4]);
-    expect(rows).toHaveLength(200);
+    expect(rows).toHaveLength(150);
     for (const x of rows) { expect(x.xPoints).toBeGreaterThanOrEqual(-1); expect(x.xPoints).toBeLessThan(10); expect(x.pStart).toBeLessThanOrEqual(1); }
     const unavailable = pv.players.filter(p => p.availableFrom > 4).map(p => p.id);
     for (const id of unavailable) expect(rows.find(x => x.playerId === id)!.xPoints).toBe(0);
@@ -224,5 +224,35 @@ describe('weekly deadlines in UK time', () => {
       { universe: 'u', name: 'U', seed: 'tz', firstDeadline: new Date('2026-10-18T11:00:00Z'), spacingMinutes: 10080, kickoffAfterMinutes: 180, zone: 'Europe/London' });
     expect(p.rounds.slice(0, 3).map(r => r.deadline_at)).toEqual(['2026-10-18T11:00:00.000Z', '2026-10-25T12:00:00.000Z', '2026-11-01T12:00:00.000Z']);
     expect(p.rounds[1].kickoff_at).toBe('2026-10-25T15:00:00.000Z');
+  });
+});
+
+describe('rules v2 (the Beat the Shark world)', () => {
+  it('XI plus one sub: 12 players, positions within limits, any position on the bench, a valid XI possible', async () => {
+    const { GAME_RULES_V2: R2, GAME_RULES_V2_NOSUB: RN } = await import('../sharkfantasy/fantasy/rules');
+    const { hasValidXi } = await import('../sharkfantasy/fantasy/squad');
+    const xi = [byPos('GK')[0], ...byPos('DEF').slice(0, 4), ...byPos('MID').slice(0, 4), ...byPos('FWD').slice(0, 2)];
+    const twelve = [...xi, byPos('MID')[4]];
+    const p12 = twelve.map(id => ({ playerId: id, purchasePrice: 60 }));
+    expect(squadProblems(p12, info, flat(60), R2)).toEqual([]);
+    const sel12: Selection = { xi, bench: [byPos('MID')[4]], captain: xi[10], vice: xi[9] };
+    expect(lineupProblems(sel12, p12, info, R2)).toEqual([]);          // no reserve keeper needed
+    expect(squadProblems(p12.slice(0, 11), info, flat(60), R2).join()).toMatch(/11 players, not 12/);
+    // eleven, all play: the same XI is a whole squad
+    const p11 = xi.map(id => ({ playerId: id, purchasePrice: 60 }));
+    expect(squadProblems(p11, info, flat(60), RN)).toEqual([]);
+    expect(lineupProblems({ ...sel12, bench: [] }, p11, info, RN)).toEqual([]);
+    // two keepers and nine outfielders that can't make a formation
+    expect(hasValidXi(['GK', 'GK', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD'], R2)).toBe(false);
+    expect(hasValidXi(['GK', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'MID', 'MID', 'FWD', 'FWD', 'FWD'], R2)).toBe(true);
+    // budget
+    expect(squadProblems(p12, info, flat(80), R2).join()).toMatch(/budget/);   // 12 × 8.0 = 96.0 > 90.0
+  });
+  it('prices on one points scale: a better projection costs more, whatever the position', async () => {
+    const { GAME_RULES_V2: R2 } = await import('../sharkfantasy/fantasy/rules');
+    const pr = initialPrices([{ id: 'a', clubId: 'x', position: 'DEF', xp: 27 }, { id: 'b', clubId: 'x', position: 'FWD', xp: 27 }, { id: 'c', clubId: 'x', position: 'FWD', xp: 45 }, { id: 'd', clubId: 'x', position: 'GK', xp: 45 }], R2);
+    expect(pr.a).toBe(pr.b);              // 3 points a round costs the same at the back and up front
+    expect(pr.c).toBeGreaterThan(pr.b);
+    expect(pr.d).toBe(65);                // within the keepers' band
   });
 });

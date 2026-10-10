@@ -41,8 +41,8 @@ beforeAll(async () => {
 });
 
 /** The cheapest legal squad: by price, at most 2 a club. */
-function cheapSquad(): string[] {
-  const need: Record<string, number> = { GK: 2, DEF: 5, MID: 5, FWD: 3 }, club: Record<string, number> = {};
+function cheapSquad(counts: Record<string, number> = { GK: 2, DEF: 5, MID: 5, FWD: 3 }): string[] {
+  const need: Record<string, number> = { ...counts }, club: Record<string, number> = {};
   const out: string[] = [];
   for (const p of players.slice().sort((a, b) => a.price - b.price || a.player_id.localeCompare(b.player_id)))
     if (need[p.position] > 0 && (club[p.club_id] ?? 0) < 2) { out.push(p.player_id); need[p.position]--; club[p.club_id] = (club[p.club_id] ?? 0) + 1; }
@@ -160,27 +160,30 @@ describe('SharkFantasyPage', () => {
     await waitFor(() => expect(joinSeason).toHaveBeenCalledWith(1, 'Shark Attack', 'chris'));
   });
 
-  it('builds a squad from the list, then saves 15 players in slots with a captain and vice', async () => {
+  it('builds a squad from the list (rules v2: XI plus a sub), then saves 12 players in slots with a captain and vice', async () => {
+    season.rules_version = 'sf-game-2';
     mine = { entry_id: 5, team_name: 'Shark Attack', bank: 0, free_transfers: 1, wildcards_left: 1, transfers_this_round: 0, wildcard_this_round: false, picks: [] };
     renderAt('/shark-fantasy');
     await screen.findByTestId('sf-editor');
-    const ids = cheapSquad();
+    expect(screen.getByText('Add 12 players from the list below.')).toBeInTheDocument();
+    const ids = cheapSquad({ GK: 1, DEF: 4, MID: 5, FWD: 2 });
     const table = screen.getByTestId('sf-market-table');
     for (const id of ids) {
       const p = players.find((x) => x.player_id === id)!;
-      await userEvent.click(within(table).getByRole('button', { name: `Add ${p.name}` }));
+      await userEvent.click(within(table).getByRole('button', { name: `Add ${p.name} (${p.club})` }));
     }
     expect(screen.getByTestId('sf-save')).toBeDisabled();       // no captain yet
     expect(screen.getByTestId('sf-problems').textContent).toMatch(/captain/);
+    expect(screen.getByRole('heading', { name: 'Sub' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Best XI by projection' }));
     await waitFor(() => expect(screen.queryByTestId('sf-problems')).toBeNull());
     await userEvent.click(screen.getByTestId('sf-save'));
     await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(1));
     const [, payload] = saveTeam.mock.calls[0] as unknown as [number, { picks: { player_id: string; slot: number }[]; captain: string; vice: string }];
-    expect(payload.picks).toHaveLength(15);
+    expect(payload.picks.map((p) => p.slot).sort((a, b) => a - b)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1));
     expect(new Set(payload.picks.map((p) => p.player_id))).toEqual(new Set(ids));
-    expect(payload.picks.find((p) => p.slot === 12) && info(payload.picks.find((p) => p.slot === 12)!.player_id).position).toBe('GK');
     expect(payload.captain).not.toBe(payload.vice);
+    season.rules_version = undefined;
   }, 30000);
 
   it('shows the fixtures and the leaderboard', async () => {

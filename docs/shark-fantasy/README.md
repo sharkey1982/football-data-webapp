@@ -134,3 +134,24 @@ runs the same runner as the weekly job; the database calls go through
 flagged `is_test` (ids start `t-`), and never for a public one (a check
 constraint stops a test league being made public). The weekly `proto` league
 is not a test league, so it stays with the Sunday job.
+
+## World v2 and rules v2 (the Beat the Shark world)
+
+Design: project doc `claude/shark-fantasy-design-update-world-2026-10-10.md`.
+
+- **World** (`engine/catalogue.ts`, `engine/world.ts`): the same ten type-named
+  clubs in every universe (Constant Winners United … Survival Specialists FC),
+  15 players a club, every player a type at a club ("Fox in the Box", Yo-Yo
+  Rovers) with a one-line character. Star types exist once, at their club.
+  Calibration still passes; the strongest club wins 37% of titles.
+- **Rules** (`fantasy/rules.ts`, migration `20261011090000_shark_fantasy_rules_v2`):
+  `sf-game-2-nosub` (pick 11, all play, budget 86.0) is the default for new
+  seasons. `sf-game-2` (XI + one sub, 90.0) exists for comparison. Prices on one
+  points scale across positions.
+- **Bot test, 100 seasons each:** no subs: skill beats luck in 100% of seasons,
+  set-and-forget median top 54% (`bots.md`); one sub: 99%, top 58%
+  (`bots-one-sub.md`). No subs chosen.
+- The projection now follows the engine's scorer model (finishing quality and
+  penalties to the best finisher), so the stars project as they play.
+- `scripts/sf/db-check.ts --rules <version>`: the database mirror is checked for
+  both v2 versions (every bot scores the same through the database as in memory).

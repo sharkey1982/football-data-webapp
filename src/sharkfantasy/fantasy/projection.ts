@@ -16,6 +16,8 @@ import type { Position } from '../engine/types';
 import { SCORING_V1 } from '../engine/scoring';
 import type { PublicPlayer, PublicView } from './publicview';
 
+/** Penalty goals a team scores a match (engine: penaltyRate 0.13 × conversion 0.78). */
+const PENALTY_GOALS = 0.13 * 0.78;
 const XI_SHAPE: Record<Position, number> = { GK: 1, DEF: 4, MID: 4, FWD: 2 };
 const SHOT_W: Record<Position, number> = { GK: 0, DEF: 1, MID: 2.25, FWD: 2.4 };
 const AST_W: Record<Position, number> = { GK: 0.05, DEF: 1, MID: 2.6, FWD: 1.5 };
@@ -36,9 +38,9 @@ export const PROJECTION_PARAMS = {
   playerPriorMinutes: 4000,
   /** Starts' weight on the depth chart. */
   startPriorRounds: 1.5,
-  pStartXi: 0.85, pStartOther: 0.15, pSub: 0.6,
+  pStartXi: 0.95, pStartOther: 0.25, pSub: 0.6,   // world v2: 15-man club squads, starters play more
   /** Shark Rating bonus a starter collects on average beyond goals, assists and clean sheets. */
-  bonusBase: 0.2,
+  bonusBase: 0.5,
 };
 
 export interface Projection {
@@ -98,7 +100,11 @@ export function projectRounds(pv: PublicView, rounds: number[], P = PROJECTION_P
       for (const [club, opp, home] of [[f.homeId, f.awayId, true], [f.awayId, f.homeId, false]] as [string, string, boolean][]) {
         const forG = home ? lam.home : lam.away, against = home ? lam.away : lam.home;
         const xi = xiOf(club, round);
-        const shotTot = xi.reduce((s, p) => s + SHOT_W[p.position] * p.scout.attack / 60, 0);
+        // the engine's scorer model: shot share by position × finishing, times finishing quality;
+        // penalties to the best finisher on the pitch
+        const shotW = (p: PublicPlayer) => SHOT_W[p.position] * p.scout.attack / 60 * (0.75 + 0.25 * p.scout.attack / 60);
+        const shotTot = xi.reduce((s, p) => s + shotW(p), 0);
+        const taker = xi.filter((p) => p.position !== 'GK').reduce((a, b) => (b.scout.attack > a.scout.attack ? b : a));
         const astTot = xi.reduce((s, p) => s + AST_W[p.position] * (p.scout.creativity / 60) ** 2, 0);
         const clubRounds = new Set(pv.results.filter(r => r.homeId === club || r.awayId === club).map(r => r.round)).size;
         for (const p of byClub.get(club)!) {
@@ -110,10 +116,11 @@ export function projectRounds(pv: PublicView, rounds: number[], P = PROJECTION_P
           const pSub = available ? (1 - pStart) * P.pSub : 0;
           const xMinutes = pStart * 82 + pSub * 22;
           const mins = p.history.reduce((s, h) => s + h.minutes, 0), w = mins / (mins + P.playerPriorMinutes);
-          const priorG = (SHOT_W[p.position] * p.scout.attack / 60) / Math.max(0.01, shotTot) * 1.465;   // team goals share at average strength, per 90
+          const openG = Math.max(0.05, forG - PENALTY_GOALS - 0.04);       // open-play team goals this match
+          const priorG = shotW(p) / Math.max(0.01, shotTot) * openG + (p === taker ? PENALTY_GOALS : 0);   // per 90
           const priorA = (AST_W[p.position] * (p.scout.creativity / 60) ** 2) / Math.max(0.01, astTot) * 1.465 * 0.8;
           const obsG = mins ? p.history.reduce((s, h) => s + h.goals, 0) / mins * 90 : 0, obsA = mins ? p.history.reduce((s, h) => s + h.assists, 0) / mins * 90 : 0;
-          const g90 = ((1 - w) * priorG + w * obsG) * forG / 1.465, a90 = ((1 - w) * priorA + w * obsA) * forG / 1.465;
+          const g90 = (1 - w) * priorG + w * obsG * forG / 1.465, a90 = ((1 - w) * priorA + w * obsA) * forG / 1.465;
           const xGoals = g90 * xMinutes / 90, xAssists = a90 * xMinutes / 90;
           const p60 = pStart * 0.85, pCS = Math.exp(-against);
           const sc = SCORING_V1, pos = p.position, back = pos === 'GK' || pos === 'DEF';

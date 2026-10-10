@@ -13,9 +13,22 @@ import type { GameRules } from './rules';
 import type { Entry, PlayerInfo } from './squad';
 import { squadProblems } from './squad';
 
-/** Initial prices: each position's projections mapped onto its band by rank. */
+/** The points price scale (rules priceScale 'points'): price = base + perPoint × (xP a round − zero), tenths. */
+export const POINTS_PRICE = { base: 40, perPoint: 20, zero: 1.5 };
+
+/** Initial prices: each position's projections mapped onto its band by rank (v1),
+ *  or one points scale across positions (v2). */
 export function initialPrices(players: (PlayerInfo & { xp: number })[], rules: GameRules = GAME_RULES_V1): Record<string, number> {
   const out: Record<string, number> = {};
+  if (rules.priceScale === 'points') {
+    // one scale for every position: 0.1 a round of expected points is worth POINTS_PRICE tenths,
+    // within each position's band (xp here is the season's expected points over 9 rounds)
+    for (const p of players) {
+      const [lo, hi] = rules.priceBand[p.position];
+      out[p.id] = Math.max(lo, Math.min(hi, Math.round(POINTS_PRICE.base + POINTS_PRICE.perPoint * (p.xp / 9 - POINTS_PRICE.zero))));
+    }
+    return out;
+  }
   for (const pos of ['GK', 'DEF', 'MID', 'FWD'] as Position[]) {
     const group = players.filter(p => p.position === pos).sort((a, b) => a.xp - b.xp);
     const [lo, hi] = rules.priceBand[pos];

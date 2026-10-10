@@ -72,9 +72,8 @@ export const MATCH = {
 
 export const WORLD = {
   clubs: 10,
-  squad: { GK: 2, DEF: 6, MID: 7, FWD: 5 } as Record<string, number>,
-  /** Club quality offsets (shuffled): the spread decides competitive balance. */
-  clubOffsets: [7, 5, 3.5, 2, 0.5, -0.5, -2, -3.5, -5, -7],
+  /** World v2: 15 a club (catalogue.ts SLOTS); club quality offsets are in catalogue.ts CLUBS. */
+  squad: { GK: 2, DEF: 5, MID: 5, FWD: 3 } as Record<string, number>,
   /** Within a squad, how much better the first-choice players are. */
   depthDrop: 7,
 } as const;
