@@ -16,7 +16,8 @@ import { useAuthOptional } from '../../lib/auth';
 import { getCurrentSeasonId } from '../../lib/currentSeason';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { lineForPot, runEntries, type Candidate, type EntriesInput, type EntriesOutput, type Problem } from '../../lib/lastManStanding';
-import { buildProblem, loadLmsData, LMS_LEAGUES, openRounds, type LmsData, type LmsLeague, type ProbSource } from '../../lib/lastManStandingApi';
+import { buildProblem, fieldRound, loadLmsData, LMS_LEAGUES, openRounds, type LmsData, type LmsLeague, type ProbSource } from '../../lib/lastManStandingApi';
+import { decodeCounts, encodeCounts, fieldState, fitBeta, parsePickCounts, type BetaFit, type FieldRound, type FieldState } from '../../lib/lmsField';
 
 const pct = (v: number, dp = 0) => `${(v * 100).toFixed(dp)}%`;
 const int = (v: string | null, d: number) => {
@@ -67,15 +68,10 @@ export default function LastManStandingPage() {
   const league = (params.get('lg') === 'E1' ? 'E1' : 'E0') as LmsLeague;
   const source = (params.get('src') === 'dc' ? 'dc' : 'market') as ProbSource;
   const nEntries = Math.min(3, Math.max(1, int(params.get('entries'), 1)));
-  const entrantsStart = int(params.get('n0'), 4000);
-  const entrantsLeft = int(params.get('n'), entrantsStart);
   const potRaw = params.get('pot');
-  const fee = int(params.get('fee'), 0) || null;
+  // SportSkins entries are always £10 (Chris, 10 Oct 2026)
+  const fee = params.get('fee') === '0' ? null : int(params.get('fee'), 10) || null;
   const rake = int(params.get('rake'), 15) / 100;
-  // SportSkins keeps a cut (15%, Chris 6 Oct): with a fee and no pot given, the pot is what's left of the entries
-  const pot = potRaw ? int(potRaw, 0) || null : fee ? Math.round(entrantsStart * fee * (1 - rake)) : null;
-  // 7.4 fitted to PremSkins 1 GW1 pick counts (6,704 entries, Chris 6 Oct 2026)
-  const beta = int(params.get('beta'), 7);
   const sideShare = int(params.get('side'), 20) / 100;
   const usedIds = [1, 2, 3].map((e) => (params.get(`e${e}`) ?? '').split(',').filter(Boolean).map(Number));
 
@@ -109,6 +105,39 @@ export default function LastManStandingPage() {
   const gw = int(params.get('gw'), rounds[0] ?? 0);
   const problem: Problem | null = useMemo(() => (data && gw ? buildProblem(data, gw, source) : null), [data, gw, source]);
 
+  // the real field: pick counts pasted from each round's email, one URL parameter per gameweek (f6=1:1802,20:843,...)
+  const fieldKey = [...params.entries()].filter(([k]) => /^f\d+$/.test(k)).map(([k, v]) => `${k}=${v}`).sort().join('&');
+  const field = useMemo(() => {
+    if (!data || !problem) return null;
+    const T = problem.teams.length;
+    const all: FieldRound[] = [...params.entries()]
+      .filter(([k]) => /^f\d+$/.test(k))
+      .map(([k, v]) => fieldRound(data, Number(k.slice(1)), source, problem.teams, decodeCounts(v)))
+      .filter((r) => r.counts.some((n) => n > 0))
+      .sort((a, b) => a.gw - b.gw);
+    if (all.length === 0) return null;
+    const before = all.filter((r) => r.gw < gw);
+    const current = all.find((r) => r.gw === gw) ?? null;
+    return { all, before, current, state: fieldState(all, T), stateBefore: fieldState(before, T), fit: fitBeta(all, T) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, problem, fieldKey, gw, source]);
+
+  const entrantsStart = int(params.get('n0'), field?.state.entrants0 || 4000);
+  const fieldLeft = field ? (field.before.length ? Math.round(field.stateBefore.left) : field.current ? field.current.counts.reduce((a, b) => a + b, 0) : null) : null;
+  const entrantsLeft = int(params.get('n'), fieldLeft ?? entrantsStart);
+  // SportSkins keeps a cut (15%, Chris 6 Oct): with a fee and no pot given, the pot is what's left of the entries
+  const pot = potRaw ? int(potRaw, 0) || null : fee ? Math.round(entrantsStart * fee * (1 - rake)) : null;
+  // fitted to the pasted rounds; with none, 7 (PremSkins 1 GW1 fitted 7.4: 6,704 entries, Chris 6 Oct 2026)
+  const betaFitted = field?.fit ? Math.round(field.fit.beta * 10) / 10 : null;
+  const beta = int(params.get('beta'), betaFitted ?? 7);
+  const usedShare0 = field && field.before.length ? field.stateBefore.usedShare : undefined;
+  const pickShares0 = useMemo(() => {
+    if (!field?.current || !problem) return undefined;
+    const c = field.current.counts.map((n, j) => (problem.cells[0]?.[j] ? n : 0));
+    const tot = c.reduce((a, b) => a + b, 0);
+    return tot > 0 ? c.map((n) => n / tot) : undefined;
+  }, [field, problem]);
+
   const masks = useMemo(() => {
     if (!problem) return [];
     const idx = new Map(problem.teams.map((t, i) => [t.id, i]));
@@ -128,13 +157,15 @@ export default function LastManStandingPage() {
       usedMasks: masks,
       field: { opponents, beta, sims: 2000, seed: 7 },
       prize: { sideShare, line, linePassed: entrantsLeft <= line },
+      usedShare0,
+      pickShares0,
     })
       .then((o) => { if (live) setOut(o); })
       .catch((e) => { if (live) setRunError(e instanceof Error ? e.message : String(e)); })
       .finally(() => { if (live) setRunning(false); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [problem, masks.join(','), opponents, beta, sideShare, line, entrantsLeft]);
+  }, [problem, masks.join(','), opponents, beta, sideShare, line, entrantsLeft, usedShare0?.join(','), pickShares0?.join(',')]);
 
   if (auth && !auth.loading && !isAdmin) {
     return <div className="max-w-3xl mx-auto px-4 py-8"><p className="text-sm text-ink-700">This page is for admins.</p></div>;
@@ -230,10 +261,113 @@ export default function LastManStandingPage() {
         </section>
       )}
 
+      {problem && data && (
+        <FieldSection
+          problem={problem}
+          rounds={[...new Set([...data.fixtures.map((f) => f.matchweek).filter((r) => r != null && r <= gw)])].sort((a, b) => b - a)}
+          gw={gw}
+          field={field}
+          fit={field?.fit ?? null}
+          betaUsed={beta}
+          betaManual={params.get('beta') != null}
+          onAdd={(round, counts) => set({ [`f${round}`]: encodeCounts(counts), n: null, n0: null, beta: null })}
+          onRemove={(round) => set({ [`f${round}`]: null, n: null, n0: null, beta: null })}
+        />
+      )}
+
       {runError && <p className="text-sm text-loss-600">The optimiser failed: {runError}</p>}
       {running && !out && <p className="text-sm text-ink-500">Working out the best picks…</p>}
       {problem && out && <Results problem={problem} out={out} running={running} nEntries={nEntries} entrantsLeft={entrantsLeft} line={line} pot={pot} sideShare={sideShare} fee={fee} rake={rake} />}
     </div>
+  );
+}
+
+function FieldSection({ problem, rounds, gw, field, fit, betaUsed, betaManual, onAdd, onRemove }: {
+  problem: Problem;
+  rounds: number[];
+  gw: number;
+  field: { all: FieldRound[]; before: FieldRound[]; current: FieldRound | null; state: FieldState; stateBefore: FieldState } | null;
+  fit: BetaFit | null;
+  betaUsed: number;
+  betaManual: boolean;
+  onAdd: (round: number, counts: Map<number, number>) => void;
+  onRemove: (round: number) => void;
+}) {
+  const [round, setRound] = useState<number>(gw);
+  const [text, setText] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { setRound(gw); }, [gw]);
+  const name = (j: number) => problem.teams[j].name;
+  const n = (v: number) => Math.round(v).toLocaleString('en-GB');
+
+  const add = () => {
+    const parsed = parsePickCounts(text, problem.teams);
+    if (parsed.counts.size === 0) {
+      setMsg(parsed.unknown.length ? `No team recognised (${parsed.unknown.join(', ')}).` : 'No "Team 123" lines found.');
+      return;
+    }
+    onAdd(round, parsed.counts);
+    const total = [...parsed.counts.values()].reduce((a, b) => a + b, 0);
+    setMsg(`GW${round}: ${total.toLocaleString('en-GB')} picks on ${parsed.counts.size} teams.` + (parsed.unknown.length ? ` Not recognised, left out: ${parsed.unknown.join(', ')}.` : ''));
+    setText('');
+  };
+
+  // the field still in, before the round being picked: who it has used
+  const usedNow = field && field.before.length
+    ? field.stateBefore.usedShare.map((u, j) => ({ j, u })).filter((x) => x.u >= 0.005).sort((a, b) => b.u - a.u)
+    : [];
+
+  return (
+    <section className="space-y-3 text-sm" aria-label="The field" data-testid="lms-field">
+      <h2 className="text-lg font-semibold text-ink-900">The field</h2>
+      <p className="text-ink-700">Paste each round's pick counts from the SportSkins email. They set the entrants, the field's favouritism, which teams the surviving field has used, and (for the round being picked) the real pick shares.</p>
+      <div className="grid gap-2 sm:grid-cols-[8rem_1fr_auto] items-start">
+        <label className="space-y-1"><span className="block text-ink-500">Premier League GW</span>
+          <select className="w-full border border-chalk-300 rounded px-2 py-1 bg-white" value={round} onChange={(e) => setRound(Number(e.target.value))} data-testid="lms-field-gw">
+            {rounds.map((r) => <option key={r} value={r}>GW{r}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1 min-w-0"><span className="block text-ink-500">Pick counts</span>
+          <textarea rows={4} className="w-full border border-chalk-300 rounded px-2 py-1 font-mono text-xs" placeholder={'Arsenal 1802\nChelsea 843\nMan Utd 640'} value={text} onChange={(e) => setText(e.target.value)} data-testid="lms-field-text" />
+        </label>
+        <button type="button" className="sm:mt-6 px-3 py-1.5 rounded bg-pitch-700 text-chalk-100" onClick={add}>Add round</button>
+      </div>
+      {msg && <p className="text-ink-700" data-testid="lms-field-msg">{msg}</p>}
+
+      {field && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full max-w-2xl" data-testid="lms-field-rounds">
+              <thead><tr className="text-left text-ink-500"><th className="py-1 pr-3">GW</th><th className="text-right">Entries</th><th className="text-right">Survived</th><th className="pl-3">Most picked</th><th /></tr></thead>
+              <tbody>
+                {field.state.rounds.map((r) => (
+                  <tr key={r.gw} className="border-t border-chalk-200">
+                    <td className="py-1 pr-3">{r.gw}</td>
+                    <td className="text-right">{n(r.entries)}</td>
+                    <td className="text-right">{r.pending ? `~${n(r.survived)}` : n(r.survived)}{r.pending && <span className="block text-xs text-ink-500">{n(r.stillToPlay)} still to play</span>}</td>
+                    <td className="pl-3">{r.top.map((t) => `${name(t.team)} ${Math.round((t.n / r.entries) * 100)}%`).join(', ')}</td>
+                    <td className="text-right"><button type="button" className="text-xs text-loss-600 underline" onClick={() => onRemove(r.gw)} aria-label={`Remove GW${r.gw}`}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {fit && (
+            <p className="text-ink-700" data-testid="lms-field-fit">
+              Favouritism fitted to {fit.picks.toLocaleString('en-GB')} picks over {fit.rounds} round{fit.rounds > 1 ? 's' : ''}: {fit.beta.toFixed(1)}
+              {betaManual ? ` (you've set ${betaUsed} in Advanced)` : ' (used below)'}. PremSkins 1's first round fitted 7.4.
+            </p>
+          )}
+          {field.current && <p className="text-ink-700">GW{gw}'s real pick shares replace the model's for this round's field leverage.</p>}
+          {usedNow.length > 0 && (
+            <p className="text-ink-700" data-testid="lms-field-used">
+              The field still in before GW{gw} has used{field.stateBefore.pending ? ' (expected, results to come)' : ''}: {usedNow.slice(0, 8).map((x) => `${name(x.j)} ${Math.round(x.u * 100)}%`).join(', ')}.
+              It can't pick those again, so they matter less to it later and the teams it has saved are where it will crowd.
+            </p>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -339,7 +473,8 @@ function Results({ problem, out, running, nEntries, entrantsLeft, line, pot, sid
         </table>
         <p className="text-ink-500">
           Win chances: de-vigged average odds where posted, otherwise market-rating expected goals (Model Lab F4/P5) through a Poisson grid; Dixon-Coles if chosen.
-          The field picks unused teams in proportion to exp(favouritism × win chance), simulated 2,000 times; favouritism 7 fits PremSkins 1's GW1 picks (39% Arsenal, 22% Man United).
+          The field picks unused teams in proportion to exp(favouritism × win chance), simulated 2,000 times. Favouritism is fitted to the pasted pick counts (7 without any; PremSkins 1's GW1 fitted 7.4).
+          Pasted rounds also set which teams the surviving field has used, assuming a survivor's earlier picks don't depend on whether they survive later (the emails give counts, not each entrant's history); a round still being played counts each team's pickers at its win chance.
           "With field" also counts this round's leverage: a win that knocks out more of the field leaves a bigger share for you (share ∝ 1 ÷ field left; only this round's results are joint).
           Prize: {pct(sideShare)} of the pot is split between those left when the field first reaches {line}; the other {pct(1 - sideShare)} goes to the last one standing; all out together splits. Solved exactly in {out.ms.toLocaleString('en-GB')} ms.
         </p>

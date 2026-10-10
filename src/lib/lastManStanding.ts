@@ -505,7 +505,10 @@ export type RunInput = {
   usedMask: number;
   field: FieldSettings;
   prize: Prize;
+  /** Real pick shares for the round being picked (from the field's pasted counts), replacing the model's. */
   pickShares0?: number[];
+  /** Share of the surviving field that has already used each team (from pasted counts); default none. */
+  usedShare0?: number[];
 };
 
 export type RunOutput = {
@@ -519,8 +522,8 @@ export type RunOutput = {
 export function run(input: RunInput): RunOutput {
   const t0 = Date.now();
   const T = input.problem.teams.length;
-  // what the rest of the field has already used is unknown: start it fresh
-  const usedShare = new Array(T).fill(0);
+  // what the rest of the field has already used: from pasted pick counts, else start fresh
+  const usedShare = input.usedShare0 ?? new Array(T).fill(0);
   const curve = simulateField(input.problem, input.field, input.prize, usedShare, input.pickShares0);
   const { reward, ends } = roundRewards(curve, input.prize);
   const sol = solve(input.problem, input.usedMask, reward, ends);
@@ -604,7 +607,7 @@ export type EntriesOutput = {
 export function runEntries(input: EntriesInput): EntriesOutput {
   const t0 = Date.now();
   const T = input.problem.teams.length;
-  const curve = simulateField(input.problem, input.field, input.prize, new Array(T).fill(0), input.pickShares0);
+  const curve = simulateField(input.problem, input.field, input.prize, input.usedShare0 ?? new Array(T).fill(0), input.pickShares0);
   const { reward, ends } = roundRewards(curve, input.prize);
   const cache = new Map<number, { analysis: Analysis; horizon: number }>();
   const entries = input.usedMasks.map((m) => {
