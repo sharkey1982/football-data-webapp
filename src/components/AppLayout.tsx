@@ -266,6 +266,11 @@ export default function AppLayout() {
           { to: BEAT_THE_SHARK.nationsCup.href, label: 'Tennis: Nations Cup', matchPrefix: BEAT_THE_SHARK.nationsCup.href, external: true },
         ],
       },
+      // Shark Fantasy: admins only while the prototype runs (Phase 3).
+      ...(isAdmin ? [{
+        label: 'Fantasy',
+        items: [{ to: '/shark-fantasy', label: 'Shark Fantasy', matchPrefix: '/shark-fantasy' }],
+      }] : []),
       {
         label: 'Casino & probability',
         items: [

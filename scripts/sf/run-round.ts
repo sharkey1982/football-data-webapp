@@ -77,7 +77,7 @@ async function main() {
       const first = fd ? new Date(fd) : new Date(Date.now() + 7 * 24 * 3600_000);
       if (Number.isNaN(first.getTime())) throw new Error('--first-deadline: not a date');
       await createSeason(d, { universe, name: opt('name', 'Shark Fantasy (prototype)')!, seed: opt('seed', `${universe}-1`)!,
-        firstDeadline: first, spacingMinutes: 7 * 24 * 60, kickoffAfterMinutes: 180 });
+        firstDeadline: first, spacingMinutes: 7 * 24 * 60, kickoffAfterMinutes: 180, zone: 'Europe/London' });
       break;
     }
     case 'bots': await botsMove(d, universe, lineup); break;
