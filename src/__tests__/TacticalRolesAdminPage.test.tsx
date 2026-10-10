@@ -35,6 +35,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveDepthRankCorrection: vi.fn(),
     saveManualStatus: vi.fn(),
     saveManualReturnDate: vi.fn(),
+    getProjectedStarts: vi.fn(),
     getProjectedMinutes: vi.fn(),
     getSetPieceHierarchyForTeam: vi.fn(),
     reorderSetPieceTaker: vi.fn(),
@@ -80,6 +81,7 @@ describe('TacticalRolesAdminPage', () => {
     // still override these with a more specific mock where relevant.
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+    mockedApi.getProjectedStarts.mockResolvedValue(new Map());
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
     // Same reasoning as above: the worklist panel loads on mount.
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);
@@ -143,6 +145,8 @@ describe('TacticalRolesAdminPage', () => {
     // generic-role players, which none of these are.
     await user.click(screen.getByRole('button', { name: 'Everyone' }));
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
     await waitFor(() => expect(screen.getAllByText('Raya').length).toBeGreaterThan(0));
 
     // Gabriel and J.Timber show as their own genuine 1st-choice starters
@@ -229,6 +233,8 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
     await waitFor(() => expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0));
     // Raya (already reviewed, 'manual') is excluded from the pitch under
     // the default "Needs Review" scope -- but still in the full-squad
@@ -261,6 +267,8 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
     await waitFor(() => expect(screen.getByText('Kiwior')).toBeInTheDocument());
 
     // Projected minutes column shows the fetched value for the correct
@@ -291,6 +299,8 @@ describe('TacticalRolesAdminPage', () => {
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
     await waitFor(() => expect(screen.getByLabelText('Expected back: Saliba')).toBeInTheDocument());
 
     // FPL's own date is shown beside an empty input; an admin date fills it.
@@ -335,6 +345,8 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Everyone' }));
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
 
     await waitFor(() => expect(screen.getByText('Set piece takers')).toBeInTheDocument());
     const setPiecePanel = screen.getByText('Set piece takers').closest('div')!.parentElement!;
@@ -447,6 +459,8 @@ describe('TacticalRolesAdminPage', () => {
     // The same scope also narrows the Pitch view's starters -- it's the
     // same filter, not a separate mechanism.
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
     await waitFor(() => expect(document.querySelectorAll('button[title^="Havertz"]').length).toBeGreaterThan(0));
     expect(document.querySelectorAll('button[title^="Raya"]').length).toBe(0);
   });
@@ -473,6 +487,8 @@ describe('TacticalRolesAdminPage', () => {
 
     await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Pitch' }));
+    // The pitch opens on the projections' view; these tests check the pecking-order views.
+    await user.click(await screen.findByRole('button', { name: '1st' }));
 
     const formationSelect = await screen.findByRole('combobox', { name: 'Formation' });
     await waitFor(() => expect(formationSelect).toHaveValue('4-3-3'));

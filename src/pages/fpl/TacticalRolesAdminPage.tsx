@@ -36,6 +36,7 @@ import {
   getTeamReviewDates,
   markTeamReviewed,
   getProjectedMinutes,
+  getProjectedStarts,
   getSetPieceHierarchyForTeam,
   reorderSetPieceTaker,
   addSetPieceTaker,
@@ -148,7 +149,8 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   const [reviewTeamFilter, setReviewTeamFilter] = useState<number | 'all'>('all');
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [teamFormation, setTeamFormation] = useState<string | null>(null);
-  const [pitchDepth, setPitchDepth] = useState(1);
+  // 0 = the model's view (who is likely to start, competition stacked); 1-3 = that rank of the pecking order.
+  const [pitchDepth, setPitchDepth] = useState(0);
   const [setPieceHierarchy, setSetPieceHierarchy] = useState<Map<SetPieceHierarchyType, SetPieceHierarchyRow[]>>(new Map());
   const [setPieceLoading, setSetPieceLoading] = useState(false);
   const [setPieceError, setSetPieceError] = useState<string | null>(null);
@@ -156,6 +158,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   const [addPlayerId, setAddPlayerId] = useState<string>('');
   const [projectedMinutesGw, setProjectedMinutesGw] = useState<number | null>(null);
   const [projectedMinutes, setProjectedMinutes] = useState<Map<number, number>>(new Map());
+  const [projectedStarts, setProjectedStarts] = useState<Map<number, number>>(new Map());
   const [reviewDates, setReviewDates] = useState<Map<number, string>>(new Map());
   const [markingReviewed, setMarkingReviewed] = useState(false);
   // The team's STORED default formation, and whether it's a manual
@@ -192,10 +195,13 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       .then((gw) => {
         if (cancelled) return;
         setProjectedMinutesGw(gw);
-        return getProjectedMinutes(gw);
+        return Promise.all([getProjectedMinutes(gw), getProjectedStarts(gw)]);
       })
-      .then((m) => {
-        if (!cancelled && m) setProjectedMinutes(m);
+      .then((res) => {
+        if (cancelled || !res) return;
+        const [m, st] = res;
+        if (m) setProjectedMinutes(m);
+        if (st) setProjectedStarts(st);
       })
       .catch(() => {
         /* non-critical enrichment -- table still works without it */
@@ -447,6 +453,8 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   // their actual formation.
   const teamRowsForPitch = useMemo(() => rows.filter((r) => r.team_id === selectedTeamId), [rows, selectedTeamId]);
   const pitchStarters = useMemo(() => {
+    // Model view: the whole squad; the pitch keeps those likely to start.
+    if (pitchDepth === 0) return applyScope(teamRowsForPitch);
     const starters = selectStartersAtDepth(teamRowsForPitch, pitchDepth);
     // scopeMode is applied AFTER selection, not before -- selectStartersAtDepth's
     // injury-promotion logic needs the full team pool to find a role-matched
@@ -454,7 +462,15 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     return applyScope(starters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamRowsForPitch, pitchDepth, scopeMode, nonFringeWorklistIds]);
-  const pitchPlayers = useMemo(() => pitchStarters.map(toFormationPitchPlayer), [pitchStarters]);
+  const pitchPlayers = useMemo(
+    () =>
+      pitchStarters.map((r) => {
+        const p = toFormationPitchPlayer(r);
+        // Model view: the projections' chance of starting next gameweek.
+        return pitchDepth === 0 ? { ...p, start_probability: projectedStarts.get(r.fpl_player_id) ?? 0, status: r.status, news: r.news } : { ...p, status: r.status, news: r.news };
+      }),
+    [pitchStarters, pitchDepth, projectedStarts]
+  );
 
   /** A visible, unmistakable outcome for a save that happens on change.
    * "Saving…" then nothing is the same shape as a failure. */
@@ -893,6 +909,14 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                     </h2>
                   )}
                   <div className="flex rounded-md border border-chalk-300 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setPitchDepth(0)}
+                      title={projectedMinutesGw !== null ? `Who is likely to start in GW${projectedMinutesGw}, by the projections` : 'Who is likely to start next, by the projections'}
+                      className={['px-2.5 py-1 text-xs font-medium transition-colors', pitchDepth === 0 ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+                    >
+                      {projectedMinutesGw !== null ? `GW${projectedMinutesGw}` : 'Next'}
+                    </button>
                     {DEPTH_RANK_OPTIONS.map((n) => (
                       <button
                         key={n}
@@ -905,14 +929,22 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                     ))}
                   </div>
                 </div>
-                <FormationPitch players={pitchPlayers} formation={teamFormation} selectedPlayerId={selectedPlayerId} onSelectPlayer={setSelectedPlayerId} />
+                <FormationPitch players={pitchPlayers} formation={teamFormation} selectedPlayerId={selectedPlayerId} onSelectPlayer={setSelectedPlayerId} stacked minChance={pitchDepth === 0 ? 0.1 : 0} />
                 <p className="text-[11px] text-ink-500 mt-2">
-                  Shows only the players at the selected depth &mdash; a team only has one genuinely-ranked 1st choice per
-                  position, not one per formation slot, so this may not fill a full XI; that&rsquo;s expected, not a bug. Switch
-                  depth above to review 2nd/3rd choice separately. An injured player is replaced here by the healthy player in
-                  the same specific role at the next depth (e.g. an injured right centre-back is replaced by the next-ranked
-                  right centre-back, not just whoever&rsquo;s next by overall rank). Hover a player for role, set-piece, injury
-                  status, and season PPG context.
+                  {pitchDepth === 0 ? (
+                    <>
+                      {projectedMinutesGw !== null ? `GW${projectedMinutesGw}` : 'Next gameweek'}: who the projections expect to start,
+                      from this pecking order, injuries and return dates. Everyone competing for a place is listed under it with
+                      their chance of starting.
+                    </>
+                  ) : (
+                    <>
+                      The players ranked {pitchDepth === 1 ? '1st' : pitchDepth === 2 ? '2nd' : '3rd'} in each position. Players
+                      sharing a rank stack in the same place. An injured player is replaced by the healthy player in the same role
+                      at the next rank.
+                    </>
+                  )}{' '}
+                  Hover a player for role, set pieces and injury news.
                 </p>
               </div>
 

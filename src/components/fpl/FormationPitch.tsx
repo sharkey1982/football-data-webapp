@@ -376,6 +376,159 @@ function layoutPlayers(players: FplFixtureProjectionPlayer[], formation: string 
   return slots;
 }
 
+/** Model place groups (scripts/fpl_depth_chart.py ROLE_GROUP): players in
+ * one group compete for that group's places, so they stack on its slots. */
+const PLACE_GROUP: Record<string, string> = {
+  LB: 'LB', LWB: 'LB', RB: 'RB', RWB: 'RB',
+  LCB: 'LCB', RCB: 'RCB', CB: 'CB',
+  DM: 'PIV', CDM: 'PIV', CM: 'PIV',
+  LW: 'LW', LM: 'LW', LF: 'LW', RW: 'RW', RM: 'RW', RF: 'RW',
+  AM: 'AM', CAM: 'AM', CF: 'CF', ST: 'CF',
+};
+
+function placeGroup(role: string | null): string | null {
+  if (!role) return null;
+  return PLACE_GROUP[role.toUpperCase()] ?? null;
+}
+
+/** Places a player can cover when his own is taken or missing: centre-backs
+ * across the back line and out to their side, full-backs inside or across,
+ * midfielders between the pivot and the No.10, attackers across the front.
+ * Deliberately not "any neighbouring line": a holding midfielder is not a
+ * full-back. */
+const PLACE_COVER: Record<string, string[]> = {
+  LCB: ['RCB', 'CB', 'LB'], RCB: ['LCB', 'CB', 'RB'], CB: ['LCB', 'RCB'],
+  LB: ['LCB', 'RB'], RB: ['RCB', 'LB'],
+  PIV: ['AM'], AM: ['PIV', 'LW', 'RW'],
+  LW: ['RW', 'AM', 'CF'], RW: ['LW', 'AM', 'CF'], CF: ['LW', 'RW', 'AM'],
+};
+
+/** 1 = his own place, 0.6 = one he can cover, 0 = not his job. Unconfirmed
+ * roles fall back to slotFit (his FPL line). */
+function placeFit(p: FplFixtureProjectionPlayer, slotRole: string): number {
+  const sg = placeGroup(slotRole);
+  const pg = isKnownRole(p.tactical_role) ? placeGroup(p.tactical_role) : null;
+  if (!pg || !sg) return isKnownRole(p.tactical_role) ? 0 : slotFit(p, slotRole);
+  if (pg === sg) return 1;
+  return PLACE_COVER[pg]?.includes(sg) ? 0.6 : 0;
+}
+
+export type StackedSlot = {
+  /** Likeliest starter in this slot. */
+  player: FplFixtureProjectionPlayer;
+  /** Others competing for the same place, likeliest first. */
+  extras: FplFixtureProjectionPlayer[];
+  top: number;
+  left: number;
+};
+
+export type StackedLayout = { slots: StackedSlot[]; others: FplFixtureProjectionPlayer[] };
+
+/**
+ * Pitch layout that shows competition for places (10 Oct 2026). Chris:
+ * players were drawn in slots they don't play (Zubimendi at centre-back)
+ * because each slot had to hold exactly one name. Now each slot shows its
+ * likeliest starter with the others competing for the same place stacked
+ * underneath, start chance on each:
+ *  - players whose role belongs to a slot's place group (the same groups
+ *    the start-chance model fills: both DM slots share LB/DM/CM players,
+ *    etc.) stack there, likeliest first, one headline per slot;
+ *  - a slot nobody in its group can fill takes a spare who can cover it
+ *    (PLACE_COVER: a third centre-back at right-back, never a holding
+ *    midfielder at full-back);
+ *  - anyone else (a role the formation has no slot for, or only an FPL
+ *    position) goes to a slot he can cover -- as headline if it's empty,
+ *    else stacked there if his role is confirmed;
+ *  - anyone who fits no slot is listed under the pitch, never placed.
+ * Players below minChance are left off (a fringe player at 2% is noise).
+ */
+export function layoutStacked(players: FplFixtureProjectionPlayer[], formation: string | null, minChance = 0.1): StackedLayout {
+  const isGk = (p: FplFixtureProjectionPlayer) => p.tactical_role?.toUpperCase() === 'GK' || p.fpl_position === 1;
+  const byChance = (a: FplFixtureProjectionPlayer, b: FplFixtureProjectionPlayer) => startChance(b) - startChance(a);
+  const keep = (p: FplFixtureProjectionPlayer) => startChance(p) >= minChance;
+
+  const slots: StackedSlot[] = [];
+  const others: FplFixtureProjectionPlayer[] = [];
+
+  const gks = players.filter((p) => isGk(p) && keep(p)).sort(byChance);
+  if (gks.length > 0) slots.push({ player: gks[0], extras: gks.slice(1), top: 92, left: 50 });
+
+  const outfield = players.filter((p) => !isGk(p) && keep(p));
+  const template = FORMATION_TEMPLATES[formation?.trim() ?? ''] ?? FORMATION_TEMPLATES['4-2-3-1'];
+  const held: (FplFixtureProjectionPlayer | null)[] = template.map(() => null);
+  const extras: FplFixtureProjectionPlayer[][] = template.map(() => []);
+
+  // 1. Each place group fills its own slots.
+  const slotsByGroup = new Map<string, number[]>();
+  template.forEach((slot, i) => {
+    const g = placeGroup(slot.role);
+    if (g) slotsByGroup.set(g, [...(slotsByGroup.get(g) ?? []), i]);
+  });
+  const leftovers: FplFixtureProjectionPlayer[] = [];
+  const byGroup = new Map<string, FplFixtureProjectionPlayer[]>();
+  for (const p of outfield) {
+    const g = isKnownRole(p.tactical_role) ? placeGroup(p.tactical_role) : null;
+    if (g && slotsByGroup.has(g)) byGroup.set(g, [...(byGroup.get(g) ?? []), p]);
+    else leftovers.push(p);
+  }
+  for (const [g, list] of byGroup) {
+    const idx = slotsByGroup.get(g)!;
+    list.sort(byChance);
+    list.forEach((p, n) => {
+      if (n < idx.length) held[idx[n]] = p;
+      else extras[idx[(n - idx.length) % idx.length]].push(p);
+    });
+  }
+
+  // 1b. A slot nobody in its group can fill takes a spare from a nearby role
+  // (a third centre-back at right-back), as the start-chance model does.
+  for (;;) {
+    let move: { from: number; at: number; to: number; w: number } | null = null;
+    template.forEach((slot, to) => {
+      if (held[to]) return;
+      extras.forEach((list, from) =>
+        list.forEach((p, at) => {
+          const fit = placeFit(p, slot.role);
+          const w = startChance(p) * fit;
+          if (fit >= 0.5 && (!move || w > move.w)) move = { from, at, to, w };
+        })
+      );
+    });
+    if (!move) break;
+    const { from, at, to } = move as { from: number; at: number; to: number };
+    held[to] = extras[from][at];
+    extras[from].splice(at, 1);
+  }
+
+  // 2. Everyone else: closest slot, never more than one tactical group away.
+  leftovers.sort(byChance);
+  for (const p of leftovers) {
+    let best = -1;
+    let bestFit = 0;
+    let bestEmpty = -1;
+    let bestEmptyFit = 0;
+    template.forEach((slot, i) => {
+      const fit = placeFit(p, slot.role);
+      if (fit < 0.5) return;
+      if (fit > bestFit) { best = i; bestFit = fit; }
+      if (!held[i] && fit > bestEmptyFit) { bestEmpty = i; bestEmptyFit = fit; }
+    });
+    if (bestEmpty >= 0) held[bestEmpty] = p;
+    // Stacked under a filled slot only with a confirmed role; a player we
+    // only know as "a midfielder" is listed under the pitch instead.
+    else if (best >= 0 && isKnownRole(p.tactical_role)) extras[best].push(p);
+    else others.push(p);
+  }
+
+  template.forEach((slot, i) => {
+    const player = held[i];
+    if (player) slots.push({ player, extras: extras[i].sort(byChance), top: slot.top, left: slot.left });
+    else if (extras[i].length > 0) others.push(...extras[i]);
+  });
+  others.sort(byChance);
+  return { slots, others };
+}
+
 function describeSquadStatus(status: FplFixtureProjectionPlayer['squad_status']): string | null {
   if (status === 'rotation') return 'Rotation pick';
   if (status === 'backup') return 'Backup option';
@@ -388,13 +541,22 @@ export default function FormationPitch({
   formation,
   selectedPlayerId,
   onSelectPlayer,
+  stacked = false,
+  minChance = 0.1,
 }: {
   players: FplFixtureProjectionPlayer[];
   /** The team's predicted formation (e.g. "3-4-3") -- drives slot layout so the pitch matches the formation shown above it. */
   formation: string | null;
   selectedPlayerId: number | null;
   onSelectPlayer: (fplPlayerId: number) => void;
+  /** Show everyone competing for each place, stacked under its likeliest starter, with start chances (layoutStacked). */
+  stacked?: boolean;
+  /** Stacked only: leave off players less likely than this to start. */
+  minChance?: number;
 }) {
+  if (stacked) {
+    return <StackedPitch players={players} formation={formation} selectedPlayerId={selectedPlayerId} onSelectPlayer={onSelectPlayer} minChance={minChance} />;
+  }
   const slots = layoutPlayers(players, formation);
 
   return (
@@ -503,6 +665,152 @@ export default function FormationPitch({
           <span className="w-2 h-2 rounded-full border-2 border-dotted border-ink-500" /> Tactical role not yet confirmed -- approximate position only
         </span>
       </div>
+    </div>
+  );
+}
+
+function pctLabel(p: FplFixtureProjectionPlayer): string | null {
+  return p.start_probability != null ? `${Math.round(p.start_probability * 100)}%` : null;
+}
+
+function availabilityNote(p: FplFixtureProjectionPlayer): string | null {
+  if (!p.status || p.status === 'a') return null;
+  const label = p.status === 'i' ? 'Injured' : p.status === 'd' ? 'Doubtful' : p.status === 's' ? 'Suspended' : p.status === 'u' ? 'Unavailable' : null;
+  if (!label) return null;
+  return p.news ? `${label}: ${p.news}` : label;
+}
+
+function playerTitle(p: FplFixtureProjectionPlayer): string {
+  const parts = [`${p.web_name} \u2014 ${isKnownRole(p.tactical_role) ? p.tactical_role : 'role not confirmed'}`];
+  const pct = pctLabel(p);
+  if (pct) parts.push(`${pct} to start`);
+  const setPieces = formatSetPieceRoles(p.set_piece_roles);
+  if (setPieces) parts.push(setPieces.full);
+  const note = availabilityNote(p);
+  if (note) parts.push(note);
+  return parts.join(' \u2022 ');
+}
+
+/** The pitch with competition for places shown (layoutStacked). */
+function StackedPitch({
+  players,
+  formation,
+  selectedPlayerId,
+  onSelectPlayer,
+  minChance,
+}: {
+  players: FplFixtureProjectionPlayer[];
+  formation: string | null;
+  selectedPlayerId: number | null;
+  onSelectPlayer: (fplPlayerId: number) => void;
+  minChance: number;
+}) {
+  const { slots, others } = layoutStacked(players, formation, minChance);
+  const flagged = (p: FplFixtureProjectionPlayer) => p.status === 'i' || p.status === 'd' || p.status === 's';
+
+  return (
+    <div className="space-y-1.5" data-testid="stacked-pitch">
+      <div className="relative w-full min-h-[540px] sm:min-h-[600px] aspect-[2/3] bg-pitch-800 rounded-lg overflow-hidden border-2 border-pitch-600">
+        <div className="absolute inset-3 border border-chalk-100/25 rounded" />
+        <div className="absolute top-1/2 left-3 right-3 border-t border-chalk-100/25" />
+        <div className="absolute left-1/2 top-1/2 w-16 h-16 sm:w-20 sm:h-20 border border-chalk-100/25 rounded-full" style={{ transform: 'translate(-50%, -50%)' }} />
+        <div className="absolute left-1/2 top-3 w-24 sm:w-28 h-8 border border-t-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
+        <div className="absolute left-1/2 bottom-3 w-24 sm:w-28 h-8 border border-b-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
+
+        {slots.map(({ player, extras, top, left }) => {
+          const isSelected = player.fpl_player_id === selectedPlayerId;
+          const roleConfirmed = isKnownRole(player.tactical_role);
+          const pct = pctLabel(player);
+          const uncertain = player.start_probability != null && player.start_probability < 0.7;
+          const setPieces = formatSetPieceRoles(player.set_piece_roles);
+          // GK sits low on the pitch: its stack goes above it.
+          const stackAbove = top > 85;
+          const shown = extras.slice(0, 3);
+          const hidden = extras.length - shown.length;
+          const stack = shown.length > 0 && (
+            <span className="flex flex-col items-center gap-px">
+              {shown.map((x) => (
+                <span
+                  key={x.fpl_player_id}
+                  role="button"
+                  tabIndex={0}
+                  title={playerTitle(x)}
+                  onClick={(e) => { e.stopPropagation(); onSelectPlayer(x.fpl_player_id); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onSelectPlayer(x.fpl_player_id); } }}
+                  className={[
+                    'max-w-[5rem] sm:max-w-[6rem] truncate rounded px-1 leading-tight text-[9px] sm:text-[10px] font-mono cursor-pointer',
+                    x.fpl_player_id === selectedPlayerId ? 'bg-amber-500 text-ink-900' : 'bg-pitch-900/70 text-chalk-100/85 hover:text-amber-300',
+                  ].join(' ')}
+                >
+                  {x.web_name}
+                  {flagged(x) && <span className="text-loss-600"> +</span>}
+                  {pctLabel(x) && <span className="text-chalk-100/60"> {pctLabel(x)}</span>}
+                </span>
+              ))}
+              {hidden > 0 && <span className="text-[8px] text-chalk-100/50 font-mono">+{hidden} more</span>}
+            </span>
+          );
+
+          return (
+            <div
+              key={player.fpl_player_id}
+              className="absolute flex flex-col items-center gap-0.5 -translate-x-1/2 -translate-y-1/2"
+              style={{ top: `${top}%`, left: `${left}%` }}
+            >
+              {stackAbove && stack}
+              <button
+                type="button"
+                onClick={() => onSelectPlayer(player.fpl_player_id)}
+                className="flex flex-col items-center gap-0.5 group"
+                title={playerTitle(player)}
+              >
+                <span
+                  className={[
+                    'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] font-mono font-semibold border-2 transition-colors',
+                    isSelected
+                      ? 'bg-amber-500 border-amber-400 text-ink-900'
+                      : !roleConfirmed
+                        ? 'bg-pitch-700 border-chalk-100/30 text-chalk-100/70 border-dotted'
+                        : uncertain
+                          ? 'bg-pitch-700 border-chalk-100/50 text-chalk-100 border-dashed'
+                          : 'bg-pitch-700 border-chalk-100/80 text-chalk-100 group-hover:border-amber-400',
+                  ].join(' ')}
+                >
+                  {pct ?? player.fpl_position_label.slice(0, 1)}
+                </span>
+                <span className="max-w-[5rem] sm:max-w-[6rem] truncate text-[10px] sm:text-[11px] leading-tight text-chalk-100 font-medium text-center">
+                  {player.web_name}
+                  {flagged(player) && <span className="text-loss-600"> +</span>}
+                </span>
+                <span className={['text-[8px] sm:text-[9px] leading-none font-mono uppercase', roleConfirmed ? 'text-amber-400/90' : 'text-chalk-100/40 italic'].join(' ')}>
+                  {roleConfirmed ? player.tactical_role : 'role tbc'}
+                  {setPieces && <span className="text-amber-300 normal-case"> {setPieces.compact}</span>}
+                </span>
+              </button>
+              {!stackAbove && stack}
+            </div>
+          );
+        })}
+      </div>
+
+      {others.length > 0 && (
+        <p className="text-[11px] text-ink-700">
+          <span className="text-ink-500">Also possible: </span>
+          {others.map((p, i) => (
+            <span key={p.fpl_player_id}>
+              {i > 0 && ', '}
+              <button type="button" className="underline decoration-dotted underline-offset-2 hover:text-ink-900" onClick={() => onSelectPlayer(p.fpl_player_id)} title={playerTitle(p)}>
+                {p.web_name}
+              </button>
+              {pctLabel(p) && <span className="text-ink-500"> {pctLabel(p)}</span>}
+            </span>
+          ))}
+        </p>
+      )}
+      <p className="text-[10px] sm:text-[11px] text-ink-500">
+        Likeliest starter in each position, with the others competing for that place listed underneath. Percentages are the chance
+        of starting; <span className="text-loss-700">+</span> injured, doubtful or suspended. Players under {Math.round(minChance * 100)}% left off.
+      </p>
     </div>
   );
 }

@@ -50,6 +50,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveDepthRankCorrection: vi.fn(),
     saveManualStatus: vi.fn(),
     saveManualReturnDate: vi.fn(),
+    getProjectedStarts: vi.fn(),
     getProjectedMinutes: vi.fn(),
     getSetPieceHierarchyForTeam: vi.fn(),
     reorderSetPieceTaker: vi.fn(),
@@ -95,6 +96,7 @@ describe('Starting Lineups (public view)', () => {
   beforeEach(() => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+    mockedApi.getProjectedStarts.mockResolvedValue(new Map([[1, 0.96], [2, 0.9]]));
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);
     mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
@@ -144,6 +146,10 @@ describe('Starting Lineups (public view)', () => {
     // carries their role/context -- the admin default (table) does not.
     await waitFor(() => expect(document.querySelectorAll('button[title^="Raya"]').length).toBeGreaterThan(0));
     expect(screen.getByRole('button', { name: 'Pitch' })).toHaveClass('bg-pitch-800');
+    // ...on next gameweek's projections, with each player's chance of starting.
+    expect(screen.getByTestId('stacked-pitch')).toBeInTheDocument();
+    expect(screen.getByText('96%')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'GW6' })).toHaveClass('bg-pitch-800');
   });
 
   it('shows no read-only admin warning -- this is a public page, not a locked admin one', async () => {
