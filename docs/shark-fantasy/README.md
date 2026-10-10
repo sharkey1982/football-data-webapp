@@ -44,3 +44,28 @@ target fails or the same seed doesn't reproduce identical output. Tests:
   the game, but forwards may need a bigger share of 90-minute starts.
 - Generated names and club names still need the check against real
   footballers and clubs before anything is public (design §10).
+
+## Phase 3a: the game logic and the bots (offline)
+
+Still no database. `src/sharkfantasy/fantasy/` holds the game rules as pure
+functions; the database functions in Phase 3b mirror them, and the tests pin
+both to the same examples.
+
+| File | What it does |
+|---|---|
+| `rules.ts` | the approved rules v1 (money in tenths: 1000 = 100.0) |
+| `squad.ts` | squad and lineup checks, FPL auto-subs, round score (captain ×2, or the vice) |
+| `market.ts` | initial prices (from the projection, within each position's band), weekly form price changes, the half-the-rise selling price, transfers, hits, free transfers banking to 3 |
+| `publicview.ts` | everything a manager may see: noisy scouting reports, results, minutes, goals, availability. **The fantasy side reads only this, never the hidden attributes.** |
+| `projection.ts` | the Shark's public projection: expected points per player per round, from the public view. Shrinkage fitted on simulated seasons. |
+| `bots.ts` | bot managers: optimiser (HiGHS), template, set-and-forget, points-chaser, random |
+| `league.ts` | a season of bots played round by round as the live game will run it |
+
+Run the bot test (about 9 minutes for 100 seasons):
+
+```
+npx tsx scripts/sf/bots.ts 100
+```
+
+It writes `docs/shark-fantasy/bots.md` and exits non-zero if a pass rule
+fails. Tests: `src/__tests__/sharkFantasyGame.test.ts`.

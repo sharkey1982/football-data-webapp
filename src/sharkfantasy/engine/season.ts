@@ -57,44 +57,73 @@ export interface SeasonResult {
   bonus: Record<string, number>[];  // per match
 }
 
-/** Play a whole season (offline prototype: no deadlines, no fantasy entries). */
-export function playSeason(world: World, season: number): SeasonResult {
+/** A season in progress, played one round at a time (the fantasy game
+ *  needs to act between rounds). */
+export interface SeasonState {
+  world: World;
+  season: number;
+  fixtures: Fixture[];
+  states: Record<string, ClubState>;
+  results: MatchResult[];
+  bonus: Record<string, number>[];
+  points: Record<string, number[]>;   // playerId → fantasy points per round
+  minutes: Record<string, number[]>;  // playerId → minutes per round
+  roundsPlayed: number;
+  leagueTable: TableRow[];
+  shieldWinner: string;
+}
+
+export function startSeason(world: World, season: number): SeasonState {
   const ids = world.clubs.map(c => c.id);
   const fixtures = roundRobin(stream(`${world.seed}|s${season}|order`).shuffle(ids), season % 2 === 0);
   const states: Record<string, ClubState> = {};
   for (const id of ids) states[id] = newClubState();
-  const results: MatchResult[] = [], bonus: Record<string, number>[] = [];
-  const points: Record<string, number[]> = {};
-  for (const p of world.players) points[p.id] = Array(10).fill(0);
-  let leagueTable: TableRow[] = [];
-  let shieldWinner = '';
+  const points: Record<string, number[]> = {}, minutes: Record<string, number[]> = {};
+  for (const p of world.players) { points[p.id] = Array(10).fill(0); minutes[p.id] = Array(10).fill(0); }
+  return { world, season, fixtures, states, results: [], bonus: [], points, minutes, roundsPlayed: 0, leagueTable: [], shieldWinner: '' };
+}
 
-  const play = (round: number, f: Fixture) => {
+/** The fixtures of a round. Round 10 (Finals Sunday) exists once round 9 is played. */
+export function roundFixtures(ss: SeasonState, round: number): Fixture[] {
+  if (round <= 9) return ss.fixtures.filter(f => f.round === round);
+  if (ss.roundsPlayed < 9) return [];
+  const order = ss.leagueTable.map(r => r.clubId), out: Fixture[] = [];
+  for (let i = 0; i < 10; i += 2) out.push({ round: 10, homeId: order[i], awayId: order[i + 1], kind: i === 0 ? 'final' : 'placing' });
+  return out;
+}
+
+/** Play the next round. Idempotent by design: a round is played once. */
+export function playRound(ss: SeasonState): MatchResult[] {
+  const round = ss.roundsPlayed + 1, world = ss.world, season = ss.season;
+  if (round > 10) throw new Error('season over');
+  const out: MatchResult[] = [];
+  for (const f of roundFixtures(ss, round)) {
     const key = `s${season}|r${round}|${f.homeId}-${f.awayId}`;
     const sel = stream(`${world.seed}|${key}|selection`);
-    const home = selectLineup(world, f.homeId, states[f.homeId], round, sel);
-    const away = selectLineup(world, f.awayId, states[f.awayId], round, sel);
+    const home = selectLineup(world, f.homeId, ss.states[f.homeId], round, sel);
+    const away = selectLineup(world, f.awayId, ss.states[f.awayId], round, sel);
     const r = simulateMatch(world, key, home, away);
     if (f.kind !== 'league' && r.homeGoals === r.awayGoals) {
       r.shootout = shootout(r.seed, home.xi, away.xi);
       r.events.push({ seq: r.events.length, minute: 90, type: 'shootout', side: r.shootout.winner, detail: { home: r.shootout.home, away: r.shootout.away } });
     }
     const b = bonusForMatch(r.stats);
-    bonus.push(b);
-    for (const s of r.stats) points[s.playerId][round - 1] += fantasyPoints(s, b[s.playerId] ?? 0).total;
-    afterMatch(world, r, states, round);
-    results.push(r);
-    return r;
-  };
-
-  for (let round = 1; round <= 9; round++) for (const f of fixtures.filter(x => x.round === round)) play(round, f);
-  leagueTable = table(world, results, `${world.seed}|s${season}`);
-  const order = leagueTable.map(r => r.clubId);
-  for (let i = 0; i < 10; i += 2) {
-    const r = play(10, { round: 10, homeId: order[i], awayId: order[i + 1], kind: i === 0 ? 'final' : 'placing' });
-    if (i === 0) shieldWinner = r.homeGoals > r.awayGoals ? r.homeId : r.homeGoals < r.awayGoals ? r.awayId : (r.shootout!.winner === 'home' ? r.homeId : r.awayId);
+    ss.bonus.push(b);
+    for (const s of r.stats) { ss.points[s.playerId][round - 1] += fantasyPoints(s, b[s.playerId] ?? 0).total; ss.minutes[s.playerId][round - 1] += s.minutes; }
+    afterMatch(world, r, ss.states, round);
+    ss.results.push(r); out.push(r);
+    if (f.kind === 'final') ss.shieldWinner = r.homeGoals > r.awayGoals ? r.homeId : r.homeGoals < r.awayGoals ? r.awayId : (r.shootout!.winner === 'home' ? r.homeId : r.awayId);
   }
-  return { season, results, leagueTable, shieldWinner, points, bonus };
+  ss.roundsPlayed = round;
+  if (round === 9) ss.leagueTable = table(world, ss.results, `${world.seed}|s${season}`);
+  return out;
+}
+
+/** Play a whole season (offline: no fantasy entries). */
+export function playSeason(world: World, season: number): SeasonResult {
+  const ss = startSeason(world, season);
+  for (let r = 1; r <= 10; r++) playRound(ss);
+  return { season, results: ss.results, leagueTable: ss.leagueTable, shieldWinner: ss.shieldWinner, points: ss.points, bonus: ss.bonus };
 }
 
 /** Injuries, suspensions and form after a match (deterministic per match). */
