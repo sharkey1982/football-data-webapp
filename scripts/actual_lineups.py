@@ -8,6 +8,13 @@
 #
 #   --probe   check candidate sources, store what they return in
 #             analysis_results ('lineup_source_probe'); save nothing.
+#   --check   API-Football (licensed source; key in secret API_FOOTBALL_KEY):
+#             account/plan, whether this season's Premier League fixtures and
+#             line-ups are available, one line-up's structure. Stored in
+#             analysis_results ('api_football_check'); saves nothing else.
+#
+# BBC, ESPN and the Premier League forbid automated collection in their
+# terms (checked 10 Oct 2026), so they are not used.
 # ============================================================================
 
 from __future__ import annotations
@@ -17,6 +24,7 @@ import json
 import os
 
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1"
+APIF = "https://v3.football.api-sports.io"
 UA = "FixtureShark/1.0 (personal FPL analysis)"
 
 
@@ -68,9 +76,37 @@ def probe() -> None:
     print(json.dumps({k: (v.get("status") if isinstance(v, dict) else v) for k, v in out.items()}))
 
 
+def check() -> None:
+    import httpx
+    from supabase import create_client
+
+    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+    key = os.environ.get("API_FOOTBALL_KEY")
+    out: dict = {"key_present": bool(key)}
+    if key:
+        c = httpx.Client(base_url=APIF, headers={"x-apisports-key": key}, timeout=30)
+        st = c.get("/status").json()
+        out["status"] = st.get("response")
+        out["status_errors"] = st.get("errors")
+        for season in (2026, 2025):
+            fx = c.get("/fixtures", params={"league": 39, "season": season}).json()
+            done = [f for f in fx.get("response", []) if (f.get("fixture", {}).get("status", {}) or {}).get("short") in ("FT", "AET", "PEN")]
+            out[f"fixtures_{season}"] = {"errors": fx.get("errors"), "results": fx.get("results"), "finished": len(done),
+                                         "first": [{"id": f["fixture"]["id"], "date": f["fixture"]["date"], "home": f["teams"]["home"]["name"], "away": f["teams"]["away"]["name"]} for f in done[:3]]}
+            if done:
+                lu = c.get("/fixtures/lineups", params={"fixture": done[0]["fixture"]["id"]}).json()
+                out[f"lineup_{season}"] = {"errors": lu.get("errors"), "response": lu.get("response")}
+                break
+    sb.table("analysis_results").insert({"analysis_id": "api_football_check", "code_ref": os.environ.get("GITHUB_SHA", "local"), "result": out}).execute()
+    print(json.dumps({k: v for k, v in out.items() if not k.startswith("lineup")}, default=str)[:3000])
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--probe", action="store_true")
+    ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
     if a.probe:
         probe()
+    elif a.check:
+        check()
