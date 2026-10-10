@@ -1,0 +1,58 @@
+name: Shark Fantasy round
+
+# Phase 3 prototype: manual dispatch only (design §1). Drives a universe through
+# scripts/sf/run-round.ts with the service role: create a season, let the bots
+# move, lock at the deadline, play and commit the round. Every step is safe to
+# re-run: a round already locked or final is a no-op, and a result can never be
+# written twice. A Sunday schedule comes later, once the game is public.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'create | advance | season | bots | lock | play'
+        required: true
+        default: advance
+      universe:
+        description: 'Universe id'
+        required: true
+        default: test
+      force:
+        description: 'Lock before the deadline (test universes only; refused for a public one)'
+        type: boolean
+        default: false
+      first_deadline:
+        description: 'create: round 1 deadline, ISO (default: a week from now)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sf-round-${{ inputs.universe }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - name: Run
+        shell: bash
+        run: |
+          ARGS=("$CMD" --universe "$UNIVERSE")
+          if [ "$FORCE" = "true" ]; then ARGS+=(--force); fi
+          if [ -n "$FIRST_DEADLINE" ]; then ARGS+=(--first-deadline "$FIRST_DEADLINE"); fi
+          npx tsx scripts/sf/run-round.ts "${ARGS[@]}"
+        env:
+          CMD: ${{ inputs.command }}
+          UNIVERSE: ${{ inputs.universe }}
+          FORCE: ${{ inputs.force }}
+          FIRST_DEADLINE: ${{ inputs.first_deadline }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

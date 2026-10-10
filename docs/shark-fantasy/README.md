@@ -69,3 +69,44 @@ npx tsx scripts/sf/bots.ts 100
 
 It writes `docs/shark-fantasy/bots.md` and exits non-zero if a pass rule
 fails. Tests: `src/__tests__/sharkFantasyGame.test.ts`.
+
+## Phase 3b: the database and the round runner
+
+Migration `supabase/migrations/20261010200000_shark_fantasy_schema.sql`: the
+`sf` schema (design §2), as for nfl and tennis — raw tables unexposed, the site
+reads `public.sf_*` views, every write goes through a function.
+
+- **Hidden:** `sf.worlds`, `sf.player_hidden` and `sf.engine_snapshots` have no
+  grant to anon or authenticated at all (not even admins through the API).
+- **Prototype flag:** a universe is visible only if `is_public`, or to admins.
+  Nothing is public yet.
+- **State machine:** a round is `upcoming → open → locked → final`.
+  `sf_lock_round` (the deadline) freezes every squad into
+  `entry_round_snapshots`, charges hits and rolls free transfers on.
+  `sf_commit_round` writes results, events, stats, scores, prices, projections
+  and the engine state in one transaction, and refuses unless the round is
+  locked and none of its fixtures is final. Re-running either is a no-op.
+- **Immutable:** triggers refuse any change to final results, events, stats,
+  scores and snapshots (fixes would go through `sf.corrections`).
+- **Squad rules in SQL:** `sf.save_team` (behind `sf_save_team` for people and
+  `sf_bot_save_team` for bots) checks the squad, lineup, club limit and money
+  against `sf.game_rules` with the database clock, and records transfers.
+- **Live results:** the views reveal events by match minute after kick-off
+  (second half from 15 minutes after the first ends); scores and points at full
+  time.
+
+Runner: `src/sharkfantasy/runner.ts`, driven by `scripts/sf/run-round.ts`
+(locally with `--psql`, or the service role) and the manually dispatched
+workflow `.github/workflows/sf-round.yml`:
+
+```
+npx tsx scripts/sf/run-round.ts create  --universe test
+npx tsx scripts/sf/run-round.ts season  --universe test     # bots + forced locks, whole season (test universes only)
+npx tsx scripts/sf/run-round.ts advance --universe proto    # at the deadline: bots, lock, play
+```
+
+End-to-end check against a local Postgres (stub of Supabase's roles and auth):
+`scripts/sf/db-check.ts`. It runs a whole season through the database with 24
+bots and checks that every bot scores exactly what the same season gives in
+memory, then idempotency, immutability, visibility by role, and a signed-in
+manager's squad, transfers and hits.

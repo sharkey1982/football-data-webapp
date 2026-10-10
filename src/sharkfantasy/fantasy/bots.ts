@@ -35,7 +35,10 @@ export interface Bot {
   id: string;
   kind: BotKind;
   entry: Entry;
+  /** Re-seeded each round from seedKey, so a bot run round by round from the
+   *  database (a fresh process each week) moves exactly as it does in memory. */
   rng: Rng;
+  seedKey: string;
   /** optimiser: rounds looked ahead, and its opinion on each player (points a round). */
   horizon: number;
   opinion: Record<string, number>;
@@ -63,7 +66,7 @@ export function newBot(id: string, kind: BotKind, seed: string, players: PlayerI
   const rng = stream(`${seed}|bot|${id}`);
   const opinion: Record<string, number> = {};
   for (const p of players) opinion[p.id] = kind === 'random' ? 0 : rng.normal(0, 0.35);
-  return { id, kind, rng, horizon: kind === 'optimiser' ? 2 + rng.int(0, 2) : 4, opinion,
+  return { id, kind, rng, seedKey: `${seed}|bot|${id}`, horizon: kind === 'optimiser' ? 2 + rng.int(0, 2) : 4, opinion,
     entry: { id, picks: [], selection: { xi: [], bench: [], captain: '', vice: '' }, bank: 0, freeTransfers: 1, wildcardsLeft: 1, transfersThisRound: 0, wildcardThisRound: false, pointsByRound: [], hitsByRound: [] } };
 }
 
@@ -208,6 +211,7 @@ function optimiserViews(bot: Bot, ctx: BotContext) {
 
 /** The squad a bot starts the season with (unlimited changes before round 1). */
 export function initialSquad(bot: Bot, ctx: BotContext) {
+  bot.rng = stream(`${bot.seedKey}|r${ctx.round}`);
   const rules = ctx.rules ?? GAME_RULES_V1;
   let squad: string[];
   let sel: Selection;
@@ -241,8 +245,10 @@ export function initialSquad(bot: Bot, ctx: BotContext) {
 
 /** A bot's moves before a deadline (round ≥ 2): transfers, XI, captain. */
 export function weeklyMoves(bot: Bot, ctx: BotContext) {
+  bot.rng = stream(`${bot.seedKey}|r${ctx.round}`);
   const rules = ctx.rules ?? GAME_RULES_V1, e = bot.entry, round = ctx.round;
-  const squadIds = () => e.picks.map(p => p.playerId);
+  // sorted, so a squad read back from the database (in slot order) gives the same moves
+  const squadIds = () => e.picks.map(p => p.playerId).sort();
   const xpNow = (id: string) => (ctx.xp[id][round - 1] ?? 0) + bot.opinion[id];
   const tryApply = (outs: string[], ins: string[]) => applyTransfers(e, outs, ins, ctx.price, ctx.info, rules).length === 0;
 
