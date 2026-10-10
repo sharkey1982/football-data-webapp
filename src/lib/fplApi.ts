@@ -300,6 +300,8 @@ export type FplFixtureProjectionPlayer = {
   /** Official FPL availability status code (e.g. 'a' = available, 'i' = injured, 'd' = doubtful). */
   status: string | null;
   news: string | null;
+  /** Chance of starting in each position ({LW: 0.31, RW: 0.05}) from the depth chart, when he can play more than one. */
+  place_shares?: Record<string, number> | null;
   /** Season-to-date points per game played (FPL's own stat, from source_payload -- not recomputed). Context for the projection below, not part of it. */
   season_points_per_game: number | null;
   /** Season-to-date minutes / starts -- how long they typically last once actually in the XI. Null if they haven't started at all yet. */
@@ -483,6 +485,17 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
 
   const playerById = new Map((players ?? []).map((p) => [p.fpl_player_id, p]));
   const formationByTeam = new Map((teamTactics ?? []).map((t) => [t.team_id, t]));
+  // Where each player is expected to start, when he can play more than one
+  // position (depth chart, 10 Oct 2026). Optional: the pitch works without it.
+  const placeShares = new Map<number, Record<string, number>>();
+  try {
+    const { data: depthRows } = await supabase.from('fpl_depth_start_store' as never).select('fpl_player_id, group_shares').eq('fixture_id', fixtureId);
+    for (const r of (depthRows ?? []) as { fpl_player_id: number; group_shares: Record<string, number> | null }[]) {
+      if (r.group_shares) placeShares.set(r.fpl_player_id, r.group_shares);
+    }
+  } catch {
+    /* pitch falls back to one position per player */
+  }
 
   const buildPlayer = (proj: ProjectedRow): FplFixtureProjectionPlayer | null => {
     const player = playerById.get(proj.fpl_player_id);
@@ -537,6 +550,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
       },
       status: player.status,
       news: player.news,
+      place_shares: placeShares.get(proj.fpl_player_id) ?? null,
       season_points_per_game: seasonStats.points_per_game,
       season_avg_minutes_per_start: seasonStats.avg_minutes_per_start,
     };

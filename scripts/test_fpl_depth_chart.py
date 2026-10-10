@@ -180,3 +180,39 @@ def test_share_by_weight_caps_and_redistributes():
     got = share_by_weight(1.2, {1: 10, 2: 1, 3: 1}, {1: 0.9, 2: 0.9, 3: 0.9})
     assert got[1] == pytest.approx(0.9)
     assert got[2] == pytest.approx(0.15) and got[3] == pytest.approx(0.15)
+
+
+def test_simulation_matches_analytic_without_other_positions():
+    from fpl_depth_chart import allocate_sim
+    players = arsenal(0.6)
+    exact = allocate(players, "4-2-3-1")
+    sim = allocate_sim(players, "4-2-3-1", sims=6000)
+    for pid, (s, _g, _r) in exact.items():
+        assert abs(sim[pid][0] - s) < 0.05, (pid, s, sim[pid][0])
+
+
+def test_other_position_lets_a_backup_cover_and_reports_where():
+    from fpl_depth_chart import allocate_sim
+    P = Player
+    players = [
+        P(1, "LW", 1, 0.0, 0.9, None, 3),                       # Tzolis, injured
+        P(2, "LW", 3, 1.0, 0.3, None, 3),                       # Eze, ranked behind at LW
+        P(3, "RW", 1, 1.0, 0.95, None, 3),                      # Saka
+        P(4, "RW", 2, 1.0, 0.2, None, 3, others=[("LW", 2)]),   # Madueke: RW 2nd, also LW 2nd
+    ]
+    out = allocate_sim(players, None, sims=6000)
+    madueke, eze = out[4], out[2]
+    assert madueke[0] > eze[0]
+    assert madueke[3]["LW"] > 0.7                # mostly starting on the left
+    assert sum(madueke[3].values()) == pytest.approx(madueke[0], abs=0.001)
+
+
+def test_compute_uses_simulation_only_when_other_positions_exist():
+    base = {"fixture_id": 1, "team_id": 7, "availability": 1, "start_if_fit": None, "element_type": 3, "formation": "", "starts": 3, "available": 3}
+    rows = [dict(base, fpl_player_id=1, tactical_role="LW", depth_rank=1, rate=0.9),
+            dict(base, fpl_player_id=2, tactical_role="RW", depth_rank=1, rate=0.9)]
+    plain = {r["fpl_player_id"]: r for r in compute(rows)}
+    assert plain[1]["group_shares"] == {"LW": plain[1]["start_probability"]}
+    rows.append(dict(base, fpl_player_id=3, tactical_role="RW", depth_rank=2, rate=0.4, other_roles='[{"role": "LW", "rank": 2}]'))
+    multi = {r["fpl_player_id"]: r for r in compute(rows)}
+    assert set(multi[3]["group_shares"]) <= {"LW", "RW"} and multi[3]["start_probability"] > 0

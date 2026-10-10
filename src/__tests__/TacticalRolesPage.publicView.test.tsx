@@ -51,6 +51,9 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     saveManualStatus: vi.fn(),
     saveManualReturnDate: vi.fn(),
     getProjectedStarts: vi.fn(),
+    getProjectedPlaceShares: vi.fn(),
+    saveOtherPosition: vi.fn(),
+    removeOtherPosition: vi.fn(),
     getProjectedMinutes: vi.fn(),
     getSetPieceHierarchyForTeam: vi.fn(),
     reorderSetPieceTaker: vi.fn(),
@@ -80,6 +83,7 @@ function baseRow(overrides: Partial<adminApi.TacticalRoleRow>): adminApi.Tactica
     news: null,
     manual_return_date: null,
     fpl_return_date: null,
+    other_positions: [],
     ...overrides,
   };
 }
@@ -96,6 +100,7 @@ describe('Starting Lineups (public view)', () => {
   beforeEach(() => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(6);
     mockedApi.getProjectedMinutes.mockResolvedValue(new Map());
+    mockedApi.getProjectedPlaceShares.mockResolvedValue(new Map());
     mockedApi.getProjectedStarts.mockResolvedValue(new Map([[1, 0.96], [2, 0.9]]));
     mockedApi.getSetPieceHierarchyForTeam.mockResolvedValue(new Map());
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);

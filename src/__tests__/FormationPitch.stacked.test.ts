@@ -67,3 +67,23 @@ describe('layoutStacked', () => {
     expect(slotOf(l, 'Konsa')!.top).toBe(74);
   });
 });
+
+describe('layoutStacked with players in more than one position', () => {
+  it('shows a player under each position he may start in, headlining only once', () => {
+    const players = [
+      pl(14, 'Eze', 3, 'LW', 0.35),
+      { ...(pl(16, 'Madueke', 3, 'RW', 0.4) as object), place_shares: { LW: 0.36, RW: 0.04 } } as never,
+      pl(12, 'Saka', 3, 'RW', 0.94),
+      pl(15, 'Odegaard', 3, 'AM', 0.94), pl(26, 'Havertz', 4, 'CF', 0.8),
+      pl(13, 'Rice', 3, 'DM', 0.9), pl(7, 'Lewis-Skelly', 3, 'DM', 0.7),
+    ];
+    const l = layoutStacked(players, '4-2-3-1', 0.03);
+    const lw = l.slots.find((s) => s.left === 15)!;
+    const rw = l.slots.find((s) => s.left === 85)!;
+    expect(lw.player.web_name).toBe('Madueke');
+    expect(lw.player.start_probability).toBeCloseTo(0.36);
+    expect(lw.extras.map((x) => x.web_name)).toEqual(['Eze']);
+    expect(rw.player.web_name).toBe('Saka');
+    expect(rw.extras.map((x) => [x.web_name, x.start_probability])).toEqual([['Madueke', 0.04]]);
+  });
+});

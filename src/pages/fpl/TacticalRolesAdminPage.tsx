@@ -33,10 +33,13 @@ import {
   saveDepthRankCorrection,
   saveManualStatus,
   saveManualReturnDate,
+  saveOtherPosition,
+  removeOtherPosition,
   getTeamReviewDates,
   markTeamReviewed,
   getProjectedMinutes,
   getProjectedStarts,
+  getProjectedPlaceShares,
   getSetPieceHierarchyForTeam,
   reorderSetPieceTaker,
   addSetPieceTaker,
@@ -161,6 +164,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   const [projectedMinutesGw, setProjectedMinutesGw] = useState<number | null>(null);
   const [projectedMinutes, setProjectedMinutes] = useState<Map<number, number>>(new Map());
   const [projectedStarts, setProjectedStarts] = useState<Map<number, number>>(new Map());
+  const [placeShares, setPlaceShares] = useState<Map<number, Record<string, number>>>(new Map());
   // The selected club's minutes, as on Minutes Outlook: last 3 played, next 5 projected.
   const [teamOutlook, setTeamOutlook] = useState<Outlook | null>(null);
   const [minutesMode, setMinutesMode] = useState<MinutesMode>('minutes');
@@ -200,13 +204,14 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       .then((gw) => {
         if (cancelled) return;
         setProjectedMinutesGw(gw);
-        return Promise.all([getProjectedMinutes(gw), getProjectedStarts(gw)]);
+        return Promise.all([getProjectedMinutes(gw), getProjectedStarts(gw), Promise.resolve(getProjectedPlaceShares?.(gw)).catch(() => undefined)]);
       })
       .then((res) => {
         if (cancelled || !res) return;
-        const [m, st] = res;
+        const [m, st, sh] = res;
         if (m) setProjectedMinutes(m);
         if (st) setProjectedStarts(st);
+        if (sh) setPlaceShares(sh);
       })
       .catch(() => {
         /* non-critical enrichment -- table still works without it */
@@ -367,6 +372,25 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     }
   }
 
+  async function handleOtherPosition(row: TacticalRoleRow, role: string, rank: number | null) {
+    setSavingId(row.fpl_player_id);
+    setSaveError(null);
+    try {
+      if (rank === null) await removeOtherPosition(row.team_id, row.fpl_player_id, role);
+      else await saveOtherPosition(row.team_id, row.fpl_player_id, role, rank);
+      markSaved(row.fpl_player_id);
+      setRows((prev) => prev.map((r) => {
+        if (r.fpl_player_id !== row.fpl_player_id) return r;
+        const rest = r.other_positions.filter((o) => o.role !== role);
+        return { ...r, other_positions: rank === null ? rest : [...rest, { role, rank }].sort((a, b) => a.rank - b.rank) };
+      }));
+    } catch (e) {
+      setSaveError(getErrorMessage(e, `Failed to save ${row.web_name}'s other positions`));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   // Only the admin route needs the stored value -- the public page shows
   // the resolved formation from the consensus view and can't edit it.
   useEffect(() => {
@@ -488,9 +512,9 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       pitchStarters.map((r) => {
         const p = toFormationPitchPlayer(r);
         // Model view: the projections' chance of starting next gameweek.
-        return pitchDepth === 0 ? { ...p, start_probability: projectedStarts.get(r.fpl_player_id) ?? 0, status: r.status, news: r.news } : { ...p, status: r.status, news: r.news };
+        return pitchDepth === 0 ? { ...p, start_probability: projectedStarts.get(r.fpl_player_id) ?? 0, place_shares: placeShares.get(r.fpl_player_id) ?? null, status: r.status, news: r.news } : { ...p, status: r.status, news: r.news };
       }),
-    [pitchStarters, pitchDepth, projectedStarts]
+    [pitchStarters, pitchDepth, projectedStarts, placeShares]
   );
 
   /** A visible, unmistakable outcome for a save that happens on change.
@@ -609,6 +633,43 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         ) : row.fpl_return_date ? (
           <span className="text-[10px] text-ink-500">FPL {formatShortDate(row.fpl_return_date)}</span>
         ) : null}
+      </span>
+    );
+  }
+
+  /** Other positions he plays, each with his rank there (10 Oct 2026). The
+   * start-chance model lets him fill any of them, once. */
+  function OtherPositionsCell({ row }: { row: TacticalRoleRow }) {
+    const [role, setRole] = useState('');
+    const [rank, setRank] = useState(2);
+    const label = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+    const others = row.other_positions ?? [];
+    if (!isAdmin) {
+      return <span className="text-xs font-mono text-ink-700 whitespace-nowrap">{others.length === 0 ? '\u2014' : others.map((o) => `${o.role} ${label(o.rank)}`).join(', ')}</span>;
+    }
+    const choices = TACTICAL_ROLE_OPTIONS.filter((r) => r !== row.tactical_role && !['GK', 'DEF', 'MID', 'FWD', 'Unknown'].includes(r) && !others.some((o) => o.role === r));
+    return (
+      <span className="flex flex-wrap items-center gap-1">
+        {others.map((o) => (
+          <span key={o.role} className="inline-flex items-center rounded bg-chalk-100 border border-chalk-300 pl-1.5 text-[11px] font-mono whitespace-nowrap">
+            {o.role} {label(o.rank)}
+            <button type="button" className="px-1.5 min-h-7 text-ink-500 hover:text-ink-900" aria-label={`Remove ${o.role} for ${row.web_name}`}
+              disabled={savingId === row.fpl_player_id} onClick={() => void handleOtherPosition(row, o.role, null)}>&times;</button>
+          </span>
+        ))}
+        <select aria-label={`Also plays: ${row.web_name}`} value={role} onChange={(e) => setRole(e.target.value)} className="text-xs font-mono border border-chalk-300 rounded px-1 py-0.5">
+          <option value="">+ position</option>
+          {choices.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        {role && (
+          <>
+            <select aria-label={`Rank at ${role}: ${row.web_name}`} value={rank} onChange={(e) => setRank(Number(e.target.value))} className="text-xs font-mono border border-chalk-300 rounded px-1 py-0.5">
+              {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{label(n)}</option>)}
+            </select>
+            <button type="button" className="text-xs px-2 py-0.5 rounded bg-pitch-800 text-chalk-100" disabled={savingId === row.fpl_player_id}
+              onClick={() => { void handleOtherPosition(row, role, rank); setRole(''); }}>Add</button>
+          </>
+        )}
       </span>
     );
   }
@@ -1018,6 +1079,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                             Depth
                           </button>
                         </th>
+                        <th className="px-2 py-1.5" title="Other positions he plays, with his rank in each. The projections let him start in any of them.">Also plays</th>
                         <th className="px-2 py-1.5">Status</th>
                         <th className="px-2 py-1.5" title="Expected back: your date if set, otherwise the one in FPL's news. Out before it, then 75% / 90% / fit in the projections.">Back</th>
                         <th className="px-2 py-1.5">Set pieces</th>
@@ -1049,6 +1111,9 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           </td>
                           <td className="px-2 py-1.5">
                             <DepthRankSelect row={r} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <OtherPositionsCell row={r} />
                           </td>
                           <td className="px-2 py-1.5">
                             <StatusBadge row={r} />
