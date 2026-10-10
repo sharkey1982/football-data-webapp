@@ -151,6 +151,28 @@ async function main() {
   check((sql(`select count(*)::int n from public.sf_my_team`, { role: 'authenticated', user: USER }) as { n: number }[])[0].n === 0, 'a user without an entry has no team');
   exec(`update sf.universes set is_public = false where id = '${universe}'`);
 
+  // 5. test leagues driven by an admin through sf_test_rpc (migration 20261010210000)
+  const testRpc = (as: { role: string; user?: string }): Rpc => async (fn, args) => {
+    const b = Buffer.from(JSON.stringify(args)).toString('base64');
+    const rows = sql(`select public.sf_test_rpc('${fn}', convert_from(decode('${b}', 'base64'), 'UTF8')::jsonb) r`, as) as { r: unknown }[];
+    return rows[0].r;
+  };
+  const adminD = { rpc: testRpc({ role: 'authenticated', user: ADMIN }), hash: d.hash, solve };
+  const tSeason = await createSeason(adminD, { universe: 't-check', name: 'T', seed: 't-check-1', firstDeadline: new Date(Date.now() + 7 * 86400_000), spacingMinutes: 10080, kickoffAfterMinutes: 180, zone: 'Europe/London' });
+  check(tSeason > 0, 'an admin creates a test league');
+  check((sql(`select is_test from sf.universes where id = 't-check'`) as { is_test: boolean }[])[0].is_test, 'it is flagged as a test league');
+  check(await advance(adminD, 't-check', { force: true, lineup: { optimiser: 1, random: 2 } }) === 'ok', 'the admin plays round 1 at once (bots, early lock, play)');
+  check((sql(`select state from sf.rounds where season_id = ${tSeason} and number = 1`) as { state: string }[])[0].state === 'final', 'round 1 is final');
+  check((sql(`select count(*)::int n from public.sf_fixtures where season_id = ${tSeason} and round = 1 and status = 'full_time'`, { role: 'authenticated', user: ADMIN }) as { n: number }[])[0].n === 5, 'its results show straight away');
+  const refused = async (rpcFn: Rpc, fn: string, args: Record<string, unknown>) => { try { await rpcFn(fn, args); return ''; } catch (e) { return String((e as { stderr?: string }).stderr ?? e); } };
+  check(/admins only/.test(await refused(testRpc({ role: 'authenticated', user: USER }), 'sf_runner_state', { p_universe: 't-check' })), 'a non-admin cannot use the test controls');
+  check(/permission denied/.test(await refused(testRpc({ role: 'anon' }), 'sf_runner_state', { p_universe: 't-check' })), 'anon cannot call sf_test_rpc');
+  check(/not a test league/.test(await refused(adminD.rpc, 'sf_runner_state', { p_universe: universe })), 'the test controls refuse a league that is not a test league');
+  check(/not a test league/.test(await refused(adminD.rpc, 'sf_lock_round', { p_season: season, p_round: 1, p_force: true })), 'and refuse to lock one of its rounds');
+  check(/starts t-/.test(await refused(adminD.rpc, 'sf_create_season', { p: { universe: { id: 'real-one' } } })), 'a new test league must be named t-…');
+  check(/not allowed/.test(await refused(adminD.rpc, 'sf_save_team', {})), 'only the runner functions go through the test controls');
+  check(/violates check constraint/.test(exec(`update sf.universes set is_public = true where id = 't-check'`) ?? ''), 'a test league can never be made public');
+
   console.log(failures ? `${failures} FAILED` : 'all checks passed');
   process.exit(failures ? 1 : 0);
 }

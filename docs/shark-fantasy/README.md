@@ -123,3 +123,14 @@ The `proto` league runs weekly: `sf-round.yml` runs `advance --universe proto`
 on Sundays at 11:05 and 12:05 UTC, so one run follows the 12:00 UK deadline in
 summer and in winter. Deadlines are 12:00 UK time every week (`zone:
 'Europe/London'` in the runner), kick-off 15:00.
+
+### Test leagues (admins, from the page)
+
+Chris needs to start whenever and play sped up while testing. The page has
+**Test** controls for admins: *New test league* (round 1 open now) and, for a
+test league, *Lock and play round N* and *Play to the end*. The admin's browser
+runs the same runner as the weekly job; the database calls go through
+`public.sf_test_rpc`, which only an admin may call, only for a universe
+flagged `is_test` (ids start `t-`), and never for a public one (a check
+constraint stops a test league being made public). The weekly `proto` league
+is not a test league, so it stays with the Sunday job.

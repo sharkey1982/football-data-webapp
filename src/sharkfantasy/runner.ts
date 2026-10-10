@@ -30,7 +30,7 @@ import type { BotKind, Solver, BotContext } from './fantasy/bots';
 import { newBot, initialSquad, weeklyMoves } from './fantasy/bots';
 
 export type Rpc = (fn: string, args: Record<string, unknown>) => Promise<unknown>;
-export interface RunnerDeps { rpc: Rpc; hash: (s: string) => string; solve?: Solver; log?: (msg: string) => void }
+export interface RunnerDeps { rpc: Rpc; hash: (s: string) => string | Promise<string>; solve?: Solver; log?: (msg: string) => void }
 
 /** JSON with sorted keys, so a state read back from jsonb hashes the same. */
 export function canonical(v: unknown): string {
@@ -101,7 +101,7 @@ export async function createSeason(d: RunnerDeps, o: CreateOptions): Promise<num
     prices: world.players.map(p => ({ player_id: p.id, price: prices[p.id], inputs: { xp_season: round3(xpSeason[p.id]) } })),
     season_players: world.players.map(p => ({ player_id: p.id, start_price: prices[p.id], expected_per_round: round3(xpSeason[p.id] / 9) })),
     projections: proj,
-    snapshot: { state, hash: d.hash(canonical(state)) },
+    snapshot: { state, hash: await d.hash(canonical(state)) },
   } });
   d.log?.(`season created: ${id}`);
   return Number(id);
@@ -124,7 +124,7 @@ interface RunnerState {
 async function load(d: RunnerDeps, universe: string): Promise<{ st: RunnerState; ss: SeasonState }> {
   const st = await d.rpc('sf_runner_state', { p_universe: universe }) as RunnerState | null;
   if (!st) throw new Error(`no season in universe ${universe}`);
-  if (d.hash(canonical(st.snapshot.state)) !== st.snapshot.hash) throw new Error('engine state does not match its hash');
+  if ((await d.hash(canonical(st.snapshot.state))) !== st.snapshot.hash) throw new Error('engine state does not match its hash');
   const ss: SeasonState = { world: st.world, ...st.snapshot.state };
   if (ss.roundsPlayed !== st.snapshot.after_round) throw new Error('engine state is out of step with the database');
   return { st, ss };
@@ -216,7 +216,7 @@ export async function playLockedRound(d: RunnerDeps, universe: string) {
   const state = stateOf(ss);
   const r = await d.rpc('sf_commit_round', { p: {
     season_id: st.season.id, round, engine_version: ENGINE_VERSION,
-    snapshot: { state, hash: d.hash(canonical(state)) },
+    snapshot: { state, hash: await d.hash(canonical(state)) },
     results: results.map(m => {
       const bonus = bonusForMatch(m.stats);
       return { fixture_key: m.fixtureKey, home_goals: m.homeGoals, away_goals: m.awayGoals, xg_home: round3(m.xg.home), xg_away: round3(m.xg.away),

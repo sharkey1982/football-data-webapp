@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-10 · Shark Fantasy: fixture keys unique across all leagues, not within one
+- **Found by:** the new test-league check in `scripts/sf/db-check.ts` (a second league in the same database), before any live league played a round.
+- **Impact:** none yet. A second league whose round-robin produced a key already used by another league (`s1|r1|c7-c8`) could not have been created, and `sf_commit_round` matched fixtures by key alone, so a round could have been written against another league's fixture (it would have failed on the duplicate result rather than corrupt anything). The `proto` league (created today) happened to share no key with `test`.
+- **Cause:** `sf.fixtures.fixture_key` was declared `unique` on its own; the engine's key is only unique within a season.
+- **Fix:** migration `20261010210000_shark_fantasy_test_leagues`: unique (season_id, fixture_key), and `sf_commit_round` matches fixtures within its season.
+- **Prevention:** the end-to-end check now runs two leagues in one database. *Lesson: a key made by the engine is unique only within the thing the engine was asked to make.*
+
+---
+
 ## 2026-10-10 · Tactical roles from Fantasy Football Scout: left and right swapped
 - **Reported:** Chris -- "Their images show the goal keeper at the top and left and right the other way around to our images."
 - **Impact:** since the 14 Sep seed, all 88 left/right roles still sourced from FFS were mirrored (Gvardiol, Shaw, Robertson and Mykolenko at right-back; Dalot at left-back; Rashford on the right). Pitches drew them on the wrong side, and the depth chart had them competing for the wrong place (a left-back's backup covering the right).
