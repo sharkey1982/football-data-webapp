@@ -1,0 +1,32 @@
+name: Actual line-ups
+
+# Actual starting line-ups with positions and formation
+# (scripts/actual_lineups.py). probe: check sources only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: Check sources only (no save)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python scripts/actual_lineups.py ${{ inputs.probe && '--probe' || '' }}
