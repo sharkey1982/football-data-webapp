@@ -1,0 +1,44 @@
+name: FFS team news
+
+# Fantasy Football Scout's predicted line-ups (public team-news page) for
+# /admin/lineup-compare. One page fetch per run. scripts/ffs_team_news.py.
+# probe: store the page's structure in analysis_results and save nothing
+# (for checking the parser after a layout change).
+
+on:
+  schedule:
+    - cron: '20 7 * * *'
+    - cron: '20 17 * * *'
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: Store the page structure only (no save)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt pytest
+      - run: python -m pytest -q scripts/test_ffs_team_news.py
+      - name: Fetch
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        shell: bash
+        run: |
+          set +e
+          python scripts/ffs_team_news.py ${{ inputs.probe && '--probe' || '' }} 2>&1 | tee /tmp/ffs.log
+          STATUS=${PIPESTATUS[0]}
+          ENCODED=$(tail -c 3000 /tmp/ffs.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
