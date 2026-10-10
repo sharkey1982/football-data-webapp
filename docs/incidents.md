@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · Fixture-list tests failed between midnight and 01:00 UK time
+- **Found:** running the test suite at 00:45 BST before a push: 9 tests in three `GameweekBrowser` test files failed; at 19:00 the same day all passed.
+- **Impact:** tests only; the site was unaffected. Any push checked between midnight and 01:00 UK summer time would have seen a red suite unrelated to its change.
+- **Cause:** the tests built "today" with `toISOString().slice(0, 10)`, which is the UTC date, while the page's `todayIsoDate()` uses the local calendar date. Between midnight and 01:00 BST they are different days, so the "today" fixtures were dated yesterday.
+- **Fix:** the three test files now use the local calendar date, the same way the page does.
+- **Prevention:** checked under both `TZ=Europe/London` (during the failing hour) and `TZ=UTC`. *Lesson: in tests, build dates the same way the code under test does; `toISOString()` is a UTC date, not today.*
+
+---
+
 ## 2026-10-10 · Shark Fantasy: fixture keys unique across all leagues, not within one
 - **Found by:** the new test-league check in `scripts/sf/db-check.ts` (a second league in the same database), before any live league played a round.
 - **Impact:** none yet. A second league whose round-robin produced a key already used by another league (`s1|r1|c7-c8`) could not have been created, and `sf_commit_round` matched fixtures by key alone, so a round could have been written against another league's fixture (it would have failed on the duplicate result rather than corrupt anything). The `proto` league (created today) happened to share no key with `test`.

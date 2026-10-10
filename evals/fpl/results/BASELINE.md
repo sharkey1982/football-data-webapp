@@ -32,7 +32,7 @@ Regenerate both with `npm run eval:offline`.
 
 The live run against `claude-sonnet-5` has **not** been run. This workspace has no Anthropic API key: the AI Lab's key is a Supabase edge-function secret, which can't be read from outside Supabase, and the eval doesn't go through the edge function because that answers from live data rather than frozen snapshots.
 
-Command, once a key is set in the shell: `npm run eval:live`, then `npm run report -- results/live-<stamp>.json`.
+Run it either from a shell with a key set (`npm run eval:live`), or with the **FPL evals (manual)** GitHub workflow in `live` mode once the `ANTHROPIC_EVAL_API_KEY` repository secret exists. The workflow commits its report to `results/runs/`.
 
 **Expected cost per run** (estimated from the prompts' length at ~3.5 characters a token; the live run reports exact counts):
 

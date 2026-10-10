@@ -38,7 +38,10 @@ const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const mockedBroadcasts = vi.mocked(broadcastsApi);
 const mockedCommercialLinks = vi.mocked(commercialLinks);
 const mockedTrackEvent = vi.mocked(analytics.trackEvent);
-const TODAY = new Date().toISOString().slice(0, 10);
+// Local calendar date, matching todayIsoDate() in GameweekBrowser. toISOString()
+// gives the UTC date, which is yesterday between midnight and 01:00 UK summer time.
+const localIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const TODAY = localIsoDate(new Date());
 
 const FIXTURES = [
   { fixture_id: 1, league_id: 1, season_id: 13, home_team_id: 1, away_team_id: 2, home_team_name: 'Arsenal', away_team_name: 'Chelsea', kickoff_date: TODAY, kickoff_time: '15:00', matchweek: 1, status: 'scheduled', predicted_home_goals: 1.8, predicted_away_goals: 1.2 },
