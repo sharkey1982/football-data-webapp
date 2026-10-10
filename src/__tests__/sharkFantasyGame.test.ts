@@ -1,0 +1,195 @@
+// @vitest-environment node
+// Shark Fantasy game logic (Phase 3a): squads, lineups, auto-subs, captaincy,
+// transfers, prices, the public view, the projection and the bots.
+// The full bot test (100+ seasons) is scripts/sf/bots.ts.
+import { beforeAll, describe, expect, it } from 'vitest';
+import highsLoader from 'highs';
+import { generateWorld } from '../sharkfantasy/engine/world';
+import { startSeason, playRound } from '../sharkfantasy/engine/season';
+import type { Position } from '../sharkfantasy/engine/types';
+import { GAME_RULES_V1 as R } from '../sharkfantasy/fantasy/rules';
+import { squadProblems, lineupProblems, autoSubs, roundScore } from '../sharkfantasy/fantasy/squad';
+import type { Entry, PlayerInfo, Selection } from '../sharkfantasy/fantasy/squad';
+import { initialPrices, formPriceChange, sellingPrice, transfer, applyTransfers, hitCost, closeTransferWindow } from '../sharkfantasy/fantasy/market';
+import { publicView } from '../sharkfantasy/fantasy/publicview';
+import { projectRounds } from '../sharkfantasy/fantasy/projection';
+import { runLeague } from '../sharkfantasy/fantasy/league';
+import type { Solver } from '../sharkfantasy/fantasy/bots';
+
+const world = generateWorld('game-test');
+const infoMap = new Map<string, PlayerInfo>(world.players.map(p => [p.id, { id: p.id, clubId: p.clubId, position: p.position }]));
+const info = (id: string) => infoMap.get(id)!;
+const flat = (n: number) => () => n;
+
+/** A legal squad: per position, players from clubs in turn (never more than 2 a club). */
+function makeSquad(): string[] {
+  const out: string[] = [];
+  let c = 0;
+  for (const pos of ['GK', 'DEF', 'MID', 'FWD'] as Position[]) for (let k = 0; k < R.squad[pos]; k++) {
+    const club = world.clubs[c++ % 10].id;
+    out.push(world.players.find(p => p.clubId === club && p.position === pos && !out.includes(p.id))!.id);
+  }
+  return out;
+}
+const squad = makeSquad();
+const byPos = (pos: Position) => squad.filter(id => info(id).position === pos);
+// 4-4-2: GK, DEF×4, MID×4, FWD×2; bench: GK2, DEF5, MID5, FWD3
+const sel: Selection = {
+  xi: [byPos('GK')[0], ...byPos('DEF').slice(0, 4), ...byPos('MID').slice(0, 4), ...byPos('FWD').slice(0, 2)],
+  bench: [byPos('GK')[1], byPos('DEF')[4], byPos('MID')[4], byPos('FWD')[2]],
+  captain: byPos('FWD')[0], vice: byPos('MID')[0],
+};
+const picks = (price = 60) => squad.map(id => ({ playerId: id, purchasePrice: price }));
+const entry = (): Entry => ({ id: 'e', picks: picks(), selection: { ...sel, xi: sel.xi.slice(), bench: sel.bench.slice() }, bank: 100, freeTransfers: 1, wildcardsLeft: 1, transfersThisRound: 0, wildcardThisRound: false, pointsByRound: [], hitsByRound: [] });
+
+describe('squads and lineups', () => {
+  it('a legal squad and 4-4-2 pass', () => {
+    expect(squadProblems(picks(), info, flat(60))).toEqual([]);
+    expect(lineupProblems(sel, picks(), info)).toEqual([]);
+  });
+  it('over budget, a fourth player from a club, and the wrong shape fail', () => {
+    expect(squadProblems(picks(), info, flat(70)).join()).toMatch(/budget/);
+    const club = info(squad[0]).clubId;
+    const extra = world.players.filter(p => p.clubId === club && p.position === 'MID').slice(0, 3).map(p => p.id);
+    const four = squad.filter(id => info(id).position !== 'MID').concat(extra, byPos('MID').filter(id => info(id).clubId !== club).slice(0, 2));
+    expect(squadProblems(four.map(id => ({ playerId: id, purchasePrice: 50 })), info, flat(50)).join()).toMatch(/max 3/);
+    expect(squadProblems(picks().slice(1), info, flat(50)).join()).toMatch(/14 players/);
+  });
+  it('lineup rules: 5-3-2 is fine; the reserve keeper must be first on the bench; the captain must start', () => {
+    const six = { ...sel, xi: sel.xi.filter(id => id !== byPos('MID')[3]).concat(byPos('DEF')[4]), bench: [byPos('GK')[1], byPos('MID')[3], byPos('MID')[4], byPos('FWD')[2]] };
+    expect(lineupProblems(six, picks(), info)).toEqual([]);           // 5-3-2
+    const bad = { ...sel, bench: [sel.bench[1], sel.bench[0], ...sel.bench.slice(2)] };
+    expect(lineupProblems(bad, picks(), info).join()).toMatch(/reserve keeper/);
+    expect(lineupProblems({ ...sel, captain: sel.bench[1] }, picks(), info).join()).toMatch(/captain/);
+  });
+});
+
+describe('auto-subs and the captain', () => {
+  const played = (absent: string[]) => (id: string) => (absent.includes(id) ? 0 : 90);
+  it('a starter with no minutes is replaced by the first bench player who played', () => {
+    const out = sel.xi[6];                                        // a MID
+    const r = autoSubs(sel, played([out]), info);
+    expect(r.subs).toEqual([[out, sel.bench[1]]]);                // the first outfield sub (DEF): 5-3-2 is legal
+  });
+  it('the keeper only by the reserve keeper', () => {
+    const r = autoSubs(sel, played([sel.xi[0]]), info);
+    expect(r.subs).toEqual([[sel.xi[0], sel.bench[0]]]);
+    const none = autoSubs(sel, played([sel.xi[0], sel.bench[0]]), info);
+    expect(none.subs).toEqual([]);
+  });
+  it('skips a bench player who would break the formation', () => {
+    // 3-5-2 with one DEF absent: a MID can't come on (2 DEF), the DEF on the bench can
+    const s352: Selection = { xi: [byPos('GK')[0], ...byPos('DEF').slice(0, 3), ...byPos('MID'), ...byPos('FWD').slice(0, 2)],
+      bench: [byPos('GK')[1], byPos('FWD')[2], byPos('DEF')[3], byPos('DEF')[4]], captain: byPos('FWD')[0], vice: byPos('MID')[0] };
+    expect(lineupProblems(s352, picks(), info)).toEqual([]);
+    const r = autoSubs(s352, played([byPos('DEF')[0]]), info);
+    expect(r.subs).toEqual([[byPos('DEF')[0], byPos('DEF')[3]]]);
+  });
+  it('captain doubles; the vice doubles if the captain did not play', () => {
+    const pts = (id: string) => (id === sel.captain ? 10 : id === sel.vice ? 6 : 2);
+    expect(roundScore(sel, pts, flat(90), info).total).toBe(9 * 2 + 6 + 10 * 2);
+    const r = roundScore(sel, pts, (id) => (id === sel.captain ? 0 : 90), info);
+    expect(r.captainUsed).toBe(sel.vice);
+    // captain's place goes to the first bench player who keeps the shape (FWD 3 on the bench at the end: DEF first, 5-4-1 is legal)
+    expect(r.total).toBe(9 * 2 + 6 * 2 + 2);
+  });
+});
+
+describe('transfers and prices', () => {
+  it('selling price keeps half of any rise, all of a fall', () => {
+    expect(sellingPrice(50, 53)).toBe(51);
+    expect(sellingPrice(50, 54)).toBe(52);
+    expect(sellingPrice(50, 47)).toBe(47);
+  });
+  it('a like-for-like transfer updates the squad, bank and selection', () => {
+    const e = entry(), out = sel.captain;
+    const inn = world.players.find(p => p.position === 'FWD' && !squad.includes(p.id) && info(p.id).clubId !== info(byPos('FWD')[1]).clubId)!.id;
+    expect(transfer(e, out, byPos('MID')[0], flat(60), info).join()).toMatch(/already|like for like/);
+    expect(transfer(e, out, inn, (id) => (id === inn ? 65 : 60), info)).toEqual([]);
+    expect(e.bank).toBe(95);
+    expect(e.selection.captain).toBe(inn);
+    expect(e.transfersThisRound).toBe(1);
+  });
+  it('several transfers at once are judged on the final squad', () => {
+    const e = entry();
+    const outs = [byPos('MID')[0], byPos('MID')[1]];
+    const ins = world.players.filter(p => p.position === 'MID' && !squad.includes(p.id)).slice(0, 2).map(p => p.id);
+    const price = (id: string) => (id === ins[0] ? 200 : 60);
+    expect(applyTransfers(e, outs, ins, price, info).join()).toMatch(/overspent/);
+    expect(e.transfersThisRound).toBe(0);
+  });
+  it('hits: −4 per transfer beyond the free ones; free transfers bank up to 3; a wildcard is free', () => {
+    const e = entry();
+    e.transfersThisRound = 3; e.freeTransfers = 1;
+    expect(hitCost(e)).toBe(8);
+    expect(closeTransferWindow(e)).toBe(8);
+    expect(e.freeTransfers).toBe(1);
+    for (let k = 0; k < 4; k++) closeTransferWindow(e);
+    expect(e.freeTransfers).toBe(3);
+    e.transfersThisRound = 5; e.wildcardThisRound = true;
+    expect(closeTransferWindow(e)).toBe(0);
+    expect(e.freeTransfers).toBe(3);
+  });
+  it('initial prices sit in each band and rise with the projection', () => {
+    const ps = world.players.map((p, i) => ({ ...info(p.id), xp: i % 37 }));
+    const pr = initialPrices(ps);
+    for (const p of ps) { const [lo, hi] = R.priceBand[p.position]; expect(pr[p.id]).toBeGreaterThanOrEqual(lo); expect(pr[p.id]).toBeLessThanOrEqual(hi); }
+    const mids = ps.filter(p => p.position === 'MID').sort((a, b) => a.xp - b.xp);
+    expect(pr[mids[0].id]).toBeLessThanOrEqual(pr[mids[mids.length - 1].id]);
+  });
+  it('form moves a price at most 0.2 a week and 0.6 a season, never below the band', () => {
+    expect(formPriceChange(60, 60, 3, [15, 15, 15], 'MID')).toBe(62);
+    expect(formPriceChange(66, 60, 3, [15, 15, 15], 'MID')).toBe(66);
+    expect(formPriceChange(60, 60, 6, [0, 0, 0], 'MID')).toBe(58);
+    expect(formPriceChange(45, 45, 3, [0, 0, 0], 'MID')).toBe(45);
+    expect(formPriceChange(60, 60, 3, [3, 4, 2], 'MID')).toBe(60);
+  });
+});
+
+describe('the public view and the projection', () => {
+  const ss = startSeason(world, 1);
+  for (let r = 0; r < 3; r++) playRound(ss);
+  const pv = publicView(ss);
+  it('never carries hidden attributes; scouting is close but not exact', () => {
+    const json = JSON.stringify(pv);
+    for (const key of ['hidden', 'finishing', 'goalkeeping', 'injuryProneness', 'potential', 'fitness']) expect(json).not.toContain(`"${key}"`);
+    const diffs = world.players.map(p => Math.abs(pv.players.find(x => x.id === p.id)!.scout.attack - p.hidden.finishing));
+    expect(diffs.some(d => d > 0)).toBe(true);
+    expect(diffs.reduce((a, b) => a + b, 0) / diffs.length).toBeLessThan(8);
+  });
+  it('shows played rounds and the fixtures still to come', () => {
+    expect(pv.nextRound).toBe(4);
+    expect(pv.results).toHaveLength(15);
+    expect(pv.fixtures.filter(f => f.round === 4)).toHaveLength(5);
+    expect(pv.fixtures.some(f => f.round === 10)).toBe(false);   // Finals Sunday is set by the table
+  });
+  it('projects every player for the next round, sensibly', () => {
+    const rows = projectRounds(pv, [4]);
+    expect(rows).toHaveLength(200);
+    for (const x of rows) { expect(x.xPoints).toBeGreaterThanOrEqual(-1); expect(x.xPoints).toBeLessThan(10); expect(x.pStart).toBeLessThanOrEqual(1); }
+    const unavailable = pv.players.filter(p => p.availableFrom > 4).map(p => p.id);
+    for (const id of unavailable) expect(rows.find(x => x.playerId === id)!.xPoints).toBe(0);
+  });
+});
+
+describe('a bot league', () => {
+  const lineup = { optimiser: 2, template: 1, setforget: 1, chaser: 1, random: 2 };
+  let solve: Solver;
+  let a: ReturnType<typeof runLeague>;
+  beforeAll(async () => {
+    const highs = await highsLoader();
+    solve = (lp) => highs.solve(lp) as unknown as ReturnType<Solver>;
+    a = runLeague('league-test', lineup, solve);
+  }, 120_000);
+  it('every bot keeps a legal squad and lineup all season (runLeague checks each round)', () => {
+    expect(a.bots).toHaveLength(7);
+    for (const b of a.bots) expect(b.byRound).toHaveLength(10);
+  });
+  it('is reproducible', () => {
+    expect(JSON.stringify(runLeague('league-test', lineup, solve))).toBe(JSON.stringify(a));
+  }, 120_000);
+  it('the projection is honest on average (within 15% of actual points)', () => {
+    const xp = a.projections.reduce((s, r) => s + r.xp, 0), act = a.projections.reduce((s, r) => s + r.actual, 0);
+    expect(Math.abs(xp / act - 1)).toBeLessThan(0.15);
+  });
+});
