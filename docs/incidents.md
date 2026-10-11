@@ -21,6 +21,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · FPL eval prompt v2: ambiguous output instructions
+- **Found:** reading the v2 trial (`evals/fpl/results/runs/2026-10-11-1234-live-v2`): 4/20, against 15/20 on the checks v1 was held to.
+- **Impact:** $0.75 spent on a run whose headline score mostly measured my instructions, not the model. Nothing outside the eval was affected.
+- **Cause:** I wrote two new output rules without testing how a model would read them: "over lists every option the claim covers" (read as "the options the winner beat") and "#n = the n-th entry in facts" (read as "the n-th calculation"). The offline reference answers followed my reading, so the self-test couldn't reveal it.
+- **Fix:** none applied yet; results and the proposed v3 (no superlatives contract, named fact ids, constants allowed) are in `evals/fpl/results/BASELINE.md` for Chris to approve.
+- **Prevention:** before a full live run of a new output contract, run 2-3 cases once (about $0.10) and read the raw JSON. *Lesson: the reference answers prove the checks; only a live answer proves the instructions.*
+
+---
+
 ## 2026-10-11 · FPL eval baseline: answer length cap too low, and one check too strict
 - **Found:** reading the first live run of the FPL eval pilot (`evals/fpl`, GitHub run 38133579090): 3/10 passed.
 - **Impact:** the result understated the model. Six of seven failures were answers cut off at the 1,500-token cap (`finishReason: length`); two of those spent the whole cap thinking and returned nothing. The seventh (T07) was a good answer failed by a check that required one particular source. The quality judge also hit its own 800-token cap on one case and scored "No output" as 0. Cost of the run: $0.18; nothing outside the eval was affected.
