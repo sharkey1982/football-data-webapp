@@ -20,8 +20,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
-const TOOLSET_VERSION = "ai_tools_v1";
+// v2 (11 Oct 2026): ranking tools (compare_fixture_runs, best_fpl_combination,
+// compare_fpl_players), so comparisons are computed rather than done by the model.
+const TOOLSET_VERSION = "ai_tools_v2";
 const MAX_ROUNDS = 8;
+// The model's thinking counts against max_tokens (see evals/fpl incidents, 11 Oct).
+const MAX_TOKENS = 8000;
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-ai-lab-token",
@@ -65,24 +69,33 @@ const TOOLS: ToolSpec[] = [
     parameters: { type: "object", properties: { team: str("Team name"), from_date: str("YYYY-MM-DD"), to_date: str("YYYY-MM-DD"), limit: int("Default 5, max 20") } } },
   { name: "get_data_status", description: "What FixtureShark covers (competitions and seasons) and when each kind of data was last updated.",
     parameters: { type: "object", properties: {} } },
+  { name: "compare_fixture_runs", description: "Compare Premier League teams' fixtures over a range of gameweeks: average FPL FDR, market-implied and Dixon-Coles goals for and against, each team's rank on each, and a leaders object naming the easiest/hardest FDR and best/weakest attack and defence. Use this for any question about which team has the best, easiest or hardest fixtures; quote its leaders instead of comparing teams yourself.",
+    parameters: { type: "object", properties: { teams: { type: "array", items: { type: "string" }, description: "Team names; omit for all 20" }, from_gameweek: int("Default next gameweek"), to_gameweek: int("Default from_gameweek + 3; at most 10 gameweeks") } } },
+  { name: "best_fpl_combination", description: "The best 2 or 3 FPL players within a total budget by FixtureShark projected points, found by an exact search, with the two runners-up. Use this for any 'best pair/trio for £Xm' question instead of adding players up yourself.",
+    parameters: { type: "object", properties: { max_total_price: { type: "number", description: "Total budget in £m (required)" }, count: int("2 or 3, default 2"), position: { type: "string", enum: ["GK", "DEF", "MID", "FWD"] }, gameweek: int("Starting gameweek; default next"), gameweeks: int("How many gameweeks to sum, default 1, max 6") }, required: ["max_total_price"] } },
+  { name: "compare_fpl_players", description: "Compare 2-6 named FPL players side by side: projected points, minutes, start probability, xG and xA (model estimates) and season points, price and status (FPL data), with a leaders object naming who is highest on each. Use this whenever the answer says one player is highest, best or most likely on anything.",
+    parameters: { type: "object", properties: { players: { type: "array", items: { type: "string" }, description: "2-6 player names" }, gameweek: int("Starting gameweek; default next"), gameweeks: int("How many gameweeks to sum, default 1, max 6") }, required: ["players"] } },
 ];
 const DEFAULT_LIMITS: Record<string, number> = { get_fixtures: 5, get_results: 10, get_fpl_players: 10, get_fpl_projections: 10, get_tv_listings: 5 };
 
 const SUBMIT: ToolSpec = {
   name: "submit_answer",
-  description: "Submit your final answer. Call exactly once, at the end.",
+  description: "Submit your final answer. Call exactly once, at the end. Give answer_type and facts_used first and the answer text last, each as its own field.",
+  // Field order matters: in 7 of 22 runs on 26 Sep the long answer text swallowed
+  // the fields after it (markup like "</answer><parameter name=...>" inside the
+  // answer). Short fields first means a runaway answer can't take them with it.
   parameters: {
     type: "object",
     properties: {
-      answer: str("The final answer for the user, in plain English"),
       answer_type: { type: "string", enum: ["answered", "partial", "refused"], description: "refused = you could not or would not answer" },
       facts_used: {
         type: "array",
         description: "Every number, name or date the answer relies on",
         items: { type: "object", properties: { value: str("The value exactly as it appears in the tool result"), meaning: str("What it is"), tool: str("Tool it came from") }, required: ["value", "meaning", "tool"] },
       },
+      answer: str("The final answer for the user, in plain English. Plain text only, no markup."),
     },
-    required: ["answer", "answer_type", "facts_used"],
+    required: ["answer_type", "facts_used", "answer"],
   },
 };
 
@@ -107,7 +120,7 @@ const anthropic: Provider = {
     const key = Deno.env.get("ANTHROPIC_API_KEY");
     if (!key) throw new ProviderError("ANTHROPIC_API_KEY is not set in Supabase Edge Function secrets.");
     const body = {
-      model, max_tokens: 2000,
+      model, max_tokens: MAX_TOKENS,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       tools: tools.map((t, i) => ({ name: t.name, description: t.description, input_schema: t.parameters,
         ...(i === tools.length - 1 ? { cache_control: { type: "ephemeral" } } : {}) })),
@@ -137,6 +150,19 @@ const anthropic: Provider = {
   },
 };
 const PROVIDERS: Record<string, Provider> = { anthropic };
+
+// ---------------------------------------------------------------- submit check
+// A submission missing its fields, or with tool-call markup leaked into the
+// answer, is sent back once per round so the model can resubmit, instead of
+// being recorded as a broken answer.
+function submitProblems(input: any): string[] {
+  const p: string[] = [];
+  if (!["answered", "partial", "refused"].includes(input?.answer_type)) p.push("answer_type must be answered, partial or refused");
+  if (!Array.isArray(input?.facts_used)) p.push("facts_used must be an array");
+  if (typeof input?.answer !== "string" || !input.answer.trim()) p.push("answer is missing");
+  else if (/<\/?(answer|parameter|invoke|facts_used|answer_type|submit_answer)\b/i.test(input.answer)) p.push("the answer text contains tool-call markup; give each field separately and the answer as plain text");
+  return p;
+}
 
 // ---------------------------------------------------------------- grading
 function norm(v: unknown): string {
@@ -194,7 +220,7 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const model: string = body.model ?? DEFAULT_MODEL;
-  const promptId: string = body.prompt_id ?? "analyst_v1";
+  const promptId: string = body.prompt_id ?? "analyst_v2";
   const cfg = MODELS[model];
   if (!cfg) return json({ error: `Unknown model ${model}. Known: ${Object.keys(MODELS).join(", ")}` }, 400);
   const provider = PROVIDERS[cfg.provider];
@@ -240,11 +266,19 @@ Deno.serve(async (req) => {
       const turn = await provider.turn(system, messages, [...TOOLS, SUBMIT], model);
       usage.in += turn.usage.in; usage.out += turn.usage.out; usage.cacheRead += turn.usage.cacheRead; usage.cacheWrite += turn.usage.cacheWrite;
       stop = turn.stop; finalText = turn.text || finalText;
+      if (turn.stop === "max_tokens") { error = `Cut off at max_tokens (${MAX_TOKENS}) in round ${rounds}.`; break; }
       if (!turn.toolCalls.length) break;
       const results: { id: string; content: string; isError?: boolean }[] = [];
       for (const call of turn.toolCalls) {
         const t0 = Date.now();
         if (call.name === "submit_answer") {
+          const problems = submitProblems(call.input);
+          if (problems.length) {
+            const msg = `submit_answer was not accepted: ${problems.join("; ")}. Call submit_answer again.`;
+            steps.push({ step_no: steps.length + 1, tool_name: call.name, arguments: call.input, result: null, latency_ms: 0, error: msg });
+            results.push({ id: call.id, content: msg, isError: true });
+            continue;
+          }
           submitted = call.input;
           steps.push({ step_no: steps.length + 1, tool_name: call.name, arguments: call.input, result: null, latency_ms: 0, error: null });
           results.push({ id: call.id, content: "Received." });
@@ -267,7 +301,7 @@ Deno.serve(async (req) => {
       if (submitted) break;
       provider.addToolResults(messages, turn, results);
     }
-    if (!submitted && rounds >= MAX_ROUNDS) error = `Stopped after ${MAX_ROUNDS} rounds without submit_answer.`;
+    if (!submitted && !error && rounds >= MAX_ROUNDS) error = `Stopped after ${MAX_ROUNDS} rounds without an accepted submit_answer.`;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }

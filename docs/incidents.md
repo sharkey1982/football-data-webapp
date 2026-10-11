@@ -21,6 +21,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · AI Lab: 7 of 22 answers saved without their answer type or facts
+- **Found:** reviewing the AI Lab before Ask FixtureShark work. On 26 Sep, 7 of 22 runs were recorded as "ended without submit_answer".
+- **Impact:** those 7 runs failed their automatic checks although the answers themselves were written; the 26 Sep pass rate (8/22) understated the model. AI Lab only; nothing public.
+- **Cause:** the model did call `submit_answer`, but put tool-call markup inside the long `answer` text (`...</answer><parameter name="answer_type">answered`), so `answer_type` and `facts_used` were swallowed into the answer. The function accepted any submission, so the broken one was saved as final. (I first guessed the 2,000-token cap; the step logs showed otherwise.)
+- **Fix:** toolset `ai_tools_v2` in `supabase/functions/ai-lab-run`: `submit_answer` lists `answer_type` and `facts_used` before `answer`; a submission with missing fields or markup in the answer is returned to the model with the reason and it resubmits; `max_tokens` 8,000, and hitting it is recorded as an error.
+- **Prevention:** the submission check is tested on the shapes of all 7 failures (`submitProblems`). *Lesson: check a tool's output is well formed before saving it as the answer; a diagnosis from totals ("probably the length cap") needs the step logs before it is acted on.*
+
+---
+
 ## 2026-10-11 · FPL eval prompt v2: ambiguous output instructions
 - **Found:** reading the v2 trial (`evals/fpl/results/runs/2026-10-11-1234-live-v2`): 4/20, against 15/20 on the checks v1 was held to.
 - **Impact:** $0.75 spent on a run whose headline score mostly measured my instructions, not the model. Nothing outside the eval was affected.

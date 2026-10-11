@@ -74,6 +74,8 @@ Each tool is a fixed, parameterised query over catalogued objects. The model nev
 
 As built (toolset `ai_tools_v1`, migration `20260926211000_ai_lab_tools.sql`): `get_fixtures` covers upcoming fixtures only and `get_results` covers played matches (the head-to-head question needs past seasons, which `fixtures` doesn't hold); `get_fpl_player` became `get_fpl_players` so one call can answer "which Newcastle players are injured"; `get_competition_summary` and `get_tv_listings` were added because Experiment 001 includes B10 and I41.
 
+Toolset `ai_tools_v2` (11 Oct 2026, migration `20261011190000_ai_lab_ranking_tools.sql`) adds three ranking tools: `compare_fixture_runs`, `best_fpl_combination` (exact search, top 3) and `compare_fpl_players`. They return results already ranked, with a `leaders` object, because the FPL eval pilot (`evals/fpl/results/BASELINE.md`) showed the model copies numbers correctly but gets comparisons across several options wrong when it does them itself. Prompt `analyst_v2` (now the default) tells it to use them for any comparison. `submit_answer` now takes its short fields before the answer text, and a malformed submission is returned for a retry instead of being saved.
+
 Deliberately left out for Experiment 001: match predictions, model internals, lineups and set pieces, the Watch Guide, and anything that recommends. These come in Experiment 002 and later, once factual retrieval is shown to work.
 
 ## 5. The `/admin/ai-lab` page
