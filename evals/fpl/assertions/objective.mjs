@@ -167,7 +167,8 @@ export function numbers(output, context) {
     // Required figures must be stated (answer or facts) and be right.
     const stated = claimNumbers(d.answer ?? '', []).map((c) => c.n).concat(facts.map((f) => Number(f?.value)).filter(Number.isFinite));
     for (const m of exp.must_state ?? []) {
-      if (!stated.some((n) => Math.abs(n - m.value) <= m.tol)) problems.push(`did not state ${m.why} (${m.value})`);
+      const ok = [m.value, ...(m.alt ?? [])].some((v) => stated.some((n) => Math.abs(n - v) <= m.tol));
+      if (!ok) problems.push(`did not state ${m.why} (${[m.value, ...(m.alt ?? [])].join(' or ')})`);
     }
     return result(problems, `${checked} fact value(s) match their sources; answer numbers traceable`);
   });

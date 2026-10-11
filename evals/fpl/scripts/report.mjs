@@ -2,7 +2,7 @@
 // category, per-case detail, tokens and cost. Optionally adds advisory judge
 // scores from a second results file; they are shown beside the objective
 // verdict and never change it.
-// Usage: node scripts/report.mjs <results.json> [--judge <judge results.json>] [--title "..."]
+// Usage: node scripts/report.mjs <results.json> [--judge <judge results.json>] [--usage <original run.json>] [--title "..."]
 import { readFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
@@ -22,7 +22,10 @@ const provider = rows[0]?.provider?.label || rows[0]?.provider?.id || 'unknown';
 
 const tok = { prompt: 0, completion: 0, total: 0, cached: 0 };
 let cost = 0;
-for (const r of rows) {
+// --usage <file>: take tokens and cost from the run that generated the answers
+// (a re-graded replay records none of its own).
+const usageRows = arg('--usage') ? JSON.parse(readFileSync(arg('--usage'), 'utf8')).results.results : rows;
+for (const r of usageRows) {
   const u = r.response?.tokenUsage ?? r.tokenUsage ?? {};
   tok.prompt += u.prompt ?? 0; tok.completion += u.completion ?? 0; tok.total += u.total ?? 0; tok.cached += u.cached ?? 0;
   cost += r.cost ?? 0;
@@ -73,4 +76,9 @@ out.push('', `## Tokens and cost${estimated ? ' (ESTIMATED: offline provider, ~3
 out.push('| | Tokens |', '|---|---|');
 out.push(`| Prompt | ${tok.prompt.toLocaleString('en-GB')} |`, `| Completion | ${tok.completion.toLocaleString('en-GB')} |`, `| Total | ${tok.total.toLocaleString('en-GB')} |`);
 out.push('', `Cost: **$${cost.toFixed(4)}** for ${rows.length} cases ($${(cost / rows.length).toFixed(4)} a case), at claude-sonnet-5 list prices ($2 / $10 per million input / output tokens).`);
+if (arg('--judge')) {
+  const a = JSON.parse(readFileSync(arg('--judge'), 'utf8')).results?.stats?.tokenUsage?.assertions ?? {};
+  const jc = ((a.prompt ?? 0) * 2 + (a.completion ?? 0) * 10) / 1e6;
+  out.push('', `Judge: ${(a.prompt ?? 0).toLocaleString('en-GB')} prompt + ${(a.completion ?? 0).toLocaleString('en-GB')} completion tokens, **$${jc.toFixed(4)}** (same prices). Run total **$${(cost + jc).toFixed(4)}**.`);
+}
 console.log(out.join('\n'));
