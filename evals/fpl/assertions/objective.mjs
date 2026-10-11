@@ -8,6 +8,8 @@
 //                                     figures stated correctly
 //   missingData  missing_data         answer_type, missing items named, nothing claimed about absent players
 //   task         task_correctness     recommendation, ranking order, confidence, required content, length
+//   rankingClaims ranking_claims     (prompt v2+) every comparison word in the answer is listed in
+//                                     "superlatives", and each listed winner is right over the options given
 
 const TOL = 0.0051; // copied values must match to the precision shown in the data
 const CALC_TOL = 0.011; // calculated values may be rounded to 2 decimals
@@ -46,10 +48,42 @@ function withParsed(output, fn) {
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 // In a "sum", an input written "-ID" is subtracted.
 const stripSign = (id) => String(id).replace(/^-/, '');
-const signedValue = (values, id) => (String(id).startsWith('-') ? -values[stripSign(id)] : values[id]);
+const isFactRef = (id) => /^#\d+$/.test(stripSign(id));
+// Prompt v2 added "superlatives" and "#n" references; v1 outputs are not held to them.
+const isV2 = (context) => /superlatives/.test(typeof context?.prompt === 'string' ? context.prompt : JSON.stringify(context?.prompt ?? ''));
+
+// One value per fact, in order: a source fact resolves to its source's true value, a calculation
+// to its recomputed value. Inputs may be source ids ("-id" subtracts in a sum) or "#n", the n-th
+// EARLIER fact (1-based), so calculations can build on calculations.
+function refValue(ref, values, resolved, before) {
+  const neg = String(ref).startsWith('-'); const r = stripSign(ref);
+  let v;
+  if (isFactRef(r)) {
+    const k = Number(r.slice(1)) - 1;
+    if (k < 0 || k >= before) return { error: `${ref} is not an earlier fact` };
+    v = resolved[k]?.value;
+    if (!isNum(v)) return { error: `${ref} builds on fact ${k + 1}, which has no checked value` };
+  } else {
+    if (!(r in values)) return { error: `unknown id ${r}` };
+    v = values[r];
+    if (!isNum(v)) return { error: `${r} is not a number` };
+  }
+  return { value: neg ? -v : v };
+}
+function resolveFacts(facts, values) {
+  const resolved = [];
+  facts.forEach((f, i) => {
+    if (f?.source_id === 'calc') {
+      const xs = (f.inputs ?? []).map((id) => refValue(id, values, resolved, i));
+      const err = xs.find((x) => x.error);
+      resolved.push(err || !xs.length ? { error: err?.error ?? 'no inputs' } : { value: calc(f.operation, xs.map((x) => x.value)) });
+    } else resolved.push(f?.source_id in values && isNum(values[f.source_id]) ? { value: values[f.source_id] } : { error: 'not a numeric source' });
+  });
+  return resolved;
+}
 
 // ------------------------------------------------------------------ structure
-export function structure(output) {
+export function structure(output, context) {
   const p = parse(output);
   if (!p.ok) return { pass: false, score: 0, reason: p.error };
   const d = p.data; const problems = [];
@@ -66,6 +100,12 @@ export function structure(output) {
     else if (f.source_id === 'calc' && (!Array.isArray(f.inputs) || typeof f.operation !== 'string')) problems.push(`facts[${i}] calc without operation/inputs`);
     if (!f || f.value === undefined) problems.push(`facts[${i}] has no value`);
   });
+  if (isV2(context)) {
+    if (!Array.isArray(d.superlatives)) problems.push('superlatives is not an array');
+    else d.superlatives.forEach((x, i) => {
+      if (!x || typeof x.claim !== 'string' || !['max', 'min'].includes(x.direction) || typeof x.winner !== 'string' || !Array.isArray(x.over)) problems.push(`superlatives[${i}] needs claim, direction max/min, winner and over`);
+    });
+  }
   if (!Array.isArray(d.missing_data)) problems.push('missing_data is not an array');
   if (typeof d.data_as_of !== 'string' || !d.data_as_of.trim()) problems.push('data_as_of missing');
   return result(problems, 'valid JSON in the agreed shape');
@@ -79,7 +119,8 @@ export function provenance(output, context) {
     for (const f of facts) {
       if (!f?.source_id) continue;
       if (f.source_id === 'calc') {
-        const bad = (f.inputs ?? []).map(stripSign).filter((id) => !(id in values));
+        const i = facts.indexOf(f);
+        const bad = (f.inputs ?? []).map(stripSign).filter((id) => (isFactRef(id) ? !(Number(id.slice(1)) >= 1 && Number(id.slice(1)) <= i) : !(id in values)));
         if (bad.length) problems.push(`calc "${f.meaning ?? ''}" uses unknown ids ${bad.join(', ')}`);
       } else if (!(f.source_id in values)) problems.push(`unknown source id ${f.source_id}`);
     }
@@ -136,6 +177,7 @@ export function numbers(output, context) {
     const values = valuesOf(context); const exp = expectedOf(context); const problems = [];
     const facts = Array.isArray(d.facts) ? d.facts : [];
     const known = Object.values(values).filter(isNum);
+    const resolved = resolveFacts(facts, values);
     // Numbers written in the data's text (e.g. "75% chance" in FPL news, "29334 starts") count as data too.
     const contextText = String(vars(context).context ?? '').replace(/\[[^\]]*\]/g, ' ');
     for (const m of contextText.matchAll(/(?<![\w.])\d+(?:\.\d+)?/g)) known.push(Number(m[0]));
@@ -144,9 +186,9 @@ export function numbers(output, context) {
       if (!f?.source_id) continue;
       const v = Number(f.value);
       if (f.source_id === 'calc') {
-        const xs = (f.inputs ?? []).map((id) => signedValue(values, id));
-        if (!xs.length || xs.some((x) => !isNum(x))) continue; // provenance reports unknown ids
-        const want = calc(f.operation, xs);
+        const r = resolved[facts.indexOf(f)];
+        if (r.error) { if (/builds on fact/.test(r.error)) problems.push(`calc "${f.meaning ?? ''}": ${r.error}`); continue; } // unknown ids: provenance reports them
+        const want = r.value;
         if (!Number.isFinite(want)) problems.push(`calc "${f.meaning ?? ''}": unknown operation ${f.operation}`);
         else if (!(Math.abs(v - want) <= CALC_TOL)) problems.push(`calc "${f.meaning ?? ''}" = ${f.value}, recomputed ${roundTo(want, 3)}`);
         else known.push(want, v);
@@ -215,5 +257,45 @@ export function task(output, context) {
       if (words > exp.max_words) problems.push(`answer is ${words} words, limit ${exp.max_words}`);
     }
     return result(problems, 'task requirements met');
+  });
+}
+
+// ------------------------------------------------------------------ ranking claims
+// Comparison words that make a checkable claim. "next best" is excluded (it's a runner-up).
+const SUPERLATIVE = /(?<!\bnext )\b(highest|lowest|easiest|hardest|toughest|strongest|weakest|biggest|smallest|largest|fewest|best|worst)\b/gi;
+
+export function rankingClaims(output, context) {
+  return withParsed(output, (d) => {
+    if (!isV2(context)) return { pass: true, score: 1, reason: 'n/a: prompt v1 has no superlatives contract' };
+    const values = valuesOf(context); const exp = expectedOf(context); const problems = [];
+    const answer = String(d.answer ?? '');
+    const sups = Array.isArray(d.superlatives) ? d.superlatives : [];
+    const facts = Array.isArray(d.facts) ? d.facts : [];
+    const resolved = resolveFacts(facts, values);
+    const spans = [];
+    for (const x of sups) {
+      const at = answer.indexOf(String(x?.claim ?? ''));
+      if (!x?.claim || at < 0) { problems.push(`claim ${JSON.stringify(x?.claim)} is not quoted exactly from the answer`); continue; }
+      spans.push([at, at + x.claim.length]);
+      const over = Array.isArray(x.over) ? x.over : [];
+      if (over.length < 2) { problems.push(`claim "${x.claim}" compares fewer than two options`); continue; }
+      // A claim over the question's options must include all of them, or a partial list could hide the true winner.
+      const names = over.map((o) => String(o?.name ?? '').toLowerCase());
+      const left = (exp.options ?? []).filter((n) => !names.some((x) => x.includes(n.toLowerCase()) || n.toLowerCase().includes(x)));
+      if (left.length) { problems.push(`claim "${x.claim}" leaves out ${left.join(', ')}`); continue; }
+      const vals = over.map((o) => ({ name: String(o?.name ?? ''), ...refValue(o?.ref, values, resolved, facts.length) }));
+      const bad = vals.filter((v) => v.error);
+      if (bad.length) { problems.push(`claim "${x.claim}": ${bad.map((v) => `${v.name} ${v.error}`).join('; ')}`); continue; }
+      const best = x.direction === 'min' ? Math.min(...vals.map((v) => v.value)) : Math.max(...vals.map((v) => v.value));
+      const tops = vals.filter((v) => Math.abs(v.value - best) < 1e-9);
+      const winner = String(x.winner ?? '').toLowerCase();
+      const named = vals.find((v) => v.name.toLowerCase() === winner || winner.includes(v.name.toLowerCase()) || v.name.toLowerCase().includes(winner));
+      if (!named) problems.push(`claim "${x.claim}": winner "${x.winner}" is not among the options compared`);
+      else if (!tops.includes(named)) problems.push(`claim "${x.claim}": says ${x.winner} (${roundTo(named.value, 3)}) but ${tops.map((t) => `${t.name} (${roundTo(t.value, 3)})`).join(', ')} ${x.direction === 'min' ? 'is lower' : 'is higher'}`);
+    }
+    for (const m of answer.matchAll(SUPERLATIVE)) {
+      if (!spans.some(([a, b]) => m.index >= a && m.index < b)) problems.push(`"${answer.slice(Math.max(0, m.index - 25), m.index + m[0].length + 15).trim()}" uses "${m[0]}" but no superlatives entry covers it`);
+    }
+    return result(problems, `${sups.length} comparison claim(s), all checked against the data`);
   });
 }

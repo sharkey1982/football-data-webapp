@@ -21,6 +21,7 @@ const CHECKS = [
   ['numbers', 'numerical_accuracy'],
   ['missingData', 'missing_data'],
   ['task', 'task_correctness'],
+  ['rankingClaims', 'ranking_claims'],
 ];
 
 export default function loadTests() {

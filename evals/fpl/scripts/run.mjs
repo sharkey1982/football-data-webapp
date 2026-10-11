@@ -2,8 +2,9 @@
 // no telemetry, no sharing, no update checks, and Promptfoo's local database
 // kept inside this folder (.promptfoo/, gitignored).
 //
-//   node scripts/run.mjs offline           reference + seeded faults + self-test (no API calls, free)
-//   node scripts/run.mjs live [--repeat N] the real model (needs ANTHROPIC_API_KEY; costs money)
+//   node scripts/run.mjs offline           reference + seeded faults + self-test on the newest prompt (no API calls, free)
+//   node scripts/run.mjs live [promptfoo args]  the real model (needs ANTHROPIC_API_KEY; costs money), e.g.
+//                                          --filter-prompts fpl_analyst_v2   --filter-pattern 'T04|T08'   --repeat 2
 //   node scripts/run.mjs judge <results>   advisory LLM judge on a saved live run (costs money)
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -17,14 +18,15 @@ const run = (cmd, args, extra = {}) => {
   return r.status ?? 1;
 };
 const pf = (args, extra) => run('npx', ['promptfoo', 'eval', '--no-share', '--no-cache', ...args], extra);
+const NEWEST = 'fpl_analyst_v2'; // the offline check runs the prompt that live runs default to
 
 const [mode, ...rest] = process.argv.slice(2);
 mkdirSync(join(ROOT, 'results', 'scratch'), { recursive: true });
 
 if (mode === 'offline') {
   run('node', ['scripts/check-snapshots.mjs']) === 0 || process.exit(1);
-  pf(['-c', 'promptfooconfig.yaml', '-r', 'file://providers/reference.mjs', '-o', 'results/scratch/reference.json']);
-  pf(['-c', 'promptfooconfig.yaml', '-r', 'file://providers/faulty.mjs', '-o', 'results/scratch/faulty.json']);
+  pf(['-c', 'promptfooconfig.yaml', '--filter-prompts', NEWEST, '-r', 'file://providers/reference.mjs', '-o', 'results/scratch/reference.json']);
+  pf(['-c', 'promptfooconfig.yaml', '--filter-prompts', NEWEST, '-r', 'file://providers/faulty.mjs', '-o', 'results/scratch/faulty.json']);
   process.exit(run('node', ['scripts/self-test.mjs', 'results/scratch/reference.json', 'results/scratch/faulty.json']));
 } else if (mode === 'live') {
   if (!process.env.ANTHROPIC_API_KEY) { console.error('ANTHROPIC_API_KEY is not set. Set it in your shell for this session only; never commit it.'); process.exit(2); }

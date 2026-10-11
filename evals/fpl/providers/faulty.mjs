@@ -23,7 +23,12 @@ export const FAULTS = {
     return JSON.stringify(a);
   }],
   T08: ['recommends taking the hit', 'task_correctness', (a) => { a.recommendation = 'Yes, take the hit'; return JSON.stringify(a); }],
-  T09: ['states a number that is not in the data', 'numerical_accuracy', (a) => { a.answer += ' Over 40,000 managers already ignore FDR.'; a.answer = a.answer.replace('40,000', '40000'); return JSON.stringify(a); }],
+  T09: ['false comparison claim', 'ranking_claims', (a) => {
+    a.answer += ' Between players, FDR was the best of the three.';
+    a.superlatives = [{ claim: 'FDR was the best of the three', direction: 'max', winner: 'FDR', over: [
+      { name: 'FDR', ref: 'X.between.fdr' }, { name: 'xG', ref: 'X.between.xg' }, { name: 'Market', ref: 'X.between.mkt' }] }];
+    return JSON.stringify(a);
+  }],
   T10: ['missing required fields', 'output_structure', (a) => { delete a.confidence; delete a.data_as_of; return JSON.stringify(a); }],
 };
 

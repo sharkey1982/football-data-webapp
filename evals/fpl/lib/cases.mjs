@@ -9,6 +9,7 @@
 //   ranking_order      names that must appear in this order in output.ranking
 //   must_cite          source ids that must appear in output.facts
 //   must_cite_any      groups of ids: at least one from each group must be cited
+//   options            the options the question names; every comparison claim must cover all of them
 //   must_state         [{ value, alt?, tol, why }] numbers that must appear (answer text or facts); alt = other correct forms
 //   confidence_not     confidence values that are wrong here
 //   missing_data       terms output.missing_data must mention
@@ -41,6 +42,7 @@ export function buildCases() {
         answer_type: ['answered'],
         recommendation: new RegExp(ranked[0].name, 'i'),
         ranking_order: ranked.slice(0, 2).map((p) => p.name),
+        options: ps.map((p) => p.name),
         must_cite: ranked.slice(0, 2).map((p) => `P${p.id}.xpts`),
         confidence_not: ['high'],
         _notes: `top ${ranked[0].name} ${ranked[0].xpts} v ${ranked[1].name} ${ranked[1].xpts}: gap ${round(ranked[0].xpts - ranked[1].xpts)}, a coin flip`,
@@ -62,6 +64,7 @@ export function buildCases() {
         answer_type: ['answered'],
         recommendation: new RegExp(ranked[0].name, 'i'),
         ranking_order: ranked.map((p) => p.name),
+        options: ps.map((p) => p.name),
         must_cite: ps.map((p) => `P${p.id}.xpts`),
       },
     });
@@ -93,6 +96,7 @@ export function buildCases() {
         answer_type: ['answered', 'partial'], // the house rule can leave lower places unresolved
         recommendation: new RegExp(TEAM_NAMES[byMkt[0].t].replace(' ', '\\s*'), 'i'),
         ranking_order: byMkt.slice(0, 2).map((r) => TEAM_NAMES[r.t]),
+        options: teams.map((t) => TEAM_NAMES[t]),
         // Averages or four-week totals are both correct ways to state these.
         must_state: [
           { value: round(byFdr[0].fdr), tol: 0.011, why: `${TEAM_NAMES[byFdr[0].t]} average FDR GW7-10 (easiest by FDR)` },
@@ -152,6 +156,7 @@ export function buildCases() {
       expected: {
         answer_type: ['answered', 'partial'], // FPL's chance-of-playing field is blank for all four
         ranking_order: ranked.map((p) => p.name),
+        options: ps.map((p) => p.name),
         must_cite: [`P${out.id}.start`, ...ranked.slice(0, 3).map((p) => `P${p.id}.start`)],
         answer_regex: [
           { re: new RegExp(`${out.name}[^\\n]{0,160}?(\\bout\\b|injur|won't|will not|not (expected|likely) to|unavailable|ruled out|no chance|0%|zero)`, 'i'), why: `says ${out.name} won't play` },
@@ -286,6 +291,7 @@ export function buildCases() {
       expected: {
         answer_type: ['answered'],
         recommendation: new RegExp(byXpts([h, s])[0].name, 'i'),
+        options: [h.name, s.name],
         must_cite: [`P${h.id}.xpts`, `P${s.id}.xpts`],
         confidence_not: ['high'],
         _notes: `Saka ${s.xpts} v Haaland ${h.xpts}; City market goals at LIV ${fixtures.find((f) => f.id === h.fixture_id).mkt_away}`,

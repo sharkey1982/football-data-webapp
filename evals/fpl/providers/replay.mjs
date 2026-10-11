@@ -15,7 +15,8 @@ function load() {
   byCase = {};
   for (const r of data.results?.results ?? []) {
     const id = r.vars?.case_id ?? r.testCase?.vars?.case_id;
-    if (id) byCase[id] = r.response?.output ?? r.output;
+    const label = r.prompt?.label ?? '';
+    if (id) { byCase[`${label}|${id}`] ??= r.response?.output ?? r.output; byCase[id] ??= byCase[`${label}|${id}`]; }
   }
   return byCase;
 }
@@ -23,7 +24,9 @@ function load() {
 export default class ReplayProvider {
   id() { return 'replay'; }
   async callApi(_prompt, context) {
-    const out = load()[context?.vars?.case_id];
+    // Same prompt version and case when the file holds several; with --repeat, the first run of each.
+    const cases = load(); const id = context?.vars?.case_id;
+    const out = cases[`${context?.prompt?.label ?? ''}|${id}`] ?? cases[id];
     if (out == null) return { error: `no recorded output for ${context?.vars?.case_id} in ${process.env.REPLAY_FROM}` };
     return { output: typeof out === 'string' ? out : JSON.stringify(out), tokenUsage: { prompt: 0, completion: 0, total: 0 }, cost: 0 };
   }

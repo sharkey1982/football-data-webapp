@@ -9,6 +9,8 @@ description: FixtureShark FPL analysis - qualitative judge (advisory)
 prompts:
   - id: file://prompts/fpl_analyst_v1.mjs
     label: fpl_analyst_v1
+  - id: file://prompts/fpl_analyst_v2.mjs
+    label: fpl_analyst_v2
 
 providers:
   - id: file://providers/replay.mjs
