@@ -61,6 +61,24 @@ BACKUP_TAKE = 0.90   # a backup takes an open place this often when fit
 # measures, as the registered rule required).
 TIE_WEIGHT_BY_RATE = True
 OUTFIELD_PLACES = 10
+# Two rules under test (11 Oct 2026; scripts/backtest_depth_cover.py).
+# Found 11 Oct (Chris): Liverpool's Danns (academy striker, fit for six
+# matches, no minutes) was 90% to start against Man City because Isak and
+# Ekitike were out and he was the only fit player listed at striker.
+# DEEP_BACKUP_BY_RATE: a backup ranked 3rd or lower (in practice "not
+# ranked": the seeded default for anyone not in a named pecking order)
+#   takes an open place with his own start rate, capped at BACKUP_TAKE,
+#   instead of BACKUP_TAKE -- the same rate players listed only as
+#   DEF/MID/FWD already use. Named backups (rank 2) are unchanged.
+# NEIGHBOUR_COVER: places a line still expects to be open after its own
+#   players (and DEF/MID/FWD-only players and unused backups) are shared
+#   in full among fit players from the neighbouring positions -- wingers
+#   and attacking midfielders for the striker, holding midfielders for
+#   the back line -- in proportion to availability x start rate, nobody
+#   above his own availability.
+DEEP_BACKUP_BY_RATE = False
+NEIGHBOUR_COVER = False
+NEIGHBOURS = {"FWD": ("AM", "LW", "RW"), "DEF": ("PIV",)}
 
 ROLE_GROUP = {
     "LB": "LB", "LWB": "LB",
@@ -131,6 +149,8 @@ class Player:
         """Chance he takes an open place when it reaches him, if fit."""
         if self.first_choice is not None:
             return self.first_choice
+        if self.depth_rank >= 3 and DEEP_BACKUP_BY_RATE:
+            return min(BACKUP_TAKE, max(0.0, self.rate or 0.0))
         if self.depth_rank <= 1:
             k = RANK1_SEED_MATCHES
             if k is None or self.starts is None or self.available is None:
@@ -138,6 +158,13 @@ class Player:
             seeded = (self.starts + RANK1_FLOOR * k) / (self.available + k)
             return min(RANK1_CAP, max(self.rate or 0.0, seeded))
         return BACKUP_TAKE
+
+
+def backup_take(p: "Player") -> float:
+    """How often a backup (rank 2+) takes an open place when fit."""
+    if DEEP_BACKUP_BY_RATE and p.depth_rank >= 3 and p.first_choice is None:
+        return p.pick()
+    return BACKUP_TAKE
 
 
 def poisson_binomial(ps: list[float]) -> list[float]:
@@ -269,10 +296,11 @@ def allocate(players: list[Player], formation: str | None = None) -> dict[int, t
             out[p.fpl_player_id] = (starts[p.fpl_player_id], g, p.depth_rank)
             if p.depth_rank > 1:
                 # Ready but not needed in his own role: can cover elsewhere in the line.
-                left = min(1.0, max(0.0, p.availability)) * BACKUP_TAKE - starts[p.fpl_player_id]
+                left = min(1.0, max(0.0, p.availability)) * backup_take(p) - starts[p.fpl_player_id]
                 if left > 1e-9:
                     spare.setdefault(line, {})[p.fpl_player_id] = left
 
+    still_open: dict[str, float] = {}
     for line in ("DEF", "MID", "FWD"):
         open_dist = line_open.get(line, [1.0])
         generics = {p.fpl_player_id: min(1.0, max(0.0, p.availability)) * (p.first_choice if p.first_choice is not None else (p.rate or 0.0))
@@ -293,6 +321,20 @@ def allocate(players: list[Player], formation: str | None = None) -> dict[int, t
         for pid, add in extra.items():
             s, g, r = out[pid]
             out[pid] = (s + add, g, r)
+        still_open[line] = max(0.0, sum(o * po for o, po in enumerate(open_dist)) - sum(extra.values()))
+
+    if NEIGHBOUR_COVER:
+        for line, groups in NEIGHBOURS.items():
+            need = still_open.get(line, 0.0)
+            if need <= 1e-9:
+                continue
+            cands = [p for p in players if p.group in groups]
+            caps = {p.fpl_player_id: max(0.0, min(0.98, max(0.0, p.availability)) - out[p.fpl_player_id][0]) for p in cands}
+            weights = {p.fpl_player_id: min(1.0, max(0.0, p.availability)) * max(0.01, p.rate if p.rate is not None else 0.20) for p in cands}
+            got = share_by_weight(min(need, sum(caps.values())), weights, caps)
+            for pid, add in got.items():
+                s, g, r = out[pid]
+                out[pid] = (s + add, g, r)
 
     return {pid: (round(min(0.98, max(0.0, s)), 4), g, r) for pid, (s, g, r) in out.items()}
 
@@ -355,7 +397,7 @@ def allocate_sim(players: list[Player], formation: str | None = None, sims: int 
             elif p.depth_rank <= 1 or p.first_choice is not None:
                 usable[p.fpl_player_id] = rng.random() < p.pick()
             else:
-                usable[p.fpl_player_id] = rng.random() < BACKUP_TAKE
+                usable[p.fpl_player_id] = rng.random() < backup_take(p)
         open_ = dict(places)
         used: dict[int, str] = {}
         for rank in sorted(by_rank):
@@ -384,6 +426,18 @@ def allocate_sim(players: list[Player], formation: str | None = None, sims: int 
                 g = holes.pop()
                 used[p.fpl_player_id] = g
                 open_[g] -= 1
+        if NEIGHBOUR_COVER:
+            for line, groups in NEIGHBOURS.items():
+                holes = [g for g, n in open_.items() for _k in range(n) if GROUP_LINE.get(g) == line]
+                if not holes:
+                    continue
+                cands = [p for p in players if p.group in groups and fit[p.fpl_player_id] and p.fpl_player_id not in used]
+                for p in _weighted_order(rng, cands, lambda p: rate(p)):
+                    if not holes:
+                        break
+                    g = holes.pop()
+                    used[p.fpl_player_id] = g
+                    open_[g] -= 1
         for pid, g in used.items():
             counts[pid][g] = counts[pid].get(g, 0) + 1
 
