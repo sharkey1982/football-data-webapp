@@ -57,6 +57,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · FPL start chance: an unproven backup put at centre-forward (Liverpool, GW6)
+- **Reported:** Chris -- Danns projected at 90% to start v Man City; "Chiesa is more likely to play than Danns. I've never heard of Danns."
+- **Impact:** with Isak and Ekitike out, Danns (0 starts in 6 fit matches; CF only as an FPL-position placeholder) was projected to start at 90% for GW6 and GW7 (run of 10 Oct 22:07; also in the GW6 pre-deadline snapshot), labelled `depth_chart_firm`. The 11 Oct manual edits (Koumas and Chiesa set to CF, Wirtz and Barcola "also play" CF) are not yet in a projection run; replayed on frozen inputs they move the place to Koumas at 86% -- also 0 starts in 6 fit matches -- and Wirtz's "also plays CF" is never used.
+- **Cause:** (1) a backup takes an open place 90% of the time whatever his record (`BACKUP_TAKE`); the evidence rule added on 9 Oct covers first choices only; (2) a place no specialist fills can only pass to players in the same line, and CF is alone in its line, so wingers and attacking midfielders never cover it; (3) "also plays" ranks are filled rank by rank, so a first choice elsewhere (Wirtz, AM rank 1) is always used in his own role first; (4) the `depth_chart_firm` label is given to a backup at 90%. Contributing: admin role edits do not stamp `updated_at` and keep no history, so the inputs behind a projection cannot be reconstructed from the tables.
+- **Fix:** pending approval (audit `claude/lineup-role-validation-audit-2026-10-11.md`). Regression test `scripts/test_lfc_cf_regression.py` with frozen inputs reproduces the recorded 0.90 exactly; prototype `scripts/lineup_role_validator.py` flags Danns (and Koumas) as unsupported and offers Wirtz, Barcola, Munoz.
+- **Prevention:** to follow with the fix. *Lesson: a manual patch that swaps one name for another hides the rule that chose the wrong name.*
+
+---
+
 ## 2026-10-10 · Tactical roles from Fantasy Football Scout: left and right swapped
 - **Reported:** Chris -- "Their images show the goal keeper at the top and left and right the other way around to our images."
 - **Impact:** since the 14 Sep seed, all 88 left/right roles still sourced from FFS were mirrored (Gvardiol, Shaw, Robertson and Mykolenko at right-back; Dalot at left-back; Rashford on the right). Pitches drew them on the wrong side, and the depth chart had them competing for the wrong place (a left-back's backup covering the right).
