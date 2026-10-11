@@ -95,6 +95,13 @@ export type Batch = {
   status: string;
 };
 
+/** A run can have grades from several graders (checks_v1, checks_v2, ...);
+ * show the newest one. */
+function latestGrade(grades: any[] | null | undefined): any {
+  if (!grades || grades.length === 0) return null;
+  return [...grades].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0];
+}
+
 function fail(error: { message?: string } | null, what: string): never {
   throw new Error(`${what}: ${error?.message ?? 'unknown error'}`);
 }
@@ -118,11 +125,11 @@ export async function getPromptVersions(): Promise<PromptVersion[]> {
 export async function getRecentRuns(limit = 40): Promise<(AiRun & { passed: number | null; total: number | null })[]> {
   const { data, error } = await db
     .from('ai_runs')
-    .select('*, ai_auto_grades(passed, total)')
+    .select('*, ai_auto_grades(passed, total, created_at)')
     .order('run_id', { ascending: false })
     .limit(limit);
   if (error) fail(error, 'Could not load runs');
-  return (data ?? []).map((r: any) => ({ ...r, passed: r.ai_auto_grades?.[0]?.passed ?? null, total: r.ai_auto_grades?.[0]?.total ?? null }));
+  return (data ?? []).map((r: any) => ({ ...r, passed: latestGrade(r.ai_auto_grades)?.passed ?? null, total: latestGrade(r.ai_auto_grades)?.total ?? null }));
 }
 
 export async function getRunDetail(runId: number): Promise<RunDetail> {
@@ -130,7 +137,7 @@ export async function getRunDetail(runId: number): Promise<RunDetail> {
     db.from('ai_runs').select('*').eq('run_id', runId).single(),
     db.from('ai_run_steps').select('*').eq('run_id', runId).order('step_no'),
     db.from('ai_run_truth').select('truth').eq('run_id', runId).maybeSingle(),
-    db.from('ai_auto_grades').select('checks, passed, total').eq('run_id', runId).eq('grader', 'checks_v1').maybeSingle(),
+    db.from('ai_auto_grades').select('checks, passed, total').eq('run_id', runId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     getMyReview(runId),
   ]);
   if (run.error) fail(run.error, 'Could not load the run');
@@ -200,7 +207,7 @@ export type BatchSummary = Batch & {
 export async function getBatches(): Promise<BatchSummary[]> {
   const { data, error } = await db
     .from('ai_batches')
-    .select('*, ai_runs(cost_usd, ai_auto_grades(passed, total)), ai_batch_items(status)')
+    .select('*, ai_runs(cost_usd, ai_auto_grades(passed, total, created_at)), ai_batch_items(status)')
     .order('batch_id', { ascending: false })
     .limit(20);
   if (error) fail(error, 'Could not load batches');
@@ -211,8 +218,8 @@ export async function getBatches(): Promise<BatchSummary[]> {
       ...b,
       runs: runs.length,
       cost: runs.reduce((a: number, r: any) => a + Number(r.cost_usd ?? 0), 0),
-      checks_passed: runs.reduce((a: number, r: any) => a + (r.ai_auto_grades?.[0]?.passed ?? 0), 0),
-      checks_total: runs.reduce((a: number, r: any) => a + (r.ai_auto_grades?.[0]?.total ?? 0), 0),
+      checks_passed: runs.reduce((a: number, r: any) => a + (latestGrade(r.ai_auto_grades)?.passed ?? 0), 0),
+      checks_total: runs.reduce((a: number, r: any) => a + (latestGrade(r.ai_auto_grades)?.total ?? 0), 0),
       items: {
         done: items.filter((i) => i.status === 'done').length,
         failed: items.filter((i) => i.status === 'failed').length,
@@ -231,7 +238,7 @@ export async function getBatchForReview(batchId: number): Promise<ReviewItem[]> 
   const uid = u?.user?.id ?? null;
   const { data, error } = await db
     .from('ai_runs')
-    .select('*, ai_run_steps(*), ai_run_truth(truth), ai_auto_grades(checks, passed, total), ai_human_reviews(*)')
+    .select('*, ai_run_steps(*), ai_run_truth(truth), ai_auto_grades(checks, passed, total, created_at), ai_human_reviews(*)')
     .eq('batch_id', batchId)
     .order('question_id')
     .order('run_id', { ascending: false });
@@ -249,7 +256,7 @@ export async function getBatchForReview(batchId: number): Promise<ReviewItem[]> 
       run,
       steps: [...(ai_run_steps ?? [])].sort((a: RunStep, b: RunStep) => a.step_no - b.step_no),
       truth: truthRow?.truth ?? null,
-      grade: ai_auto_grades?.[0] ?? null,
+      grade: latestGrade(ai_auto_grades),
       review: mine,
       reviewed: !!mine?.factually_correct,
     });
@@ -260,4 +267,62 @@ export async function getBatchForReview(batchId: number): Promise<ReviewItem[]> 
 export function formatCost(usd: number | string | null | undefined): string {
   const v = Number(usd ?? 0);
   return `$${v < 0.1 ? v.toFixed(4) : v.toFixed(2)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Ask FixtureShark (/admin/ask): admin-only trial of a plain question box.
+// Every question is a free-text run filed under one standing batch (created
+// by migration 20261011213000), so the answers also appear in the AI Lab
+// Review tab and its batch table shows the running cost.
+// ---------------------------------------------------------------------------
+
+export const ASK_BATCH_NAME = 'Ask FixtureShark';
+export const ASK_MODEL = 'claude-sonnet-5';
+export const ASK_PROMPT = 'analyst_v2';
+
+export async function getAskBatchId(): Promise<number | null> {
+  const { data, error } = await db
+    .from('ai_batches')
+    .select('batch_id')
+    .eq('name', ASK_BATCH_NAME)
+    .order('batch_id')
+    .limit(1)
+    .maybeSingle();
+  if (error) fail(error, 'Could not find the Ask FixtureShark log');
+  return data?.batch_id ?? null;
+}
+
+export async function askQuestion(question: string, batchId: number | null): Promise<{ run_id: number }> {
+  return runQuestion({ question, model: ASK_MODEL, prompt_id: ASK_PROMPT, ...(batchId != null ? { batch_id: batchId } : {}) });
+}
+
+/** Where an answer's data came from, in words a reader understands, with the
+ * FixtureShark page that shows the same data. */
+export const TOOL_SOURCES: Record<string, { label: string; kind: 'data' | 'model'; to?: string }> = {
+  get_fixtures: { label: 'Fixtures', kind: 'data', to: '/fixtures' },
+  get_results: { label: 'Results', kind: 'data', to: '/fixtures' },
+  get_league_table: { label: 'League table', kind: 'data', to: '/table' },
+  get_competition_summary: { label: 'Season totals', kind: 'data', to: '/table' },
+  get_fpl_players: { label: 'Official FPL player data', kind: 'data', to: '/fpl/player-scout' },
+  get_fpl_projections: { label: 'FixtureShark projected points', kind: 'model', to: '/fpl' },
+  get_club_accounts: { label: 'Club accounts (Companies House)', kind: 'data', to: '/finance' },
+  get_tv_listings: { label: 'TV listings', kind: 'data', to: '/tv-guide' },
+  get_data_status: { label: 'Data coverage and freshness', kind: 'data', to: '/data-health' },
+  compare_fixture_runs: { label: 'Fixture difficulty (FDR and FixtureShark goal models)', kind: 'model', to: '/fixtures' },
+  best_fpl_combination: { label: 'FixtureShark projected points (best combination search)', kind: 'model', to: '/fpl' },
+  compare_fpl_players: { label: 'FPL data and FixtureShark projections, side by side', kind: 'model', to: '/fpl' },
+};
+
+/** Distinct data sources an answer used, in the order first called. Name
+ * look-ups and the final submit are plumbing, not sources. */
+export function sourcesUsed(steps: { tool_name: string; error?: string | null }[]): { tool: string; label: string; kind: 'data' | 'model'; to?: string }[] {
+  const seen = new Set<string>();
+  const out: { tool: string; label: string; kind: 'data' | 'model'; to?: string }[] = [];
+  for (const s of steps) {
+    if (s.error || seen.has(s.tool_name) || s.tool_name === 'submit_answer' || s.tool_name === 'find_entity') continue;
+    seen.add(s.tool_name);
+    const src = TOOL_SOURCES[s.tool_name] ?? { label: s.tool_name.replace(/_/g, ' '), kind: 'data' as const };
+    out.push({ tool: s.tool_name, ...src });
+  }
+  return out;
 }

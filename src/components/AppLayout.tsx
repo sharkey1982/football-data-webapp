@@ -307,6 +307,7 @@ export default function AppLayout() {
         { to: '/admin/lineup-compare', label: 'Line-ups v FFS', matchPrefix: '/admin/lineup-compare' },
         { to: '/admin/fanteam', label: 'FanTeam', matchPrefix: '/admin/fanteam' },
         { to: '/admin/last-man-standing', label: 'Last Man Standing', matchPrefix: '/admin/last-man-standing' },
+        { to: '/admin/ask', label: 'Ask FixtureShark (trial)', matchPrefix: '/admin/ask' },
         { to: '/admin/ai-lab', label: 'AI Lab', matchPrefix: '/admin/ai-lab' },
         { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
