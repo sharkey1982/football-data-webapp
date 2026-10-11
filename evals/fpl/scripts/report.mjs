@@ -45,7 +45,8 @@ for (const m of ORDER) {
 // Primary category: the first failing check in ORDER (later failures often follow from it).
 const primary = {};
 for (const r of rows.filter((x) => !x.success)) {
-  const f = ORDER.find((m) => comp(r).some((c) => c.assertion?.metric === m && !c.pass)) ?? (r.error ? 'provider_error' : 'other');
+  const f = r.response?.finishReason === 'length' ? 'truncated (hit max_tokens: harness setting, not a model error)'
+    : ORDER.find((m) => comp(r).some((c) => c.assertion?.metric === m && !c.pass)) ?? (r.error ? 'provider_error' : 'other');
   primary[f] = (primary[f] ?? 0) + 1;
 }
 out.push('', '## Failure categories (first failing check per case)', '');
@@ -64,7 +65,8 @@ out.push('', '## Cases', '', `| Case | Category | Result | Failed checks |${judg
 for (const r of rows) {
   const f = comp(r).filter((c) => !c.pass).map((c) => `**${c.assertion?.metric}**: ${String(c.reason).replace(/\|/g, '/').slice(0, 300)}`);
   const j = judge?.[r.vars.case_id];
-  out.push(`| ${r.vars.case_id} | ${r.metadata?.category ?? r.testCase?.metadata?.category ?? ''} | ${r.success ? 'pass' : r.error && !comp(r).length ? 'error' : 'FAIL'} | ${f.join('<br>') || (r.error ? String(r.error).slice(0, 200) : '')} |${judge ? ` ${j?.quality_reasoning ?? '-'} | ${j?.quality_usefulness ?? '-'} |` : ''}`);
+  const cut = r.response?.finishReason === 'length' ? ' (truncated)' : '';
+  out.push(`| ${r.vars.case_id} | ${r.metadata?.category ?? r.testCase?.metadata?.category ?? ''} | ${r.success ? 'pass' : r.error && !comp(r).length ? 'error' : 'FAIL'}${cut} | ${f.join('<br>') || (r.error ? String(r.error).slice(0, 200) : '')} |${judge ? ` ${j?.quality_reasoning ?? '-'} | ${j?.quality_usefulness ?? '-'} |` : ''}`);
 }
 
 out.push('', `## Tokens and cost${estimated ? ' (ESTIMATED: offline provider, ~3.5 characters a token)' : ''}`, '');

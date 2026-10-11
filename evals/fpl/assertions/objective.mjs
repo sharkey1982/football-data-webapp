@@ -89,6 +89,9 @@ export function provenance(output, context) {
     const cited = new Set(facts.map((f) => f?.source_id).concat(facts.flatMap((f) => (f?.inputs ?? []).map(stripSign))));
     const missing = (exp.must_cite ?? []).filter((id) => !cited.has(id));
     if (missing.length) problems.push(`did not cite required source(s) ${missing.join(', ')}`);
+    for (const group of exp.must_cite_any ?? []) {
+      if (!group.some((id) => cited.has(id))) problems.push(`did not cite any of ${group.join(', ')}`);
+    }
     return result(problems, `${facts.length} fact(s), all with valid source ids`);
   });
 }

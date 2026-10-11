@@ -8,6 +8,7 @@
 //   not_recommendation regex the recommendation must not match
 //   ranking_order      names that must appear in this order in output.ranking
 //   must_cite          source ids that must appear in output.facts
+//   must_cite_any      groups of ids: at least one from each group must be cited
 //   must_state         [{ value, tol, why }] numbers that must appear (answer text or facts)
 //   confidence_not     confidence values that are wrong here
 //   missing_data       terms output.missing_data must mention
@@ -196,7 +197,9 @@ export function buildCases() {
       ctx,
       expected: {
         answer_type: ['answered'],
-        must_cite: ['I.xp.gw6', 'I.xp.gw8'],
+        must_cite: ['I.xp.gw6'],
+        // The GW8 drop can be shown by the projection or the start probability.
+        must_cite_any: [['I.xp.gw8', 'I.start.gw8']],
         answer_regex: [
           { re: new RegExp(`${SITE.replace(/\./g, '\\.')}/fpl/compare\\?players=(${slugs.join('|')}),(${slugs.join('|')})`), why: 'links Compare Players with both slugs' },
           { re: /(25 Oct|Brobbey (is |'s )?back|returns?)/i, why: 'says when Brobbey is due back' },
