@@ -107,6 +107,9 @@ export function buildCases() {
           { label: 'hardest FDR', words: 'highest|hardest|toughest|worst', topic: 'FDR|fixture difficulty', winner: TEAM_NAMES[byFdr[byFdr.length - 1].t], options: teamOptions(teams) },
           { label: 'easiest FDR', words: 'lowest|easiest|kindest', topic: 'FDR|fixture difficulty', winner: TEAM_NAMES[byFdr[0].t], options: teamOptions(teams) },
           { label: 'attacking fixtures (market and Dixon-Coles)', words: 'best|highest|most|strongest', topic: 'attack|goals|scor', winner: TEAM_NAMES[byMkt[0].t], options: teamOptions(teams) },
+          // The weakest attacking run differs by model, so each is checked against its own measure.
+          { label: 'weakest attacking run on the market', words: 'lowest|worst|weakest|fewest', topic: 'market', winner: TEAM_NAMES[byMkt.at(-1).t], options: teamOptions(teams) },
+          { label: 'weakest attacking run on Dixon-Coles', words: 'lowest|worst|weakest|fewest', topic: 'Dixon|\\bDC\\b', winner: TEAM_NAMES[byDc.at(-1).t], options: teamOptions(teams) },
         ],
         // Averages or four-week totals are both correct ways to state these.
         must_state: [

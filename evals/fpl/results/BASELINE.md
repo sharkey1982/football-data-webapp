@@ -98,3 +98,20 @@ Run `runs/2026-10-11-1234-live-v2` (prompt v2, all ten cases, repeat 2; no judge
 
 Spent on 11 Oct in total: $1.50.
 
+## 4. Prompt v3 trial (T03, T04, T08, T10), 11 Oct 2026
+
+Run `runs/2026-10-11-1259-live-v3`: 1/4 pass. Cost **$0.25**, double the $0.12 estimate: the "check every combination" rule makes the model think far longer (T03 4,558, T04 4,619, T08 7,854 thinking tokens; v1 averaged about 1,150), so **v3 costs about $0.06 a case against v1's $0.03**.
+
+| Case | Result | Read from the raw answer |
+|---|---|---|
+| T03 | FAIL | Right on Man City/Arsenal and FDR's Fulham. Two problems: (1) quoted 14 numbers but the 12-fact cap I set made it list 8, so 6 were untraceable (my instruction contradicted the "every quoted number" rule; cap removed); (2) **a real error**: "Everton rank lowest on both measures" (Coventry is lowest on the market, Tottenham on Dixon-Coles, as its own answer says earlier). New T03 claims now catch this. |
+| T04 | FAIL (minor) | **Correct**: Tavernier + Ødegaard 10.32, runner-up Tavernier + Groß 9.98, gap 0.34. Failed on an unlisted figure worked out in prose ("£0.9m unspent"). |
+| T08 | FAIL (cut off) | Spent 7,854 tokens thinking, cut off at 8,000 mid-answer; what it wrote was correct (+2.39, −1.61 after the hit). Cap raised to 16,000. |
+| T10 | pass | Saka by 0.52, history quoted correctly. |
+
+Changes after the trial (no API calls): fact cap removed (prompt v3 edited in place, as no full v3 run exists yet); T03 claims for the weakest attacking run on each model; `max_tokens` 16,000. Calibrated on all saved answers: the claim check flags only v1's "Arsenal hardest FDR" and v3's "Everton lowest on both", both real.
+
+**Pattern across v1, v2 and v3:** copied numbers are right; the model's errors are comparisons across several options (best pair, hardest/weakest of six). The "check every combination" instruction fixed T04 in all three attempts but doubles the cost.
+
+Spent on 11 Oct in total: $1.75.
+
