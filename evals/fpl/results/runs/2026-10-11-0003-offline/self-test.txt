@@ -1,0 +1,485 @@
+3 snapshots unchanged
+Cache is disabled.
+Starting evaluation eval-UKH-2026-10-11T00:03:18
+[Evaluation] Starting 10 test cases...
+Running 10 test cases (up to 2 at a time)...
+[Evaluation] ✓ Complete! 10/10 tests in 0s
+::notice::Evaluation completed: 10/10 tests in 0s
+
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ case_id         │ question        │ context         │ data_as_of      │ context_values  │ expected        │ [reference-ans… │
+│                 │                 │                 │                 │                 │                 │ fpl_analyst_v1  │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T01             │ I have no       │ ## GW6          │ FPL gameweek 6  │ {"P427.xpts":5… │ {"answer_type"… │ [PASS]          │
+│                 │ premium captain │ shortlist       │ deadline, 10    │                 │ Mbeumo 5.33 v   │ {"answer":"Cap… │
+│                 │ this week. Who  │ Mbeumo (FPL id  │ Oct 2026 10:00  │                 │ Tavernier 5.27: │ Mbeumo, but it  │
+│                 │ should I        │ 427, slug       │ UTC             │                 │ gap 0.06, a     │ is close to a   │
+│                 │ captain in GW6  │ bryan-mbeumo):  │ (projections    │                 │ coin flip"}     │ coin flip.      │
+│                 │ from Mbeumo,    │ Man United MID, │ captured 09:00  │                 │                 │ FixtureShark    │
+│                 │ Tavernier,      │ GW6 home to     │ UTC, model      │                 │                 │ projects Mbeumo │
+│                 │ Gibbs-White and │ Tottenham, FPL  │ leaguewide_v6); │                 │                 │ at 5.33 points  │
+│                 │ Ødegaard?       │ status          │ fixtures and    │                 │                 │ at home to      │
+│                 │                 │ available       │ article figures │                 │                 │ Tottenham and   │
+│                 │                 │   [P427.xpts]   │ as stored on 10 │                 │                 │ Tavernier at    │
+│                 │                 │ projected FPL   │ Oct 2026        │                 │                 │ 5.27 away at    │
+│                 │                 │ points, GW6     │                 │                 │                 │ Chelsea, with   │
+│                 │                 │ (model          │                 │                 │                 │ Gibbs-White and │
+│                 │                 │ estimate): 5.33 │                 │                 │                 │ Ødegaard on     │
+│                 │                 │   [P427.start]  │                 │                 │                 │ 5.05 each. The  │
+│                 │                 │ probability of  │                 │                 │                 │ gap between the │
+│                 │                 │ starting, GW6   │                 │                 │                 │ top two is 0.06 │
+│                 │                 │ (model          │                 │                 │                 │ poin...         │
+│                 │                 │ estimate):      │                 │                 │                 │                 │
+│                 │                 │ 0.969...        │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T02             │ Barry, Gonzalo  │ ## Players to   │ FPL gameweek 6  │ {"P249.price":… │ {"answer_type"… │ [PASS]          │
+│                 │ or Kostoulas    │ compare         │ deadline, 10    │                 │                 │ {"answer":"Bar… │
+│                 │ for GW6? I can  │ Barry (FPL id   │ Oct 2026 10:00  │                 │                 │ FixtureShark    │
+│                 │ afford any of   │ 249, slug       │ UTC             │                 │                 │ projects him at │
+│                 │ them. Compare   │ thierno-barry): │ (projections    │                 │                 │ 6.02 points for │
+│                 │ them and pick   │ Everton FWD,    │ captured 09:00  │                 │                 │ GW6 away at     │
+│                 │ one.            │ GW6 away at     │ UTC, model      │                 │                 │ Hull, ahead of  │
+│                 │                 │ Hull, FPL       │ leaguewide_v6); │                 │                 │ Gonzalo on 4.92 │
+│                 │                 │ status          │ fixtures and    │                 │                 │ and Kostoulas   │
+│                 │                 │ available       │ article figures │                 │                 │ on 3.66. His    │
+│                 │                 │   [P249.price]  │ as stored on 10 │                 │                 │ expected goals  │
+│                 │                 │ price (£m): 5.7 │ Oct 2026        │                 │                 │ are 0.698       │
+│                 │                 │   [P249.xpts]   │                 │                 │                 │ against         │
+│                 │                 │ projected FPL   │                 │                 │                 │ Gonzalo's 0.5   │
+│                 │                 │ points, GW6     │                 │                 │                 │ and Kostoulas's │
+│                 │                 │ (model          │                 │                 │                 │ 0.345, and at   │
+│                 │                 │ estimate): 6.02 │                 │                 │                 │ £5.7m he costs  │
+│                 │                 │   [P249.start]  │                 │                 │                 │ less than       │
+│                 │                 │ probability of  │                 │                 │                 │ Gonzalo (£6.... │
+│                 │                 │ starting,...    │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T03             │ For gameweeks 7 │ ## GW7-10       │ FPL gameweek 6  │ {"F64.fdr_home… │ {"answer_type"… │ [PASS]          │
+│                 │ to 10, which of │ fixtures (FDR:  │ deadline, 10    │                 │ City","Arsenal… │ {"answer":"Man  │
+│                 │ Fulham, Man     │ 1 easiest, 5    │ Oct 2026 10:00  │                 │ average FDR     │ City have the   │
+│                 │ City,           │ hardest; goals  │ UTC             │                 │ GW7-10 (easiest │ best attacking  │
+│                 │ Tottenham,      │ are model       │ (projections    │                 │ by              │ fixtures from   │
+│                 │ Coventry,       │ estimates of    │ captured 09:00  │                 │ FDR)"},{"value… │ GW7 to GW10,    │
+│                 │ Arsenal,        │ goals scored)   │ UTC, model      │                 │ C...            │ and both models │
+│                 │ Everton has the │ GW7 2026-10-17  │ leaguewide_v6); │                 │                 │ agree: they     │
+│                 │ best attacking  │ Everton v       │ fixtures and    │                 │                 │ average 2.21    │
+│                 │ fixtures? Does  │ Chelsea:        │ article figures │                 │                 │ expected goals  │
+│                 │ FPL's FDR       │ [F64.fdr_home]  │ as stored on 10 │                 │                 │ a game on the   │
+│                 │ agree? House    │ FDR for EVE 4;  │ Oct 2026        │                 │                 │ market and 2.38 │
+│                 │ rule: only make │ [F64.fdr_away]  │                 │                 │                 │ on Dixon-Coles, │
+│                 │ a team-level    │ FDR for CHE 3;  │                 │                 │                 │ the highest of  │
+│                 │ claim where the │ [F64.mkt_home]  │                 │                 │                 │ the six on      │
+│                 │ market and      │ market goals    │                 │                 │                 │ each. Arsenal   │
+│                 │ Dixon-Coles     │ EVE 1.24;       │                 │                 │                 │ are second on   │
+│                 │ agree.          │ [F64.mkt_away]  │                 │                 │                 │ both (2.12 and  │
+│                 │                 │ market goa...   │                 │                 │                 │ 1.49)...        │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T04             │ I have £13.0m   │ ## Available    │ FPL gameweek 6  │ {"P12.price":9… │ {"answer_type"… │ [PASS]          │
+│                 │ for two         │ midfielders     │ deadline, 10    │                 │ projected       │ {"answer":"Tav… │
+│                 │ midfielders for │ (top 20 by GW6  │ Oct 2026 10:00  │                 │ points of the   │ (£6.1m) and     │
+│                 │ GW6. Which pair │ projection)     │ UTC             │                 │ best pai...     │ Ødegaard        │
+│                 │ from this list  │ Saka (FPL id    │ (projections    │                 │                 │ (£6.8m): £12.9m │
+│                 │ gives the most  │ 12, slug        │ captured 09:00  │                 │                 │ in total for    │
+│                 │ projected       │ bukayo-saka):   │ UTC, model      │                 │                 │ 10.32 projected │
+│                 │ points within   │ Arsenal MID,    │ leaguewide_v6); │                 │                 │ points (5.27 +  │
+│                 │ budget? Give    │ GW6 home to     │ fixtures and    │                 │                 │ 5.05). The next │
+│                 │ the total cost  │ Leeds, FPL      │ article figures │                 │                 │ best pair       │
+│                 │ and total       │ status          │ as stored on 10 │                 │                 │ within budget   │
+│                 │ projected       │ available       │ Oct 2026        │                 │                 │ is Tavernier    │
+│                 │ points.         │   [P12.price]   │                 │                 │                 │ and Groß, 9.98  │
+│                 │                 │ price (£m): 9.6 │                 │                 │                 │ points for      │
+│                 │                 │   [P12.xpts]    │                 │                 │                 │ £12.0m. These   │
+│                 │                 │ projected FPL   │                 │                 │                 │ are model       │
+│                 │                 │ points, GW6     │                 │                 │                 │ estimates for   │
+│                 │                 │ (model          │                 │                 │                 │ GW6.","answer_… │
+│                 │                 │ estimate): 7.07 │                 │                 │                 │                 │
+│                 │                 │ B.Fernandes     │                 │                 │                 │                 │
+│                 │                 │ (F...           │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T05             │ Havertz, Rice,  │ ## My flagged   │ FPL gameweek 6  │ {"P26.start":0… │ {"answer_type"… │ [PASS]          │
+│                 │ Konsa and       │ Arsenal players │ deadline, 10    │                 │ not|not         │ {"answer":"Tzo… │
+│                 │ Tzolis are all  │ Havertz (FPL id │ Oct 2026 10:00  │                 │ (expected|like… │ is out: he is   │
+│                 │ flagged. Which  │ 26, slug        │ UTC             │                 │ ...             │ injured         │
+│                 │ of them are     │ kai-havertz):   │ (projections    │                 │                 │ (hamstring,     │
+│                 │ likely to play  │ Arsenal FWD,    │ captured 09:00  │                 │                 │ expected back   │
+│                 │ in GW6, and how │ GW6 home to     │ UTC, model      │                 │                 │ 24 Oct) and the │
+│                 │ do their        │ Leeds, FPL      │ leaguewide_v6); │                 │                 │ model gives him │
+│                 │ projections     │ status          │ fixtures and    │                 │                 │ no chance of    │
+│                 │ compare?        │ doubtful, news: │ article figures │                 │                 │ starting. The   │
+│                 │                 │ "Hamstring      │ as stored on 10 │                 │                 │ other three are │
+│                 │                 │ injury - 75%    │ Oct 2026        │                 │                 │ doubtful with a │
+│                 │                 │ chance of       │                 │                 │                 │ 75% chance of   │
+│                 │                 │ playing"        │                 │                 │                 │ playing         │
+│                 │                 │   [P26.chance]  │                 │                 │                 │ according to    │
+│                 │                 │ FPL chance of   │                 │                 │                 │ FPL's news. The │
+│                 │                 │ playing this    │                 │                 │                 │ model rates     │
+│                 │                 │ round (%): not  │                 │                 │                 │ Rice the most   │
+│                 │                 │ recorded        │                 │                 │                 │ likely to       │
+│                 │                 │   [P26.sta...   │                 │                 │                 │ sta...          │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T06             │ How many points │ ## Players in   │ FPL gameweek 6  │ {"P12.xpts":7.… │ {"answer_type"… │ [PASS]          │
+│                 │ will Ollie      │ the data        │ deadline, 10    │                 │                 │ {"answer":"Fix… │
+│                 │ Watkins and     │ Saka (FPL id    │ Oct 2026 10:00  │                 │                 │ projects Saka   │
+│                 │ Saka get in     │ 12, slug        │ UTC             │                 │                 │ at 7.07 points  │
+│                 │ GW6?            │ bukayo-saka):   │ (projections    │                 │                 │ in GW6. Ollie   │
+│                 │                 │ Arsenal MID,    │ captured 09:00  │                 │                 │ Watkins is not  │
+│                 │                 │ GW6 home to     │ UTC, model      │                 │                 │ in the data I   │
+│                 │                 │ Leeds, FPL      │ leaguewide_v6); │                 │                 │ have, so I      │
+│                 │                 │ status          │ fixtures and    │                 │                 │ can't give a    │
+│                 │                 │ available       │ article figures │                 │                 │ projection for  │
+│                 │                 │   [P12.xpts]    │ as stored on 10 │                 │                 │ him.","answer_… │
+│                 │                 │ projected FPL   │ Oct 2026        │                 │                 │                 │
+│                 │                 │ points, GW6     │                 │                 │                 │                 │
+│                 │                 │ (model          │                 │                 │                 │                 │
+│                 │                 │ estimate): 7.07 │                 │                 │                 │                 │
+│                 │                 │   [P12.start]   │                 │                 │                 │                 │
+│                 │                 │ probability of  │                 │                 │                 │                 │
+│                 │                 │ starting, GW6   │                 │                 │                 │                 │
+│                 │                 │ (model          │                 │                 │                 │                 │
+│                 │                 │ estimate):      │                 │                 │                 │                 │
+│                 │                 │ 0.944           │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T07             │ Draft a Reddit  │ ## Isidor       │ FPL gameweek 6  │ {"I.xp.gw6":4.… │ {"answer_type"… │ [PASS]          │
+│                 │ reply           │ projections by  │ deadline, 10    │                 │ Compare Pl...   │ {"answer":"Dec… │
+│                 │ (r/FantasyPL)   │ gameweek        │ Oct 2026 10:00  │                 │                 │ short-term      │
+│                 │ from the        │ (FixtureShark   │ UTC             │                 │                 │ punt, not a     │
+│                 │ FixtureShark    │ model estimate, │ (projections    │                 │                 │ long-term hold. │
+│                 │ account to: "Is │ made 9 Oct      │ captured 09:00  │                 │                 │ Brobbey's       │
+│                 │ Isidor a decent │ 2026, 03:16 UK  │ UTC, model      │                 │                 │ hamstring has   │
+│                 │ punt while      │ time)           │ leaguewide_v6); │                 │                 │ him expected    │
+│                 │ Brobbey's out   │ Note from the   │ fixtures and    │                 │                 │ back on 25 Oct, │
+│                 │ or is it a      │ model: Covering │ article figures │                 │                 │ and our model   │
+│                 │ trap?" Keep it  │ for Brobbey     │ as stored on 10 │                 │                 │ has Isidor on   │
+│                 │ under 130       │ (hamstring,     │ Oct 2026        │                 │                 │ 4.79 points in  │
+│                 │ words, use a    │ expected back   │                 │                 │                 │ GW6 and 4.49 in │
+│                 │ friendly, plain │ 25 Oct): 117    │                 │                 │                 │ GW7, with a 0.9 │
+│                 │ tone, and end   │ minutes this    │                 │                 │                 │ chance of       │
+│                 │ with a link to  │ season, all as  │                 │                 │                 │ starting. Once  │
+│                 │ compare the two │ a substitute.   │                 │                 │                 │ Brobbey is due  │
+│                 │ on              │   [I.xp.gw6]    │                 │                 │                 │ back that drops │
+│                 │ https://fixtur… │ Isidor          │                 │                 │                 │ sharpl...       │
+│                 │                 │ projecte...     │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T08             │ Is Wissa →      │ ## Projected    │ FPL gameweek 6  │ {"W.xp.gw6":4.… │ {"answer_type"… │ [PASS]          │
+│                 │ Calvert-Lewin   │ points by       │ deadline, 10    │                 │ worth|don'?t|do │ {"answer":"No,  │
+│                 │ worth a -4 hit  │ gameweek        │ Oct 2026 10:00  │                 │ not|avoid|wait… │ not for a       │
+│                 │ if I keep       │ (FixtureShark   │ UTC             │                 │ transfer)\\b",… │ five-week hold. │
+│                 │ Calvert-Lewin   │ model estimate, │ (projections    │                 │ gain...         │ Calvert-Lewin   │
+│                 │ for GW6 to      │ made 9 Oct      │ captured 09:00  │                 │                 │ is projected    │
+│                 │ GW10? When does │ 2026, 03:16 UK  │ UTC, model      │                 │                 │ 0.97 points     │
+│                 │ the move break  │ time); a hit    │ leaguewide_v6); │                 │                 │ below Wissa in  │
+│                 │ even, and when  │ costs 4 points  │ fixtures and    │                 │                 │ GW6, the move   │
+│                 │ would it pay    │   [W.xp.gw6]    │ article figures │                 │                 │ breaks even in  │
+│                 │ for the hit?    │ Wissa projected │ as stored on 10 │                 │                 │ GW8, and over   │
+│                 │                 │ points GW6:     │ Oct 2026        │                 │                 │ GW6 to GW10 it  │
+│                 │                 │ 4.54            │                 │                 │                 │ gains 2.39      │
+│                 │                 │   [W.xp.gw7]    │                 │                 │                 │ points, less    │
+│                 │                 │ Wissa projected │                 │                 │                 │ than the        │
+│                 │                 │ points GW7:     │                 │                 │                 │ 4-point hit.    │
+│                 │                 │ 4.45            │                 │                 │                 │ The cumulative  │
+│                 │                 │   [W.xp.gw8]    │                 │                 │                 │ gain only       │
+│                 │                 │ Wissa projected │                 │                 │                 │ passes 4 in     │
+│                 │                 │ points GW8...   │                 │                 │                 │ GW12 (6.36)...  │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T09             │ Someone on      │ ## FixtureShark │ FPL gameweek 6  │ {"X.between.fd… │ {"answer_type"… │ [PASS]          │
+│                 │ Reddit says FDR │ study, 2022/23  │ deadline, 10    │                 │ that market     │ {"answer":"Not  │
+│                 │ is useless and  │ to 2025/26,     │ Oct 2026 10:00  │                 │ team goals did  │ quite: it       │
+│                 │ you should only │ 29334 Premier   │ UTC             │                 │ ...             │ depends what    │
+│                 │ use xG. Is that │ League starts.  │ (projections    │                 │                 │ you use it for. │
+│                 │ right?          │ Share of pairs  │ captured 09:00  │                 │                 │ In              │
+│                 │                 │ where the       │ UTC, model      │                 │                 │ FixtureShark's  │
+│                 │                 │ predictor picks │ leaguewide_v6); │                 │                 │ study, when     │
+│                 │                 │ the higher FPL  │ fixtures and    │                 │                 │ comparing       │
+│                 │                 │ scorer (50% =   │ article figures │                 │                 │ different       │
+│                 │                 │ coin flip).     │ as stored on 10 │                 │                 │ players in the  │
+│                 │                 │   [X.between.f… │ Oct 2026        │                 │                 │ same week, an   │
+│                 │                 │ Between players │                 │                 │                 │ xG fixture      │
+│                 │                 │ (same gameweek  │                 │                 │                 │ rating picked   │
+│                 │                 │ and position):  │                 │                 │                 │ the higher      │
+│                 │                 │ FDR: 55.6       │                 │                 │                 │ scorer 57.5% of │
+│                 │                 │   [X.between.x… │                 │                 │                 │ the time        │
+│                 │                 │ Be...           │                 │                 │                 │ against 55.6%   │
+│                 │                 │                 │                 │                 │                 │ for FDR, so xG  │
+│                 │                 │                 │                 │                 │                 │ is better       │
+│                 │                 │                 │                 │                 │                 │ there. But      │
+│                 │                 │                 │                 │                 │                 │ for...          │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T10             │ Do I captain    │ ## GW6          │ FPL gameweek 6  │ {"P411.xpts":6… │ {"answer_type"… │ [PASS]          │
+│                 │ Haaland away at │ projections     │ deadline, 10    │                 │ 7.07 v Haaland  │ {"answer":"Sak… │
+│                 │ Liverpool this  │ Haaland (FPL id │ Oct 2026 10:00  │                 │ 6.55; City      │ narrowly.       │
+│                 │ week, or Saka   │ 411, slug       │ UTC             │                 │ market goals at │ FixtureShark    │
+│                 │ at home to      │ erling-haaland… │ (projections    │                 │ LIV 1.67"}      │ projects Saka   │
+│                 │ Leeds?          │ Man City FWD,   │ captured 09:00  │                 │                 │ at 7.07 points  │
+│                 │                 │ GW6 away at     │ UTC, model      │                 │                 │ at home to      │
+│                 │                 │ Liverpool, FPL  │ leaguewide_v6); │                 │                 │ Leeds and       │
+│                 │                 │ status          │ fixtures and    │                 │                 │ Haaland at 6.55 │
+│                 │                 │ available       │ article figures │                 │                 │ away at         │
+│                 │                 │   [P411.xpts]   │ as stored on 10 │                 │                 │ Liverpool, a    │
+│                 │                 │ projected FPL   │ Oct 2026        │                 │                 │ gap of 0.52, so │
+│                 │                 │ points, GW6     │                 │                 │                 │ this is close.  │
+│                 │                 │ (model          │                 │                 │                 │ The market      │
+│                 │                 │ estimate): 6.55 │                 │                 │                 │ gives City 1.67 │
+│                 │                 │   [P411.start]  │                 │                 │                 │ goals at        │
+│                 │                 │ probability of  │                 │                 │                 │ Anfield;        │
+│                 │                 │ starting, GW6   │                 │                 │                 │ Haaland has     │
+│                 │                 │ (model          │                 │                 │                 │ averaged 6.3    │
+│                 │                 │ estimate):      │                 │                 │                 │ points a start  │
+│                 │                 │ 0....           │                 │                 │                 │ when...         │
+└─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+✓ Eval complete (ID: eval-UKH-2026-10-11T00:03:18)
+
+» View results: promptfoo view
+» Feedback: https://promptfoo.dev/feedback
+
+Total Tokens: 19,003
+  Provider: 19,003 (15,355 prompt, 3,648 completion)
+
+Results:
+  ✓ 10 passed (100%)
+  0 failed (0%)
+  0 errors (0%)
+Duration: 1s (concurrency: 2)
+
+Writing output to results/scratch/reference.json
+Cache is disabled.
+Starting evaluation eval-w3P-2026-10-11T00:03:20
+[Evaluation] Starting 10 test cases...
+Running 10 test cases (up to 2 at a time)...
+[Evaluation] ✓ Complete! 10/10 tests in 0s
+::notice::Evaluation completed: 10/10 tests in 0s
+
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ case_id         │ question        │ context         │ data_as_of      │ context_values  │ expected        │ [reference-wit… │
+│                 │                 │                 │                 │                 │                 │ fpl_analyst_v1  │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T01             │ I have no       │ ## GW6          │ FPL gameweek 6  │ {"P427.xpts":5… │ {"answer_type"… │ [FAIL]          │
+│                 │ premium captain │ shortlist       │ deadline, 10    │                 │ Mbeumo 5.33 v   │ {"answer":"Cap… │
+│                 │ this week. Who  │ Mbeumo (FPL id  │ Oct 2026 10:00  │                 │ Tavernier 5.27: │ Mbeumo, but it  │
+│                 │ should I        │ 427, slug       │ UTC             │                 │ gap 0.06, a     │ is close to a   │
+│                 │ captain in GW6  │ bryan-mbeumo):  │ (projections    │                 │ coin flip"}     │ coin flip.      │
+│                 │ from Mbeumo,    │ Man United MID, │ captured 09:00  │                 │                 │ FixtureShark    │
+│                 │ Tavernier,      │ GW6 home to     │ UTC, model      │                 │                 │ projects Mbeumo │
+│                 │ Gibbs-White and │ Tottenham, FPL  │ leaguewide_v6); │                 │                 │ at 5.33 points  │
+│                 │ Ødegaard?       │ status          │ fixtures and    │                 │                 │ at home to      │
+│                 │                 │ available       │ article figures │                 │                 │ Tottenham and   │
+│                 │                 │   [P427.xpts]   │ as stored on 10 │                 │                 │ Tavernier at    │
+│                 │                 │ projected FPL   │ Oct 2026        │                 │                 │ 5.27 away at    │
+│                 │                 │ points, GW6     │                 │                 │                 │ Chelsea, with   │
+│                 │                 │ (model          │                 │                 │                 │ Gibbs-White and │
+│                 │                 │ estimate): 5.33 │                 │                 │                 │ Ødegaard on     │
+│                 │                 │   [P427.start]  │                 │                 │                 │ 5.05 each. The  │
+│                 │                 │ probability of  │                 │                 │                 │ gap between the │
+│                 │                 │ starting, GW6   │                 │                 │                 │ top two is 0.06 │
+│                 │                 │ (model          │                 │                 │                 │ poin...         │
+│                 │                 │ estimate):      │                 │                 │                 │                 │
+│                 │                 │ 0.969...        │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T02             │ Barry, Gonzalo  │ ## Players to   │ FPL gameweek 6  │ {"P249.price":… │ {"answer_type"… │ [FAIL]          │
+│                 │ or Kostoulas    │ compare         │ deadline, 10    │                 │                 │ {"answer":"Bar… │
+│                 │ for GW6? I can  │ Barry (FPL id   │ Oct 2026 10:00  │                 │                 │ FixtureShark    │
+│                 │ afford any of   │ 249, slug       │ UTC             │                 │                 │ projects him at │
+│                 │ them. Compare   │ thierno-barry): │ (projections    │                 │                 │ 6.2 points for  │
+│                 │ them and pick   │ Everton FWD,    │ captured 09:00  │                 │                 │ GW6 away at     │
+│                 │ one.            │ GW6 away at     │ UTC, model      │                 │                 │ Hull, ahead of  │
+│                 │                 │ Hull, FPL       │ leaguewide_v6); │                 │                 │ Gonzalo on 4.92 │
+│                 │                 │ status          │ fixtures and    │                 │                 │ and Kostoulas   │
+│                 │                 │ available       │ article figures │                 │                 │ on 3.66. His    │
+│                 │                 │   [P249.price]  │ as stored on 10 │                 │                 │ expected goals  │
+│                 │                 │ price (£m): 5.7 │ Oct 2026        │                 │                 │ are 0.698       │
+│                 │                 │   [P249.xpts]   │                 │                 │                 │ against         │
+│                 │                 │ projected FPL   │                 │                 │                 │ Gonzalo's 0.5   │
+│                 │                 │ points, GW6     │                 │                 │                 │ and Kostoulas's │
+│                 │                 │ (model          │                 │                 │                 │ 0.345, and at   │
+│                 │                 │ estimate): 6.02 │                 │                 │                 │ £5.7m he costs  │
+│                 │                 │   [P249.start]  │                 │                 │                 │ less than       │
+│                 │                 │ probability of  │                 │                 │                 │ Gonzalo         │
+│                 │                 │ starting,...    │                 │                 │                 │ (£6.1...        │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T03             │ For gameweeks 7 │ ## GW7-10       │ FPL gameweek 6  │ {"F64.fdr_home… │ {"answer_type"… │ [FAIL]          │
+│                 │ to 10, which of │ fixtures (FDR:  │ deadline, 10    │                 │ City","Arsenal… │ {"answer":"Man  │
+│                 │ Fulham, Man     │ 1 easiest, 5    │ Oct 2026 10:00  │                 │ average FDR     │ City have the   │
+│                 │ City,           │ hardest; goals  │ UTC             │                 │ GW7-10 (easiest │ best attacking  │
+│                 │ Tottenham,      │ are model       │ (projections    │                 │ by              │ fixtures from   │
+│                 │ Coventry,       │ estimates of    │ captured 09:00  │                 │ FDR)"},{"value… │ GW7 to GW10,    │
+│                 │ Arsenal,        │ goals scored)   │ UTC, model      │                 │ C...            │ and both models │
+│                 │ Everton has the │ GW7 2026-10-17  │ leaguewide_v6); │                 │                 │ agree: they     │
+│                 │ best attacking  │ Everton v       │ fixtures and    │                 │                 │ average 2.21    │
+│                 │ fixtures? Does  │ Chelsea:        │ article figures │                 │                 │ expected goals  │
+│                 │ FPL's FDR       │ [F64.fdr_home]  │ as stored on 10 │                 │                 │ a game on the   │
+│                 │ agree? House    │ FDR for EVE 4;  │ Oct 2026        │                 │                 │ market and 2.38 │
+│                 │ rule: only make │ [F64.fdr_away]  │                 │                 │                 │ on Dixon-Coles, │
+│                 │ a team-level    │ FDR for CHE 3;  │                 │                 │                 │ the highest of  │
+│                 │ claim where the │ [F64.mkt_home]  │                 │                 │                 │ the six on      │
+│                 │ market and      │ market goals    │                 │                 │                 │ each. Arsenal   │
+│                 │ Dixon-Coles     │ EVE 1.24;       │                 │                 │                 │ are second on   │
+│                 │ agree.          │ [F64.mkt_away]  │                 │                 │                 │ both (2.12 and  │
+│                 │                 │ market goa...   │                 │                 │                 │ 1.49)...        │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T04             │ I have £13.0m   │ ## Available    │ FPL gameweek 6  │ {"P12.price":9… │ {"answer_type"… │ [FAIL]          │
+│                 │ for two         │ midfielders     │ deadline, 10    │                 │ projected       │ {"answer":"Tav… │
+│                 │ midfielders for │ (top 20 by GW6  │ Oct 2026 10:00  │                 │ points of the   │ (£6.1m) and     │
+│                 │ GW6. Which pair │ projection)     │ UTC             │                 │ best pai...     │ Ødegaard        │
+│                 │ from this list  │ Saka (FPL id    │ (projections    │                 │                 │ (£6.8m): £12.9m │
+│                 │ gives the most  │ 12, slug        │ captured 09:00  │                 │                 │ in total for    │
+│                 │ projected       │ bukayo-saka):   │ UTC, model      │                 │                 │ 10.52 projected │
+│                 │ points within   │ Arsenal MID,    │ leaguewide_v6); │                 │                 │ points (5.27 +  │
+│                 │ budget? Give    │ GW6 home to     │ fixtures and    │                 │                 │ 5.05). The next │
+│                 │ the total cost  │ Leeds, FPL      │ article figures │                 │                 │ best pair       │
+│                 │ and total       │ status          │ as stored on 10 │                 │                 │ within budget   │
+│                 │ projected       │ available       │ Oct 2026        │                 │                 │ is Tavernier    │
+│                 │ points.         │   [P12.price]   │                 │                 │                 │ and Groß, 9.98  │
+│                 │                 │ price (£m): 9.6 │                 │                 │                 │ points for      │
+│                 │                 │   [P12.xpts]    │                 │                 │                 │ £12.0m. These   │
+│                 │                 │ projected FPL   │                 │                 │                 │ are model       │
+│                 │                 │ points, GW6     │                 │                 │                 │ estimates for   │
+│                 │                 │ (model          │                 │                 │                 │ GW6.","answer_… │
+│                 │                 │ estimate): 7.07 │                 │                 │                 │                 │
+│                 │                 │ B.Fernandes     │                 │                 │                 │                 │
+│                 │                 │ (F...           │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T05             │ Havertz, Rice,  │ ## My flagged   │ FPL gameweek 6  │ {"P26.start":0… │ {"answer_type"… │ [FAIL] ```json  │
+│                 │ Konsa and       │ Arsenal players │ deadline, 10    │                 │ not|not         │ {               │
+│                 │ Tzolis are all  │ Havertz (FPL id │ Oct 2026 10:00  │                 │ (expected|like… │   "answer":     │
+│                 │ flagged. Which  │ 26, slug        │ UTC             │                 │ ...             │ "Tzolis is out: │
+│                 │ of them are     │ kai-havertz):   │ (projections    │                 │                 │ he is injured   │
+│                 │ likely to play  │ Arsenal FWD,    │ captured 09:00  │                 │                 │ (hamstring,     │
+│                 │ in GW6, and how │ GW6 home to     │ UTC, model      │                 │                 │ expected back   │
+│                 │ do their        │ Leeds, FPL      │ leaguewide_v6); │                 │                 │ 24 Oct) and the │
+│                 │ projections     │ status          │ fixtures and    │                 │                 │ model gives him │
+│                 │ compare?        │ doubtful, news: │ article figures │                 │                 │ no chance of    │
+│                 │                 │ "Hamstring      │ as stored on 10 │                 │                 │ starting. The   │
+│                 │                 │ injury - 75%    │ Oct 2026        │                 │                 │ other three are │
+│                 │                 │ chance of       │                 │                 │                 │ doubtful with a │
+│                 │                 │ playing"        │                 │                 │                 │ 75% chance of   │
+│                 │                 │   [P26.chance]  │                 │                 │                 │ playing         │
+│                 │                 │ FPL chance of   │                 │                 │                 │ according to    │
+│                 │                 │ playing this    │                 │                 │                 │ FPL's news. The │
+│                 │                 │ round (%): not  │                 │                 │                 │ model rates     │
+│                 │                 │ recorded        │                 │                 │                 │ Rice the most   │
+│                 │                 │   [P26.sta...   │                 │                 │                 │ l...            │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T06             │ How many points │ ## Players in   │ FPL gameweek 6  │ {"P12.xpts":7.… │ {"answer_type"… │ [FAIL]          │
+│                 │ will Ollie      │ the data        │ deadline, 10    │                 │                 │ {"answer":"Fix… │
+│                 │ Watkins and     │ Saka (FPL id    │ Oct 2026 10:00  │                 │                 │ projects Saka   │
+│                 │ Saka get in     │ 12, slug        │ UTC             │                 │                 │ at 7.07 points  │
+│                 │ GW6?            │ bukayo-saka):   │ (projections    │                 │                 │ in GW6 and      │
+│                 │                 │ Arsenal MID,    │ captured 09:00  │                 │                 │ Ollie Watkins   │
+│                 │                 │ GW6 home to     │ UTC, model      │                 │                 │ at 5.4          │
+│                 │                 │ Leeds, FPL      │ leaguewide_v6); │                 │                 │ points.","answ… │
+│                 │                 │ status          │ fixtures and    │                 │                 │ projected...    │
+│                 │                 │ available       │ article figures │                 │                 │                 │
+│                 │                 │   [P12.xpts]    │ as stored on 10 │                 │                 │                 │
+│                 │                 │ projected FPL   │ Oct 2026        │                 │                 │                 │
+│                 │                 │ points, GW6     │                 │                 │                 │                 │
+│                 │                 │ (model          │                 │                 │                 │                 │
+│                 │                 │ estimate): 7.07 │                 │                 │                 │                 │
+│                 │                 │   [P12.start]   │                 │                 │                 │                 │
+│                 │                 │ probability of  │                 │                 │                 │                 │
+│                 │                 │ starting, GW6   │                 │                 │                 │                 │
+│                 │                 │ (model          │                 │                 │                 │                 │
+│                 │                 │ estimate):      │                 │                 │                 │                 │
+│                 │                 │ 0.944           │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T07             │ Draft a Reddit  │ ## Isidor       │ FPL gameweek 6  │ {"I.xp.gw6":4.… │ {"answer_type"… │ [FAIL]          │
+│                 │ reply           │ projections by  │ deadline, 10    │                 │ Compare Pl...   │ {"answer":"Dec… │
+│                 │ (r/FantasyPL)   │ gameweek        │ Oct 2026 10:00  │                 │                 │ short-term      │
+│                 │ from the        │ (FixtureShark   │ UTC             │                 │                 │ punt, not a     │
+│                 │ FixtureShark    │ model estimate, │ (projections    │                 │                 │ long-term hold. │
+│                 │ account to: "Is │ made 9 Oct      │ captured 09:00  │                 │                 │ Brobbey's       │
+│                 │ Isidor a decent │ 2026, 03:16 UK  │ UTC, model      │                 │                 │ hamstring has   │
+│                 │ punt while      │ time)           │ leaguewide_v6); │                 │                 │ him expected    │
+│                 │ Brobbey's out   │ Note from the   │ fixtures and    │                 │                 │ back on 25 Oct, │
+│                 │ or is it a      │ model: Covering │ article figures │                 │                 │ and our model   │
+│                 │ trap?" Keep it  │ for Brobbey     │ as stored on 10 │                 │                 │ has Isidor on   │
+│                 │ under 130       │ (hamstring,     │ Oct 2026        │                 │                 │ 4.79 points in  │
+│                 │ words, use a    │ expected back   │                 │                 │                 │ GW6 and 4.49 in │
+│                 │ friendly, plain │ 25 Oct): 117    │                 │                 │                 │ GW7, with a 0.9 │
+│                 │ tone, and end   │ minutes this    │                 │                 │                 │ chance of       │
+│                 │ with a link to  │ season, all as  │                 │                 │                 │ starting. Once  │
+│                 │ compare the two │ a substitute.   │                 │                 │                 │ Brobbey is due  │
+│                 │ on              │   [I.xp.gw6]    │                 │                 │                 │ back that drops │
+│                 │ https://fixtur… │ Isidor          │                 │                 │                 │ sharpl...       │
+│                 │                 │ projecte...     │                 │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T08             │ Is Wissa →      │ ## Projected    │ FPL gameweek 6  │ {"W.xp.gw6":4.… │ {"answer_type"… │ [FAIL]          │
+│                 │ Calvert-Lewin   │ points by       │ deadline, 10    │                 │ worth|don'?t|do │ {"answer":"No,  │
+│                 │ worth a -4 hit  │ gameweek        │ Oct 2026 10:00  │                 │ not|avoid|wait… │ not for a       │
+│                 │ if I keep       │ (FixtureShark   │ UTC             │                 │ transfer)\\b",… │ five-week hold. │
+│                 │ Calvert-Lewin   │ model estimate, │ (projections    │                 │ gain...         │ Calvert-Lewin   │
+│                 │ for GW6 to      │ made 9 Oct      │ captured 09:00  │                 │                 │ is projected    │
+│                 │ GW10? When does │ 2026, 03:16 UK  │ UTC, model      │                 │                 │ 0.97 points     │
+│                 │ the move break  │ time); a hit    │ leaguewide_v6); │                 │                 │ below Wissa in  │
+│                 │ even, and when  │ costs 4 points  │ fixtures and    │                 │                 │ GW6, the move   │
+│                 │ would it pay    │   [W.xp.gw6]    │ article figures │                 │                 │ breaks even in  │
+│                 │ for the hit?    │ Wissa projected │ as stored on 10 │                 │                 │ GW8, and over   │
+│                 │                 │ points GW6:     │ Oct 2026        │                 │                 │ GW6 to GW10 it  │
+│                 │                 │ 4.54            │                 │                 │                 │ gains 2.39      │
+│                 │                 │   [W.xp.gw7]    │                 │                 │                 │ points, less    │
+│                 │                 │ Wissa projected │                 │                 │                 │ than the        │
+│                 │                 │ points GW7:     │                 │                 │                 │ 4-point hit.    │
+│                 │                 │ 4.45            │                 │                 │                 │ The cumulative  │
+│                 │                 │   [W.xp.gw8]    │                 │                 │                 │ gain only       │
+│                 │                 │ Wissa projected │                 │                 │                 │ passes 4 in     │
+│                 │                 │ points GW8...   │                 │                 │                 │ GW12 (6.36)...  │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T09             │ Someone on      │ ## FixtureShark │ FPL gameweek 6  │ {"X.between.fd… │ {"answer_type"… │ [FAIL]          │
+│                 │ Reddit says FDR │ study, 2022/23  │ deadline, 10    │                 │ that market     │ {"answer":"Not  │
+│                 │ is useless and  │ to 2025/26,     │ Oct 2026 10:00  │                 │ team goals did  │ quite: it       │
+│                 │ you should only │ 29334 Premier   │ UTC             │                 │ ...             │ depends what    │
+│                 │ use xG. Is that │ League starts.  │ (projections    │                 │                 │ you use it for. │
+│                 │ right?          │ Share of pairs  │ captured 09:00  │                 │                 │ In              │
+│                 │                 │ where the       │ UTC, model      │                 │                 │ FixtureShark's  │
+│                 │                 │ predictor picks │ leaguewide_v6); │                 │                 │ study, when     │
+│                 │                 │ the higher FPL  │ fixtures and    │                 │                 │ comparing       │
+│                 │                 │ scorer (50% =   │ article figures │                 │                 │ different       │
+│                 │                 │ coin flip).     │ as stored on 10 │                 │                 │ players in the  │
+│                 │                 │   [X.between.f… │ Oct 2026        │                 │                 │ same week, an   │
+│                 │                 │ Between players │                 │                 │                 │ xG fixture      │
+│                 │                 │ (same gameweek  │                 │                 │                 │ rating picked   │
+│                 │                 │ and position):  │                 │                 │                 │ the higher      │
+│                 │                 │ FDR: 55.6       │                 │                 │                 │ scorer 57.5% of │
+│                 │                 │   [X.between.x… │                 │                 │                 │ the time        │
+│                 │                 │ Be...           │                 │                 │                 │ against 55.6%   │
+│                 │                 │                 │                 │                 │                 │ for FDR, so xG  │
+│                 │                 │                 │                 │                 │                 │ is better       │
+│                 │                 │                 │                 │                 │                 │ there. But      │
+│                 │                 │                 │                 │                 │                 │ for...          │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│ T10             │ Do I captain    │ ## GW6          │ FPL gameweek 6  │ {"P411.xpts":6… │ {"answer_type"… │ [FAIL]          │
+│                 │ Haaland away at │ projections     │ deadline, 10    │                 │ 7.07 v Haaland  │ {"answer":"Sak… │
+│                 │ Liverpool this  │ Haaland (FPL id │ Oct 2026 10:00  │                 │ 6.55; City      │ narrowly.       │
+│                 │ week, or Saka   │ 411, slug       │ UTC             │                 │ market goals at │ FixtureShark    │
+│                 │ at home to      │ erling-haaland… │ (projections    │                 │ LIV 1.67"}      │ projects Saka   │
+│                 │ Leeds?          │ Man City FWD,   │ captured 09:00  │                 │                 │ at 7.07 points  │
+│                 │                 │ GW6 away at     │ UTC, model      │                 │                 │ at home to      │
+│                 │                 │ Liverpool, FPL  │ leaguewide_v6); │                 │                 │ Leeds and       │
+│                 │                 │ status          │ fixtures and    │                 │                 │ Haaland at 6.55 │
+│                 │                 │ available       │ article figures │                 │                 │ away at         │
+│                 │                 │   [P411.xpts]   │ as stored on 10 │                 │                 │ Liverpool, a    │
+│                 │                 │ projected FPL   │ Oct 2026        │                 │                 │ gap of 0.52, so │
+│                 │                 │ points, GW6     │                 │                 │                 │ this is close.  │
+│                 │                 │ (model          │                 │                 │                 │ The market      │
+│                 │                 │ estimate): 6.55 │                 │                 │                 │ gives City 1.67 │
+│                 │                 │   [P411.start]  │                 │                 │                 │ goals at        │
+│                 │                 │ probability of  │                 │                 │                 │ Anfield;        │
+│                 │                 │ starting, GW6   │                 │                 │                 │ Haaland has     │
+│                 │                 │ (model          │                 │                 │                 │ averaged 6.3    │
+│                 │                 │ estimate):      │                 │                 │                 │ points a start  │
+│                 │                 │ 0....           │                 │                 │                 │ when...         │
+└─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+✓ Eval complete (ID: eval-w3P-2026-10-11T00:03:20)
+
+» View results: promptfoo view
+» Feedback: https://promptfoo.dev/feedback
+
+Total Tokens: 19,179
+  Provider: 19,179 (15,355 prompt, 3,824 completion)
+
+Results:
+  0 passed (0%)
+  ✗ 10 failed (100%)
+  0 errors (0%)
+Duration: 1s (concurrency: 2)
+
+Writing output to results/scratch/faulty.json
+reference: 10/10 pass every check
+seeded faults: 10/10 caught in the intended category
