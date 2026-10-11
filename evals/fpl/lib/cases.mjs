@@ -9,7 +9,7 @@
 //   ranking_order      names that must appear in this order in output.ranking
 //   must_cite          source ids that must appear in output.facts
 //   must_cite_any      groups of ids: at least one from each group must be cited
-//   must_state         [{ value, tol, why }] numbers that must appear (answer text or facts)
+//   must_state         [{ value, alt?, tol, why }] numbers that must appear (answer text or facts); alt = other correct forms
 //   confidence_not     confidence values that are wrong here
 //   missing_data       terms output.missing_data must mention
 //   no_facts_about     names no fact may be about
@@ -90,13 +90,14 @@ export function buildCases() {
       question: `For gameweeks 7 to 10, which of ${teams.map((t) => TEAM_NAMES[t]).join(', ')} has the best attacking fixtures? Does FPL's FDR agree? House rule: only make a team-level claim where the market and Dixon-Coles agree.`,
       ctx,
       expected: {
-        answer_type: ['answered'],
+        answer_type: ['answered', 'partial'], // the house rule can leave lower places unresolved
         recommendation: new RegExp(TEAM_NAMES[byMkt[0].t].replace(' ', '\\s*'), 'i'),
         ranking_order: byMkt.slice(0, 2).map((r) => TEAM_NAMES[r.t]),
+        // Averages or four-week totals are both correct ways to state these.
         must_state: [
           { value: round(byFdr[0].fdr), tol: 0.011, why: `${TEAM_NAMES[byFdr[0].t]} average FDR GW7-10 (easiest by FDR)` },
-          { value: round(byMkt[0].mkt), tol: 0.011, why: `${TEAM_NAMES[byMkt[0].t]} average market goals GW7-10` },
-          { value: round(byDc[0].dc), tol: 0.011, why: `${TEAM_NAMES[byDc[0].t]} average Dixon-Coles goals GW7-10` },
+          { value: round(byMkt[0].mkt), alt: [round(byMkt[0].mkt * 4)], tol: 0.011, why: `${TEAM_NAMES[byMkt[0].t]} market goals GW7-10 (average or total)` },
+          { value: round(byDc[0].dc), alt: [round(byDc[0].dc * 4)], tol: 0.011, why: `${TEAM_NAMES[byDc[0].t]} Dixon-Coles goals GW7-10 (average or total)` },
         ],
         answer_regex: [{ re: new RegExp(TEAM_NAMES[byFdr[0].t], 'i'), why: `names ${TEAM_NAMES[byFdr[0].t]} as FDR's easiest run` }],
         _notes: `FDR easiest ${byFdr[0].t} ${round(byFdr[0].fdr)}; market top ${byMkt[0].t} ${round(byMkt[0].mkt, 3)}, ${byMkt[1].t}; DC top ${byDc[0].t} ${round(byDc[0].dc, 3)}, ${byDc[1].t}`,
@@ -149,7 +150,7 @@ export function buildCases() {
       question: 'Havertz, Rice, Konsa and Tzolis are all flagged. Which of them are likely to play in GW6, and how do their projections compare?',
       ctx,
       expected: {
-        answer_type: ['answered'],
+        answer_type: ['answered', 'partial'], // FPL's chance-of-playing field is blank for all four
         ranking_order: ranked.map((p) => p.name),
         must_cite: [`P${out.id}.start`, ...ranked.slice(0, 3).map((p) => `P${p.id}.start`)],
         answer_regex: [
@@ -197,9 +198,9 @@ export function buildCases() {
       ctx,
       expected: {
         answer_type: ['answered'],
-        must_cite: ['I.xp.gw6'],
+        // GW6 from the 9 Oct article figures or the 10 Oct deadline snapshot.
+        must_cite_any: [['I.xp.gw6', `P${isidor.id}.xpts`], ['I.xp.gw8', 'I.start.gw8']],
         // The GW8 drop can be shown by the projection or the start probability.
-        must_cite_any: [['I.xp.gw8', 'I.start.gw8']],
         answer_regex: [
           { re: new RegExp(`${SITE.replace(/\./g, '\\.')}/fpl/compare\\?players=(${slugs.join('|')}),(${slugs.join('|')})`), why: 'links Compare Players with both slugs' },
           { re: /(25 Oct|Brobbey (is |'s )?back|returns?)/i, why: 'says when Brobbey is due back' },

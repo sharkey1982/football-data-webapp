@@ -47,3 +47,5 @@
 | Total | 47,700 |
 
 Cost: **$0.3045** for 10 cases ($0.0304 a case), at claude-sonnet-5 list prices ($2 / $10 per million input / output tokens).
+
+Judge: 37,568 prompt + 8,994 completion tokens, **$0.1651** (same prices). Run total **$0.4695**.
