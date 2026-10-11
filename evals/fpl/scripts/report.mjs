@@ -10,10 +10,13 @@ const file = args[0];
 const arg = (k) => { const i = args.indexOf(k); return i > 0 ? args[i + 1] : null; };
 if (!file) { console.error('usage: node scripts/report.mjs <results.json> [--judge <file>] [--title "..."]'); process.exit(2); }
 
-const ORDER = ['output_structure', 'source_provenance', 'numerical_accuracy', 'missing_data', 'task_correctness'];
+const ORDER = ['output_structure', 'source_provenance', 'numerical_accuracy', 'ranking_claims', 'missing_data', 'task_correctness'];
 const data = JSON.parse(readFileSync(file, 'utf8'));
-const rows = data.results.results.slice().sort((a, b) => String(a.vars.case_id).localeCompare(String(b.vars.case_id)));
+const label = (r) => r.prompt?.label ?? '';
+const rows = data.results.results.slice().sort((a, b) => label(a).localeCompare(label(b)) || String(a.vars.case_id).localeCompare(String(b.vars.case_id)));
 const comp = (r) => r.gradingResult?.componentResults ?? [];
+const prompts = [...new Set(rows.map(label))];
+const multi = prompts.length > 1 || rows.length > new Set(rows.map((r) => r.vars.case_id)).size; // several prompts or repeats
 
 const passed = rows.filter((r) => r.success).length;
 const errors = rows.filter((r) => r.error && !comp(r).length).length;
@@ -37,7 +40,21 @@ out.push(`# ${title}`, '');
 out.push(`- Results file: \`${file}\``);
 out.push(`- Provider: ${provider}`);
 out.push(`- Run at: ${data.createdAt ?? data.results?.timestamp ?? 'unknown'}`);
-out.push(`- Cases: ${rows.length}; passed every objective check: **${passed}/${rows.length} (${Math.round((100 * passed) / rows.length)}%)**${errors ? `; provider errors: ${errors}` : ''}`, '');
+out.push(`- Prompt: ${prompts.join(', ')}`);
+out.push(`- Answers graded: ${rows.length}; passed every objective check: **${passed}/${rows.length} (${Math.round((100 * passed) / rows.length)}%)**${errors ? `; provider errors: ${errors}` : ''}`, '');
+
+if (multi) {
+  // One line per prompt version: pass rate over all its answers (cases x repeats) and its share of cost.
+  const costOf = (rs) => rs.reduce((t, r) => t + (r.cost ?? 0), 0);
+  out.push('## By prompt version', '', `| Prompt | Answers | Passed | Pass rate | ${ORDER.map((m) => m.replace(/_/g, ' ')).join(' | ')} | Cost per 10 answers |`, `|---|---|---|---|${ORDER.map(() => '---').join('|')}|---|`);
+  for (const p of prompts) {
+    const rs = rows.filter((r) => label(r) === p); const ok = rs.filter((r) => r.success).length;
+    const fails = ORDER.map((m) => rs.filter((r) => comp(r).some((c) => c.assertion?.metric === m && !c.pass)).length);
+    const uc = arg('--usage') ? null : costOf(rs);
+    out.push(`| ${p} | ${rs.length} | ${ok} | ${Math.round((100 * ok) / rs.length)}% | ${fails.map((f) => (f ? `${f} failed` : '-')).join(' | ')} | ${uc == null ? 'see below' : `$${((uc / rs.length) * 10).toFixed(3)}`} |`);
+  }
+  out.push('');
+}
 
 out.push('## Pass rate by check', '', '| Check | Passed | Failed |', '|---|---|---|');
 for (const m of ORDER) {
@@ -60,16 +77,16 @@ let judge = null;
 if (arg('--judge')) {
   judge = {};
   for (const r of JSON.parse(readFileSync(arg('--judge'), 'utf8')).results.results) {
-    judge[r.vars.case_id] = Object.fromEntries(comp(r).map((c) => [c.assertion?.metric, c.score]));
+    judge[`${label(r)}|${r.vars.case_id}`] ??= Object.fromEntries(comp(r).map((c) => [c.assertion?.metric, c.score]));
   }
 }
 
-out.push('', '## Cases', '', `| Case | Category | Result | Failed checks |${judge ? ' Reasoning (advisory) | Usefulness (advisory) |' : ''}`, `|---|---|---|---|${judge ? '---|---|' : ''}`);
+out.push('', '## Cases', '', `|${multi ? ' Prompt |' : ''} Case | Category | Result | Failed checks |${judge ? ' Reasoning (advisory) | Usefulness (advisory) |' : ''}`, `|${multi ? '---|' : ''}---|---|---|---|${judge ? '---|---|' : ''}`);
 for (const r of rows) {
   const f = comp(r).filter((c) => !c.pass).map((c) => `**${c.assertion?.metric}**: ${String(c.reason).replace(/\|/g, '/').slice(0, 300)}`);
-  const j = judge?.[r.vars.case_id];
+  const j = judge?.[`${label(r)}|${r.vars.case_id}`];
   const cut = r.response?.finishReason === 'length' ? ' (truncated)' : '';
-  out.push(`| ${r.vars.case_id} | ${r.metadata?.category ?? r.testCase?.metadata?.category ?? ''} | ${r.success ? 'pass' : r.error && !comp(r).length ? 'error' : 'FAIL'}${cut} | ${f.join('<br>') || (r.error ? String(r.error).slice(0, 200) : '')} |${judge ? ` ${j?.quality_reasoning ?? '-'} | ${j?.quality_usefulness ?? '-'} |` : ''}`);
+  out.push(`|${multi ? ` ${label(r)} |` : ''} ${r.vars.case_id} | ${r.metadata?.category ?? r.testCase?.metadata?.category ?? ''} | ${r.success ? 'pass' : r.error && !comp(r).length ? 'error' : 'FAIL'}${cut} | ${f.join('<br>') || (r.error ? String(r.error).slice(0, 200) : '')} |${judge ? ` ${j?.quality_reasoning ?? '-'} | ${j?.quality_usefulness ?? '-'} |` : ''}`);
 }
 
 out.push('', `## Tokens and cost${estimated ? ' (ESTIMATED: offline provider, ~3.5 characters a token)' : ''}`, '');

@@ -22,9 +22,9 @@ npm install --no-audit --no-fund
 npm run eval:offline
 ```
 
-This runs the suite against hand-written reference answers (all must pass) and against the same answers with one deliberate fault each (each must fail in the category it targets). Expected output ends with `reference: 10/10` and `seeded faults: 10/10`.
+This runs the suite against hand-written reference answers (all must pass) and against the same answers with one deliberate fault each (each must fail in the category it targets). Expected output ends with `reference: 10/10`, `seeded faults: 10/10` and `direct checks: 4/4`.
 
-**Live run against the model (costs money, about $0.07–0.10 a run):**
+**Live run against the model (costs money: $0.30 for all ten cases on prompt v1, 11 Oct actual; v2 aims lower):**
 
 Set the key for this shell only. Never put it in a file in the repo.
 
@@ -40,7 +40,7 @@ npm run eval:live
 npm run report -- results/live-<stamp>.json
 ```
 
-**Advisory quality judge on that run (about $0.10 more):**
+**Advisory quality judge on that run (about $0.17 more; occasional use only, see below):**
 
 ```
 npm run eval:judge -- results/live-<stamp>.json
@@ -57,8 +57,10 @@ To measure run-to-run variation, repeat each case: `npm run eval:live -- --repea
 The **FPL evals (manual)** workflow (`.github/workflows/fpl-evals.yml`) runs only when dispatched: no schedule. Pick a mode:
 
 - `offline`: the free harness check.
-- `live`: the model on the ten cases (about $0.07–0.10).
-- `live+judge`: live plus the quality judge (about $0.15–0.25).
+- `live`: the model on the ten cases ($0.30 on v1).
+- `live+judge`: live plus the quality judge (about $0.17 more).
+
+Inputs `prompt` (`v2` default, `v1`, `both`) and `cases` (e.g. `T04|T08`) keep runs small: rerunning just the failing cases costs a few cents.
 
 Results and a Markdown report are committed to `results/runs/<stamp>-<mode>/` on `main` with `[skip netlify]`, and the report also appears on the run's summary page.
 
@@ -80,7 +82,7 @@ PROMPTFOO_CONFIG_DIR=.promptfoo npx promptfoo view
 |---|---|
 | `promptfooconfig.yaml` | Objective suite: prompt, provider (`anthropic:messages:claude-sonnet-5`, the AI Lab's default model), tests. The pass/fail verdict. |
 | `promptfooconfig.judge.yaml` | Advisory LLM judge. Replays a saved run; never changes the objective verdict. |
-| `prompts/` | `fpl_analyst_v1`: the AI Lab's `analyst_v1` rules plus a JSON output contract in which every fact carries its source id. |
+| `prompts/` | `fpl_analyst_v1`: the AI Lab's `analyst_v1` rules plus a JSON output contract in which every fact carries its source id. `fpl_analyst_v2`: shorter fact lists, calculations can build on earlier ones (`#n`), every comparison word listed in `superlatives`, every part of a question answered. |
 | `fixtures/snapshots/` | Frozen data and `MANIFEST.json` (source tables, query time, hashes). See below. |
 | `fixtures/reference/answers.json` | Hand-written correct answers, used only to test the checks. |
 | `lib/snapshot.mjs` | Loads the snapshots and builds each case's DATA block, giving every value a source id such as `[P12.xpts]`. |
@@ -105,7 +107,7 @@ The two database files were checked byte for byte against an md5 computed in Pos
 
 ## The checks
 
-Each case gets five deterministic checks. A case passes only if all five pass.
+Each case gets six deterministic checks. A case passes only if all six pass.
 
 | Check | Fails when |
 |---|---|
@@ -114,10 +116,11 @@ Each case gets five deterministic checks. A case passes only if all five pass.
 | `numerical_accuracy` | A copied value differs from its source; a calculation (sum, difference, mean…) doesn't recompute; a number in the answer text can't be traced to the data or a checked calculation; a required figure (e.g. the best pair's total) is missing or wrong. |
 | `missing_data` | The answer type is wrong for the data available, a missing item isn't named, or something is claimed about a player who isn't in the data. |
 | `task_correctness` | The recommendation, ranking order or confidence contradicts what the data supports, required content (link, return date, break-even week) is missing, or the reply is over its word limit. |
+| `ranking_claims` | (Prompt v2 on.) A comparison word in the answer (highest, easiest, best…) isn't listed in `superlatives`; a listed winner isn't the top value; or the comparison leaves out one of the options the question named. |
 
 The number tracing ignores gameweek numbers, dates, seasons, links, numbers from the question and whole numbers up to 10 (counts like "two options"). Everything else in the answer must match a value in the data (rounding and percentages allowed) or a calculation that recomputes correctly.
 
-**The judge is separate on purpose.** `promptfooconfig.judge.yaml` scores reasoning and usefulness with an LLM rubric, on the exact outputs the objective run saw (replayed, not regenerated). Its scores appear beside the verdict in the report. A high judge score can't rescue a failed numerical check, because the two are different runs and only the objective run decides pass or fail.
+**The judge is separate on purpose.** `promptfooconfig.judge.yaml` scores reasoning and usefulness with an LLM rubric, on the exact outputs the objective run saw (replayed, not regenerated). Its scores appear beside the verdict in the report. A high judge score can't rescue a failed numerical check, because the two are different runs and only the objective run decides pass or fail. On 11 Oct it scored both real reasoning errors as sound (1.0), so it is for occasional use, not every run.
 
 ## The ten cases
 
@@ -138,9 +141,9 @@ The number tracing ignores gameweek numbers, dates, seasons, links, numbers from
 
 ## After a change, rerun
 
-1. **Prompt change**: copy `prompts/system_fpl_analyst_v1.md` to a new version (`_v2`), point `promptfooconfig.yaml` at it, run `eval:live`, and compare the report with the last saved run. Keep old versions so results stay comparable.
+1. **Prompt change**: copy the newest `prompts/system_fpl_analyst_vN.md` and its `.mjs` to the next version, add it to `prompts:` in both configs, set `NEWEST` in `scripts/run.mjs`, and compare with the workflow's `prompt` input or `--filter-prompts`. Keep old versions so results stay comparable.
 2. **Model change**: edit the provider id in `promptfooconfig.yaml` (Promptfoo knows the prices of current Claude models), or compare two at once by listing both providers.
-3. **Check change**: run `npm run eval:offline` first. Both lines must stay at 10/10; if a new check fails a reference answer, the check or the reference is wrong.
+3. **Check change**: run `npm run eval:offline` first. All three lines must stay at 10/10, 10/10 and 4/4; if a new check fails a reference answer, the check or the reference is wrong.
 4. **New data**: add a new dated snapshot (above), never edit the old one.
 
 Save each live run's JSON in `results/` with a short note in `BASELINE.md` (date, prompt, model, pass rate, cost).

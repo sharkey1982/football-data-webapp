@@ -2,11 +2,15 @@
 # FixtureShark FPL eval pilot: objective checks (the pass/fail verdict).
 # Development only. Run by hand; see README.md. Nothing here touches the site,
 # Supabase or Netlify.
-description: FixtureShark FPL analysis - objective checks (fpl_analyst_v1)
+description: FixtureShark FPL analysis - objective checks
 
+# Both versions are listed so they can be compared; choose with
+# --filter-prompts (the GitHub workflow's "prompt" input does this).
 prompts:
   - id: file://prompts/fpl_analyst_v1.mjs
     label: fpl_analyst_v1
+  - id: file://prompts/fpl_analyst_v2.mjs
+    label: fpl_analyst_v2
 
 # Live provider: the same Anthropic model the AI Lab uses by default
 # (supabase/functions/ai-lab-run DEFAULT_MODEL). Reads ANTHROPIC_API_KEY
@@ -23,7 +27,7 @@ providers:
 
 tests: file://tests/load-tests.mjs
 
-# Deterministic only: five javascript checks per case, added by the loader.
+# Deterministic only: six javascript checks per case, added by the loader.
 # The qualitative judge is a separate run (promptfooconfig.judge.yaml) so a
 # model's opinion can never turn a failed numerical check into a pass.
 evaluateOptions:
