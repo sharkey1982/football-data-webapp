@@ -216,3 +216,56 @@ def test_compute_uses_simulation_only_when_other_positions_exist():
     rows.append(dict(base, fpl_player_id=3, tactical_role="RW", depth_rank=2, rate=0.4, other_roles='[{"role": "LW", "rank": 2}]'))
     multi = {r["fpl_player_id"]: r for r in compute(rows)}
     assert set(multi[3]["group_shares"]) <= {"LW", "RW"} and multi[3]["start_probability"] > 0
+
+
+# ---- Rules under test, 11 Oct 2026 (off by default) -------------------------
+
+def _liverpool_no_striker():
+    P = Player
+    return [
+        P(1, "CF", 1, 0.0, 0.78, None, 4, starts=5, available=5),    # Isak, injured
+        P(2, "CF", 2, 0.0, 0.55, None, 4),                            # Ekitike, injured
+        P(3, "CF", 3, 1.0, 0.04, None, 4, starts=0, available=6),    # Danns: never picked
+        P(4, "AM", 1, 1.0, 0.72, None, 3, starts=5, available=6),    # Wirtz
+        P(5, "LW", 1, 1.0, 0.41, None, 3, starts=2, available=4),    # Barcola
+        P(6, "RW", 1, 1.0, 0.37, None, 3, starts=3, available=6),    # Munoz
+        P(7, "MID", 3, 1.0, 0.10, None, 3),                          # Ngumoha (generic)
+    ]
+
+
+def _with_flags(deep, cover, fn):
+    import fpl_depth_chart as dc
+    old = dc.DEEP_BACKUP_BY_RATE, dc.NEIGHBOUR_COVER
+    dc.DEEP_BACKUP_BY_RATE, dc.NEIGHBOUR_COVER = deep, cover
+    try:
+        return fn()
+    finally:
+        dc.DEEP_BACKUP_BY_RATE, dc.NEIGHBOUR_COVER = old
+
+
+def test_flags_off_keep_current_numbers():
+    base = allocate(_liverpool_no_striker(), "4-2-3-1")
+    assert base[3][0] == pytest.approx(0.9)   # today's behaviour: Danns 90%
+
+
+def test_deep_backup_takes_place_at_his_rate():
+    out = _with_flags(True, False, lambda: allocate(_liverpool_no_striker(), "4-2-3-1"))
+    assert out[3][0] == pytest.approx(0.04, abs=0.01)
+    # A named 2nd choice is unchanged.
+    named = _with_flags(True, False, lambda: allocate(arsenal(0.0), "4-2-3-1"))
+    assert named[2][0] == pytest.approx(0.9)
+
+
+def test_neighbour_cover_fills_the_open_striker_place():
+    out = _with_flags(True, True, lambda: allocate(_liverpool_no_striker(), "4-2-3-1"))
+    moved = sum(out[i][0] for i in (4, 5, 6)) - sum(allocate(_liverpool_no_striker(), "4-2-3-1")[i][0] for i in (4, 5, 6))
+    assert moved > 0.5                               # most of the open place goes to the attackers
+    assert all(out[i][0] <= 0.98 for i in out)
+    assert out[4][0] > allocate(_liverpool_no_striker(), "4-2-3-1")[4][0]   # Wirtz (highest rate) gains
+
+
+def test_neighbour_cover_in_simulation():
+    from fpl_depth_chart import allocate_sim
+    out = _with_flags(True, True, lambda: allocate_sim(_liverpool_no_striker(), "4-2-3-1", sims=4000))
+    assert out[3][0] < 0.15
+    assert sum(out[i][3].get("CF", 0) for i in (4, 5, 6)) > 0.5
