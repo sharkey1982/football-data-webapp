@@ -73,3 +73,28 @@ Total spent on 11 Oct: $0.75.
 - **Check to add:** ranking claims in prose ("highest", "easiest", "best of the six") checked against the data.
 
 Single run at temperature 0; repeat (`repeat 3`) before comparing prompt versions.
+
+## 3. Prompt v2 trial, 11 Oct 2026
+
+Run `runs/2026-10-11-1234-live-v2` (prompt v2, all ten cases, repeat 2; no judge): **4/20 pass all six checks; 15/20 pass the five checks v1 was held to** (v1: 7/10). Cost $0.75 ($0.37 per ten answers, v1 $0.30). The planned extra v1 run was not made: v2's result settled the question without it.
+
+**What v2 fixed**
+- **T04:** the right pair (Tavernier + Ødegaard) in both runs, which v1 got wrong. "Check every combination and name the runner-up" worked. One run still failed on a reference error (below).
+- **T07:** no invented source id in either run.
+
+**What didn't work**
+- **The `superlatives` contract (11 of 16 failures).** My wording was ambiguous: "over lists every option the claim covers" was read as "the options the winner beat", so the winner was left out. The model also listed comparatives ("edges out", "beats") with a single option, and in T04 wrote placeholders (`"#n"`, `"calc"`) instead of references. The check was working correctly; the instruction was the problem.
+- **`#n` references:** in T08 the model counted only calculated facts (`#2` = the second calculation, not the second fact), so every chained value pointed at the wrong number.
+- **Constants:** the −4 hit has no id in the data, so the model typed `"-4"` as an input, which the contract doesn't allow.
+- **Cost:** 32,008 output tokens per ten answers against v1's 26,133. "List only the facts you use" was ignored (T08 listed 26 and 40). The comparison lists added length.
+- **T03 cut off once at 8,000 tokens:** checking every option made it think longer.
+- **T10 (one run):** an untraced "50" in the prose.
+
+**Verdict:** keep v2's reasoning instructions (check every combination, answer every part); drop the `superlatives` contract. Recommended v3, not yet built or run:
+1. Remove `superlatives` from the prompt. Catch false comparison claims with case-level checks instead (e.g. T03's "Everton hardest" must not be contradicted). This also cuts output.
+2. Replace positional `#n` with named fact ids (`"id": "gain_6_10"`), which can't be miscounted.
+3. Allow plain-number inputs when the number appears in the question or data text (the −4 hit).
+4. Expected: cheaper than v2 and at least as accurate. One run of all ten cases is about $0.30; test T03, T04, T08 and T10 first for about $0.12.
+
+Spent on 11 Oct in total: $1.50.
+
