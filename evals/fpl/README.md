@@ -52,6 +52,22 @@ npm run report -- results/live-<stamp>.json --judge results/live-<stamp>.judge.j
 
 To measure run-to-run variation, repeat each case: `npm run eval:live -- --repeat 3` (three times the cost).
 
+### Run it on GitHub (no local setup)
+
+The **FPL evals (manual)** workflow (`.github/workflows/fpl-evals.yml`) runs only when dispatched: no schedule. Pick a mode:
+
+- `offline`: the free harness check.
+- `live`: the model on the ten cases (about $0.07–0.10).
+- `live+judge`: live plus the quality judge (about $0.15–0.25).
+
+Results and a Markdown report are committed to `results/runs/<stamp>-<mode>/` on `main` with `[skip netlify]`, and the report also appears on the run's summary page.
+
+Live modes need one repository secret, `ANTHROPIC_EVAL_API_KEY`. Use a key separate from the AI Lab's, ideally in its own Anthropic workspace with a monthly spend limit. A Claude session can dispatch the workflow itself:
+
+```
+gh api -X POST repos/sharkey1982/football-data-webapp/actions/workflows/fpl-evals.yml/dispatches -f ref=main -f "inputs[mode]=live" -f "inputs[repeat]=1"
+```
+
 To browse results in Promptfoo's own viewer (local only):
 
 ```

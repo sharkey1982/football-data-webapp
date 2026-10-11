@@ -28,7 +28,10 @@ vi.mock('../lib/api', async () => {
 
 const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// Local calendar date, matching todayIsoDate() in GameweekBrowser. toISOString()
+// gives the UTC date, which is yesterday between midnight and 01:00 UK summer time.
+const localIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const TODAY = localIsoDate(new Date());
 
 describe('GameweekBrowser predicted expected-goals display', () => {
   it('shows the stored xG prediction for a scheduled fixture, the real score alongside a frozen pre-match xG for a played one, and plain "vs" for neither', async () => {

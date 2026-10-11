@@ -1,0 +1,145 @@
+# ============================================================================
+# FPL eval pilot (evals/fpl), run by hand only.
+#
+# Runs the Promptfoo suite and commits the results JSON plus a Markdown report
+# to evals/fpl/results/ on main, so a Claude session can read them (workflow
+# logs and artifacts can't be read from a cloud session). Commits carry
+# [skip netlify]: results need no site rebuild.
+#
+# Modes:
+#   offline     reference answers + seeded faults + self-test. No API calls, free.
+#   live        the real model on the ten cases. Costs about $0.07-0.10.
+#   live+judge  live, then the advisory quality judge on the same answers. About $0.15-0.25.
+#
+# Live modes need one secret, ANTHROPIC_EVAL_API_KEY: an Anthropic API key
+# kept separate from the AI Lab's (which is a Supabase secret), ideally in its
+# own Anthropic workspace with a monthly spend limit. Eval calls do not go
+# through the AI Lab edge function, so its ai_runs limit doesn't cover them.
+#
+# No schedule on purpose: nothing here runs unless someone dispatches it.
+# ============================================================================
+name: FPL evals (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: offline (free) | live | live+judge
+        required: true
+        default: offline
+        type: choice
+        options: [offline, live, live+judge]
+      repeat:
+        description: Times to run each case in live modes (1-3)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fpl-evals
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: evals/fpl
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22'
+
+      - name: Check the secret is set (live modes)
+        if: inputs.mode != 'offline'
+        env:
+          KEY: ${{ secrets.ANTHROPIC_EVAL_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::ANTHROPIC_EVAL_API_KEY is not set -- add an Anthropic API key as a repository secret (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        id: run
+        env:
+          ANTHROPIC_API_KEY: ${{ inputs.mode != 'offline' && secrets.ANTHROPIC_EVAL_API_KEY || '' }}
+          MODE: ${{ inputs.mode }}
+          REPEAT: ${{ inputs.repeat }}
+        run: |
+          stamp=$(date -u +%Y-%m-%d-%H%M)
+          dir="results/runs/$stamp-${MODE/+/-}"
+          mkdir -p "$dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          status=0
+          if [ "$MODE" = offline ]; then
+            npm run -s eval:offline > "$dir/self-test.txt" 2>&1 || status=$?
+            tail -3 "$dir/self-test.txt"
+            cp results/scratch/reference.json "$dir/reference.json"
+            cp results/scratch/faulty.json "$dir/faulty.json"
+            node scripts/report.mjs "$dir/reference.json" --title "Offline reference run ($stamp)" > "$dir/report.md"
+            { echo; echo '## Self-test'; echo; echo '```'; tail -2 "$dir/self-test.txt"; echo '```'; } >> "$dir/report.md"
+          else
+            args=""
+            [ "$REPEAT" != 1 ] && args="--repeat $REPEAT"
+            npm run -s eval:live -- $args > "$dir/live.log" 2>&1 || status=$?
+            out=$(ls -t results/live-*.json 2>/dev/null | grep -v judge | head -1 || true)
+            if [ -z "$out" ]; then
+              grep -vE "sk-ant-" "$dir/live.log" | tail -20 > "$dir/live-error.txt" || true
+              rm -f "$dir/live.log"
+              { echo "# Live run failed ($stamp)"; echo; echo '```'; cat "$dir/live-error.txt"; echo '```'; } > "$dir/report.md"
+              cat "$dir/report.md" >> "$GITHUB_STEP_SUMMARY"
+              echo "status=1" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            mv "$out" "$dir/live.json"
+            if [ "$MODE" = live+judge ]; then
+              npm run -s eval:judge -- "$dir/live.json" > "$dir/judge.log" 2>&1 || status=$?
+              node scripts/report.mjs "$dir/live.json" --judge "$dir/live.judge.json" --title "Live run ($stamp, repeat $REPEAT)" > "$dir/report.md"
+            else
+              node scripts/report.mjs "$dir/live.json" --title "Live run ($stamp, repeat $REPEAT)" > "$dir/report.md"
+            fi
+            # The live log can echo request details; keep only Promptfoo's summary lines.
+            grep -E "passed|failed|errors|Total Tokens|Provider:" "$dir/live.log" > "$dir/live-summary.txt" || true
+            rm -f "$dir/live.log" "$dir/judge.log"
+          fi
+          cat "$dir/report.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Make sure no key reached the results
+        env:
+          KEY: ${{ secrets.ANTHROPIC_EVAL_API_KEY }}
+        run: |
+          if [ -n "$KEY" ] && grep -rqF "$KEY" "${{ steps.run.outputs.dir }}"; then
+            echo "::error::API key found in results; not committing."
+            exit 1
+          fi
+          if grep -rqE "sk-ant-[A-Za-z0-9_-]{10,}" "${{ steps.run.outputs.dir }}"; then
+            echo "::error::Something that looks like an Anthropic key is in the results; not committing."
+            exit 1
+          fi
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.run.outputs.dir }}"
+          git commit -m "FPL evals: ${{ inputs.mode }} results [skip netlify]" || exit 0
+          for i in 1 2 3; do git pull --rebase -q origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
+          exit 1
+
+      - name: Fail if the eval did
+        if: steps.run.outputs.status != '0'
+        run: |
+          echo "::error::The eval step exited ${{ steps.run.outputs.status }}; results were still committed for inspection."
+          exit 1

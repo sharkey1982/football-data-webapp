@@ -42,7 +42,9 @@ const mockedApi = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 function isoDaysFromToday(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  // Local calendar date, matching todayIsoDate() in GameweekBrowser; toISOString()
+  // gives the UTC date, which is yesterday between midnight and 01:00 UK summer time.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 const MW1_DATE = isoDaysFromToday(0);
 const MW2_DATE = isoDaysFromToday(95);
