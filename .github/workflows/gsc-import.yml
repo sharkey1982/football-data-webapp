@@ -1,0 +1,84 @@
+name: Search Console import
+
+# Google Search Console performance data for sc-domain:fixtureshark.com into
+# the private gsc schema (scripts/gsc_import.py). Daily: re-reads the last 10
+# days (Google revises them) plus any gap since the last load; the first run
+# with an empty table loads all history Google keeps (~16 months).
+# Logs gsc.import_runs and pipeline_runs (job_name gsc_import); freshness is
+# checked by the 'gsc' area of the 09:45 integrity checks.
+#
+# Secrets (repository -> Settings -> Secrets and variables -> Actions):
+#   GSC_SERVICE_ACCOUNT_JSON  full JSON of the read-only service-account key
+#   SUPABASE_DB_URL           session pooler connection string (shared)
+# The key is passed to the script only as an environment variable: never
+# written to disk, never echoed. The script prints no part of it.
+
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'daily (default), backfill (all history), range (needs start/end), or check-access (no writes)'
+        type: choice
+        options: [daily, backfill, range, check-access]
+        default: daily
+      start:
+        description: 'range only: first date, YYYY-MM-DD'
+        required: false
+        default: ''
+      end:
+        description: 'range only: last date, YYYY-MM-DD'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gsc-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt pytest
+      - run: python -m pytest -q scripts/test_gsc_import.py
+      - name: Check the secrets are set
+        env:
+          GSC_KEY: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$GSC_KEY" ]; then
+            echo "::error::GSC_SERVICE_ACCOUNT_JSON is not set -- add the service-account key JSON as a repository secret (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          if [ -z "$DB_URL" ]; then echo "::error::SUPABASE_DB_URL is not set."; exit 1; fi
+      - name: Import
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          MODE: ${{ inputs.mode || 'daily' }}
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          case "$MODE" in
+            daily) ;;
+            backfill) args+=(--backfill) ;;
+            check-access) args+=(--check-access) ;;
+            range)
+              [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$END" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
+                || { echo "::error::range needs start and end as YYYY-MM-DD"; exit 1; }
+              args+=(--start "$START" --end "$END") ;;
+            *) echo "::error::unknown mode"; exit 1 ;;
+          esac
+          python scripts/gsc_import.py "${args[@]}"

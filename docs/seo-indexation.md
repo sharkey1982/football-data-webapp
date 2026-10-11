@@ -101,3 +101,24 @@ tennis pair links used the reverse order; FPL player and Player Scout pages
 (2,098 sitemap URLs) had no link in any server HTML; filter views linked
 from static pages without nofollow.
 
+
+## Search Console data (from 11 Oct 2026)
+
+Search performance for `sc-domain:fixtureshark.com` is loaded daily into the
+private `gsc` schema by `scripts/gsc_import.py` (workflow `gsc-import.yml`,
+07:17 UTC), using the read-only service account
+`id-fixtureshark-gsc-reader@fixtureshark-analytics.iam.gserviceaccount.com`.
+
+- Tables: `gsc.daily_totals`, `daily_by_device`, `daily_by_country`,
+  `daily_by_page`, `daily_by_query`, `daily_by_page_query` (web search;
+  clicks, impressions, CTR, average position, `is_final`).
+- Each run rewrites its whole date window in one transaction: the last 10
+  days (Google revises them) plus any gap since the last load. The first run,
+  or `mode=backfill`, loads everything Google keeps (~16 months).
+- Query-level rows omit queries Google anonymises, so they sum to less than
+  the daily totals. Device and country rows do add up to the totals; the
+  `gsc_breakdowns_reconcile` integrity check watches that.
+- Run log: `gsc.import_runs`, plus `pipeline_runs` rows named `gsc_import`
+  (counts only, as pipeline_runs is public). Integrity area `gsc`.
+- Not exposed to the Data API (own schema, no anon/authenticated grants,
+  RLS on). The key is only in the `GSC_SERVICE_ACCOUNT_JSON` Actions secret.

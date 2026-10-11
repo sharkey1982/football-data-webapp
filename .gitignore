@@ -11,3 +11,10 @@ Thumbs.db
 __pycache__/
 *.pyc
 dist-ssr
+
+# Service-account / credential key files must never be committed
+# (the Search Console key lives only in the GSC_SERVICE_ACCOUNT_JSON secret).
+fixtureshark-analytics-*.json
+*service-account*.json
+*-sa-key*.json
+client_secret*.json
