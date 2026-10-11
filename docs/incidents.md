@@ -21,6 +21,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · AI Lab submit check rejected good answers; grader failed correct composite facts
+- **Found:** the check batch for toolset `ai_tools_v2` (batch 2, runs 23-31).
+- **Impact:** 32 good submissions rejected (3-5 retries a run), so the batch cost $0.68 instead of about $0.20, and F27 ran out of rounds with no answer. Separately, `facts_grounded` failed 7 of 8 answered runs although every figure was right. AI Lab only.
+- **Cause:** (1) my submit check (same day, PR #339) rejected any closing tag in the answer. With the answer now the last field, the model ends it with a harmless `</answer></invoke>` while every field is present; all 32 rejections were exactly that. I had tested the check against the old failure shapes but not against how the reordered tool call would actually come back. (2) `checks_v1` required each fact to appear word for word in the tool results, so composite facts ("Dortmund 4W 0D 0L 12pts") and "Munchen" for "München" failed.
+- **Fix:** trailing closing tags are stripped and the answer accepted; markup inside the text or a missing field is still sent back. Grader `checks_v2`: a fact is grounded if verbatim, or if every number in it is a number in the tool results (exact as a number; a percentage matches its fraction) and every capitalised name appears (accents ignored). Tested on tonight's shapes and on fabricated, rounded and unknown-name facts, which still fail.
+- **Prevention:** a change to how a model's output is checked gets a 2-3 question live trial before a full batch (the rule adopted for the FPL eval earlier today, which I didn't apply here). *Lesson: test a check against what the new version produces, not only against what the old one got wrong.*
+
+---
+
 ## 2026-10-11 · AI Lab: 7 of 22 answers saved without their answer type or facts
 - **Found:** reviewing the AI Lab before Ask FixtureShark work. On 26 Sep, 7 of 22 runs were recorded as "ended without submit_answer".
 - **Impact:** those 7 runs failed their automatic checks although the answers themselves were written; the 26 Sep pass rate (8/22) understated the model. AI Lab only; nothing public.
