@@ -18,7 +18,7 @@ const run = (cmd, args, extra = {}) => {
   return r.status ?? 1;
 };
 const pf = (args, extra) => run('npx', ['promptfoo', 'eval', '--no-share', '--no-cache', ...args], extra);
-const NEWEST = 'fpl_analyst_v2'; // the offline check runs the prompt that live runs default to
+const NEWEST = 'fpl_analyst_v3'; // the offline check runs the prompt that live runs default to
 
 const [mode, ...rest] = process.argv.slice(2);
 mkdirSync(join(ROOT, 'results', 'scratch'), { recursive: true });

@@ -22,7 +22,7 @@ npm install --no-audit --no-fund
 npm run eval:offline
 ```
 
-This runs the suite against hand-written reference answers (all must pass) and against the same answers with one deliberate fault each (each must fail in the category it targets). Expected output ends with `reference: 10/10`, `seeded faults: 10/10` and `direct checks: 4/4`.
+This runs the suite against hand-written reference answers (all must pass) and against the same answers with one deliberate fault each (each must fail in the category it targets). Expected output ends with `reference: 10/10`, `seeded faults: 10/10` and `direct checks: 7/7`.
 
 **Live run against the model (costs money: $0.30 for all ten cases on prompt v1, 11 Oct actual; v2 aims lower):**
 
@@ -60,7 +60,7 @@ The **FPL evals (manual)** workflow (`.github/workflows/fpl-evals.yml`) runs onl
 - `live`: the model on the ten cases ($0.30 on v1).
 - `live+judge`: live plus the quality judge (about $0.17 more).
 
-Inputs `prompt` (`v2` default, `v1`, `both`) and `cases` (e.g. `T04|T08`) keep runs small: rerunning just the failing cases costs a few cents.
+Inputs `prompt` (`v3` default, `v2`, `v1`, `all`) and `cases` (e.g. `T04|T08`) keep runs small: rerunning just the failing cases costs a few cents.
 
 Results and a Markdown report are committed to `results/runs/<stamp>-<mode>/` on `main` with `[skip netlify]`, and the report also appears on the run's summary page.
 
@@ -82,7 +82,7 @@ PROMPTFOO_CONFIG_DIR=.promptfoo npx promptfoo view
 |---|---|
 | `promptfooconfig.yaml` | Objective suite: prompt, provider (`anthropic:messages:claude-sonnet-5`, the AI Lab's default model), tests. The pass/fail verdict. |
 | `promptfooconfig.judge.yaml` | Advisory LLM judge. Replays a saved run; never changes the objective verdict. |
-| `prompts/` | `fpl_analyst_v1`: the AI Lab's `analyst_v1` rules plus a JSON output contract in which every fact carries its source id. `fpl_analyst_v2`: shorter fact lists, calculations can build on earlier ones (`#n`), every comparison word listed in `superlatives`, every part of a question answered. |
+| `prompts/` | `fpl_analyst_v1`: the AI Lab's `analyst_v1` rules plus a JSON output contract in which every fact carries its source id. `fpl_analyst_v2`: shorter fact lists, calculations can build on earlier ones (`#n`), every comparison word listed in `superlatives`, every part of a question answered (trialled 11 Oct; its output format was misread). `fpl_analyst_v3` (current): v2's reasoning rules without `superlatives`; calculations reference earlier facts by name (`"id"`) and may use plain numbers that appear in the question or data. |
 | `fixtures/snapshots/` | Frozen data and `MANIFEST.json` (source tables, query time, hashes). See below. |
 | `fixtures/reference/answers.json` | Hand-written correct answers, used only to test the checks. |
 | `lib/snapshot.mjs` | Loads the snapshots and builds each case's DATA block, giving every value a source id such as `[P12.xpts]`. |
@@ -116,7 +116,7 @@ Each case gets six deterministic checks. A case passes only if all six pass.
 | `numerical_accuracy` | A copied value differs from its source; a calculation (sum, difference, mean…) doesn't recompute; a number in the answer text can't be traced to the data or a checked calculation; a required figure (e.g. the best pair's total) is missing or wrong. |
 | `missing_data` | The answer type is wrong for the data available, a missing item isn't named, or something is claimed about a player who isn't in the data. |
 | `task_correctness` | The recommendation, ranking order or confidence contradicts what the data supports, required content (link, return date, break-even week) is missing, or the reply is over its word limit. |
-| `ranking_claims` | (Prompt v2 on.) A comparison word in the answer (highest, easiest, best…) isn't listed in `superlatives`; a listed winner isn't the top value; or the comparison leaves out one of the options the question named. |
+| `ranking_claims` | A comparison word (hardest, easiest, best…) points at the wrong option. For v1 and v3 the case lists the claims to check, each with the winner computed from the data (T03, T05, T09); the option named nearest the word must be the winner, allowing negations and joint claims that name the winner. v2 answers are checked through their own `superlatives` list instead. |
 
 The number tracing ignores gameweek numbers, dates, seasons, links, numbers from the question and whole numbers up to 10 (counts like "two options"). Everything else in the answer must match a value in the data (rounding and percentages allowed) or a calculation that recomputes correctly.
 
@@ -143,7 +143,7 @@ The number tracing ignores gameweek numbers, dates, seasons, links, numbers from
 
 1. **Prompt change**: copy the newest `prompts/system_fpl_analyst_vN.md` and its `.mjs` to the next version, add it to `prompts:` in both configs, set `NEWEST` in `scripts/run.mjs`, and compare with the workflow's `prompt` input or `--filter-prompts`. Keep old versions so results stay comparable.
 2. **Model change**: edit the provider id in `promptfooconfig.yaml` (Promptfoo knows the prices of current Claude models), or compare two at once by listing both providers.
-3. **Check change**: run `npm run eval:offline` first. All three lines must stay at 10/10, 10/10 and 4/4; if a new check fails a reference answer, the check or the reference is wrong.
+3. **Check change**: run `npm run eval:offline` first. All three lines must stay at 10/10, 10/10 and 7/7; if a new check fails a reference answer, the check or the reference is wrong.
 4. **New data**: add a new dated snapshot (above), never edit the old one.
 
 Save each live run's JSON in `results/` with a short note in `BASELINE.md` (date, prompt, model, pass rate, cost).

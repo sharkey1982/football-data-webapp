@@ -11,6 +11,8 @@ prompts:
     label: fpl_analyst_v1
   - id: file://prompts/fpl_analyst_v2.mjs
     label: fpl_analyst_v2
+  - id: file://prompts/fpl_analyst_v3.mjs
+    label: fpl_analyst_v3
 
 # Live provider: the same Anthropic model the AI Lab uses by default
 # (supabase/functions/ai-lab-run DEFAULT_MODEL). Reads ANTHROPIC_API_KEY

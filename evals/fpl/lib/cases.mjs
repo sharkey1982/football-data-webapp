@@ -10,6 +10,8 @@
 //   must_cite          source ids that must appear in output.facts
 //   must_cite_any      groups of ids: at least one from each group must be cited
 //   options            the options the question names; every comparison claim must cover all of them
+//   claims             [{ label, words, topic, winner, options: [{ name, re }] }] comparison words in the prose:
+//                      on that topic, the option named nearest the word must be the winner (from the data)
 //   must_state         [{ value, alt?, tol, why }] numbers that must appear (answer text or facts); alt = other correct forms
 //   confidence_not     confidence values that are wrong here
 //   missing_data       terms output.missing_data must mention
@@ -22,6 +24,9 @@ const round = (x, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 const SITE = 'https://fixtureshark.com';
 
 function byXpts(ps) { return [...ps].sort((a, b) => b.xpts - a.xpts); }
+const TEAM_RE = { MCI: "Man(chester)? City|\\bCity\\b", TOT: 'Tottenham|Spurs', NFO: 'Forest' };
+const teamOptions = (codes) => codes.map((t) => ({ name: TEAM_NAMES[t], re: TEAM_RE[t] ?? TEAM_NAMES[t] }));
+const nameOptions = (ps) => ps.map((p) => ({ name: p.name, re: p.name }));
 
 // ------------------------------------------------------------------ cases
 export function buildCases() {
@@ -86,6 +91,7 @@ export function buildCases() {
     const byDc = [...rows].sort((a, b) => b.dc - a.dc);
     if (byMkt[0].t !== byDc[0].t || byMkt[1].t !== byDc[1].t) throw new Error('T03: market and DC no longer agree on the top two');
     if (byFdr[0].fdr === byFdr[1].fdr) throw new Error('T03: FDR tie at the top');
+    if (byFdr.at(-1).fdr === byFdr.at(-2).fdr) throw new Error('T03: FDR tie at the bottom');
     const ctx = new Context().fixtures('GW7-10 fixtures (FDR: 1 easiest, 5 hardest; goals are model estimates of goals scored)', fx);
     cases.push({
       id: 'T03', category: 'fdr',
@@ -97,6 +103,11 @@ export function buildCases() {
         recommendation: new RegExp(TEAM_NAMES[byMkt[0].t].replace(' ', '\\s*'), 'i'),
         ranking_order: byMkt.slice(0, 2).map((r) => TEAM_NAMES[r.t]),
         options: teams.map((t) => TEAM_NAMES[t]),
+        claims: [
+          { label: 'hardest FDR', words: 'highest|hardest|toughest|worst', topic: 'FDR|fixture difficulty', winner: TEAM_NAMES[byFdr[byFdr.length - 1].t], options: teamOptions(teams) },
+          { label: 'easiest FDR', words: 'lowest|easiest|kindest', topic: 'FDR|fixture difficulty', winner: TEAM_NAMES[byFdr[0].t], options: teamOptions(teams) },
+          { label: 'attacking fixtures (market and Dixon-Coles)', words: 'best|highest|most|strongest', topic: 'attack|goals|scor', winner: TEAM_NAMES[byMkt[0].t], options: teamOptions(teams) },
+        ],
         // Averages or four-week totals are both correct ways to state these.
         must_state: [
           { value: round(byFdr[0].fdr), tol: 0.011, why: `${TEAM_NAMES[byFdr[0].t]} average FDR GW7-10 (easiest by FDR)` },
@@ -157,6 +168,10 @@ export function buildCases() {
         answer_type: ['answered', 'partial'], // FPL's chance-of-playing field is blank for all four
         ranking_order: ranked.map((p) => p.name),
         options: ps.map((p) => p.name),
+        claims: [
+          { label: 'GW6 projection', words: 'highest|best|most', topic: 'project|points', winner: ranked[0].name, options: nameOptions(ps) },
+          { label: 'start probability', words: 'highest|best|most likely', topic: 'start', winner: [...ps].sort((a, b) => b.start - a.start)[0].name, options: nameOptions(ps) },
+        ],
         must_cite: [`P${out.id}.start`, ...ranked.slice(0, 3).map((p) => `P${p.id}.start`)],
         answer_regex: [
           { re: new RegExp(`${out.name}[^\\n]{0,160}?(\\bout\\b|injur|won't|will not|not (expected|likely) to|unavailable|ruled out|no chance|0%|zero)`, 'i'), why: `says ${out.name} won't play` },
@@ -263,6 +278,8 @@ export function buildCases() {
         answer_type: ['answered'],
         not_recommendation: /^\s*yes\b/i,
         must_cite: ['X.between.fdr', 'X.between.xg', 'X.same.fdr', 'X.same.xg'],
+        claims: [{ label: 'best predictor', words: 'best|strongest|most accurate|most reliable', topic: '.', winner: 'market',
+          options: [{ name: 'market', re: 'market' }, { name: 'FDR', re: '\\bFDR\\b' }, { name: 'xG', re: '\\bxG\\b' }] }],
         answer_regex: [{ re: /market/i, why: 'mentions that market team goals did best' }],
       },
     });
