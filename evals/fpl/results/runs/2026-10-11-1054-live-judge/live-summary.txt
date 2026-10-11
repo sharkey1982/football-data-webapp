@@ -1,0 +1,5 @@
+Total Tokens: 35,015
+  Provider: 35,015 (21,567 prompt, 13,448 completion, 6,050 reasoning)
+  ✓ 3 passed (30.00%)
+  ✗ 7 failed (70.00%)
+  0 errors (0%)
