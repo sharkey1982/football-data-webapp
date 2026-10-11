@@ -16,7 +16,10 @@ providers:
     label: claude-sonnet-5
     config:
       temperature: 0
-      max_tokens: 1500
+      # The model's thinking counts against max_tokens. 1500 was too low: on
+      # 2026-10-11 six of ten answers were cut off (two spent it all thinking
+      # and returned nothing). Only tokens actually used are billed.
+      max_tokens: 8000
 
 tests: file://tests/load-tests.mjs
 

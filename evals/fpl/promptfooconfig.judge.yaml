@@ -22,7 +22,7 @@ defaultTest:
       id: anthropic:messages:claude-sonnet-5
       config:
         temperature: 0
-        max_tokens: 800
+        max_tokens: 4000  # thinking counts against this too
 
 evaluateOptions:
   maxConcurrency: 2

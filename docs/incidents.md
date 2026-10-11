@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · FPL eval baseline: answer length cap too low, and one check too strict
+- **Found:** reading the first live run of the FPL eval pilot (`evals/fpl`, GitHub run 38133579090): 3/10 passed.
+- **Impact:** the result understated the model. Six of seven failures were answers cut off at the 1,500-token cap (`finishReason: length`); two of those spent the whole cap thinking and returned nothing. The seventh (T07) was a good answer failed by a check that required one particular source. The quality judge also hit its own 800-token cap on one case and scored "No output" as 0. Cost of the run: $0.18; nothing outside the eval was affected.
+- **Cause:** I set `max_tokens` without allowing for the model's thinking, which counts against the same cap, and never tested the cap against the live model before the baseline; the offline reference answers can't be truncated. T07's check named `I.xp.gw8` when the GW8 drop can equally be shown by `I.start.gw8`.
+- **Fix:** `max_tokens` 8000 for answers and 4000 for the judge (only tokens used are billed); T07 accepts either GW8 figure (`must_cite_any`); the report now lists truncated answers as their own category ("harness setting, not a model error") and marks them in the case table.
+- **Prevention:** truncation can no longer be read as model failure in a report. *Lesson: a length cap on a thinking model caps the thinking too; check `finishReason` before reading a failure as the model's.*
+
+---
+
 ## 2026-10-11 · Fixture-list tests failed between midnight and 01:00 UK time
 - **Found:** running the test suite at 00:45 BST before a push: 9 tests in three `GameweekBrowser` test files failed; at 19:00 the same day all passed.
 - **Impact:** tests only; the site was unaffected. Any push checked between midnight and 01:00 UK summer time would have seen a red suite unrelated to its change.
