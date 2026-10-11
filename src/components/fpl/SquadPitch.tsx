@@ -33,6 +33,7 @@ import type { FplOptimizerPlayer } from '../../lib/fplOptimizerApi';
 import { OPTIMIZER_POSITION_LABEL } from '../../lib/fplOptimizerApi';
 import type { SquadPitchEnrichment } from '../../lib/fplApi';
 import { formatSetPieceRoles } from '../../lib/fplApi';
+import { toScreen } from '../../lib/pitchLayout';
 
 // Standard FPL 3-letter codes for the current Premier League clubs. Falls
 // back to the first 3 letters of whatever name comes through for anything
@@ -232,10 +233,10 @@ export default function SquadPitch({
           </p>
         )}
 
-        <PitchRow players={fwd} top={14} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
-        <PitchRow players={mid} top={42} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
-        <PitchRow players={def} top={68} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
-        <PitchRow players={gk} top={90} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={fwd} top={toScreen(14, 50).top} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={mid} top={toScreen(42, 50).top} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={def} top={toScreen(68, 50).top} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
+        <PitchRow players={gk} top={toScreen(90, 50).top} matchweek={matchweek} captainName={captainName} viceCaptainName={viceCaptainName} enrichmentByPlayer={enrichmentByPlayer} />
       </div>
 
       {enrichmentByPlayer && enrichmentByPlayer.size > 0 && (

@@ -38,3 +38,12 @@ describe('layoutByBand', () => {
     expect(at(out, 'M').y).toBe(92);
   });
 });
+
+describe('toScreen (keeper at the top, team left on the viewer right)', () => {
+  it('turns the team view through 180 degrees', async () => {
+    const { toScreen } = await import('../lib/pitchLayout');
+    expect(toScreen(92, 50)).toEqual({ top: 8, left: 50 });   // keeper to the top
+    expect(toScreen(70, 12)).toEqual({ top: 30, left: 88 });  // left-back to the viewer's right
+    expect(toScreen(10, 50)).toEqual({ top: 90, left: 50 });  // striker to the bottom
+  });
+});

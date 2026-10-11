@@ -26,7 +26,7 @@ import {
   type SeasonValueLeader,
   type XiSeason,
 } from '../../lib/seasonXiApi';
-import { layoutByBand } from '../../lib/pitchLayout';
+import { layoutByBand, toScreen } from '../../lib/pitchLayout';
 import { getSeasons } from '../../lib/referenceApi';
 import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 
@@ -230,8 +230,8 @@ export default function SeasonXiPage() {
           {placed.map(({ item: p, x, y }) => (
             <div
               key={p.fpl_code}
-              className="absolute -translate-x-1/2 translate-y-1/2 flex flex-col items-center w-20"
-              style={{ left: `${x}%`, bottom: `${y}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-20"
+              style={{ left: `${toScreen(100 - y, x).left}%`, top: `${toScreen(100 - y, x).top}%` }}
             >
               <div
                 className="rounded-full border-2 border-chalk-100 flex items-center justify-center shrink-0"
