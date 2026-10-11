@@ -712,6 +712,17 @@
         "inputs": [
           "#1",
           "#2"
+        ],
+        "id": "gain_6_10"
+      },
+      {
+        "source_id": "calc",
+        "value": -1.61,
+        "meaning": "gain GW6-10 after the 4-point hit",
+        "operation": "sum",
+        "inputs": [
+          "gain_6_10",
+          "-4"
         ]
       },
       {

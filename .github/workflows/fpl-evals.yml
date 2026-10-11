@@ -12,7 +12,7 @@
 #               v2 asks for shorter fact lists, so expect less.
 #   live+judge  live, then the advisory quality judge (about $0.17 more). Occasional use only:
 #               on 11 Oct it missed both real reasoning errors.
-# Inputs "prompt" (v1 | v2 | both) and "cases" (e.g. T04|T08) keep runs small.
+# Inputs "prompt" (v3 | v2 | v1 | all) and "cases" (e.g. T04|T08) keep runs small.
 #
 # Live modes need one secret, ANTHROPIC_EVAL_API_KEY: an Anthropic API key
 # kept separate from the AI Lab's (which is a Supabase secret), ideally in its
@@ -33,11 +33,11 @@ on:
         type: choice
         options: [offline, live, live+judge]
       prompt:
-        description: Prompt version (both = compare, twice the cost)
+        description: Prompt version (all = compare every version; costs one run each)
         required: true
-        default: v2
+        default: v3
         type: choice
-        options: [v2, v1, both]
+        options: [v3, v2, v1, all]
       cases:
         description: Only these cases, e.g. T04|T08 (blank = all ten)
         required: false
@@ -108,7 +108,7 @@ jobs:
           else
             args=()
             [ "$REPEAT" != 1 ] && args+=(--repeat "$REPEAT")
-            [ "$PROMPT" != both ] && args+=(--filter-prompts "fpl_analyst_$PROMPT")
+            [ "$PROMPT" != all ] && args+=(--filter-prompts "fpl_analyst_$PROMPT")
             [ -n "$CASES" ] && args+=(--filter-pattern "$CASES")
             echo "promptfoo args: ${args[*]}"
             npm run -s eval:live -- "${args[@]}" > "$dir/live.log" 2>&1 || status=$?

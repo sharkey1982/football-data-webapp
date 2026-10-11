@@ -8,8 +8,9 @@
 //                                     figures stated correctly
 //   missingData  missing_data         answer_type, missing items named, nothing claimed about absent players
 //   task         task_correctness     recommendation, ranking order, confidence, required content, length
-//   rankingClaims ranking_claims     (prompt v2+) every comparison word in the answer is listed in
-//                                     "superlatives", and each listed winner is right over the options given
+//   rankingClaims ranking_claims     comparison words ("hardest", "best"...) attached to the right option.
+//                                     v2 outputs: checked through their "superlatives" list. Other prompts:
+//                                     the case's "claims" (winner computed from the data) are checked in the prose.
 
 const TOL = 0.0051; // copied values must match to the precision shown in the data
 const CALC_TOL = 0.011; // calculated values may be rounded to 2 decimals
@@ -55,10 +56,21 @@ const isV2 = (context) => /superlatives/.test(typeof context?.prompt === 'string
 // One value per fact, in order: a source fact resolves to its source's true value, a calculation
 // to its recomputed value. Inputs may be source ids ("-id" subtracts in a sum) or "#n", the n-th
 // EARLIER fact (1-based), so calculations can build on calculations.
-function refValue(ref, values, resolved, before) {
+// ctx.ids: fact "id" -> position; ctx.nums: numbers that appear in the question or DATA text,
+// which may be used as plain-number inputs (e.g. "-4" for a 4-point hit).
+function refValue(ref, values, resolved, before, ctx = { ids: new Map(), nums: new Set() }) {
+  if (/^-?\d+(\.\d+)?$/.test(String(ref).trim())) {
+    const n = Number(ref);
+    return ctx.nums.has(Math.abs(n)) ? { value: n } : { error: `plain number ${ref} does not appear in the question or data` };
+  }
   const neg = String(ref).startsWith('-'); const r = stripSign(ref);
   let v;
-  if (isFactRef(r)) {
+  if (ctx.ids.has(r) && !(r in values)) {
+    const k = ctx.ids.get(r);
+    if (k >= before) return { error: `${r} is not an earlier fact` };
+    v = resolved[k]?.value;
+    if (!isNum(v)) return { error: `${ref} builds on fact "${r}", which has no checked value` };
+  } else if (isFactRef(r)) {
     const k = Number(r.slice(1)) - 1;
     if (k < 0 || k >= before) return { error: `${ref} is not an earlier fact` };
     v = resolved[k]?.value;
@@ -70,11 +82,18 @@ function refValue(ref, values, resolved, before) {
   }
   return { value: neg ? -v : v };
 }
-function resolveFacts(facts, values) {
+function refContext(facts, context) {
+  const ids = new Map();
+  facts.forEach((f, i) => { if (typeof f?.id === 'string' && f.id && !ids.has(f.id)) ids.set(f.id, i); });
+  const text = `${vars(context).question ?? ''} ${String(vars(context).context ?? '').replace(/\[[^\]]*\]/g, ' ')}`;
+  const nums = new Set([...text.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0])));
+  return { ids, nums };
+}
+function resolveFacts(facts, values, ctx) {
   const resolved = [];
   facts.forEach((f, i) => {
     if (f?.source_id === 'calc') {
-      const xs = (f.inputs ?? []).map((id) => refValue(id, values, resolved, i));
+      const xs = (f.inputs ?? []).map((id) => refValue(id, values, resolved, i, ctx));
       const err = xs.find((x) => x.error);
       resolved.push(err || !xs.length ? { error: err?.error ?? 'no inputs' } : { value: calc(f.operation, xs.map((x) => x.value)) });
     } else resolved.push(f?.source_id in values && isNum(values[f.source_id]) ? { value: values[f.source_id] } : { error: 'not a numeric source' });
@@ -116,12 +135,12 @@ export function provenance(output, context) {
   return withParsed(output, (d) => {
     const values = valuesOf(context); const exp = expectedOf(context); const problems = [];
     const facts = Array.isArray(d.facts) ? d.facts : [];
+    const resolved = resolveFacts(facts, values, refContext(facts, context));
     for (const f of facts) {
       if (!f?.source_id) continue;
       if (f.source_id === 'calc') {
-        const i = facts.indexOf(f);
-        const bad = (f.inputs ?? []).map(stripSign).filter((id) => (isFactRef(id) ? !(Number(id.slice(1)) >= 1 && Number(id.slice(1)) <= i) : !(id in values)));
-        if (bad.length) problems.push(`calc "${f.meaning ?? ''}" uses unknown ids ${bad.join(', ')}`);
+        const e = resolved[facts.indexOf(f)].error;
+        if (e && !/builds on fact/.test(e)) problems.push(`calc "${f.meaning ?? ''}": ${e}`);
       } else if (!(f.source_id in values)) problems.push(`unknown source id ${f.source_id}`);
     }
     for (const r of Array.isArray(d.ranking) ? d.ranking : []) {
@@ -177,7 +196,7 @@ export function numbers(output, context) {
     const values = valuesOf(context); const exp = expectedOf(context); const problems = [];
     const facts = Array.isArray(d.facts) ? d.facts : [];
     const known = Object.values(values).filter(isNum);
-    const resolved = resolveFacts(facts, values);
+    const resolved = resolveFacts(facts, values, refContext(facts, context));
     // Numbers written in the data's text (e.g. "75% chance" in FPL news, "29334 starts") count as data too.
     const contextText = String(vars(context).context ?? '').replace(/\[[^\]]*\]/g, ' ');
     for (const m of contextText.matchAll(/(?<![\w.])\d+(?:\.\d+)?/g)) known.push(Number(m[0]));
@@ -266,12 +285,13 @@ const SUPERLATIVE = /(?<!\bnext )\b(highest|lowest|easiest|hardest|toughest|stro
 
 export function rankingClaims(output, context) {
   return withParsed(output, (d) => {
-    if (!isV2(context)) return { pass: true, score: 1, reason: 'n/a: prompt v1 has no superlatives contract' };
+    if (!isV2(context)) return caseClaims(d, context);
     const values = valuesOf(context); const exp = expectedOf(context); const problems = [];
     const answer = String(d.answer ?? '');
     const sups = Array.isArray(d.superlatives) ? d.superlatives : [];
     const facts = Array.isArray(d.facts) ? d.facts : [];
-    const resolved = resolveFacts(facts, values);
+    const ctx = refContext(facts, context);
+    const resolved = resolveFacts(facts, values, ctx);
     const spans = [];
     for (const x of sups) {
       const at = answer.indexOf(String(x?.claim ?? ''));
@@ -283,7 +303,7 @@ export function rankingClaims(output, context) {
       const names = over.map((o) => String(o?.name ?? '').toLowerCase());
       const left = (exp.options ?? []).filter((n) => !names.some((x) => x.includes(n.toLowerCase()) || n.toLowerCase().includes(x)));
       if (left.length) { problems.push(`claim "${x.claim}" leaves out ${left.join(', ')}`); continue; }
-      const vals = over.map((o) => ({ name: String(o?.name ?? ''), ...refValue(o?.ref, values, resolved, facts.length) }));
+      const vals = over.map((o) => ({ name: String(o?.name ?? ''), ...refValue(o?.ref, values, resolved, facts.length, ctx) }));
       const bad = vals.filter((v) => v.error);
       if (bad.length) { problems.push(`claim "${x.claim}": ${bad.map((v) => `${v.name} ${v.error}`).join('; ')}`); continue; }
       const best = x.direction === 'min' ? Math.min(...vals.map((v) => v.value)) : Math.max(...vals.map((v) => v.value));
@@ -298,4 +318,35 @@ export function rankingClaims(output, context) {
     }
     return result(problems, `${sups.length} comparison claim(s), all checked against the data`);
   });
+}
+
+// Case-level comparison claims, for prompts without a "superlatives" list. Each claim in the case
+// says which option a comparison word must refer to on a topic (the winner is computed from the
+// data). For each comparison word with the topic named within 50 characters, the option named
+// nearest to it must be the winner. Passes: negated words ("neither ... is the best"), and joint
+// claims that name the winner close by ("Man City and Arsenal are the strongest").
+function caseClaims(d, context) {
+  const exp = expectedOf(context); const problems = [];
+  if (!exp.claims?.length) return { pass: true, score: 1, reason: 'n/a: no comparison claims defined for this case' };
+  const answer = String(d.answer ?? '');
+  const sentences = answer.split(/(?<=[.!?])\s+|\n+/);
+  let seen = 0;
+  for (const c of exp.claims) {
+    const words = new RegExp(`(?<!\\bnext )\\b(${c.words})\\b`, 'gi');
+    const topic = new RegExp(c.topic, 'i');
+    for (const sent of sentences) {
+      for (const m of sent.matchAll(words)) {
+        const near = sent.slice(Math.max(0, m.index - 50), m.index + m[0].length + 50);
+        if (!topic.test(near)) continue;
+        if (/\b(neither|nor|not|no|never|isn't|aren't|wasn't|weren't)\b[^.]{0,25}$/i.test(sent.slice(0, m.index))) continue;
+        const mentions = c.options.flatMap((o) => [...sent.matchAll(new RegExp(o.re, 'gi'))].map((x) => ({ name: o.name, at: x.index, d: Math.abs(x.index - m.index) + (x.index > m.index ? 0.5 : 0) })));
+        if (!mentions.length) continue;
+        seen++;
+        const nearest = mentions.sort((a, b) => a.d - b.d)[0];
+        const winnerClose = mentions.some((x) => x.name === c.winner && x.at >= m.index - 80 && x.at <= m.index + 40);
+        if (nearest.name !== c.winner && !winnerClose) problems.push(`"${sent.trim().slice(0, 160)}": "${m[0]}" on ${c.label} points at ${nearest.name}, but the data says ${c.winner}`);
+      }
+    }
+  }
+  return result(problems, seen ? `${seen} comparison word(s) on checked topics point at the right option` : 'no checked comparison words used');
 }

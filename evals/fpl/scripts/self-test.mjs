@@ -33,11 +33,15 @@ const { default: loadTests } = await import('../tests/load-tests.mjs');
 const { reference } = await import('../providers/_common.mjs');
 const tests = Object.fromEntries(loadTests().map((t) => [t.vars.case_id, t]));
 const v2 = (id) => ({ vars: tests[id].vars, prompt: 'superlatives contract (v2)' });
+const v3 = (id) => ({ vars: tests[id].vars, prompt: 'v3: no superlatives list' });
 const refAns = reference();
 const direct = [
   ['T03 comparison word with no superlatives entry', () => rankingClaims(JSON.stringify({ ...refAns.T03, superlatives: [] }), v2('T03'))],
   ['T03 "over" leaves out the true winner', () => rankingClaims(JSON.stringify({ ...refAns.T03, superlatives: [{ ...refAns.T03.superlatives[0], winner: 'Arsenal', over: refAns.T03.superlatives[0].over.filter((o) => o.name !== 'Man City') }, refAns.T03.superlatives[1]] }), v2('T03'))],
   ['T08 "#n" pointing at a later fact', () => provenance(JSON.stringify({ ...refAns.T08, facts: [{ ...refAns.T08.facts[2], inputs: ['#4', '#5'] }, ...refAns.T08.facts.slice(3)] }), v2('T08'))],
+  ['T08 plain number not in the question or data (-5)', () => provenance(JSON.stringify({ ...refAns.T08, facts: refAns.T08.facts.map((f, i) => (i === 3 ? { ...f, value: -2.61, inputs: ['gain_6_10', '-5'] } : f)) }), v3('T08'))],
+  ['T08 named id pointing at a later fact', () => provenance(JSON.stringify({ ...refAns.T08, facts: [refAns.T08.facts[3], ...refAns.T08.facts.filter((_, i) => i !== 3)] }), v3('T08'))],
+  ['T03 v1-style false claim "Arsenal ... the hardest FDR"', () => rankingClaims(JSON.stringify({ ...refAns.T03, answer: refAns.T03.answer + " Arsenal's average FDR of 3.0 is the hardest of the six." }), v3('T03'))],
   ['T08 calculation built on a wrong calculation', () => numbers(JSON.stringify({ ...refAns.T08, facts: [{ ...refAns.T08.facts[0], value: 25 }, ...refAns.T08.facts.slice(1)] }), v2('T08'))],
 ];
 const expectPass = new Set(); // every direct check must fail

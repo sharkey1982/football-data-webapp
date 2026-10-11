@@ -11,6 +11,8 @@ prompts:
     label: fpl_analyst_v1
   - id: file://prompts/fpl_analyst_v2.mjs
     label: fpl_analyst_v2
+  - id: file://prompts/fpl_analyst_v3.mjs
+    label: fpl_analyst_v3
 
 providers:
   - id: file://providers/replay.mjs
