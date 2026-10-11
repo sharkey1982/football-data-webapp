@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import FormationRoleGrid from '../../components/fpl/FormationRoleGrid';
+import { toScreen } from '../../lib/pitchLayout';
 import {
   setPieceGoals,
   setPieceGoalPct,
@@ -203,8 +204,8 @@ export default function FormationsPage() {
             return (
               <div
                 key={slot}
-                className="absolute -translate-x-1/2 translate-y-1/2 flex flex-col items-center"
-                style={{ left: `${pos.x_pct}%`, bottom: `${pos.y_pct}%` }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+                style={{ left: `${toScreen(100 - pos.y_pct, pos.x_pct).left}%`, top: `${toScreen(100 - pos.y_pct, pos.x_pct).top}%` }}
                 title={`Slot ${slot} — ${fmt(value)}${metric.isShare ? ' of the formation total' : ' per start'} over ${starts} starts`}
               >
                 <div

@@ -23,7 +23,7 @@ import {
   type TotwPlayer,
   type TotwComparison,
 } from '../../lib/teamOfWeekApi';
-import { layoutByBand } from '../../lib/pitchLayout';
+import { layoutByBand, toScreen } from '../../lib/pitchLayout';
 
 
 
@@ -175,8 +175,8 @@ export default function TeamOfTheWeekPage() {
           {placed.map(({ item: p, x, y }) => (
             <div
               key={p.fpl_player_id}
-              className="absolute -translate-x-1/2 translate-y-1/2 flex flex-col items-center w-20"
-              style={{ left: `${x}%`, bottom: `${y}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-20"
+              style={{ left: `${toScreen(100 - y, x).left}%`, top: `${toScreen(100 - y, x).top}%` }}
             >
               <div
                 className="rounded-full border-2 border-chalk-100 flex items-center justify-center shrink-0"

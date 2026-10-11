@@ -44,3 +44,19 @@ export function layoutByBand<T>(items: T[], bandOf: (item: T) => string): PitchS
   });
   return out;
 }
+
+/**
+ * Site-wide pitch orientation (11 Oct 2026). Chris: people are used to the
+ * goalkeeper at the TOP, with the team's left-sided players on the viewer's
+ * RIGHT -- the BBC / Fantasy Football Scout view, as if standing behind the
+ * opponents' goal looking back at the team.
+ *
+ * Layouts are worked out in the team's own view (own goal at the bottom,
+ * its left on the left: keeper top 92, left-back left 12). Every pitch
+ * passes its positions through this to draw them. It turns the picture
+ * through 180 degrees -- a rotation, not a mirror, so a left-back is still
+ * on the team's left; he simply appears on the viewer's right.
+ */
+export function toScreen(top: number, left: number): { top: number; left: number } {
+  return { top: 100 - top, left: 100 - left };
+}

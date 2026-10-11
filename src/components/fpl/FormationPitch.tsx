@@ -1,6 +1,7 @@
 import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
 import { formatSetPieceRoles } from '../../lib/fplApi';
 import type { FplElementType } from '../../types/database';
+import { toScreen } from '../../lib/pitchLayout';
 
 // ============================================================================
 // src/components/fpl/FormationPitch.tsx
@@ -603,6 +604,7 @@ export default function FormationPitch({
         <div className="absolute left-1/2 bottom-3 w-24 sm:w-28 h-8 border border-b-0 border-chalk-100/25" style={{ transform: 'translateX(-50%)' }} />
 
         {slots.map(({ player, top, left }) => {
+          const at = toScreen(top, left);
           const isSelected = player.fpl_player_id === selectedPlayerId;
           const startPct = player.start_probability;
           const uncertain = startPct !== null && startPct < 0.85;
@@ -635,7 +637,7 @@ export default function FormationPitch({
               type="button"
               onClick={() => onSelectPlayer(player.fpl_player_id)}
               className="absolute flex flex-col items-center gap-0.5 -translate-x-1/2 -translate-y-1/2 group"
-              style={{ top: `${top}%`, left: `${left}%` }}
+              style={{ top: `${at.top}%`, left: `${at.left}%` }}
               title={titleParts.join(' \u2022 ')}
             >
               <span
@@ -753,8 +755,10 @@ function StackedPitch({
           const pct = pctLabel(player);
           const uncertain = player.start_probability != null && player.start_probability < 0.7;
           const setPieces = formatSetPieceRoles(player.set_piece_roles);
-          // GK sits low on the pitch: its stack goes above it.
-          const stackAbove = top > 85;
+          const at = toScreen(top, left);
+          // Stacks hang towards the team's own goal, which is at the top:
+          // above each outfield player, below the keeper.
+          const stackAbove = at.top > 15;
           const shown = extras.slice(0, 3);
           const hidden = extras.length - shown.length;
           const stack = shown.length > 0 && (
@@ -785,7 +789,7 @@ function StackedPitch({
             <div
               key={player.fpl_player_id}
               className="absolute flex flex-col items-center gap-0.5 -translate-x-1/2 -translate-y-1/2"
-              style={{ top: `${top}%`, left: `${left}%` }}
+              style={{ top: `${at.top}%`, left: `${at.left}%` }}
             >
               {stackAbove && stack}
               <button
@@ -838,7 +842,7 @@ function StackedPitch({
         </p>
       )}
       <p className="text-[10px] sm:text-[11px] text-ink-500">
-        Likeliest starter in each position, with the others competing for that place listed underneath. Percentages are the chance
+        Likeliest starter in each position, with the others competing for that place listed with it. Keeper at the top, so left-sided players are on the right. Percentages are the chance
         of starting; <span className="text-loss-700">+</span> injured, doubtful or suspended. Players under {Math.round(minChance * 100)}% left off.
       </p>
     </div>

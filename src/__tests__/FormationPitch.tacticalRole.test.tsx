@@ -74,8 +74,9 @@ describe('FormationPitch -- tactical_role positioning', () => {
     expect(barryButton).not.toBeNull();
     const style = (barryButton as HTMLButtonElement).style;
     // The 4-2-3-1 template's CF slot is { top: 10, left: 50 } -- central,
+    // drawn at 90% since pitches show the keeper at the top (toScreen).
     // most advanced. This is the exact assertion the bug would fail.
-    expect(style.top).toBe('10%');
+    expect(style.top).toBe('90%');
     expect(style.left).toBe('50%');
   });
 
@@ -92,7 +93,7 @@ describe('FormationPitch -- tactical_role positioning', () => {
 
     expect(cfLeft).not.toBe(lwLeft);
     expect(rwButton.style.left).not.toBe((screen.getByText('Barry').closest('button') as HTMLButtonElement).style.left);
-    expect(rwButton.style.top).not.toBe('10%'); // not at the CF slot
+    expect(rwButton.style.top).not.toBe('90%'); // not at the CF slot
   });
 
   it('shows Rohl (generic "MID" role) with the role-not-confirmed treatment, not a confident tactical label', () => {
@@ -135,8 +136,9 @@ describe('FormationPitch -- 3-4-3 sides', () => {
 
     const leftOf = (name: string) => Number((screen.getByText(name).closest('button') as HTMLButtonElement).style.left.replace('%', ''));
 
-    expect(leftOf('LeftWB')).toBeLessThan(leftOf('RightWB'));
-    expect(leftOf('LeftCB')).toBeLessThan(leftOf('RightCB'));
+    // Keeper at the top: the team's left is on the viewer's right.
+    expect(leftOf('LeftWB')).toBeGreaterThan(leftOf('RightWB'));
+    expect(leftOf('LeftCB')).toBeGreaterThan(leftOf('RightCB'));
     expect(leftOf('CentreForward')).toBeCloseTo(50, 0);
   });
 
@@ -155,10 +157,11 @@ describe('FormationPitch -- 3-4-3 sides', () => {
 
     const pivot = screen.getByText('Pivot').closest('[style]') as HTMLElement | null;
     expect(pivot).not.toBeNull();
-    // The pivot slots sit at top: 54; defenders at 70-74. Anything at or
-    // below 65 means the CM was dropped into the back line.
+    // The pivot slots sit at top: 54 (46 on screen); defenders at 70-74
+    // (26-30 on screen). Anything at or above 35 on screen means the CM was
+    // dropped into the back line.
     const top = Number((pivot!.style.top || '').replace('%', ''));
-    expect(top).toBeLessThan(65);
+    expect(top).toBeGreaterThan(35);
   });
 });
 
@@ -192,8 +195,8 @@ describe('FormationPitch -- picks the likeliest player for each slot', () => {
 
   it('puts the left winger on the left wing and leaves the second RCB out', () => {
     render(<FormationPitch players={arsenal} formation="4-2-3-1" selectedPlayerId={null} onSelectPlayer={() => {}} />);
-    expect(at('Tzolis')).toBe('30%,15%');
-    expect(at('Mosquera')).toBe('74%,64%');
+    expect(at('Tzolis')).toBe('70%,85%'); // LW slot (30, 15), drawn keeper-at-top
+    expect(at('Mosquera')).toBe('26%,36%'); // RCB slot (74, 64)
     expect(screen.queryByText('Konsa')).toBeNull();
     expect(screen.queryByText('Eze')).toBeNull();
     expect(screen.queryByText('Saliba')).toBeNull();
@@ -205,7 +208,7 @@ describe('FormationPitch -- picks the likeliest player for each slot', () => {
     render(<FormationPitch players={noWinger} formation="4-2-3-1" selectedPlayerId={null} onSelectPlayer={() => {}} />);
     for (const name of ['Mosquera', 'Konsa', 'Timber']) {
       const el = screen.queryByText(name)?.closest('button') as HTMLButtonElement | undefined;
-      if (el) expect(Number(el.style.top.replace('%', ''))).toBeGreaterThan(60);
+      if (el) expect(Number(el.style.top.replace('%', ''))).toBeLessThan(40); // defensive line, near the keeper at the top
     }
   });
 });
