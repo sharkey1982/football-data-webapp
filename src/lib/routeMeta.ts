@@ -341,6 +341,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/live',
+    title: 'FPL Live \u2014 your gameweek score as it happens',
+    description:
+      'Enter your FPL ID for your live gameweek score: bonus points as they stand, automatic subs, captaincy, chips and hits, and the points still to come.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/rate-my-team',
     title: 'FPL Rate My Team (RMT) \u2014 your squad against the model',
     description:

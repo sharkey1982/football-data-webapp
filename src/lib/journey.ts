@@ -123,6 +123,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           'What has actually happened: real gameweek returns, what players cost, who owns them, and exactly how points are earned. No projections here.',
         links: [
           { label: 'Player Scout', to: '/fpl/player-scout', blurb: 'Any player\u2019s season-by-season record \u2014 points, price and form.' },
+          // The gameweek as it happens, for any team by FPL ID (Chris, 11 Oct
+          // 2026): what is happening now, so it leads Discover's results.
+          { label: 'FPL Live', to: '/fpl/live', blurb: 'Your gameweek score as it happens: live bonus, auto-subs and the points still to come.' },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
