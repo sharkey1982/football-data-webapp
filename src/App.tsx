@@ -77,6 +77,7 @@ const GameweekPage = lazy(() => import('./pages/fpl/GameweekPage'));
 const FixtureProjectionPage = lazy(() => import('./pages/fpl/FixtureProjectionPage'));
 const OptimalSquadPage = lazy(() => import('./pages/fpl/OptimalSquadPage'));
 const SquadCheckPage = lazy(() => import('./pages/fpl/SquadCheckPage'));
+const FplLivePage = lazy(() => import('./pages/fpl/FplLivePage'));
 // Squad Check was renamed Rate My Team (30 Sep 2026); keep ?id= on old links.
 function SquadCheckRedirect() {
   const { search } = useLocation();
@@ -557,6 +558,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <OptimalSquadPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/live"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FplLivePage />
               </Suspense>
             }
           />

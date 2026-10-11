@@ -227,6 +227,7 @@ export default function SquadCheckPage() {
             <span className="font-medium text-ink-900">{loaded.entry.team_name}</span>
             {loaded.entry.overall_rank != null && <span className="text-ink-500">{`Rank ${loaded.entry.overall_rank.toLocaleString('en-GB')}`}</span>}
             <span className="text-ink-500">{`Value ${money(budget)} incl. ${money(loaded.entry.bank)} in the bank`}</span>
+            <Link to={`/fpl/live?id=${loaded.entry.entry_id}`} className="text-pitch-800 underline underline-offset-2">This gameweek, live</Link>
           </div>
 
           <div className="flex flex-wrap gap-2 items-center text-sm">

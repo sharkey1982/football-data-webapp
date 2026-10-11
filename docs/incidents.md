@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-11 · Double-gameweek players skipped by the 6-hourly FPL live import
+- **Found:** scoping FPL Live: `private.refresh_fpl_live_event` only wrote `fpl_player_gameweeks` rows for players with exactly one fixture in the gameweek (`having count(*) = 1`).
+- **Impact:** none yet: no 2026/27 gameweek has had a double fixture so far. From the first double gameweek, those players' rows from this job would have been missing, the same class of loss as the September primary-key bug.
+- **Cause:** the live feed's aggregate stats can't be split by fixture, so players with two fixtures were left out instead of being split with the per-fixture `explain` breakdown.
+- **Fix:** `20261011120000_fpl_live_gameweek.sql`: the job now reads the stored feed (`fpl_live_elements`) and writes one row per fixture for double-gameweek players from `explain` (points, minutes, goals, assists, clean sheets, cards, saves, bonus; BPS, ICT and expected stats are only published per gameweek, so null on those rows). Checked on a local Postgres with a two-fixture player.
+- **Prevention:** `check_fpl_history_integrity` still reconciles gameweek rows against season totals. *Lesson: a "one per gameweek" assumption in an import is a bug waiting for the first double gameweek; check the importer before the fixtures arrive.*
+
+---
+
 ## 2026-10-11 · FPL eval baseline: answer length cap too low, and one check too strict
 - **Found:** reading the first live run of the FPL eval pilot (`evals/fpl`, GitHub run 38133579090): 3/10 passed.
 - **Impact:** the result understated the model. Six of seven failures were answers cut off at the 1,500-token cap (`finishReason: length`); two of those spent the whole cap thinking and returned nothing. The seventh (T07) was a good answer failed by a check that required one particular source. The quality judge also hit its own 800-token cap on one case and scored "No output" as 0. Cost of the run: $0.18; nothing outside the eval was affected.
