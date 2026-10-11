@@ -152,9 +152,15 @@ const anthropic: Provider = {
 const PROVIDERS: Record<string, Provider> = { anthropic };
 
 // ---------------------------------------------------------------- submit check
-// A submission missing its fields, or with tool-call markup leaked into the
-// answer, is sent back once per round so the model can resubmit, instead of
-// being recorded as a broken answer.
+// With the answer as the last field, the model often ends it with a stray
+// closing tag ("</answer></invoke>") although every field is present: that
+// trailing tag is stripped, not rejected (rejecting it cost 3-5 retries a run
+// on 11 Oct). A submission with a missing field, or markup inside the text, is
+// sent back so the model can resubmit, instead of being saved broken.
+const TRAILING_TAGS = /(\s*<\/(answer|invoke|parameter|submit_answer)>)+\s*$/i;
+function cleanSubmit(input: any): any {
+  return typeof input?.answer === "string" ? { ...input, answer: input.answer.replace(TRAILING_TAGS, "").trim() } : input;
+}
 function submitProblems(input: any): string[] {
   const p: string[] = [];
   if (!["answered", "partial", "refused"].includes(input?.answer_type)) p.push("answer_type must be answered, partial or refused");
@@ -165,8 +171,25 @@ function submitProblems(input: any): string[] {
 }
 
 // ---------------------------------------------------------------- grading
+// checks_v2 (11 Oct): facts_grounded no longer needs each fact word for word.
+// A fact passes if it appears verbatim, or if every number in it is a number
+// in the tool results (as numbers, so 6.7 doesn't match 6.73; a percentage
+// matches its fraction) and every capitalised name in it appears in them
+// (accents ignored). checks_v1 failed composite facts like "Dortmund 4W 0D 0L
+// 12pts" and "Bayern Munchen" for München although every figure was right.
+const GRADER = "checks_v2";
 function norm(v: unknown): string {
   return String(v ?? "").toLowerCase().replace(/[£$€,%]/g, "").trim();
+}
+const deaccent = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const numbersIn = (s: string) => (deaccent(s).replace(/,/g, "").match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+function grounded(value: unknown, corpusNorm: string, corpusLower: string, corpusNums: Set<number>): boolean {
+  const v = String(value ?? "");
+  if (!norm(v)) return true;
+  if (corpusNorm.includes(norm(v))) return true;
+  const numsOk = numbersIn(v).every((n) => corpusNums.has(n) || corpusNums.has(Number((n / 100).toFixed(6))));
+  const names = deaccent(v).match(/\b[A-Z][A-Za-z'-]{2,}/g) ?? [];
+  return numsOk && names.every((w) => corpusLower.includes(w.toLowerCase()));
 }
 
 function grade(q: any, run: any, steps: any[]): { checks: Record<string, { pass: boolean; detail: string }>; passed: number; total: number } {
@@ -180,9 +203,12 @@ function grade(q: any, run: any, steps: any[]): { checks: Record<string, { pass:
   }
   const dataCalls = steps.filter((s) => s.tool_name !== "submit_answer");
   if (!refuse) checks.used_tools = { pass: dataCalls.length > 0, detail: `${dataCalls.length} data tool call(s)` };
-  const corpus = norm(JSON.stringify(dataCalls.map((s) => s.result)));
+  const raw = JSON.stringify(dataCalls.map((s) => s.result));
+  const corpus = norm(raw);
+  const corpusLower = deaccent(raw).toLowerCase();
+  const corpusNums = new Set(numbersIn(raw));
   const facts: any[] = Array.isArray(run.facts_used) ? run.facts_used : [];
-  const ungrounded = facts.filter((f) => { const v = norm(f?.value); return v.length > 0 && !corpus.includes(v); });
+  const ungrounded = facts.filter((f) => !grounded(f?.value, corpus, corpusLower, corpusNums));
   checks.facts_grounded = { pass: ungrounded.length === 0,
     detail: ungrounded.length ? `not found in tool results: ${ungrounded.map((f) => JSON.stringify(f.value)).join(", ")}` : `${facts.length} fact(s) all found in tool results` };
   const secret = /sk-ant-[a-z0-9_-]{10,}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,}|service_role_key/i.test(run.answer ?? "");
@@ -272,14 +298,15 @@ Deno.serve(async (req) => {
       for (const call of turn.toolCalls) {
         const t0 = Date.now();
         if (call.name === "submit_answer") {
-          const problems = submitProblems(call.input);
+          const input = cleanSubmit(call.input);
+          const problems = submitProblems(input);
           if (problems.length) {
             const msg = `submit_answer was not accepted: ${problems.join("; ")}. Call submit_answer again.`;
             steps.push({ step_no: steps.length + 1, tool_name: call.name, arguments: call.input, result: null, latency_ms: 0, error: msg });
             results.push({ id: call.id, content: msg, isError: true });
             continue;
           }
-          submitted = call.input;
+          submitted = input;
           steps.push({ step_no: steps.length + 1, tool_name: call.name, arguments: call.input, result: null, latency_ms: 0, error: null });
           results.push({ id: call.id, content: "Received." });
           continue;
@@ -332,7 +359,7 @@ Deno.serve(async (req) => {
     await sb.from("ai_run_truth").insert({ run_id: runId, truth });
   }
   const g = grade(q, run, steps);
-  await sb.from("ai_auto_grades").insert({ run_id: runId, grader: "checks_v1", checks: g.checks, passed: g.passed, total: g.total });
+  await sb.from("ai_auto_grades").insert({ run_id: runId, grader: GRADER, checks: g.checks, passed: g.passed, total: g.total });
 
   return json({ run_id: runId, run, steps, truth, grade: g });
 });
