@@ -63,7 +63,7 @@ import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import FormationPitch from '../../components/fpl/FormationPitch';
 import { Cell, ActualCell, type Mode as MinutesMode } from '../../components/fpl/MinutesCells';
-import { getMinutesOutlook, type Outlook } from '../../lib/minutesOutlookApi';
+import { getMinutesOutlook, roleRank, type Outlook } from '../../lib/minutesOutlookApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
@@ -76,6 +76,8 @@ function formatShortDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
+
+const POSITION_GROUP_LABEL: Record<number, string> = { 1: 'Goalkeepers', 2: 'Defenders', 3: 'Midfielders', 4: 'Forwards' };
 
 export default function TacticalRolesAdminPage({ adminMode = false }: { adminMode?: boolean } = {}) {
   // Same two-route shape TeamStrengthPage already uses: one component,
@@ -176,6 +178,10 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   // already has overrides and fallbacks resolved together.
   const [storedFormation, setStoredFormation] = useState<{ formation: string | null; isManual: boolean } | null>(null);
   const [savingFormation, setSavingFormation] = useState(false);
+  // Row order is fixed when the data loads, not re-sorted on every edit:
+  // a row jumping away mid-edit means the next tap lands on someone else.
+  const [orderBasis, setOrderBasis] = useState<Map<number, { role: string | null; depth: number | null }>>(new Map());
+  const snapshotOrder = (list: TacticalRoleRow[]) => setOrderBasis(new Map(list.map((x) => [x.fpl_player_id, { role: x.tactical_role, depth: x.depth_rank }])));
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +189,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       .then(([r, t, reviewed]) => {
         if (cancelled) return;
         setRows(r);
+        snapshotOrder(r);
         setTeams(t);
         setReviewDates(reviewed);
         if (r.length > 0) setSelectedTeamId((prev) => prev ?? r[0].team_id);
@@ -345,6 +352,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         // cached separately.
         const refreshed = await getTacticalRoleReview();
         setRows(refreshed);
+        snapshotOrder(refreshed);
         return;
       }
       const note = window.prompt('Optional note (set the date he is due back in the Back column)', row.news ?? '') ?? undefined;
@@ -453,6 +461,22 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     return map;
   }, [rows]);
 
+  /** Grouped as on Minutes Outlook (12 Oct 2026): goalkeepers, defenders,
+   * midfielders, forwards; within each, by playing role back to front and
+   * left to right so rivals for one spot sit together, then by rank. Uses
+   * the order as loaded (orderBasis), so editing a row doesn't move it. */
+  function groupByPosition(list: TacticalRoleRow[]): { label: string; players: TacticalRoleRow[] }[] {
+    const basis = (r: TacticalRoleRow) => orderBasis.get(r.fpl_player_id) ?? { role: r.tactical_role, depth: r.depth_rank };
+    const cmp = (a: TacticalRoleRow, b: TacticalRoleRow) =>
+      roleRank(basis(a).role) - roleRank(basis(b).role) || (basis(a).depth ?? 99) - (basis(b).depth ?? 99) || a.web_name.localeCompare(b.web_name);
+    return ([1, 2, 3, 4] as const)
+      .map((et) => ({ label: POSITION_GROUP_LABEL[et], players: list.filter((r) => r.element_type === et).sort(cmp) }))
+      .filter((g) => g.players.length > 0);
+  }
+  /** A darker line where the role changes: each block is one spot's contenders. */
+  const roleBreak = (players: TacticalRoleRow[], i: number) =>
+    i > 0 && (orderBasis.get(players[i].fpl_player_id)?.role ?? players[i].tactical_role) !== (orderBasis.get(players[i - 1].fpl_player_id)?.role ?? players[i - 1].tactical_role);
+
   /** Applies the current scope to any row list -- shared by the by-team
    * table below and by pitchStarters further down, so "Worth Reviewing"
    * means the same thing everywhere rather than drifting between views. */
@@ -476,6 +500,8 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   }, [teamOutlook]);
   const outlookByPlayer = useMemo(() => new Map((teamOutlook?.players ?? []).map((p) => [p.fpl_player_id, p])), [teamOutlook]);
 
+  // Columns in the squad table: 9 fixed, then per-gameweek minutes or 3 summary columns.
+  const squadTableSpan = 9 + (outlookCols ? outlookCols.past.length + outlookCols.next.length : 3);
   const selectedTeamRows = useMemo(() => {
     if (selectedTeamId === null) return [];
     let visible = rows.filter((r) => r.team_id === selectedTeamId);
@@ -914,8 +940,12 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                         </tr>
                       </thead>
                       <tbody>
-                        {visible.map((r) => (
-                          <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
+                        {groupByPosition(visible).map((g) => [
+                          <tr key={`h-${g.label}`}>
+                            <td colSpan={8} className="bg-chalk-100 px-3 py-1 text-xs font-mono uppercase tracking-widest text-ink-500 border-t border-chalk-300">{g.label}</td>
+                          </tr>,
+                          ...g.players.map((r, i) => (
+                          <tr key={r.fpl_player_id} className={`border-t ${roleBreak(g.players, i) ? 'border-ink-500/50' : 'border-chalk-200'}`}>
                             <td className="px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
                             <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                             <td className="px-2 py-1.5">
@@ -938,7 +968,8 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                               {savingId === r.fpl_player_id ? 'Saving\u2026' : r.source_name === 'manual' ? 'manually corrected' : r.source_name}
                             </td>
                           </tr>
-                        ))}
+                          )),
+                        ])}
                       </tbody>
                     </table>
                     </div>
@@ -1118,8 +1149,14 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedTeamRows.map((r) => (
-                        <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
+                      {(tableSort === 'position' ? groupByPosition(selectedTeamRows) : [{ label: '', players: selectedTeamRows }]).map((g) => [
+                        g.label && (
+                          <tr key={`h-${g.label}`}>
+                            <td colSpan={squadTableSpan} className="bg-chalk-100 px-3 py-1 text-xs font-mono uppercase tracking-widest text-ink-500 border-t border-chalk-300"><span className="sticky left-3">{g.label}</span></td>
+                          </tr>
+                        ),
+                        ...g.players.map((r, i) => (
+                        <tr key={r.fpl_player_id} className={`border-t ${g.label && roleBreak(g.players, i) ? 'border-ink-500/50' : 'border-chalk-200'}`}>
                           <td className="sticky left-0 z-10 px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap bg-white">{r.web_name}</td>
                           <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                           <td className="px-2 py-1.5">
@@ -1155,7 +1192,8 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                             </>
                           )}
                         </tr>
-                      ))}
+                      )),
+                      ])}
                     </tbody>
                   </table>
                 </div>

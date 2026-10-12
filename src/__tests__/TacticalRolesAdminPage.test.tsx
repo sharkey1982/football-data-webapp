@@ -382,6 +382,29 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(mockedApi.removeOtherPosition).toHaveBeenCalledWith(1, 16, 'AM'));
   });
 
+  it('groups the table view like Minutes Outlook: position groups, then role left to right, then rank', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 4, web_name: 'Saka', element_type: 3, tactical_role: 'RW', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 3, web_name: 'White', element_type: 2, tactical_role: 'RB', depth_rank: 2, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 2, web_name: 'Timber', element_type: 2, tactical_role: 'RB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 1, web_name: 'Calafiori', element_type: 2, tactical_role: 'LB', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+      baseRow({ fpl_player_id: 5, web_name: 'Raya', element_type: 1, tactical_role: 'GK', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-2-3-1');
+
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Everyone/ }));
+    await screen.findByText('Calafiori');
+    const order = screen.getAllByRole('row').map((tr) => tr.textContent ?? '')
+      .map((t) => ['Goalkeepers', 'Defenders', 'Midfielders', 'Raya', 'Calafiori', 'Timber', 'White', 'Saka'].find((n) => t.includes(n)))
+      .filter(Boolean);
+    expect(order).toEqual(['Goalkeepers', 'Raya', 'Defenders', 'Calafiori', 'Timber', 'White', 'Midfielders', 'Saka']);
+  });
+
   it('offers "Also plays" in the table view too, not only the pitch view', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 155, team_id: 18, team_name: 'Man City', web_name: 'Enzo', element_type: 3, tactical_role: 'CM', depth_rank: 1, source_name: 'manual', confidence: 1 }),
