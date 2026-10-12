@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-12 · AI tools answered "next gameweek" for the gameweek in play; credit balance couldn't be saved
+- **Found:** Chris on his phone. (1) Ask FixtureShark run 36, "Best pair of midfielders for £15m next gameweek?", answered for GW6 and said the totals were "summed over the next 6 gameweeks". (2) Saving the Console balance on the new AI credit panel failed with "permission denied for table ai_credit_checks".
+- **Impact:** (1) Any "next gameweek" question during a live gameweek was answered for the locked, in-play gameweek (GW6 deadline 10 Oct; GW7 is next), and this answer misdescribed its own figures. The players were right for GW6, but GW6 was the wrong gameweek. (2) The credit estimate couldn't be started.
+- **Cause:** (1) The four tools that default a gameweek (`get_fpl_projections`, `compare_fixture_runs`, `best_fpl_combination`, `compare_fpl_players`) used the first gameweek *not finished*, which stays on the in-play gameweek until its last match ends. They also labelled one gameweek as `"gameweeks": "6"`, which reads as a count. I copied both from the 26 Sep tool when writing the ranking tools on 11 Oct. (2) New tables in this project get no privileges for the API roles. `20261012050000` added RLS but no grants, and the page test mocked the API, so nothing exercised the real permissions.
+- **Fix:** `20261012060000_ai_credit_grants_next_gameweek.sql`: grants on the two credit tables, plus `ai_next_fpl_gameweek()`, which returns the first gameweek whose deadline is still to come. The four tools now use it, and their labels read `GW7` or `GW7-GW9`.
+- **Prevention:** any new table the browser writes to gets explicit grants in the same migration, and I check them with a read of `information_schema.role_table_grants` after it applies. Gameweek defaults use the shared function instead of each tool having its own rule. *Lesson: "next gameweek" means the next deadline, not the next unfinished gameweek. Test during a live gameweek, which is when users ask.*
+
+---
+
 ## 2026-10-11 · Double-gameweek players skipped by the 6-hourly FPL live import
 - **Found:** scoping FPL Live: `private.refresh_fpl_live_event` only wrote `fpl_player_gameweeks` rows for players with exactly one fixture in the gameweek (`having count(*) = 1`).
 - **Impact:** none yet: no 2026/27 gameweek has had a double fixture so far. From the first double gameweek, those players' rows from this job would have been missing, the same class of loss as the September primary-key bug.
