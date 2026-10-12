@@ -1,0 +1,56 @@
+name: Gameweek report
+
+# FPL gameweek reflection on demand (scripts/fpl_gameweek_report.py): a draft
+# to check, or a published version. The projections pipeline publishes the
+# reflection automatically once it is due; this is for drafts, re-runs and
+# corrections (a correction is a new version; published ones never change).
+# Output is in the run's annotations (logs can't be read from cloud sessions).
+on:
+  workflow_dispatch:
+    inputs:
+      gw:
+        description: 'Gameweek'
+        required: true
+        type: string
+      publish:
+        description: 'Publish (otherwise a draft, visible only to the database)'
+        type: boolean
+        default: false
+      rebuild_site:
+        description: 'Rebuild the site afterwards (only matters when publishing)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt
+      - name: Report
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          IN_GW: ${{ inputs.gw }}
+          IN_PUBLISH: ${{ inputs.publish }}
+        run: |
+          set +e
+          ARGS="--gw ${IN_GW}"
+          if [ "${IN_PUBLISH}" = "true" ]; then ARGS="$ARGS --publish"; fi
+          python scripts/fpl_gameweek_report.py $ARGS 2>&1 | tee /tmp/r.log
+          STATUS=${PIPESTATUS[0]}
+          ENCODED=$(tail -c 3500 /tmp/r.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
+      - name: Rebuild site
+        if: success() && inputs.publish && inputs.rebuild_site
+        run: |
+          if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then echo "::notice::No build hook"; exit 0; fi
+          curl -s -o /dev/null -w "%{http_code}\n" -X POST -d '{}' "${{ secrets.NETLIFY_BUILD_HOOK_URL }}"
