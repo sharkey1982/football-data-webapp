@@ -1,6 +1,6 @@
 import React from 'react';
 void React;
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import GameweekReportPage from '../pages/fpl/GameweekReportPage';
@@ -122,5 +122,21 @@ describe('gameweek preview page', () => {
     );
     expect(screen.getAllByText(/Locked at the deadline/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Since the last version:/)).not.toBeInTheDocument();
+  });
+});
+
+describe('gameweek posts admin page', () => {
+  it('renders the Reddit text and X thread with copy buttons', async () => {
+    const { default: GameweekPostsPage } = await import('../pages/admin/GameweekPostsPage');
+    const supa = await import('../lib/supabase');
+    const row = { season_label: '2026-27', fpl_event_id: 6, kind: 'reflection', version: 1, frozen: false, published_at: '2026-10-13T06:00:00Z',
+      title: 't', reddit_md: '**FPL GW6 reflection**', x_thread: ['FPL GW6 reflection 🧵', 'Link: https://fixtureshark.com/fpl/gameweek/2026-27/6/reflection'] };
+    const chain = { select: () => chain, order: () => chain, limit: () => Promise.resolve({ data: [row], error: null }) };
+    const spy = vi.spyOn(supa.supabase, 'from').mockReturnValue(chain as never);
+    render(<MemoryRouter><GameweekPostsPage /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 2, name: /GW6 reflection/ })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('**FPL GW6 reflection**')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Copy/ }).length).toBe(4);
+    spy.mockRestore();
   });
 });

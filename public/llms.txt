@@ -23,6 +23,7 @@ All pages are free to read. Data is updated daily. UK times and UK TV channels a
 - [Compare players](https://fixtureshark.com/fpl/compare): up to five FPL players side by side, with projected points, xG, xA, expected minutes and fixtures.
 - [Player Scout](https://fixtureshark.com/fpl/player-scout): every FPL player's season-by-season record.
 - [Scoring rules](https://fixtureshark.com/fpl/scoring-rules): FPL's points rules for each season.
+- [FPL gameweek log](https://fixtureshark.com/fpl/gameweek): a reflection every Tuesday on what the gameweek did to the numbers (goals against the model, minutes, positions, set pieces, captaincy) and a preview every Thursday (fixtures, captaincy with simulated top-score chances, picks by position, minutes watch, the next ten gameweeks).
 - [FPL articles](https://fixtureshark.com/fpl/articles): FPL questions answered from four seasons of data: [xG or FDR: which predicts FPL points better?](https://fixtureshark.com/fpl/articles/xg-or-fdr), [three FPL decisions, three time horizons: captaincy, transfers and squad building](https://fixtureshark.com/fpl/articles/three-decisions-three-horizons), [one captain or two? the mathematics of FPL captaincy](https://fixtureshark.com/fpl/articles/one-captain-or-two), [should you always captain the top-projected player?](https://fixtureshark.com/fpl/articles/always-captain-the-top-pick) and [should you always captain Haaland?](https://fixtureshark.com/fpl/articles/should-you-always-captain-haaland)
 
 ## Club finances
