@@ -650,6 +650,322 @@ def x_thread(p: dict, url: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Preview (phase 1)
+# ---------------------------------------------------------------------------
+#
+# Live versions read the current projections; the frozen version, written
+# once the deadline has passed, reads the deadline snapshot (fpl_projection_
+# snapshots for the gameweek, fpl_deadline_*_horizon for the 10 weeks), so
+# the record is exactly what the projections said before kick-off.
+
+SIM_WORLDS = 20000
+
+
+def projection_rows(d: Data, ctx: dict, gw: int, frozen: bool) -> list[dict]:
+    """Per player per fixture for gw..gw+9: xpts, start chance, minutes, role."""
+    sid = ctx["season_id"]
+    if frozen:
+        return d.all("""select h.fixture_id, h.fixture_event_id gw, h.fpl_player_id, h.expected_fpl_points::float8 xpts,
+                               h.start_probability::float8 p, h.expected_minutes::float8 xmin, h.tactical_role, h.minutes_source
+                          from public.fpl_deadline_player_horizon h
+                         where h.season_id = %s and h.fpl_event_id = %s and h.snapshot_kind in ('pre_deadline', 'late')""", (sid, gw))
+    return d.all("""select p.fixture_id, ff.fpl_event_id gw, p.fpl_player_id, p.expected_fpl_points::float8 xpts,
+                           p.start_probability::float8 p, p.expected_minutes::float8 xmin, p.tactical_role, p.minutes_source
+                      from public.fpl_player_projections p
+                      join public.fpl_fixtures ff on ff.canonical_fixture_id = p.fixture_id and ff.season_id = p.season_id
+                     where p.season_id = %s and ff.fpl_event_id between %s and %s and coalesce(p.scenario_key, 'baseline') = 'baseline'
+                       and p.model_version = (select model_version from public.fpl_player_projections where season_id = %s order by generated_at desc limit 1)""",
+                 (sid, gw, gw + 9, sid))
+
+
+def fixture_goals(d: Data, ctx: dict, gw: int, frozen: bool) -> dict:
+    """{canonical fixture_id: (home, away)} for gw..gw+9 (market where priced, else Dixon-Coles)."""
+    if frozen:
+        rows = d.all("""select fixture_id, coalesce(market_home_goals, predicted_home_goals)::float8 h,
+                               coalesce(market_away_goals, predicted_away_goals)::float8 a
+                          from public.fpl_deadline_fixture_horizon
+                         where season_id = %s and fpl_event_id = %s and snapshot_kind in ('pre_deadline', 'late')""", (ctx["season_id"], gw))
+        return {r["fixture_id"]: (r["h"], r["a"]) for r in rows}
+    out = {}
+    for r in ctx["fixtures"]:
+        if gw <= r["gw"] <= gw + 9 and r["fixture_id"]:
+            h = r["mh"] if r["mh"] is not None else r["ph"]
+            a = r["ma"] if r["ma"] is not None else r["pa"]
+            if h is not None and a is not None:
+                out[r["fixture_id"]] = (float(h), float(a))
+    return out
+
+
+def sim_players(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int]) -> tuple[list, dict]:
+    """The inputs simulate() needs, for the given players in gw."""
+    import numpy as np
+    sid = ctx["season_id"]
+    cols = """fixture_id, fpl_player_id, start_probability, sub_appearance_probability, expected_goals, expected_assists, expected_saves,
+              defensive_contribution_probability, expected_bonus, xpts_cards_own_goals, xpts_penalties, expected_fpl_points"""
+    if frozen:
+        rows = d.all(f"""select {cols} from public.fpl_projection_snapshots s
+                          where season_id = %s and fpl_event_id = %s and snapshot_kind in ('pre_deadline', 'late')
+                            and model_version = (select model_version from public.fpl_projection_snapshots
+                                                  where season_id = %s and fpl_event_id = %s order by projection_generated_at desc limit 1)
+                            and fpl_player_id = any(%s)""", (sid, gw, sid, gw, ids))
+    else:
+        rows = d.all(f"""select {cols} from public.fpl_player_projections p
+                          where season_id = %s and coalesce(scenario_key, 'baseline') = 'baseline' and fpl_player_id = any(%s)
+                            and model_version = (select model_version from public.fpl_player_projections where season_id = %s order by generated_at desc limit 1)
+                            and fixture_id in (select canonical_fixture_id from public.fpl_fixtures where season_id = %s and fpl_event_id = %s)""",
+                     (sid, ids, sid, sid, gw))
+    goals = fixture_goals(d, ctx, gw, frozen)
+    fx = {r["fixture_id"]: r for r in ctx["fixtures"]}
+    fixtures = {}
+    for fid in {r["fixture_id"] for r in rows}:
+        g = goals.get(fid)
+        if g:
+            fixtures[fid] = {"market_home_goals": g[0], "market_away_goals": g[1], "predicted_home_goals": g[0], "predicted_away_goals": g[1]}
+    bands = {b["fpl_player_id"]: b for b in d.all(
+        "select fpl_player_id, p_off_before_60, p_off_60_84, p_full from public.fpl_player_exit_bands where season_id = %s", (sid,))}
+    num = lambda v: float(v or 0)
+    players = []
+    for r in rows:
+        f, m = fx.get(r["fixture_id"]), ctx["players"].get(r["fpl_player_id"])
+        if not f or not m or r["fixture_id"] not in fixtures:
+            continue
+        home = m["fpl_team_id"] == f["h"]
+        g = goals[r["fixture_id"]]
+        b = bands.get(r["fpl_player_id"]) or {"p_off_before_60": 0, "p_off_60_84": 0, "p_full": 1}
+        players.append({
+            "id": r["fpl_player_id"], "pos": m["element_type"], "fixture": r["fixture_id"], "home": home,
+            "lam_for": g[0] if home else g[1], "lam_against": g[1] if home else g[0],
+            "p_start": min(max(num(r["start_probability"]), 0), 1), "p_sub": min(max(num(r["sub_appearance_probability"]), 0), 1),
+            "xg": num(r["expected_goals"]), "xa": num(r["expected_assists"]), "xsaves": num(r["expected_saves"]),
+            "p_dc": num(r["defensive_contribution_probability"]), "bonus": num(r["expected_bonus"]),
+            "flat": num(r["xpts_cards_own_goals"]) + num(r["xpts_penalties"]), "xpts": num(r["expected_fpl_points"]),
+            "bands": np.array([num(b["p_off_before_60"]), num(b["p_off_60_84"]), num(b["p_full"])]),
+        })
+    return players, fixtures
+
+
+def captain_chances(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int]) -> dict:
+    """{player id: chance of the most points among ids} (20,000 worlds; a double gameweek sums both fixtures)."""
+    import numpy as np
+    from analysis_squad_variance import simulate
+    players, fixtures = sim_players(d, ctx, gw, frozen, ids)
+    if not players:
+        return {}
+    rng = np.random.default_rng(gw * 1000 + 13)
+    pts = simulate(players, fixtures, SIM_WORLDS, rng)
+    order = sorted({p["id"] for p in players})
+    col = {pid: k for k, pid in enumerate(order)}
+    tot = np.zeros((SIM_WORLDS, len(order)), dtype=np.float32)
+    for j, p in enumerate(players):
+        tot[:, col[p["id"]]] += pts[:, j]
+    best = tot.max(axis=1, keepdims=True)
+    winners = (tot == best)
+    share = winners / winners.sum(axis=1, keepdims=True)   # ties split
+    means = tot.mean(axis=0)
+    return {pid: {"top": float(share[:, col[pid]].mean()), "sim_mean": float(means[col[pid]])} for pid in order}
+
+
+def section_fixtures(ctx: dict, gw: int, goals: dict) -> list[dict]:
+    out = []
+    for r in ctx["fixtures"]:
+        if r["gw"] != gw:
+            continue
+        g = goals.get(r["fixture_id"])
+        out.append({"home": team_name(ctx, r["h"]), "away": team_name(ctx, r["a"]), "kickoff": r["kickoff_time"].isoformat() if r["kickoff_time"] else None,
+                    "goals_home": f(g[0], 2) if g else None, "goals_away": f(g[1], 2) if g else None,
+                    "cs_home": f(math.exp(-g[1]), 3) if g else None, "cs_away": f(math.exp(-g[0]), 3) if g else None,
+                    "fdr_home": r["fdr_h"], "fdr_away": r["fdr_a"]})
+    return out
+
+
+def section_fixture_run(ctx: dict, gw: int, goals: dict) -> list[dict]:
+    """Per team: each of the next 10 gameweeks' fixtures with goals for and against."""
+    teams = defaultdict(lambda: defaultdict(list))
+    for r in ctx["fixtures"]:
+        if not (gw <= r["gw"] <= gw + 9):
+            continue
+        g = goals.get(r["fixture_id"])
+        if not g:
+            continue
+        for t, o, gf, ga, home in ((r["h"], r["a"], g[0], g[1], True), (r["a"], r["h"], g[1], g[0], False)):
+            teams[t][r["gw"]].append({"opp": (ctx["teams"].get(o) or {}).get("short_name") or team_name(ctx, o), "home": home,
+                                      "for": f(gf, 2), "against": f(ga, 2)})
+    out = []
+    for t, by_gw in teams.items():
+        weeks = [{"gw": g, "fixtures": by_gw.get(g, [])} for g in range(gw, gw + 10)]
+        out.append({"team": team_name(ctx, t), "weeks": weeks,
+                    "for_5": f(sum(x["for"] for w in weeks[:5] for x in w["fixtures"]), 1),
+                    "against_5": f(sum(x["against"] for w in weeks[:5] for x in w["fixtures"]), 1),
+                    "for_10": f(sum(x["for"] for w in weeks for x in w["fixtures"]), 1),
+                    "against_10": f(sum(x["against"] for w in weeks for x in w["fixtures"]), 1)})
+    out.sort(key=lambda r: -(r["for_5"] - r["against_5"]))
+    return out
+
+
+def section_changes(d: Data, ctx: dict, gw: int, frozen: bool, top_ids: set) -> dict:
+    """Since the previous deadline: availability, prices, set pieces, model changes, blanks and doubles."""
+    prev = gw - 1
+    then = deadline_state(d, ctx, prev) if prev >= 1 else {}
+    now = deadline_state(d, ctx, gw) if frozen else latest_state(d, ctx)
+    injuries, prices = [], []
+    for pid, b in now.items():
+        a = then.get(pid)
+        if not a or not relevant(ctx, pid, top_ids):
+            continue
+        if (a.get("status") or "a") != (b.get("status") or "a") or (b.get("status") or "a") != "a" and a.get("news") != b.get("news"):
+            injuries.append({**player_label(ctx, pid), "before": a.get("status"), "now": b.get("status"), "news": b.get("news") or None})
+        if a.get("now_cost") is not None and b.get("now_cost") is not None and a["now_cost"] != b["now_cost"]:
+            prices.append({**player_label(ctx, pid), "before": a["now_cost"] / 10, "now": b["now_cost"] / 10})
+    keyf = lambda r: -(r.get("own") or 0)
+    injuries.sort(key=keyf); prices.sort(key=keyf)
+    sp = []
+    if then:
+        for field, label in SET_PIECE_FIELDS.items():
+            a, b = first_choice(then, field, ctx), first_choice(now, field, ctx)
+            for t in sorted(set(a) | set(b), key=lambda t: team_name(ctx, t)):
+                if sorted(a.get(t, [])) != sorted(b.get(t, [])):
+                    sp.append({"team": team_name(ctx, t), "type": label, "before": [player_label(ctx, p)["name"] for p in a.get(t, [])],
+                               "now": [player_label(ctx, p)["name"] for p in b.get(t, [])]})
+    since = ctx["gws"][prev]["deadline_time"].date() if prev in ctx["gws"] else None
+    changes = d.all("select changed_at, area, title from public.model_change_log where changed_at >= %s order by changed_at, title", (since,)) if since else []
+    count = defaultdict(int)
+    for r in ctx["fixtures"]:
+        if r["gw"] == gw:
+            count[r["h"]] += 1; count[r["a"]] += 1
+    blanks = [team_name(ctx, t) for t in ctx["teams"] if count.get(t, 0) == 0]
+    doubles = [team_name(ctx, t) for t, c in count.items() if c > 1]
+    return {"since_gw": prev, "injuries": injuries[:25], "prices": prices[:25], "set_pieces": sp,
+            "model_changes": [{"date": c["changed_at"].isoformat(), "area": c["area"], "title": c["title"]} for c in changes],
+            "blanks": sorted(blanks), "doubles": sorted(doubles)}
+
+
+def build_preview(d: Data, gw: int, frozen: bool = False) -> dict:
+    ctx = load_context(d, gw)
+    rows = projection_rows(d, ctx, gw, frozen)
+    if not rows:
+        raise SystemExit(f"No {'deadline snapshot' if frozen else 'projections'} for GW{gw}.")
+    goals = fixture_goals(d, ctx, gw, frozen)
+    state = deadline_state(d, ctx, gw) if frozen else latest_state(d, ctx)
+    agg = defaultdict(lambda: {"gw": 0.0, "g5": 0.0, "g10": 0.0, "p": 0.0, "xmin": 0.0, "fx": 0})
+    for r in rows:
+        a = agg[r["fpl_player_id"]]
+        x = r["xpts"] or 0
+        a["g10"] += x
+        if r["gw"] < gw + 5:
+            a["g5"] += x
+        if r["gw"] == gw:
+            a["gw"] += x; a["p"] = max(a["p"], r["p"] or 0); a["xmin"] += r["xmin"] or 0; a["fx"] += 1
+    top_ids = {pid for pid, _ in sorted(agg.items(), key=lambda kv: -kv[1]["g5"])[:50]}
+
+    def row(pid):
+        a, m, st = agg[pid], ctx["players"].get(pid) or {}, state.get(pid) or {}
+        cost = st.get("now_cost") or m.get("now_cost")
+        own = st.get("own") if st.get("own") is not None else m.get("own")
+        return {**player_label(ctx, pid), "own": f(own, 1), "price": cost / 10 if cost else None,
+                "gw_xpts": f(a["gw"], 2), "xpts_5": f(a["g5"], 1), "xpts_10": f(a["g10"], 1),
+                "start": f(a["p"], 2), "xmin": f(a["xmin"], 0), "fixtures": a["fx"],
+                "status": st.get("status") or "a", "news": st.get("news") or None}
+
+    capt = sorted((pid for pid in agg if agg[pid]["fx"]), key=lambda pid: -agg[pid]["gw"])[:8]
+    chances = captain_chances(d, ctx, gw, frozen, capt)
+    captains = [{**row(pid), "top_chance": f(chances.get(pid, {}).get("top"), 3)} for pid in capt]
+
+    by_pos = {}
+    for pos, label in POS.items():
+        ids = [pid for pid in agg if (ctx["players"].get(pid) or {}).get("element_type") == pos]
+        by_pos[label] = [row(pid) for pid in sorted(ids, key=lambda pid: -agg[pid]["g5"])[:8]]
+    value_pool = [pid for pid in agg if agg[pid]["p"] >= 0.7 and (row(pid)["price"] or 0) > 0]
+    value = sorted((row(pid) for pid in value_pool), key=lambda r: -(r["xpts_5"] / r["price"]))[:8]
+    for r in value:
+        r["per_m"] = f(r["xpts_5"] / r["price"], 2)
+    diffs = sorted((row(pid) for pid in agg if (row(pid)["own"] or 0) < 5 and agg[pid]["p"] >= 0.7),
+                   key=lambda r: -r["xpts_5"])[:8]
+    rec = {r["fpl_player_id"]: r for r in d.all("select fpl_player_id, starts, available_matches from public.fpl_player_start_record")}
+    watch = []
+    for pid, a in agg.items():
+        m = ctx["players"].get(pid) or {}
+        if not a["fx"] or a["p"] >= 0.7:
+            continue
+        r = row(pid)
+        if (r["own"] or 0) < 5 and pid not in top_ids:
+            continue
+        sr = rec.get(pid)
+        if r["status"] != "a":
+            why = r["news"] or statusish(r["status"])
+        elif sr and sr["available_matches"] and sr["starts"] / sr["available_matches"] < 0.7:
+            why = f"started {sr['starts']} of {sr['available_matches']} available"
+        else:
+            why = "pecking order"
+        watch.append({**r, "why": why})
+    watch.sort(key=lambda r: -(r["own"] or 0))
+
+    p = {"kind": "preview", "season": ctx["label"], "gw": gw, "frozen": frozen,
+         "deadline": ctx["gws"][gw]["deadline_time"].isoformat(),
+         "generated_at": datetime.now(timezone.utc).isoformat(),
+         "source": "deadline snapshot" if frozen else "live projections",
+         "fixtures": section_fixtures(ctx, gw, goals),
+         "captains": captains, "sim_worlds": SIM_WORLDS,
+         "picks": by_pos, "value": value, "differentials": diffs, "minutes_watch": watch[:15],
+         "fixture_run": section_fixture_run(ctx, gw, goals),
+         "changes": section_changes(d, ctx, gw, frozen, top_ids)}
+    p["headlines"] = preview_headlines(p)
+    return p
+
+
+def statusish(s):
+    return {"d": "doubtful", "i": "injured", "s": "suspended", "u": "unavailable", "n": "not in the squad"}.get(s, s)
+
+
+def preview_headlines(p: dict) -> list[str]:
+    out = []
+    c = p["captains"]
+    if c:
+        top = c[0]
+        ch = f" and a {round(top['top_chance'] * 100)}% chance of outscoring the other seven" if top.get("top_chance") is not None else ""
+        out.append(f"{top['name']} leads the captaincy table on {top['gw_xpts']:.1f} projected points{ch}.")
+    fx = [x for x in p["fixtures"] if x["goals_home"] is not None]
+    if fx:
+        m = max(fx, key=lambda x: abs(x["goals_home"] - x["goals_away"]))
+        fav, dog, gf = (m["home"], m["away"], m["goals_home"]) if m["goals_home"] >= m["goals_away"] else (m["away"], m["home"], m["goals_away"])
+        out.append(f"The most one-sided fixture: {fav} against {dog}, {gf:.1f} goals expected for {fav}.")
+    inj = [r for r in p["changes"]["injuries"] if (r["now"] or "a") != "a"]
+    if inj:
+        r = inj[0]
+        out.append(f"{r['name']} ({r['team']}, {r['own']}% owned): {r['news'] or statusish(r['now'])}.")
+    return out
+
+
+def preview_key(p: dict) -> str:
+    """What counts as a material change between live versions."""
+    return json.dumps({"c": [(r["id"], round(r["gw_xpts"], 1)) for r in p["captains"]],
+                       "w": [(r["id"], r["status"]) for r in p["minutes_watch"]],
+                       "i": [(r["id"], r["now"]) for r in p["changes"]["injuries"]]}, sort_keys=True)
+
+
+def preview_reddit_md(p: dict, url: str) -> str:
+    lines = [f"**FPL GW{p['gw']} preview: projections, captaincy and fixtures**", ""]
+    lines += [f"- {h}" for h in p["headlines"]]
+    lines += ["", "**Captaincy**", "", "| Player | xPts | Chance of top score | Start |", "|---|---|---|---|"]
+    for r in p["captains"]:
+        tc = f"{round(r['top_chance'] * 100)}%" if r.get("top_chance") is not None else "–"
+        lines.append(f"| {r['name']} ({r['team']}) | {r['gw_xpts']:.1f} | {tc} | {round((r['start'] or 0) * 100)}% |")
+    lines += ["", "**Fixtures (expected goals; clean-sheet chance)**", "", "| Match | Goals | Clean sheet |", "|---|---|---|"]
+    for x in p["fixtures"]:
+        if x["goals_home"] is None:
+            continue
+        lines.append(f"| {x['home']} v {x['away']} | {x['goals_home']:.1f}–{x['goals_away']:.1f} | {round(x['cs_home'] * 100)}% / {round(x['cs_away'] * 100)}% |")
+    lines += ["", f"Picks by position, 5 and 10-gameweek views, minutes watch and what's changed: {url}"]
+    return "\n".join(lines)
+
+
+def preview_x_thread(p: dict, url: str) -> list[str]:
+    posts = [f"FPL GW{p['gw']} preview from the FixtureShark projections. 🧵"]
+    posts += [h[:270] for h in p["headlines"]]
+    posts.append(f"Captaincy, picks by position, fixtures and the 10-week view: {url}")
+    return posts[:5]
+
+
+# ---------------------------------------------------------------------------
 # Build, store
 # ---------------------------------------------------------------------------
 
@@ -671,14 +987,18 @@ def build_reflection(d: Data, gw: int) -> dict:
     return p
 
 
-def store(d: Data, p: dict, publish: bool, code_ref: str) -> tuple[int, int, bool]:
+def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) -> tuple[int, int, bool]:
     sid = d.one("select public.fpl_current_season_id()")
     kind, gw = p["kind"], p["gw"]
     url = f"{SITE}/fpl/gameweek/{p['season']}/{gw}/{kind}"
-    title = (f"FPL GW{gw} reflection ({p['season'].replace('-', '/')}): goals, minutes, set pieces and captaincy" if kind == "reflection"
-             else f"FPL GW{gw} preview ({p['season'].replace('-', '/')}): captains, fixtures, transfers")
+    season = p["season"].replace("-", "/")
+    if kind == "reflection":
+        title = f"FPL GW{gw} reflection ({season}): goals, minutes, set pieces and captaincy"
+        md, xt = reddit_md(p, url), x_thread(p, url)
+    else:
+        title = f"FPL GW{gw} preview ({season}): captains, fixtures, transfers"
+        md, xt = preview_reddit_md(p, url), preview_x_thread(p, url)
     summary = " ".join(p["headlines"])[:600]
-    md, xt = reddit_md(p, url), x_thread(p, url)
     # Replace the current draft if there is one; published versions are permanent.
     d.one("""with x as (delete from public.fpl_gameweek_reports where season_id = %s and fpl_event_id = %s and kind = %s and status = 'draft'
                          returning 1) select count(*) from x""", (sid, gw, kind))
@@ -687,9 +1007,9 @@ def store(d: Data, p: dict, publish: bool, code_ref: str) -> tuple[int, int, boo
     status = "published" if publish else "draft"
     rid = d.one("""insert into public.fpl_gameweek_reports (season_id, season_label, fpl_event_id, kind, version, status, frozen,
                        published_at, title, summary, payload, reddit_md, x_thread, code_ref)
-                   values (%s, %s, %s, %s, %s, %s, false, case when %s then now() end, %s, %s, %s::jsonb, %s, %s::jsonb, %s)
+                   values (%s, %s, %s, %s, %s, %s, %s, case when %s then now() end, %s, %s, %s::jsonb, %s, %s::jsonb, %s)
                    returning report_id""",
-                (sid, p["season"], gw, kind, version, status, publish, title, summary, json.dumps(p, default=str), md, json.dumps(xt), code_ref))
+                (sid, p["season"], gw, kind, version, status, frozen, publish, title, summary, json.dumps(p, default=str), md, json.dumps(xt), code_ref))
     return rid, version, publish
 
 
@@ -703,42 +1023,138 @@ def reflection_due(d: Data) -> int | None:
                        and g.fpl_event_id >= 6""", (sid,))
 
 
+def latest_preview(d: Data, gw: int) -> dict | None:
+    sid = d.one("select public.fpl_current_season_id()")
+    rows = d.all("""select version, frozen, payload from public.fpl_gameweek_reports
+                     where season_id = %s and fpl_event_id = %s and kind = 'preview' and status = 'published'
+                     order by version desc limit 1""", (sid, gw))
+    return rows[0] if rows else None
+
+
+def preview_due(d: Data, now: datetime) -> tuple[int | None, str]:
+    """(gameweek, action): 'first', 'update', 'freeze' or nothing.
+    First version: Thursday when the deadline is Fri-Sun, otherwise the day
+    before the deadline (UK dates), and never before the previous gameweek's
+    reflection. Updates after each run until the deadline. Frozen from the
+    deadline snapshot once the deadline has passed."""
+    from zoneinfo import ZoneInfo
+    uk = ZoneInfo("Europe/London")
+    sid = d.one("select public.fpl_current_season_id()")
+    gws = d.all("""select fpl_event_id gw, deadline_time from public.fpl_gameweeks where season_id = %s order by 1""", (sid,))
+    # A passed deadline whose preview isn't frozen yet comes first.
+    for g in reversed(gws):
+        if g["deadline_time"] <= now and g["gw"] >= 7:
+            last = latest_preview(d, g["gw"])
+            snap = d.one("""select count(*) from public.fpl_deadline_player_horizon where season_id = %s and fpl_event_id = %s""", (sid, g["gw"]))
+            if last and not last["frozen"] and snap:
+                return g["gw"], "freeze"
+            break
+    nxt = next((g for g in gws if g["deadline_time"] > now), None)
+    if not nxt or nxt["gw"] < 7:
+        return None, ""
+    gw, deadline = nxt["gw"], nxt["deadline_time"].astimezone(uk)
+    last = latest_preview(d, gw)
+    if last:
+        return gw, "update"
+    weekday = deadline.weekday()  # Mon 0 .. Sun 6
+    first_day = (deadline - timedelta(days=(weekday - 3))).date() if weekday >= 4 else (deadline - timedelta(days=1)).date()
+    if now.astimezone(uk).date() < first_day:
+        return None, f"GW{gw} preview due {first_day:%a %d %b}"
+    prev_reflection = d.one("""select count(*) from public.fpl_gameweek_reports where season_id = %s and fpl_event_id = %s
+                                 and kind = 'reflection' and status = 'published'""", (sid, gw - 1))
+    if not prev_reflection:
+        return None, f"GW{gw} preview waits for the GW{gw - 1} reflection"
+    return gw, "first"
+
+
+def run_preview(d: Data, gw: int, action: str, code_ref: str) -> bool:
+    """Publish per action; returns True when a rebuild is wanted (first or frozen version)."""
+    if action == "freeze":
+        p = build_preview(d, gw, frozen=True)
+        last = latest_preview(d, gw)
+        p["changes_since_last"] = ["Locked at the deadline: these are the projections as they stood before kick-off."]
+        rid, v, _ = store(d, p, True, code_ref, frozen=True)
+        print(f"Froze GW{gw} preview as v{v} (report {rid}).")
+        return True
+    p = build_preview(d, gw)
+    if action == "update":
+        last = latest_preview(d, gw)
+        if preview_key(p) == preview_key(last["payload"]):
+            print(f"GW{gw} preview unchanged since v{last['version']}.")
+            return False
+        p["changes_since_last"] = describe_changes(last["payload"], p)
+        rid, v, _ = store(d, p, True, code_ref)
+        print(f"Updated GW{gw} preview to v{v} (report {rid}): " + "; ".join(p["changes_since_last"]))
+        return False
+    rid, v, _ = store(d, p, True, code_ref)
+    print(f"Published GW{gw} preview v{v} (report {rid}).")
+    for h in p["headlines"]:
+        print(f"  {h}")
+    return True
+
+
+def describe_changes(old: dict, new: dict) -> list[str]:
+    out = []
+    before = {r["id"]: r for r in old.get("captains", [])}
+    for i, r in enumerate(new["captains"]):
+        b = before.get(r["id"])
+        if not b:
+            out.append(f"{r['name']} into the top eight captains ({r['gw_xpts']:.1f} xPts)")
+        elif abs(b["gw_xpts"] - r["gw_xpts"]) >= 0.3:
+            out.append(f"{r['name']} {b['gw_xpts']:.1f} → {r['gw_xpts']:.1f} xPts")
+    old_inj = {r["id"]: r for r in old.get("changes", {}).get("injuries", [])}
+    for r in new["changes"]["injuries"]:
+        o = old_inj.get(r["id"])
+        if not o or o.get("now") != r.get("now") or o.get("news") != r.get("news"):
+            out.append(f"{r['name']}: {r['news'] or statusish(r['now'])}")
+    return out[:8] or ["Projections refreshed"]
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", choices=["reflection"], default="reflection")
+    ap.add_argument("--kind", choices=["reflection", "preview"], default="reflection")
     ap.add_argument("--gw", type=int)
     ap.add_argument("--publish", action="store_true")
+    ap.add_argument("--frozen", action="store_true", help="preview from the deadline snapshot")
     ap.add_argument("--auto", action="store_true", help="publish whatever is due (pipeline step)")
     args = ap.parse_args()
 
     from db_direct import DirectDB
     d = Data(DirectDB(os.environ["SUPABASE_DB_URL"]))
     code_ref = os.environ.get("GITHUB_SHA", "local")[:12]
-    published = False
+    rebuild = False
     if args.auto:
         gw = reflection_due(d)
         if gw is None:
-            print("Nothing due.")
+            print("Reflection: nothing due.")
         else:
             p = build_reflection(d, gw)
-            rid, v, published = store(d, p, True, code_ref)
+            rid, v, _ = store(d, p, True, code_ref)
+            rebuild = True
             print(f"Published GW{gw} reflection v{v} (report {rid}).")
             for h in p["headlines"]:
                 print(f"  {h}")
+        pgw, action = preview_due(d, datetime.now(timezone.utc))
+        if pgw is None:
+            print(f"Preview: nothing due{' (' + action + ')' if action else ''}.")
+        else:
+            rebuild = run_preview(d, pgw, action, code_ref) or rebuild
     else:
         if args.gw is None:
             sys.exit("--gw is required without --auto")
-        p = build_reflection(d, args.gw)
-        rid, v, published = store(d, p, args.publish, code_ref)
+        p = build_preview(d, args.gw, args.frozen) if args.kind == "preview" else build_reflection(d, args.gw)
+        rid, v, published = store(d, p, args.publish, code_ref, frozen=args.frozen and args.publish)
+        rebuild = published
         print(f"{'Published' if published else 'Draft'} GW{args.gw} {args.kind} v{v} (report {rid}); "
               f"payload {len(json.dumps(p, default=str)) // 1024} KB.")
         for h in p["headlines"]:
             print(f"  {h}")
-        print(f"  checks: {p['checks']}")
+        if "checks" in p:
+            print(f"  checks: {p['checks']}")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as fh:
-            fh.write(f"published={'1' if published else '0'}\n")
+            fh.write(f"published={'1' if rebuild else '0'}\n")
 
 
 if __name__ == "__main__":
