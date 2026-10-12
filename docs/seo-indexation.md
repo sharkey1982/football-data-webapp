@@ -122,3 +122,22 @@ private `gsc` schema by `scripts/gsc_import.py` (workflow `gsc-import.yml`,
   (counts only, as pipeline_runs is public). Integrity area `gsc`.
 - Not exposed to the Data API (own schema, no anon/authenticated grants,
   RLS on). The key is only in the `GSC_SERVICE_ACCOUNT_JSON` Actions secret.
+
+## Google Analytics data and the Site traffic page (from 12 Oct 2026)
+
+GA4 traffic is loaded daily into the private `ga` schema by
+`scripts/ga_import.py` (workflow `ga-import.yml`, 07:27 UTC), with the same
+service account and `GSC_SERVICE_ACCOUNT_JSON` secret (Viewer on the GA4
+property). Tables: `ga.daily_totals`, `daily_by_channel`,
+`daily_by_landing_page`, `daily_by_page`, `daily_by_device`,
+`daily_by_country`. Each run rewrites the last 5 days plus any gap, in one
+transaction. Logged in `ga.import_runs` and `pipeline_runs` (`ga_import`);
+integrity area `ga`.
+
+GA only loads after a visitor accepts the cookie banner, and never on an
+admin's device, so it undercounts. Search Console counts every search.
+
+`/admin/traffic` (admin only, `public.get_site_traffic(p_days)`) shows both
+sources for 7/28/90 days against the previous period: totals, daily bars,
+sources (Google, Reddit, direct), sections, landing pages, pages, Google
+searches, pages in Google, devices and countries.

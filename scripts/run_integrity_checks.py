@@ -7,7 +7,8 @@
 # the daily workflow goes red instead of a problem sitting unnoticed.
 #
 # pipeline_runs gets one row per area (integrity_football, integrity_nfl,
-# integrity_tennis, integrity_intl, integrity_club_grounds, integrity_gsc) and the combined
+# integrity_tennis, integrity_intl, integrity_club_grounds, integrity_gsc,
+# integrity_ga) and the combined
 # row model_integrity_checks. Until 6 Oct only the combined row existed, so a
 # football failure that had been red for days hid any new NFL, tennis or
 # international failure. An area whose function errors or returns nothing is
@@ -27,6 +28,7 @@ AREAS = [
     ("intl", "check_intl_integrity"),
     ("club_grounds", "check_club_grounds"),      # Your Local Clubs; postcodes.io
     ("gsc", "check_gsc_integrity"),              # Search Console import (gsc-import.yml)
+    ("ga", "check_ga_integrity"),                # Google Analytics import (ga-import.yml)
 ]
 
 
