@@ -126,6 +126,10 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // The gameweek as it happens, for any team by FPL ID (Chris, 11 Oct
           // 2026): what is happening now, so it leads Discover's results.
           { label: 'FPL Live', to: '/fpl/live', blurb: 'Your gameweek score as it happens: live bonus, auto-subs and the points still to come.' },
+          // The weekly log (Chris, 12 Oct 2026): reflection Tuesday, preview
+          // Thursday. '/fpl/gameweek/202' matches the season pages
+          // (/fpl/gameweek/2026-27/...) but not /fpl/gameweek/:matchweek.
+          { label: 'Gameweek Log', to: '/fpl/gameweek', blurb: 'A reflection every Tuesday and a preview every Thursday.', matchPrefix: ['/fpl/gameweek/202'] },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
           { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },

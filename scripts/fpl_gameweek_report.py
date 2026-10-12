@@ -348,6 +348,10 @@ def norm_role(r: str | None) -> str | None:
     return {"LCB": "CB", "RCB": "CB"}.get(r, r)
 
 
+LINE = {"GK": "goal", "CB": "defence", "LB": "defence", "RB": "defence", "LWB": "defence", "RWB": "defence",
+        "DM": "midfield", "CM": "midfield", "AM": "midfield", "LW": "wide", "RW": "wide", "CF": "attack"}
+
+
 def relevant(ctx, pid, top_ids) -> bool:
     p = ctx["players"].get(pid) or {}
     return (p.get("own") or 0) >= 1.0 or pid in top_ids
@@ -397,8 +401,10 @@ def section_minutes(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
     for r in pos_rows:
         m = model_role.get((r["fixture_id"], r["fpl_player_id"]))
         if norm_role(m) and norm_role(r["played"]) and norm_role(m) != norm_role(r["played"]):
-            positions.append({**player_label(ctx, r["fpl_player_id"]), "model_role": m, "played_role": r["played"]})
-    positions.sort(key=keyf)
+            moved = LINE.get(norm_role(m)) != LINE.get(norm_role(r["played"]))
+            positions.append({**player_label(ctx, r["fpl_player_id"]), "model_role": m, "played_role": r["played"],
+                              "kind": "line" if moved else "side"})
+    positions.sort(key=lambda r: (r["kind"] != "line", -(r.get("own") or 0)))
     lineups_covered = len({r["fixture_id"] for r in pos_rows})
 
     # Next gameweek's start chances now v this deadline (same player).
@@ -434,7 +440,7 @@ def section_minutes(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
     moves.sort(key=lambda r: -abs(r["change"]))
     return {"brier": f(brier / n, 4) if n else None, "players": n,
             "surprise_starters": starters[:12], "surprise_absences": absences[:15], "early_subs": early[:12],
-            "positions": positions[:20], "lineups_covered": lineups_covered,
+            "positions": positions[:30], "lineups_covered": lineups_covered,
             "fixtures": len([r for r in ctx["fixtures"] if r["gw"] == gw]),
             "next_gw": nxt, "next_gw_moves": moves[:15]}
 

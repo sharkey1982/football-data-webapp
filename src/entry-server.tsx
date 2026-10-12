@@ -39,6 +39,9 @@ import type { HistoryHubData } from './lib/historyApi';
 import LeaguesPage from './pages/football/LeaguesPage';
 import LeagueIndexPage from './pages/football/LeagueIndexPage';
 import LeagueSeasonPage from './pages/football/LeagueSeasonPage';
+import GameweekReportPage, { reportDescription } from './pages/fpl/GameweekReportPage';
+import GameweekHubPage, { GAMEWEEK_HUB_DESCRIPTION, GAMEWEEK_HUB_TITLE } from './pages/fpl/GameweekHubPage';
+import { GAMEWEEK_HUB_PATH, reportPath, type GameweekReport, type ReportListEntry } from './lib/fplGameweekReport';
 import ClubSeasonPage from './pages/football/ClubSeasonPage';
 import RecordsPage from './pages/football/RecordsPage';
 import TrendsPage from './pages/football/TrendsPage';
@@ -426,6 +429,60 @@ function articlePage(meta: ArticleMeta, element: ReactElement): RenderedPage {
         mainEntity: [{ '@type': 'Question', name: meta.question, acceptedAnswer: { '@type': 'Answer', text: meta.verdict } }],
       },
       breadcrumb([FPL_CRUMB, ARTICLES_CRUMB, { name: meta.title, path: meta.path }]),
+    ],
+  };
+}
+
+const GAMEWEEK_CRUMB = { name: 'Gameweek log', path: GAMEWEEK_HUB_PATH };
+
+/** One gameweek preview or reflection, fully rendered from its stored payload. */
+export function renderGameweekReportPage(report: GameweekReport): RenderedPage {
+  const path = reportPath(report.season_label, report.fpl_event_id, report.kind);
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route path="/fpl/gameweek/:season/:gw/:kind" element={<GameweekReportPage initialData={report} />} />
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `${report.title} | ${BRAND_NAME}`,
+    description: reportDescription(report),
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: report.title,
+        description: reportDescription(report),
+        datePublished: report.published_at ?? report.generated_at,
+        dateModified: report.generated_at,
+        mainEntityOfPage: `${SITE_URL}${path}`,
+        author: { '@type': 'Organization', name: BRAND_NAME, url: SITE_URL },
+        publisher: { '@type': 'Organization', name: BRAND_NAME, url: SITE_URL },
+      },
+      breadcrumb([FPL_CRUMB, GAMEWEEK_CRUMB, { name: `GW${report.fpl_event_id} ${report.kind}`, path }]),
+    ],
+  };
+}
+
+/** The gameweek log hub. */
+export function renderGameweekHubPage(list: ReportListEntry[]): RenderedPage {
+  return {
+    html: staticPage(GAMEWEEK_HUB_PATH, <GameweekHubPage initialData={list} />),
+    title: `${GAMEWEEK_HUB_TITLE} | ${BRAND_NAME}`,
+    description: GAMEWEEK_HUB_DESCRIPTION,
+    canonical: `${SITE_URL}${GAMEWEEK_HUB_PATH}`,
+    structuredData: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        itemListElement: list.map((r, i) => ({
+          '@type': 'ListItem', position: i + 1, url: `${SITE_URL}${reportPath(r.season_label, r.fpl_event_id, r.kind)}`, name: r.title,
+        })),
+      },
+      breadcrumb([FPL_CRUMB, GAMEWEEK_CRUMB]),
     ],
   };
 }
