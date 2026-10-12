@@ -15,12 +15,13 @@ import { supabase } from './supabase';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped tables, shapes below
 const db = supabase as unknown as { from: (t: string) => any; rpc: (f: string, a?: Record<string, unknown>) => any };
 
-export type PostType = 'fpl_captaincy' | 'team_xg_change' | 'prediction_accuracy' | 'historical_insight';
+export type PostType = 'fpl_captaincy' | 'team_xg_change' | 'prediction_accuracy' | 'historical_insight' | 'announcement';
 export const POST_TYPE_LABEL: Record<PostType, string> = {
   fpl_captaincy: 'FPL captaincy',
   team_xg_change: 'Team xG change',
   prediction_accuracy: 'Prediction accuracy',
   historical_insight: 'Historical insight',
+  announcement: 'Announcement',
 };
 
 export type Check = { check: string; ok: boolean; detail?: unknown };
