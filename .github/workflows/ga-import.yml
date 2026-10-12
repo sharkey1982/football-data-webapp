@@ -61,7 +61,7 @@ jobs:
       - name: Import
         env:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
-          GA4_PROPERTY_ID: 'PENDING'
+          GA4_PROPERTY_ID: '554862590'
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           MODE: ${{ inputs.mode || 'daily' }}
           START: ${{ inputs.start }}
