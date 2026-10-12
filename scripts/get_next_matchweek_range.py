@@ -66,6 +66,26 @@ def main():
     from_matchweek = fixtures.data[0]["matchweek"]
     to_matchweek = from_matchweek + args.weeks - 1
 
+    # A gameweek already under way (some of its matches played) still
+    # starts the range, but the window then runs N weeks past it
+    # (12 Oct 2026): otherwise, from the first match of a gameweek until its
+    # last, the Nth gameweek ahead -- the end of Squad Check's and the
+    # gameweek preview's 10-week horizon -- kept rows from an older run
+    # (GW16 dated 26 Sep on 11 Oct).
+    played = (
+        supabase.table("fixtures")
+        .select("fixture_id")
+        .eq("league_id", league_id)
+        .eq("season_id", args.season_id)
+        .eq("matchweek", from_matchweek)
+        .eq("status", "played")
+        .limit(1)
+        .execute()
+    )
+    if played.data:
+        to_matchweek += 1
+        print(f"GW{from_matchweek} is under way: covering it plus the next {args.weeks}.")
+
     print(f"Next {args.weeks} gameweek(s): {from_matchweek}-{to_matchweek}")
 
     github_output = os.environ.get("GITHUB_OUTPUT")
