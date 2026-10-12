@@ -1,0 +1,87 @@
+name: Google Analytics import
+
+# GA4 traffic for fixtureshark.com into the private ga schema
+# (scripts/ga_import.py), for /admin/traffic beside Search Console. Daily:
+# re-reads the last 5 days (GA revises ~72h) plus any gap; the first run with
+# an empty table loads all history. Logs ga.import_runs and pipeline_runs
+# (job_name ga_import); checked by the 'ga' area of the 09:45 integrity checks.
+#
+# Uses the same service account and secret as the Search Console import
+# (GSC_SERVICE_ACCOUNT_JSON, Viewer on the GA4 property) and SUPABASE_DB_URL.
+# GA4_PROPERTY_ID below is the numeric property id -- an identifier, not a
+# secret. The key reaches the script only as an environment variable.
+
+on:
+  schedule:
+    - cron: '27 7 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'daily (default), backfill (all history from 2025), range (needs start/end), or check-access (no writes)'
+        type: choice
+        options: [daily, backfill, range, check-access]
+        default: daily
+      start:
+        description: 'range only: first date, YYYY-MM-DD'
+        required: false
+        default: ''
+      end:
+        description: 'range only: last date, YYYY-MM-DD'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ga-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r scripts/requirements.txt pytest
+      - run: python -m pytest -q scripts/test_ga_import.py scripts/test_gsc_import.py
+      - name: Check the secrets are set
+        env:
+          GSC_KEY: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$GSC_KEY" ]; then
+            echo "::error::GSC_SERVICE_ACCOUNT_JSON is not set -- add the shared service-account key JSON as a repository secret (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          if [ -z "$DB_URL" ]; then echo "::error::SUPABASE_DB_URL is not set."; exit 1; fi
+      - name: Import
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          GA4_PROPERTY_ID: 'PENDING'
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          MODE: ${{ inputs.mode || 'daily' }}
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GA4_PROPERTY_ID" = "PENDING" ]; then
+            echo "::warning::GA4_PROPERTY_ID is not set in this workflow yet -- nothing imported."
+            exit 0
+          fi
+          args=()
+          case "$MODE" in
+            daily) ;;
+            backfill) args+=(--backfill) ;;
+            check-access) args+=(--check-access) ;;
+            range)
+              [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$END" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
+                || { echo "::error::range needs start and end as YYYY-MM-DD"; exit 1; }
+              args+=(--start "$START" --end "$END") ;;
+            *) echo "::error::unknown mode"; exit 1 ;;
+          esac
+          python scripts/ga_import.py "${args[@]}"
