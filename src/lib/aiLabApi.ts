@@ -334,7 +334,7 @@ export function sourcesUsed(steps: { tool_name: string; error?: string | null }[
 // plus GitHub eval runs in ai_external_spend).
 // ---------------------------------------------------------------------------
 
-export const ANTHROPIC_BILLING_URL = 'https://console.anthropic.com/settings/billing';
+export const ANTHROPIC_BILLING_URL = 'https://platform.claude.com/settings/billing';
 
 export type CreditSummary = {
   month_site_usd: number;
