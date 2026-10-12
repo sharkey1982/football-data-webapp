@@ -362,6 +362,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/gameweek',
+    title: 'FPL gameweek log: previews and reflections',
+    description:
+      'A reflection every Tuesday on what the gameweek did to the numbers (goals against the model, minutes, positions, set pieces, captaincy) and a preview every Thursday.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/articles',
     title: 'FPL articles: captaincy and strategy questions answered with data',
     description: 'Common Fantasy Premier League questions, answered from four seasons of FPL points and betting-market prices.',

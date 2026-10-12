@@ -192,6 +192,14 @@ async function main() {
   for (const gw of played) entries.push(urlEntry(`/fpl/team-of-the-week/gw${gw}`, null));
   counts.gameweeks = played.length;
 
+  // Gameweek log (12 Oct 2026): every published preview and reflection.
+  const reports = await queryAll('fpl_gameweek_reports_latest?select=season_label,fpl_event_id,kind,generated_at');
+  counts.gameweekLog = 0;
+  for (const r of reports ?? []) {
+    entries.push(urlEntry(`/fpl/gameweek/${r.season_label}/${r.fpl_event_id}/${r.kind}`, r.generated_at));
+    counts.gameweekLog++;
+  }
+
   counts.scout = 0;
   for (const p of scouts ?? []) if (p.slug) { entries.push(urlEntry(`/fpl/player-scout/${p.slug}`, null)); counts.scout++; }
 

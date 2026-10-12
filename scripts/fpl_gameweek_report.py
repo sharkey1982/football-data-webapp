@@ -105,10 +105,15 @@ def load_context(d: Data, gw: int) -> dict:
     fixtures = d.all(
         """select ff.fpl_fixture_id, ff.canonical_fixture_id fixture_id, ff.fpl_event_id gw, ff.kickoff_time,
                   ff.fpl_home_team_id h, ff.fpl_away_team_id a, ff.team_h_score hs, ff.team_a_score as_,
-                  ff.finished, ff.started, ff.team_h_difficulty fdr_h, ff.team_a_difficulty fdr_a,
+                  -- played: FPL's final whistle (provisional) from the live feed; FPL's own
+                  -- 'finished' waits for bonus to be confirmed.
+                  (coalesce(ff.finished, false) or coalesce(lf.finished_provisional, false)) finished,
+                  coalesce(ff.finished, false) confirmed,
+                  ff.started, ff.team_h_difficulty fdr_h, ff.team_a_difficulty fdr_a,
                   f.home_team_id, f.away_team_id, f.market_home_goals mh, f.market_away_goals ma,
                   f.predicted_home_goals ph, f.predicted_away_goals pa
              from public.fpl_fixtures ff left join public.fixtures f on f.fixture_id = ff.canonical_fixture_id
+             left join public.fpl_live_fixtures lf on lf.season_id = ff.season_id and lf.fpl_fixture_id = ff.fpl_fixture_id
             where ff.season_id = %s order by ff.kickoff_time""", (season_id,))
     return {"season_id": season_id, "label": season_label(start_year), "gws": {g["gw"]: g for g in gws},
             "teams": teams, "players": players, "fixtures": fixtures, "gw": gw}
@@ -343,6 +348,10 @@ def norm_role(r: str | None) -> str | None:
     return {"LCB": "CB", "RCB": "CB"}.get(r, r)
 
 
+LINE = {"GK": "goal", "CB": "defence", "LB": "defence", "RB": "defence", "LWB": "defence", "RWB": "defence",
+        "DM": "midfield", "CM": "midfield", "AM": "midfield", "LW": "wide", "RW": "wide", "CF": "attack"}
+
+
 def relevant(ctx, pid, top_ids) -> bool:
     p = ctx["players"].get(pid) or {}
     return (p.get("own") or 0) >= 1.0 or pid in top_ids
@@ -392,8 +401,10 @@ def section_minutes(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
     for r in pos_rows:
         m = model_role.get((r["fixture_id"], r["fpl_player_id"]))
         if norm_role(m) and norm_role(r["played"]) and norm_role(m) != norm_role(r["played"]):
-            positions.append({**player_label(ctx, r["fpl_player_id"]), "model_role": m, "played_role": r["played"]})
-    positions.sort(key=keyf)
+            moved = LINE.get(norm_role(m)) != LINE.get(norm_role(r["played"]))
+            positions.append({**player_label(ctx, r["fpl_player_id"]), "model_role": m, "played_role": r["played"],
+                              "kind": "line" if moved else "side"})
+    positions.sort(key=lambda r: (r["kind"] != "line", -(r.get("own") or 0)))
     lineups_covered = len({r["fixture_id"] for r in pos_rows})
 
     # Next gameweek's start chances now v this deadline (same player).
@@ -429,7 +440,7 @@ def section_minutes(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
     moves.sort(key=lambda r: -abs(r["change"]))
     return {"brier": f(brier / n, 4) if n else None, "players": n,
             "surprise_starters": starters[:12], "surprise_absences": absences[:15], "early_subs": early[:12],
-            "positions": positions[:20], "lineups_covered": lineups_covered,
+            "positions": positions[:30], "lineups_covered": lineups_covered,
             "fixtures": len([r for r in ctx["fixtures"] if r["gw"] == gw]),
             "next_gw": nxt, "next_gw_moves": moves[:15]}
 
@@ -482,13 +493,19 @@ def section_set_pieces(d: Data, ctx: dict, gw: int) -> dict:
 def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
     sid = ctx["season_id"]
     pts = defaultdict(dict)   # gw -> pid -> points
-    sel = defaultdict(dict)   # gw -> pid -> selected
     start = defaultdict(dict)
-    for r in d.all("""select fpl_player_id, fpl_event_id gw, sum(total_points) p, max(selected) s,
+    for r in d.all("""select fpl_player_id, fpl_event_id gw, sum(total_points) p,
                              max(coalesce((source_payload->'stats'->>'starts')::int, 0)) st
                         from public.fpl_player_gameweeks where season_id = %s and fpl_event_id <= %s group by 1, 2""", (sid, gw)):
-        pts[r["gw"]][r["fpl_player_id"]] = r["p"]; sel[r["gw"]][r["fpl_player_id"]] = r["s"] or 0
+        pts[r["gw"]][r["fpl_player_id"]] = r["p"]
         start[r["gw"]][r["fpl_player_id"]] = r["st"]
+    # The pool: midfielders and forwards who cost 7.0m+ at the start of the
+    # season. Fixed and point in time (FPL's per-gameweek ownership and price
+    # aren't stored for this season).
+    pool = {r["fpl_player_id"] for r in d.all(
+        """select fpl_player_id from public.fpl_players
+            where season_id = %s and element_type in (3, 4)
+              and now_cost - coalesce((source_payload->>'cost_change_start')::int, 0) >= 70""", (sid,))}
     model = {}
     for r in d.all("""select distinct on (fpl_event_id) fpl_event_id gw, fpl_player_id, x from (
                          select fpl_event_id, fpl_player_id, sum(expected_fpl_points) x from public.fpl_projection_snapshots
@@ -502,15 +519,16 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
     for g in range(1, gw + 1):
         if not pts.get(g):
             continue
-        top20 = sorted(sel[g], key=lambda p: -sel[g][p])[:20]
-        attackers = [p for p in top20 if (ctx["players"].get(p) or {}).get("element_type") in (3, 4)]
+        played = [p for p in pool if p in pts[g]]
         form = None
         if g > 1:
-            cands = [p for p in attackers if start.get(g - 1, {}).get(p)]
+            cands = [p for p in played if start.get(g - 1, {}).get(p)]
             if cands:
-                form = max(cands, key=lambda p: (sum(pts.get(h, {}).get(p, 0) for h in range(max(1, g - 3), g)), sel[g][p]))
-        best = max(top20, key=lambda p: pts[g].get(p, 0)) if top20 else None
-        prem = ctx["gws"].get(g, {}).get("most_captained")
+                form = max(cands, key=lambda p: (sum(pts.get(h, {}).get(p, 0) for h in range(max(1, g - 3), g)), -p))
+        prem_id = ctx["gws"].get(g, {}).get("most_captained")
+        field = played + ([prem_id] if prem_id and prem_id not in played and prem_id in pts[g] else [])
+        best = max(field, key=lambda p: pts[g].get(p, 0)) if field else None
+        prem = prem_id
         pick = lambda p: None if p is None else {**player_label(ctx, p), "pts": pts[g].get(p, 0)}
         weeks.append({"gw": g, "premium": pick(prem), "form": pick(form), "model": pick(model.get(g)), "best": pick(best),
                       "average": ctx["gws"].get(g, {}).get("average")})
@@ -523,8 +541,8 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
     season = []
     for key, label, defn in (
         ("premium", "Premium every week", "FPL's most-captained player each gameweek"),
-        ("form", "Form pick", "most points in the previous 3 gameweeks, among the 20 most-owned midfielders and forwards who started their last match"),
-        ("best", "Hindsight best", "the top scorer of the 20 most-owned players (a ceiling, not a strategy)"),
+        ("form", "Form pick", "most points in the previous 3 gameweeks, among midfielders and forwards who cost £7.0m+ at the start of the season and started their last match"),
+        ("best", "Hindsight best", "the top scorer among those players and the premium (a ceiling, not a strategy)"),
     ):
         t, n = total(key, span)
         beat = sum(1 for w in span if w[key]["pts"] > w["premium"]["pts"]) if key != "premium" else None

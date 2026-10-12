@@ -209,6 +209,39 @@ async function main() {
     console.log(`Static: wrote head tags for ${n} gameweek page(s).`);
   }
 
+  // ---- Gameweek log: hub plus every published preview and reflection ----
+  // Fully rendered from the stored payloads, so crawlers read the numbers.
+  async function writeGameweekLog() {
+    const { renderGameweekReportPage, renderGameweekHubPage } = await import(ENTRY);
+    const reports = await pending.gameweekReports;
+    if (reports == null) {
+      console.error('Static: gameweek reports fetch failed -- log pages left client-rendered.');
+      return;
+    }
+    let n = 0;
+    for (const r of reports) {
+      try {
+        const page = renderGameweekReportPage(r);
+        const dir = join(DIST, 'fpl', 'gameweek', r.season_label, String(r.fpl_event_id), r.kind);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+        n++;
+      } catch (err) {
+        console.error(`Static: failed gameweek report ${r.season_label} GW${r.fpl_event_id} ${r.kind}: ${err?.message ?? err}`);
+      }
+    }
+    try {
+      const list = reports.map(({ payload, ...rest }) => rest);
+      const page = renderGameweekHubPage(list);
+      const dir = join(DIST, 'fpl', 'gameweek');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+    } catch (err) {
+      console.error(`Static: failed gameweek hub: ${err?.message ?? err}`);
+    }
+    console.log(`Static: wrote ${n} gameweek report page(s) and the hub.`);
+  }
+
   // Entity pages need the database; head tags above do not, which is
   // why they run first. A build without credentials should still fix
   // the duplicate-title problem rather than skipping everything.
@@ -255,9 +288,14 @@ async function main() {
     // League and league-season pages (/football/leagues/...).
     leagueRefs: query('leagues?select=league_id,code,name,slug,countries(name)&competition_type=eq.league'),
     eraNames: queryAll('league_season_display_names?select=league_id,season_id,name&order=league_id.asc,season_id.asc'),
+    // Gameweek log (12 Oct 2026): every published preview and reflection.
+    gameweekReports: queryAll(
+      'fpl_gameweek_reports_latest?select=season_label,fpl_event_id,kind,version,frozen,generated_at,published_at,title,summary,payload&order=fpl_event_id.desc,kind.asc'
+    ),
   };
 
   await writeGameweekPages();
+  await writeGameweekLog();
 
   // ---- Player Scout pages ------------------------------------------
   // One per player who actually played, across every imported season.
