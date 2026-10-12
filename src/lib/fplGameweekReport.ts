@@ -105,8 +105,48 @@ export type ReflectionPayload = {
   checks?: Record<string, unknown>;
 };
 
-/** Preview payloads arrive with phase 1; the page shows a placeholder until then. */
-export type ReportPayload = ReflectionPayload | { kind: 'preview'; season: string; gw: number; headlines: string[] };
+export type PreviewPlayer = PlayerRef & {
+  price: number | null; gw_xpts: number; xpts_5: number; xpts_10: number;
+  start: number; xmin: number; fixtures: number; status: string; news: string | null;
+};
+
+export type PreviewPayload = {
+  kind: 'preview';
+  season: string;
+  gw: number;
+  frozen: boolean;
+  deadline: string;
+  generated_at: string;
+  source: string;
+  headlines: string[];
+  changes_since_last?: string[];
+  fixtures: {
+    home: string; away: string; kickoff: string | null;
+    goals_home: number | null; goals_away: number | null; cs_home: number | null; cs_away: number | null;
+    fdr_home: number | null; fdr_away: number | null;
+  }[];
+  captains: (PreviewPlayer & { top_chance: number | null })[];
+  sim_worlds: number;
+  picks: Record<'GK' | 'DEF' | 'MID' | 'FWD', PreviewPlayer[]>;
+  value: (PreviewPlayer & { per_m: number })[];
+  differentials: PreviewPlayer[];
+  minutes_watch: (PreviewPlayer & { why: string })[];
+  fixture_run: {
+    team: string; for_5: number; against_5: number; for_10: number; against_10: number;
+    weeks: { gw: number; fixtures: { opp: string; home: boolean; for: number; against: number }[] }[];
+  }[];
+  changes: {
+    since_gw: number;
+    injuries: (PlayerRef & { before: string | null; now: string | null; news: string | null })[];
+    prices: (PlayerRef & { before: number; now: number })[];
+    set_pieces: { team: string; type: string; before: string[]; now: string[] }[];
+    model_changes: { date: string; area: string; title: string }[];
+    blanks: string[];
+    doubles: string[];
+  };
+};
+
+export type ReportPayload = ReflectionPayload | PreviewPayload;
 
 export type GameweekReport = {
   season_label: string;
