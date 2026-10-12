@@ -382,6 +382,24 @@ describe('TacticalRolesAdminPage', () => {
     await waitFor(() => expect(mockedApi.removeOtherPosition).toHaveBeenCalledWith(1, 16, 'AM'));
   });
 
+  it('offers "Also plays" in the table view too, not only the pitch view', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 155, team_id: 18, team_name: 'Man City', web_name: 'Enzo', element_type: 3, tactical_role: 'CM', depth_rank: 1, source_name: 'manual', confidence: 1 }),
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 18, team_name: 'Man City' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-2-3-1');
+    mockedApi.saveOtherPosition.mockResolvedValue(undefined);
+
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText(/unassigned/)).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Everyone/ }));
+    await user.selectOptions(await screen.findByLabelText('Also plays: Enzo'), 'DM');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(mockedApi.saveOtherPosition).toHaveBeenCalledWith(18, 155, 'DM', 2));
+  });
+
   it('shows the set-piece taking order for the selected team, and lets a taker be reordered, added, and removed', async () => {
     mockedApi.getTacticalRoleReview.mockResolvedValue([
       baseRow({ fpl_player_id: 1, web_name: 'Saka', element_type: 3, tactical_role: 'RW', source_name: 'manual', confidence: 1 }),
