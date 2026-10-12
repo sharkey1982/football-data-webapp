@@ -19,6 +19,11 @@
 # own Anthropic workspace with a monthly spend limit. Eval calls do not go
 # through the AI Lab edge function, so its ai_runs limit doesn't cover them.
 #
+# Each live run's cost (scripts/spend.mjs) is recorded in the database table
+# public.ai_external_spend, using the SUPABASE_DB_URL secret the migrations
+# workflow already uses, so the AI credit estimate on /admin/ai-lab and
+# /admin/ask includes eval spend. If recording fails the run still succeeds.
+#
 # No schedule on purpose: nothing here runs unless someone dispatches it.
 # ============================================================================
 name: FPL evals (manual)
@@ -147,6 +152,26 @@ jobs:
             echo "::error::Something that looks like an Anthropic key is in the results; not committing."
             exit 1
           fi
+
+      - name: Record the run's cost for the AI credit estimate
+        if: inputs.mode != 'offline'
+        continue-on-error: true
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DIR: ${{ steps.run.outputs.dir }}
+          MODE: ${{ inputs.mode }}
+          PROMPT: ${{ inputs.prompt }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$DIR/live.json" ]; then echo "No live results, nothing spent to record."; exit 0; fi
+          if [ -z "$DB_URL" ]; then echo "::warning::SUPABASE_DB_URL not set; cost not recorded."; exit 0; fi
+          cost=$(node scripts/spend.mjs "$DIR/live.json" "$DIR/live.judge.json")
+          ref=$(basename "$DIR")
+          echo "Recording \$${cost} for ${ref}"
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null; }
+          # Variables are passed with -v and read from stdin (psql doesn't interpolate them in -c).
+          echo "insert into public.ai_external_spend (source, ref, cost_usd, note) values ('fpl_evals', :'ref', :'cost'::numeric, :'note') on conflict do nothing;" \
+            | psql "$DB_URL" -Atq -v ON_ERROR_STOP=1 -v ref="$ref" -v cost="$cost" -v note="$MODE, prompt $PROMPT"
 
       - name: Commit results
         run: |

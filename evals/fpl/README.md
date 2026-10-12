@@ -155,4 +155,5 @@ Add a block in `lib/cases.mjs`: build the DATA block from the snapshot with `Con
 ## Cost and safety
 
 - Live runs call the Anthropic API directly with the key in your shell. They do **not** go through the AI Lab edge function, so they don't appear in `ai_runs` and aren't counted by its monthly limit. Use a separate key with its own spend limit in the Anthropic console.
+- Runs dispatched through the GitHub workflow record their cost (`scripts/spend.mjs`) in the database table `public.ai_external_spend`. That feeds the "AI credit: about $X left" estimate on `/admin/ai-lab` and `/admin/ask`. Runs made from your own shell are not recorded.
 - Nothing runs on a schedule and there is no CI job. Promptfoo's telemetry, sharing and update checks are switched off by `scripts/run.mjs`, and its local database lives in `.promptfoo/` (ignored by git).

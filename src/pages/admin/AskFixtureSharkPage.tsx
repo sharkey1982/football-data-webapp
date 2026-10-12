@@ -28,7 +28,7 @@ import {
   type ReviewItem,
   type Review,
 } from '../../lib/aiLabApi';
-import { Facts, ReviewForm, Section, Trace, when } from './aiLabParts';
+import { CreditPanel, Facts, ReviewForm, Section, Trace, when } from './aiLabParts';
 
 const EXAMPLES = [
   'Which teams have the easiest fixtures over the next five gameweeks?',
@@ -154,6 +154,8 @@ export default function AskFixtureSharkPage() {
           answer so we know whether it is good enough to open up. Each question costs about 2–3p.
         </p>
       </header>
+
+      <CreditPanel refreshKey={history[0]?.run.run_id} />
 
       <Section title="Your question">
         <label className="block">

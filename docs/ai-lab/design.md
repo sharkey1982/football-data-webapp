@@ -78,6 +78,12 @@ Toolset `ai_tools_v2` (11 Oct 2026, migration `20261011190000_ai_lab_ranking_too
 
 **Ask FixtureShark, admin trial (step 2, 11 Oct 2026).** `/admin/ask` (`src/pages/admin/AskFixtureSharkPage.tsx`) is a plain question box over the same function: Sonnet 5, prompt `analyst_v2`, toolset `ai_tools_v2`. Each answer shows an "AI answer" note, a partial/refused note when it applies, and its sources (the tools it called, linked to the matching FixtureShark page and marked as recorded data or model estimates). Underneath is the AI Lab review form, so marks go to `ai_human_reviews`. Every question is filed under the standing batch "Ask FixtureShark" (migration `20261011213000_ask_fixtureshark_log.sql`; no queue items, so nothing runs unless a question is asked), which gives the page its history and puts the answers in the AI Lab Review tab and batch table. Admin-only; each question costs about 2-3p and counts towards the monthly limit. Step 3 (public beta with per-visitor limits, a daily cost cap, a non-expiring key, labels and source links) is not approved. The AI Lab pieces the two pages share live in `src/pages/admin/aiLabParts.tsx`, and run detail now shows the newest grader's checks (it was still reading `checks_v1`).
 
+**AI credit estimate (12 Oct 2026).** Anthropic has no API for the remaining prepaid balance; it is only shown in the Console. The usage/cost Admin API needs an organization account and an admin key that can also manage other keys, so it is not used. Instead both admin pages show a panel (`CreditPanel` in `aiLabParts.tsx`) with:
+- **About $X left:** the balance Chris last copied from the Console (`ai_credit_checks`), minus everything recorded since. That covers `ai_runs.cost_usd`, plus FPL eval runs from GitHub, which the workflow writes to `ai_external_spend` using `SUPABASE_DB_URL`.
+- **This month:** site spend against the AI Lab monthly limit, and GitHub test spend.
+
+Figures come from `ai_credit_summary()` (admin-only, migration `20261012050000_ai_credit_tracking.sql`). The panel warns when the estimate is under $5. Costs are list-price estimates, so the figure drifts slightly; update it from the Console after a top-up.
+
 Deliberately left out for Experiment 001: match predictions, model internals, lineups and set pieces, the Watch Guide, and anything that recommends. These come in Experiment 002 and later, once factual retrieval is shown to work.
 
 ## 5. The `/admin/ai-lab` page
