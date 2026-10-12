@@ -24,6 +24,8 @@ vi.mock('../lib/aiLabApi', async () => {
     enqueueBatch: vi.fn(),
     runQuestion: vi.fn(),
     saveReview: vi.fn(),
+    getCreditSummary: vi.fn(),
+    saveCreditCheck: vi.fn(),
   };
 });
 const api = labApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -54,6 +56,7 @@ const detail: labApi.RunDetail = {
 beforeEach(() => {
   vi.clearAllMocks();
   admin = true;
+  api.getCreditSummary.mockResolvedValue({ month_site_usd: 0.53, month_external_usd: 1.75, monthly_limit_usd: 20, last_check: null });
   api.getBenchmarkQuestions.mockResolvedValue([question]);
   api.getPromptVersions.mockResolvedValue([{ prompt_id: 'analyst_v1', notes: null, body: '', created_at: '' }]);
   api.getRecentRuns.mockResolvedValue([]);

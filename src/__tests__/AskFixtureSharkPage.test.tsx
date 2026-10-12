@@ -20,6 +20,8 @@ vi.mock('../lib/aiLabApi', async () => {
     getRunDetail: vi.fn(),
     askQuestion: vi.fn(),
     saveReview: vi.fn(),
+    getCreditSummary: vi.fn(),
+    saveCreditCheck: vi.fn(),
   };
 });
 const api = labApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -48,6 +50,7 @@ const old = item(10, 'Who has the easiest run?', 'Arsenal, average FDR 1.82.');
 beforeEach(() => {
   vi.clearAllMocks();
   admin = true;
+  api.getCreditSummary.mockResolvedValue({ month_site_usd: 0.53, month_external_usd: 1.75, monthly_limit_usd: 20, last_check: null });
   api.getAskBatchId.mockResolvedValue(7);
   api.getBatchForReview.mockResolvedValue([old]);
   api.saveReview.mockResolvedValue(undefined);

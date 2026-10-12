@@ -36,7 +36,7 @@ import {
   type ReviewItem,
   type RunDetail,
 } from '../../lib/aiLabApi';
-import { Checks, Facts, Meter, ReviewForm, Section, Trace, TruthView, when } from './aiLabParts';
+import { Checks, CreditPanel, Facts, Meter, ReviewForm, Section, Trace, TruthView, when } from './aiLabParts';
 
 
 /** Full detail of one run, for the Run view. */
@@ -268,6 +268,8 @@ export default function AiLabPage() {
           docs/ai-lab/design.md.
         </p>
       </header>
+
+      <CreditPanel refreshKey={runs[0]?.run_id} />
 
       <div role="tablist" className="flex gap-1 border-b border-chalk-300">
         {tabBtn('review', 'Review')}

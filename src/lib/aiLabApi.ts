@@ -326,3 +326,31 @@ export function sourcesUsed(steps: { tool_name: string; error?: string | null }[
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// AI credit estimate (migration 20261012050000). Anthropic has no API for the
+// remaining prepaid balance, so: the balance Chris last copied from the
+// Console, minus everything recorded as spent since (site answers in ai_runs
+// plus GitHub eval runs in ai_external_spend).
+// ---------------------------------------------------------------------------
+
+export const ANTHROPIC_BILLING_URL = 'https://console.anthropic.com/settings/billing';
+
+export type CreditSummary = {
+  month_site_usd: number;
+  month_external_usd: number;
+  monthly_limit_usd: number;
+  last_check: { balance_usd: number; checked_at: string; spent_since_usd: number; estimate_left_usd: number } | null;
+};
+
+export async function getCreditSummary(): Promise<CreditSummary> {
+  const { data, error } = await (supabase as any).rpc('ai_credit_summary');
+  if (error) fail(error, 'Could not load the AI credit estimate');
+  return data as CreditSummary;
+}
+
+export async function saveCreditCheck(balanceUsd: number): Promise<void> {
+  if (!Number.isFinite(balanceUsd) || balanceUsd < 0) throw new Error('Enter the balance in dollars, e.g. 18.40');
+  const { error } = await db.from('ai_credit_checks').insert({ balance_usd: Math.round(balanceUsd * 100) / 100 });
+  if (error) fail(error, 'Could not save the balance');
+}

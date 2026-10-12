@@ -6,7 +6,18 @@
 // ============================================================================
 
 import { useEffect, useState } from 'react';
-import { formatCost, saveReview, type AiRun, type Review, type RunDetail, type RunStep } from '../../lib/aiLabApi';
+import {
+  ANTHROPIC_BILLING_URL,
+  formatCost,
+  getCreditSummary,
+  saveCreditCheck,
+  saveReview,
+  type AiRun,
+  type CreditSummary,
+  type Review,
+  type RunDetail,
+  type RunStep,
+} from '../../lib/aiLabApi';
 
 export const when = (iso?: string) =>
   iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -220,5 +231,91 @@ export function Meter({ run }: { run: AiRun }) {
       <div><dt className="text-ink-500">Cost</dt><dd className="font-mono">{formatCost(run.cost_usd)}</dd></div>
       <div><dt className="text-ink-500">Time</dt><dd className="font-mono">{((run.latency_ms ?? 0) / 1000).toFixed(1)}s</dd></div>
     </dl>
+  );
+}
+
+const usd = (v: number | string) => `$${Number(v).toFixed(2)}`;
+const LOW_CREDIT_USD = 5;
+
+/** Estimated Anthropic credit left, and this month's AI spend against the
+ * AI Lab limit. Anthropic has no balance API, so the estimate starts from the
+ * balance last copied from the Console. `refreshKey` reloads it (e.g. after
+ * a new answer). */
+export function CreditPanel({ refreshKey }: { refreshKey?: unknown }) {
+  const [c, setC] = useState<CreditSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    getCreditSummary()
+      .then((s) => live && (setC(s), setError(null)))
+      .catch((e) => live && setError(e instanceof Error ? e.message : 'Could not load the AI credit estimate'));
+    return () => {
+      live = false;
+    };
+  }, [refreshKey, tick]);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveCreditCheck(Number(value.replace(/[$,\s]/g, '')));
+      setEditing(false);
+      setValue('');
+      setTick((t) => t + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the balance');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const chk = c?.last_check ?? null;
+  const left = chk ? Number(chk.estimate_left_usd) : null;
+  return (
+    <section aria-label="AI credit" className="border border-chalk-300 rounded-lg bg-white p-3 space-y-1 text-sm">
+      {c && (
+        <>
+          {chk ? (
+            <p>
+              <span className="text-ink-700">AI credit: </span>
+              <span className={`font-semibold ${left! < LOW_CREDIT_USD ? 'text-loss-700' : 'text-ink-900'}`}>about {usd(left!)} left</span>
+              <span className="text-xs text-ink-500">
+                {' '}· Console balance {usd(chk.balance_usd)} on {when(chk.checked_at)}, {usd(chk.spent_since_usd)} used since
+              </span>
+            </p>
+          ) : (
+            <p className="text-ink-700">AI credit: copy your balance from the Anthropic Console to start the estimate.</p>
+          )}
+          {left !== null && left < LOW_CREDIT_USD && <p className="text-xs text-loss-700">Running low: top up in the Anthropic Console, then update the balance here.</p>}
+          <p className="text-xs text-ink-500">
+            This month: site {usd(c.month_site_usd)} of the {usd(c.monthly_limit_usd)} limit · GitHub tests {usd(c.month_external_usd)}
+          </p>
+        </>
+      )}
+      {editing ? (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <label className="flex items-center gap-1">
+            <span className="text-xs text-ink-700">Balance shown in the Console ($)</span>
+            <input className="w-24 border border-chalk-300 rounded p-1" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
+          </label>
+          <button type="button" disabled={saving || !value.trim()} onClick={save} className="px-3 py-1 rounded bg-ink-900 text-white text-xs disabled:opacity-40">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="text-xs text-ink-700 underline">Cancel</button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-3 text-xs pt-1">
+          <button type="button" onClick={() => setEditing(true)} className="text-ink-700 underline">Update balance</button>
+          <a href={ANTHROPIC_BILLING_URL} target="_blank" rel="noreferrer" className="text-ink-700 underline">Anthropic Console billing</a>
+          <span className="text-ink-500">An estimate: the Console has the exact figure. Update it after a top-up.</span>
+        </div>
+      )}
+      {error && <p className="text-xs text-loss-700">{error}</p>}
+    </section>
   );
 }
