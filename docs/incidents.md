@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-12 · X connection could not be saved (safeupdate)
+- **Found:** Chris's first Connect @FixtureSharkHQ on /admin/social ended at `?x=save_failed`. The edge logs show the token exchange and the account lookup worked; `rpc/social_x_store_tokens` returned 400.
+- **Impact:** The account could not be connected. The settings toggles (kill switch, live publishing), token refresh and disconnect would have failed the same way. Nothing was posted or stored; the callback revoked the tokens it had been given.
+- **Cause:** Supabase loads `safeupdate` for API connections (role `authenticator`), which rejects any UPDATE without a WHERE clause. The one-row tables `social_settings` and `social_x_connection` were updated without one. Local tests ran on plain Postgres, without safeupdate, so they passed.
+- **Fix:** `20261012230000_social_safeupdate_fix.sql`: the same five functions with `where id` on each update.
+- **Prevention:** *Lesson: every UPDATE/DELETE in a function the API calls needs a WHERE, even on a one-row table. Before shipping such functions, check with a script that each UPDATE/DELETE statement has one; the local test database does not enforce it.*
+
+---
+
 ## 2026-10-12 · Start chances understated for clubs yet to play; 10th gameweek ahead left stale
 - **Found:** researching the João Pedro captaincy reply on 11 Oct: Haaland was 0.78 to start (5 starts of 6) though he had started every match, and GW16's projections were dated 26 Sep.
 - **Impact:** (1) From each deadline until a club played, its regulars were counted as fit and not picked for that gameweek, so their start chances, minutes and points were too low and their backups' too high, for up to three days a gameweek (45 regulars at 8 clubs on 11 Oct; 71 players in the 12 Oct match). The unplayed row also took the top weight in the recency weighting. (2) While a gameweek was in play, the projection pipeline's 10-week window started at that gameweek, so the 10th gameweek after the next deadline (the end of Squad Check's horizon) kept rows from an older run until the gameweek finished. On 11 Oct that was GW16, 15 days old.
