@@ -57,7 +57,9 @@ import {
   saveTeamFormation,
   FORMATION_OPTIONS,
   type TacticalWorklistRow,
+  getLineupStarts,
 } from '../../lib/tacticalRoleAdminApi';
+import { summariseLineupRoles, planAccept, type LineupStart, type LineupRoleSummary } from '../../lib/lineupRoleSuggestions';
 import { toFormationPitchPlayer, selectStartersAtDepth } from '../../lib/tacticalRoleFormationHelper';
 import { FPL_POSITION_LABEL, formatSetPieceRoles } from '../../lib/fplApi';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
@@ -68,7 +70,7 @@ import { getErrorMessage } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
 type DisplayMode = 'table' | 'pitch';
-type ScopeMode = 'needs_review' | 'worth_reviewing' | 'everyone';
+type ScopeMode = 'needs_review' | 'worth_reviewing' | 'from_lineups' | 'everyone';
 type TableSort = 'position' | 'depth';
 
 /** "2026-10-18" -> "18 Oct". */
@@ -182,6 +184,14 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   // a row jumping away mid-edit means the next tap lands on someone else.
   const [orderBasis, setOrderBasis] = useState<Map<number, { role: string | null; depth: number | null }>>(new Map());
   const snapshotOrder = (list: TacticalRoleRow[]) => setOrderBasis(new Map(list.map((x) => [x.fpl_player_id, { role: x.tactical_role, depth: x.depth_rank }])));
+
+  // Starts recorded with positions from the BBC screenshots. Admin only:
+  // they drive the "Suggested from line-ups" column and scope.
+  const [lineupStarts, setLineupStarts] = useState<LineupStart[]>([]);
+  useEffect(() => {
+    if (!adminMode) return;
+    getLineupStarts().then(setLineupStarts).catch(() => setLineupStarts([]));
+  }, [adminMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -399,6 +409,32 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     }
   }
 
+  /** Accept a suggestion from the line-ups: the suggested position becomes
+   * his main role, and his old main role moves to "also plays" (see
+   * planAccept), so nothing he plays is lost. */
+  async function handleAcceptSuggestion(row: TacticalRoleRow, suggested: string) {
+    const plan = planAccept(row, suggested);
+    setSavingId(row.fpl_player_id);
+    setSaveError(null);
+    try {
+      await saveTacticalRoleCorrection(row.team_id, row.fpl_player_id, plan.mainRole);
+      if (plan.depthRank !== row.depth_rank) await saveDepthRankCorrection(row.team_id, row.fpl_player_id, row.element_type, plan.depthRank);
+      if (plan.removeOther) await removeOtherPosition(row.team_id, row.fpl_player_id, plan.removeOther);
+      if (plan.addOther) await saveOtherPosition(row.team_id, row.fpl_player_id, plan.addOther.role, plan.addOther.rank);
+      markSaved(row.fpl_player_id);
+      setRows((prev) => prev.map((r) => {
+        if (r.fpl_player_id !== row.fpl_player_id) return r;
+        let others = r.other_positions.filter((o) => o.role !== plan.removeOther && o.role !== plan.addOther?.role);
+        if (plan.addOther) others = [...others, plan.addOther].sort((a, b) => a.rank - b.rank);
+        return { ...r, tactical_role: plan.mainRole, depth_rank: plan.depthRank, source_name: 'manual', confidence: 1, other_positions: others };
+      }));
+    } catch (e) {
+      setSaveError(getErrorMessage(e, `Failed to accept ${suggested} for ${row.web_name}`));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   // Only the admin route needs the stored value -- the public page shows
   // the resolved formation from the consensus view and can't edit it.
   useEffect(() => {
@@ -451,9 +487,12 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     }
   }
 
+  // Recomputed from the current rows, so an accepted suggestion disappears.
+  const lineupSummaries = useMemo<Map<number, LineupRoleSummary>>(() => summariseLineupRoles(lineupStarts, rows), [lineupStarts, rows]);
   const teamScopedRows = useMemo(() => (reviewTeamFilter === 'all' ? rows : rows.filter((r) => r.team_id === reviewTeamFilter)), [rows, reviewTeamFilter]);
   const totalGeneric = teamScopedRows.filter((r) => r.source_name === 'fpl_position_fallback').length;
   const totalWorthReviewing = teamScopedRows.filter((r) => nonFringeWorklistIds.has(r.fpl_player_id)).length;
+  const totalSuggested = teamScopedRows.filter((r) => lineupSummaries.get(r.fpl_player_id)?.suggested).length;
 
   const byTeam = useMemo(() => {
     const map = new Map<string, TacticalRoleRow[]>();
@@ -481,6 +520,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
    * table below and by pitchStarters further down, so "Worth Reviewing"
    * means the same thing everywhere rather than drifting between views. */
   function applyScope(list: TacticalRoleRow[]): TacticalRoleRow[] {
+    if (scopeMode === 'from_lineups') return list.filter((r) => lineupSummaries.get(r.fpl_player_id)?.suggested);
     if (scopeMode === 'needs_review') return list.filter((r) => r.source_name === 'fpl_position_fallback');
     if (scopeMode === 'worth_reviewing') return list.filter((r) => nonFringeWorklistIds.has(r.fpl_player_id));
     return list;
@@ -492,7 +532,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     if (reviewTeamFilter !== 'all') visible = visible.filter((r) => r.team_id === reviewTeamFilter);
     return visible;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, scopeMode, positionFilter, reviewTeamFilter, nonFringeWorklistIds]);
+  }, [rows, scopeMode, positionFilter, reviewTeamFilter, nonFringeWorklistIds, lineupSummaries]);
 
   const outlookCols = useMemo(() => {
     if (!teamOutlook || teamOutlook.gameweeks.length === 0) return null;
@@ -501,7 +541,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   const outlookByPlayer = useMemo(() => new Map((teamOutlook?.players ?? []).map((p) => [p.fpl_player_id, p])), [teamOutlook]);
 
   // Columns in the squad table: 9 fixed, then per-gameweek minutes or 3 summary columns.
-  const squadTableSpan = 9 + (outlookCols ? outlookCols.past.length + outlookCols.next.length : 3);
+  const squadTableSpan = 9 + (adminMode ? 1 : 0) + (outlookCols ? outlookCols.past.length + outlookCols.next.length : 3);
   const selectedTeamRows = useMemo(() => {
     if (selectedTeamId === null) return [];
     let visible = rows.filter((r) => r.team_id === selectedTeamId);
@@ -532,7 +572,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     // replacement; pre-filtering would break that.
     return applyScope(starters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamRowsForPitch, pitchDepth, scopeMode, nonFringeWorklistIds]);
+  }, [teamRowsForPitch, pitchDepth, scopeMode, nonFringeWorklistIds, lineupSummaries]);
   const pitchPlayers = useMemo(
     () =>
       pitchStarters.map((r) => {
@@ -700,6 +740,32 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     );
   }
 
+  /** Where he started in the recorded line-ups, and (admin) the suggested
+   * main position with an Accept button. */
+  function LineupCell({ row }: { row: TacticalRoleRow }) {
+    const s = lineupSummaries.get(row.fpl_player_id);
+    if (!s) return <span className="text-ink-400 text-xs">&mdash;</span>;
+    const seen = s.byRole.map((r) => `${r.role} ${r.n}`).join(', ');
+    return (
+      <span className="flex flex-wrap items-center gap-1 whitespace-nowrap">
+        <span className="text-[11px] font-mono text-ink-700" title={`${s.starts} start${s.starts === 1 ? '' : 's'} recorded from line-up screenshots`}>
+          {seen} <span className="text-ink-400">/ {s.starts}</span>
+        </span>
+        {s.suggested && isAdmin && (
+          <button
+            type="button"
+            disabled={savingId === row.fpl_player_id}
+            onClick={() => void handleAcceptSuggestion(row, s.suggested!)}
+            title={`Make ${s.suggested} his main role. ${row.tactical_role} moves to Also plays.`}
+            className="text-xs px-2 min-h-7 rounded bg-pitch-800 text-chalk-100 hover:bg-pitch-700"
+          >
+            Accept {s.suggested}
+          </button>
+        )}
+      </span>
+    );
+  }
+
   function StatusBadge({ row }: { row: TacticalRoleRow }) {
     const label = row.status === 'i' ? 'INJ' : row.status === 'd' ? 'DBT' : row.status === 's' ? 'SUS' : row.status === 'a' ? 'OK' : '\u2014';
     if (!isAdmin) {
@@ -820,6 +886,14 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
               </button>
               <button
                 type="button"
+                onClick={() => setScopeMode('from_lineups')}
+                title="Players whose recorded line-ups suggest a different main position"
+                className={['px-3 py-1.5 text-sm font-medium transition-colors', scopeMode === 'from_lineups' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
+              >
+                From Line-ups
+              </button>
+              <button
+                type="button"
                 onClick={() => setScopeMode('everyone')}
                 className={['px-3 py-1.5 text-sm font-medium transition-colors', scopeMode === 'everyone' ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700 hover:bg-chalk-100'].join(' ')}
               >
@@ -873,6 +947,11 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
             {displayMode === 'table' && scopeMode === 'needs_review' && (
               <span className="text-sm text-ink-500">
                 {totalGeneric} of {teamScopedRows.length} unassigned
+              </span>
+            )}
+            {displayMode === 'table' && scopeMode === 'from_lineups' && (
+              <span className="text-sm text-ink-500">
+                {totalSuggested} suggested from line-ups
               </span>
             )}
             {displayMode === 'table' && scopeMode === 'worth_reviewing' && (
@@ -934,6 +1013,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           <th className="px-2 py-1.5">Role</th>
                           <th className="px-2 py-1.5">Depth</th>
                           <th className="px-2 py-1.5" title="Other positions he plays, with his rank in each. The projections let him start in any of them.">Also plays</th>
+                          {adminMode && <th className="px-2 py-1.5" title="Where he started in the line-ups recorded from screenshots, out of all his recorded starts. A suggestion appears when one position has at least 2 starts and 60% of them, and isn't already his main role.">Line-ups</th>}
                           <th className="px-2 py-1.5">Status</th>
                           <th className="px-2 py-1.5">Set pieces</th>
                           <th className="px-3 py-1.5 text-right">Source</th>
@@ -942,7 +1022,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                       <tbody>
                         {groupByPosition(visible).map((g) => [
                           <tr key={`h-${g.label}`}>
-                            <td colSpan={8} className="bg-chalk-100 px-3 py-1 text-xs font-mono uppercase tracking-widest text-ink-500 border-t border-chalk-300">{g.label}</td>
+                            <td colSpan={adminMode ? 9 : 8} className="bg-chalk-100 px-3 py-1 text-xs font-mono uppercase tracking-widest text-ink-500 border-t border-chalk-300">{g.label}</td>
                           </tr>,
                           ...g.players.map((r, i) => (
                           <tr key={r.fpl_player_id} className={`border-t ${roleBreak(g.players, i) ? 'border-ink-500/50' : 'border-chalk-200'}`}>
@@ -958,6 +1038,11 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                             <td className="px-2 py-1.5">
                               <OtherPositionsCell row={r} />
                             </td>
+                            {adminMode && (
+                              <td className="px-2 py-1.5">
+                                <LineupCell row={r} />
+                              </td>
+                            )}
                             <td className="px-2 py-1.5">
                               <StatusBadge row={r} />
                             </td>
@@ -1128,6 +1213,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           </button>
                         </th>
                         <th className="px-2 py-1.5" title="Other positions he plays, with his rank in each. The projections let him start in any of them.">Also plays</th>
+                        {adminMode && <th className="px-2 py-1.5" title="Where he started in the line-ups recorded from screenshots, out of all his recorded starts. A suggestion appears when one position has at least 2 starts and 60% of them, and isn't already his main role.">Line-ups</th>}
                         <th className="px-2 py-1.5">Status</th>
                         <th className="px-2 py-1.5" title="Expected back: your date if set, otherwise the one in FPL's news. Out before it, then 75% / 90% / fit in the projections.">Back</th>
                         <th className="px-2 py-1.5">Set pieces</th>
@@ -1169,6 +1255,11 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                           <td className="px-2 py-1.5">
                             <OtherPositionsCell row={r} />
                           </td>
+                          {adminMode && (
+                            <td className="px-2 py-1.5">
+                              <LineupCell row={r} />
+                            </td>
+                          )}
                           <td className="px-2 py-1.5">
                             <StatusBadge row={r} />
                           </td>

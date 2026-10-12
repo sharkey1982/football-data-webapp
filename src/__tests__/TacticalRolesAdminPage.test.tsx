@@ -46,6 +46,7 @@ vi.mock('../lib/tacticalRoleAdminApi', async () => {
     removeSetPieceTaker: vi.fn(),
     getTeamDefaultFormation: vi.fn(),
     saveTeamFormation: vi.fn(),
+    getLineupStarts: vi.fn(),
   };
 });
 
@@ -100,6 +101,40 @@ describe('TacticalRolesAdminPage', () => {
     mockedApi.getTacticalRoleWorklist.mockResolvedValue([]);
     mockedApi.getTeamDefaultFormation.mockResolvedValue({ formation: '4-3-3', isManual: false });
     mockedApi.saveTeamFormation.mockResolvedValue(undefined);
+    mockedApi.getLineupStarts.mockResolvedValue([]);
+  });
+
+  it('From Line-ups shows suggested main positions; Accept swaps the old main role into Also plays', async () => {
+    mockedApi.getTacticalRoleReview.mockResolvedValue([
+      baseRow({ fpl_player_id: 1, web_name: 'Tonali', tactical_role: 'CM', depth_rank: 1, source_name: 'fantasy_football_scout' }),
+      baseRow({ fpl_player_id: 2, web_name: 'Guimaraes', tactical_role: 'CM', depth_rank: 1, source_name: 'manual' }),
+    ]);
+    mockedApi.getLineupStarts.mockResolvedValue([
+      { fpl_player_id: 1, team_id: 1, tactical_role: 'DM' },
+      { fpl_player_id: 1, team_id: 1, tactical_role: 'DM' },
+      { fpl_player_id: 2, team_id: 1, tactical_role: 'CM' },
+      { fpl_player_id: 2, team_id: 1, tactical_role: 'CM' },
+    ]);
+    mockedApi.getTeamOptions.mockResolvedValue([{ team_id: 1, team_name: 'Arsenal' }]);
+    mockedApi.getTeamReviewDates.mockResolvedValue(new Map());
+    mockedApi.getTeamFormation.mockResolvedValue('4-3-3');
+    mockedApi.saveTacticalRoleCorrection.mockResolvedValue(undefined);
+    mockedApi.saveOtherPosition.mockResolvedValue(undefined);
+
+    render(<MemoryRouter><TacticalRolesAdminPage adminMode /></MemoryRouter>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'From Line-ups' }));
+    await waitFor(() => expect(screen.getByText('Tonali')).toBeInTheDocument());
+    // Guimaraes already plays where he started: nothing to suggest.
+    expect(screen.queryByText('Guimaraes')).not.toBeInTheDocument();
+    expect(screen.getByText('1 suggested from line-ups')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Accept DM' }));
+    await waitFor(() => expect(mockedApi.saveTacticalRoleCorrection).toHaveBeenCalledWith(1, 1, 'DM'));
+    expect(mockedApi.saveOtherPosition).toHaveBeenCalledWith(1, 1, 'CM', 1);
+    expect(mockedApi.saveDepthRankCorrection).not.toHaveBeenCalled();
+    // Accepted, so it no longer counts as a suggestion.
+    await waitFor(() => expect(screen.getByText('0 suggested from line-ups')).toBeInTheDocument());
   });
 
   it('defaults to Needs Review, showing only generic-role players, and lets a role be corrected', async () => {
