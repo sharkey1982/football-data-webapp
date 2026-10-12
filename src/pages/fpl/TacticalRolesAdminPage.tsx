@@ -899,11 +899,24 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                       </span>
                     </button>
                     {isExpanded && (
+                    <div className="overflow-x-auto max-w-full">
                     <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-[10px] font-medium text-ink-500 uppercase border-b border-chalk-200">
+                          <th className="px-3 py-1.5">Player</th>
+                          <th className="px-2 py-1.5">Pos</th>
+                          <th className="px-2 py-1.5">Role</th>
+                          <th className="px-2 py-1.5">Depth</th>
+                          <th className="px-2 py-1.5" title="Other positions he plays, with his rank in each. The projections let him start in any of them.">Also plays</th>
+                          <th className="px-2 py-1.5">Status</th>
+                          <th className="px-2 py-1.5">Set pieces</th>
+                          <th className="px-3 py-1.5 text-right">Source</th>
+                        </tr>
+                      </thead>
                       <tbody>
                         {visible.map((r) => (
                           <tr key={r.fpl_player_id} className="border-b border-chalk-200 last:border-b-0">
-                            <td className="px-3 py-1.5 font-medium text-ink-900">{r.web_name}</td>
+                            <td className="px-3 py-1.5 font-medium text-ink-900 whitespace-nowrap">{r.web_name}</td>
                             <td className="px-2 py-1.5 font-mono text-xs text-ink-500 uppercase">{FPL_POSITION_LABEL[r.element_type]}</td>
                             <td className="px-2 py-1.5">
                               <RoleSelect row={r} />
@@ -911,6 +924,9 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                             </td>
                             <td className="px-2 py-1.5">
                               <DepthRankSelect row={r} />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <OtherPositionsCell row={r} />
                             </td>
                             <td className="px-2 py-1.5">
                               <StatusBadge row={r} />
@@ -925,6 +941,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
                         ))}
                       </tbody>
                     </table>
+                    </div>
                     )}
                   </div>
                 );
