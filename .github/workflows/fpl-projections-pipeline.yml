@@ -140,10 +140,17 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # Gameweek reflection (and, from phase 1, preview) when one is due:
-      # reflection once FPL confirms the last match's bonus (normally the
-      # Tuesday morning run). Publishes to fpl_gameweek_reports; a failure
-      # here must not stop the pipeline. Design: project doc
+      # Weekly FPL log (fpl_gameweek_reports), whatever is due:
+      #   reflection  once FPL confirms the last match's bonus (normally the
+      #               Tuesday morning run);
+      #   preview     first version Thursday (Fri-Sun deadlines) or the day
+      #               before a midweek deadline, after the previous
+      #               reflection; a new version after each run when the
+      #               projections changed materially; locked from the
+      #               deadline snapshot on the first run after the deadline.
+      # A first or locked version (or a reflection) asks for a site rebuild;
+      # in-between versions are fetched by the page. A failure here must not
+      # stop the pipeline. Design: project doc
       # fpl-gameweek-preview-reflection-design-2026-10-12.
       - name: Gameweek report
         id: report

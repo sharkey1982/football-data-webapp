@@ -1,6 +1,6 @@
 name: Gameweek report
 
-# FPL gameweek reflection on demand (scripts/fpl_gameweek_report.py): a draft
+# FPL gameweek reflection or preview on demand (scripts/fpl_gameweek_report.py): a draft
 # to check, or a published version. The projections pipeline publishes the
 # reflection automatically once it is due; this is for drafts, re-runs and
 # corrections (a correction is a new version; published ones never change).
@@ -8,10 +8,19 @@ name: Gameweek report
 on:
   workflow_dispatch:
     inputs:
+      kind:
+        description: 'Report'
+        type: choice
+        options: [reflection, preview]
+        default: reflection
       gw:
         description: 'Gameweek'
         required: true
         type: string
+      frozen:
+        description: 'Preview only: from the deadline snapshot (the locked version)'
+        type: boolean
+        default: false
       publish:
         description: 'Publish (otherwise a draft, visible only to the database)'
         type: boolean
@@ -39,10 +48,13 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           IN_GW: ${{ inputs.gw }}
+          IN_KIND: ${{ inputs.kind }}
+          IN_FROZEN: ${{ inputs.frozen }}
           IN_PUBLISH: ${{ inputs.publish }}
         run: |
           set +e
-          ARGS="--gw ${IN_GW}"
+          ARGS="--kind ${IN_KIND} --gw ${IN_GW}"
+          if [ "${IN_FROZEN}" = "true" ]; then ARGS="$ARGS --frozen"; fi
           if [ "${IN_PUBLISH}" = "true" ]; then ARGS="$ARGS --publish"; fi
           python scripts/fpl_gameweek_report.py $ARGS 2>&1 | tee /tmp/r.log
           STATUS=${PIPESTATUS[0]}

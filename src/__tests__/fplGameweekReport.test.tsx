@@ -7,7 +7,7 @@ import GameweekReportPage from '../pages/fpl/GameweekReportPage';
 import GameweekHubPage from '../pages/fpl/GameweekHubPage';
 import { movedTeams, reportPath, seasonDisplay, signed, type GameweekReport } from '../lib/fplGameweekReport';
 
-import { payload, report } from './fixtures/gameweekReflection';
+import { payload, previewReport, previewPayload, report } from './fixtures/gameweekReflection';
 
 function renderReport(r: GameweekReport, path = reportPath('2026-27', 6, 'reflection')) {
   return render(
@@ -87,5 +87,40 @@ describe('gameweek hub', () => {
     render(<MemoryRouter><GameweekHubPage initialData={[entry]} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 2, name: '2026/27' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'GW6 reflection' })).toHaveAttribute('href', '/fpl/gameweek/2026-27/6/reflection');
+  });
+});
+
+describe('gameweek preview page', () => {
+  it('renders the preview sections', () => {
+    render(
+      <MemoryRouter initialEntries={['/fpl/gameweek/2026-27/7/preview']}>
+        <Routes>
+          <Route path="/fpl/gameweek/:season/:gw/:kind" element={<GameweekReportPage initialData={previewReport} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('GW7 preview');
+    for (const name of ['What’s changed since GW6', 'Fixtures', 'Captaincy', 'Best picks by position', 'Minutes watch', 'The next ten gameweeks']) {
+      expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
+    }
+    expect(screen.getByRole('table', { name: /Captaincy: projected points/ })).toHaveTextContent('30%');
+    expect(screen.getByRole('table', { name: /Fixtures: expected goals/ })).toHaveTextContent('45%/6%');
+    expect(screen.getByText(/Two fixtures this gameweek: Chelsea/)).toBeInTheDocument();
+    expect(screen.getByText(/Since the last version:/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'xG or FDR?' })).toHaveAttribute('href', '/fpl/articles/xg-or-fdr');
+    // Home opponents in capitals, away in lower case.
+    expect(screen.getByRole('table', { name: /next ten gameweeks/ })).toHaveTextContent('IPS 2.8');
+  });
+
+  it('a locked preview says so and hides the changes note', () => {
+    render(
+      <MemoryRouter initialEntries={['/fpl/gameweek/2026-27/7/preview']}>
+        <Routes>
+          <Route path="/fpl/gameweek/:season/:gw/:kind" element={<GameweekReportPage initialData={{ ...previewReport, frozen: true, payload: { ...previewPayload, frozen: true } }} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getAllByText(/Locked at the deadline/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Since the last version:/)).not.toBeInTheDocument();
   });
 });

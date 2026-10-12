@@ -64,3 +64,52 @@ export const report: GameweekReport = {
   title: 'FPL GW6 reflection (2026/27): goals, minutes, set pieces and captaincy', summary: 'Chelsea scored 5.', payload,
 };
 
+
+// Sample gameweek preview.
+import type { PreviewPayload, PreviewPlayer } from '../../lib/fplGameweekReport';
+
+const pp = (id: number, name: string, team: string, x: number, own = 10, price = 7.5, start = 0.95): PreviewPlayer => ({
+  id, name, team, pos: 'MID', own, price, gw_xpts: x, xpts_5: x * 5, xpts_10: x * 10, start, xmin: 85, fixtures: 1, status: 'a', news: null,
+});
+
+export const previewPayload: PreviewPayload = {
+  kind: 'preview', season: '2026-27', gw: 7, frozen: false, deadline: '2026-10-17T10:00:00+00:00', generated_at: '2026-10-15T05:50:00+00:00',
+  source: 'live projections',
+  headlines: ['Haaland leads the captaincy table on 8.9 projected points and a 30% chance of outscoring the other seven.'],
+  changes_since_last: ['Szoboszlai: Hamstring injury - 75% chance of playing'],
+  fixtures: [
+    { home: 'Manchester City', away: 'Ipswich', kickoff: '2026-10-17T14:00:00+00:00', goals_home: 2.81, goals_away: 0.8, cs_home: 0.449, cs_away: 0.06, fdr_home: 2, fdr_away: 5 },
+  ],
+  captains: [
+    { ...pp(411, 'Haaland', 'Manchester City', 8.89, 74.8, 15.6, 0.97), top_chance: 0.301 },
+    { ...pp(12, 'Saka', 'Arsenal', 6.15, 16.9, 9.6, 0.94), top_chance: 0.136 },
+  ],
+  sim_worlds: 20000,
+  picks: {
+    GK: [pp(1, 'Raya', 'Arsenal', 4.8, 20, 6.1)],
+    DEF: [pp(8, 'Calafiori', 'Arsenal', 5.0, 52, 5.9)],
+    MID: [pp(12, 'Saka', 'Arsenal', 6.15, 16.9, 9.6)],
+    FWD: [pp(411, 'Haaland', 'Manchester City', 8.89, 74.8, 15.6)],
+  },
+  value: [{ ...pp(600, 'Tavernier', 'Bournemouth', 6.03, 7.3, 6.1), per_m: 4.72 }],
+  differentials: [pp(316, 'Emersonn', 'Ipswich', 4.7, 4, 5.6)],
+  minutes_watch: [{ ...pp(368, 'Szoboszlai', 'Liverpool', 3.1, 29.2, 6.9, 0.58), why: 'Hamstring injury - 75% chance of playing' }],
+  fixture_run: [
+    { team: 'Manchester City', for_5: 11.2, against_5: 4.8, for_10: 21.0, against_10: 9.9,
+      weeks: [{ gw: 7, fixtures: [{ opp: 'IPS', home: true, for: 2.81, against: 0.8 }] }, { gw: 8, fixtures: [] }] },
+  ],
+  changes: {
+    since_gw: 6,
+    injuries: [{ id: 368, name: 'Szoboszlai', team: 'Liverpool', pos: 'MID', own: 29.2, before: 'a', now: 'd', news: 'Hamstring injury - 75% chance of playing' }],
+    prices: [{ id: 165, name: 'João Pedro', team: 'Chelsea', pos: 'FWD', own: 68.4, before: 7.7, now: 7.8 }],
+    set_pieces: [{ team: 'Aston Villa', type: 'Corners and indirect free kicks', before: ['Cash'], now: ['McGinn'] }],
+    model_changes: [],
+    blanks: [], doubles: ['Chelsea'],
+  },
+};
+
+export const previewReport: GameweekReport = {
+  season_label: '2026-27', fpl_event_id: 7, kind: 'preview', version: 2, frozen: false,
+  generated_at: '2026-10-15T05:50:00+00:00', published_at: '2026-10-15T05:51:00+00:00',
+  title: 'FPL GW7 preview (2026/27): captains, fixtures, transfers', summary: 'Haaland leads.', payload: previewPayload,
+};
