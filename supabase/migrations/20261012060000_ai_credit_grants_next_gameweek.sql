@@ -17,6 +17,8 @@
 --      * labels say "GW7" or "GW7-GW9".
 --    Applied to the four tools that default a gameweek, by rewriting their
 --    current definitions in place (grants are kept by CREATE OR REPLACE).
+--    Tested with check_function_bodies on (the first version, which dropped
+--    the CTE from the FROM clause, failed in the workflow and applied nothing).
 --    Re-running is harmless: a definition already rewritten is skipped, and
 --    one matching neither form stops the migration rather than passing.
 -- ============================================================================
@@ -50,9 +52,14 @@ begin
       continue;
     end if;
     -- default gameweek
+    -- (a) SQL tools read the season from a CTE, so keep it in the FROM;
+    -- (b) the plpgsql tool reads it from a variable.
     n := regexp_replace(d,
-      '\(select min\(fpl_event_id\) from fpl_gameweeks(, \w+)? where season_id = (\w+(\.cur)?) and not finished\)',
-      'public.ai_next_fpl_gameweek(\2)', 'g');
+      '\(select min\(fpl_event_id\) from fpl_gameweeks, (\w+) where season_id = \1\.cur and not finished\)',
+      '(select public.ai_next_fpl_gameweek(\1.cur) from \1)', 'g');
+    n := regexp_replace(n,
+      '\(select min\(fpl_event_id\) from fpl_gameweeks where season_id = (\w+) and not finished\)',
+      'public.ai_next_fpl_gameweek(\1)', 'g');
     -- labels: single gameweek / range
     n := replace(n, 'then g.gw::text else g.gw || ''-'' || (g.gw + p.n_gw - 1) end',
                     'then ''GW'' || g.gw else ''GW'' || g.gw || ''-GW'' || (g.gw + p.n_gw - 1) end');
