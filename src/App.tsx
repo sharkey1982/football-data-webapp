@@ -60,6 +60,7 @@ const SharkFantasyPage = lazy(() => import('./pages/sharkfantasy/SharkFantasyPag
 const LineupComparePage = lazy(() => import('./pages/admin/LineupComparePage'));
 const SiteTrafficPage = lazy(() => import('./pages/admin/SiteTrafficPage'));
 const GameweekPostsPage = lazy(() => import('./pages/admin/GameweekPostsPage'));
+const SocialPage = lazy(() => import('./pages/admin/SocialPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
@@ -531,6 +532,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <SiteTrafficPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/social"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <SocialPage />
               </Suspense>
             }
           />

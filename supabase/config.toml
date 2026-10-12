@@ -14,3 +14,12 @@ verify_jwt = false
 verify_jwt = false
 [functions.fpl-optimize-squad]
 verify_jwt = false
+# Social publishing (docs/social-publishing.md). The callback is reached by
+# X redirecting the browser, so it cannot carry a Supabase JWT; start and
+# publish check the admin's JWT themselves (same pattern as ai-lab-run).
+[functions.x-oauth-start]
+verify_jwt = false
+[functions.x-oauth-callback]
+verify_jwt = false
+[functions.x-publish]
+verify_jwt = false
