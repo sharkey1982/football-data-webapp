@@ -35,6 +35,7 @@ import { supabase } from './supabase';
 import type { FplElementType } from '../types/database';
 import { seasonContextStats, getGamesInvolvedCounts, type SetPieceRole } from './fplApi';
 import { getCurrentFplSeasonId } from './currentSeason';
+import type { LineupStart } from './lineupRoleSuggestions';
 
 export type TacticalRoleRow = {
   fpl_player_id: number;
@@ -395,6 +396,16 @@ export async function saveOtherPosition(teamId: number, fplPlayerId: number, rol
     .upsert({ season_id: await getCurrentFplSeasonId(), team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, depth_rank: rank, set_at: new Date().toISOString() } as never,
       { onConflict: 'season_id,team_id,fpl_player_id,tactical_role' });
   if (error) throw error;
+}
+
+/** Every start recorded with a position (fixture_lineup_positions, from
+ * the BBC screenshots), for "Suggested from line-ups". */
+export async function getLineupStarts(): Promise<LineupStart[]> {
+  const { data, error } = await supabase
+    .from('fixture_lineup_positions' as never)
+    .select('fpl_player_id, team_id, tactical_role');
+  if (error) throw error;
+  return (data ?? []) as LineupStart[];
 }
 
 export async function removeOtherPosition(teamId: number, fplPlayerId: number, role: string): Promise<void> {
