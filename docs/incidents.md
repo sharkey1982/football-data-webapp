@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-12 · Start chances understated for clubs yet to play; 10th gameweek ahead left stale
+- **Found:** researching the João Pedro captaincy reply on 11 Oct: Haaland was 0.78 to start (5 starts of 6) though he had started every match, and GW16's projections were dated 26 Sep.
+- **Impact:** (1) From each deadline until a club played, its regulars were counted as fit and not picked for that gameweek, so their start chances, minutes and points were too low and their backups' too high, for up to three days a gameweek (45 regulars at 8 clubs on 11 Oct; 71 players in the 12 Oct match). The unplayed row also took the top weight in the recency weighting. (2) While a gameweek was in play, the projection pipeline's 10-week window started at that gameweek, so the 10th gameweek after the next deadline (the end of Squad Check's horizon) kept rows from an older run until the gameweek finished. On 11 Oct that was GW16, 15 days old.
+- **Cause:** (1) FPL creates every player's gameweek row, with 0 minutes, once the deadline passes; `refresh_fpl_start_record` counted every row. The backtests only ever used matches before kick-off, so production and the tested rule differed. (2) `scripts/get_next_matchweek_range.py` took "the first unplayed gameweek + 9".
+- **Fix:** `20261012080000_fpl_start_record_played_only.sql`: the start record counts a gameweek only once its fixture has started; model_change_log entry. The pipeline window runs one gameweek further while a gameweek is under way.
+- **Prevention:** new integrity check `fpl_projection_horizon_fresh` (warning if any of the 10 gameweeks after the next deadline has no projections from within 36 hours of the newest run). *Lesson: data that exists before an event (FPL's pre-created rows) is not evidence about the event; filter on whether it has happened, as the backtests did.*
+
+---
+
 ## 2026-10-12 · AI tools answered "next gameweek" for the gameweek in play; credit balance couldn't be saved
 - **Found:** Chris on his phone. (1) Ask FixtureShark run 36, "Best pair of midfielders for £15m next gameweek?", answered for GW6 and said the totals were "summed over the next 6 gameweeks". (2) Saving the Console balance on the new AI credit panel failed with "permission denied for table ai_credit_checks".
 - **Impact:** (1) Any "next gameweek" question during a live gameweek was answered for the locked, in-play gameweek (GW6 deadline 10 Oct; GW7 is next), and this answer misdescribed its own figures. The players were right for GW6, but GW6 was the wrong gameweek. (2) The credit estimate couldn't be started.
