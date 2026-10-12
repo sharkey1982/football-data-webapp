@@ -140,6 +140,22 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      # Gameweek reflection (and, from phase 1, preview) when one is due:
+      # reflection once FPL confirms the last match's bonus (normally the
+      # Tuesday morning run). Publishes to fpl_gameweek_reports; a failure
+      # here must not stop the pipeline. Design: project doc
+      # fpl-gameweek-preview-reflection-design-2026-10-12.
+      - name: Gameweek report
+        id: report
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/fpl_gameweek_report.py --auto 2>&1 | tee /tmp/report.log
+          echo "::notice::$(tail -c 1500 /tmp/report.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
       # Regenerates the static pages so they reflect the data this run
       # just produced. Without this, every prerendered page keeps showing
       # whatever was true at the last DEPLOY -- and since those pages now
@@ -166,9 +182,10 @@ jobs:
       # Netlify credits, and three a day (06:00, 07:00, 19:00) used ~1,350 of
       # the 3,000 monthly credits before any code shipped; the site was
       # suspended for running out. Only the 07:00 scheduled run rebuilds, or a
-      # manual run with rebuild_site ticked. Pages are at most a day stale.
+      # manual run with rebuild_site ticked, or a run that published a new
+      # gameweek report (12 Oct 2026). Pages are at most a day stale.
       - name: Trigger site rebuild
-        if: success() && (github.event.schedule == '41 6 * * *' || github.event.inputs.rebuild_site == 'true')
+        if: success() && (github.event.schedule == '41 6 * * *' || github.event.inputs.rebuild_site == 'true' || steps.report.outputs.published == '1')
         run: |
           if [ -z "${{ secrets.NETLIFY_BUILD_HOOK_URL }}" ]; then
             echo "::notice::NETLIFY_BUILD_HOOK_URL not set -- skipping rebuild. Static pages will refresh on the next deploy."
