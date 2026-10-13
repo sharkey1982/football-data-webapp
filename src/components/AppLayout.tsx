@@ -312,6 +312,7 @@ export default function AppLayout() {
         { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
         { to: '/admin/traffic', label: 'Site Traffic', matchPrefix: '/admin/traffic' },
         { to: '/admin/social', label: 'Social Publishing', matchPrefix: '/admin/social' },
+        { to: '/admin/gameweek', label: 'Gameweek Posts', matchPrefix: '/admin/gameweek' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
         { to: '/data-flow', label: 'Data Flow', matchPrefix: '/data-flow' },
         { to: '/source-data', label: 'Source Data', matchPrefix: '/source-data' },
