@@ -16,6 +16,7 @@ import { LINK } from '../articles/ArticleLayout';
 import ReportTable from './ReportTable';
 import {
   pct,
+  reportPath,
   signed,
   statusLabel,
   type CaptainRange,
@@ -72,7 +73,7 @@ export function themeChips(p: ReflectionPayload): Record<ThemeKey, Chip> {
   const prem = p.captaincy.season.find((r) => r.key === 'premium');
   const form = p.captaincy.season.find((r) => r.key === 'form');
   const review = p.set_pieces.order_changes.filter((r) => r.needs_review).length;
-  const congested = (p.incidents.congestion.before_next ?? []).length > 0;
+  const rot = p.incidents.rotation;
   return {
     goals: p.goals.ratings.status === 'updated'
       ? { label: 'Ratings updated', tone: 'changed' }
@@ -80,8 +81,8 @@ export function themeChips(p: ReflectionPayload): Record<ThemeKey, Chip> {
     minutes: p.minutes.counts.start_moves
       ? { label: `${p.minutes.counts.start_moves} start chances moved`, tone: 'changed' }
       : { label: 'No big moves', tone: 'none' },
-    incidents: congested
-      ? { label: 'Congestion not modelled', tone: 'none' }
+    incidents: rot
+      ? { label: 'Rotation measured', tone: 'watch' }
       : p.incidents.worse_count + p.incidents.better_count
         ? { label: 'Flags updated', tone: 'changed' }
         : { label: 'No change', tone: 'none' },
@@ -91,7 +92,7 @@ export function themeChips(p: ReflectionPayload): Record<ThemeKey, Chip> {
         ? { label: 'Ours already agree', tone: 'changed' }
         : { label: 'No change', tone: 'none' },
     captaincy: prem && form
-      ? { label: `Premium ${prem.captain_points} v form ${form.captain_points}`, tone: 'watch' }
+      ? { label: `Premium ${prem.captain_points} v xGI form ${form.captain_points}`, tone: 'watch' }
       : { label: 'No model change', tone: 'none' },
   };
 }
@@ -405,7 +406,7 @@ function Minutes({ p }: { p: ReflectionPayload }) {
 
 // ---- 3. Incidents ----------------------------------------------------------
 
-function CongestionTable({ rows }: { rows: CupGame[] }) {
+export function CongestionTable({ rows }: { rows: CupGame[] }) {
   return (
     <ReportTable
       caption="Teams with a cup or European match before their next league match"
@@ -424,7 +425,7 @@ function Incidents({ p }: { p: ReflectionPayload }) {
   const i = p.incidents;
   const c = i.congestion;
   const before = c.before_gw ?? [];
-  const next = c.before_next ?? [];
+  const rot = i.rotation;
   const weeks = c.days_since_previous ? Math.round(c.days_since_previous / 7) : 0;
   return (
     <>
@@ -453,19 +454,36 @@ function Incidents({ p }: { p: ReflectionPayload }) {
       <h3 className={H3}>Fixture congestion</h3>
       <p className="text-ink-700 max-w-prose">
         {before.length
-          ? `Before GW${p.gw}, ${new Set(before.map((r) => r.team)).size} teams had a cup or European match; ${before.filter((r) => r.rest <= 3).length} of them had three days' rest or less.`
+          ? `Before GW${p.gw}, ${new Set(before.map((r) => r.team)).size} teams had a cup or European match:`
           : weeks >= 2
             ? `GW${p.gw} followed a ${weeks}-week break, so nobody played midweek before it.`
-            : `Nobody played a cup or European match before GW${p.gw}.`}{' '}
-        {next.length ? `Before GW${c.next_gw}:` : c.next_gw ? `No midweek matches before GW${c.next_gw}.` : ''}
+            : `Nobody played a cup or European match before GW${p.gw}.`}
       </p>
-      {next.length ? <CongestionTable rows={next} /> : null}
-      {c.later?.length ? (
-        <p className={NOTE}>
-          Then:{' '}
-          {c.later.map((l, k) => (
-            <span key={l.gw}>{k ? '; ' : ''}{l.comps.join(' and ')} ({day(l.from)}{l.from !== l.to ? `–${day(l.to)}` : ''}, {l.teams} teams) before GW{l.gw}</span>
-          ))}.
+      {before.length ? <CongestionTable rows={before} /> : null}
+      {rot && rot.busy.players ? (
+        <>
+          <h3 className="text-sm font-semibold text-ink-900">Did they rotate?</h3>
+          <ReportTable
+            caption="Likely starters (70%+ at the deadline): expected starts against actual, teams with a midweek match and the rest"
+            rows={[
+              { label: 'Played midweek', g: rot.busy },
+              { label: 'Didn’t', g: rot.rest },
+            ]}
+            columns={[
+              { label: 'Teams', render: (r) => <span className="font-semibold">{r.label} <span className="font-normal text-ink-500">({r.g.teams})</span></span>, align: 'left' },
+              { label: 'Likely starters', render: (r) => r.g.players },
+              { label: 'Expected starts', render: (r) => r.g.expected.toFixed(1) },
+              { label: 'Started', render: (r) => r.g.started },
+              { label: 'Rate v expected', render: (r) => (r.g.expected ? signed(((r.g.started - r.g.expected) / r.g.expected) * 100, 0) + '%' : '–') },
+            ]}
+          />
+          <p className={NOTE}>One gameweek is a small sample; this builds week by week into the evidence for whether to model congestion.</p>
+        </>
+      ) : null}
+      {(c.before_next ?? []).length ? (
+        <p className="text-ink-700 max-w-prose">
+          Before GW{c.next_gw}, {new Set((c.before_next ?? []).map((r) => r.team)).size} teams play midweek: rest days and the teams affected are in
+          the <Link to={reportPath(p.season, c.next_gw ?? p.gw + 1, 'preview')} className={LINK}>GW{c.next_gw} preview</Link>.
         </p>
       ) : null}
 
@@ -473,9 +491,9 @@ function Incidents({ p }: { p: ReflectionPayload }) {
         <ul className="list-disc pl-5 space-y-2">
           <li><strong className="font-semibold text-ink-900">Injuries and suspensions</strong> feed straight into start chances (see the start-chance moves above).</li>
           <li>
-            <strong className="font-semibold text-ink-900">Midweek matches are not modelled.</strong> Start chances ignore rest days, so regular starters
-            at teams with a short turnaround may be a little high. Measuring how often regulars were rested after European matches needs past
-            seasons&rsquo; European dates, which we don&rsquo;t hold yet.
+            <strong className="font-semibold text-ink-900">Midweek matches are not modelled.</strong> Start chances ignore rest days. Each reflection now
+            compares how often likely starters at teams with a midweek match actually started against teams without one; if they start
+            noticeably less over several weeks, that is the case for adding it to the model.
           </li>
         </ul>
       </ModelBox>
@@ -682,7 +700,8 @@ function Captaincy({ p }: { p: ReflectionPayload }) {
             columns={[
               { label: 'GW', render: (w) => w.gw, sort: (w) => w.gw },
               { label: 'Premium', render: (w) => (w.premium ? <>{w.premium.name}{' '}<span className="block font-mono text-xs">{w.premium.pts}</span></> : '–'), align: 'left' },
-              { label: 'Form', render: (w) => (w.form ? <>{w.form.name}{' '}<span className="block font-mono text-xs">{w.form.pts}</span></> : '–'), align: 'left' },
+              { label: 'xGI form', render: (w) => (w.form ? <>{w.form.name}{' '}<span className="block font-mono text-xs">{w.form.pts}</span></> : '–'), align: 'left' },
+              { label: 'Last top scorer', render: (w) => (w.last ? <>{w.last.name}{' '}<span className="block font-mono text-xs">{w.last.pts}</span></> : '–'), align: 'left' },
               { label: 'Model', render: (w) => (w.model ? <>{w.model.name}{' '}<span className="block font-mono text-xs">{w.model.pts}</span></> : '–'), align: 'left' },
               { label: 'Best', render: (w) => (w.best ? <>{w.best.name}{' '}<span className="block font-mono text-xs">{w.best.pts}</span></> : '–'), align: 'left' },
             ]}

@@ -78,11 +78,12 @@ export const payload: ReflectionPayload = {
   captaincy: {
     weeks: [
       { gw: 5, premium: { ...p(411, 'Haaland', 'Manchester City', 75), pts: 6 }, form: { ...p(411, 'Haaland', 'Manchester City', 75), pts: 6 }, model: null, best: { ...p(397, 'Semenyo', 'Manchester City'), pts: 17 }, average: 48 },
-      { gw: 6, premium: { ...p(411, 'Haaland', 'Manchester City', 75), pts: 6 }, form: { ...p(397, 'Semenyo', 'Manchester City'), pts: 3 }, model: { ...p(12, 'Saka', 'Arsenal'), pts: 2 }, best: { ...p(400, 'Doku', 'Manchester City'), pts: 12 }, average: 54 },
+      { gw: 6, premium: { ...p(411, 'Haaland', 'Manchester City', 75), pts: 6 }, form: { ...p(229, 'Gibbs-White', 'Nottingham Forest'), pts: 2 }, last: { ...p(397, 'Semenyo', 'Manchester City'), pts: 3 }, model: { ...p(12, 'Saka', 'Arsenal'), pts: 2 }, best: { ...p(400, 'Doku', 'Manchester City'), pts: 12 }, average: 54 },
     ],
     season: [
       sp('premium', 'Premium every week', 86, { mean: 8.6, sd: 2.9, worst: 6, best: 13, blanks: 0, hauls: 1 }),
       sp('form', 'Form pick', 38, { mean: 3.8, sd: 2.6, worst: 1, best: 7, blanks: 2, hauls: 0 }),
+      sp('last', "Last week's top scorer", 40, { mean: 4, sd: 3.1, worst: 1, best: 9, blanks: 2, hauls: 0 }),
       sp('best', 'Hindsight best', 154, { mean: 15.4, sd: 4.7, worst: 12, best: 23, blanks: 0, hauls: 5, beat_premium: 5 }),
       sp('model', "Model's top projection", 4, { weeks: 1, mean: 2, worst: 2, best: 2, blanks: 1, premium_same_weeks: 6 }),
     ],
@@ -118,6 +119,11 @@ export const previewPayload: PreviewPayload = {
   fixtures: [
     { home: 'Manchester City', away: 'Ipswich', kickoff: '2026-10-17T14:00:00+00:00', goals_home: 2.81, goals_away: 0.8, cs_home: 0.449, cs_away: 0.06, fdr_home: 2, fdr_away: 5 },
   ],
+  congestion: {
+    before_gw: [{ team: 'Manchester City', comp: 'Champions League', date: '2026-10-14', opp: 'PSG', home: true,
+      league_date: '2026-10-17T14:00:00+00:00', league_opp: 'Ipswich', league_home: true, rest: 3 }],
+    ahead: [{ gw: 8, teams: 9, comps: ['Champions League'], from: '2026-10-20', to: '2026-10-22' }], days_since_previous: 5,
+  },
   captains: [
     { ...pp(411, 'Haaland', 'Manchester City', 8.89, 74.8, 15.6, 0.97), top_chance: 0.301 },
     { ...pp(12, 'Saka', 'Arsenal', 6.15, 16.9, 9.6, 0.94), top_chance: 0.136 },

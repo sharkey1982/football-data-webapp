@@ -42,7 +42,7 @@ describe('gameweek reflection page', () => {
     const tiles = screen.getByRole('heading', { name: 'The week in five lines' }).parentElement!;
     expect(within(tiles).getByRole('link', { name: /36 goals against 29.1 expected/ })).toHaveAttribute('href', '#goals');
     expect(within(tiles).getByText('Ratings updated')).toBeInTheDocument();
-    expect(within(tiles).getByText('Congestion not modelled')).toBeInTheDocument();
+    expect(within(tiles).getByText('Flags updated')).toBeInTheDocument();
     // Goals: per-team chart, signal and noise, rating moves.
     const chart = screen.getByRole('table', { name: /Each team: expected goals/ });
     expect(within(chart).getByRole('rowheader', { name: /Chelsea/ })).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe('gameweek reflection page', () => {
     expect(screen.getByRole('table', { name: 'Team rating moves since the deadline' })).toHaveTextContent('1.21 → 1.27');
     // Congestion and set pieces against our hierarchy.
     expect(screen.getByText(/followed a 3-week break/)).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: /cup or European match/ })).toHaveTextContent('LASK');
+    expect(screen.getByRole('link', { name: 'GW7 preview' })).toHaveAttribute('href', '/fpl/gameweek/2026-27/7/preview');
     expect(screen.getByRole('list', { name: /set-piece takers/ })).toHaveTextContent('McGinn (right corners)');
     expect(screen.getByText(/can’t see who took each penalty/)).toBeInTheDocument();
     // Captaincy: ranges and volatility.
@@ -62,6 +62,19 @@ describe('gameweek reflection page', () => {
     expect(within(season).getByText('2.9')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /should you always captain Haaland/ })).toHaveAttribute('href', '/fpl/articles/should-you-always-captain-haaland');
     expect(screen.queryByText(/Written before FPL confirmed/)).not.toBeInTheDocument();
+  });
+
+  it('measures rotation after a midweek match', () => {
+    const cup = { team: 'Liverpool', comp: 'Champions League', date: '2026-10-14', opp: 'LASK', home: false,
+      league_date: '2026-10-17T14:00:00+00:00', league_opp: 'Brentford', league_home: false, rest: 3 };
+    renderReport({ ...report, payload: { ...payload, incidents: { ...payload.incidents,
+      congestion: { ...payload.incidents.congestion, before_gw: [cup], days_since_previous: 5 },
+      rotation: { busy: { teams: 1, players: 10, expected: 9.2, started: 7 }, rest: { teams: 19, players: 190, expected: 178.4, started: 176 } } } } });
+    expect(screen.getByRole('table', { name: /cup or European match/ })).toHaveTextContent('LASK');
+    const rot = screen.getByRole('table', { name: /expected starts against actual/ });
+    expect(rot).toHaveTextContent('9.2');
+    expect(rot).toHaveTextContent('−24%');
+    expect(screen.getAllByText('Rotation measured').length).toBeGreaterThan(0);
   });
 
   it('says when the closing prices are not in yet', () => {
@@ -115,6 +128,10 @@ describe('gameweek preview page', () => {
     expect(screen.getByRole('table', { name: /Captaincy: projected points/ })).toHaveTextContent('30%');
     expect(screen.getByRole('table', { name: /Fixtures: expected goals/ })).toHaveTextContent('45%/6%');
     expect(screen.getByText(/Two fixtures this gameweek: Chelsea/)).toBeInTheDocument();
+    // Midweek matches before the gameweek, and the rest flag in the captaincy table.
+    expect(screen.getByRole('heading', { level: 2, name: 'Midweek matches' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /cup or European match/ })).toHaveTextContent('PSG');
+    expect(screen.getByRole('table', { name: /Captaincy: projected points/ })).toHaveTextContent('3 days’ rest');
     expect(screen.getByText(/Since the last version:/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'xG or FDR?' })).toHaveAttribute('href', '/fpl/articles/xg-or-fdr');
     // Home opponents in capitals, away in lower case.

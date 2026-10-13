@@ -13,7 +13,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { H2, LINK, PROSE } from '../../components/articles/ArticleLayout';
-import GameweekReflection from '../../components/fpl/GameweekReflection';
+import GameweekReflection, { CongestionTable } from '../../components/fpl/GameweekReflection';
 import ReportTable from '../../components/fpl/ReportTable';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
@@ -142,6 +142,12 @@ function playerColumns(extra: { label: string; render: (r: PreviewPlayer) => Rea
   ];
 }
 
+/** Days' rest before this gameweek's match for a team that played midweek, else null. */
+function restDays(p: PreviewPayload, team: string): number | null {
+  const r = p.congestion?.before_gw.find((c) => c.team === team);
+  return r ? r.rest : null;
+}
+
 function Preview({ p }: { p: PreviewPayload }) {
   const ch = p.changes;
   const gws = p.fixture_run[0]?.weeks.map((w) => w.gw) ?? [];
@@ -231,6 +237,36 @@ function Preview({ p }: { p: PreviewPayload }) {
         />
       </section>
 
+      {p.congestion ? (
+        <section className="space-y-3" aria-labelledby="midweek">
+          <h2 id="midweek" className={H2}>Midweek matches</h2>
+          {p.congestion.before_gw.length ? (
+            <>
+              <p className={PROSE}>
+                Teams with a cup or European match before their GW{p.gw} game, and the rest in between. The projections don&rsquo;t adjust start
+                chances for this yet, so regular starters at teams on three days&rsquo; rest may be a little high. Each reflection measures whether
+                they were rotated.
+              </p>
+              <CongestionTable rows={p.congestion.before_gw} />
+            </>
+          ) : (
+            <p className={PROSE}>
+              {(p.congestion.days_since_previous ?? 0) >= 14
+                ? `No midweek matches: GW${p.gw} follows a ${Math.round((p.congestion.days_since_previous ?? 0) / 7)}-week break.`
+                : `No team has a cup or European match before its GW${p.gw} game.`}
+            </p>
+          )}
+          {p.congestion.ahead.length ? (
+            <p className={NOTE}>
+              Coming up:{' '}
+              {p.congestion.ahead.map((l, k) => (
+                <span key={l.gw}>{k ? '; ' : ''}{l.comps.join(' and ')} before GW{l.gw} ({l.teams} teams, {dm(`${l.from}T12:00:00Z`)}{l.from !== l.to ? `–${dm(`${l.to}T12:00:00Z`)}` : ''})</span>
+              ))}.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="space-y-3" aria-labelledby="captaincy-preview">
         <h2 id="captaincy-preview" className={H2}>Captaincy</h2>
         <p className={PROSE}>
@@ -242,7 +278,7 @@ function Preview({ p }: { p: PreviewPayload }) {
           caption="Captaincy: projected points and chance of the top score"
           rows={p.captains}
           columns={[
-            { label: 'Player', render: who, sort: (r) => r.name },
+            { label: 'Player', render: (r) => (<>{who(r)}{restDays(p, r.team) !== null ? <span className="block text-xs text-orange-800">{restDays(p, r.team)} days&rsquo; rest</span> : null}</>), sort: (r) => r.name },
             { label: 'xPts', render: (r) => r.gw_xpts.toFixed(1), sort: (r) => r.gw_xpts },
             { label: 'Top score', render: (r) => (r.top_chance === null ? '–' : pct(r.top_chance)), sort: (r) => r.top_chance },
             { label: 'Start', render: (r) => pct(r.start), sort: (r) => r.start },
