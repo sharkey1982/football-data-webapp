@@ -599,11 +599,16 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
     sid = ctx["season_id"]
     pts = defaultdict(dict)   # gw -> pid -> points
     start = defaultdict(dict)
+    xgi = defaultdict(dict)
+    mins = defaultdict(dict)
     for r in d.all("""select fpl_player_id, fpl_event_id gw, sum(total_points) p,
-                             max(coalesce((source_payload->'stats'->>'starts')::int, 0)) st
+                             max(coalesce((source_payload->'stats'->>'starts')::int, 0)) st,
+                             sum(coalesce(expected_goal_involvements, 0))::float8 xgi, sum(minutes) m
                         from public.fpl_player_gameweeks where season_id = %s and fpl_event_id <= %s group by 1, 2""", (sid, gw)):
         pts[r["gw"]][r["fpl_player_id"]] = r["p"]
         start[r["gw"]][r["fpl_player_id"]] = r["st"]
+        xgi[r["gw"]][r["fpl_player_id"]] = r["xgi"]
+        mins[r["gw"]][r["fpl_player_id"]] = r["m"] or 0
     # The pool: midfielders and forwards who cost 7.0m+ at the start of the
     # season. Fixed and point in time (FPL's per-gameweek ownership and price
     # aren't stored for this season).
@@ -625,28 +630,35 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
         if not pts.get(g):
             continue
         played = [p for p in pool if p in pts[g]]
-        form = None
-        if g > 1:
-            cands = [p for p in played if start.get(g - 1, {}).get(p)]
-            if cands:
-                form = max(cands, key=lambda p: (sum(pts.get(h, {}).get(p, 0) for h in range(max(1, g - 3), g)), -p))
         prem_id = ctx["gws"].get(g, {}).get("most_captained")
+        form = last = None
+        if g > 1:
+            prev = range(max(1, g - FORM_WEEKS), g)
+            cands = [p for p in played if p != prem_id and start.get(g - 1, {}).get(p)
+                     and sum(mins.get(h, {}).get(p, 0) for h in prev) >= FORM_MIN_MINUTES]
+            if cands:
+                form = max(cands, key=lambda p: (sum(xgi.get(h, {}).get(p, 0) for h in prev), -p))
+            lw = [p for p in played if p != prem_id and mins.get(g - 1, {}).get(p)]
+            if lw:
+                last = max(lw, key=lambda p: (pts.get(g - 1, {}).get(p, 0), -p))
         field = played + ([prem_id] if prem_id and prem_id not in played and prem_id in pts[g] else [])
         best = max(field, key=lambda p: pts[g].get(p, 0)) if field else None
         prem = prem_id
         pick = lambda p: None if p is None else {**player_label(ctx, p), "pts": pts[g].get(p, 0)}
-        weeks.append({"gw": g, "premium": pick(prem), "form": pick(form), "model": pick(model.get(g)), "best": pick(best),
+        weeks.append({"gw": g, "premium": pick(prem), "form": pick(form), "last": pick(last), "model": pick(model.get(g)), "best": pick(best),
                       "average": ctx["gws"].get(g, {}).get("average")})
 
     def total(key, ws):
         vals = [w[key]["pts"] for w in ws if w[key]]
         return sum(vals), len(vals)
 
-    span = [w for w in weeks if w["form"] and w["premium"]]
+    span = [w for w in weeks if w["form"] and w["last"] and w["premium"]]
     season = []
     for key, label, defn in (
         ("premium", "Premium every week", "FPL's most-captained player each gameweek"),
-        ("form", "Form pick", "most points in the previous 3 gameweeks, among midfielders and forwards who cost £7.0m+ at the start of the season and started their last match"),
+        ("form", "Underlying form", f"most expected goal involvements (xGI) over the previous {FORM_WEEKS} gameweeks, among midfielders and forwards "
+         f"who cost £7.0m+ at the start of the season, played {FORM_MIN_MINUTES}+ minutes in them and started their last match; never the premium"),
+        ("last", "Last week's top scorer", "most points in the previous gameweek among the same players; never the premium"),
         ("best", "Hindsight best", "the top scorer among those players and the premium (a ceiling, not a strategy)"),
     ):
         t, n = total(key, span)
@@ -669,6 +681,7 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
                         "article": "/fpl/articles/always-captain-the-top-pick", "haaland_article": "/fpl/articles/should-you-always-captain-haaland"}}
 
 
+FORM_WEEKS, FORM_MIN_MINUTES = 4, 180   # underlying form: xGI over the last 4 gameweeks, 180+ minutes
 BLANK_AT, HAUL_AT = 2, 10   # a blank: 2 points or fewer; a haul: 10 or more (before doubling)
 
 
@@ -688,7 +701,8 @@ def captain_ranges(d: Data, ctx: dict, gw: int, week: dict, pool: set) -> list[d
     import numpy as np
     from analysis_squad_variance import simulate
     tags = {}
-    for key, tag in (("premium", "most captained"), ("model", "model's pick"), ("form", "form pick"), ("best", "best this week")):
+    for key, tag in (("premium", "most captained"), ("model", "model's pick"), ("form", "underlying form"),
+                     ("last", "last week's top scorer"), ("best", "best this week")):
         if week.get(key) and week[key]["id"] not in tags:
             tags[week[key]["id"]] = tag
     # Plus the two most owned in the pool.
@@ -736,10 +750,37 @@ def section_incidents(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
             prices.append({**player_label(ctx, pid), "before": a["now_cost"] / 10, "now": b["now_cost"] / 10})
     keyf = lambda r: -(r.get("own") or 0)
     worse.sort(key=keyf); better.sort(key=keyf); prices.sort(key=keyf)
-    reds = [player_label(ctx, r["fpl_player_id"]) for r in actual_rows(d, ctx, gw).values() if r["red_cards"]]
+    act = actual_rows(d, ctx, gw)
+    reds = [player_label(ctx, r["fpl_player_id"]) for r in act.values() if r["red_cards"]]
+    cong = congestion(d, ctx, gw)
     return {"worse": worse[:20], "better": better[:20], "worse_count": len(worse), "better_count": len(better),
             "red_cards": reds, "prices": prices[:25], "price_count": len(prices),
-            "congestion": congestion(d, ctx, gw)}
+            "congestion": cong, "rotation": rotation(d, ctx, gw, cong, act)}
+
+
+def rotation(d: Data, ctx: dict, gw: int, cong: dict, act: dict) -> dict | None:
+    """Did teams with a cup or European match before the gameweek rotate? Players the model had at
+    70%+ to start: expected starts (sum of start chances) v actual, for those teams and the rest."""
+    busy = {r["team"] for r in (cong or {}).get("before_gw") or []}
+    if not busy:
+        return None
+    finished = {r["fixture_id"] for r in ctx["fixtures"] if r["gw"] == gw and r["finished"]}
+    out = {"busy": {"teams": len(busy), "players": 0, "expected": 0.0, "started": 0},
+           "rest": {"teams": 0, "players": 0, "expected": 0.0, "started": 0}}
+    rest_teams = set()
+    for s in deadline_rows(d, ctx, gw):
+        if s["fixture_id"] not in finished or (s["p"] or 0) < 0.7:
+            continue
+        team = player_label(ctx, s["fpl_player_id"])["team"]
+        g = out["busy"] if team in busy else out["rest"]
+        if team not in busy:
+            rest_teams.add(team)
+        a = act.get((s["fixture_id"], s["fpl_player_id"]))
+        g["players"] += 1; g["expected"] += s["p"]; g["started"] += 1 if a and a["starts"] else 0
+    out["rest"]["teams"] = len(rest_teams)
+    for g in out.values():
+        g["expected"] = f(g["expected"], 1)
+    return out
 
 
 def congestion(d: Data, ctx: dict, gw: int) -> dict:
@@ -753,7 +794,7 @@ def congestion(d: Data, ctx: dict, gw: int) -> dict:
         return {}
     first = lambda g: min(r["kickoff_time"] for r in fx_by_gw[g]) if fx_by_gw.get(g) else None
     last = lambda g: max(r["kickoff_time"] for r in fx_by_gw[g]) if fx_by_gw.get(g) else None
-    lo = (last(gw - 1) or first(gw) - timedelta(days=7)).date()
+    lo = (last(gw - 1) or first(gw) - timedelta(days=21)).date()
     hi = (last(gw + 3) or last(gw) + timedelta(days=21)).date()
     cups = d.all("""select f.league_id, f.kickoff_date, f.home_team_id, f.away_team_id,
                            coalesce(th.display_name, th.canonical_name) home, coalesce(ta.display_name, ta.canonical_name) away
@@ -788,15 +829,17 @@ def congestion(d: Data, ctx: dict, gw: int) -> dict:
         rows.sort(key=lambda r: (r["rest"], r["team"]))
         return rows
 
-    gap = (first(gw) - last(gw - 1)).days if last(gw - 1) else None
-    later = []
-    for g in (gw + 2, gw + 3):
+    def summary(g):
         rows = window(g)
-        if rows:
-            comps = sorted({r["comp"] for r in rows})
-            later.append({"gw": g, "teams": len({r["team"] for r in rows}), "comps": comps,
-                          "from": min(r["date"] for r in rows), "to": max(r["date"] for r in rows)})
-    return {"before_gw": window(gw), "next_gw": gw + 1, "before_next": window(gw + 1), "later": later,
+        if not rows:
+            return None
+        return {"gw": g, "teams": len({r["team"] for r in rows}), "comps": sorted({r["comp"] for r in rows}),
+                "from": min(r["date"] for r in rows), "to": max(r["date"] for r in rows)}
+
+    gap = (first(gw) - last(gw - 1)).days if last(gw - 1) else None
+    return {"before_gw": window(gw), "next_gw": gw + 1, "before_next": window(gw + 1),
+            "later": [x for x in (summary(g) for g in (gw + 2, gw + 3)) if x],
+            "ahead": [x for x in (summary(g) for g in (gw + 1, gw + 2)) if x],
             "days_since_previous": gap}
 
 
@@ -817,7 +860,7 @@ ROLE_NAMES = {"GK": "goalkeeper", "CB": "centre-back", "LCB": "centre-back", "RC
 # Ideas under consideration, shown in the reflection's model summary. Edit by
 # hand as they ship or are dropped. (theme, text)
 CONSIDERING = [
-    ("incidents", "Lower start chances after a European or cup midweek (not modelled yet)"),
+    ("incidents", "Lower start chances after a European or cup midweek (not modelled yet; measured each week in this section)"),
     ("set_pieces", "A source for who takes each penalty"),
 ]
 
@@ -881,16 +924,18 @@ def verdict_incidents(i: dict, gw: int) -> tuple[str, str]:
     else:
         head = "No new injuries or suspensions among popular players."
     c = i.get("congestion") or {}
-    nxt = c.get("before_next") or []
-    if nxt:
-        teams = {r["team"] for r in nxt}
-        short = {r["team"] for r in nxt if r["rest"] <= 3}
-        rest = f"Before GW{c['next_gw']}, {pl(len(teams), 'team')} play{'s' if len(teams) == 1 else ''} in Europe or the cup"
-        rest += f", {len(short)} of them with three days' rest or less." if short else "."
-    elif c:
-        rest = f"No midweek games before GW{c['next_gw']}."
+    rot = i.get("rotation")
+    before = c.get("before_gw") or []
+    if rot and rot["busy"]["players"]:
+        b = rot["busy"]
+        rest = (f"{pl(rot['busy']['teams'], 'team')} had a midweek match before GW{gw}: their likely starters "
+                f"made {b['started']} of {b['expected']:.0f} expected starts.")
+    elif before:
+        rest = f"{pl(len({r['team'] for r in before}), 'team')} had a midweek match before GW{gw}."
+    elif (c.get("days_since_previous") or 0) >= 14:
+        rest = f"GW{gw} followed a {round(c['days_since_previous'] / 7)}-week break, so nobody played midweek."
     else:
-        rest = ""
+        rest = f"Nobody played midweek before GW{gw}."
     return head, rest
 
 
@@ -919,8 +964,10 @@ def verdict_captaincy(c: dict, gw: int) -> tuple[str, str]:
         return "No captaincy data for this gameweek.", ""
     pr = w["premium"]
     bits = []
-    if w["form"] and w["form"]["id"] != pr["id"]:
-        bits.append(f"the form pick, {w['form']['name']}, {w['form']['pts']}")
+    if w["form"]:
+        bits.append(f"the underlying-form pick, {w['form']['name']}, {w['form']['pts']}")
+    if w.get("last") and w["last"]["id"] != (w["form"] or {}).get("id"):
+        bits.append(f"last week's top scorer, {w['last']['name']}, {w['last']['pts']}")
     if w["model"] and w["model"]["id"] not in (pr["id"], (w["form"] or {}).get("id")):
         bits.append(f"the model's pick, {w['model']['name']}, {w['model']['pts']}")
     head = f"{pr['name']} scored {pr['pts']}" + (f"; {'; '.join(bits)}." if bits else ".")
@@ -936,8 +983,9 @@ def verdict_captaincy(c: dict, gw: int) -> tuple[str, str]:
         rest.append(f"{names} {'were' if len(tops) > 1 else 'was'} the best captain{'s' if len(tops) > 1 else ''} with {top}.")
     s = {r["key"]: r for r in c["season"]}
     if c["span"] and "premium" in s and "form" in s:
-        rest.append(f"Since GW{c['span'][0]}, captaining the premium every week has {s['premium']['captain_points']} captain points "
-                    f"to the form pick's {s['form']['captain_points']}.")
+        tail = f" and chasing last week's top scorer {s['last']['captain_points']}" if "last" in s else ""
+        rest.append(f"Since GW{c['span'][0]}, captaining the premium every week has {s['premium']['captain_points']} captain points; "
+                    f"underlying form {s['form']['captain_points']}{tail}.")
     return head, " ".join(rest)
 
 
@@ -1282,6 +1330,9 @@ def build_preview(d: Data, gw: int, frozen: bool = False) -> dict:
          "picks": by_pos, "value": value, "differentials": diffs, "minutes_watch": watch[:15],
          "fixture_run": section_fixture_run(ctx, gw, goals),
          "changes": section_changes(d, ctx, gw, frozen, top_ids)}
+    cong = congestion(d, ctx, gw)
+    p["congestion"] = {"before_gw": cong.get("before_gw", []), "ahead": cong.get("ahead", []),
+                       "days_since_previous": cong.get("days_since_previous")}
     p["headlines"] = preview_headlines(p)
     return p
 
@@ -1302,6 +1353,11 @@ def preview_headlines(p: dict) -> list[str]:
         m = max(fx, key=lambda x: abs(x["goals_home"] - x["goals_away"]))
         fav, dog, gf = (m["home"], m["away"], m["goals_home"]) if m["goals_home"] >= m["goals_away"] else (m["away"], m["home"], m["goals_away"])
         out.append(f"The most one-sided fixture: {fav} against {dog}, {gf:.1f} goals expected for {fav}.")
+    busy = p.get("congestion", {}).get("before_gw") or []
+    short = sorted({r["team"] for r in busy if r["rest"] <= 3})
+    if short:
+        out.append(f"{pl(len(short), 'team')} play{'s' if len(short) == 1 else ''} this gameweek on three days' rest or less after a midweek match: "
+                   f"{', '.join(short[:-1]) + ' and ' + short[-1] if len(short) > 1 else short[0]}.")
     inj = [r for r in p["changes"]["injuries"] if (r["now"] or "a") != "a"]
     if inj:
         r = inj[0]

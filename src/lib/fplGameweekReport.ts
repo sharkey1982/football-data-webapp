@@ -54,11 +54,13 @@ export type CupGame = {
   team: string; comp: string; date: string; opp: string; home: boolean;
   league_date: string; league_opp: string; league_home: boolean; rest: number;
 };
+export type CupWindow = { gw: number; teams: number; comps: string[]; from: string; to: string };
+export type RotationGroup = { teams: number; players: number; expected: number; started: number };
 export type CaptainRange = PlayerRef & {
   tag: string; p10: number; p50: number; p90: number; mean: number; p_blank: number; p_haul: number; pts: number;
 };
 export type CaptainApproach = {
-  key: 'premium' | 'form' | 'best' | 'model';
+  key: 'premium' | 'form' | 'last' | 'best' | 'model';
   label: string; definition: string; weeks: number; points: number; captain_points: number;
   beat_premium: number | null; premium_same_weeks?: number;
   mean: number | null; sd: number | null; worst: number | null; best: number | null; blanks: number; hauls: number;
@@ -117,9 +119,11 @@ export type ReflectionPayload = {
       before_gw?: CupGame[];
       next_gw?: number;
       before_next?: CupGame[];
-      later?: { gw: number; teams: number; comps: string[]; from: string; to: string }[];
+      later?: CupWindow[];
+      ahead?: CupWindow[];
       days_since_previous?: number | null;
     };
+    rotation?: { busy: RotationGroup; rest: RotationGroup } | null;
   };
   set_pieces: {
     order_changes: {
@@ -137,6 +141,7 @@ export type ReflectionPayload = {
       gw: number;
       premium: (PlayerRef & { pts: number }) | null;
       form: (PlayerRef & { pts: number }) | null;
+      last?: (PlayerRef & { pts: number }) | null;
       model: (PlayerRef & { pts: number }) | null;
       best: (PlayerRef & { pts: number }) | null;
       average: number | null;
@@ -181,6 +186,7 @@ export type PreviewPayload = {
     team: string; for_5: number; against_5: number; for_10: number; against_10: number;
     weeks: { gw: number; fixtures: { opp: string; home: boolean; for: number; against: number }[] }[];
   }[];
+  congestion?: { before_gw: CupGame[]; ahead: CupWindow[]; days_since_previous: number | null };
   changes: {
     since_gw: number;
     injuries: (PlayerRef & { before: string | null; now: string | null; news: string | null })[];
