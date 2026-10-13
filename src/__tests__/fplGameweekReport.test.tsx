@@ -5,7 +5,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import GameweekReportPage from '../pages/fpl/GameweekReportPage';
 import GameweekHubPage from '../pages/fpl/GameweekHubPage';
-import { movedTeams, reportPath, seasonDisplay, signed, type GameweekReport } from '../lib/fplGameweekReport';
+import { reportPath, seasonDisplay, signed, type GameweekReport } from '../lib/fplGameweekReport';
 
 import { payload, previewReport, previewPayload, report } from './fixtures/gameweekReflection';
 
@@ -28,37 +28,46 @@ describe('gameweek report helpers', () => {
     expect(signed(0.01)).toBe('0.0');
     expect(signed(null)).toBe('–');
   });
-
-  it('only lists teams whose projected goals moved', () => {
-    expect(movedTeams(payload.goals.next5).map((r) => r.team)).toEqual(['Chelsea']);
-  });
 });
 
 describe('gameweek reflection page', () => {
-  it('renders every section from the payload', () => {
+  it('renders the five themes, each with its model box', () => {
     renderReport(report);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('GW6 reflection');
-    for (const name of ['Goals against the model', 'Minutes and positions', 'Set pieces', 'Captaincy', 'Since the deadline']) {
+    for (const name of ['Team goals', 'Positions and playing time', 'Injuries, suspensions and congestion', 'Set pieces', 'Captaincy']) {
       expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
     }
-    // Unplayed matches are left out of the goals table.
-    const goals = screen.getByRole('table', { name: /Each match/ });
-    expect(goals).toHaveTextContent('Chelsea v Bournemouth');
-    expect(goals).not.toHaveTextContent('Coventry');
-    expect(goals).toHaveTextContent('+2.9'); // 6 goals v 3.08 expected
-    // Line changes in the table; side swaps behind the disclosure.
-    expect(screen.getByRole('table', { name: 'Players who changed line' })).toHaveTextContent('Mbeumo');
-    expect(screen.getByRole('table', { name: 'Players who changed line' })).not.toHaveTextContent('Semenyo');
-    expect(screen.getByText(/1 more played the same line/)).toBeInTheDocument();
-    // Captaincy season table and the honest context.
-    const cap = screen.getByRole('table', { name: 'Captain points by approach this season' });
-    expect(within(cap).getByText('86')).toBeInTheDocument();
-    expect(screen.getByText(/blanked 27.7% of the time/)).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 3, name: 'What changes in the model' })).toHaveLength(4);
+    // Summary tiles link to each theme and carry its status.
+    const tiles = screen.getByRole('heading', { name: 'The week in five lines' }).parentElement!;
+    expect(within(tiles).getByRole('link', { name: /36 goals against 29.1 expected/ })).toHaveAttribute('href', '#goals');
+    expect(within(tiles).getByText('Ratings updated')).toBeInTheDocument();
+    expect(within(tiles).getByText('Congestion not modelled')).toBeInTheDocument();
+    // Goals: per-team chart, signal and noise, rating moves.
+    const chart = screen.getByRole('table', { name: /Each team: expected goals/ });
+    expect(within(chart).getByRole('rowheader', { name: /Chelsea/ })).toBeInTheDocument();
+    expect(chart).toHaveTextContent('+3.1'); // 5 goals v 1.94 expected
+    expect(screen.getByText(/Nottingham Forest made 3.3 xG against 1.3 expected/)).toBeInTheDocument();
+    expect(screen.getByText(/Chelsea scored 5 from 1.1 xG/)).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Team rating moves since the deadline' })).toHaveTextContent('1.21 → 1.27');
+    // Congestion and set pieces against our hierarchy.
+    expect(screen.getByText(/followed a 3-week break/)).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /cup or European match/ })).toHaveTextContent('LASK');
+    expect(screen.getByRole('list', { name: /set-piece takers/ })).toHaveTextContent('McGinn (right corners)');
+    expect(screen.getByText(/can’t see who took each penalty/)).toBeInTheDocument();
+    // Captaincy: ranges and volatility.
+    expect(screen.getByRole('table', { name: /simulated range/ })).toHaveTextContent('66%');
+    const season = screen.getByRole('table', { name: 'Captain points by approach this season' });
+    expect(within(season).getByText('86')).toBeInTheDocument();
+    expect(within(season).getByText('2.9')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /should you always captain Haaland/ })).toHaveAttribute('href', '/fpl/articles/should-you-always-captain-haaland');
-    // Lag caveat when goals moved, and the set-piece gap stated.
-    expect(screen.getByText(/shows up a week later/)).toBeInTheDocument();
-    expect(screen.getByText(/Who took each penalty isn't recorded/)).toBeInTheDocument();
     expect(screen.queryByText(/Written before FPL confirmed/)).not.toBeInTheDocument();
+  });
+
+  it('says when the closing prices are not in yet', () => {
+    renderReport({ ...report, payload: { ...payload, prices_in: false, goals: { ...payload.goals, ratings: { status: 'pending', moves: [], deadline: '2026-10-10' } } } });
+    expect(screen.getAllByText('Waiting for prices').length).toBeGreaterThan(0);
+    expect(screen.getByText(/closing prices hadn’t arrived/)).toBeInTheDocument();
   });
 
   it('flags a report written before bonus was confirmed', () => {

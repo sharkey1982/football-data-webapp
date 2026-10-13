@@ -8,21 +8,24 @@
 # 2026): reflection on Tuesday, preview on Thursday.
 #
 # The reflection is about what the gameweek did to the model, not a
-# scorecard:
-#   goals       each match: the model's expected goals at the deadline v
-#               actual goals v FPL xG; each team's season so far v the
-#               market's closing prices; each team's next 5 gameweeks'
-#               projected goals now v at the deadline.
+# scorecard. Five themes (Chris, 13 Oct 2026), each with a verdict, what
+# happened against what the model expected, and what the model changed:
+#   goals       each team's expected goals at the deadline v xG v goals;
+#               season xG v the market; team ratings at the deadline v now
+#               (from closing prices) and the next 5 gameweeks' goals.
 #   minutes     deadline start chances v who started; early substitutions;
 #               positions played (BBC line-ups) v the role the model used;
 #               the biggest moves in next gameweek's start chances.
-#   set_pieces  FPL's set-piece orders, deadline v now; penalties missed;
-#               FPL's first-choice penalty taker v the model's hierarchy.
-#   captaincy   the premium (FPL's most captained), a form pick, the model's
-#               top projection and the hindsight best: this gameweek and
-#               the season so far.
-#   during      injuries, red cards, price changes and model changes since
-#               the deadline.
+#   incidents   injuries and suspensions since the deadline, red cards,
+#               prices, and cup / European matches around the gameweek with
+#               each team's rest before its next league match.
+#   set_pieces  FPL's set-piece orders, deadline v now, against our own
+#               hierarchy (which the projection uses); penalties missed.
+#   captaincy   the premium, a form pick, the model's pick and the hindsight
+#               best: this gameweek's simulated ranges at the deadline and
+#               what each scored; the season's return and volatility.
+# A reflection publishes once FPL confirms bonus and the gameweek's closing
+# prices are in (or PRICES_WAIT_HOURS after the last kickoff).
 #
 # Everything is read point in time where it matters:
 #   - the deadline's expected goals come from the deadline snapshot; for
@@ -922,9 +925,15 @@ def verdict_captaincy(c: dict, gw: int) -> tuple[str, str]:
         bits.append(f"the model's pick, {w['model']['name']}, {w['model']['pts']}")
     head = f"{pr['name']} scored {pr['pts']}" + (f"; {'; '.join(bits)}." if bits else ".")
     rest = []
-    if w["best"] and w["best"]["id"] != pr["id"]:
-        own = w["best"].get("own")
-        rest.append(f"{w['best']['name']} ({w['best']['pts']}) was the best captain" + (f" at {own:.0f}% ownership." if own is not None and own < 10 else "."))
+    # The best captain this week among the pool's best and the candidates shown.
+    cands = {r["id"]: r for r in c.get("ranges") or []}
+    if w["best"]:
+        cands.setdefault(w["best"]["id"], w["best"])
+    top = max((r["pts"] for r in cands.values()), default=None)
+    tops = sorted((r for r in cands.values() if r["pts"] == top), key=lambda r: (r.get("own") or 0))
+    if tops and pr["id"] not in {r["id"] for r in tops} and top > pr["pts"]:
+        names = " and ".join(f"{r['name']} ({r.get('own') or 0:.0f}% owned)" for r in tops[:2])
+        rest.append(f"{names} {'were' if len(tops) > 1 else 'was'} the best captain{'s' if len(tops) > 1 else ''} with {top}.")
     s = {r["key"]: r for r in c["season"]}
     if c["span"] and "premium" in s and "form" in s:
         rest.append(f"Since GW{c['span'][0]}, captaining the premium every week has {s['premium']['captain_points']} captain points "

@@ -42,6 +42,28 @@ export type Next5Team = {
   for_change: number; against_change: number;
 };
 
+export type ThemeKey = 'goals' | 'minutes' | 'incidents' | 'set_pieces' | 'captaincy';
+export type Verdict = { head: string; rest: string };
+export type TeamGoals = { team: string; opp: string; home: boolean; exp: number; xg: number | null; goals: number };
+export type RatingMove = {
+  team: string; att_before: number; att_now: number; def_before: number; def_now: number;
+  for5_before: number | null; for5_now: number | null; against5_before: number | null; against5_now: number | null; size: number;
+};
+export type StatusChange = PlayerRef & { before: string | null; now: string | null; news: string | null };
+export type CupGame = {
+  team: string; comp: string; date: string; opp: string; home: boolean;
+  league_date: string; league_opp: string; league_home: boolean; rest: number;
+};
+export type CaptainRange = PlayerRef & {
+  tag: string; p10: number; p50: number; p90: number; mean: number; p_blank: number; p_haul: number; pts: number;
+};
+export type CaptainApproach = {
+  key: 'premium' | 'form' | 'best' | 'model';
+  label: string; definition: string; weeks: number; points: number; captain_points: number;
+  beat_premium: number | null; premium_same_weeks?: number;
+  mean: number | null; sd: number | null; worst: number | null; best: number | null; blanks: number; hauls: number;
+};
+
 export type ReflectionPayload = {
   kind: 'reflection';
   season: string;
@@ -50,8 +72,15 @@ export type ReflectionPayload = {
   generated_at: string;
   gameweek_finished: boolean;
   bonus_confirmed: boolean;
+  prices_in: boolean;
   average: number | null;
   headlines: string[];
+  verdicts: Record<ThemeKey, Verdict>;
+  model_summary: {
+    automatic: { theme: ThemeKey; text: string }[];
+    method: { date: string; area: string; title: string }[];
+    considering: { theme: ThemeKey; text: string }[];
+  };
   goals: {
     matches: MatchGoals[];
     expected_from: string;
@@ -59,10 +88,14 @@ export type ReflectionPayload = {
     next5: Next5Team[];
     next5_from: string;
     next5_gws: [number, number];
+    teams: TeamGoals[];
+    totals: { matches: number; goals: number; expected: number; xg: number | null };
+    ratings: { status: 'updated' | 'pending'; moves: RatingMove[]; deadline: string };
   };
   minutes: {
     brier: number | null;
     players: number;
+    counts: { absences: number; absences_flagged: number; starters: number; early_subs: number; line_changes: number; side_changes: number; start_moves: number };
     surprise_starters: (PlayerRef & { p: number; minutes: number; pts: number })[];
     surprise_absences: (PlayerRef & { p: number; flagged: boolean; news: string | null; minutes: number })[];
     early_subs: (PlayerRef & { xmin: number; minutes: number })[];
@@ -72,10 +105,30 @@ export type ReflectionPayload = {
     next_gw: number;
     next_gw_moves: (PlayerRef & { before: number; now: number; change: number; reason: string })[];
   };
+  incidents: {
+    worse: StatusChange[];
+    better: StatusChange[];
+    worse_count: number;
+    better_count: number;
+    red_cards: PlayerRef[];
+    prices: (PlayerRef & { before: number; now: number })[];
+    price_count: number;
+    congestion: {
+      before_gw?: CupGame[];
+      next_gw?: number;
+      before_next?: CupGame[];
+      later?: { gw: number; teams: number; comps: string[]; from: string; to: string }[];
+      days_since_previous?: number | null;
+    };
+  };
   set_pieces: {
-    order_changes: { team: string; type: string; before: string[]; now: string[] }[];
+    order_changes: {
+      team: string; type: string; before: string[]; now: string[];
+      model: { type: string; name: string }[]; model_agrees: string[]; needs_review: boolean;
+    }[];
     penalties_missed: (PlayerRef & { count: number })[];
     model_mismatches: { team: string; fpl: string[]; model: string }[];
+    penalty_teams_compared: number;
     hierarchy_updated: string | null;
     note: string;
   };
@@ -88,19 +141,12 @@ export type ReflectionPayload = {
       best: (PlayerRef & { pts: number }) | null;
       average: number | null;
     }[];
-    season: {
-      key: 'premium' | 'form' | 'best' | 'model';
-      label: string; definition: string; weeks: number; points: number; captain_points: number;
-      beat_premium: number | null; worst: number | null; premium_same_weeks?: number;
-    }[];
+    season: CaptainApproach[];
     span: [number, number] | null;
+    ranges: CaptainRange[];
+    blank_at: number;
+    haul_at: number;
     context: { top_pick_blank_rate: number; top_pick_best_rate: number; seasons: string; article: string; haaland_article: string };
-  };
-  during: {
-    injuries: (PlayerRef & { before: string | null; now: string | null; news: string | null })[];
-    prices: (PlayerRef & { before: number; now: number })[];
-    red_cards: PlayerRef[];
-    model_changes: { date: string; area: string; title: string }[];
   };
   checks?: Record<string, unknown>;
 };
