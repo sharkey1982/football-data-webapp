@@ -635,7 +635,7 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
         if g > 1:
             prev = range(max(1, g - FORM_WEEKS), g)
             cands = [p for p in played if p != prem_id and start.get(g - 1, {}).get(p)
-                     and sum(mins.get(h, {}).get(p, 0) for h in prev) >= FORM_MIN_MINUTES]
+                     and sum(mins.get(h, {}).get(p, 0) for h in prev) >= min(FORM_MIN_MINUTES, 60 * len(prev))]
             if cands:
                 form = max(cands, key=lambda p: (sum(xgi.get(h, {}).get(p, 0) for h in prev), -p))
             lw = [p for p in played if p != prem_id and mins.get(g - 1, {}).get(p)]
@@ -681,7 +681,9 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
                         "article": "/fpl/articles/always-captain-the-top-pick", "haaland_article": "/fpl/articles/should-you-always-captain-haaland"}}
 
 
-FORM_WEEKS, FORM_MIN_MINUTES = 4, 180   # underlying form: xGI over the last 4 gameweeks, 180+ minutes
+# Underlying form: xGI over the last 4 gameweeks with 180+ minutes in them
+# (60 a gameweek while fewer than 3 have been played).
+FORM_WEEKS, FORM_MIN_MINUTES = 4, 180
 BLANK_AT, HAUL_AT = 2, 10   # a blank: 2 points or fewer; a haul: 10 or more (before doubling)
 
 
