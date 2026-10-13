@@ -659,6 +659,10 @@ def x_thread(p: dict, url: str) -> list[str]:
 # the record is exactly what the projections said before kick-off.
 
 SIM_WORLDS = 20000
+# The automatic step publishes reflections from this gameweek on. GW6 is held
+# for Chris's review of the reworked layout (13 Oct 2026) and published by
+# hand (workflow gameweek-report, publish ticked).
+REFLECTION_AUTO_FROM_GW = 7
 
 
 def projection_rows(d: Data, ctx: dict, gw: int, frozen: bool) -> list[dict]:
@@ -1020,7 +1024,7 @@ def reflection_due(d: Data) -> int | None:
                      where g.season_id = %s and g.finished and coalesce((g.source_payload->>'data_checked')::boolean, false)
                        and not exists (select 1 from public.fpl_gameweek_reports r where r.season_id = g.season_id
                                          and r.fpl_event_id = g.fpl_event_id and r.kind = 'reflection' and r.status = 'published')
-                       and g.fpl_event_id >= 6""", (sid,))
+                       and g.fpl_event_id >= %s""", (sid, REFLECTION_AUTO_FROM_GW))
 
 
 def latest_preview(d: Data, gw: int) -> dict | None:
