@@ -8,21 +8,24 @@
 # 2026): reflection on Tuesday, preview on Thursday.
 #
 # The reflection is about what the gameweek did to the model, not a
-# scorecard:
-#   goals       each match: the model's expected goals at the deadline v
-#               actual goals v FPL xG; each team's season so far v the
-#               market's closing prices; each team's next 5 gameweeks'
-#               projected goals now v at the deadline.
+# scorecard. Five themes (Chris, 13 Oct 2026), each with a verdict, what
+# happened against what the model expected, and what the model changed:
+#   goals       each team's expected goals at the deadline v xG v goals;
+#               season xG v the market; team ratings at the deadline v now
+#               (from closing prices) and the next 5 gameweeks' goals.
 #   minutes     deadline start chances v who started; early substitutions;
 #               positions played (BBC line-ups) v the role the model used;
 #               the biggest moves in next gameweek's start chances.
-#   set_pieces  FPL's set-piece orders, deadline v now; penalties missed;
-#               FPL's first-choice penalty taker v the model's hierarchy.
-#   captaincy   the premium (FPL's most captained), a form pick, the model's
-#               top projection and the hindsight best: this gameweek and
-#               the season so far.
-#   during      injuries, red cards, price changes and model changes since
-#               the deadline.
+#   incidents   injuries and suspensions since the deadline, red cards,
+#               prices, and cup / European matches around the gameweek with
+#               each team's rest before its next league match.
+#   set_pieces  FPL's set-piece orders, deadline v now, against our own
+#               hierarchy (which the projection uses); penalties missed.
+#   captaincy   the premium, a form pick, the model's pick and the hindsight
+#               best: this gameweek's simulated ranges at the deadline and
+#               what each scored; the season's return and volatility.
+# A reflection publishes once FPL confirms bonus and the gameweek's closing
+# prices are in (or PRICES_WAIT_HOURS after the last kickoff).
 #
 # Everything is read point in time where it matters:
 #   - the deadline's expected goals come from the deadline snapshot; for
@@ -296,8 +299,86 @@ def section_goals(d: Data, ctx: dict, gw: int) -> dict:
               "against_before": f(s["ab"], 2), "against_now": f(s["an"], 2),
               "for_change": f(s["fn"] - s["fb"], 2), "against_change": f(s["an"] - s["ab"], 2)} for t, s in tot.items()]
     next5.sort(key=lambda r: -abs(r["for_change"]) - abs(r["against_change"]))
+
+    # Per team this gameweek: expected at the deadline, xG, goals.
+    teams = []
+    for m, r in zip(matches, fixtures):
+        if not m["finished"] or m["goals_home"] is None or m["exp_home"] is None:
+            continue
+        sh = lambda t: (ctx["teams"].get(t) or {}).get("short_name") or team_name(ctx, t)[:3].upper()
+        for side, opp, home in (("home", r["a"], True), ("away", r["h"], False)):
+            teams.append({"team": m[side], "opp": sh(opp), "home": home,
+                          "exp": m[f"exp_{side}"], "xg": m[f"xg_{side}"], "goals": m[f"goals_{side}"]})
+    teams.sort(key=lambda t: -(t["goals"] - t["exp"]))
+    played = [t for t in teams if t["xg"] is not None]
+    totals = {"matches": len(teams) // 2, "goals": sum(t["goals"] for t in teams),
+              "expected": f(sum(t["exp"] for t in teams), 1),
+              "xg": f(sum(t["xg"] for t in played), 1) if len(played) == len(teams) else None}
+
+    ratings = rating_moves(d, ctx, gw, {r["team"]: r for r in next5})
     return {"matches": matches, "expected_from": how, "season": season, "next5": next5,
-            "next5_from": before_how, "next5_gws": [gw + 1, gw + 5]}
+            "next5_from": before_how, "next5_gws": [gw + 1, gw + 5],
+            "teams": teams, "totals": totals, "ratings": ratings}
+
+
+def prices_in(d: Data, ctx: dict, gw: int) -> bool:
+    """True when every match of gw has its closing prices (market_closing_lines)."""
+    fx = [r for r in ctx["fixtures"] if r["gw"] == gw and r["home_team_id"]]
+    if not fx:
+        return False
+    have = {(r["home_team_id"], r["away_team_id"]) for r in d.all(
+        """select home_team_id, away_team_id from public.market_closing_lines
+            where league_id = 1 and season_id = (select season_id from public.fixtures where fixture_id = %s)""",
+        (fx[0]["fixture_id"],))}
+    return all((r["home_team_id"], r["away_team_id"]) in have for r in fx)
+
+
+def team_ratings(d: Data, ctx: dict, upto: date, inclusive: bool) -> dict:
+    """{fpl_team_id: (scored, conceded)} per match against an average side, from closing prices."""
+    from market_ratings import WINDOW_DAYS, lines_from_rows, market_ratings
+    op = "<=" if inclusive else "<"
+    rows = d.all(f"""select match_date, home_team_id, away_team_id, p_home, p_away, p_over
+                       from public.market_closing_lines
+                      where league_id = 1 and match_date >= %s and match_date {op} %s
+                        and p_home is not null and p_away is not null and p_over is not null""",
+                 (upto - timedelta(days=WINDOW_DAYS), upto))
+    rated = market_ratings(lines_from_rows(rows), upto if inclusive else upto - timedelta(days=1))
+    if rated is None:
+        return {}
+    idx, c0, hfa, att, dfn = rated
+    canon = {t["team_id"]: k for k, t in ctx["teams"].items() if t.get("team_id") in idx}
+    if not canon:
+        return {}
+    ia = [idx[c] for c in canon]
+    mean_att, mean_def = float(att[ia].mean()), float(dfn[ia].mean())
+    out = {}
+    for c, k in canon.items():
+        i = idx[c]
+        out[k] = (math.exp(c0 + hfa / 2 + att[i] - mean_def), math.exp(c0 + hfa / 2 + mean_att - dfn[i]))
+    return out
+
+
+def rating_moves(d: Data, ctx: dict, gw: int, next5: dict) -> dict:
+    """Each team's attack and defence at the deadline v now, biggest movers first."""
+    ok = prices_in(d, ctx, gw)
+    deadline = ctx["gws"][gw]["deadline_time"].date()
+    before, now = team_ratings(d, ctx, deadline, False), team_ratings(d, ctx, date.today(), True)
+    moves = []
+    for k, b in before.items():
+        n = now.get(k)
+        if not n:
+            continue
+        name = team_name(ctx, k)
+        nx = next5.get(name) or {}
+        moves.append({"team": name, "att_before": f(b[0], 2), "att_now": f(n[0], 2), "def_before": f(b[1], 2), "def_now": f(n[1], 2),
+                      "for5_before": nx.get("for_before"), "for5_now": nx.get("for_now"),
+                      "against5_before": nx.get("against_before"), "against5_now": nx.get("against_now"),
+                      "size": abs(n[0] - b[0]) + abs(n[1] - b[1])})
+    moves.sort(key=lambda r: -r["size"])
+    for r in moves:
+        r["size"] = f(r["size"], 3)
+    return {"status": "updated" if ok else "pending", "moves": moves[:6] if ok else [],
+            "deadline": deadline.isoformat()}
 
 
 def deadline_rows(d: Data, ctx: dict, gw: int) -> list[dict]:
@@ -438,7 +519,11 @@ def section_minutes(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
             reason = f"start record {sr['starts']} of {sr['available_matches']}" if sr else "pecking order"
         moves.append({**player_label(ctx, pid), "before": f(before[pid], 2), "now": f(r["p"], 2), "change": f(delta, 2), "reason": reason})
     moves.sort(key=lambda r: -abs(r["change"]))
-    return {"brier": f(brier / n, 4) if n else None, "players": n,
+    counts = {"absences": len(absences), "absences_flagged": sum(1 for r in absences if r["flagged"]),
+              "starters": len(starters), "early_subs": len(early),
+              "line_changes": sum(1 for r in positions if r["kind"] == "line"),
+              "side_changes": sum(1 for r in positions if r["kind"] == "side"), "start_moves": len(moves)}
+    return {"brier": f(brier / n, 4) if n else None, "players": n, "counts": counts,
             "surprise_starters": starters[:12], "surprise_absences": absences[:15], "early_subs": early[:12],
             "positions": positions[:30], "lineups_covered": lineups_covered,
             "fixtures": len([r for r in ctx["fixtures"] if r["gw"] == gw]),
@@ -456,36 +541,56 @@ def first_choice(state: dict, field: str, ctx: dict) -> dict:
     return out
 
 
+# FPL's set-piece order -> our hierarchy's types (set_piece_hierarchies, which
+# the projection uses through fpl_set_piece_fixture_exposure_v1).
+HIERARCHY_TYPES = {
+    "penalties_order": ("penalty",),
+    "direct_freekicks_order": ("direct_free_kick",),
+    "corners_and_indirect_freekicks_order": ("corner_left", "corner_right", "indirect_free_kick"),
+}
+HIERARCHY_LABEL = {"penalty": "penalties", "direct_free_kick": "direct free kicks", "corner_left": "left corners",
+                   "corner_right": "right corners", "indirect_free_kick": "indirect free kicks"}
+
+
 def section_set_pieces(d: Data, ctx: dict, gw: int) -> dict:
     then, now = deadline_state(d, ctx, gw), latest_state(d, ctx)
+    hier = d.all("""select h.team_id, h.set_piece_type, h.source_player_id, h.player_name, h.updated_at
+                      from public.set_piece_hierarchies h
+                     where h.season_id = %s and h.rank = 1 and h.valid_to is null""", (ctx["season_id"],))
+    canon_to_fpl = {t["team_id"]: k for k, t in ctx["teams"].items() if t.get("team_id")}
+    first = defaultdict(dict)   # fpl team -> type -> (player id, name)
+    for h in hier:
+        t = canon_to_fpl.get(h["team_id"])
+        if t is not None:
+            pid = int(h["source_player_id"]) if str(h["source_player_id"] or "").isdigit() else None
+            first[t][h["set_piece_type"]] = (pid, h["player_name"])
     changes = []
     for field, label in SET_PIECE_FIELDS.items():
         a, b = first_choice(then, field, ctx), first_choice(now, field, ctx)
         for t in sorted(set(a) | set(b), key=lambda t: team_name(ctx, t)):
             if sorted(a.get(t, [])) != sorted(b.get(t, [])):
+                ours = [(ty, first[t][ty]) for ty in HIERARCHY_TYPES[field] if ty in first[t]]
+                new_ids = set(b.get(t, []))
+                agree = [HIERARCHY_LABEL[ty] for ty, (pid, _) in ours if pid in new_ids]
                 changes.append({"team": team_name(ctx, t), "type": label,
                                 "before": [player_label(ctx, p)["name"] for p in a.get(t, [])],
-                                "now": [player_label(ctx, p)["name"] for p in b.get(t, [])]})
+                                "now": [player_label(ctx, p)["name"] for p in b.get(t, [])],
+                                "model": [{"type": HIERARCHY_LABEL[ty], "name": nm} for ty, (_, nm) in ours],
+                                "model_agrees": agree, "needs_review": bool(new_ids) and not agree})
     act = actual_rows(d, ctx, gw)
     missed = [{**player_label(ctx, r["fpl_player_id"]), "count": r["penalties_missed"]} for r in act.values() if r["penalties_missed"]]
-    # FPL's first-choice taker v the model's penalty hierarchy.
-    hier = d.all("""select h.team_id, h.source_player_id, h.player_name, h.updated_at
-                      from public.set_piece_hierarchies h
-                     where h.season_id = %s and h.set_piece_type = 'penalty' and h.rank = 1 and h.valid_to is null""", (ctx["season_id"],))
-    canon_to_fpl = {t["team_id"]: k for k, t in ctx["teams"].items() if t.get("team_id")}
+    # FPL's first-choice penalty taker v ours, every club.
     fpl_now = first_choice(now, "penalties_order", ctx)
-    mism = []
-    for h in hier:
-        t = canon_to_fpl.get(h["team_id"])
-        fpl_ids = fpl_now.get(t, [])
-        if not fpl_ids:
+    mism, compared = [], 0
+    for t, types in first.items():
+        if "penalty" not in types or not fpl_now.get(t):
             continue
-        model_id = int(h["source_player_id"]) if str(h["source_player_id"] or "").isdigit() else None
-        if model_id not in fpl_ids:
-            mism.append({"team": team_name(ctx, t), "fpl": [player_label(ctx, p)["name"] for p in fpl_ids],
-                         "model": h["player_name"]})
+        compared += 1
+        if types["penalty"][0] not in fpl_now[t]:
+            mism.append({"team": team_name(ctx, t), "fpl": [player_label(ctx, p)["name"] for p in fpl_now[t]],
+                         "model": types["penalty"][1]})
     hier_updated = max((h["updated_at"] for h in hier), default=None)
-    return {"order_changes": changes, "penalties_missed": missed, "model_mismatches": mism,
+    return {"order_changes": changes, "penalties_missed": missed, "model_mismatches": mism, "penalty_teams_compared": compared,
             "hierarchy_updated": hier_updated.date().isoformat() if hier_updated else None,
             "note": "Who took each penalty isn't recorded: FPL's data doesn't say which goals were penalties."}
 
@@ -546,41 +651,153 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
     ):
         t, n = total(key, span)
         beat = sum(1 for w in span if w[key]["pts"] > w["premium"]["pts"]) if key != "premium" else None
-        worst = min((w[key]["pts"] for w in span), default=None)
         season.append({"key": key, "label": label, "definition": defn, "weeks": n, "points": t, "captain_points": 2 * t,
-                       "beat_premium": beat, "worst": worst})
+                       "beat_premium": beat, **spread([w[key]["pts"] for w in span])})
     mweeks = [w for w in weeks if w["model"] and w["premium"]]
     if mweeks:
         t, n = total("model", mweeks)
         season.append({"key": "model", "label": "Model's top projection", "definition": "the highest projection at each deadline (saved from GW6)",
                        "weeks": n, "points": t, "captain_points": 2 * t,
                        "beat_premium": sum(1 for w in mweeks if w["model"]["pts"] > w["premium"]["pts"]),
-                       "worst": min(w["model"]["pts"] for w in mweeks),
-                       "premium_same_weeks": sum(w["premium"]["pts"] for w in mweeks)})
+                       "premium_same_weeks": sum(w["premium"]["pts"] for w in mweeks),
+                       **spread([w["model"]["pts"] for w in mweeks])})
+    this = next((w for w in weeks if w["gw"] == gw), None)
     return {"weeks": weeks, "season": season, "span": [span[0]["gw"], span[-1]["gw"]] if span else None,
+            "ranges": captain_ranges(d, ctx, gw, this, pool) if this else [],
+            "blank_at": BLANK_AT, "haul_at": HAUL_AT,
             "context": {"top_pick_blank_rate": 27.7, "top_pick_best_rate": 19.9, "seasons": "2022/23 to 2025/26",
                         "article": "/fpl/articles/always-captain-the-top-pick", "haaland_article": "/fpl/articles/should-you-always-captain-haaland"}}
 
 
-def section_during(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
+BLANK_AT, HAUL_AT = 2, 10   # a blank: 2 points or fewer; a haul: 10 or more (before doubling)
+
+
+def spread(vals: list) -> dict:
+    """Return and volatility of a run of captain scores (points before doubling)."""
+    if not vals:
+        return {"mean": None, "sd": None, "worst": None, "best": None, "blanks": 0, "hauls": 0}
+    n = len(vals)
+    mean = sum(vals) / n
+    sd = math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1)) if n > 1 else None
+    return {"mean": f(mean, 1), "sd": f(sd, 1), "worst": min(vals), "best": max(vals),
+            "blanks": sum(1 for v in vals if v <= BLANK_AT), "hauls": sum(1 for v in vals if v >= HAUL_AT)}
+
+
+def captain_ranges(d: Data, ctx: dict, gw: int, week: dict, pool: set) -> list[dict]:
+    """This gameweek's candidates: the deadline's simulated range of points, and what each scored."""
+    import numpy as np
+    from analysis_squad_variance import simulate
+    tags = {}
+    for key, tag in (("premium", "most captained"), ("model", "model's pick"), ("form", "form pick"), ("best", "best this week")):
+        if week.get(key) and week[key]["id"] not in tags:
+            tags[week[key]["id"]] = tag
+    # Plus the two most owned in the pool.
+    for pid in sorted(pool, key=lambda p: -((ctx["players"].get(p) or {}).get("own") or 0))[:2]:
+        tags.setdefault(pid, f"{((ctx['players'].get(pid) or {}).get('own') or 0):.0f}% owned")
+    gfx = [r["fixture_id"] for r in ctx["fixtures"] if r["gw"] == gw and r["fixture_id"]]
+    exp, _ = deadline_expected_goals(d, ctx, gw, gfx)
+    players, fixtures = sim_players(d, ctx, gw, True, list(tags), goals_override=exp)
+    if not players:
+        return []
+    rng = np.random.default_rng(gw * 1000 + 29)
+    pts = simulate(players, fixtures, SIM_WORLDS, rng)
+    tot = defaultdict(lambda: np.zeros(SIM_WORLDS, dtype=np.float32))
+    for j, p in enumerate(players):
+        tot[p["id"]] += pts[:, j]
+    act = defaultdict(int)
+    for r in actual_rows(d, ctx, gw).values():
+        act[r["fpl_player_id"]] += r["pts"] or 0
+    out = []
+    for pid, v in tot.items():
+        q = np.percentile(v, [10, 50, 90])
+        out.append({**player_label(ctx, pid), "tag": tags[pid], "p10": f(q[0], 0), "p50": f(q[1], 0), "p90": f(q[2], 0),
+                    "mean": f(v.mean(), 1), "p_blank": f((v <= BLANK_AT).mean(), 2), "p_haul": f((v >= HAUL_AT).mean(), 2),
+                    "pts": act.get(pid, 0)})
+    out.sort(key=lambda r: -r["mean"])
+    return out
+
+
+SEVERITY = {"a": 0, "d": 1}   # anything else (injured, suspended, unavailable, not in squad) is 2
+CUP_NAMES = {6: "Carabao Cup", 9: "Champions League", 10: "Europa League", 11: "Conference League"}
+
+
+def section_incidents(d: Data, ctx: dict, gw: int, top_ids: set) -> dict:
     then, now = deadline_state(d, ctx, gw), latest_state(d, ctx)
-    injuries, prices = [], []
+    worse, better, prices = [], [], []
     for pid, b in now.items():
         a = then.get(pid)
         if not a or not relevant(ctx, pid, top_ids):
             continue
-        if (a.get("status") or "a") != (b.get("status") or "a"):
-            injuries.append({**player_label(ctx, pid), "before": a.get("status"), "now": b.get("status"), "news": b.get("news") or None})
+        sa, sb = a.get("status") or "a", b.get("status") or "a"
+        if sa != sb:
+            row = {**player_label(ctx, pid), "before": sa, "now": sb, "news": b.get("news") or None}
+            (worse if SEVERITY.get(sb, 2) > SEVERITY.get(sa, 2) else better).append(row)
         if a.get("now_cost") != b.get("now_cost") and a.get("now_cost") is not None and b.get("now_cost") is not None:
             prices.append({**player_label(ctx, pid), "before": a["now_cost"] / 10, "now": b["now_cost"] / 10})
     keyf = lambda r: -(r.get("own") or 0)
-    injuries.sort(key=keyf); prices.sort(key=keyf)
+    worse.sort(key=keyf); better.sort(key=keyf); prices.sort(key=keyf)
     reds = [player_label(ctx, r["fpl_player_id"]) for r in actual_rows(d, ctx, gw).values() if r["red_cards"]]
-    deadline = ctx["gws"][gw]["deadline_time"]
-    changes = d.all("""select changed_at, area, title from public.model_change_log where changed_at >= %s order by changed_at, title""",
-                    (deadline.date(),))
-    return {"injuries": injuries[:25], "prices": prices[:25], "red_cards": reds,
-            "model_changes": [{"date": c["changed_at"].isoformat(), "area": c["area"], "title": c["title"]} for c in changes]}
+    return {"worse": worse[:20], "better": better[:20], "worse_count": len(worse), "better_count": len(better),
+            "red_cards": reds, "prices": prices[:25], "price_count": len(prices),
+            "congestion": congestion(d, ctx, gw)}
+
+
+def congestion(d: Data, ctx: dict, gw: int) -> dict:
+    """Cup and European matches around the gameweek, and each team's rest before its next league match."""
+    canon = {t["team_id"]: k for k, t in ctx["teams"].items() if t.get("team_id")}
+    fx_by_gw = defaultdict(list)
+    for r in ctx["fixtures"]:
+        if r["kickoff_time"]:
+            fx_by_gw[r["gw"]].append(r)
+    if not fx_by_gw.get(gw):
+        return {}
+    first = lambda g: min(r["kickoff_time"] for r in fx_by_gw[g]) if fx_by_gw.get(g) else None
+    last = lambda g: max(r["kickoff_time"] for r in fx_by_gw[g]) if fx_by_gw.get(g) else None
+    lo = (last(gw - 1) or first(gw) - timedelta(days=7)).date()
+    hi = (last(gw + 3) or last(gw) + timedelta(days=21)).date()
+    cups = d.all("""select f.league_id, f.kickoff_date, f.home_team_id, f.away_team_id,
+                           coalesce(th.display_name, th.canonical_name) home, coalesce(ta.display_name, ta.canonical_name) away
+                      from public.fixtures f
+                      join public.teams th on th.team_id = f.home_team_id join public.teams ta on ta.team_id = f.away_team_id
+                     where f.league_id = any(%s) and f.kickoff_date > %s and f.kickoff_date <= %s
+                       and (f.home_team_id = any(%s) or f.away_team_id = any(%s))
+                     order by f.kickoff_date""", (list(CUP_NAMES), lo, hi, list(canon), list(canon)))
+
+    def league_match(team, g):
+        for r in fx_by_gw.get(g, []):
+            if team in (r["h"], r["a"]):
+                opp = r["a"] if r["h"] == team else r["h"]
+                return r["kickoff_time"], team_name(ctx, opp), r["h"] == team
+        return None
+
+    def window(g):
+        """Cup matches between gameweek g-1's last kickoff and gameweek g's league match, per team."""
+        start = (last(g - 1) or first(g) - timedelta(days=7)).date()
+        rows = []
+        for c in cups:
+            for tid, opp, home in ((c["home_team_id"], c["away"], True), (c["away_team_id"], c["home"], False)):
+                t = canon.get(tid)
+                if t is None:
+                    continue
+                lm = league_match(t, g)
+                if not lm or not (start < c["kickoff_date"] < lm[0].date()):
+                    continue
+                rows.append({"team": team_name(ctx, t), "comp": CUP_NAMES[c["league_id"]], "date": c["kickoff_date"].isoformat(),
+                             "opp": opp, "home": home, "league_date": lm[0].isoformat(), "league_opp": lm[1], "league_home": lm[2],
+                             "rest": (lm[0].date() - c["kickoff_date"]).days})
+        rows.sort(key=lambda r: (r["rest"], r["team"]))
+        return rows
+
+    gap = (first(gw) - last(gw - 1)).days if last(gw - 1) else None
+    later = []
+    for g in (gw + 2, gw + 3):
+        rows = window(g)
+        if rows:
+            comps = sorted({r["comp"] for r in rows})
+            later.append({"gw": g, "teams": len({r["team"] for r in rows}), "comps": comps,
+                          "from": min(r["date"] for r in rows), "to": max(r["date"] for r in rows)})
+    return {"before_gw": window(gw), "next_gw": gw + 1, "before_next": window(gw + 1), "later": later,
+            "days_since_previous": gap}
 
 
 # ---------------------------------------------------------------------------
@@ -593,60 +810,210 @@ def fmt_signed(v, nd=1):
     return f"{'+' if v > 0 else '−' if v < 0 else ''}{abs(v):.{nd}f}"
 
 
-def headlines(p: dict) -> list[str]:
-    out = []
-    ms = [m for m in p["goals"]["matches"] if m["exp_home"] is not None and m["goals_home"] is not None]
-    if ms:
-        def surprise(m):
-            return max((m["goals_home"] - m["exp_home"], m["home"], m["away"], m["goals_home"], m["goals_away"], m["exp_home"], m["exp_away"]),
-                       (m["goals_away"] - m["exp_away"], m["away"], m["home"], m["goals_away"], m["goals_home"], m["exp_away"], m["exp_home"]),
-                       key=lambda x: abs(x[0]))
-        s = max((surprise(m) for m in ms), key=lambda x: abs(x[0]))
-        out.append(f"{s[1]} scored {s[3]} against {s[2]} where the model expected {s[5]:.1f}.")
-    cap = {r["key"]: r for r in p["captaincy"]["season"]}
-    if "premium" in cap and "form" in cap and cap["premium"]["weeks"]:
-        a, b = cap["premium"], cap["form"]
-        out.append(f"Captaincy since GW{p['captaincy']['span'][0]}: the premium every week has {a['captain_points']} captain points; "
-                   f"the form pick {b['captain_points']}, ahead in {b['beat_premium']} of {b['weeks']} weeks.")
-    mins = p["minutes"]
-    if mins["surprise_absences"]:
-        r = mins["surprise_absences"][0]
-        out.append(f"{r['name']} ({r['team']}) was {round(r['p'] * 100)}% to start and didn't" + (" (flagged)." if r["flagged"] else "."))
-    elif mins["brier"] is not None:
-        out.append(f"Start predictions: Brier score {mins['brier']:.3f} over {mins['players']} players.")
+ROLE_NAMES = {"GK": "goalkeeper", "CB": "centre-back", "LCB": "centre-back", "RCB": "centre-back", "LB": "left-back", "RB": "right-back",
+              "LWB": "left wing-back", "RWB": "right wing-back", "DM": "defensive midfield", "CM": "central midfield",
+              "AM": "attacking midfield", "LW": "left wing", "RW": "right wing", "CF": "centre-forward"}
+
+# Ideas under consideration, shown in the reflection's model summary. Edit by
+# hand as they ship or are dropped. (theme, text)
+CONSIDERING = [
+    ("incidents", "Lower start chances after a European or cup midweek (not modelled yet)"),
+    ("set_pieces", "A source for who takes each penalty"),
+]
+
+
+def pl(n: int, one: str, many: str | None = None) -> str:
+    return f"{n} {one if n == 1 else (many or one + 's')}"
+
+
+def verdict_goals(g: dict) -> tuple[str, str]:
+    t = g["totals"]
+    if not t["matches"]:
+        return "No matches finished yet.", ""
+    dg = t["goals"] - t["expected"]
+    head = f"{t['goals']} goals against {t['expected']:.1f} expected."
+    if t["xg"] is None:
+        return head, ""
+    dx = t["xg"] - t["expected"]
+    if abs(dg) < 1.5:
+        rest = f"Close to expectation overall; chances (xG {t['xg']:.1f}) {fmt_signed(dx)} against it."
+    elif dg * dx > 0 and abs(dx) >= 0.6 * abs(dg):
+        rest = f"Chances ran {'above' if dx > 0 else 'below'} expectation too (xG {t['xg']:.1f}), so this was more than finishing."
+    else:
+        rest = (f"Chances (xG {t['xg']:.1f}) were {fmt_signed(dx)} against expectation, so most of the difference came from finishing, "
+                "which tends not to last and barely moves the ratings.")
+    return head, rest
+
+
+def verdict_minutes(m: dict) -> tuple[str, str]:
+    c = m["counts"]
+    if not m["players"]:
+        return "No start predictions to check yet.", ""
+    head = f"{pl(c['absences'], 'player')} we had at 70%+ to start didn't." if c["absences"] else "Everyone we had at 70%+ to start did."
+    rest = []
+    if c["absences"]:
+        rest.append(f"{c['absences_flagged']} {'was' if c['absences_flagged'] == 1 else 'were'} flagged by FPL beforehand.")
+        top = m["surprise_absences"][0]
+        if (top.get("own") or 0) >= 5:
+            rest.append(f"{top['name']} ({round(top['p'] * 100)}%, {top['own']:.0f}% owned) was the costly one.")
+    moved = [r for r in m["positions"] if r.get("kind") == "line" and (r.get("own") or 0) >= 5]
+    if moved:
+        r = moved[0]
+        rest.append(f"{r['name']} played {ROLE_NAMES.get(r['played_role'], r['played_role'])} instead of "
+                    f"{ROLE_NAMES.get(r['model_role'], r['model_role'])}.")
+    return head, " ".join(rest)
+
+
+def verdict_incidents(i: dict, gw: int) -> tuple[str, str]:
+    lost = defaultdict(list)
+    for r in i["worse"]:
+        if r["now"] != "d":
+            lost[r["team"]].append(r["name"])
+    for r in i["red_cards"]:
+        if r["name"] not in lost[r["team"]]:
+            lost[r["team"]].append(r["name"])
+    team, names = max(lost.items(), key=lambda kv: (len(kv[1]), kv[0]), default=(None, []))
+    if len(names) >= 2:
+        head = f"{team} lost {pl(len(names), 'player')}: {', '.join(names[:-1])} and {names[-1]}."
+    elif i["worse"]:
+        r = i["worse"][0]
+        head = f"{r['name']} ({r['team']}) is now {STATUS_WORDS.get(r['now'], 'flagged')}."
+    else:
+        head = "No new injuries or suspensions among popular players."
+    c = i.get("congestion") or {}
+    nxt = c.get("before_next") or []
+    if nxt:
+        teams = {r["team"] for r in nxt}
+        short = {r["team"] for r in nxt if r["rest"] <= 3}
+        rest = f"Before GW{c['next_gw']}, {pl(len(teams), 'team')} play{'s' if len(teams) == 1 else ''} in Europe or the cup"
+        rest += f", {len(short)} of them with three days' rest or less." if short else "."
+    elif c:
+        rest = f"No midweek games before GW{c['next_gw']}."
+    else:
+        rest = ""
+    return head, rest
+
+
+STATUS_WORDS = {"d": "doubtful", "i": "injured", "s": "suspended", "u": "unavailable", "n": "not in the squad"}
+
+
+def verdict_set_pieces(s: dict) -> tuple[str, str]:
+    ch = s["order_changes"]
+    if ch:
+        r = ch[0]
+        head = (f"{r['now'][0] if r['now'] else 'Nobody'} replaced {r['before'][0] if r['before'] else 'nobody'} on {r['team']}'s "
+                f"{r['type'].lower()}." if len(ch) == 1 else f"{pl(len(ch), 'change')} to FPL's set-piece takers.")
+    else:
+        head = "No change to FPL's set-piece takers."
+    rest = [f"{pl(len(s['penalties_missed']), 'penalty', 'penalties')} missed." if s["penalties_missed"] else "No penalties missed."]
+    if s["model_mismatches"]:
+        rest.append(f"Our penalty taker differs from FPL's at {pl(len(s['model_mismatches']), 'club')}.")
+    elif s.get("penalty_teams_compared"):
+        rest.append(f"Our penalty takers match FPL's at all {s['penalty_teams_compared']} clubs.")
+    return head, " ".join(rest)
+
+
+def verdict_captaincy(c: dict, gw: int) -> tuple[str, str]:
+    w = next((x for x in c["weeks"] if x["gw"] == gw), None)
+    if not w or not w["premium"]:
+        return "No captaincy data for this gameweek.", ""
+    pr = w["premium"]
+    bits = []
+    if w["form"] and w["form"]["id"] != pr["id"]:
+        bits.append(f"the form pick, {w['form']['name']}, {w['form']['pts']}")
+    if w["model"] and w["model"]["id"] not in (pr["id"], (w["form"] or {}).get("id")):
+        bits.append(f"the model's pick, {w['model']['name']}, {w['model']['pts']}")
+    head = f"{pr['name']} scored {pr['pts']}" + (f"; {'; '.join(bits)}." if bits else ".")
+    rest = []
+    # The best captain this week among the pool's best and the candidates shown.
+    cands = {r["id"]: r for r in c.get("ranges") or []}
+    if w["best"]:
+        cands.setdefault(w["best"]["id"], w["best"])
+    top = max((r["pts"] for r in cands.values()), default=None)
+    tops = sorted((r for r in cands.values() if r["pts"] == top), key=lambda r: (r.get("own") or 0))
+    if tops and pr["id"] not in {r["id"] for r in tops} and top > pr["pts"]:
+        names = " and ".join(f"{r['name']} ({r.get('own') or 0:.0f}% owned)" for r in tops[:2])
+        rest.append(f"{names} {'were' if len(tops) > 1 else 'was'} the best captain{'s' if len(tops) > 1 else ''} with {top}.")
+    s = {r["key"]: r for r in c["season"]}
+    if c["span"] and "premium" in s and "form" in s:
+        rest.append(f"Since GW{c['span'][0]}, captaining the premium every week has {s['premium']['captain_points']} captain points "
+                    f"to the form pick's {s['form']['captain_points']}.")
+    return head, " ".join(rest)
+
+
+def model_summary(p: dict) -> dict:
+    g, m, i, s = p["goals"], p["minutes"], p["incidents"], p["set_pieces"]
+    auto = []
+    if g["ratings"]["status"] == "updated":
+        auto.append({"theme": "goals", "text": f"Team ratings refreshed from GW{p['gw']} closing prices"})
+    else:
+        auto.append({"theme": "goals", "text": f"Team ratings: waiting for GW{p['gw']} closing prices"})
+    auto.append({"theme": "minutes", "text": f"GW{m['next_gw']} start chances: {m['counts']['start_moves']} moved by 20+ points"})
+    auto.append({"theme": "incidents", "text": f"Injury and suspension flags: {i['worse_count']} new or worse, {i['better_count']} cleared"})
+    review = [r for r in s["order_changes"] if r["needs_review"]]
+    if s["order_changes"]:
+        auto.append({"theme": "set_pieces", "text": f"FPL set-piece takers: {pl(len(s['order_changes']), 'change')}"
+                     + (f", {len(review)} to check against our hierarchy" if review else ", ours already agree")})
+    watching = [{"theme": "minutes", "text": f"{r['name']} at {ROLE_NAMES.get(r['played_role'], r['played_role'])}: one match so far"}
+                for r in m["positions"] if r.get("kind") == "line" and (r.get("own") or 0) >= 5][:3]
+    considering = watching + [{"theme": t, "text": x} for t, x in CONSIDERING]
+    return {"automatic": auto, "method": p.pop("_model_changes"), "considering": considering}
+
+
+def build_verdicts(p: dict) -> dict:
+    out = {}
+    for key, (head, rest) in (("goals", verdict_goals(p["goals"])), ("minutes", verdict_minutes(p["minutes"])),
+                              ("incidents", verdict_incidents(p["incidents"], p["gw"])),
+                              ("set_pieces", verdict_set_pieces(p["set_pieces"])),
+                              ("captaincy", verdict_captaincy(p["captaincy"], p["gw"]))):
+        out[key] = {"head": head, "rest": rest}
     return out
+
+
+THEMES = [("goals", "Team goals"), ("minutes", "Positions and playing time"), ("incidents", "Injuries, suspensions and congestion"),
+          ("set_pieces", "Set pieces"), ("captaincy", "Captaincy")]
+
+
+def headlines(p: dict) -> list[str]:
+    return [p["verdicts"][k]["head"] for k, _ in THEMES if p["verdicts"][k]["head"]]
 
 
 def reddit_md(p: dict, url: str) -> str:
     gw = p["gw"]
-    lines = [f"**FPL GW{gw} reflection: what the gameweek did to the numbers**", ""]
-    for h in p["headlines"]:
-        lines.append(f"- {h}")
-    lines += ["", "**Goals v the model (deadline expected goals)**", "", "| Match | Expected | Goals | xG |", "|---|---|---|---|"]
-    for m in p["goals"]["matches"]:
-        if m["goals_home"] is None:
-            continue
-        e = f"{m['exp_home']:.1f}–{m['exp_away']:.1f}" if m["exp_home"] is not None else "–"
-        x = f"{m['xg_home']:.1f}–{m['xg_away']:.1f}" if m["xg_home"] is not None else "–"
-        lines.append(f"| {m['home']} v {m['away']} | {e} | {m['goals_home']}–{m['goals_away']} | {x} |")
+    lines = [f"**FPL GW{gw} reflection: what happened against the model, and what the model changed**", ""]
+    for k, title in THEMES:
+        v = p["verdicts"][k]
+        lines.append(f"**{title}.** {v['head']} {v['rest']}".rstrip())
+        lines.append("")
+    t = p["goals"]["teams"]
+    if t:
+        lines += ["**Goals against the deadline's expectation**", "", "| Team | Expected | xG | Goals |", "|---|---|---|---|"]
+        for r in t:
+            xg = "–" if r["xg"] is None else f"{r['xg']:.1f}"
+            lines.append(f"| {r['team']} | {r['exp']:.1f} | {xg} | {r['goals']} |")
+        lines.append("")
     cap = p["captaincy"]
     if cap["season"]:
-        lines += ["", f"**Captaincy, GW{cap['span'][0]}–GW{cap['span'][1]} (captain points)**", "", "| Approach | Points | Beat the premium |", "|---|---|---|"]
+        lines += [f"**Captaincy, GW{cap['span'][0]}–GW{cap['span'][1]}**", "", "| Approach | Captain points | Per week | Spread (sd) | Blanks |",
+                  "|---|---|---|---|---|"]
         for r in cap["season"]:
             if r["key"] == "model":
                 continue
-            beat = "–" if r["beat_premium"] is None else f"{r['beat_premium']} of {r['weeks']}"
-            lines.append(f"| {r['label']} | {r['captain_points']} | {beat} |")
-    lines += ["", f"Full reflection (minutes, positions, set pieces, injuries): {url}"]
+            sd = "–" if r["sd"] is None else f"{r['sd']:.1f}"
+            lines.append(f"| {r['label']} | {r['captain_points']} | {r['mean']:.1f} | {sd} | {r['blanks']} |")
+        lines.append("")
+    lines.append(f"Full reflection: {url}")
     return "\n".join(lines)
 
 
 def x_thread(p: dict, url: str) -> list[str]:
     gw = p["gw"]
-    posts = [f"FPL GW{gw} reflection: what the gameweek did to our numbers. 🧵"]
-    posts += [h[:270] for h in p["headlines"]]
-    posts.append(f"Goals v the model, minutes and positions, set pieces and captaincy: {url}")
-    return posts[:5]
+    posts = [f"FPL GW{gw} reflection: what happened against the model, and what the model changed. 🧵"]
+    for k, title in THEMES[:3] + THEMES[4:]:
+        v = p["verdicts"][k]
+        posts.append(f"{title}: {v['head']} {v['rest']}".strip()[:275])
+    posts.append(f"Set pieces, start-chance moves and the captaincy ranges: {url}")
+    return posts[:6]
 
 
 # ---------------------------------------------------------------------------
@@ -659,10 +1026,13 @@ def x_thread(p: dict, url: str) -> list[str]:
 # the record is exactly what the projections said before kick-off.
 
 SIM_WORLDS = 20000
-# The automatic step publishes reflections from this gameweek on. GW6 is held
-# for Chris's review of the reworked layout (13 Oct 2026) and published by
-# hand (workflow gameweek-report, publish ticked).
-REFLECTION_AUTO_FROM_GW = 7
+# The automatic step publishes reflections from this gameweek on (the log's
+# first reflection).
+REFLECTION_AUTO_FROM_GW = 6
+# A reflection waits for the gameweek's closing prices (so the rating moves
+# are in it), but no longer than this after the last kickoff: a Sunday finish
+# publishes Tuesday evening, a Monday finish Wednesday evening.
+PRICES_WAIT_HOURS = 44
 
 
 def projection_rows(d: Data, ctx: dict, gw: int, frozen: bool) -> list[dict]:
@@ -700,7 +1070,7 @@ def fixture_goals(d: Data, ctx: dict, gw: int, frozen: bool) -> dict:
     return out
 
 
-def sim_players(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int]) -> tuple[list, dict]:
+def sim_players(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int], goals_override: dict | None = None) -> tuple[list, dict]:
     """The inputs simulate() needs, for the given players in gw."""
     import numpy as np
     sid = ctx["season_id"]
@@ -718,7 +1088,7 @@ def sim_players(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int]) -> tu
                             and model_version = (select model_version from public.fpl_player_projections where season_id = %s order by generated_at desc limit 1)
                             and fixture_id in (select canonical_fixture_id from public.fpl_fixtures where season_id = %s and fpl_event_id = %s)""",
                      (sid, ids, sid, sid, gw))
-    goals = fixture_goals(d, ctx, gw, frozen)
+    goals = goals_override if goals_override else fixture_goals(d, ctx, gw, frozen)
     fx = {r["fixture_id"]: r for r in ctx["fixtures"]}
     fixtures = {}
     for fid in {r["fixture_id"] for r in rows}:
@@ -982,11 +1352,17 @@ def build_reflection(d: Data, gw: int) -> dict:
          "gameweek_finished": bool(ctx["gws"][gw]["finished"]), "bonus_confirmed": bool(ctx["gws"][gw]["data_checked"]),
          "average": ctx["gws"][gw]["average"]}
     p["goals"] = section_goals(d, ctx, gw)
+    p["prices_in"] = p["goals"]["ratings"]["status"] == "updated"
     p["minutes"] = section_minutes(d, ctx, gw, top_ids)
+    p["incidents"] = section_incidents(d, ctx, gw, top_ids)
     p["set_pieces"] = section_set_pieces(d, ctx, gw)
     p["captaincy"] = section_captaincy(d, ctx, gw)
-    p["during"] = section_during(d, ctx, gw, top_ids)
+    deadline = ctx["gws"][gw]["deadline_time"]
+    p["_model_changes"] = [{"date": c["changed_at"].isoformat(), "area": c["area"], "title": c["title"]} for c in d.all(
+        "select changed_at, area, title from public.model_change_log where changed_at >= %s order by changed_at, title", (deadline.date(),))]
+    p["model_summary"] = model_summary(p)
     p["checks"] = {"market_recompute_max_diff_today": f(recompute_check(d, ctx), 4)}
+    p["verdicts"] = build_verdicts(p)
     p["headlines"] = headlines(p)
     return p
 
@@ -997,7 +1373,7 @@ def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) 
     url = f"{SITE}/fpl/gameweek/{p['season']}/{gw}/{kind}"
     season = p["season"].replace("-", "/")
     if kind == "reflection":
-        title = f"FPL GW{gw} reflection ({season}): goals, minutes, set pieces and captaincy"
+        title = f"FPL GW{gw} reflection ({season}): goals, minutes, incidents, set pieces and captaincy"
         md, xt = reddit_md(p, url), x_thread(p, url)
     else:
         title = f"FPL GW{gw} preview ({season}): captains, fixtures, transfers"
@@ -1017,14 +1393,24 @@ def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) 
     return rid, version, publish
 
 
-def reflection_due(d: Data) -> int | None:
-    """The latest finished gameweek with confirmed bonus and no published reflection."""
+def reflection_due(d: Data, now: datetime) -> tuple[int | None, str]:
+    """The latest finished gameweek with confirmed bonus and no published reflection, once its
+    closing prices are in or PRICES_WAIT_HOURS after its last kickoff."""
     sid = d.one("select public.fpl_current_season_id()")
-    return d.one("""select max(g.fpl_event_id) from public.fpl_gameweeks g
-                     where g.season_id = %s and g.finished and coalesce((g.source_payload->>'data_checked')::boolean, false)
-                       and not exists (select 1 from public.fpl_gameweek_reports r where r.season_id = g.season_id
-                                         and r.fpl_event_id = g.fpl_event_id and r.kind = 'reflection' and r.status = 'published')
-                       and g.fpl_event_id >= %s""", (sid, REFLECTION_AUTO_FROM_GW))
+    gw = d.one("""select max(g.fpl_event_id) from public.fpl_gameweeks g
+                   where g.season_id = %s and g.finished and coalesce((g.source_payload->>'data_checked')::boolean, false)
+                     and not exists (select 1 from public.fpl_gameweek_reports r where r.season_id = g.season_id
+                                       and r.fpl_event_id = g.fpl_event_id and r.kind = 'reflection' and r.status = 'published')
+                     and g.fpl_event_id >= %s""", (sid, REFLECTION_AUTO_FROM_GW))
+    if gw is None:
+        return None, ""
+    ctx = load_context(d, gw)
+    if prices_in(d, ctx, gw):
+        return gw, "closing prices in"
+    last = max((r["kickoff_time"] for r in ctx["fixtures"] if r["gw"] == gw and r["kickoff_time"]), default=None)
+    if last and now >= last + timedelta(hours=PRICES_WAIT_HOURS):
+        return gw, f"closing prices not in after {PRICES_WAIT_HOURS} hours; publishing without the rating moves"
+    return None, f"GW{gw} waiting for closing prices"
 
 
 def latest_preview(d: Data, gw: int) -> dict | None:
@@ -1128,10 +1514,11 @@ def main():
     code_ref = os.environ.get("GITHUB_SHA", "local")[:12]
     rebuild = False
     if args.auto:
-        gw = reflection_due(d)
+        gw, why = reflection_due(d, datetime.now(timezone.utc))
         if gw is None:
-            print("Reflection: nothing due.")
+            print(f"Reflection: nothing due{' (' + why + ')' if why else ''}.")
         else:
+            print(f"Reflection: GW{gw} due ({why}).")
             p = build_reflection(d, gw)
             rid, v, _ = store(d, p, True, code_ref)
             rebuild = True
