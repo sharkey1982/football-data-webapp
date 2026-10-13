@@ -47,6 +47,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -1020,6 +1021,7 @@ def build_verdicts(p: dict) -> dict:
     return out
 
 
+X_LIMIT = 280
 THEMES = [("goals", "Team goals"), ("minutes", "Positions and playing time"), ("incidents", "Injuries, suspensions and congestion"),
           ("set_pieces", "Set pieces"), ("captaincy", "Captaincy")]
 
@@ -1061,9 +1063,25 @@ def x_thread(p: dict, url: str) -> list[str]:
     posts = [f"FPL GW{gw} reflection: what happened against the model, and what the model changed. 🧵"]
     for k, title in THEMES[:3] + THEMES[4:]:
         v = p["verdicts"][k]
-        posts.append(f"{title}: {v['head']} {v['rest']}".strip()[:275])
+        posts += split_post(f"{title}: {v['head']} {v['rest']}".strip())
     posts.append(f"Set pieces, start-chance moves and the captaincy ranges: {url}")
-    return posts[:6]
+    return posts
+
+
+def split_post(text: str, limit: int = X_LIMIT) -> list[str]:
+    """One post, or several split at sentence ends, each within X's limit (never cut mid-sentence)."""
+    if len(text) <= limit:
+        return [text]
+    out, cur = [], ""
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        if cur and len(cur) + 1 + len(sent) > limit:
+            out.append(cur)
+            cur = sent
+        else:
+            cur = f"{cur} {sent}".strip()
+    if cur:
+        out.append(cur)
+    return [x if len(x) <= limit else x[: limit - 1].rsplit(" ", 1)[0] + "…" for x in out]
 
 
 # ---------------------------------------------------------------------------
