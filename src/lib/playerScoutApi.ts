@@ -131,15 +131,18 @@ export async function listScoutTeams(): Promise<ScoutTeam[]> {
 
 /** Columns the browse list can be sorted by. Kept here rather than in
  * the page so the labels and the sort keys can't drift apart. */
+/** In the same order as the table's cells (Player first, Points last):
+ * the headers are drawn from this list, so the order here IS the header
+ * order. Points and Player were swapped until 15 Oct 2026. */
 export const SCOUT_SORT_COLUMNS = [
-  { key: 'total_points', label: 'Points' },
+  { key: 'web_name', label: 'Player' },
   { key: 'now_cost', label: 'Price' },
   { key: 'minutes', label: 'Mins' },
   { key: 'points_per_million', label: 'Per £m' },
   { key: 'price_pressure', label: 'Pressure' },
   { key: 'goals_scored', label: 'Goals' },
   { key: 'assists', label: 'Assists' },
-  { key: 'web_name', label: 'Player' },
+  { key: 'total_points', label: 'Points' },
 ] as const;
 
 export type ScoutSortKey = (typeof SCOUT_SORT_COLUMNS)[number]['key'];
