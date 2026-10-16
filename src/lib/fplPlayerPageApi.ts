@@ -16,9 +16,10 @@
 
 import { supabase } from './supabase';
 import { getCurrentFplSeasonId } from './currentSeason';
+import { CURRENT_MODEL_VERSION } from './fplModel';
 
 const PL_LEAGUE_ID = 1;
-const MODEL_VERSION = 'leaguewide_v6';
+const MODEL_VERSION = CURRENT_MODEL_VERSION;
 
 export type PlayerPageProfile = {
   fpl_player_id: number;

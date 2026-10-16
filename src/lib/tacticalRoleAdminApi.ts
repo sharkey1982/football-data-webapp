@@ -35,6 +35,7 @@ import { supabase } from './supabase';
 import type { FplElementType } from '../types/database';
 import { seasonContextStats, getGamesInvolvedCounts, type SetPieceRole } from './fplApi';
 import { getCurrentFplSeasonId } from './currentSeason';
+import { CURRENT_MODEL_VERSION } from './fplModel';
 import type { LineupStart } from './lineupRoleSuggestions';
 
 export type TacticalRoleRow = {
@@ -470,7 +471,7 @@ export async function getProjectedMinutes(matchweek: number): Promise<Map<number
   const { data, error } = await supabase
     .from('fpl_player_projections')
     .select('fpl_player_id, expected_minutes')
-    .eq('model_version', 'leaguewide_v6')
+    .eq('model_version', CURRENT_MODEL_VERSION)
     .eq('scenario_key', 'baseline')
     .in('fixture_id', fixtureIds);
   if (error) throw error;
@@ -494,7 +495,7 @@ export async function getProjectedStarts(matchweek: number): Promise<Map<number,
   const { data, error } = await supabase
     .from('fpl_player_projections')
     .select('fpl_player_id, start_probability')
-    .eq('model_version', 'leaguewide_v6')
+    .eq('model_version', CURRENT_MODEL_VERSION)
     .eq('scenario_key', 'baseline')
     .in('fixture_id', fixtureIds);
   if (error) throw error;

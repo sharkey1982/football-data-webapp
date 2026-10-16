@@ -45,7 +45,8 @@ import { getCurrentFplSeasonId } from './currentSeason';
  * detailed xPts breakdown fields (penalty share, per-component xPts),
  * which aren't part of the v6 feed.
  */
-export const CURRENT_MODEL_VERSION = 'leaguewide_v6';
+import { CURRENT_MODEL_VERSION } from './fplModel';
+export { CURRENT_MODEL_VERSION };
 
 export const FPL_POSITION_LABEL: Record<FplElementType, string> = {
   1: 'GKP',
