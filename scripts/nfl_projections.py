@@ -141,6 +141,11 @@ def main():
 
         inj = read(args.data_dir, f"injuries_{season}.csv", INJURIES_URL.format(season=season), required=False)
         injmap = {}
+        # 16 Oct 2026: report the feed itself, not only game statuses. Teams
+        # publish practice reports from Wednesday and game statuses (Out,
+        # Questionable) on Friday, so "0 game-status rows" early in the week is
+        # normal; an unreadable feed is not, and now makes the run a warning.
+        inj_feed_ok = inj is not None
         if inj is not None:
             inj = inj[(inj.season == season) & (inj.game_type == "REG")]
             for _, r in inj.iterrows():
@@ -190,7 +195,9 @@ def main():
         no_line = sorted(set(nxt.team) - set(r["team"] for r in rows if r["team_implied"] is not None))
         summary = (f"{len(rows)} projections, {len(game_ids)} games (season {season}, week "
                    f"{int(nxt.week.min())}{'-' + str(int(nxt.week.max())) if nxt.week.max() != nxt.week.min() else ''}); "
-                   f"injury report rows {sum(1 for r in rows if r['injury_status'])}"
+                   f"injury feed: {'read' if inj_feed_ok else 'NOT READ'}, "
+                   f"{sum(1 for r in rows if r['practice_status'])} practice / "
+                   f"{sum(1 for r in rows if r['injury_status'])} game-status rows among projected players"
                    + (f"; no market line yet: {', '.join(no_line)}" if no_line else ""))
         if args.dry:
             out = pd.DataFrame(rows)
@@ -202,7 +209,8 @@ def main():
         n = sb.rpc("nfl_replace_projections", {"p_game_ids": game_ids, "p_rows": json.loads(json.dumps(rows))}).execute().data
         if n != len(rows):
             raise RuntimeError(f"wrote {n} rows, expected {len(rows)}")
-        finish("success", summary)
+        finish("success" if inj_feed_ok else "warning", summary,
+               None if inj_feed_ok else f"nflverse injuries_{season}.csv could not be read")
     except Exception as e:  # noqa: BLE001
         finish("failed", "nfl_projections failed", str(e)[:2000])
         sys.exit(1)

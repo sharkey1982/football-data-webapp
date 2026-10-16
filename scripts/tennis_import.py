@@ -553,10 +553,13 @@ def db_keys(sb, tour: str, year: int) -> set[str]:
         start += 1000
 
 
-def load(sb, tour: str, year: int, rows: list[dict]) -> str:
+def load(sb, tour: str, year: int, rows: list[dict], counts: Counter | None = None) -> str:
     changed = 0
     for i in range(0, len(rows), BATCH):
         changed += sb.rpc("tennis_upsert_matches", {"rows": rows[i:i + BATCH]}).execute().data or 0
+    if counts is not None:
+        counts["read"] += len(rows)
+        counts["changed"] += changed
     want = totals(rows)
     got = sb.rpc("tennis_year_totals", {"p_tour": tour, "p_year": year}).execute().data[0]
     if (got["matches"], got["games"], got["key_hash"]) != want:
@@ -597,6 +600,37 @@ def main() -> int:
     files_dir = Path(args.files_dir) if args.files_dir else None
     jobs = [(t, y) for t in tours for y in parse_years(args.years, today) if FIRST_YEAR[t] <= y <= today.year]
 
+    # 16 Oct 2026: the run row is written BEFORE anything is downloaded, and
+    # every way out of the run updates it. Before, a download failure, a
+    # missing package or bad credentials ended the run with no pipeline_runs
+    # row at all, so from 5 Oct the database could not tell "the PC task did
+    # not run" from "it ran and failed". Monitoring: job_health (tennis_import),
+    # integrity checks tennis_fresh and tennis_source_coverage_*.
+    sb, run_id = None, None
+    if not args.profile:
+        read_env_file()
+        from supabase import create_client
+        sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+        run_id = sb.table("pipeline_runs").insert({"job_name": "tennis_import", "status": "running"}).execute().data[0]["run_id"]
+
+    def finish(status: str, summary: str, failures: list[str], counts: Counter | None = None) -> None:
+        if sb is None:
+            return
+        row = {"status": status, "summary": summary[:2000],
+               "error_message": " || ".join(failures)[:4000] or None, "finished_at": "now()"}
+        if counts is not None:
+            row.update({"rows_read": counts["read"], "rows_changed": counts["changed"],
+                        "rows_unchanged": counts["read"] - counts["changed"]})
+        sb.table("pipeline_runs").update(row).eq("run_id", run_id).execute()
+
+    try:
+        return run(args, today, tours, files_dir, jobs, sb, finish)
+    except Exception as e:  # noqa: BLE001 -- recorded, then re-raised
+        finish("failed", "tennis_import crashed", [f"{type(e).__name__}: {e}"])
+        raise
+
+
+def run(args, today, tours, files_dir, jobs, sb, finish) -> int:
     # Read everything first: names are settled across all the years in the
     # run (and the database) before anything is written.
     read, failures = {}, []
@@ -604,7 +638,7 @@ def main() -> int:
         try:
             src, df = load_workbook(tour, year, files_dir, today.year)
         except Exception as e:  # noqa: BLE001
-            failures.append(str(e))
+            failures.append(f"{tour} {year} not read (source: download or file): {e}")
             print(f"\n=== {tour} {year}: NOT READ -- {e}")
             continue
         try:
@@ -616,11 +650,6 @@ def main() -> int:
         if args.profile:
             profile(tour, year, src, df, rows, err)
 
-    sb = None
-    if not args.profile:
-        read_env_file()
-        from supabase import create_client
-        sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
     names_by_tour = {}
     for tour in tours:
         rows = [x for (t, _), (_, r) in read.items() if t == tour for x in r]
@@ -643,11 +672,10 @@ def main() -> int:
 
     for n in NOTES:
         print("repair:", n)
-    run = sb.table("pipeline_runs").insert({"job_name": "tennis_import", "status": "running"}).execute().data[0]
-    done = []
+    done, counts = [], Counter()
     for (tour, year), (src, rows) in read.items():
         try:
-            done.append(load(sb, tour, year, rows))
+            done.append(load(sb, tour, year, rows, counts))
             print(done[-1], f"[{src}]")
         except Exception as e:  # noqa: BLE001
             failures.append(str(e))
@@ -656,11 +684,11 @@ def main() -> int:
     # the database by pg_cron every two hours after any load
     # (tennis_refresh_if_stale, migration 20261005120000): the rebuild takes
     # longer than the API's statement time limit, so not from here.
+    latest = max((r["match_date"] for _, rows in read.values() for r in rows if r.get("match_date")), default=None)
     summary = "; ".join(done) or "nothing loaded"
-    sb.table("pipeline_runs").update({
-        "status": "failed" if failures else "success", "summary": summary[:2000],
-        "error_message": " || ".join(failures)[:4000] or None, "finished_at": "now()",
-    }).eq("run_id", run["run_id"]).execute()
+    if latest:
+        summary += f"; latest match in source {latest}"
+    finish("failed" if failures else "success", summary, failures, counts)
     print(("FAILED: " + " || ".join(failures)) if failures else "OK: " + summary)
     return 1 if failures else 0
 

@@ -28,6 +28,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { CURRENT_MODEL_VERSION } from './fplModel';
 // Each page's own data function, so a quiz answer always matches the page
 // its link opens (Trivia v3: one question per page, picked for its most
 // interesting fact).
@@ -222,7 +223,7 @@ async function getTopFplPicks(): Promise<TopFplPick[]> {
   const { data: projRows, error } = await supabase
     .from('fpl_player_projections')
     .select('fpl_player_id, expected_fpl_points')
-    .eq('model_version', 'leaguewide_v6')
+    .eq('model_version', CURRENT_MODEL_VERSION)
     .eq('scenario_key', 'baseline')
     .in('fixture_id', fixtureIds)
     .order('expected_fpl_points', { ascending: false })
