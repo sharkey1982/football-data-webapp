@@ -1,0 +1,23 @@
+name: Probe tennis source (temporary)
+on:
+  push:
+    branches: [probe/tennis-source]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GitHub runner -> tennis-data.co.uk
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36'
+          curl -sS -A "$UA" -o page.html -w "page %{http_code}\n" -D h.txt http://www.tennis-data.co.uk/alldata.php || true
+          grep -i -E "^(server|cf-mitigated|last-modified)" h.txt || true
+          grep -o 'href="[^"]*2026[^"]*"' page.html | head -4 || true
+      - name: Supabase Edge -> tennis-data.co.uk
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          curl -sS -X POST "$SUPABASE_URL/functions/v1/tennis-source-probe" -H "Authorization: Bearer $KEY" -H "apikey: $KEY" | head -c 2000; echo
