@@ -13,15 +13,37 @@ jobs:
       - run: |
           code=$(curl -sS -A "$UA" -o page.html -w "%{http_code}" http://www.tennis-data.co.uk/alldata.php || echo 000)
           test "$code" = 200 && grep -q '2026/2026.xlsx' page.html
-  edge_page:
+  edge_responds:
     runs-on: ubuntu-latest
     steps:
       - run: |
           curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e '.page_status == 200 and (.links_2026|length) > 0' e.json
-  edge_xlsx:
+          jq -e 'has("page_status") or has("error")' e.json
+  edge_status_403:
     runs-on: ubuntu-latest
     steps:
       - run: |
           curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e '.file_status == 200 and .file_is_zip == true' e.json
+          jq -e '.page_status == 403' e.json
+  edge_cf_challenge:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
+          jq -e '.cf_mitigated == "challenge"' e.json
+  edge_fetch_error:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
+          jq -e 'has("error")' e.json
+  edge_server_cloudflare:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
+          jq -e '(.server // "") | test("cloudflare")' e.json
+  runner_403:
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "$(curl -sS -A "$UA" -o /dev/null -w '%{http_code}' http://www.tennis-data.co.uk/alldata.php)" = 403
