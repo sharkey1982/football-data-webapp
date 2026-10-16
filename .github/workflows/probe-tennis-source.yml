@@ -9,15 +9,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: GitHub runner -> tennis-data.co.uk
+      - name: fetch from GitHub runner
+        continue-on-error: true
         run: |
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36'
-          curl -sS -A "$UA" -o page.html -w "page %{http_code}\n" -D h.txt http://www.tennis-data.co.uk/alldata.php || true
-          grep -i -E "^(server|cf-mitigated|last-modified)" h.txt || true
-          grep -o 'href="[^"]*2026[^"]*"' page.html | head -4 || true
-      - name: Supabase Edge -> tennis-data.co.uk
+          code=$(curl -sS -A "$UA" -o page.html -w "%{http_code}" http://www.tennis-data.co.uk/alldata.php || echo 000)
+          echo "code=$code"; test "$code" = 200 && grep -q '2026/2026.xlsx' page.html
+      - name: fetch from Supabase Edge
+        id: edge
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          curl -sS -X POST "$SUPABASE_URL/functions/v1/tennis-source-probe" -H "Authorization: Bearer $KEY" -H "apikey: $KEY" | head -c 2000; echo
+          curl -sS -X POST "$SUPABASE_URL/functions/v1/tennis-source-probe" -H "Authorization: Bearer $KEY" -H "apikey: $KEY" > edge.json
+          jq -e '.page_status == 200 and (.links_2026|length) > 0' edge.json
+      - name: edge workbook is a real xlsx
+        continue-on-error: true
+        run: jq -e '.file_status == 200 and .file_is_zip == true' edge.json
+      - name: edge workbook modified in October
+        continue-on-error: true
+        run: jq -e '(.last_modified // "") | test("Oct 2026")' edge.json
+      - name: edge workbook modified after 10 Oct
+        continue-on-error: true
+        run: jq -e '(.last_modified // "") | test("(1[1-9]|2[0-9]) Oct 2026")' edge.json
