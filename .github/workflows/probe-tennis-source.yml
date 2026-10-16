@@ -1,49 +1,24 @@
-name: Probe tennis source (temporary)
+name: Dry-run migrations (temporary)
 on:
   push:
     branches: [probe/tennis-source]
 permissions:
   contents: read
-env:
-  UA: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36'
 jobs:
-  runner_page:
+  dry:
+    strategy:
+      fail-fast: false
+      matrix:
+        upto: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          code=$(curl -sS -A "$UA" -o page.html -w "%{http_code}" http://www.tennis-data.co.uk/alldata.php || echo 000)
-          test "$code" = 200 && grep -q '2026/2026.xlsx' page.html
-  edge_responds:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e 'has("page_status") or has("error")' e.json
-  edge_status_403:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e '.page_status == 403' e.json
-  edge_cf_challenge:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e '.cf_mitigated == "challenge"' e.json
-  edge_fetch_error:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e 'has("error")' e.json
-  edge_server_cloudflare:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
-          jq -e '(.server // "") | test("cloudflare")' e.json
-  runner_403:
-    runs-on: ubuntu-latest
-    steps:
-      - run: test "$(curl -sS -A "$UA" -o /dev/null -w '%{http_code}' http://www.tennis-data.co.uk/alldata.php)" = 403
+      - uses: actions/checkout@v4
+      - name: psql
+        run: sudo apt-get install -y -qq postgresql-client >/dev/null
+      - name: apply 1..N in one transaction, then roll back
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          files=$(ls dryrun/*.sql | sort | head -n ${{ matrix.upto }})
+          { echo 'begin;'; for f in $files; do cat "$f"; echo; done; echo 'rollback;'; } > all.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f all.sql > out.txt 2>&1
