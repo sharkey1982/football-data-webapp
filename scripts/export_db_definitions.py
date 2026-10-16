@@ -16,14 +16,15 @@
 # Requires SUPABASE_URL and SUPABASE_SERVICE_KEY.
 # ============================================================================
 
+import hashlib
 import os
 import re
 import sys
 from pathlib import Path
 
-from supabase import create_client
 
 OUT = Path(__file__).resolve().parent.parent / "supabase" / "definitions"
+MAX_NAME = 180  # bytes; file systems allow 255
 FOLDERS = {"view": "views", "materialized_view": "materialized_views", "function": "functions"}
 
 
@@ -32,13 +33,22 @@ def file_name(name: str) -> str:
     # arguments stay in the name so overloads get separate files.
     base, _, args = name.partition("(")
     args = re.sub(r"[^A-Za-z0-9]+", "_", args.rstrip(")")).strip("_")
-    return f"{base}__{args}.sql" if args else f"{base}.sql"
+    out = f"{base}__{args}.sql" if args else f"{base}.sql"
+    # 16 Oct 2026: fpl_score() has 15 arguments, so its name came to 340+
+    # characters, past the 255-byte file-name limit; every weekly export since
+    # 28 Sep failed with "File name too long". Long names keep their start and
+    # get a hash of the full signature, so overloads still never collide.
+    if len(out) > MAX_NAME:
+        digest = hashlib.sha1(name.encode()).hexdigest()[:10]
+        out = f"{out[:MAX_NAME - 16]}__{digest}.sql"
+    return out
 
 
 def main() -> None:
     url, key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_KEY")
     if not url or not key:
         sys.exit("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set.")
+    from supabase import create_client  # here, so the file-name helper is testable without it
     rows = create_client(url, key).rpc("export_schema_definitions").execute().data or []
     if not rows:
         sys.exit("Export returned nothing -- refusing to delete every definition file.")
