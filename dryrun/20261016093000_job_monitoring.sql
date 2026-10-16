@@ -75,6 +75,7 @@ create table if not exists public.job_registry (
   upstream text,
   output_check text,                   -- integrity check that covers the data itself
   active boolean not null default true,
+  outcome_is_check boolean not null default false,  -- the run's status reports what it checked, not whether it ran
   notes text
 );
 alter table public.job_registry enable row level security;
@@ -122,7 +123,7 @@ insert into public.job_registry (job_key, area, location, schedule, expected_int
   ('nfl-import', 'nfl', 'github_actions', '20 6 * * *', '1 day 6 hours', '30 minutes', 'pipeline_runs', '^nfl_import$', 'nflverse', 'nfl_results_fresh', null),
   ('nfl_elo', 'nfl', 'github_actions', 'in nfl-import', '1 day 6 hours', '15 minutes', 'pipeline_runs', '^nfl_elo$', null, 'nfl_model_fresh', null),
   ('nfl_projections', 'nfl', 'github_actions', 'in nfl-import', '1 day 6 hours', '15 minutes', 'pipeline_runs', '^nfl_projections$', 'nflverse injuries', 'nfl_injury_feed', null),
-  ('integrity-checks', 'monitoring', 'github_actions', '45 9 * * *', '1 day 6 hours', '30 minutes', 'pipeline_runs', '^model_integrity_checks$', null, null, 'Fails when any check fails'),
+  ('integrity-checks', 'monitoring', 'github_actions', '45 9 * * *', '1 day 6 hours', '30 minutes', 'pipeline_runs', '^model_integrity_checks$', null, null, 'status = check outcome (failed when any check fails), so judged by attempts, not success'),
   ('netlify-usage', 'infrastructure', 'github_actions', '30 5 * * *', '1 day 6 hours', '15 minutes', 'pipeline_runs', '^netlify_usage_estimate$', 'Netlify API', null, null),
   ('club-grounds-verify', 'club_grounds', 'github_actions', '17 5 1 * *', '32 days', '1 hour', 'pipeline_runs', '^verify_club_grounds$', 'postcodes.io', 'club_grounds', null),
   ('tennis-people', 'tennis', 'github_actions', '41 4 3 * *', '32 days', '30 minutes', 'pipeline_runs', '^tennis_people$', 'Wikidata', null, null),
@@ -137,8 +138,9 @@ insert into public.job_registry (job_key, area, location, schedule, expected_int
   -- On demand (registered so their run logs are not reported as unknown)
   ('history_backfill', 'football', 'github_actions', 'on demand', null, '2 hours', 'pipeline_runs', '^history_backfill$', 'football-data.co.uk', null, null),
   ('finance-ingestion', 'finance', 'local_pc', 'on demand', null, '2 hours', 'finance_ingestion_runs', '.*', 'Companies House, club accounts', null, 'Ad hoc loads'),
-  ('integrity-areas', 'monitoring', 'github_actions', 'in integrity-checks', null, '30 minutes', 'pipeline_runs', '^integrity_', null, null, 'One row per integrity area')
+  ('integrity-areas', 'monitoring', 'github_actions', 'in integrity-checks', null, '30 minutes', 'pipeline_runs', '^integrity_', null, null, 'One row per integrity area; status = check outcome, not job health')
 on conflict (job_key) do nothing;
+update public.job_registry set outcome_is_check = true where job_key in ('integrity-checks', 'integrity-areas');
 
 -- Unified run log, last 30 days.
 create or replace view public.job_runs_unified as
@@ -180,7 +182,10 @@ grant select on public.job_runs_unified to service_role;
 
 create or replace view public.job_health as
 with runs as (
-  select r.job_key, u.*, row_number() over (partition by r.job_key order by u.started_at desc) as rn
+  select r.job_key, u.run_log, u.run_key, u.run_id, u.started_at, u.finished_at,
+         case when r.outcome_is_check and u.status in ('failed', 'warning') and u.finished_at is not null then 'success' else u.status end as status,
+         u.rows_changed, case when r.outcome_is_check then null else u.error end as error,
+         row_number() over (partition by r.job_key order by u.started_at desc) as rn
   from public.job_registry r
   join public.job_runs_unified u on u.run_log = r.run_log and u.run_key ~ r.run_key
   where r.active and r.run_log <> 'none'

@@ -23,4 +23,8 @@ jobs:
           files=$(ls dryrun/*.sql | sort | head -n ${{ matrix.upto }})
           { echo 'begin;'; for f in $files; do cat "$f"; echo; done; echo 'rollback;'; } > all.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f all.sql > out.txt 2>&1 || { grep -E "ERROR|DETAIL|HINT|WARNING" out.txt | tail -6 | sed "s/^/::error::/"; exit 1; }
-          grep -E "^(CHK|JOB|BRD|RDY|FIX) " out.txt | sed "s/^/::warning::/" 
+          grep -E "^(CHK|JOB|BRD|RDY|FIX) " out.txt > rep.txt
+      - run: grep -E "^CHK" rep.txt | head -10 | sed "s/^/::warning::/"
+      - run: grep -E "^JOB" rep.txt | head -10 | sed "s/^/::warning::/"
+      - run: grep -E "^(BRD|RDY|FIX)" rep.txt | head -10 | sed "s/^/::warning::/"
+      - run: grep -E "^JOB" rep.txt | tail -n +11 | head -10 | sed "s/^/::warning::/"
