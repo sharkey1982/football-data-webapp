@@ -20,7 +20,8 @@
 --     running / stuck (running past max_duration) / failed / timed_out /
 --     warning / stale (no success within expected_interval + max_duration
 --     + 1h) / success_changed / success_no_change / success (job does not
---     record rows changed) / never_run / not_scheduled
+--     record rows changed) / never_run / awaiting_first_run / not_scheduled /
+--     not_logged (GitHub-only jobs, checked through the GitHub API)
 --   An earlier stuck or failed run stays visible (failures_7d, stuck_runs)
 --   even after later successes.
 -- * public.job_registry_gaps: pg_cron jobs and pipeline_runs job names not
@@ -76,6 +77,7 @@ create table if not exists public.job_registry (
   output_check text,                   -- integrity check that covers the data itself
   active boolean not null default true,
   outcome_is_check boolean not null default false,  -- the run's status reports what it checked, not whether it ran
+  registered_at timestamptz not null default now(),
   notes text
 );
 alter table public.job_registry enable row level security;
@@ -140,7 +142,7 @@ insert into public.job_registry (job_key, area, location, schedule, expected_int
   ('finance-ingestion', 'finance', 'local_pc', 'on demand', null, '2 hours', 'finance_ingestion_runs', '.*', 'Companies House, club accounts', null, 'Ad hoc loads'),
   ('integrity-areas', 'monitoring', 'github_actions', 'in integrity-checks', null, '30 minutes', 'pipeline_runs', '^integrity_', null, null, 'One row per integrity area; status = check outcome, not job health')
 on conflict (job_key) do nothing;
-update public.job_registry set outcome_is_check = true where job_key in ('integrity-checks', 'integrity-areas');
+update public.job_registry set outcome_is_check = true where job_key in ('integrity-checks', 'integrity-areas', 'club-grounds-verify');
 
 -- Unified run log, last 30 days.
 create or replace view public.job_runs_unified as
@@ -210,7 +212,10 @@ select r.job_key, r.area, r.location, r.schedule, r.expected_interval, r.max_dur
        coalesce(a.failures_7d, 0) as failures_7d, coalesce(a.runs_7d, 0) as runs_7d, coalesce(s.stuck_runs, 0) as stuck_runs,
        case
          when r.run_log = 'none' then 'not_logged'
-         when a.last_attempt is null then case when r.expected_interval is null then 'not_scheduled' else 'never_run' end
+         when a.last_attempt is null then
+           case when r.expected_interval is null then 'not_scheduled'
+                when r.registered_at > now() - r.expected_interval - r.max_duration then 'awaiting_first_run'
+                else 'never_run' end
          when coalesce(s.stuck_runs, 0) > 0 then 'stuck'
          when l.status = 'running' then 'running'
          when r.expected_interval is not null
