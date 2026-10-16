@@ -8,8 +8,9 @@ jobs:
   dry:
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
-        upto: [1, 2, 3, 4, 5, 6]
+        upto: [2, 3, 4, 5, 6]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,4 +22,4 @@ jobs:
         run: |
           files=$(ls dryrun/*.sql | sort | head -n ${{ matrix.upto }})
           { echo 'begin;'; for f in $files; do cat "$f"; echo; done; echo 'rollback;'; } > all.sql
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f all.sql > out.txt 2>&1 || { grep -iE "error|warning|line" out.txt | tail -6 | sed "s/^/::error::/"; exit 1; }
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f all.sql > out.txt 2>&1 || { grep -E "ERROR|DETAIL|HINT|WARNING" out.txt | tail -6 | sed "s/^/::error::/"; exit 1; }
