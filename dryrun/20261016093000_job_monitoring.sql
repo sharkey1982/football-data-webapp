@@ -275,7 +275,7 @@ begin
   d := pg_get_functiondef('public.check_model_integrity()'::regprocedure);
   if (length(d) - length(replace(d, a, ''))) / length(a) <> 1 then raise exception 'no_stuck_runs anchor not found exactly once'; end if;
   d := replace(d, a, 'select ''pipeline_runs:'' || p.job_name j from public.pipeline_runs p where p.status = ''running'' and p.started_at < now() - coalesce((select min(r.max_duration) from public.job_registry r where r.run_log = ''pipeline_runs'' and p.job_name ~ r.run_key), interval ''6 hours'')');
-  d := replace(d, 'Runs still marked running after 6h (died without recording an outcome)', 'Runs still marked running past their job''s max_duration (job_registry; 6h if unregistered)');
+  d := replace(d, 'Runs still marked running after 6h (died without recording an outcome)', 'Runs still marked running past their job''''s max_duration (job_registry; 6h if unregistered)');
   execute d;
 end $$;
 
