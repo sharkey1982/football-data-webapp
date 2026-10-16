@@ -37,7 +37,9 @@ begin
       if v_home is null then v_reason := 'unknown team: ' || v_home_raw; end if;
       if v_away is null then v_reason := coalesce(v_reason || '; ', '') || 'unknown team: ' || v_away_raw; end if;
       if v_comp is not null and v_code is null then
-        v_reason := coalesce(v_reason || '; ', '') || 'competition not mapped: ' || v_comp;
+        v_reason := coalesce(v_reason || '; ', '') ||
+          case when exists (select 1 from public.broadcast_competition_coverage c where c.label = v_comp)
+               then 'competition not covered by site fixtures: ' else 'competition not mapped: ' end || v_comp;
       elsif v_code is not null and v_league is null then
         v_reason := coalesce(v_reason || '; ', '') || 'competition not in database: ' || v_comp;
       end if;
@@ -53,6 +55,15 @@ begin
           and fx.kickoff_date between v_date - 3 and v_date + 3
           and (v_league is null or fx.league_id = v_league)
         order by dist limit 1) x;
+      -- 2026-10-16: nothing in the labelled competition -> both teams on the EXACT
+      -- date, unique across competitions (a mislabelled record, e.g. a League One
+      -- game labelled Championship). No tolerance, no partial match.
+      if v_fixture is null and v_league is not null then
+        select min(fx.fixture_id) into v_fixture from public.fixtures fx
+         where fx.home_team_id = v_home and fx.away_team_id = v_away and fx.kickoff_date = v_date
+        having count(*) = 1;
+        v_tie := false;
+      end if;
       if v_fixture is null then v_reason := 'no fixture within 3 days';
       elsif v_tie then v_reason := 'ambiguous fixture'; v_fixture := null; end if;
     end if;
@@ -155,6 +166,9 @@ begin
     synced := synced || rid;
     update public.broadcast_sync_unmatched set resolved_at = now() where airtable_record_id = rid and resolved_at is null;
   end loop;
+
+  -- Saturday 3pm blackout rows, after Airtable so a real listing wins.
+  perform public.apply_uk_3pm_blackout();
 
   insert into public.broadcast_sync_runs (records_seen, inserted, updated, unchanged, kept_stronger, unmatched)
   values (n_seen, n_ins, n_upd, n_same, n_kept, n_unm) returning run_id into v_run;

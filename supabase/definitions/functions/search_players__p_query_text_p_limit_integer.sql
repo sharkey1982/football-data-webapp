@@ -16,9 +16,9 @@ AS $function$
   agg as (
     select m.fpl_code, m.slug, m.canonical_name, m.first_seen_season_id, m.last_seen_season_id,
       count(*)::bigint seasons_played, sum(t.total_points)::bigint career_points,
-      (array_agg(t.web_name order by t.season_id desc))[1] latest_web_name,
-      (array_agg(t.team_name order by t.season_id desc))[1] latest_team,
-      (array_agg(t.element_type order by t.season_id desc))[1] element_type
+      (array_agg(t.web_name order by public.season_start_year(t.season_id) desc))[1] latest_web_name,
+      (array_agg(t.team_name order by public.season_start_year(t.season_id) desc))[1] latest_team,
+      (array_agg(t.element_type order by public.season_start_year(t.season_id) desc))[1] element_type
     from matches m
     join public.fpl_player_season_totals t on t.fpl_code = m.fpl_code
     group by m.fpl_code, m.slug, m.canonical_name, m.first_seen_season_id, m.last_seen_season_id

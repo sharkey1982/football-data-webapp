@@ -8,61 +8,220 @@ create or replace view public.league_standings as
            FROM leagues
           WHERE (leagues.competition_type = 'league'::text)
         ), cur AS (
-         SELECT max(matches.season_id) AS season_id
-           FROM matches
-          WHERE (matches.league_id IN ( SELECT domestic_leagues.league_id
-                   FROM domestic_leagues))
-        ), res AS (
-         SELECT matches.league_id,
-            matches.season_id,
-            matches.home_team_id AS team_id,
-            'home'::text AS venue,
-            matches.full_time_home_goals AS gf,
-            matches.full_time_away_goals AS ga
-           FROM matches
-          WHERE ((matches.league_id IN ( SELECT domestic_leagues.league_id
-                   FROM domestic_leagues)) AND (matches.full_time_home_goals IS NOT NULL))
+         SELECT se_cur.season_id
+           FROM seasons se_cur
+          WHERE (se_cur.start_year = ( SELECT max(se_m.start_year) AS max
+                   FROM seasons se_m
+                  WHERE (se_m.season_id IN ( SELECT matches.season_id
+                           FROM matches
+                          WHERE (matches.league_id IN ( SELECT domestic_leagues.league_id
+                                   FROM domestic_leagues))))))
+        ), fmt AS (
+         SELECT f.league_id,
+            f.season_id,
+            ((f.league_id * 10000) + f.season_id) AS ls,
+            f.regular_meetings,
+            f.halved_groups,
+            f.halving_rounding,
+            f.group_sizes,
+            f.group_games,
+            f.tiebreak
+           FROM league_season_formats f
+          WHERE (f.format = 'split'::text)
+        ), sm AS (
+         SELECT m.match_id,
+            f.ls,
+            m.match_date,
+            m.kickoff_time,
+            ((f.ls * 10000000) + m.home_team_id) AS hk,
+            ((f.ls * 10000000) + m.away_team_id) AS ak,
+            m.full_time_home_goals AS hg,
+            m.full_time_away_goals AS ag,
+            ((row_number() OVER (PARTITION BY f.ls, LEAST(m.home_team_id, m.away_team_id), GREATEST(m.home_team_id, m.away_team_id) ORDER BY m.match_date, m.kickoff_time, m.match_id))::integer - f.regular_meetings) AS post_no
+           FROM (matches m
+             JOIN fmt f ON (((f.league_id = m.league_id) AND (f.season_id = m.season_id))))
+          WHERE (m.full_time_home_goals IS NOT NULL)
+        ), sm_side AS (
+         SELECT sm.ls,
+            sm.match_id,
+            sm.match_date,
+            sm.kickoff_time,
+            sm.post_no,
+            sm.hk AS tk,
+            sm.ak AS ok,
+            sm.hg AS gf,
+            sm.ag AS ga
+           FROM sm
         UNION ALL
-         SELECT matches.league_id,
-            matches.season_id,
-            matches.away_team_id,
-            'away'::text AS text,
-            matches.full_time_away_goals,
-            matches.full_time_home_goals
-           FROM matches
-          WHERE ((matches.league_id IN ( SELECT domestic_leagues.league_id
-                   FROM domestic_leagues)) AND (matches.full_time_home_goals IS NOT NULL))
+         SELECT sm.ls,
+            sm.match_id,
+            sm.match_date,
+            sm.kickoff_time,
+            sm.post_no,
+            sm.ak,
+            sm.hk,
+            sm.ag,
+            sm.hg
+           FROM sm
+        ), split_start AS (
+         SELECT sm.ls,
+            min(sm.match_date) AS first_post_date
+           FROM sm
+          WHERE (sm.post_no > 0)
+          GROUP BY sm.ls
+        ), pre_ded AS (
+         SELECT ((((d.league_id * 10000) + d.season_id) * 10000000) + d.team_id) AS tk,
+            (sum(d.points))::integer AS pts
+           FROM (point_deductions d
+             JOIN split_start ss ON ((ss.ls = ((d.league_id * 10000) + d.season_id))))
+          WHERE ((d.effective_date IS NULL) OR (d.effective_date < ss.first_post_date))
+          GROUP BY ((((d.league_id * 10000) + d.season_id) * 10000000) + d.team_id)
+        ), pre AS (
+         SELECT s.ls,
+            s.tk,
+            ((sum(
+                CASE
+                    WHEN (s.gf > s.ga) THEN 3
+                    WHEN (s.gf = s.ga) THEN 1
+                    ELSE 0
+                END))::integer + COALESCE(max(pd.pts), 0)) AS pre_total,
+            count(*) FILTER (WHERE (s.gf > s.ga)) AS pre_wins,
+            sum((s.gf - s.ga)) AS pre_gd,
+            sum(s.gf) AS pre_gf
+           FROM (sm_side s
+             LEFT JOIN pre_ded pd ON ((pd.tk = s.tk)))
+          WHERE ((s.post_no <= 0) AND (s.ls IN ( SELECT split_start.ls
+                   FROM split_start)))
+          GROUP BY s.ls, s.tk
+        ), prov AS (
+         SELECT r_1.ls,
+            r_1.tk,
+            r_1.pre_total,
+            r_1.rnk,
+            COALESCE(( SELECT min(i.i) AS min
+                   FROM generate_subscripts(f.group_sizes, 1) i(i)
+                  WHERE (r_1.rnk <= ( SELECT sum(x.x) AS sum
+                           FROM unnest(f.group_sizes[1:i.i]) x(x)))), cardinality(f.group_sizes)) AS pblock
+           FROM (( SELECT pre.ls,
+                    pre.tk,
+                    pre.pre_total,
+                    row_number() OVER (PARTITION BY pre.ls ORDER BY pre.pre_total DESC, pre.pre_wins DESC, pre.pre_gd DESC, pre.pre_gf DESC, pre.tk) AS rnk
+                   FROM pre) r_1
+             JOIN fmt f ON ((f.ls = r_1.ls)))
+        ), post_seq AS (
+         SELECT s.ls,
+            s.match_id,
+            s.tk,
+            s.ok,
+            row_number() OVER (PARTITION BY s.tk ORDER BY s.match_date, s.kickoff_time, s.match_id) AS gno
+           FROM sm_side s
+          WHERE (s.post_no > 0)
+        ), votes AS (
+         SELECT v.tk,
+            v.pblock,
+            row_number() OVER (PARTITION BY v.tk ORDER BY v.n DESC, (v.pblock = v.own_block) DESC, v.pblock) AS rn
+           FROM ( SELECT q.tk,
+                    o.pblock,
+                    me.pblock AS own_block,
+                    count(*) AS n
+                   FROM (((post_seq q
+                     JOIN prov me ON ((me.tk = q.tk)))
+                     JOIN prov o ON ((o.tk = q.ok)))
+                     JOIN fmt f ON ((f.ls = q.ls)))
+                  WHERE (q.gno <= f.group_games[me.pblock])
+                  GROUP BY q.tk, o.pblock, me.pblock) v
+        ), blocks AS (
+         SELECT p.ls,
+            p.tk,
+            p.pre_total,
+            p.rnk,
+            COALESCE(v.pblock, p.pblock) AS blk
+           FROM (prov p
+             LEFT JOIN votes v ON (((v.tk = p.tk) AND (v.rn = 1))))
+        ), knockout AS (
+         SELECT DISTINCT q.match_id
+           FROM (((post_seq q
+             JOIN blocks b ON ((b.tk = q.tk)))
+             JOIN blocks bo ON ((bo.tk = q.ok)))
+             JOIN fmt f ON ((f.ls = q.ls)))
+          WHERE ((b.blk <> bo.blk) OR (q.gno > f.group_games[b.blk]))
+        ), split_team AS (
+         SELECT b.tk,
+            (b.blk)::smallint AS split_group,
+            (b.blk = ANY (f.halved_groups)) AS halved,
+            f.halving_rounding,
+            b.pre_total,
+            f.tiebreak,
+            b.rnk AS pre_rank
+           FROM (blocks b
+             JOIN fmt f ON ((f.ls = b.ls)))
+        ), home AS (
+         SELECT m.league_id,
+            m.season_id,
+            m.home_team_id AS team_id,
+            count(*) AS n,
+            count(*) FILTER (WHERE (m.full_time_home_goals > m.full_time_away_goals)) AS w,
+            count(*) FILTER (WHERE (m.full_time_home_goals = m.full_time_away_goals)) AS d,
+            count(*) FILTER (WHERE (m.full_time_home_goals < m.full_time_away_goals)) AS l,
+            sum(m.full_time_home_goals) AS gf,
+            sum(m.full_time_away_goals) AS ga,
+            count(*) FILTER (WHERE (m.full_time_away_goals = 0)) AS cs,
+            count(*) FILTER (WHERE (m.full_time_home_goals = 0)) AS fts
+           FROM matches m
+          WHERE ((m.league_id IN ( SELECT domestic_leagues.league_id
+                   FROM domestic_leagues)) AND (m.full_time_home_goals IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM knockout
+                  WHERE (knockout.match_id = m.match_id)))))
+          GROUP BY m.league_id, m.season_id, m.home_team_id
+        ), away AS (
+         SELECT m.league_id,
+            m.season_id,
+            m.away_team_id AS team_id,
+            count(*) AS n,
+            count(*) FILTER (WHERE (m.full_time_away_goals > m.full_time_home_goals)) AS w,
+            count(*) FILTER (WHERE (m.full_time_away_goals = m.full_time_home_goals)) AS d,
+            count(*) FILTER (WHERE (m.full_time_away_goals < m.full_time_home_goals)) AS l,
+            sum(m.full_time_away_goals) AS gf,
+            sum(m.full_time_home_goals) AS ga,
+            count(*) FILTER (WHERE (m.full_time_home_goals = 0)) AS cs,
+            count(*) FILTER (WHERE (m.full_time_away_goals = 0)) AS fts
+           FROM matches m
+          WHERE ((m.league_id IN ( SELECT domestic_leagues.league_id
+                   FROM domestic_leagues)) AND (m.full_time_home_goals IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM knockout
+                  WHERE (knockout.match_id = m.match_id)))))
+          GROUP BY m.league_id, m.season_id, m.away_team_id
         ), agg AS (
-         SELECT res.league_id,
-            res.season_id,
-            res.team_id,
-            (count(*))::integer AS played,
-            (count(*) FILTER (WHERE (res.gf > res.ga)))::integer AS won,
-            (count(*) FILTER (WHERE (res.gf = res.ga)))::integer AS drawn,
-            (count(*) FILTER (WHERE (res.gf < res.ga)))::integer AS lost,
-            (sum(res.gf))::integer AS goals_for,
-            (sum(res.ga))::integer AS goals_against,
-            (count(*) FILTER (WHERE (res.ga = 0)))::integer AS clean_sheets,
-            (count(*) FILTER (WHERE (res.gf = 0)))::integer AS failed_to_score,
-            (((3 * count(*) FILTER (WHERE (res.gf > res.ga))) + count(*) FILTER (WHERE (res.gf = res.ga))))::integer AS points_won,
-            (count(*) FILTER (WHERE (res.venue = 'home'::text)))::integer AS home_played,
-            (((3 * count(*) FILTER (WHERE ((res.venue = 'home'::text) AND (res.gf > res.ga)))) + count(*) FILTER (WHERE ((res.venue = 'home'::text) AND (res.gf = res.ga)))))::integer AS home_points,
-            (COALESCE(sum(res.gf) FILTER (WHERE (res.venue = 'home'::text)), (0)::bigint))::integer AS home_goals_for,
-            (COALESCE(sum(res.ga) FILTER (WHERE (res.venue = 'home'::text)), (0)::bigint))::integer AS home_goals_against,
-            (count(*) FILTER (WHERE (res.venue = 'away'::text)))::integer AS away_played,
-            (((3 * count(*) FILTER (WHERE ((res.venue = 'away'::text) AND (res.gf > res.ga)))) + count(*) FILTER (WHERE ((res.venue = 'away'::text) AND (res.gf = res.ga)))))::integer AS away_points,
-            (COALESCE(sum(res.gf) FILTER (WHERE (res.venue = 'away'::text)), (0)::bigint))::integer AS away_goals_for,
-            (COALESCE(sum(res.ga) FILTER (WHERE (res.venue = 'away'::text)), (0)::bigint))::integer AS away_goals_against,
-            (count(*) FILTER (WHERE ((res.venue = 'home'::text) AND (res.gf > res.ga))))::integer AS home_won,
-            (count(*) FILTER (WHERE ((res.venue = 'home'::text) AND (res.gf = res.ga))))::integer AS home_drawn,
-            (count(*) FILTER (WHERE ((res.venue = 'home'::text) AND (res.gf < res.ga))))::integer AS home_lost,
-            (count(*) FILTER (WHERE ((res.venue = 'home'::text) AND (res.ga = 0))))::integer AS home_clean_sheets,
-            (count(*) FILTER (WHERE ((res.venue = 'away'::text) AND (res.gf > res.ga))))::integer AS away_won,
-            (count(*) FILTER (WHERE ((res.venue = 'away'::text) AND (res.gf = res.ga))))::integer AS away_drawn,
-            (count(*) FILTER (WHERE ((res.venue = 'away'::text) AND (res.gf < res.ga))))::integer AS away_lost,
-            (count(*) FILTER (WHERE ((res.venue = 'away'::text) AND (res.ga = 0))))::integer AS away_clean_sheets
-           FROM res
-          GROUP BY res.league_id, res.season_id, res.team_id
+         SELECT COALESCE(h.league_id, a.league_id) AS league_id,
+            COALESCE(h.season_id, a.season_id) AS season_id,
+            COALESCE(h.team_id, a.team_id) AS team_id,
+            ((COALESCE(h.n, (0)::bigint) + COALESCE(a.n, (0)::bigint)))::integer AS played,
+            ((COALESCE(h.w, (0)::bigint) + COALESCE(a.w, (0)::bigint)))::integer AS won,
+            ((COALESCE(h.d, (0)::bigint) + COALESCE(a.d, (0)::bigint)))::integer AS drawn,
+            ((COALESCE(h.l, (0)::bigint) + COALESCE(a.l, (0)::bigint)))::integer AS lost,
+            ((COALESCE(h.gf, (0)::bigint) + COALESCE(a.gf, (0)::bigint)))::integer AS goals_for,
+            ((COALESCE(h.ga, (0)::bigint) + COALESCE(a.ga, (0)::bigint)))::integer AS goals_against,
+            ((COALESCE(h.cs, (0)::bigint) + COALESCE(a.cs, (0)::bigint)))::integer AS clean_sheets,
+            ((COALESCE(h.fts, (0)::bigint) + COALESCE(a.fts, (0)::bigint)))::integer AS failed_to_score,
+            (((3 * (COALESCE(h.w, (0)::bigint) + COALESCE(a.w, (0)::bigint))) + (COALESCE(h.d, (0)::bigint) + COALESCE(a.d, (0)::bigint))))::integer AS points_won,
+            (COALESCE(h.n, (0)::bigint))::integer AS home_played,
+            (((3 * COALESCE(h.w, (0)::bigint)) + COALESCE(h.d, (0)::bigint)))::integer AS home_points,
+            (COALESCE(h.gf, (0)::bigint))::integer AS home_goals_for,
+            (COALESCE(h.ga, (0)::bigint))::integer AS home_goals_against,
+            (COALESCE(a.n, (0)::bigint))::integer AS away_played,
+            (((3 * COALESCE(a.w, (0)::bigint)) + COALESCE(a.d, (0)::bigint)))::integer AS away_points,
+            (COALESCE(a.gf, (0)::bigint))::integer AS away_goals_for,
+            (COALESCE(a.ga, (0)::bigint))::integer AS away_goals_against,
+            (COALESCE(h.w, (0)::bigint))::integer AS home_won,
+            (COALESCE(h.d, (0)::bigint))::integer AS home_drawn,
+            (COALESCE(h.l, (0)::bigint))::integer AS home_lost,
+            (COALESCE(h.cs, (0)::bigint))::integer AS home_clean_sheets,
+            (COALESCE(a.w, (0)::bigint))::integer AS away_won,
+            (COALESCE(a.d, (0)::bigint))::integer AS away_drawn,
+            (COALESCE(a.l, (0)::bigint))::integer AS away_lost,
+            (COALESCE(a.cs, (0)::bigint))::integer AS away_clean_sheets
+           FROM (home h
+             FULL JOIN away a ON (((a.league_id = h.league_id) AND (a.season_id = h.season_id) AND (a.team_id = h.team_id))))
         ), shape AS (
          SELECT a.league_id,
             a.season_id,
@@ -72,13 +231,11 @@ create or replace view public.league_standings as
                    FROM cur)) AS is_current
            FROM agg a
           GROUP BY a.league_id, a.season_id
-        ), ded AS (
-         SELECT point_deductions.league_id,
-            point_deductions.season_id,
-            point_deductions.team_id,
+        ), ded AS MATERIALIZED (
+         SELECT ((((point_deductions.league_id * 10000) + point_deductions.season_id) * 10000000) + point_deductions.team_id) AS tk,
             (sum(point_deductions.points))::integer AS pts
            FROM point_deductions
-          GROUP BY point_deductions.league_id, point_deductions.season_id, point_deductions.team_id
+          GROUP BY ((((point_deductions.league_id * 10000) + point_deductions.season_id) * 10000000) + point_deductions.team_id)
         ), scored AS (
          SELECT a.league_id,
             a.season_id,
@@ -111,11 +268,80 @@ create or replace view public.league_standings as
             s.teams,
             s.is_current,
             COALESCE(d.pts, 0) AS deduction,
-            (a.points_won + COALESCE(d.pts, 0)) AS points,
-            ((NOT s.is_current) AND (s.matches < (s.teams * (s.teams - 1)))) AS curtailed
-           FROM ((agg a
+            ((a.points_won + COALESCE(d.pts, 0)) + adj.split_adjustment) AS points,
+            (((a.points_won + COALESCE(d.pts, 0)))::numeric - adj.exact_cut) AS rank_points,
+            COALESCE(lf.curtailed_on_ppg, ((NOT s.is_current) AND (s.matches < (s.teams * (s.teams - 1))))) AS curtailed,
+            ((lg.code = ANY (ARRAY['E1'::text, 'E2'::text, 'E3'::text])) AND (se_1.start_year <= 1998)) AS goals_scored_first,
+            st.split_group,
+            adj.split_adjustment,
+            st.tiebreak,
+            st.pre_rank,
+            st.pre_total,
+            ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id) AS tk
+           FROM (((((((agg a
              JOIN shape s USING (league_id, season_id))
-             LEFT JOIN ded d USING (league_id, season_id, team_id))
+             LEFT JOIN ded d ON ((d.tk = ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id))))
+             JOIN leagues lg ON ((lg.league_id = a.league_id)))
+             JOIN seasons se_1 ON ((se_1.season_id = a.season_id)))
+             LEFT JOIN league_season_formats lf ON (((lf.league_id = a.league_id) AND (lf.season_id = a.season_id))))
+             LEFT JOIN split_team st ON ((st.tk = ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id))))
+             CROSS JOIN LATERAL ( SELECT
+                        CASE
+                            WHEN COALESCE(st.halved, false) THEN ((
+                            CASE
+                                WHEN (st.halving_rounding = 'up'::text) THEN ceil(((st.pre_total)::numeric / 2.0))
+                                ELSE floor(((st.pre_total)::numeric / 2.0))
+                            END - (st.pre_total)::numeric))::integer
+                            ELSE 0
+                        END AS split_adjustment,
+                        CASE
+                            WHEN COALESCE(st.halved, false) THEN ((st.pre_total)::numeric / 2.0)
+                            ELSE (0)::numeric
+                        END AS exact_cut) adj)
+        ), tied AS MATERIALIZED (
+         SELECT x.tk,
+            x.tiebreak,
+            x.tie_key
+           FROM ( SELECT sc.tk,
+                    sc.tiebreak,
+                    k.tie_key,
+                    count(*) OVER (PARTITION BY k.tie_key) AS n
+                   FROM (scored sc
+                     CROSS JOIN LATERAL ( SELECT ((((((((sc.league_id * 10000) + sc.season_id))::text || '/'::text) || (sc.split_group)::text) || '/'::text) || (sc.rank_points)::text) ||
+                                CASE
+                                    WHEN (sc.tiebreak = 'regular_points'::text) THEN ('/'::text || (sc.pre_total)::text)
+                                    ELSE ''::text
+                                END) AS tie_key) k)
+                  WHERE (sc.tiebreak = ANY (ARRAY['head_to_head'::text, 'regular_points'::text]))) x
+          WHERE (x.n > 1)
+        ), tied_games AS MATERIALIZED (
+         SELECT s.match_id,
+            s.tk,
+            s.ok,
+            s.post_no,
+            s.gf,
+            s.ga
+           FROM sm_side s
+          WHERE ((s.tk IN ( SELECT tied.tk
+                   FROM tied)) AND (s.ok IN ( SELECT tied.tk
+                   FROM tied)))
+        ), h2h AS MATERIALIZED (
+         SELECT a.tk,
+            sum(
+                CASE
+                    WHEN (g.gf > g.ga) THEN 3
+                    WHEN (g.gf = g.ga) THEN 1
+                    ELSE 0
+                END) AS pts,
+            sum((g.gf - g.ga)) AS gd,
+            sum(g.gf) AS gf
+           FROM ((tied_games g
+             JOIN tied a ON ((a.tk = g.tk)))
+             JOIN tied b ON (((b.tk = g.ok) AND (b.tie_key = a.tie_key))))
+          WHERE (((a.tiebreak = 'head_to_head'::text) OR (g.post_no <= 0)) AND (NOT (EXISTS ( SELECT 1
+                   FROM knockout k
+                  WHERE (k.match_id = g.match_id)))))
+          GROUP BY a.tk
         ), ranked AS (
          SELECT sc.league_id,
             sc.season_id,
@@ -150,17 +376,45 @@ create or replace view public.league_standings as
             sc.deduction,
             sc.points,
             sc.curtailed,
-            (row_number() OVER (PARTITION BY sc.league_id, sc.season_id ORDER BY
+            sc.split_group,
+            sc.split_adjustment,
+            (row_number() OVER (PARTITION BY sc.league_id, sc.season_id ORDER BY COALESCE((sc.split_group)::integer, 0),
                 CASE
                     WHEN sc.curtailed THEN ((sc.points)::numeric / (NULLIF(sc.played, 0))::numeric)
-                    ELSE (sc.points)::numeric
-                END DESC, (sc.goals_for - sc.goals_against) DESC, sc.goals_for DESC, t.canonical_name))::integer AS "position"
-           FROM (scored sc
+                    ELSE sc.rank_points
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_position'::text THEN (- sc.pre_rank)
+                    WHEN 'regular_points'::text THEN (sc.pre_total)::bigint
+                    ELSE COALESCE(h.pts, (0)::bigint)
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_points'::text THEN COALESCE(h.pts, (0)::bigint)
+                    ELSE COALESCE(h.gd, (0)::bigint)
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_points'::text THEN COALESCE(h.gd, (0)::bigint)
+                    ELSE COALESCE(h.gf, (0)::bigint)
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_points'::text THEN COALESCE(h.gf, (0)::bigint)
+                    ELSE (0)::bigint
+                END DESC,
+                CASE
+                    WHEN sc.goals_scored_first THEN sc.goals_for
+                    ELSE (sc.goals_for - sc.goals_against)
+                END DESC,
+                CASE
+                    WHEN sc.goals_scored_first THEN (sc.goals_for - sc.goals_against)
+                    ELSE sc.goals_for
+                END DESC, t.canonical_name))::integer AS "position"
+           FROM ((scored sc
              JOIN teams t USING (team_id))
+             LEFT JOIN h2h h ON ((h.tk = sc.tk)))
         )
  SELECT r.league_id,
     l.code AS league_code,
-    l.name AS league_name,
+    league_name_for_season(r.league_id, r.season_id) AS league_name,
     (r.league_id)::integer AS tier,
     r.season_id,
     se.label AS season_label,
@@ -204,7 +458,10 @@ create or replace view public.league_standings as
     r.away_won,
     r.away_drawn,
     r.away_lost,
-    r.away_clean_sheets
+    r.away_clean_sheets,
+    se.start_year AS season_start_year,
+    r.split_group,
+    r.split_adjustment
    FROM ((ranked r
      JOIN leagues l USING (league_id))
      JOIN seasons se USING (season_id));

@@ -37,7 +37,7 @@ create or replace view public.fpl_team_strength_current as
            FROM (((latest_e0 lf
              JOIN team_ratings tr ON ((tr.fit_run_id = lf.fit_run_id)))
              JOIN teams t ON ((t.team_id = tr.team_id)))
-             JOIN fpl_teams ft ON ((ft.canonical_team_id = tr.team_id)))
+             JOIN fpl_teams ft ON (((ft.canonical_team_id = tr.team_id) AND (ft.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)))))
         )
  SELECT fit_run_id,
     league_id,

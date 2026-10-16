@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_tactical_role_worklist(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_tactical_role_worklist(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_tactical_role_worklist(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(team_id bigint, team_name text, fpl_player_id bigint, web_name text, slug text, position_label text, assigned_role text, confidence numeric, minutes integer, ownership numeric, total_points integer, priority text)
  LANGUAGE sql
  STABLE
@@ -16,6 +16,7 @@ AS $function$
   latest_snap as (
     select distinct on (s.fpl_player_id) s.fpl_player_id, s.selected_by_percent
     from public.fpl_player_snapshots s
+    where s.season_id = p_season_id
     order by s.fpl_player_id, s.snapshot_date desc
   )
   select
@@ -29,7 +30,7 @@ AS $function$
       else 'fringe'
     end
   from public.team_player_tactical_defaults d
-  join public.fpl_players p on p.fpl_player_id = d.fpl_player_id
+  join public.fpl_players p on p.fpl_player_id = d.fpl_player_id and p.season_id = d.season_id
   left join public.teams t on t.team_id = d.team_id
   left join mins m on m.fpl_player_id = d.fpl_player_id
   left join latest_snap ls on ls.fpl_player_id = d.fpl_player_id
