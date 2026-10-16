@@ -4,32 +4,24 @@ on:
     branches: [probe/tennis-source]
 permissions:
   contents: read
+env:
+  UA: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36'
 jobs:
-  probe:
+  runner_page:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
-      - name: fetch from GitHub runner
-        continue-on-error: true
-        run: |
-          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36'
+      - run: |
           code=$(curl -sS -A "$UA" -o page.html -w "%{http_code}" http://www.tennis-data.co.uk/alldata.php || echo 000)
-          echo "code=$code"; test "$code" = 200 && grep -q '2026/2026.xlsx' page.html
-      - name: fetch from Supabase Edge
-        id: edge
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: |
-          curl -sS -X POST "$SUPABASE_URL/functions/v1/tennis-source-probe" -H "Authorization: Bearer $KEY" -H "apikey: $KEY" > edge.json
-          jq -e '.page_status == 200 and (.links_2026|length) > 0' edge.json
-      - name: edge workbook is a real xlsx
-        continue-on-error: true
-        run: jq -e '.file_status == 200 and .file_is_zip == true' edge.json
-      - name: edge workbook modified in October
-        continue-on-error: true
-        run: jq -e '(.last_modified // "") | test("Oct 2026")' edge.json
-      - name: edge workbook modified after 10 Oct
-        continue-on-error: true
-        run: jq -e '(.last_modified // "") | test("(1[1-9]|2[0-9]) Oct 2026")' edge.json
+          test "$code" = 200 && grep -q '2026/2026.xlsx' page.html
+  edge_page:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
+          jq -e '.page_status == 200 and (.links_2026|length) > 0' e.json
+  edge_xlsx:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/tennis-source-probe" -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" > e.json
+          jq -e '.file_status == 200 and .file_is_zip == true' e.json
