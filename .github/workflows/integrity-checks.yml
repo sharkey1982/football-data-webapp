@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read   # run_integrity_checks.py compares scheduled workflows with job_registry
 
 jobs:
   check:
@@ -26,4 +27,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Direct connection: the API cuts every call at 8 s (57014 on 14-15 Oct).
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/run_integrity_checks.py

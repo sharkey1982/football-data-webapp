@@ -82,3 +82,84 @@ def test_apply_names_rebuilds_key():
     names = ti.build_name_map("WTA", rows, [])
     ti.apply_names("WTA", 2016, rows, names)
     assert rows[0]["source_key"] == "WTA|2016|T|1st Round|McHale C.|Doi M."
+
+
+# --- 16 Oct 2026: every run leaves a pipeline_runs row with its outcome ------
+class _Q:
+    def __init__(self, log, table):
+        self.log, self.table, self.op, self.payload = log, table, None, None
+
+    def insert(self, payload):
+        self.op, self.payload = "insert", payload
+        return self
+
+    def update(self, payload):
+        self.op, self.payload = "update", payload
+        return self
+
+    def select(self, *_a, **_k):
+        self.op = "select"
+        return self
+
+    def eq(self, *_a):
+        return self
+
+    def order(self, *_a, **_k):
+        return self
+
+    def range(self, *_a):
+        return self
+
+    def execute(self):
+        self.log.append((self.table, self.op, self.payload))
+        data = [{"run_id": 7}] if self.op == "insert" else []
+        return type("R", (), {"data": data})()
+
+
+class _SB:
+    def __init__(self):
+        self.log = []
+
+    def table(self, name):
+        return _Q(self.log, name)
+
+
+def _run_main(monkeypatch, argv, sb):
+    import types
+    monkeypatch.setitem(sys.modules, "supabase", types.SimpleNamespace(create_client=lambda *_a: sb))
+    monkeypatch.setenv("SUPABASE_URL", "http://x")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "k")
+    monkeypatch.setattr(sys, "argv", ["tennis_import.py", *argv])
+    return ti.main()
+
+
+def test_download_failure_is_recorded(monkeypatch):
+    sb = _SB()
+
+    def refuse(*_a, **_k):
+        raise RuntimeError("HTTP Error 403: Forbidden")
+
+    monkeypatch.setattr(ti, "load_workbook", refuse)
+    assert _run_main(monkeypatch, ["--years", "2026"], sb) == 1
+    runs = [x for x in sb.log if x[0] == "pipeline_runs"]
+    assert runs[0][1] == "insert" and runs[0][2]["status"] == "running"
+    assert runs[-1][1] == "update" and runs[-1][2]["status"] == "failed"
+    assert "403" in runs[-1][2]["error_message"]
+
+
+def test_crash_is_recorded_and_raised(monkeypatch):
+    sb = _SB()
+
+    def boom(*_a, **_k):
+        raise KeyError("unexpected")
+
+    monkeypatch.setattr(ti, "parse_years", lambda *_a: [2026])
+    monkeypatch.setattr(ti, "build_name_map", boom)
+    monkeypatch.setattr(ti, "load_workbook", lambda *_a: ("x", frame([])))
+    try:
+        _run_main(monkeypatch, [], sb)
+        raise AssertionError("should raise")
+    except KeyError:
+        pass
+    last = [x for x in sb.log if x[0] == "pipeline_runs"][-1]
+    assert last[2]["status"] == "failed" and "KeyError" in last[2]["error_message"]
