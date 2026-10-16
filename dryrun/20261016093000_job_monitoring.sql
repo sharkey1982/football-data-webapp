@@ -290,7 +290,7 @@ begin
   if exists (select 1 from public.pipeline_runs where run_id in (912, 948) and status = 'running') then
     raise exception 'abandoned simulate_fixture_bonus runs not reconciled';
   end if;
-  select found into n from public.check_model_integrity() where check_name = 'no_stuck_runs';
+  select c.found into n from public.check_model_integrity() c where c.check_name = 'no_stuck_runs';
   if n <> 0 then raise exception 'no_stuck_runs still finds % run(s)', n; end if;
   if (select count(*) from public.job_health) < 40 then raise exception 'job_health lists too few jobs'; end if;
   -- a deliberately stuck run is detected, and a later success does not hide it

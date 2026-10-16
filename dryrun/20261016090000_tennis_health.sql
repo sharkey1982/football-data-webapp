@@ -182,12 +182,12 @@ grant execute on function public.tennis_refresh_if_stale(boolean) to service_rol
 do $$
 declare k text; n0 bigint; n1 bigint;
 begin
-  select found into n0 from public.check_tennis_integrity() where check_name = 'tennis_sets_consistent';
+  select c.found into n0 from public.check_tennis_integrity() c where c.check_name = 'tennis_sets_consistent';
   if n0 <> 0 then raise exception 'tennis_sets_consistent should be 0 after review, is %', n0; end if;
   begin
     select source_key into k from tennis.source_anomalies limit 1;
     delete from tennis.source_anomalies where source_key = k;
-    select found into n1 from public.check_tennis_integrity() where check_name = 'tennis_sets_consistent';
+    select c.found into n1 from public.check_tennis_integrity() c where c.check_name = 'tennis_sets_consistent';
     if n1 <> 1 then raise exception 'an unreviewed inconsistent row should warn (got %)', n1; end if;
     raise exception using errcode = 'P0001', message = 'rollback-test';
   exception when sqlstate 'P0001' then
