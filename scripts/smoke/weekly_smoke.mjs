@@ -38,7 +38,7 @@ const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 // Budgets (warnings). Google's "good" thresholds for LCP/CLS/INP-proxy, and
 // our own for the API and JavaScript.
-export const BUDGETS = { lcp_ms: 2500, cls: 0.1, ttfb_ms: 800, fcp_ms: 1800, api_ms: 1500, js_kb: 350, requests: 120 };
+export const BUDGETS = { lcp_ms: 2500, cls: 0.1, ttfb_ms: 800, fcp_ms: 1800, api_ms: 1500, js_kb: 350, requests: 120, api_payload_kb: 250 };
 
 // Fixed pages, then one sitemap URL per pattern for the dynamic page types.
 const FIXED = [
@@ -144,8 +144,14 @@ async function testPage(browser, type, path) {
   page.on('requestfailed', (r) => {
     if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && r.failure()?.errorText !== 'net::ERR_ABORTED') res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
   });
+  // Supabase does not send Timing-Allow-Origin, so the browser reports no
+  // sizes for its responses; read the bodies here instead.
+  const apiBodies = [];
   page.on('response', (r) => {
     if (r.status() >= 400 && OWN_HOSTS(r.url()) && !IGNORE.test(r.url())) res.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().slice(0, 160)}`);
+    if (r.url().includes('.supabase.co/rest/') && r.status() < 300) {
+      apiBodies.push(r.body().then((b) => ({ url: r.url().replace(/^https:\/\/[^/]+/, '').slice(0, 160), kb: Math.round(b.length / 1024) })).catch(() => null));
+    }
   });
   const t0 = Date.now();
   try {
@@ -190,6 +196,10 @@ async function testPage(browser, type, path) {
       cls_sources: Object.entries(m.vitals?.shifts || {}).sort((a, b) => b[1] - a[1]).slice(0, 3)
         .map(([element, value]) => ({ element, value: Math.round(value * 1000) / 1000 })),
     });
+    const bodies = (await Promise.all(apiBodies)).filter(Boolean).sort((a, b) => b.kb - a.kb);
+    res.api_kb = bodies.reduce((t, x) => t + x.kb, 0);
+    res.largest_api = bodies.slice(0, 3);
+    if (MODE !== 'quick' && bodies[0]?.kb > BUDGETS.api_payload_kb) res.warnings.push(`API payload ${bodies[0].kb} KB > ${BUDGETS.api_payload_kb}: ${bodies[0].url}`);
     if (m.text_len < 300) res.errors.push(`page nearly empty (${m.text_len} characters of text)`);
     if (m.error_text) res.errors.push(`error message on page: "${m.error_text}"`);
     if (m.spinner) res.errors.push('still showing "Loading" after the network went idle');
@@ -268,6 +278,7 @@ async function main() {
         cls: r.cls ?? null, tbt_ms: r.tbt_ms ?? null, load_ms: r.load_ms ?? null, requests: r.requests ?? null,
         transfer_kb: r.transfer_kb ?? null, js_kb: r.js_kb ?? null, api_calls: r.api_calls ?? null,
         slowest_api_ms: r.slowest_api_ms ?? null, slowest_api_url: r.slowest_api_url ?? null,
+        api_kb: r.api_kb ?? null, largest_api: r.largest_api ?? null, lcp_element: r.lcp_element ?? null, cls_sources: r.cls_sources ?? null,
       })), 'return=minimal');
       if (KIND === 'production') {
         await rest('pipeline_runs', {
