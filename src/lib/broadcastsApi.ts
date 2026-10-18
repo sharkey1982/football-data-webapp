@@ -211,13 +211,19 @@ export type WatchGuideFixture = {
 // (26 Sep 2026), so it is read in pages with a stable order.
 const WATCH_GUIDE_PAGE = 1000;
 
-export async function getWatchGuide(market = 'GB'): Promise<WatchGuideFixture[]> {
+/** until (YYYY-MM-DD, inclusive): only fixtures up to that date. The TV guide
+ * loads the next three weeks first and the rest of the season after (18 Oct
+ * 2026: the whole season was 1.25 MB, two thirds of it Saturday 3pm
+ * not-televised rows months ahead, before anything showed on mobile data). */
+export async function getWatchGuide(market = 'GB', opts: { until?: string } = {}): Promise<WatchGuideFixture[]> {
   const data: Record<string, unknown>[] = [];
   for (let from = 0; ; from += WATCH_GUIDE_PAGE) {
-    const { data: page, error } = await db
+    let q = db
       .from('upcoming_watch_guide')
       .select('*')
-      .eq('market', market)
+      .eq('market', market);
+    if (opts.until) q = q.lte('kickoff_date', opts.until);
+    const { data: page, error } = await q
       .order('kickoff_date')
       .order('kickoff_time')
       .order('broadcast_id')

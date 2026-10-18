@@ -92,8 +92,14 @@ export function asElementType(v: number | null | undefined): FplElementType | nu
   return v === 1 || v === 2 || v === 3 || v === 4 ? v : null;
 }
 
+/** The two source_payload fields seasonContextStats reads, selected on their
+ * own (18 Oct 2026): the whole bootstrap-static element came to ~2.7 KB a
+ * player, 1.7 MB on the line-ups page over mobile data. Select this instead of
+ * source_payload and pass the row as is. */
+export const SEASON_STATS_SELECT = 'points_per_game:source_payload->>points_per_game, starts:source_payload->>starts';
+
 export function seasonContextStats(
-  player: { minutes: number | null; source_payload: Json | null },
+  player: { minutes: number | null; source_payload?: Json | null; points_per_game?: string | number | null; starts?: string | number | null },
   gamesInvolved?: number | null
 ): {
   points_per_game: number | null;
@@ -103,9 +109,11 @@ export function seasonContextStats(
   // legitimately includes scalars and arrays, not just objects. Only
   // index it once it's actually been confirmed to be a plain object.
   const payload =
-    player.source_payload !== null && typeof player.source_payload === 'object' && !Array.isArray(player.source_payload)
+    player.source_payload != null && typeof player.source_payload === 'object' && !Array.isArray(player.source_payload)
       ? (player.source_payload as Record<string, unknown>)
-      : null;
+      : player.points_per_game !== undefined || player.starts !== undefined
+        ? { points_per_game: player.points_per_game ?? null, starts: player.starts ?? null }
+        : null;
   const pointsPerGame = payload ? num(payload['points_per_game'] as string | number | null) : null;
   // "games involved" (gameweeks with minutes>0, requested separately via
   // getGamesInvolvedCounts) is the correct denominator -- requested
@@ -147,9 +155,9 @@ export async function getGamesInvolvedCounts(playerIds: number[]): Promise<Map<n
 export async function getPlayerSeasonPpg(playerIds: number[]): Promise<Map<number, number | null>> {
   const out = new Map<number, number | null>();
   if (playerIds.length === 0) return out;
-  const { data, error } = await supabase.from('fpl_players').select('fpl_player_id, minutes, source_payload').in('fpl_player_id', playerIds);
+  const { data, error } = await supabase.from('fpl_players').select(`fpl_player_id, minutes, ${SEASON_STATS_SELECT}`).in('fpl_player_id', playerIds);
   if (error) throw error;
-  for (const row of data ?? []) out.set(row.fpl_player_id, seasonContextStats({ minutes: row.minutes, source_payload: row.source_payload }).points_per_game);
+  for (const row of data ?? []) out.set(row.fpl_player_id, seasonContextStats(row).points_per_game);
   return out;
 }
 
@@ -803,7 +811,7 @@ export async function getSquadPitchEnrichment(matchweek: number, playerIds: numb
       supabase.from('fpl_projection_frontend_feed_v6').select('*').in('fixture_id', fixtureIds).in('fpl_player_id', playerIds),
       supabase.from('set_piece_hierarchies').select('*').in('team_id', teamIds).in('source_player_id', playerIds.map(String)),
       supabase.from('player_squad_hierarchy').select('*').in('team_id', teamIds).in('fpl_player_id', playerIds),
-      supabase.from('fpl_players').select('fpl_player_id, minutes, source_payload').in('fpl_player_id', playerIds),
+      supabase.from('fpl_players').select(`fpl_player_id, minutes, ${SEASON_STATS_SELECT}`).in('fpl_player_id', playerIds),
     ]);
   if (v6Error) throw v6Error;
   if (setPieceError) throw setPieceError;
