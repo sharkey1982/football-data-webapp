@@ -110,11 +110,19 @@ async function query(path) {
  * the ~7,200 projection rows would silently generate correct-looking
  * pages with most gameweeks missing. Pages through explicitly instead,
  * stopping when a short page comes back. */
-async function queryAll(path, pageSize = 1000) {
+// keyset (18 Oct 2026): for a query ordered by ONE unique column, page with
+// `<col>=gt.<last value>` instead of offset. Offset paging makes the database
+// compute and skip every earlier row on each page: intl_matches (50k rows,
+// a view with joins) averaged 1.3 s a page by the end, about a minute per
+// build. Keyset pages cost the same from first to last.
+async function queryAll(path, pageSize = 1000, { keyset } = {}) {
   const out = [];
+  let after = null;
   for (let offset = 0; ; offset += pageSize) {
     const sep = path.includes('?') ? '&' : '?';
-    const page = await query(`${path}${sep}limit=${pageSize}&offset=${offset}`);
+    const page = await query(keyset
+      ? `${path}${sep}limit=${pageSize}${after == null ? '' : `&${keyset}=gt.${encodeURIComponent(after)}`}`
+      : `${path}${sep}limit=${pageSize}&offset=${offset}`);
     // query() retries a transient error twice. A page that still fails returns null
     // for the WHOLE query: until 6 Oct the rows before the failure came back
     // as if complete, so (with oldest-first ordering) the current season was
@@ -126,6 +134,14 @@ async function queryAll(path, pageSize = 1000) {
     }
     out.push(...page);
     if (page.length < pageSize) return out;
+    if (keyset) {
+      const last = page[page.length - 1][keyset];
+      if (last == null || last === after) {
+        console.error(`Static: keyset column ${keyset} missing or not increasing for ${path} -- discarding the result.`);
+        return null;
+      }
+      after = String(last);
+    }
     // Guard against an unbounded loop if the server ever ignores offset.
     if (offset > 200000) {
       console.error('Static: pagination guard tripped -- discarding the result.');
@@ -640,11 +656,11 @@ async function main() {
       for (const tour of ['ATP', 'WTA']) {
         // By year: deep offsets over a whole tour take ~1s a page; a year is 3 small pages.
         const latestRow = await query(`tennis_matches?select=year&tour=eq.${tour}&order=match_date.desc&limit=1`);
-        const players = await queryAll(`tennis_players?select=${entry.TENNIS_PLAYER_COLUMNS}&tour=eq.${tour}&order=player_id.asc`);
+        const players = await queryAll(`tennis_players?select=${entry.TENNIS_PLAYER_COLUMNS}&tour=eq.${tour}&order=player_id.asc`, 1000, { keyset: 'player_id' });
         const matches = [];
         let missing = latestRow?.[0]?.year == null;
         for (const y of missing ? [] : entry.tennisYears(tour, latestRow[0].year)) {
-          const rows = await queryAll(`tennis_matches?select=${entry.TENNIS_MATCH_COLUMNS}&tour=eq.${tour}&year=eq.${y}&order=source_key.asc`);
+          const rows = await queryAll(`tennis_matches?select=${entry.TENNIS_MATCH_COLUMNS}&tour=eq.${tour}&year=eq.${y}&order=source_key.asc`, 1000, { keyset: 'source_key' });
           if (rows == null) missing = true;
           else matches.push(...rows);
         }
@@ -1183,8 +1199,8 @@ async function writeIntlFullPages(shell, buildDocument, renderStaticRouteHead) {
   const [teams, editions, matches, fixtures, totals, pairs, goals, squads, squadPlayers, groupOdds, stages, groups] = await Promise.all([
     queryAll(`intl_team_summary?select=${enc(entry.INTL_TEAM_COLUMNS)}&order=slug.asc`),
     queryAll(`intl_edition_summary?select=${enc(entry.INTL_EDITION_COLUMNS)}&order=competition.asc,season_start.asc`),
-    queryAll(`intl_matches?select=${enc(entry.INTL_MATCH_COLUMNS)}&order=match_key.asc`),
-    queryAll(`intl_fixtures?select=${enc(entry.INTL_FIXTURE_COLUMNS)}&order=fixture_key.asc`),
+    queryAll(`intl_matches?select=${enc(entry.INTL_MATCH_COLUMNS)}&order=match_key.asc`, 1000, { keyset: 'match_key' }),
+    queryAll(`intl_fixtures?select=${enc(entry.INTL_FIXTURE_COLUMNS)}&order=fixture_key.asc`, 1000, { keyset: 'fixture_key' }),
     queryAll(`intl_team_competition_totals?select=${entry.INTL_BULK_TOTAL_COLUMNS}&order=team.asc,competition.asc`),
     queryAll(`intl_pair_records?select=${entry.INTL_BULK_PAIR_COLUMNS}&order=team_a.asc,team_b.asc`),
     queryAll(`intl_goals?select=${entry.INTL_BULK_GOAL_COLUMNS}&order=match_key.asc,seq.asc`),

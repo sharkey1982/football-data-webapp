@@ -43,8 +43,13 @@ Run these in order:
 3. `timeout 580 npx vitest run`
 
 Then open the PR with `gh api repos/sharkey1982/football-data-webapp/pulls`
-(REST: GraphQL is blocked). Wait for the Netlify statuses, then squash-merge
-with `gh api -X PUT .../pulls/<n>/merge -f merge_method=squash`.
+(REST: GraphQL is blocked). Wait for the Netlify statuses **and the
+`smoke/preview` status** (the browser smoke test of the deploy preview,
+workflow `weekly-smoke.yml`, a few minutes after the preview is ready; it
+fails on JS errors, failed requests, error text, empty pages or tables).
+Then squash-merge with `gh api -X PUT .../pulls/<n>/merge -f merge_method=squash`.
+Results of every smoke run: `public.smoke_runs` / `smoke_page_results`
+(`smoke_latest` for the newest production run).
 
 ## Model Lab
 

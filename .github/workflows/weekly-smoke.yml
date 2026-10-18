@@ -1,0 +1,88 @@
+name: Smoke tests (browser)
+
+# Real-browser smoke and performance test (scripts/smoke/weekly_smoke.mjs).
+# * Weekly, Monday 07:12 UTC (after the morning imports and the 06:41 FPL run):
+#   the live site, phone on throttled slow 4G, errors AND Core Web Vitals
+#   budgets. Results in smoke_runs / smoke_page_results and pipeline_runs
+#   (weekly_smoke); checked daily by check_job_health (smoke_tests_passed).
+# * Every Netlify deploy preview that finishes (status event): the preview,
+#   unthrottled, errors only, so a broken page shows on the PR before merging
+#   (commit status "smoke/preview" on the PR's commit).
+# * By hand, with an optional base URL.
+
+on:
+  schedule:
+    - cron: '12 7 * * 1'
+  status:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Site to test (blank = https://fixtureshark.com)'
+        required: false
+        default: ''
+      mode:
+        description: 'full (throttled, budgets) or quick (errors only)'
+        required: false
+        default: 'full'
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: smoke-${{ github.event_name == 'status' && github.event.sha || 'production' }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    # Status events: only a successful footballdatashark deploy preview.
+    if: >-
+      github.event_name != 'status' ||
+      (github.event.state == 'success' && endsWith(github.event.context, 'footballdatashark/deploy-preview'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Playwright
+        run: |
+          mkdir -p /tmp/pw && cd /tmp/pw && npm init -y >/dev/null && npm install --no-audit --no-fund playwright@1.56.1 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Mark preview pending
+        if: github.event_name == 'status'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api repos/${{ github.repository }}/statuses/${{ github.event.sha }} -f state=pending -f context=smoke/preview -f description="Browser smoke test running" -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+      - name: Run
+        id: run
+        env:
+          NODE_PATH: /tmp/pw/node_modules
+          BASE: ${{ github.event_name == 'status' && github.event.target_url || inputs.base }}
+          MODE: ${{ github.event_name == 'status' && 'quick' || inputs.mode || 'full' }}
+          SMOKE_KIND: ${{ github.event_name == 'status' && 'preview' || (inputs.base != '' && 'manual') || 'production' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          ln -s /tmp/pw/node_modules node_modules 2>/dev/null || true
+          node scripts/smoke/weekly_smoke.mjs
+      - name: Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: smoke-report.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Preview result on the PR commit
+        if: always() && github.event_name == 'status'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTCOME: ${{ steps.run.outcome }}
+        run: |
+          state=$([ "$OUTCOME" = success ] && echo success || echo failure)
+          desc=$([ "$OUTCOME" = success ] && echo "All pages loaded without errors" || echo "Pages with errors: see the run")
+          gh api repos/${{ github.repository }}/statuses/${{ github.event.sha }} -f state=$state -f context=smoke/preview -f description="$desc" -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null

@@ -3,7 +3,6 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import CanonicalPathRedirect from './components/CanonicalPathRedirect';
 import AppLayout from './components/AppLayout';
-import IntlGenderScope from './components/intl/IntlGenderScope';
 
 // Every page is lazy-loaded rather than bundled into one upfront chunk --
 // requested directly, after confirming this app had a single 1.1MB JS
@@ -74,6 +73,9 @@ const TeamStrengthPage = lazy(() => import('./pages/TeamStrengthPage'));
 const ResultsData = lazy(() => import('./pages/ResultsData'));
 const SourceData = lazy(() => import('./pages/SourceData'));
 const FantasyFixtures = lazy(() => import('./pages/FantasyFixtures'));
+// Lazy (18 Oct 2026): a static import put the whole International data layer
+// (intlApi + intlStats, ~55 KB of source) into the entry bundle of every page.
+const IntlGenderScope = lazy(() => import('./components/intl/IntlGenderScope'));
 const DataHealth = lazy(() => import('./pages/DataHealth'));
 const DataFlow = lazy(() => import('./pages/DataFlow'));
 const FplFixturesList = lazy(() => import('./pages/fpl/FplFixturesList'));
@@ -167,9 +169,11 @@ function intlRoutes(gender: 'men' | 'women') {
       key={`${gender}${sub}`}
       path={`${base}${sub}`}
       element={
-        <IntlGenderScope key={gender} gender={gender}>
-          <Suspense fallback={<RouteFallback />}>{el}</Suspense>
-        </IntlGenderScope>
+        <Suspense fallback={<RouteFallback />}>
+          <IntlGenderScope key={gender} gender={gender}>
+            <Suspense fallback={<RouteFallback />}>{el}</Suspense>
+          </IntlGenderScope>
+        </Suspense>
       }
     />
   ));
