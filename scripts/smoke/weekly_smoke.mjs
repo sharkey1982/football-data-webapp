@@ -139,7 +139,9 @@ async function testPage(browser, type, path) {
   }
   page.on('pageerror', (e) => res.errors.push(`JS error: ${String(e.message).slice(0, 200)}`));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !IGNORE.test(m.text()) && !/Failed to load resource/.test(m.text())) res.errors.push(`console: ${m.text().slice(0, 200)}`);
+    // Permissions-policy notices come from the Netlify preview toolbar (camera/
+    // microphone for its feedback tool), not from the site.
+    if (m.type() === 'error' && !IGNORE.test(m.text()) && !/Failed to load resource|permissions policy violation/i.test(m.text())) res.errors.push(`console: ${m.text().slice(0, 200)}`);
   });
   page.on('requestfailed', (r) => {
     if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && r.failure()?.errorText !== 'net::ERR_ABORTED') res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
@@ -272,14 +274,22 @@ async function main() {
         median_lcp_ms: med('lcp_ms'), median_ttfb_ms: med('ttfb_ms'), median_js_kb: med('js_kb'), summary,
         workflow_run_id: process.env.GITHUB_RUN_ID ? Number(process.env.GITHUB_RUN_ID) : null,
       });
-      await rest('smoke_page_results', results.map((r) => ({
+      const pageRows = results.map((r) => ({
         smoke_run_id: run.smoke_run_id, page_type: r.page_type, url: r.url, ok: r.ok, http_status: r.status ?? null,
         errors: r.errors, warnings: r.warnings, ttfb_ms: r.ttfb_ms ?? null, fcp_ms: r.fcp_ms ?? null, lcp_ms: r.lcp_ms ?? null,
         cls: r.cls ?? null, tbt_ms: r.tbt_ms ?? null, load_ms: r.load_ms ?? null, requests: r.requests ?? null,
         transfer_kb: r.transfer_kb ?? null, js_kb: r.js_kb ?? null, api_calls: r.api_calls ?? null,
         slowest_api_ms: r.slowest_api_ms ?? null, slowest_api_url: r.slowest_api_url ?? null,
         api_kb: r.api_kb ?? null, largest_api: r.largest_api ?? null, lcp_element: r.lcp_element ?? null, cls_sources: r.cls_sources ?? null,
-      })), 'return=minimal');
+      }));
+      try {
+        await rest('smoke_page_results', pageRows, 'return=minimal');
+      } catch (e) {
+        // A database without the attribution columns yet (migration not
+        // applied): store the core measurements rather than nothing.
+        if (!/PGRST204/.test(String(e))) throw e;
+        await rest('smoke_page_results', pageRows.map(({ api_kb, largest_api, lcp_element, cls_sources, ...core }) => core), 'return=minimal');
+      }
       if (KIND === 'production') {
         await rest('pipeline_runs', {
           job_name: 'weekly_smoke', status: failed.length ? 'failed' : warned.length ? 'warning' : 'success',
