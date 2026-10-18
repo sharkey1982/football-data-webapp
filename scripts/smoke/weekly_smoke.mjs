@@ -131,6 +131,11 @@ async function testPage(browser, type, path) {
   const ctx = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block' });
   await ctx.addInitScript(VITALS_INIT);
   const page = await ctx.newPage();
+  // Deploy previews load Netlify's collaboration toolbar, which production
+  // never does; block it so preview numbers compare with production.
+  if (BASE !== SITE) await page.route(/netlify-cdp|app\.netlify\.com|\/\.netlify\/(drawer|scripts)|netlify\.com\/v1\/.*drawer/i, (r) => r.abort());
+  const hosts = {};
+  page.on('request', (r) => { try { const h = new URL(r.url()).host; hosts[h] = (hosts[h] || 0) + 1; } catch { /* data: */ } });
   if (MODE !== 'quick') {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Network.enable');
@@ -222,6 +227,7 @@ async function testPage(browser, type, path) {
   } finally {
     await ctx.close();
   }
+  res.hosts = hosts;
   res.errors = [...new Set(res.errors)].slice(0, 15);
   res.ok = res.errors.length === 0;
   return res;
@@ -240,7 +246,8 @@ async function main() {
   const started = new Date().toISOString();
   let paths = [];
   try { paths = await sitemapUrls(); } catch (e) { console.log(`::warning::sitemap unreadable: ${e.message}`); }
-  const pages = [...FIXED, ...pickDynamic(paths)];
+  const only = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const pages = [...FIXED, ...pickDynamic(paths)].filter(([type]) => !only.length || only.includes(type));
   const browser = await chromium.launch();
   const results = [];
   for (const [type, path] of pages) {
@@ -252,6 +259,7 @@ async function main() {
     results.push(r);
     const mark = r.ok ? (r.warnings.length ? 'WARN' : 'ok  ') : 'FAIL';
     console.log(`[${mark}] ${type.padEnd(24)} ${path}  lcp=${r.lcp_ms ?? '-'} cls=${r.cls ?? '-'} ttfb=${r.ttfb_ms ?? '-'} js=${r.js_kb ?? '-'}KB api=${r.slowest_api_ms ?? '-'}ms`);
+    if (process.env.SHOW_HOSTS) console.log(`::notice title=${type} hosts::${Object.entries(r.hosts || {}).map(([h, n]) => `${h} ${n}`).join(', ')}`);
     for (const e of r.errors) console.log(`::error title=${type}::${path} -- ${e}`);
     for (const w of r.warnings) console.log(`::warning title=${type}::${path} -- ${w}`);
   }
