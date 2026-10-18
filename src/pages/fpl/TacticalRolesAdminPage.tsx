@@ -100,7 +100,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   // fetched; it now only supplies which players are non-fringe.
   const [worklist, setWorklist] = useState<TacticalWorklistRow[]>([]);
   useEffect(() => {
-    getTacticalRoleWorklist(13)
+    getTacticalRoleWorklist() // current FPL season (was hard-coded 13)
       .then(setWorklist)
       .catch(() => setWorklist([]));
   }, []);

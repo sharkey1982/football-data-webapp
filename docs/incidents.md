@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-18 · Fixtures head-to-head and FPL line-ups failing for every visitor (timeouts)
+- **Found:** the first browser smoke run (scripts/smoke/weekly_smoke.mjs), 18 Oct.
+- **Impact:** on /fixtures the head-to-head column's request returned HTTP 500 (it took 7.2 s for a season; public requests stop at 3 s). On /fpl/line-ups the "Worth reviewing" filter came back empty (1.9 s warm, failing under load); the page swallowed the error. The Football hub's model accuracy took 0.9-2.8 s. League tables took ~1.1 s on every call. Unknown since when: nothing tested the pages as a visitor sees them.
+- **Cause:** (1) matches had no index on the two teams and the head-to-head join used `(a,b) or (b,a)`. (2) The worklist read every player's ownership history to keep ~320 rows; the page also passed season 13 literally. (3) Dixon-Coles market probabilities recomputed for every played fixture on each call. (4) league_standings computed all 7,309 team-seasons and filtered afterwards.
+- **Fix:** `20261018092000_slow_public_queries.sql` (index + UNION ALL, per-player lookups, memoised immutable markets; each compared row for row with the old definition), `20261018090000_league_standings_cache.sql` (cached tables refreshed within 5 minutes of a change, compared with the live computation), the line-ups page uses the current season.
+- **Prevention:** weekly browser smoke and Core Web Vitals test of the live site, and a smoke test of every deploy preview (`smoke/preview` status on the PR); results in `smoke_runs`, checked daily (`smoke_tests_passed`, `smoke_performance_trend`); `league_standings_cache_current`. *Lesson: a page that catches its own error and shows less is a failure nobody reports; test pages in a browser, and fail on any failed request.*
+
+---
+
 ## 2026-10-16 · Data-health sweep: tennis stalled, integrity checks blind for 18 days
 - **Found:** production health review on 16 Oct. `model_integrity_checks` had not succeeded since 28 Sep.
 - **Impact:** (1) No tennis results after 29 Sep (ATP) / 27 Sep (WTA); no `tennis_import` run at all after 5 Oct. (2) On 14 and 15 Oct the football area of the integrity run reported a single line, `check_model_integrity_runs`, which hid two real failures inside it. (3) Ten fixtures (nine League One/Two of 26 Sep and 3 Oct, La Liga Rayo v Athletic of 10 Oct) were PLAYED with no result. (4) Postponed fixture 6186 kept a prediction from fit 966 after fit 1031 was accepted. (5) `fpl_projection_fixture_readiness` reported 320 fixtures missing projections that existed. (6) Two `simulate_fixture_bonus` rows of 6 Oct stayed `running`. (7) 47 UK Watch Guide records unmatched with no explanation.
