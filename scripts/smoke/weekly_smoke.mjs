@@ -95,11 +95,29 @@ function pickDynamic(paths) {
 }
 
 const VITALS_INIT = () => {
-  window.__smoke = { lcp: 0, cls: 0, fcp: 0, longTasks: 0 };
+  window.__smoke = { lcp: 0, cls: 0, fcp: 0, longTasks: 0, shifts: {}, lcpEl: null };
+  const describe = (n) => {
+    if (!n || n.nodeType !== 1) return n && n.nodeType === 3 ? 'text' : '?';
+    const parts = [];
+    for (let el = n, i = 0; el && el.nodeType === 1 && i < 3; el = el.parentElement, i++) {
+      const cls = (el.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
+      parts.unshift(el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') + (cls ? `.${cls}` : ''));
+    }
+    return parts.join(' > ').slice(0, 140);
+  };
   try {
-    new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__smoke.lcp = Math.max(window.__smoke.lcp, e.startTime); })
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) { window.__smoke.lcp = Math.max(window.__smoke.lcp, e.startTime); window.__smoke.lcpEl = describe(e.element); } })
       .observe({ type: 'largest-contentful-paint', buffered: true });
-    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__smoke.cls += e.value; })
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) {
+        if (e.hadRecentInput) continue;
+        window.__smoke.cls += e.value;
+        // Attribute the shift to the element(s) that moved most (largest area).
+        const src = [...(e.sources || [])].sort((a, b) => (b.currentRect.width * b.currentRect.height) - (a.currentRect.width * a.currentRect.height))[0];
+        const key = src ? describe(src.node) : 'unknown';
+        window.__smoke.shifts[key] = (window.__smoke.shifts[key] || 0) + e.value;
+      }
+    })
       .observe({ type: 'layout-shift', buffered: true });
     new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === 'first-contentful-paint') window.__smoke.fcp = e.startTime; })
       .observe({ type: 'paint', buffered: true });
@@ -168,6 +186,9 @@ async function testPage(browser, type, path) {
       lcp_ms: Math.round(m.vitals?.lcp || 0) || null, cls: Math.round((m.vitals?.cls || 0) * 1000) / 1000,
       tbt_ms: Math.round(m.vitals?.longTasks || 0), requests: m.requests, transfer_kb: m.transfer_kb, js_kb: m.js_kb,
       api_calls: m.api_calls, slowest_api_ms: m.slowest_api_ms, slowest_api_url: m.slowest_api_url, title: m.title,
+      lcp_element: m.vitals?.lcpEl ?? null,
+      cls_sources: Object.entries(m.vitals?.shifts || {}).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([element, value]) => ({ element, value: Math.round(value * 1000) / 1000 })),
     });
     if (m.text_len < 300) res.errors.push(`page nearly empty (${m.text_len} characters of text)`);
     if (m.error_text) res.errors.push(`error message on page: "${m.error_text}"`);
@@ -176,7 +197,8 @@ async function testPage(browser, type, path) {
     if (m.empty_tables) res.errors.push(`${m.empty_tables} of ${m.tables} table(s) have no rows`);
     if (MODE !== 'quick') {
       if (res.lcp_ms > BUDGETS.lcp_ms) res.warnings.push(`LCP ${res.lcp_ms} ms > ${BUDGETS.lcp_ms}`);
-      if (res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}`);
+      if (res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}; moved: ${res.cls_sources.map((x) => `${x.element} (${x.value})`).join('; ')}`);
+      if (res.lcp_ms > BUDGETS.lcp_ms && res.lcp_element) res.warnings.push(`LCP element: ${res.lcp_element}`);
       if (res.ttfb_ms > BUDGETS.ttfb_ms) res.warnings.push(`TTFB ${res.ttfb_ms} ms > ${BUDGETS.ttfb_ms}`);
       if (res.fcp_ms > BUDGETS.fcp_ms) res.warnings.push(`FCP ${res.fcp_ms} ms > ${BUDGETS.fcp_ms}`);
       if (res.slowest_api_ms > BUDGETS.api_ms) res.warnings.push(`API ${res.slowest_api_ms} ms > ${BUDGETS.api_ms}: ${res.slowest_api_url}`);
