@@ -38,7 +38,7 @@ const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 // Budgets (warnings). Google's "good" thresholds for LCP/CLS/INP-proxy, and
 // our own for the API and JavaScript.
-export const BUDGETS = { lcp_ms: 2500, cls: 0.1, ttfb_ms: 800, fcp_ms: 1800, api_ms: 1500, js_kb: 350, requests: 120 };
+export const BUDGETS = { lcp_ms: 2500, cls: 0.1, ttfb_ms: 800, fcp_ms: 1800, api_ms: 1500, js_kb: 350, requests: 120, api_payload_kb: 250 };
 
 // Fixed pages, then one sitemap URL per pattern for the dynamic page types.
 const FIXED = [
@@ -95,11 +95,29 @@ function pickDynamic(paths) {
 }
 
 const VITALS_INIT = () => {
-  window.__smoke = { lcp: 0, cls: 0, fcp: 0, longTasks: 0 };
+  window.__smoke = { lcp: 0, cls: 0, fcp: 0, longTasks: 0, shifts: {}, lcpEl: null };
+  const describe = (n) => {
+    if (!n || n.nodeType !== 1) return n && n.nodeType === 3 ? 'text' : '?';
+    const parts = [];
+    for (let el = n, i = 0; el && el.nodeType === 1 && i < 3; el = el.parentElement, i++) {
+      const cls = (el.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
+      parts.unshift(el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') + (cls ? `.${cls}` : ''));
+    }
+    return parts.join(' > ').slice(0, 140);
+  };
   try {
-    new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__smoke.lcp = Math.max(window.__smoke.lcp, e.startTime); })
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) { window.__smoke.lcp = Math.max(window.__smoke.lcp, e.startTime); window.__smoke.lcpEl = describe(e.element); } })
       .observe({ type: 'largest-contentful-paint', buffered: true });
-    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__smoke.cls += e.value; })
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) {
+        if (e.hadRecentInput) continue;
+        window.__smoke.cls += e.value;
+        // Attribute the shift to the element(s) that moved most (largest area).
+        const src = [...(e.sources || [])].sort((a, b) => (b.currentRect.width * b.currentRect.height) - (a.currentRect.width * a.currentRect.height))[0];
+        const key = src ? describe(src.node) : 'unknown';
+        window.__smoke.shifts[key] = (window.__smoke.shifts[key] || 0) + e.value;
+      }
+    })
       .observe({ type: 'layout-shift', buffered: true });
     new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === 'first-contentful-paint') window.__smoke.fcp = e.startTime; })
       .observe({ type: 'paint', buffered: true });
@@ -113,6 +131,13 @@ async function testPage(browser, type, path) {
   const ctx = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block' });
   await ctx.addInitScript(VITALS_INIT);
   const page = await ctx.newPage();
+  // Deploy previews load Netlify's collaboration toolbar, which production
+  // never does; block it so preview numbers compare with production.
+  if (BASE !== SITE) await page.route(/netlify-cdp|app\.netlify\.com|\/\.netlify\/(drawer|scripts)|netlify\.com\/v1\/.*drawer/i, (r) => r.abort('blockedbyclient'));
+  // Experiments: BLOCK=<regex> aborts matching requests (e.g. /fonts/).
+  if (process.env.BLOCK) await page.route(new RegExp(process.env.BLOCK), (r) => r.abort('blockedbyclient'));
+  const hosts = {};
+  page.on('request', (r) => { try { const h = new URL(r.url()).host; hosts[h] = (hosts[h] || 0) + 1; } catch { /* data: */ } });
   if (MODE !== 'quick') {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Network.enable');
@@ -121,13 +146,21 @@ async function testPage(browser, type, path) {
   }
   page.on('pageerror', (e) => res.errors.push(`JS error: ${String(e.message).slice(0, 200)}`));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !IGNORE.test(m.text()) && !/Failed to load resource/.test(m.text())) res.errors.push(`console: ${m.text().slice(0, 200)}`);
+    // Permissions-policy notices come from the Netlify preview toolbar (camera/
+    // microphone for its feedback tool), not from the site.
+    if (m.type() === 'error' && !IGNORE.test(m.text()) && !/Failed to load resource|permissions policy violation/i.test(m.text())) res.errors.push(`console: ${m.text().slice(0, 200)}`);
   });
   page.on('requestfailed', (r) => {
-    if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && r.failure()?.errorText !== 'net::ERR_ABORTED') res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
+    if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && !/^net::ERR_(ABORTED|BLOCKED_BY_CLIENT)/.test(r.failure()?.errorText ?? '')) res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
   });
+  // Supabase does not send Timing-Allow-Origin, so the browser reports no
+  // sizes for its responses; read the bodies here instead.
+  const apiBodies = [];
   page.on('response', (r) => {
     if (r.status() >= 400 && OWN_HOSTS(r.url()) && !IGNORE.test(r.url())) res.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().slice(0, 160)}`);
+    if (r.url().includes('.supabase.co/rest/') && r.status() < 300) {
+      apiBodies.push(r.body().then((b) => ({ url: r.url().replace(/^https:\/\/[^/]+/, '').slice(0, 160), kb: Math.round(b.length / 1024) })).catch(() => null));
+    }
   });
   const t0 = Date.now();
   try {
@@ -168,7 +201,14 @@ async function testPage(browser, type, path) {
       lcp_ms: Math.round(m.vitals?.lcp || 0) || null, cls: Math.round((m.vitals?.cls || 0) * 1000) / 1000,
       tbt_ms: Math.round(m.vitals?.longTasks || 0), requests: m.requests, transfer_kb: m.transfer_kb, js_kb: m.js_kb,
       api_calls: m.api_calls, slowest_api_ms: m.slowest_api_ms, slowest_api_url: m.slowest_api_url, title: m.title,
+      lcp_element: m.vitals?.lcpEl ?? null,
+      cls_sources: Object.entries(m.vitals?.shifts || {}).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([element, value]) => ({ element, value: Math.round(value * 1000) / 1000 })),
     });
+    const bodies = (await Promise.all(apiBodies)).filter(Boolean).sort((a, b) => b.kb - a.kb);
+    res.api_kb = bodies.reduce((t, x) => t + x.kb, 0);
+    res.largest_api = bodies.slice(0, 3);
+    if (MODE !== 'quick' && bodies[0]?.kb > BUDGETS.api_payload_kb) res.warnings.push(`API payload ${bodies[0].kb} KB > ${BUDGETS.api_payload_kb}: ${bodies[0].url}`);
     if (m.text_len < 300) res.errors.push(`page nearly empty (${m.text_len} characters of text)`);
     if (m.error_text) res.errors.push(`error message on page: "${m.error_text}"`);
     if (m.spinner) res.errors.push('still showing "Loading" after the network went idle');
@@ -176,7 +216,8 @@ async function testPage(browser, type, path) {
     if (m.empty_tables) res.errors.push(`${m.empty_tables} of ${m.tables} table(s) have no rows`);
     if (MODE !== 'quick') {
       if (res.lcp_ms > BUDGETS.lcp_ms) res.warnings.push(`LCP ${res.lcp_ms} ms > ${BUDGETS.lcp_ms}`);
-      if (res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}`);
+      if (res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}; moved: ${res.cls_sources.map((x) => `${x.element} (${x.value})`).join('; ')}`);
+      if (res.lcp_ms > BUDGETS.lcp_ms && res.lcp_element) res.warnings.push(`LCP element: ${res.lcp_element}`);
       if (res.ttfb_ms > BUDGETS.ttfb_ms) res.warnings.push(`TTFB ${res.ttfb_ms} ms > ${BUDGETS.ttfb_ms}`);
       if (res.fcp_ms > BUDGETS.fcp_ms) res.warnings.push(`FCP ${res.fcp_ms} ms > ${BUDGETS.fcp_ms}`);
       if (res.slowest_api_ms > BUDGETS.api_ms) res.warnings.push(`API ${res.slowest_api_ms} ms > ${BUDGETS.api_ms}: ${res.slowest_api_url}`);
@@ -188,6 +229,7 @@ async function testPage(browser, type, path) {
   } finally {
     await ctx.close();
   }
+  res.hosts = hosts;
   res.errors = [...new Set(res.errors)].slice(0, 15);
   res.ok = res.errors.length === 0;
   return res;
@@ -206,7 +248,8 @@ async function main() {
   const started = new Date().toISOString();
   let paths = [];
   try { paths = await sitemapUrls(); } catch (e) { console.log(`::warning::sitemap unreadable: ${e.message}`); }
-  const pages = [...FIXED, ...pickDynamic(paths)];
+  const only = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const pages = [...FIXED, ...pickDynamic(paths)].filter(([type]) => !only.length || only.includes(type));
   const browser = await chromium.launch();
   const results = [];
   for (const [type, path] of pages) {
@@ -218,6 +261,7 @@ async function main() {
     results.push(r);
     const mark = r.ok ? (r.warnings.length ? 'WARN' : 'ok  ') : 'FAIL';
     console.log(`[${mark}] ${type.padEnd(24)} ${path}  lcp=${r.lcp_ms ?? '-'} cls=${r.cls ?? '-'} ttfb=${r.ttfb_ms ?? '-'} js=${r.js_kb ?? '-'}KB api=${r.slowest_api_ms ?? '-'}ms`);
+    if (process.env.SHOW_HOSTS) console.log(`::notice title=${type} hosts::${Object.entries(r.hosts || {}).map(([h, n]) => `${h} ${n}`).join(', ')}`);
     for (const e of r.errors) console.log(`::error title=${type}::${path} -- ${e}`);
     for (const w of r.warnings) console.log(`::warning title=${type}::${path} -- ${w}`);
   }
@@ -240,13 +284,22 @@ async function main() {
         median_lcp_ms: med('lcp_ms'), median_ttfb_ms: med('ttfb_ms'), median_js_kb: med('js_kb'), summary,
         workflow_run_id: process.env.GITHUB_RUN_ID ? Number(process.env.GITHUB_RUN_ID) : null,
       });
-      await rest('smoke_page_results', results.map((r) => ({
+      const pageRows = results.map((r) => ({
         smoke_run_id: run.smoke_run_id, page_type: r.page_type, url: r.url, ok: r.ok, http_status: r.status ?? null,
         errors: r.errors, warnings: r.warnings, ttfb_ms: r.ttfb_ms ?? null, fcp_ms: r.fcp_ms ?? null, lcp_ms: r.lcp_ms ?? null,
         cls: r.cls ?? null, tbt_ms: r.tbt_ms ?? null, load_ms: r.load_ms ?? null, requests: r.requests ?? null,
         transfer_kb: r.transfer_kb ?? null, js_kb: r.js_kb ?? null, api_calls: r.api_calls ?? null,
         slowest_api_ms: r.slowest_api_ms ?? null, slowest_api_url: r.slowest_api_url ?? null,
-      })), 'return=minimal');
+        api_kb: r.api_kb ?? null, largest_api: r.largest_api ?? null, lcp_element: r.lcp_element ?? null, cls_sources: r.cls_sources ?? null,
+      }));
+      try {
+        await rest('smoke_page_results', pageRows, 'return=minimal');
+      } catch (e) {
+        // A database without the attribution columns yet (migration not
+        // applied): store the core measurements rather than nothing.
+        if (!/PGRST204/.test(String(e))) throw e;
+        await rest('smoke_page_results', pageRows.map(({ api_kb, largest_api, lcp_element, cls_sources, ...core }) => core), 'return=minimal');
+      }
       if (KIND === 'production') {
         await rest('pipeline_runs', {
           job_name: 'weekly_smoke', status: failed.length ? 'failed' : warned.length ? 'warning' : 'success',

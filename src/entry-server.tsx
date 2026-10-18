@@ -28,6 +28,11 @@ import { renderToString } from 'react-dom/server';
 // may be used only in the context of a <Router>". That is why these
 // renderers could not be tested until now.
 import { Route, Routes, StaticRouter } from 'react-router-dom';
+// The site chrome (header, navigation, footer) in the static HTML too (18 Oct
+// 2026): without it the app added the header above the prerendered content on
+// start-up and pushed it down (layout shift up to 0.57 on match pages), and
+// crawlers saw no navigation links.
+import AppLayout from './components/AppLayout';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
@@ -233,7 +238,9 @@ export function renderPlayerPage(slug: string, data: PlayerPageData): RenderedPa
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/fpl/players/:slug" element={<PlayerPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -274,7 +281,9 @@ export function renderMatchPage(slug: string, input: MatchPagePrediction & { __r
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/matches/:slug" element={<MatchPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -326,7 +335,9 @@ export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/teams/:slug" element={<TeamPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -398,7 +409,9 @@ function staticPage(path: string, element: ReactElement): string {
   return renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path={path} element={element} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -441,7 +454,9 @@ export function renderGameweekReportPage(report: GameweekReport): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/fpl/gameweek/:season/:gw/:kind" element={<GameweekReportPage initialData={report} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -575,7 +590,9 @@ export function renderTeamFinancePage(slug: string, data: ClubFinanceData): Rend
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/teams/:slug/finances" element={<TeamFinancePage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -611,7 +628,9 @@ export function renderFinanceComparePage(clubs: ClubFinanceData[]): RenderedPage
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/finance/compare" element={<FinanceComparePage initialData={buildComparison(clubs)} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -629,7 +648,9 @@ export function renderFinanceIndexPage(entries: FinanceIndexEntry[]): RenderedPa
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/finance" element={<FinanceIndexPage initialData={entries} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -649,7 +670,9 @@ export function renderHistoryHubPage(data: HistoryHubData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/history" element={<HistoryHubPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -680,7 +703,9 @@ export function renderLeaguesPage(list: LeaguesListEntry[]): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path={path} element={<LeaguesPage initialData={list} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -698,7 +723,9 @@ export function renderLeagueIndexPage(data: LeagueIndexData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/leagues/:league" element={<LeagueIndexPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -727,7 +754,9 @@ export function renderLeagueSeasonPage(data: LeagueSeasonData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/leagues/:league/:season" element={<LeagueSeasonPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -754,7 +783,9 @@ export function renderClubSeasonPage(data: ClubSeasonData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/teams/:slug/:season" element={<ClubSeasonPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -789,7 +820,9 @@ export function renderRecordsIndexPage(list: LeaguesListEntry[]): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path={path} element={<RecordsPage initialList={list} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -807,7 +840,9 @@ export function renderRecordsPage(data: RecordsData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/records/:league" element={<RecordsPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -825,8 +860,10 @@ export function renderTrendsPage(data: TrendsData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path="/football/history/trends" element={<TrendsPage initialData={data} />} />
         <Route path="/football/history/trends/:league" element={<TrendsPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -849,7 +886,9 @@ export function renderScorelinesPage(data: ScorelinesData): RenderedPage {
   const html = renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path={path} element={<ScorelinesPage initialData={data} />} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -871,7 +910,9 @@ function nflPage(path: string, route: string, element: ReactElement): string {
   return renderToString(
     <StaticRouter location={path}>
       <Routes>
+        <Route element={<AppLayout />}>
         <Route path={route} element={element} />
+      </Route>
       </Routes>
     </StaticRouter>
   );
@@ -935,8 +976,10 @@ export function renderLocalClubsPage(data: LocalClubsData): RenderedPage {
     html: renderToString(
       <StaticRouter location={path}>
         <Routes>
+        <Route element={<AppLayout />}>
           <Route path={path} element={<LocalClubsPage initialData={data} />} />
-        </Routes>
+        </Route>
+      </Routes>
       </StaticRouter>
     ),
     title: `Your Local Clubs: nearest football club to your postcode | ${BRAND_NAME}`,

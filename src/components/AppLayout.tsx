@@ -379,7 +379,11 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
+      {/* min-h-screen (18 Oct 2026): the footer starts below the fold. With
+          flex-1 alone it sat in the first screen while a page's data loaded and
+          jumped down when it arrived -- 0.14 of layout shift on 22 of 38 pages
+          in the smoke test (CLS budget 0.1). */}
+      <main className="flex-1 min-h-screen max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
         {backToHub && (
           <NavLink to={backToHub.to} className="inline-block text-sm font-mono text-ink-500 hover:text-ink-900 mb-4">
             &larr; Back to {backToHub.label}
