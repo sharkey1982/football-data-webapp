@@ -33,7 +33,7 @@
 
 import { supabase } from './supabase';
 import type { FplElementType } from '../types/database';
-import { seasonContextStats, getGamesInvolvedCounts, type SetPieceRole } from './fplApi';
+import { seasonContextStats, getGamesInvolvedCounts, SEASON_STATS_SELECT, type SetPieceRole } from './fplApi';
 import { getCurrentFplSeasonId } from './currentSeason';
 import { CURRENT_MODEL_VERSION } from './fplModel';
 import type { LineupStart } from './lineupRoleSuggestions';
@@ -175,7 +175,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // proven elsewhere in this project.
   const { data: playerRows, error: playerErr } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, web_name, element_type, canonical_team_id, minutes, source_payload, status, news, news_added, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)')
+    .select(`fpl_player_id, web_name, element_type, canonical_team_id, minutes, ${SEASON_STATS_SELECT}, status, news, news_added, teams!fpl_players_canonical_team_id_fkey(canonical_name:display_name)`)
     .eq('season_id', await getCurrentFplSeasonId())
     .not('element_type', 'is', null)
     .not('canonical_team_id', 'is', null)
@@ -235,7 +235,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   return (playerRows ?? [])
     .map((p: any) => {
       const td = defaultsByPlayer.get(p.fpl_player_id);
-      const stats = seasonContextStats({ minutes: p.minutes, source_payload: p.source_payload }, gamesInvolvedByPlayer.get(p.fpl_player_id) ?? null);
+      const stats = seasonContextStats(p, gamesInvolvedByPlayer.get(p.fpl_player_id) ?? null);
       return {
         fpl_player_id: p.fpl_player_id,
         web_name: p.web_name ?? 'Unknown',

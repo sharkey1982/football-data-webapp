@@ -249,12 +249,17 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     red_cards: number | null;
     saves: number | null;
     bonus: number | null;
-    source_payload: any;
+    source_payload?: any;
+    cbi?: string | null;
+    tackles?: string | null;
+    recoveries?: string | null;
   }>((from, to) =>
     supabase
       .from('fpl_player_gameweeks' as any)
       .select(
-        'fpl_player_id, fpl_fixture_id, total_points, minutes, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_saved, penalties_missed, yellow_cards, red_cards, saves, bonus, source_payload'
+        // Only the three stats read below, not the whole raw record (660 KB -> a few KB, 18 Oct 2026).
+        'fpl_player_id, fpl_fixture_id, total_points, minutes, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_saved, penalties_missed, yellow_cards, red_cards, saves, bonus, ' +
+          'cbi:source_payload->stats->>clearances_blocks_interceptions, tackles:source_payload->stats->>tackles, recoveries:source_payload->stats->>recoveries'
       )
       .in('fpl_fixture_id', fplFixtureIds)
       .range(from, to)
@@ -355,7 +360,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     const key = keyOf(g.fpl_player_id, mw);
     const row = rowByKey.get(key) ?? emptyRow(g.fpl_player_id, mw);
     row.actual_points = (row.actual_points ?? 0) + g.total_points;
-    const stats = g.source_payload?.stats ?? {};
+    const stats = g.source_payload?.stats ?? { clearances_blocks_interceptions: g.cbi, tackles: g.tackles, recoveries: g.recoveries };
     const defensiveActions = Number(stats.clearances_blocks_interceptions ?? 0) + Number(stats.tackles ?? 0) + (row.fpl_position === 3 || row.fpl_position === 4 ? Number(stats.recoveries ?? 0) : 0);
     const contribution = computeActualContribution(row.fpl_position, {
       minutes: g.minutes,
