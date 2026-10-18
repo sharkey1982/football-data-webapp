@@ -133,7 +133,9 @@ async function testPage(browser, type, path) {
   const page = await ctx.newPage();
   // Deploy previews load Netlify's collaboration toolbar, which production
   // never does; block it so preview numbers compare with production.
-  if (BASE !== SITE) await page.route(/netlify-cdp|app\.netlify\.com|\/\.netlify\/(drawer|scripts)|netlify\.com\/v1\/.*drawer/i, (r) => r.abort());
+  if (BASE !== SITE) await page.route(/netlify-cdp|app\.netlify\.com|\/\.netlify\/(drawer|scripts)|netlify\.com\/v1\/.*drawer/i, (r) => r.abort('blockedbyclient'));
+  // Experiments: BLOCK=<regex> aborts matching requests (e.g. /fonts/).
+  if (process.env.BLOCK) await page.route(new RegExp(process.env.BLOCK), (r) => r.abort('blockedbyclient'));
   const hosts = {};
   page.on('request', (r) => { try { const h = new URL(r.url()).host; hosts[h] = (hosts[h] || 0) + 1; } catch { /* data: */ } });
   if (MODE !== 'quick') {
@@ -149,7 +151,7 @@ async function testPage(browser, type, path) {
     if (m.type() === 'error' && !IGNORE.test(m.text()) && !/Failed to load resource|permissions policy violation/i.test(m.text())) res.errors.push(`console: ${m.text().slice(0, 200)}`);
   });
   page.on('requestfailed', (r) => {
-    if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && r.failure()?.errorText !== 'net::ERR_ABORTED') res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
+    if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && !['net::ERR_ABORTED', 'net::ERR_BLOCKED_BY_CLIENT'].includes(r.failure()?.errorText)) res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
   });
   // Supabase does not send Timing-Allow-Origin, so the browser reports no
   // sizes for its responses; read the bodies here instead.

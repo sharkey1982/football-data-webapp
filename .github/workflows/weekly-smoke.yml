@@ -28,6 +28,10 @@ on:
         description: 'Comma-separated page types to test (blank = all)'
         required: false
         default: ''
+      block:
+        description: 'Experiment: regex of requests to abort (blank = none)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -67,8 +71,9 @@ jobs:
           NODE_PATH: /tmp/pw/node_modules
           BASE: ${{ github.event_name == 'status' && github.event.target_url || inputs.base }}
           MODE: ${{ github.event_name == 'status' && 'quick' || inputs.mode || 'full' }}
-          SMOKE_KIND: ${{ github.event_name == 'status' && 'preview' || ((inputs.base != '' || inputs.only != '') && 'manual') || 'production' }}
+          SMOKE_KIND: ${{ github.event_name == 'status' && 'preview' || ((inputs.base != '' || inputs.only != '' || inputs.block != '') && 'manual') || 'production' }}
           ONLY: ${{ inputs.only }}
+          BLOCK: ${{ inputs.block }}
           SHOW_HOSTS: ${{ inputs.only != '' && '1' || '' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
