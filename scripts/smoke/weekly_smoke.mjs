@@ -151,7 +151,7 @@ async function testPage(browser, type, path) {
     if (m.type() === 'error' && !IGNORE.test(m.text()) && !/Failed to load resource|permissions policy violation/i.test(m.text())) res.errors.push(`console: ${m.text().slice(0, 200)}`);
   });
   page.on('requestfailed', (r) => {
-    if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && !['net::ERR_ABORTED', 'net::ERR_BLOCKED_BY_CLIENT'].includes(r.failure()?.errorText)) res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
+    if (OWN_HOSTS(r.url()) && !IGNORE.test(r.url()) && !/^net::ERR_(ABORTED|BLOCKED_BY_CLIENT)/.test(r.failure()?.errorText ?? '')) res.errors.push(`request failed: ${r.failure()?.errorText} ${r.url().slice(0, 160)}`);
   });
   // Supabase does not send Timing-Allow-Origin, so the browser reports no
   // sizes for its responses; read the bodies here instead.
