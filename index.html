@@ -8,9 +8,10 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Self-hosted fonts (src/index.css); the two used above the fold are preloaded. -->
-    <link rel="preload" href="/fonts/inter-latin-v5.3.0.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/oswald-latin-v5.3.0.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Fonts are self-hosted (src/index.css), font-display: optional, and NOT
+         preloaded: on slow 4G the 77 KB of preloads delayed the app's first
+         paint by ~0.35 s (smoke test, 18 Oct 2026). A first visit shows the
+         metric-matched fallback; the fonts are cached for every page after. -->
     <!--
       Static fallback title/description -- what a route sees before its own
       useDocumentHead() call runs (see src/hooks/useDocumentHead.ts), and

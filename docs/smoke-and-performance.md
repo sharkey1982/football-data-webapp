@@ -49,3 +49,10 @@ share of the shift), the slowest and largest API calls.
   static pages; fonts use `optional`.
 - Deploy previews load Netlify's toolbar, which production never does; the
   test blocks it so preview numbers compare with production.
+- Every build (production and each deploy preview) runs the static
+  generator against the production database. With 12 bulk queries at once it
+  pushed visitors' requests past the 3 s limit; the generator now keeps at
+  most 4 requests in flight. Don't start a full smoke run while a preview is
+  building.
+- Font preloads cost ~0.35 s of first paint on slow 4G and buy little with
+  `font-display: optional`; fonts are not preloaded.

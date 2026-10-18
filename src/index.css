@@ -20,8 +20,8 @@
    font-display: optional, not swap: the smoke test showed the swap repaint
    becoming the page's Largest Contentful Paint (FPL player page 0.7 s -> 3.9 s
    on throttled mobile). With optional the font is used when it arrives within
-   ~100 ms (preloaded, or cached after the first page) and otherwise the page
-   stays in the fallback, with no repaint. */
+   ~100 ms (in practice: cached after the first page) and otherwise the page
+   stays in the fallback, with no repaint. Not preloaded (see index.html). */
 @font-face {
   font-family: 'Oswald';
   font-style: normal;

@@ -83,7 +83,34 @@ watchdog.unref();
  * (after 1.5s and 5s): on 6 Oct 2026 single reads failing under build-time
  * load cost whole sections (tennis, team pages, Your Local Clubs). A 4xx is
  * a bug in the request and returns null at once. */
+// At most this many database requests in flight (18 Oct 2026). The build runs
+// against the production database while people use the site; with up to 12
+// bulk queries at once (International) a build pushed public requests past the
+// 3 s limit (a burst of statement timeouts, 500s in the smoke test).
+const MAX_INFLIGHT = 4;
+let inflight = 0;
+const waiting = [];
+async function slot() {
+  if (inflight < MAX_INFLIGHT) { inflight++; return; }
+  await new Promise((r) => waiting.push(r));
+  inflight++;
+}
+function release() {
+  inflight--;
+  const next = waiting.shift();
+  if (next) next();
+}
+
 async function query(path) {
+  await slot();
+  try {
+    return await queryOnce(path);
+  } finally {
+    release();
+  }
+}
+
+async function queryOnce(path) {
   for (const wait of [0, 1500, 5000]) {
     if (wait) await new Promise((r) => setTimeout(r, wait));
     const controller = new AbortController();
