@@ -11,7 +11,7 @@ declare
   v_league bigint; v_season bigint; v_status int; v_body text; v_changed int := 0; v_n int;
 begin
   select league_id into v_league from public.leagues where code = p_code;
-  select season_id into v_season from public.seasons where label = '2627';
+  v_season := public.current_season_id();  -- docs/season-rollover.md
   if v_league is null or v_season is null then return 0; end if;
   select status, content into v_status, v_body from extensions.http_get(p_url);
   if v_status <> 200 then raise exception '% feed returned HTTP %', p_code, v_status; end if;

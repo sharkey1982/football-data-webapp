@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_model_xi_history(p_season_id bigint, p_league_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_model_xi_history(p_season_id bigint DEFAULT 13, p_league_id bigint DEFAULT 1)
+CREATE OR REPLACE FUNCTION public.get_model_xi_history(p_season_id bigint DEFAULT fpl_current_season_id(), p_league_id bigint DEFAULT 1)
  RETURNS TABLE(fpl_event_id integer, actual_xi_points integer, model_xi_actual_points integer, model_xi_projected numeric, overlap_count integer, players_projected integer, generated_before_deadline boolean, deadline_time timestamp with time zone)
  LANGUAGE sql
  STABLE

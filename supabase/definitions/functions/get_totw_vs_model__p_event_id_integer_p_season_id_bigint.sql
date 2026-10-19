@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_totw_vs_model(p_event_id integer, p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_totw_vs_model(p_event_id integer DEFAULT NULL::integer, p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_totw_vs_model(p_event_id integer DEFAULT NULL::integer, p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(fpl_event_id integer, actual_xi_points integer, model_xi_actual_points integer, overlap_count integer, model_xi_projected numeric, overlap_names text[])
  LANGUAGE sql
  STABLE
@@ -21,7 +21,7 @@ AS $function$
       ) as rn
     from public.fpl_player_projections pr
     join public.fixtures f on f.fixture_id = pr.fixture_id
-    join public.fpl_players p on p.fpl_player_id = pr.fpl_player_id
+    join public.fpl_players p on p.fpl_player_id = pr.fpl_player_id and p.season_id = f.season_id
     join ev on f.matchweek = ev.e
     where pr.model_version = 'leaguewide_v6' and pr.scenario_key = 'baseline'
       and f.season_id = p_season_id

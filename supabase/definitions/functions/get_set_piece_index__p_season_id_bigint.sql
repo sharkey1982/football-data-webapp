@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_set_piece_index(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_set_piece_index(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_set_piece_index(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(team_id bigint, team_name text, player_name text, duties integer, index_score numeric, detail text)
  LANGUAGE sql
  STABLE

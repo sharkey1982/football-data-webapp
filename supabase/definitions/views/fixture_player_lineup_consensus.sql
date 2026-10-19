@@ -40,12 +40,14 @@ create or replace view public.fixture_player_lineup_consensus with (security_inv
             WHEN (st.available_weight > (0)::numeric) THEN (COALESCE(v.positive_weight, (0)::numeric) / st.available_weight)
             ELSE (0)::numeric
         END AS source_consensus_probability,
+    COALESCE(av.availability,
         CASE
             WHEN (p.status = ANY (ARRAY['i'::text, 'u'::text, 's'::text])) THEN (0)::numeric
             WHEN (p.chance_of_playing_next_round IS NOT NULL) THEN ((p.chance_of_playing_next_round)::numeric / (100)::numeric)
             ELSE (1)::numeric
-        END AS availability_probability,
+        END) AS availability_probability,
     v.tactical_role
-   FROM ((source_totals st
-     JOIN fpl_players p ON ((p.canonical_team_id = st.team_id)))
-     LEFT JOIN votes v ON (((v.fixture_id = st.fixture_id) AND (v.team_id = st.team_id) AND (v.fpl_player_id = p.fpl_player_id))));
+   FROM (((source_totals st
+     JOIN fpl_players p ON (((p.canonical_team_id = st.team_id) AND (p.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)))))
+     LEFT JOIN votes v ON (((v.fixture_id = st.fixture_id) AND (v.team_id = st.team_id) AND (v.fpl_player_id = p.fpl_player_id))))
+     LEFT JOIN fpl_fixture_availability_store av ON (((av.fixture_id = st.fixture_id) AND (av.fpl_player_id = p.fpl_player_id))));

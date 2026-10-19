@@ -68,8 +68,8 @@ create or replace view public.fpl_projection_leaguewide_allocation_v2 with (secu
             x.shrunk_xa90,
             (
                 CASE
-                    WHEN (x.team_id = f.home_team_id) THEN f.predicted_home_goals
-                    ELSE f.predicted_away_goals
+                    WHEN (x.team_id = f.home_team_id) THEN COALESCE(f.market_home_goals, f.predicted_home_goals)
+                    ELSE COALESCE(f.market_away_goals, f.predicted_away_goals)
                 END)::numeric AS team_xg,
             COALESCE(r.goal_weight, (1)::numeric) AS goal_weight,
             COALESCE(r.assist_weight, (1)::numeric) AS assist_weight,

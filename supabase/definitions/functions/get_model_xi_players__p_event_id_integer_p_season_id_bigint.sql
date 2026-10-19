@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_model_xi_players(p_event_id integer, p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_model_xi_players(p_event_id integer, p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_model_xi_players(p_event_id integer, p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(fpl_player_id bigint, web_name text, team_name text, position_label text, element_type integer, projected_points numeric, actual_points integer, minutes integer, in_perfect_xi boolean)
  LANGUAGE sql
  STABLE

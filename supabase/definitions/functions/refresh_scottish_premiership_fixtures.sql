@@ -7,6 +7,6 @@ CREATE OR REPLACE FUNCTION public.refresh_scottish_premiership_fixtures()
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_catalog'
 AS $function$
-  select public.refresh_feed_nearest_date('SC0', 'https://fixturedownload.com/feed/json/scottish-premiership-2026');
+  select public.refresh_feed_nearest_date('SC0', 'https://fixturedownload.com/feed/json/scottish-premiership-' || public.season_start_year(public.current_season_id()));
 $function$
 ;

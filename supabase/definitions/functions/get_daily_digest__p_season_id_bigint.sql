@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_daily_digest(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_daily_digest(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_daily_digest(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(change_type text, fpl_player_id bigint, web_name text, slug text, team_name text, position_label text, ownership numeric, old_value text, new_value text, detail text, from_date date, to_date date)
  LANGUAGE sql
  STABLE
@@ -10,8 +10,10 @@ AS $function$
   with dates as (
     select max(snapshot_date) as to_d,
            (select max(snapshot_date) from public.fpl_player_snapshots
-            where snapshot_date < (select max(snapshot_date) from public.fpl_player_snapshots)) as from_d
+            where season_id = p_season_id
+              and snapshot_date < (select max(snapshot_date) from public.fpl_player_snapshots where season_id = p_season_id)) as from_d
     from public.fpl_player_snapshots
+    where season_id = p_season_id
   ),
   cur as (
     select s.* from public.fpl_player_snapshots s, dates d where s.snapshot_date = d.to_d
@@ -25,8 +27,8 @@ AS $function$
       c.status as c_status, p.status as p_status, c.news as c_news,
       pl.web_name, pl.slug, pl.element_type, t.display_name as team_name
     from cur c
-    join prev p on p.fpl_player_id = c.fpl_player_id
-    join public.fpl_players pl on pl.fpl_player_id = c.fpl_player_id
+    join prev p on p.fpl_player_id = c.fpl_player_id and p.season_id = c.season_id
+    join public.fpl_players pl on pl.fpl_player_id = c.fpl_player_id and pl.season_id = c.season_id
     left join public.teams t on t.team_id = pl.canonical_team_id
     where pl.web_name is not null
   ),

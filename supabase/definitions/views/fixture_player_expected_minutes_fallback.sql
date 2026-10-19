@@ -2,30 +2,44 @@
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
 create or replace view public.fixture_player_expected_minutes_fallback with (security_invoker=true) as
- WITH base AS (
+ WITH prev AS (
+         SELECT gh.fpl_code,
+            count(*) FILTER (WHERE (gh.starts > 0)) AS starts_last
+           FROM fpl_player_gameweek_history gh
+          WHERE (gh.season_id = ( SELECT max(h2.season_id) AS max
+                   FROM fpl_player_gameweek_history h2
+                  WHERE (h2.season_id < ( SELECT fpl_current_season_id() AS fpl_current_season_id))))
+          GROUP BY gh.fpl_code
+        ), base AS (
          SELECT f.fixture_id,
             fp.canonical_team_id AS team_id,
             fp.fpl_player_id,
             fp.web_name,
             fp.element_type,
             fp.status,
-            ((COALESCE(fp.chance_of_playing_next_round, fp.chance_of_playing_this_round,
+            COALESCE(av.availability, ((COALESCE(fp.chance_of_playing_next_round, fp.chance_of_playing_this_round,
                 CASE
                     WHEN (fp.status = ANY (ARRAY['i'::text, 'u'::text, 's'::text])) THEN 0
                     ELSE 100
-                END))::numeric / (100)::numeric) AS availability,
+                END))::numeric / (100)::numeric)) AS availability,
             COALESCE(u.appearances, (0)::bigint) AS apps,
             COALESCE(u.likely_starts, (0)::bigint) AS starts,
             COALESCE(u.sub_appearances, (0)::bigint) AS subs,
             COALESCE(u.avg_sub_minutes, (20)::numeric) AS avg_sub_minutes,
             COALESCE(h.squad_status, 'unknown'::text) AS squad_status,
+                CASE
+                    WHEN ((fp.status = ANY (ARRAY['i'::text, 'd'::text, 's'::text])) AND (fp.element_type <> 1)) THEN prev.starts_last
+                    ELSE NULL::bigint
+                END AS base_prev_starts,
             pt.tactical_role
-           FROM (((((fixtures f
+           FROM (((((((fixtures f
              JOIN leagues l ON ((l.league_id = f.league_id)))
              JOIN fpl_players fp ON (((fp.season_id = f.season_id) AND ((fp.canonical_team_id = f.home_team_id) OR (fp.canonical_team_id = f.away_team_id)))))
              LEFT JOIN fpl_player_substitution_usage u ON (((u.season_id = fp.season_id) AND (u.fpl_player_id = fp.fpl_player_id))))
              LEFT JOIN player_squad_hierarchy h ON (((h.season_id = fp.season_id) AND (h.fpl_player_id = fp.fpl_player_id))))
              LEFT JOIN player_tactical_profiles pt ON (((pt.season_id = fp.season_id) AND (pt.source_player_id = (fp.fpl_player_id)::text))))
+             LEFT JOIN fpl_fixture_availability_store av ON (((av.fixture_id = f.fixture_id) AND (av.fpl_player_id = fp.fpl_player_id))))
+             LEFT JOIN prev ON ((prev.fpl_code = fp.fpl_code)))
           WHERE ((f.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)) AND (l.code = 'E0'::text))
         ), p AS (
          SELECT base.fixture_id,
@@ -45,7 +59,12 @@ create or replace view public.fixture_player_expected_minutes_fallback with (sec
                 CASE
                     WHEN (base.apps > 0) THEN (((base.starts)::numeric + 1.5) / ((base.apps)::numeric + 3.0))
                     ELSE
-                    CASE base.squad_status
+                    CASE COALESCE(NULLIF(base.squad_status, 'unknown'::text),
+                        CASE
+                            WHEN (base.base_prev_starts >= 20) THEN 'first_choice'::text
+                            WHEN (base.base_prev_starts >= 10) THEN 'rotation'::text
+                            ELSE NULL::text
+                        END, 'unknown'::text)
                         WHEN 'first_choice'::text THEN 0.72
                         WHEN 'rotation'::text THEN 0.38
                         WHEN 'backup'::text THEN 0.12
