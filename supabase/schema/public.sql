@@ -1276,7 +1276,7 @@ with latest_fit as (
  left join team_strength_manual_override hov on hov.team_id=f.home_team_id left join team_strength_manual_override aov on aov.team_id=f.away_team_id
  where f.status in('scheduled','postponed')
    -- Kick-off guard (2026-09-23): never refresh from a fit dated on/after kick-off.
-   and lf.fitted_at::date < f.kickoff_date
+   and public.prediction_fit_eligible(lf.fitted_at, f.kickoff_date, f.status)
 ), preds as (
  select fixture_id, fit_run_id, model_version,
    exp(home_exponent + home_override) as pred_home,
@@ -1871,6 +1871,54 @@ $$;
 ALTER FUNCTION public.check_intl_integrity() OWNER TO postgres;
 
 --
+-- Name: check_job_health(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.check_job_health() RETURNS TABLE(check_name text, status text, found bigint, detail text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select 'jobs_failed', case when count(*) = 0 then 'ok' else 'failed' end, count(*),
+    'Jobs whose latest run failed or timed out: ' || coalesce(string_agg(job_key || ' (' || health_status || coalesce(': ' || left(last_error, 80), '') || ')', '; ' order by job_key), 'none')
+  from public.job_health where health_status in ('failed', 'timed_out')
+  union all
+  select 'jobs_stale', case when count(*) = 0 then 'ok' else 'failed' end, count(*),
+    'Jobs with no successful run within their expected interval: ' || coalesce(string_agg(job_key || ' (last success ' || coalesce(to_char(last_success, 'YYYY-MM-DD HH24:MI'), 'never') || ')', '; ' order by job_key), 'none')
+  from public.job_health where health_status = 'stale'
+  union all
+  select 'jobs_stuck', case when count(*) = 0 then 'ok' else 'failed' end, coalesce(sum(stuck_runs), 0)::bigint,
+    'Runs still "running" past their job''s max_duration: ' || coalesce(string_agg(job_key || ' x' || stuck_runs, '; ' order by job_key), 'none')
+  from public.job_health where stuck_runs > 0
+  union all
+  select 'jobs_recent_failures', case when count(*) = 0 then 'ok' else 'warning' end, coalesce(sum(failures_7d), 0)::bigint,
+    'Jobs now healthy but with failed runs in the last 7 days (a later success does not erase them): ' || coalesce(string_agg(job_key || ' x' || failures_7d, '; ' order by job_key), 'none')
+  from public.job_health where failures_7d > 0 and health_status not in ('failed', 'timed_out', 'stale', 'stuck')
+  union all
+  select 'smoke_tests_passed',
+    case when r.smoke_run_id is null then 'warning' when r.pages_failed > 0 then 'failed' when r.pages_warned > 0 then 'warning' else 'ok' end,
+    coalesce(r.pages_failed, 0)::bigint,
+    coalesce('Latest production smoke run ' || to_char(r.started_at, 'YYYY-MM-DD HH24:MI') || ': ' || r.summary, 'No production smoke run yet (weekly-smoke.yml)')
+  from (select 1) one
+  left join lateral (select * from public.smoke_runs where kind = 'production' order by started_at desc limit 1) r on true
+  union all
+  select 'smoke_performance_trend',
+    case when cur.median_lcp_ms is null or prev.median_lcp_ms is null then 'ok'
+         when cur.median_lcp_ms > prev.median_lcp_ms * 1.2 then 'warning' else 'ok' end,
+    coalesce(cur.median_lcp_ms, 0)::bigint,
+    'Median LCP of the latest production smoke run vs the one before: ' || coalesce(cur.median_lcp_ms::text, '-') || ' ms vs ' || coalesce(prev.median_lcp_ms::text, '-') || ' ms (warns above +20%)'
+  from (select 1) one
+  left join lateral (select median_lcp_ms from public.smoke_runs where kind = 'production' order by started_at desc limit 1) cur on true
+  left join lateral (select median_lcp_ms from public.smoke_runs where kind = 'production' order by started_at desc offset 1 limit 1) prev on true
+  union all
+  select 'jobs_registry_gaps', case when count(*) = 0 then 'ok' else 'warning' end, count(*),
+    'Jobs missing from public.job_registry or never run: ' || coalesce(string_agg(gap || ': ' || name, '; ' order by gap, name), 'none')
+  from public.job_registry_gaps
+$$;
+
+
+ALTER FUNCTION public.check_job_health() OWNER TO postgres;
+
+--
 -- Name: check_model_integrity(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1973,9 +2021,9 @@ CREATE FUNCTION public.check_model_integrity() RETURNS TABLE(check_name text, st
                            order by started_at desc limit 1) r on true) x
   union all
   select 'no_stuck_runs', case when n = 0 then 'ok' else 'failed' end, n,
-    'Runs still marked running after 6h (died without recording an outcome): ' || coalesce(names, '')
+    'Runs still marked running past their job''s max_duration (job_registry; 6h if unregistered): ' || coalesce(names, '')
   from (select count(*) n, string_agg(distinct j, ', ') names from (
-          select 'pipeline_runs:' || job_name j from public.pipeline_runs where status = 'running' and started_at < now() - interval '6 hours'
+          select 'pipeline_runs:' || p.job_name j from public.pipeline_runs p where p.status = 'running' and p.started_at < now() - coalesce((select min(r.max_duration) from public.job_registry r where r.run_log = 'pipeline_runs' and p.job_name ~ r.run_key), interval '6 hours')
           union all
           select 'fpl_ingestion_runs' from public.fpl_ingestion_runs where status = 'running' and started_at < now() - interval '6 hours'
           union all
@@ -2140,19 +2188,19 @@ CREATE FUNCTION public.check_model_integrity() RETURNS TABLE(check_name text, st
   -- next deadline has leaguewide_v6 rows from within 36h of the newest run.
   select 'fpl_projection_horizon_fresh',
     case when n = 0 then 'ok' else 'warning' end, n,
-    'Gameweeks in the 10 after the next deadline with no leaguewide_v6 baseline projections from within 36 hours of the newest run (pipeline window: scripts/get_next_matchweek_range.py)'
+    'Gameweeks in the 10 after the next deadline with no production-model baseline projections from within 36 hours of the newest run (pipeline window: scripts/get_next_matchweek_range.py)'
   from (select count(*) n
           from generate_series(public.ai_next_fpl_gameweek(public.fpl_current_season_id()),
                                least(38, public.ai_next_fpl_gameweek(public.fpl_current_season_id()) + 9)) s(gw)
           left join (select ff.fpl_event_id gw, max(p.generated_at) g
                        from public.fpl_player_projections p
                        join public.fpl_fixtures ff on ff.canonical_fixture_id = p.fixture_id and ff.season_id = p.season_id
-                      where p.season_id = public.fpl_current_season_id() and p.model_version = 'leaguewide_v6'
+                      where p.season_id = public.fpl_current_season_id() and p.model_version = public.fpl_production_model_version()
                         and coalesce(p.scenario_key, 'baseline') = 'baseline'
                       group by 1) w on w.gw = s.gw
          where coalesce(w.g, '-infinity'::timestamptz) <
                (select max(generated_at) from public.fpl_player_projections
-                 where season_id = public.fpl_current_season_id() and model_version = 'leaguewide_v6') - interval '36 hours') x
+                 where season_id = public.fpl_current_season_id() and model_version = public.fpl_production_model_version()) - interval '36 hours') x
   union all
   -- Gameweek log (2026-10-12): previews and reflections on time.
   select 'fpl_gameweek_reports_on_time',
@@ -2183,6 +2231,40 @@ CREATE FUNCTION public.check_model_integrity() RETURNS TABLE(check_name text, st
                            and r.kind = 'reflection' and r.status = 'published')
     ) late
   ) x
+  union all
+  -- Readiness (2026-10-16): every fixture in the projection horizon has a
+  -- complete, current production-model projection (fpl_projection_fixture_readiness).
+  select 'fpl_projection_readiness',
+    case when count(*) filter (where readiness_status in ('missing', 'partial')) > 0 then 'failed'
+         when count(*) filter (where readiness_status = 'stale') > 0 then 'warning' else 'ok' end,
+    count(*) filter (where readiness_status in ('missing', 'partial', 'stale')),
+    'Horizon fixtures whose production-model projection is missing, partial or stale: ' ||
+      coalesce(string_agg(fixture_id || ' ' || readiness_status, ', ' order by fixture_id)
+               filter (where readiness_status in ('missing', 'partial', 'stale')), 'none') ||
+      ' (model ' || coalesce(public.fpl_production_model_version(), 'NOT SET') || ')'
+  from public.fpl_projection_fixture_readiness where in_horizon
+  union all
+  -- Stale predictions (2026-10-16): scheduled/postponed fixtures must carry
+  -- the latest accepted fit they are eligible for (fixture 6186 kept fit 966).
+  select 'upcoming_predictions_current', case when n = 0 then 'ok' else 'warning' end, n,
+    'Scheduled or postponed fixtures not predicted from their latest eligible accepted fit (backfill_fixture_predictions): ' || coalesce(ids, 'none')
+  from (select count(*) n, string_agg(f.fixture_id || ' fit ' || coalesce(f.prediction_fit_run_id::text, 'none') || '->' || lf.fit_run_id, ', ' order by f.fixture_id) ids
+        from public.fixtures f
+        join lateral (select r.fit_run_id from public.model_fit_runs r
+                      where r.league_id = f.league_id and r.status = 'accepted'
+                        and public.prediction_fit_eligible(r.fitted_at, f.kickoff_date, f.status)
+                      order by r.fitted_at desc limit 1) lf on true
+        join public.team_ratings hr on hr.fit_run_id = lf.fit_run_id and hr.team_id = f.home_team_id
+        join public.team_ratings ar on ar.fit_run_id = lf.fit_run_id and ar.team_id = f.away_team_id
+        where f.status in ('scheduled', 'postponed')
+          and (f.kickoff_date >= current_date or f.status = 'postponed')
+          and f.prediction_fit_run_id is distinct from lf.fit_run_id) x
+  union all
+  -- League tables cache (2026-10-18): the served rows must equal the computation.
+  select 'league_standings_cache_current', case when n = 0 then 'ok' else 'warning' end, n,
+    'Team-season rows that differ between league_standings (cache) and league_standings_live; refresh_league_standings_cache() runs every 5 minutes'
+  from (select (select count(*) from (select * from public.league_standings_cache except select * from public.league_standings_live) a)
+             + (select count(*) from (select * from public.league_standings_live except select * from public.league_standings_cache) b) n) x
   union all
   -- Catalogue (2026-09-26): every live, non-scratch object has a description,
   -- reviewed since its definition last changed. Warning, not failure.
@@ -2267,6 +2349,21 @@ CREATE FUNCTION public.check_nfl_integrity() RETURNS TABLE(check_name text, stat
   from (select count(*) n from nfl.games g
         where g.kickoff_at between now() and now() + interval '10 days'
           and coalesce((select max(d.as_of) from nfl.depth_daily d), date '2000-01-01') < current_date - 3) x
+  union all
+  select 'nfl_injury_feed',
+    case when n_games = 0 or extract(isodow from current_date) between 1 and 3 or n_status > 0 then 'ok' else 'warning' end,
+    n_status,
+    'Projected players with a practice or game status for the next NFL week (nflverse injuries; teams publish practice reports from Wednesday): ' || n_status || ' of ' || n_rows
+  from (select count(*) filter (where p.practice_status is not null or p.injury_status is not null) n_status,
+               count(*) n_rows, count(distinct p.game_id) n_games
+        from nfl.projections p join nfl.games g on g.game_id = p.game_id
+        where g.kickoff_at between now() and now() + interval '5 days' and g.home_score is null) x
+  union all
+  select 'nfl_results_lag', case when n = 0 then 'ok' else 'warning' end, n,
+    'NFL games kicked off more than 36 hours ago still without a score: ' || coalesce(ids, 'none')
+  from (select count(*) n, string_agg(g.game_id, ', ' order by g.kickoff_at) ids from nfl.games g
+        where g.game_type is not null and g.home_score is null
+          and g.kickoff_at between now() - interval '14 days' and now() - interval '36 hours') x
 $$;
 
 
@@ -2283,17 +2380,33 @@ CREATE FUNCTION public.check_tennis_integrity() RETURNS TABLE(check_name text, s
   select 'tennis_fresh',
     case when age_days is null then 'warning' when age_days >= 7 then 'failed' when age_days >= 3 then 'warning' else 'ok' end,
     coalesce(age_days, -1)::bigint,
-    'Days since the last successful tennis_import run (runs on Chris''s PC; warns at 3, fails at 7; -1 = never run)'
+    'Days since the last successful tennis_import run (scripts/tennis_import.py on Chris''s PC: tennis-data.co.uk refuses cloud downloads; warns at 3, fails at 7; -1 = never run)'
   from (select extract(day from now() - max(finished_at))::int age_days
         from public.pipeline_runs where job_name = 'tennis_import' and status = 'success') x
   union all
+  -- Freshness from the data itself: a run that loads nothing new still
+  -- "succeeds", and a successful run log says nothing about coverage.
+  select 'tennis_source_coverage_' || lower(t.tour),
+    case when extract(month from current_date) = 12 then 'ok'
+         when d.last_match is null or current_date - d.last_match >= 17 then 'failed'
+         when current_date - d.last_match >= 10 then 'warning' else 'ok' end,
+    coalesce(current_date - d.last_match, -1)::bigint,
+    'Days since the latest stored ' || t.tour || ' match (' || coalesce(d.last_match::text, 'none') ||
+      '); in season (Jan-Nov) warns at 10, fails at 17'
+  from (values ('ATP'), ('WTA')) t(tour)
+  left join lateral (select max(m.match_date) last_match from tennis.matches m where m.tour = t.tour) d on true
+  union all
   select 'tennis_sets_consistent', case when n = 0 then 'ok' else 'warning' end, n,
-    'Completed tennis matches where sets won do not match the set scores (winner must take more sets)'
+    'Completed tennis matches where sets won do not match the set scores, not yet reviewed (reviewed source errors are listed in tennis.source_anomalies)'
   from (select count(*) n from tennis.matches m
         where m.status = 'Completed' and m.w_sets is not null
+          and not exists (select 1 from tennis.source_anomalies a where a.source_key = m.source_key)
           and (m.w_sets <= m.l_sets
                or m.w_sets <> (select count(*) from generate_subscripts(m.w_games, 1) i where m.w_games[i] > m.l_games[i])
                or m.l_sets <> (select count(*) from generate_subscripts(m.l_games, 1) i where m.l_games[i] > m.w_games[i]))) x
+  union all
+  select 'tennis_source_errors_reviewed', 'ok', (select count(*) from tennis.source_anomalies),
+    'Matches whose source row is internally inconsistent, reviewed 16 Oct 2026 and kept as published (tennis.source_anomalies)'
   union all
   select 'tennis_matches_mapped', case when n = 0 then 'ok' else 'failed' end, n,
     'Tennis matches missing from public.tennis_matches (unmapped player or tournament)'
@@ -2493,6 +2606,25 @@ $$;
 
 
 ALTER FUNCTION public.fixture_derived_markets(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric) OWNER TO postgres;
+
+--
+-- Name: fixture_derived_markets_cached(numeric, numeric, numeric); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fixture_derived_markets_cached(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric) RETURNS TABLE(home_win numeric, draw numeric, away_win numeric, over_2_5 numeric, under_2_5 numeric, btts numeric, home_clean_sheet numeric, away_clean_sheet numeric)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  (select m.home_win, m.draw, m.away_win, m.over_2_5, m.under_2_5, m.btts, m.home_clean_sheet, m.away_clean_sheet
+     from public.derived_markets_memo m
+    where m.lambda_home = p_lambda_home and m.lambda_away = p_lambda_away and m.rho = p_rho
+   union all
+   select * from public.fixture_derived_markets(p_lambda_home, p_lambda_away, p_rho))
+  limit 1
+$$;
+
+
+ALTER FUNCTION public.fixture_derived_markets_cached(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric) OWNER TO postgres;
 
 --
 -- Name: fpl_clear_external_lineup(text, integer, bigint); Type: FUNCTION; Schema: public; Owner: postgres
@@ -2763,6 +2895,20 @@ $$;
 
 
 ALTER FUNCTION public.fpl_live_entry(p_entry_id bigint, p_event_id integer) OWNER TO postgres;
+
+--
+-- Name: fpl_production_model_version(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fpl_production_model_version() RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select model_version from public.production_models where component = 'fpl_player_projection'
+$$;
+
+
+ALTER FUNCTION public.fpl_production_model_version() OWNER TO postgres;
 
 --
 -- Name: fpl_remove_first_choice(bigint); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3083,11 +3229,17 @@ CREATE FUNCTION public.get_all_time_top_scorers() RETURNS TABLE(display_name tex
     LANGUAGE sql STABLE
     SET search_path TO 'public', 'pg_temp'
     AS $$
-  select t.display_name,
-    sum(case when m.home_team_id = t.team_id then m.full_time_home_goals else m.full_time_away_goals end)::bigint,
+  with g as (
+    select home_team_id as team_id, full_time_home_goals as goals from public.matches
+    union all
+    select away_team_id, full_time_away_goals from public.matches
+  ), per_team as (
+    select team_id, sum(goals) as goals from g group by team_id
+  )
+  select t.display_name, sum(p.goals)::bigint,
     (select count(distinct season_id) from public.matches)::bigint
-  from public.matches m
-  join public.teams t on t.team_id in (m.home_team_id, m.away_team_id)
+  from per_team p
+  join public.teams t on t.team_id = p.team_id
   group by t.display_name
   order by 2 desc
   limit 4;
@@ -4343,9 +4495,14 @@ CREATE FUNCTION public.get_matchweek_head_to_head(p_league_id bigint, p_season_i
       m.home_team_id as m_home, m.full_time_result as res,
       m.match_date, m.full_time_home_goals as hg, m.full_time_away_goals as ag
     from fx
-    join public.matches m
-      on (m.home_team_id = fx.fx_home and m.away_team_id = fx.fx_away)
-      or (m.home_team_id = fx.fx_away and m.away_team_id = fx.fx_home)
+    join public.matches m on m.home_team_id = fx.fx_home and m.away_team_id = fx.fx_away
+    where m.full_time_result is not null
+    union all
+    select fx.fixture_id, fx.fx_home, fx.fx_away,
+      m.home_team_id, m.full_time_result,
+      m.match_date, m.full_time_home_goals, m.full_time_away_goals
+    from fx
+    join public.matches m on m.home_team_id = fx.fx_away and m.away_team_id = fx.fx_home
     where m.full_time_result is not null
   ),
   agg as (
@@ -4401,7 +4558,7 @@ CREATE FUNCTION public.get_model_accuracy(p_league_id bigint DEFAULT NULL::bigin
   join public.matches m on m.league_id = f.league_id and m.season_id = f.season_id
     and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
     and m.match_date = f.kickoff_date
-  cross join lateral public.fixture_derived_markets(
+  cross join lateral public.fixture_derived_markets_cached(
     f.predicted_home_goals::numeric, f.predicted_away_goals::numeric, r.rho::numeric) dm
   where f.status = 'played'
     and f.predicted_home_goals is not null
@@ -5228,18 +5385,6 @@ CREATE FUNCTION public.get_tactical_role_worklist(p_season_id bigint DEFAULT pub
     LANGUAGE sql STABLE
     SET search_path TO 'public', 'pg_temp'
     AS $$
-  with mins as (
-    select g.fpl_player_id, sum(g.minutes)::integer as m, sum(g.total_points)::integer as pts
-    from public.fpl_player_gameweeks g
-    where g.season_id = p_season_id
-    group by g.fpl_player_id
-  ),
-  latest_snap as (
-    select distinct on (s.fpl_player_id) s.fpl_player_id, s.selected_by_percent
-    from public.fpl_player_snapshots s
-    where s.season_id = p_season_id
-    order by s.fpl_player_id, s.snapshot_date desc
-  )
   select
     d.team_id, t.display_name, d.fpl_player_id, p.web_name, p.slug,
     case p.element_type when 1 then 'GKP' when 2 then 'DEF' when 3 then 'MID' when 4 then 'FWD' else '?' end,
@@ -5253,8 +5398,13 @@ CREATE FUNCTION public.get_tactical_role_worklist(p_season_id bigint DEFAULT pub
   from public.team_player_tactical_defaults d
   join public.fpl_players p on p.fpl_player_id = d.fpl_player_id and p.season_id = d.season_id
   left join public.teams t on t.team_id = d.team_id
-  left join mins m on m.fpl_player_id = d.fpl_player_id
-  left join latest_snap ls on ls.fpl_player_id = d.fpl_player_id
+  -- 2026-10-18: per listed player, by index (was every player of the season).
+  left join lateral (select sum(g.minutes)::integer as m, sum(g.total_points)::integer as pts
+                     from public.fpl_player_gameweeks g
+                     where g.season_id = d.season_id and g.fpl_player_id = d.fpl_player_id) m on true
+  left join lateral (select s.selected_by_percent from public.fpl_player_snapshots s
+                     where s.season_id = d.season_id and s.fpl_player_id = d.fpl_player_id
+                     order by s.snapshot_date desc limit 1) ls on true
   where d.season_id = p_season_id
     and d.source_name = 'fpl_position_fallback'
     -- A keeper's position IS their role.
@@ -7110,6 +7260,33 @@ $$;
 ALTER FUNCTION public.league_name_for_season(p_league_id bigint, p_season_id bigint) OWNER TO postgres;
 
 --
+-- Name: league_standings_fingerprint(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.league_standings_fingerprint() RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select md5(concat_ws('|',
+    (select count(*) || ':' || coalesce(max(m.updated_at)::text, '') || ':' ||
+            coalesce(sum(hashint8(m.match_id) # hashint8(m.home_team_id * 1000003 + m.away_team_id)
+                # hashint4(coalesce(m.full_time_home_goals, -1) * 101 + coalesce(m.full_time_away_goals, -1))
+                # hashint4((m.match_date - date '1900-01-01')::int)
+                # hashint8(m.league_id * 10007 + m.season_id)
+                # hashint8(coalesce(extract(epoch from m.kickoff_time)::bigint, -1))
+                # hashtext(coalesce(m.stage, '') || '/' || coalesce(m.decided_by, '') || '/' || coalesce(m.winner_team_id::text, '')))::text, '')
+       from public.matches m),
+    (select md5(coalesce(string_agg(x::text, ',' order by x::text), '')) from public.point_deductions x),
+    (select md5(coalesce(string_agg(x::text, ',' order by x::text), '')) from public.league_season_formats x),
+    (select md5(coalesce(string_agg(x::text, ',' order by x::text), '')) from public.leagues x),
+    (select md5(coalesce(string_agg(x::text, ',' order by x::text), '')) from public.seasons x),
+    (select md5(coalesce(string_agg(t.team_id || ':' || t.canonical_name, ',' order by t.team_id), '')) from public.teams t)))
+$$;
+
+
+ALTER FUNCTION public.league_standings_fingerprint() OWNER TO postgres;
+
+--
 -- Name: list_scout_players(bigint, integer, bigint, integer, text, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -7189,6 +7366,31 @@ $$;
 
 
 ALTER FUNCTION public.list_scoutable_players() OWNER TO postgres;
+
+--
+-- Name: log_tactical_defaults_change(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.log_tactical_defaults_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if tg_op = 'INSERT'
+     or new.tactical_role is distinct from old.tactical_role
+     or new.depth_rank is distinct from old.depth_rank then
+    insert into public.team_player_tactical_defaults_log
+      (changed_by, season_id, team_id, fpl_player_id, old_role, new_role, old_rank, new_rank, old_source, new_source, new_rank_source)
+    values (auth.uid(), new.season_id, new.team_id, new.fpl_player_id,
+            case when tg_op = 'UPDATE' then old.tactical_role end, new.tactical_role,
+            case when tg_op = 'UPDATE' then old.depth_rank end, new.depth_rank,
+            case when tg_op = 'UPDATE' then old.source_name end, new.source_name, new.depth_rank_source);
+  end if;
+  return new;
+end $$;
+
+
+ALTER FUNCTION public.log_tactical_defaults_change() OWNER TO postgres;
 
 --
 -- Name: meta_flow_note_commentary(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -7628,6 +7830,20 @@ end $$;
 ALTER FUNCTION public.nfl_upsert_team_weeks(rows jsonb) OWNER TO postgres;
 
 --
+-- Name: prediction_fit_eligible(timestamp with time zone, date, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.prediction_fit_eligible(p_fitted_at timestamp with time zone, p_kickoff date, p_status text) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select p_fitted_at::date < case when p_status = 'postponed' then greatest(p_kickoff, current_date) else p_kickoff end
+$$;
+
+
+ALTER FUNCTION public.prediction_fit_eligible(p_fitted_at timestamp with time zone, p_kickoff date, p_status text) OWNER TO postgres;
+
+--
 -- Name: previous_season_id(bigint); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -7644,6 +7860,33 @@ $$;
 
 
 ALTER FUNCTION public.previous_season_id(p_season_id bigint) OWNER TO postgres;
+
+--
+-- Name: reconcile_unreported_played_fixtures(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.reconcile_unreported_played_fixtures() RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  with upd as (
+    update public.fixtures f set status = 'postponed', updated_at = now()
+    where f.status = 'played'
+      and f.kickoff_date <= current_date - 3
+      and f.reported_home_goals is null
+      and not exists (select 1 from public.matches m
+                      where m.league_id = f.league_id and m.season_id = f.season_id
+                        and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
+                        and m.match_date between f.kickoff_date - 3 and f.kickoff_date + 3)
+      and exists (select 1 from public.matches m
+                  where m.league_id = f.league_id and m.season_id = f.season_id
+                    and m.match_date > f.kickoff_date + 1)
+    returning 1)
+  select count(*)::integer from upd
+$$;
+
+
+ALTER FUNCTION public.reconcile_unreported_played_fixtures() OWNER TO postgres;
 
 --
 -- Name: record_team_slug_change(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -7663,6 +7906,30 @@ $$;
 
 
 ALTER FUNCTION public.record_team_slug_change() OWNER TO postgres;
+
+--
+-- Name: refresh_derived_markets_memo(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.refresh_derived_markets_memo() RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  with ins as (
+    insert into public.derived_markets_memo
+    select x.lh, x.la, x.rho, dm.*
+    from (select distinct f.predicted_home_goals::numeric lh, f.predicted_away_goals::numeric la, r.rho::numeric rho
+            from public.fixtures f join public.model_fit_runs r on r.fit_run_id = f.prediction_fit_run_id
+           where f.predicted_home_goals is not null and f.predicted_away_goals is not null and r.rho is not null) x
+    cross join lateral public.fixture_derived_markets(x.lh, x.la, x.rho) dm
+    where not exists (select 1 from public.derived_markets_memo m where m.lambda_home = x.lh and m.lambda_away = x.la and m.rho = x.rho)
+    on conflict do nothing
+    returning 1)
+  select count(*)::integer from ins
+$$;
+
+
+ALTER FUNCTION public.refresh_derived_markets_memo() OWNER TO postgres;
 
 --
 -- Name: refresh_feed_nearest_date(text, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -7831,6 +8098,7 @@ begin
  exception when others then raise warning 'F1 fixture refresh failed: %', sqlerrm; end;
  begin perform public.refresh_feed_nearest_date('SP1','https://fixturedownload.com/feed/json/la-liga-' || v_year);
  exception when others then raise warning 'SP1 fixture refresh failed: %', sqlerrm; end;
+ perform public.reconcile_unreported_played_fixtures(); -- 2026-10-16: kicked-off is not played
  select public.backfill_fixture_predictions() into v_predictions;
  update public.fixture_refresh_runs set finished_at=now(),rows_seen=v_seen,rows_updated=v_updated,status='success',error_message=case when cardinality(v_skipped)>0 then 'Feeds not published yet (HTTP 404): '||array_to_string(v_skipped,', ') end where refresh_run_id=v_run_id;
 exception when others then update public.fixture_refresh_runs set finished_at=now(),rows_seen=v_seen,rows_updated=v_updated,status='failed',error_message=sqlerrm where refresh_run_id=v_run_id; raise;
@@ -8128,6 +8396,37 @@ $$;
 
 
 ALTER FUNCTION public.refresh_history_derived(p_force boolean) OWNER TO postgres;
+
+--
+-- Name: refresh_league_standings_cache(boolean); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.refresh_league_standings_cache(p_force boolean DEFAULT false) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare fp text; t0 timestamptz := clock_timestamp(); n int; run bigint;
+begin
+  fp := public.league_standings_fingerprint();
+  if not p_force and fp is not distinct from (select s.fingerprint from public.league_standings_cache_state s where s.id = 1) then
+    return 'up to date';
+  end if;
+  insert into public.pipeline_runs (job_name, status, started_at) values ('league_standings_cache', 'running', t0) returning run_id into run;
+  delete from public.league_standings_cache where true;
+  insert into public.league_standings_cache select * from public.league_standings_live;
+  get diagnostics n = row_count;
+  update public.league_standings_cache_state
+     set fingerprint = fp, refreshed_at = clock_timestamp(), rows_cached = n,
+         duration_ms = (extract(epoch from clock_timestamp() - t0) * 1000)::int
+   where id = 1;
+  update public.pipeline_runs set status = 'success', finished_at = clock_timestamp(), rows_changed = n,
+         summary = n || ' team-seasons cached in ' || (extract(epoch from clock_timestamp() - t0) * 1000)::int || ' ms'
+   where run_id = run;
+  return 'refreshed ' || n;
+end $$;
+
+
+ALTER FUNCTION public.refresh_league_standings_cache(p_force boolean) OWNER TO postgres;
 
 --
 -- Name: refresh_model_scorecard(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -9576,7 +9875,8 @@ begin
     min_minutes_between_posts = coalesce((p->>'min_minutes_between_posts')::int, min_minutes_between_posts),
     monthly_budget_usd = coalesce((p->>'monthly_budget_usd')::numeric, monthly_budget_usd),
     allow_urls = coalesce((p->>'allow_urls')::boolean, allow_urls),
-    updated_at = now(), updated_by = auth.uid();
+    updated_at = now(), updated_by = auth.uid()
+  where id;
   perform private.social_audit('settings', null, auth.uid(), jsonb_build_object('before', v_before, 'change', p));
   return jsonb_build_object('ok', true);
 end;
@@ -9614,7 +9914,7 @@ begin
   select vault_secret_id into v_sid from public.social_x_connection;
   if v_sid is not null then delete from vault.secrets where id = v_sid; end if;
   update public.social_x_connection set status = 'disconnected', vault_secret_id = null, access_expires_at = null,
-         token_version = token_version + 1, updated_at = now();
+         token_version = token_version + 1, updated_at = now() where id;
   perform private.social_audit('x_disconnected', null, auth.uid(), '{}');
   return jsonb_build_object('ok', true);
 end;
@@ -9649,7 +9949,7 @@ CREATE FUNCTION public.social_x_mark_error(p_error text) RETURNS void
     SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
-  update public.social_x_connection set status = 'error', last_error = left(p_error, 500), updated_at = now();
+  update public.social_x_connection set status = 'error', last_error = left(p_error, 500), updated_at = now() where id;
   perform private.social_audit('x_connection_error', null, null, jsonb_build_object('error', left(p_error, 500)));
 end;
 $$;
@@ -9671,7 +9971,7 @@ begin
   if x.status <> 'connected' or x.token_version <> p_expected_version or x.vault_secret_id is null then return false; end if;
   perform vault.update_secret(x.vault_secret_id, jsonb_build_object('access_token', p_access_token, 'refresh_token', p_refresh_token)::text);
   update public.social_x_connection set token_version = token_version + 1, access_expires_at = now() + make_interval(secs => p_expires_in),
-         last_refreshed_at = now(), last_error = null, updated_at = now();
+         last_refreshed_at = now(), last_error = null, updated_at = now() where id;
   perform private.social_audit('x_token_refreshed', null, null, jsonb_build_object('token_version', x.token_version + 1));
   return true;
 end;
@@ -9716,8 +10016,8 @@ begin
 
   update public.social_x_connection set status = 'connected', x_user_id = p_x_user_id, x_username = p_username, scopes = p_scopes,
          connected_at = now(), connected_by = p_actor, access_expires_at = now() + make_interval(secs => p_expires_in),
-         last_refreshed_at = now(), token_version = token_version + 1, vault_secret_id = v_sid, last_error = null, updated_at = now();
-  update public.social_settings set allowed_x_user_id = coalesce(allowed_x_user_id, p_x_user_id);
+         last_refreshed_at = now(), token_version = token_version + 1, vault_secret_id = v_sid, last_error = null, updated_at = now() where id;
+  update public.social_settings set allowed_x_user_id = coalesce(allowed_x_user_id, p_x_user_id) where id;
   perform private.social_audit('x_connected', null, p_actor, jsonb_build_object('username', p_username, 'x_user_id', p_x_user_id, 'scopes', p_scopes));
   return jsonb_build_object('ok', true);
 end;
@@ -9765,7 +10065,9 @@ begin
       if v_home is null then v_reason := 'unknown team: ' || v_home_raw; end if;
       if v_away is null then v_reason := coalesce(v_reason || '; ', '') || 'unknown team: ' || v_away_raw; end if;
       if v_comp is not null and v_code is null then
-        v_reason := coalesce(v_reason || '; ', '') || 'competition not mapped: ' || v_comp;
+        v_reason := coalesce(v_reason || '; ', '') ||
+          case when exists (select 1 from public.broadcast_competition_coverage c where c.label = v_comp)
+               then 'competition not covered by site fixtures: ' else 'competition not mapped: ' end || v_comp;
       elsif v_code is not null and v_league is null then
         v_reason := coalesce(v_reason || '; ', '') || 'competition not in database: ' || v_comp;
       end if;
@@ -9781,6 +10083,15 @@ begin
           and fx.kickoff_date between v_date - 3 and v_date + 3
           and (v_league is null or fx.league_id = v_league)
         order by dist limit 1) x;
+      -- 2026-10-16: nothing in the labelled competition -> both teams on the EXACT
+      -- date, unique across competitions (a mislabelled record, e.g. a League One
+      -- game labelled Championship). No tolerance, no partial match.
+      if v_fixture is null and v_league is not null then
+        select min(fx.fixture_id) into v_fixture from public.fixtures fx
+         where fx.home_team_id = v_home and fx.away_team_id = v_away and fx.kickoff_date = v_date
+        having count(*) = 1;
+        v_tie := false;
+      end if;
       if v_fixture is null then v_reason := 'no fixture within 3 days';
       elsif v_tie then v_reason := 'ambiguous fixture'; v_fixture := null; end if;
     end if;
@@ -10102,12 +10413,12 @@ begin
   if not p_force and coalesce((select max(imported_at) from tennis.matches) <= last_ok, false) then
     return 'up to date';
   end if;
-  insert into public.pipeline_runs (job_name, status) values ('tennis_refresh', 'running') returning run_id into run;
+  insert into public.pipeline_runs (job_name, status, started_at) values ('tennis_refresh', 'running', clock_timestamp()) returning run_id into run;
   begin
     result := public.tennis_refresh();
-    update public.pipeline_runs set status = 'success', summary = result, finished_at = now() where run_id = run;
+    update public.pipeline_runs set status = 'success', summary = result, finished_at = clock_timestamp() where run_id = run;
   exception when others then
-    update public.pipeline_runs set status = 'failed', error_message = left(sqlerrm, 4000), finished_at = now() where run_id = run;
+    update public.pipeline_runs set status = 'failed', error_message = left(sqlerrm, 4000), finished_at = clock_timestamp() where run_id = run;
     result := 'failed: ' || sqlerrm;
   end;
   return result;
@@ -10788,6 +11099,20 @@ CREATE TABLE public.backup_fpl_teams_20260924 (
 ALTER TABLE public.backup_fpl_teams_20260924 OWNER TO postgres;
 
 --
+-- Name: broadcast_competition_coverage; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.broadcast_competition_coverage (
+    label text NOT NULL,
+    status text DEFAULT 'not_covered'::text NOT NULL,
+    note text NOT NULL,
+    CONSTRAINT broadcast_competition_coverage_status_check CHECK ((status = 'not_covered'::text))
+);
+
+
+ALTER TABLE public.broadcast_competition_coverage OWNER TO postgres;
+
+--
 -- Name: broadcast_competition_map; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -10852,6 +11177,37 @@ CREATE TABLE public.broadcast_sync_unmatched (
 
 
 ALTER TABLE public.broadcast_sync_unmatched OWNER TO postgres;
+
+--
+-- Name: broadcast_unmatched_classified; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.broadcast_unmatched_classified AS
+ SELECT airtable_record_id,
+    kickoff_date,
+    competition_label,
+    home_raw,
+    away_raw,
+    reason,
+        CASE
+            WHEN (((record -> 'fields'::text) = '{}'::jsonb) OR ((home_raw IS NULL) AND (away_raw IS NULL) AND (kickoff_date IS NULL))) THEN 'record_empty'::text
+            WHEN ((reason ~~* '%competition not covered%'::text) OR (EXISTS ( SELECT 1
+               FROM public.broadcast_competition_coverage c
+              WHERE (c.label = u.competition_label)))) THEN 'competition_not_covered'::text
+            WHEN ((reason ~~* '%competition not mapped%'::text) OR (reason ~~* '%competition not in database%'::text)) THEN 'competition_unmapped'::text
+            WHEN (reason ~~* '%unknown team%'::text) THEN 'team_alias_missing'::text
+            WHEN (reason ~~* '%ambiguous%'::text) THEN 'ambiguous'::text
+            WHEN (reason ~~* '%no fixture%'::text) THEN 'no_fixture'::text
+            ELSE 'other'::text
+        END AS category,
+    (kickoff_date < CURRENT_DATE) AS is_past,
+    first_seen_at,
+    last_seen_at
+   FROM public.broadcast_sync_unmatched u
+  WHERE (resolved_at IS NULL);
+
+
+ALTER VIEW public.broadcast_unmatched_classified OWNER TO postgres;
 
 --
 -- Name: club_grounds; Type: TABLE; Schema: public; Owner: postgres
@@ -11176,6 +11532,27 @@ ALTER TABLE public.data_source_competitions ALTER COLUMN source_competition_id A
     CACHE 1
 );
 
+
+--
+-- Name: derived_markets_memo; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.derived_markets_memo (
+    lambda_home numeric NOT NULL,
+    lambda_away numeric NOT NULL,
+    rho numeric NOT NULL,
+    home_win numeric,
+    draw numeric,
+    away_win numeric,
+    over_2_5 numeric,
+    under_2_5 numeric,
+    btts numeric,
+    home_clean_sheet numeric,
+    away_clean_sheet numeric
+);
+
+
+ALTER TABLE public.derived_markets_memo OWNER TO postgres;
 
 --
 -- Name: fantasy_game_rules; Type: TABLE; Schema: public; Owner: postgres
@@ -12091,6 +12468,40 @@ ALTER TABLE public.fixture_lineup_predictions ALTER COLUMN lineup_prediction_id 
     CACHE 1
 );
 
+
+--
+-- Name: fixture_lineup_sub_coverage; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fixture_lineup_sub_coverage (
+    fixture_id bigint NOT NULL,
+    team_id bigint NOT NULL,
+    source_name text NOT NULL,
+    complete boolean NOT NULL
+);
+
+
+ALTER TABLE public.fixture_lineup_sub_coverage OWNER TO postgres;
+
+--
+-- Name: fixture_lineup_substitutions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fixture_lineup_substitutions (
+    fixture_id bigint NOT NULL,
+    team_id bigint NOT NULL,
+    player_off_fpl_id bigint NOT NULL,
+    player_on_fpl_id bigint NOT NULL,
+    minute integer NOT NULL,
+    name_off text,
+    name_on text,
+    source_name text NOT NULL,
+    captured_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT fixture_lineup_substitutions_minute_check CHECK (((minute >= 1) AND (minute <= 130)))
+);
+
+
+ALTER TABLE public.fixture_lineup_substitutions OWNER TO postgres;
 
 --
 -- Name: fixture_odds_snapshots; Type: TABLE; Schema: public; Owner: postgres
@@ -15410,27 +15821,97 @@ ALTER VIEW public.fpl_prediction_actual_start_comparison OWNER TO postgres;
 -- Name: fpl_projection_fixture_readiness; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.fpl_projection_fixture_readiness WITH (security_invoker='true') AS
- SELECT f.fixture_id,
-    f.kickoff_date,
-    f.home_team_id,
-    f.away_team_id,
-    f.predicted_home_goals,
-    f.predicted_away_goals,
-    ((f.predicted_home_goals IS NOT NULL) AND (f.predicted_away_goals IS NOT NULL)) AS has_team_xg,
+CREATE VIEW public.fpl_projection_fixture_readiness AS
+ WITH cfg AS (
+         SELECT public.fpl_current_season_id() AS season_id,
+            public.fpl_production_model_version() AS model_version,
+            public.ai_next_fpl_gameweek(public.fpl_current_season_id()) AS first_gw
+        ), prod AS (
+         SELECT p.fixture_id,
+            pl.canonical_team_id AS team_id,
+            count(*) AS n_rows,
+            count(DISTINCT p.fpl_player_id) AS n_players,
+            max(p.generated_at) AS generated_at
+           FROM ((public.fpl_player_projections p
+             JOIN cfg ON (((cfg.season_id = p.season_id) AND (cfg.model_version = p.model_version))))
+             LEFT JOIN public.fpl_players pl ON (((pl.season_id = p.season_id) AND (pl.fpl_player_id = p.fpl_player_id))))
+          WHERE (COALESCE(p.scenario_key, 'baseline'::text) = 'baseline'::text)
+          GROUP BY p.fixture_id, pl.canonical_team_id
+        ), team_norm AS (
+         SELECT pr.team_id,
+            percentile_cont((0.5)::double precision) WITHIN GROUP (ORDER BY ((pr.n_players)::double precision)) AS median_players
+           FROM ((prod pr
+             JOIN public.fpl_fixtures ff ON ((ff.canonical_fixture_id = pr.fixture_id)))
+             JOIN cfg ON ((cfg.season_id = ff.season_id)))
+          WHERE ((ff.fpl_event_id >= cfg.first_gw) AND (ff.fpl_event_id <= (cfg.first_gw + 9)))
+          GROUP BY pr.team_id
+        ), newest AS (
+         SELECT max(pr.generated_at) AS generated_at
+           FROM prod pr
+        ), base AS (
+         SELECT f.fixture_id,
+            f.kickoff_date,
+            f.home_team_id,
+            f.away_team_id,
+            f.predicted_home_goals,
+            f.predicted_away_goals,
+            cfg.model_version,
+            ff.fpl_event_id,
+            COALESCE(((ff.fpl_event_id >= cfg.first_gw) AND (ff.fpl_event_id <= (cfg.first_gw + 9))), false) AS in_horizon,
+            (COALESCE(( SELECT sum(pr.n_rows) AS sum
+                   FROM prod pr
+                  WHERE (pr.fixture_id = f.fixture_id)), (0)::numeric))::bigint AS projection_rows,
+            (COALESCE(( SELECT sum(pr.n_players) AS sum
+                   FROM prod pr
+                  WHERE (pr.fixture_id = f.fixture_id)), (0)::numeric))::bigint AS projected_players,
+            ( SELECT max(pr.generated_at) AS max
+                   FROM prod pr
+                  WHERE (pr.fixture_id = f.fixture_id)) AS generated_at,
+            (EXISTS ( SELECT 1
+                   FROM ((( VALUES (f.home_team_id), (f.away_team_id)) s(team_id)
+                     LEFT JOIN prod pr ON (((pr.fixture_id = f.fixture_id) AND (pr.team_id = s.team_id))))
+                     JOIN team_norm tn ON ((tn.team_id = s.team_id)))
+                  WHERE ((COALESCE(pr.n_players, (0)::bigint))::double precision < ((0.8)::double precision * tn.median_players)))) AS side_short,
+            COALESCE(( SELECT count(*) AS count
+                   FROM public.fpl_player_projections o
+                  WHERE ((o.fixture_id = f.fixture_id) AND (o.model_version IS DISTINCT FROM cfg.model_version))), (0)::bigint) AS other_model_rows
+           FROM (((public.fixtures f
+             JOIN public.leagues l ON ((l.league_id = f.league_id)))
+             CROSS JOIN cfg)
+             LEFT JOIN public.fpl_fixtures ff ON (((ff.season_id = cfg.season_id) AND (ff.canonical_fixture_id = f.fixture_id))))
+          WHERE ((f.season_id = cfg.season_id) AND (l.code = 'E0'::text))
+        )
+ SELECT fixture_id,
+    kickoff_date,
+    home_team_id,
+    away_team_id,
+    predicted_home_goals,
+    predicted_away_goals,
+    ((predicted_home_goals IS NOT NULL) AND (predicted_away_goals IS NOT NULL)) AS has_team_xg,
     COALESCE(( SELECT count(*) AS count
            FROM public.fixture_lineup_predictions lp
-          WHERE (lp.fixture_id = f.fixture_id)), (0)::bigint) AS lineup_sources,
+          WHERE (lp.fixture_id = b.fixture_id)), (0)::bigint) AS lineup_sources,
     COALESCE(( SELECT count(*) AS count
            FROM (public.fixture_lineup_prediction_players lpp
              JOIN public.fixture_lineup_predictions lp ON ((lp.lineup_prediction_id = lpp.lineup_prediction_id)))
-          WHERE (lp.fixture_id = f.fixture_id)), (0)::bigint) AS lineup_player_rows,
-    COALESCE(( SELECT count(*) AS count
-           FROM public.fpl_player_projections p
-          WHERE ((p.fixture_id = f.fixture_id) AND (p.model_version = 'prototype_v3'::text))), (0)::bigint) AS projection_rows
-   FROM (public.fixtures f
-     JOIN public.leagues l ON ((l.league_id = f.league_id)))
-  WHERE ((f.season_id = ( SELECT public.fpl_current_season_id() AS fpl_current_season_id)) AND (l.code = 'E0'::text));
+          WHERE (lp.fixture_id = b.fixture_id)), (0)::bigint) AS lineup_player_rows,
+    projection_rows,
+    model_version AS production_model,
+    fpl_event_id,
+    in_horizon,
+    projected_players,
+    generated_at,
+    other_model_rows,
+        CASE
+            WHEN ((kickoff_date < CURRENT_DATE) AND (NOT in_horizon)) THEN 'past'::text
+            WHEN (NOT in_horizon) THEN 'outside_horizon'::text
+            WHEN (projection_rows = 0) THEN 'missing'::text
+            WHEN side_short THEN 'partial'::text
+            WHEN (generated_at < (( SELECT newest.generated_at
+               FROM newest) - '36:00:00'::interval)) THEN 'stale'::text
+            ELSE 'ready'::text
+        END AS readiness_status
+   FROM base b;
 
 
 ALTER VIEW public.fpl_projection_fixture_readiness OWNER TO postgres;
@@ -15439,7 +15920,7 @@ ALTER VIEW public.fpl_projection_fixture_readiness OWNER TO postgres;
 -- Name: fpl_projection_data_health; Type: VIEW; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.fpl_projection_data_health WITH (security_invoker='true') AS
+CREATE VIEW public.fpl_projection_data_health AS
  SELECT fixture_id,
     kickoff_date,
     has_team_xg AS team_forecast_ready,
@@ -15447,11 +15928,15 @@ CREATE VIEW public.fpl_projection_data_health WITH (security_invoker='true') AS
     lineup_player_rows,
     projection_rows,
         CASE
-            WHEN (has_team_xg AND (projection_rows > 0)) THEN 'ready'::text
-            WHEN (has_team_xg AND (lineup_sources = 0)) THEN 'awaiting_player_projection'::text
+            WHEN (readiness_status = 'ready'::text) THEN 'ready'::text
+            WHEN ((readiness_status = ANY (ARRAY['missing'::text, 'partial'::text, 'stale'::text])) AND has_team_xg AND (lineup_sources = 0)) THEN 'awaiting_player_projection'::text
+            WHEN (readiness_status = ANY (ARRAY['past'::text, 'outside_horizon'::text])) THEN readiness_status
             ELSE 'incomplete'::text
-        END AS projection_status
-   FROM public.fpl_projection_fixture_readiness r;
+        END AS projection_status,
+    readiness_status,
+    production_model,
+    fpl_event_id
+   FROM public.fpl_projection_fixture_readiness;
 
 
 ALTER VIEW public.fpl_projection_data_health OWNER TO postgres;
@@ -16229,492 +16714,109 @@ END),
 ALTER TABLE public.league_season_formats OWNER TO postgres;
 
 --
--- Name: point_deductions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: league_standings_cache; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.point_deductions (
-    deduction_id bigint NOT NULL,
-    league_id bigint NOT NULL,
-    season_id bigint NOT NULL,
-    team_id bigint NOT NULL,
-    points integer NOT NULL,
-    reason text,
-    effective_date date,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT point_deductions_points_check CHECK ((points <> 0))
+CREATE TABLE public.league_standings_cache (
+    league_id bigint,
+    league_code text,
+    league_name text,
+    tier integer,
+    season_id bigint,
+    season_label text,
+    team_id bigint,
+    "position" integer,
+    pyramid_position integer,
+    teams integer,
+    is_final boolean,
+    curtailed boolean,
+    ranked_on text,
+    played integer,
+    won integer,
+    drawn integer,
+    lost integer,
+    goals_for integer,
+    goals_against integer,
+    clean_sheets integer,
+    failed_to_score integer,
+    points_won integer,
+    deduction integer,
+    points integer,
+    ppg numeric,
+    home_played integer,
+    home_points integer,
+    home_goals_for integer,
+    home_goals_against integer,
+    away_played integer,
+    away_points integer,
+    away_goals_for integer,
+    away_goals_against integer,
+    home_won integer,
+    home_drawn integer,
+    home_lost integer,
+    home_clean_sheets integer,
+    away_won integer,
+    away_drawn integer,
+    away_lost integer,
+    away_clean_sheets integer,
+    season_start_year integer,
+    split_group smallint,
+    split_adjustment integer
 );
 
 
-ALTER TABLE public.point_deductions OWNER TO postgres;
+ALTER TABLE public.league_standings_cache OWNER TO postgres;
 
 --
 -- Name: league_standings; Type: VIEW; Schema: public; Owner: postgres
 --
 
 CREATE VIEW public.league_standings AS
- WITH domestic_leagues AS (
-         SELECT leagues.league_id,
-            leagues.country_id
-           FROM public.leagues
-          WHERE (leagues.competition_type = 'league'::text)
-        ), cur AS (
-         SELECT se_cur.season_id
-           FROM public.seasons se_cur
-          WHERE (se_cur.start_year = ( SELECT max(se_m.start_year) AS max
-                   FROM public.seasons se_m
-                  WHERE (se_m.season_id IN ( SELECT matches.season_id
-                           FROM public.matches
-                          WHERE (matches.league_id IN ( SELECT domestic_leagues.league_id
-                                   FROM domestic_leagues))))))
-        ), fmt AS (
-         SELECT f.league_id,
-            f.season_id,
-            ((f.league_id * 10000) + f.season_id) AS ls,
-            f.regular_meetings,
-            f.halved_groups,
-            f.halving_rounding,
-            f.group_sizes,
-            f.group_games,
-            f.tiebreak
-           FROM public.league_season_formats f
-          WHERE (f.format = 'split'::text)
-        ), sm AS (
-         SELECT m.match_id,
-            f.ls,
-            m.match_date,
-            m.kickoff_time,
-            ((f.ls * 10000000) + m.home_team_id) AS hk,
-            ((f.ls * 10000000) + m.away_team_id) AS ak,
-            m.full_time_home_goals AS hg,
-            m.full_time_away_goals AS ag,
-            ((row_number() OVER (PARTITION BY f.ls, LEAST(m.home_team_id, m.away_team_id), GREATEST(m.home_team_id, m.away_team_id) ORDER BY m.match_date, m.kickoff_time, m.match_id))::integer - f.regular_meetings) AS post_no
-           FROM (public.matches m
-             JOIN fmt f ON (((f.league_id = m.league_id) AND (f.season_id = m.season_id))))
-          WHERE (m.full_time_home_goals IS NOT NULL)
-        ), sm_side AS (
-         SELECT sm.ls,
-            sm.match_id,
-            sm.match_date,
-            sm.kickoff_time,
-            sm.post_no,
-            sm.hk AS tk,
-            sm.ak AS ok,
-            sm.hg AS gf,
-            sm.ag AS ga
-           FROM sm
-        UNION ALL
-         SELECT sm.ls,
-            sm.match_id,
-            sm.match_date,
-            sm.kickoff_time,
-            sm.post_no,
-            sm.ak,
-            sm.hk,
-            sm.ag,
-            sm.hg
-           FROM sm
-        ), split_start AS (
-         SELECT sm.ls,
-            min(sm.match_date) AS first_post_date
-           FROM sm
-          WHERE (sm.post_no > 0)
-          GROUP BY sm.ls
-        ), pre_ded AS (
-         SELECT ((((d.league_id * 10000) + d.season_id) * 10000000) + d.team_id) AS tk,
-            (sum(d.points))::integer AS pts
-           FROM (public.point_deductions d
-             JOIN split_start ss ON ((ss.ls = ((d.league_id * 10000) + d.season_id))))
-          WHERE ((d.effective_date IS NULL) OR (d.effective_date < ss.first_post_date))
-          GROUP BY ((((d.league_id * 10000) + d.season_id) * 10000000) + d.team_id)
-        ), pre AS (
-         SELECT s.ls,
-            s.tk,
-            ((sum(
-                CASE
-                    WHEN (s.gf > s.ga) THEN 3
-                    WHEN (s.gf = s.ga) THEN 1
-                    ELSE 0
-                END))::integer + COALESCE(max(pd.pts), 0)) AS pre_total,
-            count(*) FILTER (WHERE (s.gf > s.ga)) AS pre_wins,
-            sum((s.gf - s.ga)) AS pre_gd,
-            sum(s.gf) AS pre_gf
-           FROM (sm_side s
-             LEFT JOIN pre_ded pd ON ((pd.tk = s.tk)))
-          WHERE ((s.post_no <= 0) AND (s.ls IN ( SELECT split_start.ls
-                   FROM split_start)))
-          GROUP BY s.ls, s.tk
-        ), prov AS (
-         SELECT r_1.ls,
-            r_1.tk,
-            r_1.pre_total,
-            r_1.rnk,
-            COALESCE(( SELECT min(i.i) AS min
-                   FROM generate_subscripts(f.group_sizes, 1) i(i)
-                  WHERE (r_1.rnk <= ( SELECT sum(x.x) AS sum
-                           FROM unnest(f.group_sizes[1:i.i]) x(x)))), cardinality(f.group_sizes)) AS pblock
-           FROM (( SELECT pre.ls,
-                    pre.tk,
-                    pre.pre_total,
-                    row_number() OVER (PARTITION BY pre.ls ORDER BY pre.pre_total DESC, pre.pre_wins DESC, pre.pre_gd DESC, pre.pre_gf DESC, pre.tk) AS rnk
-                   FROM pre) r_1
-             JOIN fmt f ON ((f.ls = r_1.ls)))
-        ), post_seq AS (
-         SELECT s.ls,
-            s.match_id,
-            s.tk,
-            s.ok,
-            row_number() OVER (PARTITION BY s.tk ORDER BY s.match_date, s.kickoff_time, s.match_id) AS gno
-           FROM sm_side s
-          WHERE (s.post_no > 0)
-        ), votes AS (
-         SELECT v.tk,
-            v.pblock,
-            row_number() OVER (PARTITION BY v.tk ORDER BY v.n DESC, (v.pblock = v.own_block) DESC, v.pblock) AS rn
-           FROM ( SELECT q.tk,
-                    o.pblock,
-                    me.pblock AS own_block,
-                    count(*) AS n
-                   FROM (((post_seq q
-                     JOIN prov me ON ((me.tk = q.tk)))
-                     JOIN prov o ON ((o.tk = q.ok)))
-                     JOIN fmt f ON ((f.ls = q.ls)))
-                  WHERE (q.gno <= f.group_games[me.pblock])
-                  GROUP BY q.tk, o.pblock, me.pblock) v
-        ), blocks AS (
-         SELECT p.ls,
-            p.tk,
-            p.pre_total,
-            p.rnk,
-            COALESCE(v.pblock, p.pblock) AS blk
-           FROM (prov p
-             LEFT JOIN votes v ON (((v.tk = p.tk) AND (v.rn = 1))))
-        ), knockout AS (
-         SELECT DISTINCT q.match_id
-           FROM (((post_seq q
-             JOIN blocks b ON ((b.tk = q.tk)))
-             JOIN blocks bo ON ((bo.tk = q.ok)))
-             JOIN fmt f ON ((f.ls = q.ls)))
-          WHERE ((b.blk <> bo.blk) OR (q.gno > f.group_games[b.blk]))
-        ), split_team AS (
-         SELECT b.tk,
-            (b.blk)::smallint AS split_group,
-            (b.blk = ANY (f.halved_groups)) AS halved,
-            f.halving_rounding,
-            b.pre_total,
-            f.tiebreak,
-            b.rnk AS pre_rank
-           FROM (blocks b
-             JOIN fmt f ON ((f.ls = b.ls)))
-        ), home AS (
-         SELECT m.league_id,
-            m.season_id,
-            m.home_team_id AS team_id,
-            count(*) AS n,
-            count(*) FILTER (WHERE (m.full_time_home_goals > m.full_time_away_goals)) AS w,
-            count(*) FILTER (WHERE (m.full_time_home_goals = m.full_time_away_goals)) AS d,
-            count(*) FILTER (WHERE (m.full_time_home_goals < m.full_time_away_goals)) AS l,
-            sum(m.full_time_home_goals) AS gf,
-            sum(m.full_time_away_goals) AS ga,
-            count(*) FILTER (WHERE (m.full_time_away_goals = 0)) AS cs,
-            count(*) FILTER (WHERE (m.full_time_home_goals = 0)) AS fts
-           FROM public.matches m
-          WHERE ((m.league_id IN ( SELECT domestic_leagues.league_id
-                   FROM domestic_leagues)) AND (m.full_time_home_goals IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
-                   FROM knockout
-                  WHERE (knockout.match_id = m.match_id)))))
-          GROUP BY m.league_id, m.season_id, m.home_team_id
-        ), away AS (
-         SELECT m.league_id,
-            m.season_id,
-            m.away_team_id AS team_id,
-            count(*) AS n,
-            count(*) FILTER (WHERE (m.full_time_away_goals > m.full_time_home_goals)) AS w,
-            count(*) FILTER (WHERE (m.full_time_away_goals = m.full_time_home_goals)) AS d,
-            count(*) FILTER (WHERE (m.full_time_away_goals < m.full_time_home_goals)) AS l,
-            sum(m.full_time_away_goals) AS gf,
-            sum(m.full_time_home_goals) AS ga,
-            count(*) FILTER (WHERE (m.full_time_home_goals = 0)) AS cs,
-            count(*) FILTER (WHERE (m.full_time_away_goals = 0)) AS fts
-           FROM public.matches m
-          WHERE ((m.league_id IN ( SELECT domestic_leagues.league_id
-                   FROM domestic_leagues)) AND (m.full_time_home_goals IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
-                   FROM knockout
-                  WHERE (knockout.match_id = m.match_id)))))
-          GROUP BY m.league_id, m.season_id, m.away_team_id
-        ), agg AS (
-         SELECT COALESCE(h.league_id, a.league_id) AS league_id,
-            COALESCE(h.season_id, a.season_id) AS season_id,
-            COALESCE(h.team_id, a.team_id) AS team_id,
-            ((COALESCE(h.n, (0)::bigint) + COALESCE(a.n, (0)::bigint)))::integer AS played,
-            ((COALESCE(h.w, (0)::bigint) + COALESCE(a.w, (0)::bigint)))::integer AS won,
-            ((COALESCE(h.d, (0)::bigint) + COALESCE(a.d, (0)::bigint)))::integer AS drawn,
-            ((COALESCE(h.l, (0)::bigint) + COALESCE(a.l, (0)::bigint)))::integer AS lost,
-            ((COALESCE(h.gf, (0)::bigint) + COALESCE(a.gf, (0)::bigint)))::integer AS goals_for,
-            ((COALESCE(h.ga, (0)::bigint) + COALESCE(a.ga, (0)::bigint)))::integer AS goals_against,
-            ((COALESCE(h.cs, (0)::bigint) + COALESCE(a.cs, (0)::bigint)))::integer AS clean_sheets,
-            ((COALESCE(h.fts, (0)::bigint) + COALESCE(a.fts, (0)::bigint)))::integer AS failed_to_score,
-            (((3 * (COALESCE(h.w, (0)::bigint) + COALESCE(a.w, (0)::bigint))) + (COALESCE(h.d, (0)::bigint) + COALESCE(a.d, (0)::bigint))))::integer AS points_won,
-            (COALESCE(h.n, (0)::bigint))::integer AS home_played,
-            (((3 * COALESCE(h.w, (0)::bigint)) + COALESCE(h.d, (0)::bigint)))::integer AS home_points,
-            (COALESCE(h.gf, (0)::bigint))::integer AS home_goals_for,
-            (COALESCE(h.ga, (0)::bigint))::integer AS home_goals_against,
-            (COALESCE(a.n, (0)::bigint))::integer AS away_played,
-            (((3 * COALESCE(a.w, (0)::bigint)) + COALESCE(a.d, (0)::bigint)))::integer AS away_points,
-            (COALESCE(a.gf, (0)::bigint))::integer AS away_goals_for,
-            (COALESCE(a.ga, (0)::bigint))::integer AS away_goals_against,
-            (COALESCE(h.w, (0)::bigint))::integer AS home_won,
-            (COALESCE(h.d, (0)::bigint))::integer AS home_drawn,
-            (COALESCE(h.l, (0)::bigint))::integer AS home_lost,
-            (COALESCE(h.cs, (0)::bigint))::integer AS home_clean_sheets,
-            (COALESCE(a.w, (0)::bigint))::integer AS away_won,
-            (COALESCE(a.d, (0)::bigint))::integer AS away_drawn,
-            (COALESCE(a.l, (0)::bigint))::integer AS away_lost,
-            (COALESCE(a.cs, (0)::bigint))::integer AS away_clean_sheets
-           FROM (home h
-             FULL JOIN away a ON (((a.league_id = h.league_id) AND (a.season_id = h.season_id) AND (a.team_id = h.team_id))))
-        ), shape AS (
-         SELECT a.league_id,
-            a.season_id,
-            (count(*))::integer AS teams,
-            ((sum(a.played))::integer / 2) AS matches,
-            (a.season_id = ( SELECT cur.season_id
-                   FROM cur)) AS is_current
-           FROM agg a
-          GROUP BY a.league_id, a.season_id
-        ), ded AS MATERIALIZED (
-         SELECT ((((point_deductions.league_id * 10000) + point_deductions.season_id) * 10000000) + point_deductions.team_id) AS tk,
-            (sum(point_deductions.points))::integer AS pts
-           FROM public.point_deductions
-          GROUP BY ((((point_deductions.league_id * 10000) + point_deductions.season_id) * 10000000) + point_deductions.team_id)
-        ), scored AS (
-         SELECT a.league_id,
-            a.season_id,
-            a.team_id,
-            a.played,
-            a.won,
-            a.drawn,
-            a.lost,
-            a.goals_for,
-            a.goals_against,
-            a.clean_sheets,
-            a.failed_to_score,
-            a.points_won,
-            a.home_played,
-            a.home_points,
-            a.home_goals_for,
-            a.home_goals_against,
-            a.away_played,
-            a.away_points,
-            a.away_goals_for,
-            a.away_goals_against,
-            a.home_won,
-            a.home_drawn,
-            a.home_lost,
-            a.home_clean_sheets,
-            a.away_won,
-            a.away_drawn,
-            a.away_lost,
-            a.away_clean_sheets,
-            s.teams,
-            s.is_current,
-            COALESCE(d.pts, 0) AS deduction,
-            ((a.points_won + COALESCE(d.pts, 0)) + adj.split_adjustment) AS points,
-            (((a.points_won + COALESCE(d.pts, 0)))::numeric - adj.exact_cut) AS rank_points,
-            COALESCE(lf.curtailed_on_ppg, ((NOT s.is_current) AND (s.matches < (s.teams * (s.teams - 1))))) AS curtailed,
-            ((lg.code = ANY (ARRAY['E1'::text, 'E2'::text, 'E3'::text])) AND (se_1.start_year <= 1998)) AS goals_scored_first,
-            st.split_group,
-            adj.split_adjustment,
-            st.tiebreak,
-            st.pre_rank,
-            st.pre_total,
-            ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id) AS tk
-           FROM (((((((agg a
-             JOIN shape s USING (league_id, season_id))
-             LEFT JOIN ded d ON ((d.tk = ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id))))
-             JOIN public.leagues lg ON ((lg.league_id = a.league_id)))
-             JOIN public.seasons se_1 ON ((se_1.season_id = a.season_id)))
-             LEFT JOIN public.league_season_formats lf ON (((lf.league_id = a.league_id) AND (lf.season_id = a.season_id))))
-             LEFT JOIN split_team st ON ((st.tk = ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id))))
-             CROSS JOIN LATERAL ( SELECT
-                        CASE
-                            WHEN COALESCE(st.halved, false) THEN ((
-                            CASE
-                                WHEN (st.halving_rounding = 'up'::text) THEN ceil(((st.pre_total)::numeric / 2.0))
-                                ELSE floor(((st.pre_total)::numeric / 2.0))
-                            END - (st.pre_total)::numeric))::integer
-                            ELSE 0
-                        END AS split_adjustment,
-                        CASE
-                            WHEN COALESCE(st.halved, false) THEN ((st.pre_total)::numeric / 2.0)
-                            ELSE (0)::numeric
-                        END AS exact_cut) adj)
-        ), tied AS MATERIALIZED (
-         SELECT x.tk,
-            x.tiebreak,
-            x.tie_key
-           FROM ( SELECT sc.tk,
-                    sc.tiebreak,
-                    k.tie_key,
-                    count(*) OVER (PARTITION BY k.tie_key) AS n
-                   FROM (scored sc
-                     CROSS JOIN LATERAL ( SELECT ((((((((sc.league_id * 10000) + sc.season_id))::text || '/'::text) || (sc.split_group)::text) || '/'::text) || (sc.rank_points)::text) ||
-                                CASE
-                                    WHEN (sc.tiebreak = 'regular_points'::text) THEN ('/'::text || (sc.pre_total)::text)
-                                    ELSE ''::text
-                                END) AS tie_key) k)
-                  WHERE (sc.tiebreak = ANY (ARRAY['head_to_head'::text, 'regular_points'::text]))) x
-          WHERE (x.n > 1)
-        ), tied_games AS MATERIALIZED (
-         SELECT s.match_id,
-            s.tk,
-            s.ok,
-            s.post_no,
-            s.gf,
-            s.ga
-           FROM sm_side s
-          WHERE ((s.tk IN ( SELECT tied.tk
-                   FROM tied)) AND (s.ok IN ( SELECT tied.tk
-                   FROM tied)))
-        ), h2h AS MATERIALIZED (
-         SELECT a.tk,
-            sum(
-                CASE
-                    WHEN (g.gf > g.ga) THEN 3
-                    WHEN (g.gf = g.ga) THEN 1
-                    ELSE 0
-                END) AS pts,
-            sum((g.gf - g.ga)) AS gd,
-            sum(g.gf) AS gf
-           FROM ((tied_games g
-             JOIN tied a ON ((a.tk = g.tk)))
-             JOIN tied b ON (((b.tk = g.ok) AND (b.tie_key = a.tie_key))))
-          WHERE (((a.tiebreak = 'head_to_head'::text) OR (g.post_no <= 0)) AND (NOT (EXISTS ( SELECT 1
-                   FROM knockout k
-                  WHERE (k.match_id = g.match_id)))))
-          GROUP BY a.tk
-        ), ranked AS (
-         SELECT sc.league_id,
-            sc.season_id,
-            sc.team_id,
-            sc.played,
-            sc.won,
-            sc.drawn,
-            sc.lost,
-            sc.goals_for,
-            sc.goals_against,
-            sc.clean_sheets,
-            sc.failed_to_score,
-            sc.points_won,
-            sc.home_played,
-            sc.home_points,
-            sc.home_goals_for,
-            sc.home_goals_against,
-            sc.away_played,
-            sc.away_points,
-            sc.away_goals_for,
-            sc.away_goals_against,
-            sc.home_won,
-            sc.home_drawn,
-            sc.home_lost,
-            sc.home_clean_sheets,
-            sc.away_won,
-            sc.away_drawn,
-            sc.away_lost,
-            sc.away_clean_sheets,
-            sc.teams,
-            sc.is_current,
-            sc.deduction,
-            sc.points,
-            sc.curtailed,
-            sc.split_group,
-            sc.split_adjustment,
-            (row_number() OVER (PARTITION BY sc.league_id, sc.season_id ORDER BY COALESCE((sc.split_group)::integer, 0),
-                CASE
-                    WHEN sc.curtailed THEN ((sc.points)::numeric / (NULLIF(sc.played, 0))::numeric)
-                    ELSE sc.rank_points
-                END DESC,
-                CASE sc.tiebreak
-                    WHEN 'regular_position'::text THEN (- sc.pre_rank)
-                    WHEN 'regular_points'::text THEN (sc.pre_total)::bigint
-                    ELSE COALESCE(h.pts, (0)::bigint)
-                END DESC,
-                CASE sc.tiebreak
-                    WHEN 'regular_points'::text THEN COALESCE(h.pts, (0)::bigint)
-                    ELSE COALESCE(h.gd, (0)::bigint)
-                END DESC,
-                CASE sc.tiebreak
-                    WHEN 'regular_points'::text THEN COALESCE(h.gd, (0)::bigint)
-                    ELSE COALESCE(h.gf, (0)::bigint)
-                END DESC,
-                CASE sc.tiebreak
-                    WHEN 'regular_points'::text THEN COALESCE(h.gf, (0)::bigint)
-                    ELSE (0)::bigint
-                END DESC,
-                CASE
-                    WHEN sc.goals_scored_first THEN sc.goals_for
-                    ELSE (sc.goals_for - sc.goals_against)
-                END DESC,
-                CASE
-                    WHEN sc.goals_scored_first THEN (sc.goals_for - sc.goals_against)
-                    ELSE sc.goals_for
-                END DESC, t.canonical_name))::integer AS "position"
-           FROM ((scored sc
-             JOIN public.teams t USING (team_id))
-             LEFT JOIN h2h h ON ((h.tk = sc.tk)))
-        )
- SELECT r.league_id,
-    l.code AS league_code,
-    public.league_name_for_season(r.league_id, r.season_id) AS league_name,
-    (r.league_id)::integer AS tier,
-    r.season_id,
-    se.label AS season_label,
-    r.team_id,
-    r."position",
-    (r."position" + (COALESCE(( SELECT sum(s2.teams) AS sum
-           FROM (shape s2
-             JOIN public.leagues l2 ON ((l2.league_id = s2.league_id)))
-          WHERE ((s2.season_id = r.season_id) AND (s2.league_id < r.league_id) AND (l2.country_id = l.country_id))), (0)::bigint))::integer) AS pyramid_position,
-    r.teams,
-    (NOT r.is_current) AS is_final,
-    r.curtailed,
-        CASE
-            WHEN r.curtailed THEN 'points per game'::text
-            ELSE 'points'::text
-        END AS ranked_on,
-    r.played,
-    r.won,
-    r.drawn,
-    r.lost,
-    r.goals_for,
-    r.goals_against,
-    r.clean_sheets,
-    r.failed_to_score,
-    r.points_won,
-    r.deduction,
-    r.points,
-    round(((r.points)::numeric / (NULLIF(r.played, 0))::numeric), 2) AS ppg,
-    r.home_played,
-    r.home_points,
-    r.home_goals_for,
-    r.home_goals_against,
-    r.away_played,
-    r.away_points,
-    r.away_goals_for,
-    r.away_goals_against,
-    r.home_won,
-    r.home_drawn,
-    r.home_lost,
-    r.home_clean_sheets,
-    r.away_won,
-    r.away_drawn,
-    r.away_lost,
-    r.away_clean_sheets,
-    se.start_year AS season_start_year,
-    r.split_group,
-    r.split_adjustment
-   FROM ((ranked r
-     JOIN public.leagues l USING (league_id))
-     JOIN public.seasons se USING (season_id));
+ SELECT league_id,
+    league_code,
+    league_name,
+    tier,
+    season_id,
+    season_label,
+    team_id,
+    "position",
+    pyramid_position,
+    teams,
+    is_final,
+    curtailed,
+    ranked_on,
+    played,
+    won,
+    drawn,
+    lost,
+    goals_for,
+    goals_against,
+    clean_sheets,
+    failed_to_score,
+    points_won,
+    deduction,
+    points,
+    ppg,
+    home_played,
+    home_points,
+    home_goals_for,
+    home_goals_against,
+    away_played,
+    away_points,
+    away_goals_for,
+    away_goals_against,
+    home_won,
+    home_drawn,
+    home_lost,
+    home_clean_sheets,
+    away_won,
+    away_drawn,
+    away_lost,
+    away_clean_sheets,
+    season_start_year,
+    split_group,
+    split_adjustment
+   FROM public.league_standings_cache;
 
 
 ALTER VIEW public.league_standings OWNER TO postgres;
@@ -18257,6 +18359,322 @@ CREATE VIEW public.intlw_upsets WITH (security_invoker='true') AS
 ALTER VIEW public.intlw_upsets OWNER TO postgres;
 
 --
+-- Name: job_registry; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.job_registry (
+    job_key text NOT NULL,
+    area text NOT NULL,
+    location text NOT NULL,
+    schedule text,
+    expected_interval interval,
+    max_duration interval DEFAULT '01:00:00'::interval NOT NULL,
+    run_log text NOT NULL,
+    run_key text,
+    upstream text,
+    output_check text,
+    active boolean DEFAULT true NOT NULL,
+    outcome_is_check boolean DEFAULT false NOT NULL,
+    registered_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    CONSTRAINT job_registry_location_check CHECK ((location = ANY (ARRAY['supabase_cron'::text, 'github_actions'::text, 'edge_function'::text, 'netlify'::text, 'local_pc'::text]))),
+    CONSTRAINT job_registry_run_log_check CHECK ((run_log = ANY (ARRAY['pipeline_runs'::text, 'pg_cron'::text, 'fixture_refresh_runs'::text, 'broadcast_sync_runs'::text, 'fpl_ingestion_runs'::text, 'result_ingestion_runs'::text, 'match_import_runs'::text, 'fpl_live_runs'::text, 'finance_ingestion_runs'::text, 'none'::text])))
+);
+
+
+ALTER TABLE public.job_registry OWNER TO postgres;
+
+--
+-- Name: match_import_runs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.match_import_runs (
+    import_run_id bigint NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone,
+    league_code text NOT NULL,
+    rows_seen integer,
+    rows_upserted integer,
+    status text NOT NULL,
+    error_message text,
+    CONSTRAINT match_import_runs_status_check CHECK ((status = ANY (ARRAY['success'::text, 'failed'::text])))
+);
+
+
+ALTER TABLE public.match_import_runs OWNER TO postgres;
+
+--
+-- Name: pipeline_runs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.pipeline_runs (
+    run_id bigint NOT NULL,
+    job_name text NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    status text DEFAULT 'running'::text NOT NULL,
+    summary text,
+    error_message text,
+    rows_read bigint,
+    rows_inserted bigint,
+    rows_changed bigint,
+    rows_unchanged bigint,
+    CONSTRAINT pipeline_runs_status_check CHECK ((status = ANY (ARRAY['running'::text, 'success'::text, 'warning'::text, 'failed'::text])))
+);
+
+
+ALTER TABLE public.pipeline_runs OWNER TO postgres;
+
+--
+-- Name: job_runs_unified; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.job_runs_unified AS
+ SELECT 'pipeline_runs'::text AS run_log,
+    pipeline_runs.job_name AS run_key,
+    (pipeline_runs.run_id)::text AS run_id,
+    pipeline_runs.started_at,
+    pipeline_runs.finished_at,
+    pipeline_runs.status,
+    pipeline_runs.rows_changed,
+    pipeline_runs.error_message AS error
+   FROM public.pipeline_runs
+  WHERE (pipeline_runs.started_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'pg_cron'::text AS run_log,
+    j.jobname AS run_key,
+    (d.runid)::text AS run_id,
+    d.start_time AS started_at,
+    d.end_time AS finished_at,
+        CASE d.status
+            WHEN 'succeeded'::text THEN 'success'::text
+            WHEN 'failed'::text THEN 'failed'::text
+            WHEN 'running'::text THEN 'running'::text
+            ELSE d.status
+        END AS status,
+    NULL::bigint AS rows_changed,
+        CASE
+            WHEN (d.status = 'failed'::text) THEN d.return_message
+            ELSE NULL::text
+        END AS error
+   FROM (cron.job_run_details d
+     JOIN cron.job j ON ((j.jobid = d.jobid)))
+  WHERE (d.start_time > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'fixture_refresh_runs'::text AS run_log,
+    'fixture_refresh'::text AS run_key,
+    (fixture_refresh_runs.refresh_run_id)::text AS run_id,
+    fixture_refresh_runs.started_at,
+    fixture_refresh_runs.finished_at,
+    fixture_refresh_runs.status,
+    NULL::bigint AS rows_changed,
+    fixture_refresh_runs.error_message AS error
+   FROM public.fixture_refresh_runs
+  WHERE (fixture_refresh_runs.started_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'broadcast_sync_runs'::text AS run_log,
+    'airtable_broadcasts'::text AS run_key,
+    (broadcast_sync_runs.run_id)::text AS run_id,
+    broadcast_sync_runs.ran_at AS started_at,
+    broadcast_sync_runs.ran_at AS finished_at,
+    'success'::text AS status,
+    ((COALESCE(broadcast_sync_runs.inserted, 0) + COALESCE(broadcast_sync_runs.updated, 0)))::bigint AS rows_changed,
+    NULL::text AS error
+   FROM public.broadcast_sync_runs
+  WHERE (broadcast_sync_runs.ran_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'fpl_ingestion_runs'::text AS run_log,
+    'refresh_fpl'::text AS run_key,
+    (fpl_ingestion_runs.run_id)::text AS run_id,
+    fpl_ingestion_runs.started_at,
+    fpl_ingestion_runs.completed_at AS finished_at,
+    fpl_ingestion_runs.status,
+    NULL::bigint AS rows_changed,
+    fpl_ingestion_runs.error_message AS error
+   FROM public.fpl_ingestion_runs
+  WHERE (fpl_ingestion_runs.started_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'result_ingestion_runs'::text AS run_log,
+    result_ingestion_runs.source_name AS run_key,
+    (result_ingestion_runs.ingestion_run_id)::text AS run_id,
+    result_ingestion_runs.started_at,
+    result_ingestion_runs.finished_at,
+    result_ingestion_runs.status,
+    (
+        CASE
+            WHEN ((result_ingestion_runs.matches_inserted IS NULL) AND (result_ingestion_runs.matches_changed IS NULL)) THEN NULL::integer
+            ELSE (COALESCE(result_ingestion_runs.matches_inserted, 0) + COALESCE(result_ingestion_runs.matches_changed, 0))
+        END)::bigint AS rows_changed,
+    result_ingestion_runs.error_message AS error
+   FROM public.result_ingestion_runs
+  WHERE (result_ingestion_runs.started_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'match_import_runs'::text AS run_log,
+    match_import_runs.league_code AS run_key,
+    (match_import_runs.import_run_id)::text AS run_id,
+    match_import_runs.started_at,
+    match_import_runs.finished_at,
+    match_import_runs.status,
+    NULL::bigint AS rows_changed,
+    match_import_runs.error_message AS error
+   FROM public.match_import_runs
+  WHERE (match_import_runs.started_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'fpl_live_runs'::text AS run_log,
+    'fpl_live'::text AS run_key,
+    (fpl_live_runs.run_id)::text AS run_id,
+    fpl_live_runs.run_at AS started_at,
+    fpl_live_runs.run_at AS finished_at,
+    fpl_live_runs.status,
+    (fpl_live_runs.elements_changed)::bigint AS rows_changed,
+    fpl_live_runs.error
+   FROM public.fpl_live_runs
+  WHERE (fpl_live_runs.run_at > (now() - '30 days'::interval))
+UNION ALL
+ SELECT 'finance_ingestion_runs'::text AS run_log,
+    finance_ingestion_runs.source AS run_key,
+    (finance_ingestion_runs.ingestion_run_id)::text AS run_id,
+    finance_ingestion_runs.started_at,
+    finance_ingestion_runs.completed_at AS finished_at,
+    finance_ingestion_runs.status,
+    (finance_ingestion_runs.facts_extracted)::bigint AS rows_changed,
+    NULL::text AS error
+   FROM public.finance_ingestion_runs
+  WHERE (finance_ingestion_runs.started_at > (now() - '30 days'::interval));
+
+
+ALTER VIEW public.job_runs_unified OWNER TO postgres;
+
+--
+-- Name: job_health; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.job_health AS
+ WITH runs AS (
+         SELECT r_1.job_key,
+            u.run_log,
+            u.run_key,
+            u.run_id,
+            u.started_at,
+            u.finished_at,
+                CASE
+                    WHEN (r_1.outcome_is_check AND (u.status = ANY (ARRAY['failed'::text, 'warning'::text])) AND (u.finished_at IS NOT NULL)) THEN 'success'::text
+                    ELSE u.status
+                END AS status,
+            u.rows_changed,
+                CASE
+                    WHEN r_1.outcome_is_check THEN NULL::text
+                    ELSE u.error
+                END AS error,
+            row_number() OVER (PARTITION BY r_1.job_key ORDER BY u.started_at DESC) AS rn
+           FROM (public.job_registry r_1
+             JOIN public.job_runs_unified u ON (((u.run_log = r_1.run_log) AND (u.run_key ~ r_1.run_key))))
+          WHERE (r_1.active AND (r_1.run_log <> 'none'::text))
+        ), agg AS (
+         SELECT runs.job_key,
+            max(runs.started_at) AS last_attempt,
+            max(COALESCE(runs.finished_at, runs.started_at)) FILTER (WHERE (runs.status = ANY (ARRAY['success'::text, 'warning'::text]))) AS last_success,
+            count(*) FILTER (WHERE ((runs.status = 'failed'::text) AND (runs.started_at > (now() - '7 days'::interval)))) AS failures_7d,
+            count(*) FILTER (WHERE (runs.started_at > (now() - '7 days'::interval))) AS runs_7d
+           FROM runs
+          GROUP BY runs.job_key
+        ), last_run AS (
+         SELECT runs.job_key,
+            runs.run_log,
+            runs.run_key,
+            runs.run_id,
+            runs.started_at,
+            runs.finished_at,
+            runs.status,
+            runs.rows_changed,
+            runs.error,
+            runs.rn
+           FROM runs
+          WHERE (runs.rn = 1)
+        ), stuck AS (
+         SELECT r_1.job_key,
+            count(*) AS stuck_runs
+           FROM (runs ru
+             JOIN public.job_registry r_1 ON ((r_1.job_key = ru.job_key)))
+          WHERE ((ru.status = 'running'::text) AND (ru.started_at < (now() - r_1.max_duration)))
+          GROUP BY r_1.job_key
+        )
+ SELECT r.job_key,
+    r.area,
+    r.location,
+    r.schedule,
+    r.expected_interval,
+    r.max_duration,
+    r.run_log,
+    r.upstream,
+    r.output_check,
+    a.last_attempt,
+    a.last_success,
+    l.status AS last_status,
+    (l.finished_at - l.started_at) AS last_duration,
+    l.rows_changed AS last_rows_changed,
+    "left"(l.error, 500) AS last_error,
+    COALESCE(a.failures_7d, (0)::bigint) AS failures_7d,
+    COALESCE(a.runs_7d, (0)::bigint) AS runs_7d,
+    COALESCE(s.stuck_runs, (0)::bigint) AS stuck_runs,
+        CASE
+            WHEN (r.run_log = 'none'::text) THEN 'not_logged'::text
+            WHEN (a.last_attempt IS NULL) THEN
+            CASE
+                WHEN (r.expected_interval IS NULL) THEN 'not_scheduled'::text
+                WHEN (r.registered_at > ((now() - r.expected_interval) - r.max_duration)) THEN 'awaiting_first_run'::text
+                ELSE 'never_run'::text
+            END
+            WHEN (COALESCE(s.stuck_runs, (0)::bigint) > 0) THEN 'stuck'::text
+            WHEN (l.status = 'running'::text) THEN 'running'::text
+            WHEN ((r.expected_interval IS NOT NULL) AND (COALESCE(a.last_success, '-infinity'::timestamp with time zone) < (((now() - r.expected_interval) - r.max_duration) - '01:00:00'::interval))) THEN 'stale'::text
+            WHEN ((l.status = 'failed'::text) AND (l.error ~* '(statement timeout|57014|timed out|timeout)'::text)) THEN 'timed_out'::text
+            WHEN (l.status = 'failed'::text) THEN 'failed'::text
+            WHEN (l.status = 'warning'::text) THEN 'warning'::text
+            WHEN (l.rows_changed > 0) THEN 'success_changed'::text
+            WHEN (l.rows_changed = 0) THEN 'success_no_change'::text
+            ELSE 'success'::text
+        END AS health_status,
+    r.notes
+   FROM (((public.job_registry r
+     LEFT JOIN agg a ON ((a.job_key = r.job_key)))
+     LEFT JOIN last_run l ON ((l.job_key = r.job_key)))
+     LEFT JOIN stuck s ON ((s.job_key = r.job_key)))
+  WHERE r.active;
+
+
+ALTER VIEW public.job_health OWNER TO postgres;
+
+--
+-- Name: job_registry_gaps; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.job_registry_gaps AS
+ SELECT 'pg_cron job not registered'::text AS gap,
+    j.jobname AS name
+   FROM cron.job j
+  WHERE (j.active AND (NOT (EXISTS ( SELECT 1
+           FROM public.job_registry r
+          WHERE (r.job_key = j.jobname)))))
+UNION ALL
+ SELECT 'pipeline_runs job not registered'::text AS gap,
+    p.job_name AS name
+   FROM ( SELECT DISTINCT pipeline_runs.job_name
+           FROM public.pipeline_runs
+          WHERE (pipeline_runs.started_at > (now() - '30 days'::interval))) p
+  WHERE (NOT (EXISTS ( SELECT 1
+           FROM public.job_registry r
+          WHERE ((r.run_log = 'pipeline_runs'::text) AND (p.job_name ~ r.run_key)))))
+UNION ALL
+ SELECT 'registered job with no run in 30 days'::text AS gap,
+    h.job_key AS name
+   FROM public.job_health h
+  WHERE (h.health_status = 'never_run'::text);
+
+
+ALTER VIEW public.job_registry_gaps OWNER TO postgres;
+
+--
 -- Name: lab_experiments; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -18637,6 +19055,513 @@ CREATE TABLE public.league_season_names (
 ALTER TABLE public.league_season_names OWNER TO postgres;
 
 --
+-- Name: league_standings_cache_state; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.league_standings_cache_state (
+    id integer DEFAULT 1 NOT NULL,
+    fingerprint text,
+    refreshed_at timestamp with time zone,
+    rows_cached integer,
+    duration_ms integer,
+    CONSTRAINT league_standings_cache_state_id_check CHECK ((id = 1))
+);
+
+
+ALTER TABLE public.league_standings_cache_state OWNER TO postgres;
+
+--
+-- Name: point_deductions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.point_deductions (
+    deduction_id bigint NOT NULL,
+    league_id bigint NOT NULL,
+    season_id bigint NOT NULL,
+    team_id bigint NOT NULL,
+    points integer NOT NULL,
+    reason text,
+    effective_date date,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT point_deductions_points_check CHECK ((points <> 0))
+);
+
+
+ALTER TABLE public.point_deductions OWNER TO postgres;
+
+--
+-- Name: league_standings_live; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.league_standings_live AS
+ WITH domestic_leagues AS (
+         SELECT leagues.league_id,
+            leagues.country_id
+           FROM public.leagues
+          WHERE (leagues.competition_type = 'league'::text)
+        ), cur AS (
+         SELECT se_cur.season_id
+           FROM public.seasons se_cur
+          WHERE (se_cur.start_year = ( SELECT max(se_m.start_year) AS max
+                   FROM public.seasons se_m
+                  WHERE (se_m.season_id IN ( SELECT matches.season_id
+                           FROM public.matches
+                          WHERE (matches.league_id IN ( SELECT domestic_leagues.league_id
+                                   FROM domestic_leagues))))))
+        ), fmt AS (
+         SELECT f.league_id,
+            f.season_id,
+            ((f.league_id * 10000) + f.season_id) AS ls,
+            f.regular_meetings,
+            f.halved_groups,
+            f.halving_rounding,
+            f.group_sizes,
+            f.group_games,
+            f.tiebreak
+           FROM public.league_season_formats f
+          WHERE (f.format = 'split'::text)
+        ), sm AS (
+         SELECT m.match_id,
+            f.ls,
+            m.match_date,
+            m.kickoff_time,
+            ((f.ls * 10000000) + m.home_team_id) AS hk,
+            ((f.ls * 10000000) + m.away_team_id) AS ak,
+            m.full_time_home_goals AS hg,
+            m.full_time_away_goals AS ag,
+            ((row_number() OVER (PARTITION BY f.ls, LEAST(m.home_team_id, m.away_team_id), GREATEST(m.home_team_id, m.away_team_id) ORDER BY m.match_date, m.kickoff_time, m.match_id))::integer - f.regular_meetings) AS post_no
+           FROM (public.matches m
+             JOIN fmt f ON (((f.league_id = m.league_id) AND (f.season_id = m.season_id))))
+          WHERE (m.full_time_home_goals IS NOT NULL)
+        ), sm_side AS (
+         SELECT sm.ls,
+            sm.match_id,
+            sm.match_date,
+            sm.kickoff_time,
+            sm.post_no,
+            sm.hk AS tk,
+            sm.ak AS ok,
+            sm.hg AS gf,
+            sm.ag AS ga
+           FROM sm
+        UNION ALL
+         SELECT sm.ls,
+            sm.match_id,
+            sm.match_date,
+            sm.kickoff_time,
+            sm.post_no,
+            sm.ak,
+            sm.hk,
+            sm.ag,
+            sm.hg
+           FROM sm
+        ), split_start AS (
+         SELECT sm.ls,
+            min(sm.match_date) AS first_post_date
+           FROM sm
+          WHERE (sm.post_no > 0)
+          GROUP BY sm.ls
+        ), pre_ded AS (
+         SELECT ((((d.league_id * 10000) + d.season_id) * 10000000) + d.team_id) AS tk,
+            (sum(d.points))::integer AS pts
+           FROM (public.point_deductions d
+             JOIN split_start ss ON ((ss.ls = ((d.league_id * 10000) + d.season_id))))
+          WHERE ((d.effective_date IS NULL) OR (d.effective_date < ss.first_post_date))
+          GROUP BY ((((d.league_id * 10000) + d.season_id) * 10000000) + d.team_id)
+        ), pre AS (
+         SELECT s.ls,
+            s.tk,
+            ((sum(
+                CASE
+                    WHEN (s.gf > s.ga) THEN 3
+                    WHEN (s.gf = s.ga) THEN 1
+                    ELSE 0
+                END))::integer + COALESCE(max(pd.pts), 0)) AS pre_total,
+            count(*) FILTER (WHERE (s.gf > s.ga)) AS pre_wins,
+            sum((s.gf - s.ga)) AS pre_gd,
+            sum(s.gf) AS pre_gf
+           FROM (sm_side s
+             LEFT JOIN pre_ded pd ON ((pd.tk = s.tk)))
+          WHERE ((s.post_no <= 0) AND (s.ls IN ( SELECT split_start.ls
+                   FROM split_start)))
+          GROUP BY s.ls, s.tk
+        ), prov AS (
+         SELECT r_1.ls,
+            r_1.tk,
+            r_1.pre_total,
+            r_1.rnk,
+            COALESCE(( SELECT min(i.i) AS min
+                   FROM generate_subscripts(f.group_sizes, 1) i(i)
+                  WHERE (r_1.rnk <= ( SELECT sum(x.x) AS sum
+                           FROM unnest(f.group_sizes[1:i.i]) x(x)))), cardinality(f.group_sizes)) AS pblock
+           FROM (( SELECT pre.ls,
+                    pre.tk,
+                    pre.pre_total,
+                    row_number() OVER (PARTITION BY pre.ls ORDER BY pre.pre_total DESC, pre.pre_wins DESC, pre.pre_gd DESC, pre.pre_gf DESC, pre.tk) AS rnk
+                   FROM pre) r_1
+             JOIN fmt f ON ((f.ls = r_1.ls)))
+        ), post_seq AS (
+         SELECT s.ls,
+            s.match_id,
+            s.tk,
+            s.ok,
+            row_number() OVER (PARTITION BY s.tk ORDER BY s.match_date, s.kickoff_time, s.match_id) AS gno
+           FROM sm_side s
+          WHERE (s.post_no > 0)
+        ), votes AS (
+         SELECT v.tk,
+            v.pblock,
+            row_number() OVER (PARTITION BY v.tk ORDER BY v.n DESC, (v.pblock = v.own_block) DESC, v.pblock) AS rn
+           FROM ( SELECT q.tk,
+                    o.pblock,
+                    me.pblock AS own_block,
+                    count(*) AS n
+                   FROM (((post_seq q
+                     JOIN prov me ON ((me.tk = q.tk)))
+                     JOIN prov o ON ((o.tk = q.ok)))
+                     JOIN fmt f ON ((f.ls = q.ls)))
+                  WHERE (q.gno <= f.group_games[me.pblock])
+                  GROUP BY q.tk, o.pblock, me.pblock) v
+        ), blocks AS (
+         SELECT p.ls,
+            p.tk,
+            p.pre_total,
+            p.rnk,
+            COALESCE(v.pblock, p.pblock) AS blk
+           FROM (prov p
+             LEFT JOIN votes v ON (((v.tk = p.tk) AND (v.rn = 1))))
+        ), knockout AS (
+         SELECT DISTINCT q.match_id
+           FROM (((post_seq q
+             JOIN blocks b ON ((b.tk = q.tk)))
+             JOIN blocks bo ON ((bo.tk = q.ok)))
+             JOIN fmt f ON ((f.ls = q.ls)))
+          WHERE ((b.blk <> bo.blk) OR (q.gno > f.group_games[b.blk]))
+        ), split_team AS (
+         SELECT b.tk,
+            (b.blk)::smallint AS split_group,
+            (b.blk = ANY (f.halved_groups)) AS halved,
+            f.halving_rounding,
+            b.pre_total,
+            f.tiebreak,
+            b.rnk AS pre_rank
+           FROM (blocks b
+             JOIN fmt f ON ((f.ls = b.ls)))
+        ), home AS (
+         SELECT m.league_id,
+            m.season_id,
+            m.home_team_id AS team_id,
+            count(*) AS n,
+            count(*) FILTER (WHERE (m.full_time_home_goals > m.full_time_away_goals)) AS w,
+            count(*) FILTER (WHERE (m.full_time_home_goals = m.full_time_away_goals)) AS d,
+            count(*) FILTER (WHERE (m.full_time_home_goals < m.full_time_away_goals)) AS l,
+            sum(m.full_time_home_goals) AS gf,
+            sum(m.full_time_away_goals) AS ga,
+            count(*) FILTER (WHERE (m.full_time_away_goals = 0)) AS cs,
+            count(*) FILTER (WHERE (m.full_time_home_goals = 0)) AS fts
+           FROM public.matches m
+          WHERE ((m.league_id IN ( SELECT domestic_leagues.league_id
+                   FROM domestic_leagues)) AND (m.full_time_home_goals IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM knockout
+                  WHERE (knockout.match_id = m.match_id)))))
+          GROUP BY m.league_id, m.season_id, m.home_team_id
+        ), away AS (
+         SELECT m.league_id,
+            m.season_id,
+            m.away_team_id AS team_id,
+            count(*) AS n,
+            count(*) FILTER (WHERE (m.full_time_away_goals > m.full_time_home_goals)) AS w,
+            count(*) FILTER (WHERE (m.full_time_away_goals = m.full_time_home_goals)) AS d,
+            count(*) FILTER (WHERE (m.full_time_away_goals < m.full_time_home_goals)) AS l,
+            sum(m.full_time_away_goals) AS gf,
+            sum(m.full_time_home_goals) AS ga,
+            count(*) FILTER (WHERE (m.full_time_home_goals = 0)) AS cs,
+            count(*) FILTER (WHERE (m.full_time_away_goals = 0)) AS fts
+           FROM public.matches m
+          WHERE ((m.league_id IN ( SELECT domestic_leagues.league_id
+                   FROM domestic_leagues)) AND (m.full_time_home_goals IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM knockout
+                  WHERE (knockout.match_id = m.match_id)))))
+          GROUP BY m.league_id, m.season_id, m.away_team_id
+        ), agg AS (
+         SELECT COALESCE(h.league_id, a.league_id) AS league_id,
+            COALESCE(h.season_id, a.season_id) AS season_id,
+            COALESCE(h.team_id, a.team_id) AS team_id,
+            ((COALESCE(h.n, (0)::bigint) + COALESCE(a.n, (0)::bigint)))::integer AS played,
+            ((COALESCE(h.w, (0)::bigint) + COALESCE(a.w, (0)::bigint)))::integer AS won,
+            ((COALESCE(h.d, (0)::bigint) + COALESCE(a.d, (0)::bigint)))::integer AS drawn,
+            ((COALESCE(h.l, (0)::bigint) + COALESCE(a.l, (0)::bigint)))::integer AS lost,
+            ((COALESCE(h.gf, (0)::bigint) + COALESCE(a.gf, (0)::bigint)))::integer AS goals_for,
+            ((COALESCE(h.ga, (0)::bigint) + COALESCE(a.ga, (0)::bigint)))::integer AS goals_against,
+            ((COALESCE(h.cs, (0)::bigint) + COALESCE(a.cs, (0)::bigint)))::integer AS clean_sheets,
+            ((COALESCE(h.fts, (0)::bigint) + COALESCE(a.fts, (0)::bigint)))::integer AS failed_to_score,
+            (((3 * (COALESCE(h.w, (0)::bigint) + COALESCE(a.w, (0)::bigint))) + (COALESCE(h.d, (0)::bigint) + COALESCE(a.d, (0)::bigint))))::integer AS points_won,
+            (COALESCE(h.n, (0)::bigint))::integer AS home_played,
+            (((3 * COALESCE(h.w, (0)::bigint)) + COALESCE(h.d, (0)::bigint)))::integer AS home_points,
+            (COALESCE(h.gf, (0)::bigint))::integer AS home_goals_for,
+            (COALESCE(h.ga, (0)::bigint))::integer AS home_goals_against,
+            (COALESCE(a.n, (0)::bigint))::integer AS away_played,
+            (((3 * COALESCE(a.w, (0)::bigint)) + COALESCE(a.d, (0)::bigint)))::integer AS away_points,
+            (COALESCE(a.gf, (0)::bigint))::integer AS away_goals_for,
+            (COALESCE(a.ga, (0)::bigint))::integer AS away_goals_against,
+            (COALESCE(h.w, (0)::bigint))::integer AS home_won,
+            (COALESCE(h.d, (0)::bigint))::integer AS home_drawn,
+            (COALESCE(h.l, (0)::bigint))::integer AS home_lost,
+            (COALESCE(h.cs, (0)::bigint))::integer AS home_clean_sheets,
+            (COALESCE(a.w, (0)::bigint))::integer AS away_won,
+            (COALESCE(a.d, (0)::bigint))::integer AS away_drawn,
+            (COALESCE(a.l, (0)::bigint))::integer AS away_lost,
+            (COALESCE(a.cs, (0)::bigint))::integer AS away_clean_sheets
+           FROM (home h
+             FULL JOIN away a ON (((a.league_id = h.league_id) AND (a.season_id = h.season_id) AND (a.team_id = h.team_id))))
+        ), shape AS (
+         SELECT a.league_id,
+            a.season_id,
+            (count(*))::integer AS teams,
+            ((sum(a.played))::integer / 2) AS matches,
+            (a.season_id = ( SELECT cur.season_id
+                   FROM cur)) AS is_current
+           FROM agg a
+          GROUP BY a.league_id, a.season_id
+        ), ded AS MATERIALIZED (
+         SELECT ((((point_deductions.league_id * 10000) + point_deductions.season_id) * 10000000) + point_deductions.team_id) AS tk,
+            (sum(point_deductions.points))::integer AS pts
+           FROM public.point_deductions
+          GROUP BY ((((point_deductions.league_id * 10000) + point_deductions.season_id) * 10000000) + point_deductions.team_id)
+        ), scored AS (
+         SELECT a.league_id,
+            a.season_id,
+            a.team_id,
+            a.played,
+            a.won,
+            a.drawn,
+            a.lost,
+            a.goals_for,
+            a.goals_against,
+            a.clean_sheets,
+            a.failed_to_score,
+            a.points_won,
+            a.home_played,
+            a.home_points,
+            a.home_goals_for,
+            a.home_goals_against,
+            a.away_played,
+            a.away_points,
+            a.away_goals_for,
+            a.away_goals_against,
+            a.home_won,
+            a.home_drawn,
+            a.home_lost,
+            a.home_clean_sheets,
+            a.away_won,
+            a.away_drawn,
+            a.away_lost,
+            a.away_clean_sheets,
+            s.teams,
+            s.is_current,
+            COALESCE(d.pts, 0) AS deduction,
+            ((a.points_won + COALESCE(d.pts, 0)) + adj.split_adjustment) AS points,
+            (((a.points_won + COALESCE(d.pts, 0)))::numeric - adj.exact_cut) AS rank_points,
+            COALESCE(lf.curtailed_on_ppg, ((NOT s.is_current) AND (s.matches < (s.teams * (s.teams - 1))))) AS curtailed,
+            ((lg.code = ANY (ARRAY['E1'::text, 'E2'::text, 'E3'::text])) AND (se_1.start_year <= 1998)) AS goals_scored_first,
+            st.split_group,
+            adj.split_adjustment,
+            st.tiebreak,
+            st.pre_rank,
+            st.pre_total,
+            ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id) AS tk
+           FROM (((((((agg a
+             JOIN shape s USING (league_id, season_id))
+             LEFT JOIN ded d ON ((d.tk = ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id))))
+             JOIN public.leagues lg ON ((lg.league_id = a.league_id)))
+             JOIN public.seasons se_1 ON ((se_1.season_id = a.season_id)))
+             LEFT JOIN public.league_season_formats lf ON (((lf.league_id = a.league_id) AND (lf.season_id = a.season_id))))
+             LEFT JOIN split_team st ON ((st.tk = ((((a.league_id * 10000) + a.season_id) * 10000000) + a.team_id))))
+             CROSS JOIN LATERAL ( SELECT
+                        CASE
+                            WHEN COALESCE(st.halved, false) THEN ((
+                            CASE
+                                WHEN (st.halving_rounding = 'up'::text) THEN ceil(((st.pre_total)::numeric / 2.0))
+                                ELSE floor(((st.pre_total)::numeric / 2.0))
+                            END - (st.pre_total)::numeric))::integer
+                            ELSE 0
+                        END AS split_adjustment,
+                        CASE
+                            WHEN COALESCE(st.halved, false) THEN ((st.pre_total)::numeric / 2.0)
+                            ELSE (0)::numeric
+                        END AS exact_cut) adj)
+        ), tied AS MATERIALIZED (
+         SELECT x.tk,
+            x.tiebreak,
+            x.tie_key
+           FROM ( SELECT sc.tk,
+                    sc.tiebreak,
+                    k.tie_key,
+                    count(*) OVER (PARTITION BY k.tie_key) AS n
+                   FROM (scored sc
+                     CROSS JOIN LATERAL ( SELECT ((((((((sc.league_id * 10000) + sc.season_id))::text || '/'::text) || (sc.split_group)::text) || '/'::text) || (sc.rank_points)::text) ||
+                                CASE
+                                    WHEN (sc.tiebreak = 'regular_points'::text) THEN ('/'::text || (sc.pre_total)::text)
+                                    ELSE ''::text
+                                END) AS tie_key) k)
+                  WHERE (sc.tiebreak = ANY (ARRAY['head_to_head'::text, 'regular_points'::text]))) x
+          WHERE (x.n > 1)
+        ), tied_games AS MATERIALIZED (
+         SELECT s.match_id,
+            s.tk,
+            s.ok,
+            s.post_no,
+            s.gf,
+            s.ga
+           FROM sm_side s
+          WHERE ((s.tk IN ( SELECT tied.tk
+                   FROM tied)) AND (s.ok IN ( SELECT tied.tk
+                   FROM tied)))
+        ), h2h AS MATERIALIZED (
+         SELECT a.tk,
+            sum(
+                CASE
+                    WHEN (g.gf > g.ga) THEN 3
+                    WHEN (g.gf = g.ga) THEN 1
+                    ELSE 0
+                END) AS pts,
+            sum((g.gf - g.ga)) AS gd,
+            sum(g.gf) AS gf
+           FROM ((tied_games g
+             JOIN tied a ON ((a.tk = g.tk)))
+             JOIN tied b ON (((b.tk = g.ok) AND (b.tie_key = a.tie_key))))
+          WHERE (((a.tiebreak = 'head_to_head'::text) OR (g.post_no <= 0)) AND (NOT (EXISTS ( SELECT 1
+                   FROM knockout k
+                  WHERE (k.match_id = g.match_id)))))
+          GROUP BY a.tk
+        ), ranked AS (
+         SELECT sc.league_id,
+            sc.season_id,
+            sc.team_id,
+            sc.played,
+            sc.won,
+            sc.drawn,
+            sc.lost,
+            sc.goals_for,
+            sc.goals_against,
+            sc.clean_sheets,
+            sc.failed_to_score,
+            sc.points_won,
+            sc.home_played,
+            sc.home_points,
+            sc.home_goals_for,
+            sc.home_goals_against,
+            sc.away_played,
+            sc.away_points,
+            sc.away_goals_for,
+            sc.away_goals_against,
+            sc.home_won,
+            sc.home_drawn,
+            sc.home_lost,
+            sc.home_clean_sheets,
+            sc.away_won,
+            sc.away_drawn,
+            sc.away_lost,
+            sc.away_clean_sheets,
+            sc.teams,
+            sc.is_current,
+            sc.deduction,
+            sc.points,
+            sc.curtailed,
+            sc.split_group,
+            sc.split_adjustment,
+            (row_number() OVER (PARTITION BY sc.league_id, sc.season_id ORDER BY COALESCE((sc.split_group)::integer, 0),
+                CASE
+                    WHEN sc.curtailed THEN ((sc.points)::numeric / (NULLIF(sc.played, 0))::numeric)
+                    ELSE sc.rank_points
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_position'::text THEN (- sc.pre_rank)
+                    WHEN 'regular_points'::text THEN (sc.pre_total)::bigint
+                    ELSE COALESCE(h.pts, (0)::bigint)
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_points'::text THEN COALESCE(h.pts, (0)::bigint)
+                    ELSE COALESCE(h.gd, (0)::bigint)
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_points'::text THEN COALESCE(h.gd, (0)::bigint)
+                    ELSE COALESCE(h.gf, (0)::bigint)
+                END DESC,
+                CASE sc.tiebreak
+                    WHEN 'regular_points'::text THEN COALESCE(h.gf, (0)::bigint)
+                    ELSE (0)::bigint
+                END DESC,
+                CASE
+                    WHEN sc.goals_scored_first THEN sc.goals_for
+                    ELSE (sc.goals_for - sc.goals_against)
+                END DESC,
+                CASE
+                    WHEN sc.goals_scored_first THEN (sc.goals_for - sc.goals_against)
+                    ELSE sc.goals_for
+                END DESC, t.canonical_name))::integer AS "position"
+           FROM ((scored sc
+             JOIN public.teams t USING (team_id))
+             LEFT JOIN h2h h ON ((h.tk = sc.tk)))
+        )
+ SELECT r.league_id,
+    l.code AS league_code,
+    public.league_name_for_season(r.league_id, r.season_id) AS league_name,
+    (r.league_id)::integer AS tier,
+    r.season_id,
+    se.label AS season_label,
+    r.team_id,
+    r."position",
+    (r."position" + (COALESCE(( SELECT sum(s2.teams) AS sum
+           FROM (shape s2
+             JOIN public.leagues l2 ON ((l2.league_id = s2.league_id)))
+          WHERE ((s2.season_id = r.season_id) AND (s2.league_id < r.league_id) AND (l2.country_id = l.country_id))), (0)::bigint))::integer) AS pyramid_position,
+    r.teams,
+    (NOT r.is_current) AS is_final,
+    r.curtailed,
+        CASE
+            WHEN r.curtailed THEN 'points per game'::text
+            ELSE 'points'::text
+        END AS ranked_on,
+    r.played,
+    r.won,
+    r.drawn,
+    r.lost,
+    r.goals_for,
+    r.goals_against,
+    r.clean_sheets,
+    r.failed_to_score,
+    r.points_won,
+    r.deduction,
+    r.points,
+    round(((r.points)::numeric / (NULLIF(r.played, 0))::numeric), 2) AS ppg,
+    r.home_played,
+    r.home_points,
+    r.home_goals_for,
+    r.home_goals_against,
+    r.away_played,
+    r.away_points,
+    r.away_goals_for,
+    r.away_goals_against,
+    r.home_won,
+    r.home_drawn,
+    r.home_lost,
+    r.home_clean_sheets,
+    r.away_won,
+    r.away_drawn,
+    r.away_lost,
+    r.away_clean_sheets,
+    se.start_year AS season_start_year,
+    r.split_group,
+    r.split_adjustment
+   FROM ((ranked r
+     JOIN public.leagues l USING (league_id))
+     JOIN public.seasons se USING (season_id));
+
+
+ALTER VIEW public.league_standings_live OWNER TO postgres;
+
+--
 -- Name: league_table_reliability; Type: MATERIALIZED VIEW; Schema: public; Owner: postgres
 --
 
@@ -18727,25 +19652,6 @@ CREATE VIEW public.market_closing_lines WITH (security_invoker='true') AS
 
 
 ALTER VIEW public.market_closing_lines OWNER TO postgres;
-
---
--- Name: match_import_runs; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.match_import_runs (
-    import_run_id bigint NOT NULL,
-    started_at timestamp with time zone NOT NULL,
-    finished_at timestamp with time zone,
-    league_code text NOT NULL,
-    rows_seen integer,
-    rows_upserted integer,
-    status text NOT NULL,
-    error_message text,
-    CONSTRAINT match_import_runs_status_check CHECK ((status = ANY (ARRAY['success'::text, 'failed'::text])))
-);
-
-
-ALTER TABLE public.match_import_runs OWNER TO postgres;
 
 --
 -- Name: match_import_runs_import_run_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -20147,24 +21053,6 @@ CREATE TABLE public.opta_slot_breakdown (
 ALTER TABLE public.opta_slot_breakdown OWNER TO postgres;
 
 --
--- Name: pipeline_runs; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.pipeline_runs (
-    run_id bigint NOT NULL,
-    job_name text NOT NULL,
-    started_at timestamp with time zone DEFAULT now() NOT NULL,
-    finished_at timestamp with time zone,
-    status text DEFAULT 'running'::text NOT NULL,
-    summary text,
-    error_message text,
-    CONSTRAINT pipeline_runs_status_check CHECK ((status = ANY (ARRAY['running'::text, 'success'::text, 'warning'::text, 'failed'::text])))
-);
-
-
-ALTER TABLE public.pipeline_runs OWNER TO postgres;
-
---
 -- Name: pipeline_runs_run_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -20391,6 +21279,20 @@ ALTER TABLE public.prediction_corrections ALTER COLUMN correction_id ADD GENERAT
     CACHE 1
 );
 
+
+--
+-- Name: production_models; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.production_models (
+    component text NOT NULL,
+    model_version text NOT NULL,
+    since timestamp with time zone DEFAULT now() NOT NULL,
+    notes text
+);
+
+
+ALTER TABLE public.production_models OWNER TO postgres;
 
 --
 -- Name: projection_scenario_players; Type: TABLE; Schema: public; Owner: postgres
@@ -20949,6 +21851,129 @@ CREATE VIEW public.sf_seasons WITH (security_invoker='true') AS
 
 
 ALTER VIEW public.sf_seasons OWNER TO postgres;
+
+--
+-- Name: smoke_page_results; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.smoke_page_results (
+    smoke_run_id bigint NOT NULL,
+    page_type text NOT NULL,
+    url text,
+    ok boolean NOT NULL,
+    http_status integer,
+    errors jsonb DEFAULT '[]'::jsonb NOT NULL,
+    warnings jsonb DEFAULT '[]'::jsonb NOT NULL,
+    ttfb_ms integer,
+    fcp_ms integer,
+    lcp_ms integer,
+    cls numeric,
+    tbt_ms integer,
+    load_ms integer,
+    requests integer,
+    transfer_kb integer,
+    js_kb integer,
+    api_calls integer,
+    slowest_api_ms integer,
+    slowest_api_url text,
+    api_kb integer,
+    largest_api jsonb,
+    lcp_element text,
+    cls_sources jsonb
+);
+
+
+ALTER TABLE public.smoke_page_results OWNER TO postgres;
+
+--
+-- Name: smoke_runs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.smoke_runs (
+    smoke_run_id bigint NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone,
+    base_url text NOT NULL,
+    kind text NOT NULL,
+    mode text NOT NULL,
+    pages_tested integer NOT NULL,
+    pages_failed integer NOT NULL,
+    pages_warned integer NOT NULL,
+    median_lcp_ms integer,
+    median_ttfb_ms integer,
+    median_js_kb integer,
+    summary text,
+    workflow_run_id bigint,
+    CONSTRAINT smoke_runs_kind_check CHECK ((kind = ANY (ARRAY['production'::text, 'preview'::text, 'manual'::text]))),
+    CONSTRAINT smoke_runs_mode_check CHECK ((mode = ANY (ARRAY['full'::text, 'quick'::text])))
+);
+
+
+ALTER TABLE public.smoke_runs OWNER TO postgres;
+
+--
+-- Name: smoke_latest; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.smoke_latest AS
+ SELECT r.smoke_run_id,
+    r.started_at,
+    r.kind,
+    r.base_url,
+    p.page_type,
+    p.url,
+    p.ok,
+    p.errors,
+    p.warnings,
+    p.ttfb_ms,
+    p.fcp_ms,
+    p.lcp_ms,
+    p.cls,
+    p.tbt_ms,
+    p.js_kb,
+    p.requests,
+    p.slowest_api_ms,
+    p.slowest_api_url,
+    p.api_kb,
+    p.largest_api,
+    p.lcp_element,
+    p.cls_sources
+   FROM (( SELECT smoke_runs.smoke_run_id,
+            smoke_runs.started_at,
+            smoke_runs.finished_at,
+            smoke_runs.base_url,
+            smoke_runs.kind,
+            smoke_runs.mode,
+            smoke_runs.pages_tested,
+            smoke_runs.pages_failed,
+            smoke_runs.pages_warned,
+            smoke_runs.median_lcp_ms,
+            smoke_runs.median_ttfb_ms,
+            smoke_runs.median_js_kb,
+            smoke_runs.summary,
+            smoke_runs.workflow_run_id
+           FROM public.smoke_runs
+          WHERE (smoke_runs.kind = 'production'::text)
+          ORDER BY smoke_runs.started_at DESC
+         LIMIT 1) r
+     JOIN public.smoke_page_results p USING (smoke_run_id));
+
+
+ALTER VIEW public.smoke_latest OWNER TO postgres;
+
+--
+-- Name: smoke_runs_smoke_run_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.smoke_runs ALTER COLUMN smoke_run_id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.smoke_runs_smoke_run_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 
 --
 -- Name: social_audit_log; Type: TABLE; Schema: public; Owner: postgres
@@ -21884,6 +22909,50 @@ CREATE TABLE public.team_player_other_positions (
 ALTER TABLE public.team_player_other_positions OWNER TO postgres;
 
 --
+-- Name: team_player_tactical_defaults_log; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.team_player_tactical_defaults_log (
+    id bigint NOT NULL,
+    changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    changed_by uuid,
+    season_id bigint NOT NULL,
+    team_id bigint NOT NULL,
+    fpl_player_id bigint NOT NULL,
+    old_role text,
+    new_role text,
+    old_rank integer,
+    new_rank integer,
+    old_source text,
+    new_source text,
+    new_rank_source text
+);
+
+
+ALTER TABLE public.team_player_tactical_defaults_log OWNER TO postgres;
+
+--
+-- Name: team_player_tactical_defaults_log_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.team_player_tactical_defaults_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.team_player_tactical_defaults_log_id_seq OWNER TO postgres;
+
+--
+-- Name: team_player_tactical_defaults_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.team_player_tactical_defaults_log_id_seq OWNED BY public.team_player_tactical_defaults_log.id;
+
+
+--
 -- Name: team_ratings_team_rating_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -22660,6 +23729,13 @@ ALTER TABLE ONLY public.meta_flow_history ALTER COLUMN history_id SET DEFAULT ne
 
 
 --
+-- Name: team_player_tactical_defaults_log id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.team_player_tactical_defaults_log ALTER COLUMN id SET DEFAULT nextval('public.team_player_tactical_defaults_log_id_seq'::regclass);
+
+
+--
 -- Name: admin_bootstrap_emails admin_bootstrap_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -22804,6 +23880,14 @@ ALTER TABLE ONLY public.app_users
 
 
 --
+-- Name: broadcast_competition_coverage broadcast_competition_coverage_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.broadcast_competition_coverage
+    ADD CONSTRAINT broadcast_competition_coverage_pkey PRIMARY KEY (label);
+
+
+--
 -- Name: broadcast_competition_map broadcast_competition_map_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -22865,6 +23949,14 @@ ALTER TABLE ONLY public.data_source_competitions
 
 ALTER TABLE ONLY public.data_source_competitions
     ADD CONSTRAINT data_source_competitions_source_name_source_code_season_lab_key UNIQUE (source_name, source_code, season_label);
+
+
+--
+-- Name: derived_markets_memo derived_markets_memo_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.derived_markets_memo
+    ADD CONSTRAINT derived_markets_memo_pkey PRIMARY KEY (lambda_home, lambda_away, rho);
 
 
 --
@@ -23113,6 +24205,22 @@ ALTER TABLE ONLY public.fixture_lineup_predictions
 
 ALTER TABLE ONLY public.fixture_lineup_predictions
     ADD CONSTRAINT fixture_lineup_predictions_pkey PRIMARY KEY (lineup_prediction_id);
+
+
+--
+-- Name: fixture_lineup_sub_coverage fixture_lineup_sub_coverage_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fixture_lineup_sub_coverage
+    ADD CONSTRAINT fixture_lineup_sub_coverage_pkey PRIMARY KEY (fixture_id, team_id, source_name);
+
+
+--
+-- Name: fixture_lineup_substitutions fixture_lineup_substitutions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fixture_lineup_substitutions
+    ADD CONSTRAINT fixture_lineup_substitutions_pkey PRIMARY KEY (fixture_id, team_id, player_on_fpl_id, source_name);
 
 
 --
@@ -23516,6 +24624,14 @@ ALTER TABLE ONLY public.historic_source_rows
 
 
 --
+-- Name: job_registry job_registry_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.job_registry
+    ADD CONSTRAINT job_registry_pkey PRIMARY KEY (job_key);
+
+
+--
 -- Name: lab_experiments lab_experiments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -23553,6 +24669,14 @@ ALTER TABLE ONLY public.league_season_formats
 
 ALTER TABLE ONLY public.league_season_names
     ADD CONSTRAINT league_season_names_pkey PRIMARY KEY (league_id, from_season_start_year);
+
+
+--
+-- Name: league_standings_cache_state league_standings_cache_state_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.league_standings_cache_state
+    ADD CONSTRAINT league_standings_cache_state_pkey PRIMARY KEY (id);
 
 
 --
@@ -23852,6 +24976,14 @@ ALTER TABLE ONLY public.prediction_corrections
 
 
 --
+-- Name: production_models production_models_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.production_models
+    ADD CONSTRAINT production_models_pkey PRIMARY KEY (component);
+
+
+--
 -- Name: projection_scenario_players projection_scenario_players_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -23977,6 +25109,22 @@ ALTER TABLE ONLY public.set_piece_hierarchies
 
 ALTER TABLE ONLY public.set_piece_hierarchies
     ADD CONSTRAINT set_piece_hierarchies_season_id_team_id_set_piece_type_sour_key UNIQUE (season_id, team_id, set_piece_type, source_name, source_player_id, valid_from);
+
+
+--
+-- Name: smoke_page_results smoke_page_results_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.smoke_page_results
+    ADD CONSTRAINT smoke_page_results_pkey PRIMARY KEY (smoke_run_id, page_type);
+
+
+--
+-- Name: smoke_runs smoke_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.smoke_runs
+    ADD CONSTRAINT smoke_runs_pkey PRIMARY KEY (smoke_run_id);
 
 
 --
@@ -24228,6 +25376,14 @@ ALTER TABLE ONLY public.team_player_other_positions
 
 
 --
+-- Name: team_player_tactical_defaults_log team_player_tactical_defaults_log_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.team_player_tactical_defaults_log
+    ADD CONSTRAINT team_player_tactical_defaults_log_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: team_player_tactical_defaults team_player_tactical_defaults_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -24461,6 +25617,13 @@ CREATE INDEX fixture_lineup_prediction_players_player_idx ON public.fixture_line
 --
 
 CREATE INDEX fixture_lineup_predictions_fixture_idx ON public.fixture_lineup_predictions USING btree (fixture_id, team_id);
+
+
+--
+-- Name: fixture_lineup_substitutions_off_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX fixture_lineup_substitutions_off_idx ON public.fixture_lineup_substitutions USING btree (player_off_fpl_id);
 
 
 --
@@ -24877,6 +26040,27 @@ CREATE UNIQUE INDEX league_season_summary_pk ON public.league_season_summary USI
 
 
 --
+-- Name: league_standings_cache_code_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX league_standings_cache_code_idx ON public.league_standings_cache USING btree (league_code, season_start_year);
+
+
+--
+-- Name: league_standings_cache_league_season_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX league_standings_cache_league_season_idx ON public.league_standings_cache USING btree (league_id, season_id, "position");
+
+
+--
+-- Name: league_standings_cache_team_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX league_standings_cache_team_idx ON public.league_standings_cache USING btree (team_id, season_start_year);
+
+
+--
 -- Name: league_table_reliability_pk; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -24902,6 +26086,13 @@ CREATE INDEX lineup_predictions_fixture_latest_idx ON public.player_lineup_predi
 --
 
 CREATE INDEX match_predictions_fit_run_idx ON public.match_predictions USING btree (fit_run_id);
+
+
+--
+-- Name: matches_teams_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX matches_teams_idx ON public.matches USING btree (home_team_id, away_team_id) INCLUDE (full_time_result, match_date, full_time_home_goals, full_time_away_goals);
 
 
 --
@@ -25031,6 +26222,13 @@ CREATE INDEX set_piece_team_type_idx ON public.set_piece_hierarchies USING btree
 
 
 --
+-- Name: smoke_runs_kind_started_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX smoke_runs_kind_started_idx ON public.smoke_runs USING btree (kind, started_at DESC);
+
+
+--
 -- Name: social_fixture_forecast_obs_fx; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -25098,6 +26296,13 @@ CREATE INDEX team_match_snapshot_team ON public.team_match_snapshot USING btree 
 --
 
 CREATE INDEX team_match_tactics_team_idx ON public.team_match_tactics USING btree (team_id, season_id);
+
+
+--
+-- Name: team_player_tactical_defaults_log_player; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX team_player_tactical_defaults_log_player ON public.team_player_tactical_defaults_log USING btree (fpl_player_id, changed_at DESC);
 
 
 --
@@ -25330,6 +26535,13 @@ CREATE TRIGGER player_identity_slug BEFORE INSERT OR UPDATE ON public.player_ide
 --
 
 CREATE TRIGGER social_audit_log_append_only BEFORE DELETE OR UPDATE ON public.social_audit_log FOR EACH ROW EXECUTE FUNCTION private.social_audit_append_only();
+
+
+--
+-- Name: team_player_tactical_defaults team_player_tactical_defaults_log_trg; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER team_player_tactical_defaults_log_trg AFTER INSERT OR UPDATE ON public.team_player_tactical_defaults FOR EACH ROW EXECUTE FUNCTION public.log_tactical_defaults_change();
 
 
 --
@@ -25633,6 +26845,38 @@ ALTER TABLE ONLY public.fixture_lineup_prediction_players
 
 ALTER TABLE ONLY public.fixture_lineup_predictions
     ADD CONSTRAINT fixture_lineup_predictions_lineup_source_id_fkey FOREIGN KEY (lineup_source_id) REFERENCES public.lineup_prediction_sources(lineup_source_id);
+
+
+--
+-- Name: fixture_lineup_sub_coverage fixture_lineup_sub_coverage_fixture_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fixture_lineup_sub_coverage
+    ADD CONSTRAINT fixture_lineup_sub_coverage_fixture_id_fkey FOREIGN KEY (fixture_id) REFERENCES public.fixtures(fixture_id) ON DELETE CASCADE;
+
+
+--
+-- Name: fixture_lineup_sub_coverage fixture_lineup_sub_coverage_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fixture_lineup_sub_coverage
+    ADD CONSTRAINT fixture_lineup_sub_coverage_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: fixture_lineup_substitutions fixture_lineup_substitutions_fixture_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fixture_lineup_substitutions
+    ADD CONSTRAINT fixture_lineup_substitutions_fixture_id_fkey FOREIGN KEY (fixture_id) REFERENCES public.fixtures(fixture_id) ON DELETE CASCADE;
+
+
+--
+-- Name: fixture_lineup_substitutions fixture_lineup_substitutions_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fixture_lineup_substitutions
+    ADD CONSTRAINT fixture_lineup_substitutions_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(team_id);
 
 
 --
@@ -26145,6 +27389,14 @@ ALTER TABLE ONLY public.set_piece_hierarchies
 
 ALTER TABLE ONLY public.set_piece_hierarchies
     ADD CONSTRAINT set_piece_hierarchies_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: smoke_page_results smoke_page_results_smoke_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.smoke_page_results
+    ADD CONSTRAINT smoke_page_results_smoke_run_id_fkey FOREIGN KEY (smoke_run_id) REFERENCES public.smoke_runs(smoke_run_id) ON DELETE CASCADE;
 
 
 --
@@ -26838,6 +28090,12 @@ CREATE POLICY "broadcast unmatched admin" ON public.broadcast_sync_unmatched USI
 
 
 --
+-- Name: broadcast_competition_coverage; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.broadcast_competition_coverage ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: broadcast_competition_map; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -26879,6 +28137,19 @@ ALTER TABLE public.countries ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.data_source_competitions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: derived_markets_memo; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.derived_markets_memo ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: derived_markets_memo derived_markets_memo_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY derived_markets_memo_read ON public.derived_markets_memo FOR SELECT USING (true);
+
 
 --
 -- Name: fantasy_game_rules; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -27146,6 +28417,46 @@ ALTER TABLE public.fixture_lineup_prediction_players ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.fixture_lineup_predictions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fixture_lineup_sub_coverage; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fixture_lineup_sub_coverage ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fixture_lineup_sub_coverage fixture_lineup_sub_coverage_admin_write; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY fixture_lineup_sub_coverage_admin_write ON public.fixture_lineup_sub_coverage TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+
+--
+-- Name: fixture_lineup_sub_coverage fixture_lineup_sub_coverage_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY fixture_lineup_sub_coverage_read ON public.fixture_lineup_sub_coverage FOR SELECT USING (true);
+
+
+--
+-- Name: fixture_lineup_substitutions; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fixture_lineup_substitutions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fixture_lineup_substitutions fixture_lineup_substitutions_admin_write; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY fixture_lineup_substitutions_admin_write ON public.fixture_lineup_substitutions TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+
+--
+-- Name: fixture_lineup_substitutions fixture_lineup_substitutions_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY fixture_lineup_substitutions_read ON public.fixture_lineup_substitutions FOR SELECT USING (true);
+
 
 --
 -- Name: fixture_odds_snapshots; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -27576,6 +28887,12 @@ ALTER TABLE public.historic_source_rows_europe ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ingest_finance_stage_tmp ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: job_registry; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.job_registry ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: lab_experiments; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -27604,6 +28921,25 @@ ALTER TABLE public.league_season_formats ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.league_season_names ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: league_standings_cache; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.league_standings_cache ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: league_standings_cache league_standings_cache_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY league_standings_cache_read ON public.league_standings_cache FOR SELECT USING (true);
+
+
+--
+-- Name: league_standings_cache_state; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.league_standings_cache_state ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: leagues; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -27848,6 +29184,19 @@ CREATE POLICY "prediction_corrections public read" ON public.prediction_correcti
 
 
 --
+-- Name: production_models; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.production_models ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: production_models production_models_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY production_models_read ON public.production_models FOR SELECT USING (true);
+
+
+--
 -- Name: projection_scenario_players; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -27921,6 +29270,18 @@ CREATE POLICY "set_piece_hierarchies admin write" ON public.set_piece_hierarchie
 
 CREATE POLICY "set_piece_hierarchies public read" ON public.set_piece_hierarchies FOR SELECT USING (true);
 
+
+--
+-- Name: smoke_page_results; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.smoke_page_results ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: smoke_runs; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.smoke_runs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: social_audit_log; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -28164,6 +29525,19 @@ CREATE POLICY "team_player_tactical_defaults admin write" ON public.team_player_
 --
 
 CREATE POLICY "team_player_tactical_defaults public read" ON public.team_player_tactical_defaults FOR SELECT USING (true);
+
+
+--
+-- Name: team_player_tactical_defaults_log; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.team_player_tactical_defaults_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: team_player_tactical_defaults_log team_player_tactical_defaults_log_admin_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY team_player_tactical_defaults_log_admin_read ON public.team_player_tactical_defaults_log FOR SELECT TO authenticated USING (public.is_admin());
 
 
 --
@@ -28600,6 +29974,14 @@ GRANT ALL ON FUNCTION public.check_intl_integrity() TO service_role;
 
 
 --
+-- Name: FUNCTION check_job_health(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.check_job_health() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.check_job_health() TO service_role;
+
+
+--
 -- Name: FUNCTION check_model_integrity(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -28665,6 +30047,15 @@ GRANT ALL ON FUNCTION public.fixture_derived_markets(p_lambda_home numeric, p_la
 
 
 --
+-- Name: FUNCTION fixture_derived_markets_cached(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.fixture_derived_markets_cached(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric) TO anon;
+GRANT ALL ON FUNCTION public.fixture_derived_markets_cached(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric) TO authenticated;
+GRANT ALL ON FUNCTION public.fixture_derived_markets_cached(p_lambda_home numeric, p_lambda_away numeric, p_rho numeric) TO service_role;
+
+
+--
 -- Name: FUNCTION fpl_clear_external_lineup(p_source text, p_event integer, p_team_id bigint); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -28707,6 +30098,15 @@ REVOKE ALL ON FUNCTION public.fpl_live_entry(p_entry_id bigint, p_event_id integ
 GRANT ALL ON FUNCTION public.fpl_live_entry(p_entry_id bigint, p_event_id integer) TO anon;
 GRANT ALL ON FUNCTION public.fpl_live_entry(p_entry_id bigint, p_event_id integer) TO authenticated;
 GRANT ALL ON FUNCTION public.fpl_live_entry(p_entry_id bigint, p_event_id integer) TO service_role;
+
+
+--
+-- Name: FUNCTION fpl_production_model_version(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.fpl_production_model_version() TO anon;
+GRANT ALL ON FUNCTION public.fpl_production_model_version() TO authenticated;
+GRANT ALL ON FUNCTION public.fpl_production_model_version() TO service_role;
 
 
 --
@@ -29701,6 +31101,22 @@ GRANT ALL ON FUNCTION public.nfl_upsert_team_weeks(rows jsonb) TO service_role;
 
 
 --
+-- Name: FUNCTION reconcile_unreported_played_fixtures(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.reconcile_unreported_played_fixtures() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reconcile_unreported_played_fixtures() TO service_role;
+
+
+--
+-- Name: FUNCTION refresh_derived_markets_memo(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.refresh_derived_markets_memo() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.refresh_derived_markets_memo() TO service_role;
+
+
+--
 -- Name: FUNCTION refresh_feed_nearest_date(p_code text, p_url text); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -29777,6 +31193,14 @@ GRANT ALL ON FUNCTION public.refresh_fpl_start_record() TO service_role;
 
 REVOKE ALL ON FUNCTION public.refresh_history_derived(p_force boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.refresh_history_derived(p_force boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION refresh_league_standings_cache(p_force boolean); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.refresh_league_standings_cache(p_force boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.refresh_league_standings_cache(p_force boolean) TO service_role;
 
 
 --
@@ -30341,6 +31765,13 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.backup_fpl_tea
 
 
 --
+-- Name: TABLE broadcast_competition_coverage; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcast_competition_coverage TO service_role;
+
+
+--
 -- Name: TABLE broadcast_competition_map; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -30372,6 +31803,13 @@ GRANT USAGE ON SEQUENCE public.broadcast_sync_runs_run_id_seq TO service_role;
 GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcast_sync_unmatched TO anon;
 GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcast_sync_unmatched TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcast_sync_unmatched TO service_role;
+
+
+--
+-- Name: TABLE broadcast_unmatched_classified; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.broadcast_unmatched_classified TO service_role;
 
 
 --
@@ -30458,6 +31896,15 @@ GRANT ALL ON TABLE public.data_source_competitions TO service_role;
 --
 
 GRANT SELECT,USAGE ON SEQUENCE public.data_source_competitions_source_competition_id_seq TO service_role;
+
+
+--
+-- Name: TABLE derived_markets_memo; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.derived_markets_memo TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.derived_markets_memo TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.derived_markets_memo TO service_role;
 
 
 --
@@ -30777,6 +32224,24 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fixture_lineup
 --
 
 GRANT USAGE ON SEQUENCE public.fixture_lineup_predictions_lineup_prediction_id_seq TO service_role;
+
+
+--
+-- Name: TABLE fixture_lineup_sub_coverage; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fixture_lineup_sub_coverage TO anon;
+GRANT ALL ON TABLE public.fixture_lineup_sub_coverage TO authenticated;
+GRANT ALL ON TABLE public.fixture_lineup_sub_coverage TO service_role;
+
+
+--
+-- Name: TABLE fixture_lineup_substitutions; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fixture_lineup_substitutions TO anon;
+GRANT ALL ON TABLE public.fixture_lineup_substitutions TO authenticated;
+GRANT ALL ON TABLE public.fixture_lineup_substitutions TO service_role;
 
 
 --
@@ -31460,8 +32925,6 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_prediction
 -- Name: TABLE fpl_projection_fixture_readiness; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection_fixture_readiness TO anon;
-GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection_fixture_readiness TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection_fixture_readiness TO service_role;
 
 
@@ -31469,8 +32932,6 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection
 -- Name: TABLE fpl_projection_data_health; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection_data_health TO anon;
-GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection_data_health TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_projection_data_health TO service_role;
 
 
@@ -31661,12 +33122,12 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_season_
 
 
 --
--- Name: TABLE point_deductions; Type: ACL; Schema: public; Owner: postgres
+-- Name: TABLE league_standings_cache; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.point_deductions TO anon;
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.point_deductions TO authenticated;
-GRANT ALL ON TABLE public.point_deductions TO service_role;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_standings_cache TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_standings_cache TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_standings_cache TO service_role;
 
 
 --
@@ -32165,6 +33626,52 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.intlw_upsets T
 
 
 --
+-- Name: TABLE job_registry; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.job_registry TO service_role;
+
+
+--
+-- Name: TABLE match_import_runs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.match_import_runs TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.match_import_runs TO authenticated;
+GRANT ALL ON TABLE public.match_import_runs TO service_role;
+
+
+--
+-- Name: TABLE pipeline_runs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.pipeline_runs TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.pipeline_runs TO authenticated;
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.pipeline_runs TO service_role;
+
+
+--
+-- Name: TABLE job_runs_unified; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.job_runs_unified TO service_role;
+
+
+--
+-- Name: TABLE job_health; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.job_health TO service_role;
+
+
+--
+-- Name: TABLE job_registry_gaps; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.job_registry_gaps TO service_role;
+
+
+--
 -- Name: TABLE lab_experiments; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -32296,6 +33803,29 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_season_
 
 
 --
+-- Name: TABLE league_standings_cache_state; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_standings_cache_state TO service_role;
+
+
+--
+-- Name: TABLE point_deductions; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.point_deductions TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.point_deductions TO authenticated;
+GRANT ALL ON TABLE public.point_deductions TO service_role;
+
+
+--
+-- Name: TABLE league_standings_live; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.league_standings_live TO service_role;
+
+
+--
 -- Name: TABLE league_table_reliability; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -32323,15 +33853,6 @@ GRANT USAGE ON SEQUENCE public.lineup_prediction_sources_lineup_source_id_seq TO
 --
 
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.market_closing_lines TO service_role;
-
-
---
--- Name: TABLE match_import_runs; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.match_import_runs TO anon;
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.match_import_runs TO authenticated;
-GRANT ALL ON TABLE public.match_import_runs TO service_role;
 
 
 --
@@ -32695,15 +34216,6 @@ GRANT ALL ON TABLE public.opta_slot_breakdown TO service_role;
 
 
 --
--- Name: TABLE pipeline_runs; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.pipeline_runs TO anon;
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.pipeline_runs TO authenticated;
-GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.pipeline_runs TO service_role;
-
-
---
 -- Name: SEQUENCE pipeline_runs_run_id_seq; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -32796,6 +34308,15 @@ GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.predict
 --
 
 GRANT USAGE ON SEQUENCE public.prediction_corrections_correction_id_seq TO service_role;
+
+
+--
+-- Name: TABLE production_models; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.production_models TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.production_models TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.production_models TO service_role;
 
 
 --
@@ -33014,6 +34535,27 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.sf_rounds TO s
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.sf_seasons TO anon;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.sf_seasons TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.sf_seasons TO service_role;
+
+
+--
+-- Name: TABLE smoke_page_results; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.smoke_page_results TO service_role;
+
+
+--
+-- Name: TABLE smoke_runs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.smoke_runs TO service_role;
+
+
+--
+-- Name: TABLE smoke_latest; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.smoke_latest TO service_role;
 
 
 --
@@ -33263,6 +34805,15 @@ GRANT SELECT,USAGE ON SEQUENCE public.team_match_tactics_team_match_tactic_id_se
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.team_player_other_positions TO anon;
 GRANT ALL ON TABLE public.team_player_other_positions TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.team_player_other_positions TO service_role;
+
+
+--
+-- Name: TABLE team_player_tactical_defaults_log; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.team_player_tactical_defaults_log TO anon;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.team_player_tactical_defaults_log TO authenticated;
+GRANT ALL ON TABLE public.team_player_tactical_defaults_log TO service_role;
 
 
 --
