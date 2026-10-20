@@ -77,6 +77,21 @@ describe('gameweek reflection page', () => {
     expect(screen.getAllByText('Rotation measured').length).toBeGreaterThan(0);
   });
 
+  it('shows captain reliability week by week, flagging a one-week wonder', () => {
+    const rel = [
+      { id: 411, name: 'Haaland', team: 'Manchester City', pos: 'FWD', own: 75, by_gw: [2, 13, 9, 9, 6, 6], total: 45, median: 7.5, blanks: 1, hauls: 2, blank_run: 0, best: 13, best_gw: 2, best_share: 0.29, one_week_wonder: false },
+      { id: 366, name: 'B.Fernandes', team: 'Manchester Utd', pos: 'MID', own: 9, by_gw: [2, 23, 2, 2, 2, 1], total: 32, median: 2, blanks: 5, hauls: 1, blank_run: 4, best: 23, best_gw: 2, best_share: 0.72, one_week_wonder: true },
+    ];
+    renderReport({ ...report, payload: { ...payload, captaincy: { ...payload.captaincy, reliability: rel,
+      streaks: { seasons: '2022/23 to 2025/26', blank_rate: 0.35, after_one_blank: 0.38, after_two_blanks: 0.38, after_a_return: 0.32 } } } });
+    const t = screen.getByRole('table', { name: /Captain options' points by gameweek/ });
+    expect(t).toHaveTextContent('B.Fernandes');
+    expect(t).toHaveTextContent('72% (GW2)');
+    expect(t).toHaveTextContent('4 now');
+    expect(within(t).getAllByText('one big week')).toHaveLength(1);
+    expect(screen.getByText(/Blanks barely run in streaks/)).toHaveTextContent('after one blank it was 38%');
+  });
+
   it('says when the closing prices are not in yet', () => {
     renderReport({ ...report, payload: { ...payload, prices_in: false, goals: { ...payload.goals, ratings: { status: 'pending', moves: [], deadline: '2026-10-10' } } } });
     expect(screen.getAllByText('Waiting for prices').length).toBeGreaterThan(0);

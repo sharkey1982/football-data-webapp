@@ -638,6 +638,58 @@ function RangeChart({ rows, blankAt, haulAt }: { rows: CaptainRange[]; blankAt: 
   );
 }
 
+type Reliable = NonNullable<ReflectionPayload['captaincy']['reliability']>[number];
+
+function Reliability({ rows, streaks, blankAt, haulAt }: {
+  rows: Reliable[]; streaks: ReflectionPayload['captaincy']['streaks']; blankAt: number; haulAt: number;
+}) {
+  const weeks = rows[0]?.by_gw.length ?? 0;
+  const cell = (v: number | null) =>
+    v === null ? <span className="text-ink-300">–</span>
+      : <span className={v <= blankAt ? 'text-red-700' : v >= haulAt ? 'font-semibold text-emerald-700' : ''}>{v}</span>;
+  return (
+    <>
+      <h3 className={H3}>Reliable or explosive: the captain options, week by week</h3>
+      <ReportTable
+        caption="Captain options' points by gameweek this season (before doubling)"
+        rows={rows}
+        columns={[
+          { label: 'Player', render: (r) => <span className="font-semibold">{r.name}</span>, sort: (r) => r.name, align: 'left' },
+          ...Array.from({ length: weeks }, (_, i) => ({
+            label: `${i + 1}`, render: (r: Reliable) => cell(r.by_gw[i]), sort: (r: Reliable) => r.by_gw[i],
+          })),
+          { label: 'Total', render: (r) => r.total, sort: (r) => r.total },
+          { label: 'Median', render: (r) => r.median ?? '–', sort: (r) => r.median },
+          { label: 'Blanks', render: (r) => r.blanks, sort: (r) => r.blanks },
+          { label: 'Blank run', render: (r) => (r.blank_run ? `${r.blank_run} now` : '–'), sort: (r) => r.blank_run },
+          {
+            label: 'Best week',
+            render: (r) => (
+              <span>
+                {r.best_share === null ? '–' : `${Math.round(r.best_share * 100)}% (GW${r.best_gw})`}
+                {r.one_week_wonder ? <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-800">one big week</span> : null}
+              </span>
+            ),
+            sort: (r) => r.best_share,
+          },
+        ]}
+      />
+      <p className={NOTE}>
+        Red: {blankAt} points or fewer. Green: {haulAt} or more. Best week: the share of his season&rsquo;s points that came in his best gameweek; a
+        player whose total leans on one week has only paid off for managers who captained him that week.
+      </p>
+      {streaks ? (
+        <p className="text-ink-700 max-w-prose">
+          Blanks barely run in streaks. From {streaks.seasons}, £9m+ players who played an hour blanked {Math.round(streaks.blank_rate * 100)}% of the
+          time; after one blank it was {Math.round(streaks.after_one_blank * 100)}%, after two {Math.round(streaks.after_two_blanks * 100)}%, and
+          after a return {Math.round(streaks.after_a_return * 100)}%. A run of blanks is a reason to look at minutes and chances, not a forecast on
+          its own.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 function Captaincy({ p }: { p: ReflectionPayload }) {
   const cap = p.captaincy;
   const rows = cap.season.filter((r) => r.key !== 'model');
@@ -683,6 +735,7 @@ function Captaincy({ p }: { p: ReflectionPayload }) {
           ) : null}
         </>
       ) : null}
+      {cap.reliability?.length ? <Reliability rows={cap.reliability} streaks={cap.streaks} blankAt={cap.blank_at} haulAt={cap.haul_at} /> : null}
       <ModelBox title="Over four seasons" chips={[{ label: 'No model change', tone: 'none' }]}>
         <p>
           The most-captained player blanked in {cap.context.top_pick_blank_rate}% of gameweeks from {cap.context.seasons} and was the best choice

@@ -149,11 +149,18 @@ export type ReflectionPayload = {
     season: CaptainApproach[];
     span: [number, number] | null;
     ranges: CaptainRange[];
+    reliability?: CaptainReliability[];
+    streaks?: { seasons: string; blank_rate: number; after_one_blank: number; after_two_blanks: number; after_a_return: number };
     blank_at: number;
     haul_at: number;
     context: { top_pick_blank_rate: number; top_pick_best_rate: number; seasons: string; article: string; haaland_article: string };
   };
   checks?: Record<string, unknown>;
+};
+
+export type CaptainReliability = PlayerRef & {
+  by_gw: (number | null)[]; total: number; median: number | null; blanks: number; hauls: number;
+  blank_run: number; best: number; best_gw: number; best_share: number | null; one_week_wonder: boolean;
 };
 
 export type PreviewPlayer = PlayerRef & {
@@ -176,7 +183,7 @@ export type PreviewPayload = {
     goals_home: number | null; goals_away: number | null; cs_home: number | null; cs_away: number | null;
     fdr_home: number | null; fdr_away: number | null;
   }[];
-  captains: (PreviewPlayer & { top_chance: number | null })[];
+  captains: (PreviewPlayer & { top_chance: number | null; p_blank?: number | null; blank_run?: number })[];
   sim_worlds: number;
   picks: Record<'GK' | 'DEF' | 'MID' | 'FWD', PreviewPlayer[]>;
   value: (PreviewPlayer & { per_m: number })[];

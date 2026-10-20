@@ -60,6 +60,15 @@ describe('FPL article pages', () => {
     expect(screen.getByText(/could even be nothing/)).toBeInTheDocument();
   });
 
+  it('captaincy article: reliable or explosive', () => {
+    render(<MemoryRouter><CaptainTopPickArticle /></MemoryRouter>);
+    expect(screen.getByRole('heading', { name: 'Reliable or explosive?' })).toBeInTheDocument();
+    expect(screen.getByText(/Bruno Fernandes has scored/)).toHaveTextContent('33 points, 70% of them in one week');
+    expect(screen.getByText(/Bruno Fernandes has scored/)).toHaveTextContent('66 captain points against 116 for Haaland');
+    expect(screen.getByRole('table', { name: /Reliability of popular captain options/ })).toHaveTextContent('João Pedro');
+    expect(screen.getByText(/Do blanks come in runs/)).toHaveTextContent('after two in a row 40%, from only 55 cases');
+  });
+
   it('Haaland article shows the cost and the Arsenal record', () => {
     render(<MemoryRouter><HaalandCaptainArticle /></MemoryRouter>);
     expect(screen.getByRole('table', { name: /always Haaland against always the top-ranked/ })).toHaveTextContent('−129');

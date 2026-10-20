@@ -2,7 +2,8 @@
 // src/pages/fpl/articles/CaptainTopPickArticle.tsx
 //
 // /fpl/articles/always-captain-the-top-pick
-// Figures: src/lib/fplArticles.ts (scripts/analysis/captaincy_*.sql).
+// Figures: src/lib/fplArticles.ts (scripts/analysis/captaincy_*.sql,
+// captain_reliability.sql).
 // ============================================================================
 
 import ArticleBarChart from '../../../components/articles/ArticleBarChart';
@@ -12,6 +13,9 @@ import {
   CAPTAIN_BY_SEASON,
   CAPTAIN_GAP_BINS,
   CAPTAIN_LADDER,
+  CAPTAIN_RELIABILITY,
+  CAPTAIN_STREAKS as ST,
+  CAPTAIN_THIS_SEASON as NOW,
   CAPTAIN_STRATEGIES as S,
   HAALAND_ARTICLE,
   pct,
@@ -24,6 +28,10 @@ export default function CaptainTopPickArticle() {
   const lowSeason = Math.round((S.topVsSecond.mean - 2 * S.topVsSecond.se) * 36);
   const highSeason = Math.round((S.topVsSecond.mean + 2 * S.topVsSecond.se) * 36);
   const vsCrowd = Math.round(S.topVsMostOwned.mean * 36);
+  const sum = (v: number[]) => v.reduce((a, b) => a + b, 0);
+  const hTot = sum(NOW.haaland);
+  const fTot = sum(NOW.fernandes);
+  const fBest = Math.max(...NOW.fernandes);
   const total = (k: 'top' | 'second' | 'mostOwned' | 'hindsight') => CAPTAIN_BY_SEASON.reduce((a, s) => a + s[k], 0);
   return (
     <ArticleLayout
@@ -99,6 +107,32 @@ export default function CaptainTopPickArticle() {
           </p>
           <p>
             That isn&rsquo;t evidence the pick was wrong. One player&rsquo;s score in one match is mostly noise: a goal is worth 4 to 6 points, and even the best forwards score in under half their games.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="reliable-heading" className="space-y-3">
+        <h2 id="reliable-heading" className={H2}>Reliable or explosive?</h2>
+        <div className={PROSE}>
+          <p>
+            Two captains can score the same over a season in very different ways. A reliable one returns most weeks; an explosive one blanks often and makes it up with the odd huge score. Explosive points only reach you if your armband was on him that week.
+          </p>
+          <p>
+            This season shows the difference. Through gameweek {NOW.through}, Haaland has scored {NOW.haaland.join(', ')}: {hTot} points, one blank. Bruno Fernandes has scored {NOW.fernandes.join(', ')}: {fTot} points, {Math.round((fBest / fTot) * 100)}% of them in one week. Captaining Fernandes every week would have earned {2 * fTot} captain points against {2 * hTot} for Haaland, and any week you picked him except that one earned you {Math.max(...NOW.fernandes.filter((v) => v !== fBest)) * 2} or fewer.
+          </p>
+          <p>
+            Over a full season, though, the lumps even out. Among the most-owned premium options of the last four seasons, the best two weeks were only {pct(Math.min(...CAPTAIN_RELIABILITY.map((r) => r.top2)))} to {pct(Math.max(...CAPTAIN_RELIABILITY.map((r) => r.top2)))} of a season&rsquo;s points. Fernandes himself blanked in under a quarter of his games in 2025/26. What separates the good captains is how often they blank, not how big their best week is.
+          </p>
+        </div>
+        <DataTable
+          caption="Reliability of popular captain options, per appearance"
+          head={['Player', 'Season', 'Points', 'Median', 'Blanked', 'Hauled', 'Best two weeks']}
+          rows={CAPTAIN_RELIABILITY.map((r) => [r.player, r.season, r.total, r.median, pct(r.blank), pct(r.haul), pct(r.top2)])}
+        />
+        <p className="text-sm text-ink-700 max-w-prose">Blanked: 2 points or fewer. Hauled: 10 or more. Best two weeks: the share of his season&rsquo;s points from them.</p>
+        <div className={PROSE}>
+          <p>
+            Do blanks come in runs? Barely. Players priced £9m or more who played an hour blanked {pct(ST.blankRate)} of the time. After a blank it was {pct(ST.afterOneBlank)} ({ST.nAfterOne} cases); after two in a row {pct(ST.afterTwoBlanks)}, from only {ST.nAfterTwo} cases; after a return, {pct(ST.afterReturn)}. A run of blanks is a reason to check his minutes and chances, not a forecast by itself.
           </p>
         </div>
       </section>

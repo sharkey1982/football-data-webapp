@@ -121,6 +121,27 @@ export const CAPTAIN_LADDER: { rank: number; points: number }[] = [
   { rank: 10, points: 3.82 },
 ];
 
+/** Reliability against volatility (scripts/analysis/captain_reliability.sql). */
+export const CAPTAIN_STREAKS = { games: 723, blankRate: 0.35, afterOneBlank: 0.38, nAfterOne: 192, afterTwoBlanks: 0.4, nAfterTwo: 55, afterReturn: 0.33 };
+
+/** A blank is 2 or fewer, a haul 10 or more; per appearance. top2: share of the season's points from his best two gameweeks. */
+export const CAPTAIN_RELIABILITY: { player: string; season: string; total: number; median: number; blank: number; haul: number; top2: number }[] = [
+  { player: 'Salah', season: '2024/25', total: 344, median: 9, blank: 0.17, haul: 0.47, top2: 0.15 },
+  { player: 'Haaland', season: '2022/23', total: 272, median: 7, blank: 0.19, haul: 0.42, top2: 0.15 },
+  { player: 'Kane', season: '2022/23', total: 263, median: 7, blank: 0.19, haul: 0.19, top2: 0.12 },
+  { player: 'B.Fernandes', season: '2025/26', total: 235, median: 5, blank: 0.23, haul: 0.34, top2: 0.14 },
+  { player: 'Haaland', season: '2025/26', total: 239, median: 6, blank: 0.38, haul: 0.32, top2: 0.13 },
+  { player: 'Isak', season: '2024/25', total: 211, median: 6, blank: 0.42, haul: 0.24, top2: 0.16 },
+  { player: 'João Pedro', season: '2025/26', total: 177, median: 2, blank: 0.57, haul: 0.14, top2: 0.19 },
+];
+
+/** 2026/27, GW1-7 (points before doubling). */
+export const CAPTAIN_THIS_SEASON = {
+  through: 7,
+  haaland: [2, 13, 9, 9, 6, 6, 13],
+  fernandes: [2, 23, 2, 2, 2, 1, 1],
+};
+
 export const CAPTAIN_STRATEGIES = {
   gameweeks: 141,
   topRanked: 7.26,
