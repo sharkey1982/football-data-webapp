@@ -9,8 +9,8 @@
 // token in x-social-token. Sends through Resend.
 //
 // Secrets: RESEND_API_KEY (required), SOCIAL_NOTIFY_FROM (optional sender,
-// default "FixtureShark alerts <alerts@schoolcamp.uk>", a domain verified in
-// Resend). The recipient is social_settings.notify_email, else the admin's
+// default "FixtureShark <alerts@mail.fixtureshark.com>"; falls back to
+// alerts@schoolcamp.uk while that domain isn't verified in Resend). The recipient is social_settings.notify_email, else the admin's
 // address in app_users.
 // Without RESEND_API_KEY nothing is sent and the audit log says so; posting
 // is not affected.
@@ -77,12 +77,16 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, reason: "unknown kind" });
   }
 
-  const r = await fetch("https://api.resend.com/emails", {
+  // Sender: mail.fixtureshark.com once it is verified in Resend; until then
+  // Resend refuses it (403/422) and the verified schoolcamp.uk sender is used.
+  const send = (from: string) => fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: Deno.env.get("SOCIAL_NOTIFY_FROM") ?? "FixtureShark alerts <alerts@schoolcamp.uk>", to: [to], subject, html }),
+    body: JSON.stringify({ from, to: [to], subject, html }),
     signal: AbortSignal.timeout(15_000),
   }).catch((e) => ({ ok: false, status: 0, text: () => Promise.resolve(String(e)) }) as unknown as Response);
+  let r = await send(Deno.env.get("SOCIAL_NOTIFY_FROM") ?? "FixtureShark <alerts@mail.fixtureshark.com>");
+  if (!r.ok && (r.status === 403 || r.status === 422)) r = await send("FixtureShark alerts <alerts@schoolcamp.uk>");
   if (!r.ok) {
     await audit("notify_failed", { status: r.status, error: (await r.text()).slice(0, 300), kind: body?.kind });
     return Response.json({ ok: false, status: r.status });
