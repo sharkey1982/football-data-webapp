@@ -37,16 +37,18 @@ permissions:
   contents: read
   statuses: write
 
-concurrency:
-  group: smoke-${{ github.event_name == 'status' && github.event.sha || 'production' }}
-  cancel-in-progress: true
-
 jobs:
   smoke:
     # Status events: only a successful footballdatashark deploy preview.
     if: >-
       github.event_name != 'status' ||
       (github.event.state == 'success' && endsWith(github.event.context, 'footballdatashark/deploy-preview'))
+    # Concurrency on the job, not the workflow: every commit status (the other
+    # Netlify site, our own smoke/preview updates) starts a run, and at workflow
+    # level those skipped runs cancelled the real one (20 Oct 2026).
+    concurrency:
+      group: smoke-${{ github.event_name == 'status' && github.event.sha || 'production' }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
