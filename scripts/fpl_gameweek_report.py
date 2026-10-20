@@ -881,13 +881,16 @@ def verdict_goals(g: dict) -> tuple[str, str]:
     if t["xg"] is None:
         return head, ""
     dx = t["xg"] - t["expected"]
+    xg = f"xG {t['xg']:.1f}"
     if abs(dg) < 1.5:
-        rest = f"Close to expectation overall; chances (xG {t['xg']:.1f}) {fmt_signed(dx)} against it."
+        rest = f"Close to what the model expected, and chances ({xg}) were too."
     elif dg * dx > 0 and abs(dx) >= 0.6 * abs(dg):
-        rest = f"Chances ran {'above' if dx > 0 else 'below'} expectation too (xG {t['xg']:.1f}), so this was more than finishing."
+        rest = (f"Chances were up too ({xg}), so the extra goals weren't just good finishing." if dg > 0 else
+                f"Chances were down too ({xg}), so the shortfall was in chances created, not just finishing.")
     else:
-        rest = (f"Chances (xG {t['xg']:.1f}) were {fmt_signed(dx)} against expectation, so most of the difference came from finishing, "
-                "which tends not to last and barely moves the ratings.")
+        rest = (f"Chances ({xg}) were close to expectation, so most of the extra goals came from finishing, which tends not to last "
+                "and barely moves the ratings." if dg > 0 else
+                f"Chances ({xg}) were close to expectation, so most of the shortfall was finishing, which tends to even out.")
     return head, rest
 
 
@@ -920,7 +923,7 @@ def verdict_incidents(i: dict, gw: int) -> tuple[str, str]:
             lost[r["team"]].append(r["name"])
     team, names = max(lost.items(), key=lambda kv: (len(kv[1]), kv[0]), default=(None, []))
     if len(names) >= 2:
-        head = f"{team} lost {pl(len(names), 'player')}: {', '.join(names[:-1])} and {names[-1]}."
+        head = f"{team} lost {', '.join(names[:-1])} and {names[-1]}."
     elif i["worse"]:
         r = i["worse"][0]
         head = f"{r['name']} ({r['team']}) is now {STATUS_WORDS.get(r['now'], 'flagged')}."
@@ -931,8 +934,9 @@ def verdict_incidents(i: dict, gw: int) -> tuple[str, str]:
     before = c.get("before_gw") or []
     if rot and rot["busy"]["players"]:
         b = rot["busy"]
-        rest = (f"{pl(rot['busy']['teams'], 'team')} had a midweek match before GW{gw}: their likely starters "
-                f"made {b['started']} of {b['expected']:.0f} expected starts.")
+        held = b["started"] >= 0.95 * b["expected"]
+        rest = (f"{pl(rot['busy']['teams'], 'team')} played midweek before GW{gw}; their likely starters "
+                f"{'still made' if held else 'made only'} {b['started']} of the {b['expected']:.0f} starts we expected.")
     elif before:
         rest = f"{pl(len({r['team'] for r in before}), 'team')} had a midweek match before GW{gw}."
     elif (c.get("days_since_previous") or 0) >= 14:
