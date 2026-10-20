@@ -1409,11 +1409,11 @@ def preview_reddit_md(p: dict, url: str) -> str:
 
 
 def preview_x_thread(p: dict, url: str) -> list[str]:
-    posts = [f"FPL GW{p['gw']} preview from the FixtureShark projections. 🧵"]
+    # The link goes in the first post (Chris, 16 Oct); the automatic X post
+    # keeps it there as the week's one link.
+    posts = [f"FPL GW{p['gw']} preview from the FixtureShark projections. 🧵 {url}"]
     for h in p["headlines"]:
         posts += split_post(h)
-    # The link always goes last, however many headlines there are.
-    posts.append(f"Captaincy, picks by position, fixtures and the 10-week view: {url}")
     return posts
 
 

@@ -12,7 +12,7 @@ vi.mock('../lib/auth', () => ({
 }));
 vi.mock('../lib/socialApi', async () => {
   const actual = await vi.importActual<typeof socialApi>('../lib/socialApi');
-  return { ...actual, getSocialState: vi.fn(), review: vi.fn(), publish: vi.fn(), updateSettings: vi.fn(), runDetectors: vi.fn() };
+  return { ...actual, getSocialState: vi.fn(), review: vi.fn(), publish: vi.fn(), updateSettings: vi.fn(), runDetectors: vi.fn(), hold: vi.fn() };
 });
 void React;
 const api = socialApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -74,5 +74,29 @@ describe('SocialPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Dry run' }));
     expect(api.publish).toHaveBeenCalledWith(1, 'dry_run');
     expect(await screen.findByText('daily limit reached (3)')).toBeInTheDocument();
+  });
+
+  it('shows a queued automatic thread with its time and a Hold button', async () => {
+    const posts = ['FPL GW8 preview 🧵 https://fixtureshark.com/fpl/gameweek/2026-27/8/preview', 'Haaland leads on 8.7 points.'];
+    api.getSocialState.mockResolvedValue(state({
+      ...candidate, post_type: 'gameweek_thread', text: posts.join('\n\n'), generated_text: posts.join('\n\n'), thread: posts,
+      approval_status: 'approved', auto: true, hold_until: '2026-10-22T13:00:00Z', held: false, notified_at: '2026-10-22T12:00:00Z',
+    }));
+    api.hold.mockResolvedValue(undefined);
+    render(<MemoryRouter initialEntries={['/admin/social?show=queue']}><SocialPage /></MemoryRouter>);
+    expect(await screen.findByText(/Posts automatically at/)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Thread of candidate 1' })).toHaveTextContent('Haaland leads');
+    await userEvent.click(screen.getByRole('button', { name: 'Hold' }));
+    expect(api.hold).toHaveBeenCalledWith(1, true);
+  });
+
+  it('shows the circuit breaker with a reset', async () => {
+    api.getSocialState.mockResolvedValue({ ...state(candidate), settings: { ...settings, auto_publish_enabled: true,
+      breaker_tripped_at: '2026-10-22T13:00:00Z', breaker_reason: 'automatic post #4: X 400' } });
+    api.updateSettings.mockResolvedValue(undefined);
+    render(<MemoryRouter><SocialPage /></MemoryRouter>);
+    expect(await screen.findByRole('alert')).toHaveTextContent('automatic post #4: X 400');
+    await userEvent.click(screen.getByRole('button', { name: 'Reset and resume' }));
+    expect(api.updateSettings).toHaveBeenCalledWith({ reset_breaker: true });
   });
 });

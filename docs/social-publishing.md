@@ -18,8 +18,10 @@ Controlled posting of FixtureShark insights to X. Built Oct 2026. Admin page:
   X connected **as @FixtureSharkHQ** (username and pinned X user id), an
   approved, unexpired candidate that still passes revalidation, and the
   limits below. All enforced in `social_claim_for_publish`.
-- Automatic publishing cannot be switched on (`social_update_settings`
-  refuses it). Phase 4 needs its own reviewed migration and Chris's approval.
+- Automatic publishing is on since 20 Oct 2026 (Chris's approval; migration
+  `20261020210000_social_autopublish.sql`) for the types in
+  `auto_post_types`. It uses the same gate as a manual post. See "Automatic
+  posting" below.
 - Existing ingestion and model jobs are only read, never changed.
 
 ## Pieces
@@ -141,9 +143,47 @@ app in @FixtureSharkHQ's [connected apps](https://x.com/settings/connected_apps)
 3. **One live post.** X app set up, secrets set, account connected; Chris
    turns the kill switch off and live publishing on, approves one candidate,
    presses Publish, then turns the kill switch back on.
-4. **Automatic publishing** for validated, pre-approved templates: not built.
-   Needs a reviewed migration and Chris's explicit approval. Scheduled times
-   are recorded now but nothing publishes them.
+4. **Automatic publishing**: live 20 Oct 2026 (see "Automatic posting").
+
+## Automatic posting (Phase 4, live 20 Oct 2026)
+
+| Post | Detector | When it goes |
+|---|---|---|
+| Overnight FPL price changes | `social_detect_price_changes` (07:25 UTC run): today's prices v yesterday's 18:17 snapshot | ~1h after the morning run, only on days prices changed |
+| Captaincy top five | `social_detect_captaincy` | 24h before the deadline (the newest ranking replaces older queued ones) |
+| Gameweek preview / reflection thread | `social_detect_gameweek_threads`: newest published report's `x_thread` | ~1h after the detector sees it. Links are removed, except the preview's first post, which carries the week's one link |
+| Prediction accuracy | `social_detect_accuracy` | ~1h after it is created |
+
+Team xG changes and record streaks stay manual.
+
+- **Queue:** `private.social_auto_queue()` approves a passing candidate of an
+  automatic type (approved_by null, `auto` true), sets `hold_until`, and
+  supersedes older queued ones with the same type, kind and expiry.
+- **Hold:** default 60 minutes (`hold_minutes`). When the hold starts,
+  `social-notify` emails the admin (Resend; `RESEND_API_KEY` secret). The
+  email has the text, the time and a link here. **Hold** on the card stops it
+  (`social_hold`); **Release** lets it go.
+- **Worker:** pg_cron `social-auto-tick` every 10 minutes
+  (`social_auto_tick()`):
+  - queues new candidates and sends due emails;
+  - posts at most one due candidate, 07:00–22:00 UK, by calling `x-publish`
+    with the worker token (`private.social_worker`, checked with
+    `social_worker_ok`);
+  - revalidates first: a candidate that is no longer true goes stale, and a
+    newer one replaces it.
+- **Threads:** `thread` holds the posts. `x-publish` posts them as replies.
+  A thread counts as one post for the daily and monthly limits and is costed
+  per post.
+- **Links:** `allow_urls` on, `max_links_per_week` 1 (UK week).
+- **Circuit breaker:** these switch automatic posting off
+  (`breaker_tripped_at`) and email the admin:
+  - an automatic post that failed;
+  - an automatic post whose outcome is unknown;
+  - a thread that stopped part-way;
+  - a post stuck 'publishing' for 15 minutes.
+
+  Reset with **Reset and resume** on this page. Manual posting is unaffected.
+- **Budget:** $5 a month, 60 posts a month, 3 a day, 60 minutes apart.
 
 ## Future content
 
