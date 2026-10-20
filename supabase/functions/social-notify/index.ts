@@ -18,7 +18,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const ADMIN_URL = "https://fixtureshark.com/admin/social?show=approved";
+const ADMIN_URL = "https://fixtureshark.com/admin/social?show=queue";
 const LABEL: Record<string, string> = {
   fpl_price_changes: "FPL price changes",
   fpl_captaincy: "FPL captaincy",
