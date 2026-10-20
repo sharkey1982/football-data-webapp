@@ -17,6 +17,7 @@ fixing something else.
 - **Impact:** `smoke/preview` reported failure. No site code was involved, so it was a false alarm that would block the merge rule.
 - **Cause:** Netlify skips the build when only ignored paths change. Its status then links to the deploy log on app.netlify.com, which the smoke test browsed as if it were the preview: every page showed ERR_BLOCKED_BY_CLIENT.
 - **Fix:** `weekly-smoke.yml` recognises an app.netlify.com target and reports success, "No site changes: Netlify skipped the build", without browsing. PR #386 was merged on the Netlify checks; the fix applies from the next PR, because status-event workflows run from main.
+- **Also found:** the smoke run was often cancelled before it reported. Workflow-level concurrency let the skipped runs started by every other commit status cancel the real one. Concurrency moved to the job (PR #387).
 - **Prevention:** the fix itself. *Lesson: a check that can't tell "nothing to test" from "broken" teaches people to ignore it.*
 
 ---
