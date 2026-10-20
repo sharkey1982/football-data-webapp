@@ -152,6 +152,7 @@ app in @FixtureSharkHQ's [connected apps](https://x.com/settings/connected_apps)
 | Overnight FPL price changes | `social_detect_price_changes` (07:25 UTC run): today's prices v yesterday's 18:17 snapshot | ~1h after the morning run, only on days prices changed |
 | Captaincy top five | `social_detect_captaincy` | 24h before the deadline (the newest ranking replaces older queued ones) |
 | Gameweek preview / reflection thread | `social_detect_gameweek_threads`: newest published report's `x_thread` | ~1h after the detector sees it. Links are removed, except the preview's first post, which carries the week's one link |
+| Gameweek team-news update | `social_detect_gameweek_threads`, kind `preview_update`: the preview's `x_update`, from a version published after 16:00 UK (after the Friday press conferences). Once per gameweek, no link | ~1h after the detector sees it; expires at the deadline |
 | Prediction accuracy | `social_detect_accuracy` | ~1h after it is created |
 
 Team xG changes and record streaks stay manual.
@@ -183,7 +184,7 @@ Team xG changes and record streaks stay manual.
   - a post stuck 'publishing' for 15 minutes.
 
   Reset with **Reset and resume** on this page. Manual posting is unaffected.
-- **Budget:** $5 a month, 60 posts a month, 3 a day, 60 minutes apart.
+- **Budget:** $5 a month, 60 posts a month, 5 a day (raised from 3 on 20 Oct 2026 for Fridays), 60 minutes apart.
 
 ## Future content
 
@@ -191,3 +192,10 @@ NFL, tennis, Beat the Shark blackjack and poker challenges: add a post type
 (check constraint), a detector function returning
 `{status, checks, candidate_id}`, a revalidation branch and a label in
 `src/lib/socialApi.ts`. `sport` is already a column.
+
+### Gameweek schedule (from GW8, 2026/27)
+
+- **Reflection:** when FPL confirms the gameweek (bonus and data checked) and the closing prices are in, usually Monday night or Tuesday morning; at most 44 hours after the last kick-off.
+- **Preview:** first version on Friday morning when the deadline is Saturday or Sunday, otherwise the day before the deadline. Its X thread carries the week's one link.
+- **Team-news update:** the preview is refreshed through the day; from 16:00 UK the refresh compares the day's first version with the latest (`team_news_thread` in `scripts/fpl_gameweek_report.py`) and, if anything changed, queues a short linkless thread: what changed, then the captaincy numbers now.
+- **Midweek cup and European minutes** are not in the database yet, so the preview names teams on short rest but cannot yet say who played 90 minutes on Wednesday.

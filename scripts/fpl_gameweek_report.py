@@ -675,11 +675,61 @@ def section_captaincy(d: Data, ctx: dict, gw: int) -> dict:
                        "premium_same_weeks": sum(w["premium"]["pts"] for w in mweeks),
                        **spread([w["model"]["pts"] for w in mweeks])})
     this = next((w for w in weeks if w["gw"] == gw), None)
+    ranges = captain_ranges(d, ctx, gw, this, pool) if this else []
+    # Reliability: the candidates shown this week, plus the most-owned of the pool.
+    rel_ids = [r["id"] for r in ranges]
+    for pid in sorted(pool, key=lambda p: -((ctx["players"].get(p) or {}).get("own") or 0))[:6]:
+        if pid not in rel_ids:
+            rel_ids.append(pid)
     return {"weeks": weeks, "season": season, "span": [span[0]["gw"], span[-1]["gw"]] if span else None,
-            "ranges": captain_ranges(d, ctx, gw, this, pool) if this else [],
+            "ranges": ranges, "reliability": captain_reliability(ctx, pts, rel_ids, gw),
+            "streaks": STREAK_HISTORY,
             "blank_at": BLANK_AT, "haul_at": HAUL_AT,
             "context": {"top_pick_blank_rate": 27.7, "top_pick_best_rate": 19.9, "seasons": "2022/23 to 2025/26",
                         "article": "/fpl/articles/always-captain-the-top-pick", "haaland_article": "/fpl/articles/should-you-always-captain-haaland"}}
+
+
+# Four seasons (2022/23-2025/26), players priced 9.0m+ who played 60+ minutes:
+# how often a blank (2 or fewer) followed a blank. Blanks barely run in streaks.
+# (scripts/analysis/captain_reliability.sql; article "always captain the top pick")
+# scripts/analysis/captain_reliability.sql, query 1 (723 games; 192 after one
+# blank, only 55 after two, so that figure is rough).
+STREAK_HISTORY = {"seasons": "2022/23 to 2025/26", "blank_rate": 0.35, "after_one_blank": 0.38, "after_two_blanks": 0.40,
+                  "after_a_return": 0.33}
+ONE_WEEK_WONDER = 0.5   # half or more of a player's points from one gameweek
+
+
+def blank_run(points: list[int]) -> int:
+    """Consecutive blanks (2 or fewer) at the end of a run of gameweek scores."""
+    n = 0
+    for v in reversed(points):
+        if v > BLANK_AT:
+            break
+        n += 1
+    return n
+
+
+def captain_reliability(ctx: dict, pts: dict, ids: list[int], gw: int) -> list[dict]:
+    """Season to date per candidate: points by gameweek, median, blanks, current blank run,
+    and how much of the total came from the best week."""
+    out = []
+    for pid in ids:
+        by = [pts.get(g, {}).get(pid) for g in range(1, gw + 1)]
+        played = [v for v in by if v is not None]
+        if len(played) < 3:
+            continue
+        total = sum(played)
+        srt = sorted(played)
+        mid = len(srt) // 2
+        median = srt[mid] if len(srt) % 2 else (srt[mid - 1] + srt[mid]) / 2
+        best = max(played)
+        share = best / total if total > 0 else None
+        out.append({**player_label(ctx, pid), "by_gw": by, "total": total, "median": f(median, 1),
+                    "blanks": sum(1 for v in played if v <= BLANK_AT), "hauls": sum(1 for v in played if v >= HAUL_AT),
+                    "blank_run": blank_run(played), "best": best, "best_gw": 1 + by.index(best),
+                    "best_share": f(share, 2), "one_week_wonder": bool(share is not None and share >= ONE_WEEK_WONDER and total >= 15)})
+    out.sort(key=lambda r: -r["total"])
+    return out
 
 
 # Underlying form: xGI over the last 4 gameweeks with 180+ minutes in them
@@ -988,6 +1038,18 @@ def verdict_captaincy(c: dict, gw: int) -> tuple[str, str]:
     if tops and pr["id"] not in {r["id"] for r in tops} and top > pr["pts"]:
         names = " and ".join(f"{r['name']} ({r.get('own') or 0:.0f}% owned)" for r in tops[:2])
         rest.append(f"{names} {'were' if len(tops) > 1 else 'was'} the best captain{'s' if len(tops) > 1 else ''} with {top}.")
+    # The most-owned candidate on a blank run of 3+, or whose points came mostly from one week.
+    notes = sorted((r for r in c.get("reliability") or [] if r["id"] != pr["id"] and (r["blank_run"] >= 3 or r["one_week_wonder"])),
+                   key=lambda r: -(r.get("own") or 0))
+    if notes:
+        r = notes[0]
+        bits2 = []
+        if r["blank_run"] >= 3:
+            bits2.append(f"has blanked {r['blank_run']} weeks running")
+        if r["one_week_wonder"]:
+            bits2.append(f"{round(r['best_share'] * 100)}% of his points came in GW{r['best_gw']}")
+        rest.append(f"{r['name']} {bits2[0]}; {bits2[1]}." if len(bits2) == 2 else
+                    (f"{r['name']} {bits2[0]}." if r["blank_run"] >= 3 else f"For {r['name']}, {bits2[0]}."))
     s = {r["key"]: r for r in c["season"]}
     if c["span"] and "premium" in s and "form" in s:
         tail = f" and chasing last week's top scorer {s['last']['captain_points']}" if "last" in s else ""
@@ -1208,7 +1270,9 @@ def captain_chances(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int]) -
     winners = (tot == best)
     share = winners / winners.sum(axis=1, keepdims=True)   # ties split
     means = tot.mean(axis=0)
-    return {pid: {"top": float(share[:, col[pid]].mean()), "sim_mean": float(means[col[pid]])} for pid in order}
+    blank = (tot <= BLANK_AT).mean(axis=0)
+    return {pid: {"top": float(share[:, col[pid]].mean()), "sim_mean": float(means[col[pid]]), "p_blank": float(blank[col[pid]])}
+            for pid in order}
 
 
 def section_fixtures(ctx: dict, gw: int, goals: dict) -> list[dict]:
@@ -1314,7 +1378,13 @@ def build_preview(d: Data, gw: int, frozen: bool = False) -> dict:
 
     capt = sorted((pid for pid in agg if agg[pid]["fx"]), key=lambda pid: -agg[pid]["gw"])[:8]
     chances = captain_chances(d, ctx, gw, frozen, capt)
-    captains = [{**row(pid), "top_chance": f(chances.get(pid, {}).get("top"), 3)} for pid in capt]
+    season_pts = defaultdict(dict)
+    for r in d.all("""select fpl_player_id, fpl_event_id gw, sum(total_points) p from public.fpl_player_gameweeks
+                       where season_id = %s and fpl_event_id < %s and fpl_player_id = any(%s) group by 1, 2""",
+                   (ctx["season_id"], gw, capt)):
+        season_pts[r["fpl_player_id"]][r["gw"]] = r["p"]
+    captains = [{**row(pid), "top_chance": f(chances.get(pid, {}).get("top"), 3), "p_blank": f(chances.get(pid, {}).get("p_blank"), 2),
+                 "blank_run": blank_run([v for _, v in sorted(season_pts[pid].items())])} for pid in capt]
 
     by_pos = {}
     for pos, label in POS.items():
@@ -1505,10 +1575,13 @@ def latest_preview(d: Data, gw: int) -> dict | None:
 
 def preview_due(d: Data, now: datetime) -> tuple[int | None, str]:
     """(gameweek, action): 'first', 'update', 'freeze' or nothing.
-    First version: Thursday when the deadline is Fri-Sun, otherwise the day
-    before the deadline (UK dates), and never before the previous gameweek's
-    reflection. Updates after each run until the deadline. Frozen from the
-    deadline snapshot once the deadline has passed."""
+    First version: Friday when the deadline is Saturday or Sunday, otherwise
+    the day before the deadline (UK dates), so midweek European and cup
+    matches are in it; never before the previous gameweek's reflection
+    (Chris, 20 Oct 2026). Updates after each run until the deadline; the first
+    update from 16:00 UK on also carries a team-news thread for X (after the
+    press conferences). Frozen from the deadline snapshot once the deadline
+    has passed."""
     from zoneinfo import ZoneInfo
     uk = ZoneInfo("Europe/London")
     sid = d.one("select public.fpl_current_season_id()")
@@ -1529,7 +1602,7 @@ def preview_due(d: Data, now: datetime) -> tuple[int | None, str]:
     if last:
         return gw, "update"
     weekday = deadline.weekday()  # Mon 0 .. Sun 6
-    first_day = (deadline - timedelta(days=(weekday - 3))).date() if weekday >= 4 else (deadline - timedelta(days=1)).date()
+    first_day = (deadline - timedelta(days=(weekday - 4))).date() if weekday >= 5 else (deadline - timedelta(days=1)).date()
     if now.astimezone(uk).date() < first_day:
         return None, f"GW{gw} preview due {first_day:%a %d %b}"
     prev_reflection = d.one("""select count(*) from public.fpl_gameweek_reports where season_id = %s and fpl_event_id = %s
@@ -1555,6 +1628,7 @@ def run_preview(d: Data, gw: int, action: str, code_ref: str) -> bool:
             print(f"GW{gw} preview unchanged since v{last['version']}.")
             return False
         p["changes_since_last"] = describe_changes(last["payload"], p)
+        p["x_update"] = team_news_thread(d, gw, p)
         rid, v, _ = store(d, p, True, code_ref)
         print(f"Updated GW{gw} preview to v{v} (report {rid}): " + "; ".join(p["changes_since_last"]))
         return False
@@ -1563,6 +1637,37 @@ def run_preview(d: Data, gw: int, action: str, code_ref: str) -> bool:
     for h in p["headlines"]:
         print(f"  {h}")
     return True
+
+
+def team_news_thread(d: Data, gw: int, p: dict) -> list[str]:
+    """From 16:00 UK, after the press conferences: what changed since the day's first version, for X."""
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo("Europe/London"))
+    if now.hour < 16:
+        return []
+    sid = d.one("select public.fpl_current_season_id()")
+    base = d.one("""select payload from public.fpl_gameweek_reports
+                     where season_id = %s and fpl_event_id = %s and kind = 'preview' and status = 'published' and not frozen
+                       and (published_at at time zone 'Europe/London')::date = %s
+                     order by version limit 1""", (sid, gw, now.date()))
+    if not base:
+        return []
+    lines = describe_changes(base, p)
+    if lines == ["Projections refreshed"]:
+        return []
+    posts, chunk = [f"FPL GW{gw} team news update, after the press conferences. 🧵"], ""
+    for line in lines:
+        if chunk and len(chunk) + 1 + len(line) > 270:
+            posts.append(chunk)
+            chunk = line
+        else:
+            chunk = f"{chunk}\n{line}".strip()
+    if chunk:
+        posts.append(chunk)
+    top = p["captains"][:3]
+    if top:
+        posts.append("Captaincy now: " + ", ".join(f"{r['name']} {r['gw_xpts']:.1f}" for r in top) + " projected points.")
+    return posts
 
 
 def describe_changes(old: dict, new: dict) -> list[str]:

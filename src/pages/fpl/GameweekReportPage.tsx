@@ -281,6 +281,8 @@ function Preview({ p }: { p: PreviewPayload }) {
             { label: 'Player', render: (r) => (<>{who(r)}{restDays(p, r.team) !== null ? <span className="block text-xs text-orange-800">{restDays(p, r.team)} days&rsquo; rest</span> : null}</>), sort: (r) => r.name },
             { label: 'xPts', render: (r) => r.gw_xpts.toFixed(1), sort: (r) => r.gw_xpts },
             { label: 'Top score', render: (r) => (r.top_chance === null ? '–' : pct(r.top_chance)), sort: (r) => r.top_chance },
+            { label: 'Blank chance', render: (r) => (r.p_blank == null ? '–' : pct(r.p_blank)), sort: (r) => r.p_blank ?? null },
+            { label: 'Blank run', render: (r) => (r.blank_run ? `${r.blank_run}` : '–'), sort: (r) => r.blank_run ?? 0 },
             { label: 'Start', render: (r) => pct(r.start), sort: (r) => r.start },
             { label: 'Owned', render: (r) => own(r.own), sort: (r) => r.own },
           ]}
