@@ -78,6 +78,16 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
+          # Netlify skips the build when only ignored paths changed (supabase/,
+          # .github/, scripts/*.py ...); its status then links to the deploy
+          # log on app.netlify.com, not a preview. Nothing to test (20 Oct 2026:
+          # PR #386 got a false failure from browsing app.netlify.com).
+          case "$BASE" in
+            https://app.netlify.com/*)
+              echo "Netlify skipped the build (no site changes): nothing to smoke-test."
+              echo "skipped=1" >> "$GITHUB_OUTPUT"
+              exit 0 ;;
+          esac
           ln -s /tmp/pw/node_modules node_modules 2>/dev/null || true
           node scripts/smoke/weekly_smoke.mjs
       - name: Report
@@ -93,7 +103,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OUTCOME: ${{ steps.run.outcome }}
+          SKIPPED: ${{ steps.run.outputs.skipped }}
         run: |
           state=$([ "$OUTCOME" = success ] && echo success || echo failure)
           desc=$([ "$OUTCOME" = success ] && echo "All pages loaded without errors" || echo "Pages with errors: see the run")
+          if [ "$SKIPPED" = 1 ]; then desc="No site changes: Netlify skipped the build"; fi
           gh api repos/${{ github.repository }}/statuses/${{ github.event.sha }} -f state=$state -f context=smoke/preview -f description="$desc" -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
