@@ -2,9 +2,11 @@
 // src/pages/admin/SocialPage.tsx   (/admin/social)
 //
 // Review queue for posts to X (@FixtureSharkHQ): approve, edit, reject or
-// schedule candidates from the social detector, dry-run them, and (Phase 3)
-// publish one by hand. Also the X connection, the kill switch, limits, the
-// weekly report, detector runs and the audit log.
+// schedule candidates from the social detector, dry-run them, and publish one
+// by hand. Phase 4: automatic post types are queued with a hold time and go
+// out on their own unless held; the circuit breaker stops them and is reset
+// here. Also the X connection, the kill switch, limits, the weekly report,
+// detector runs and the audit log.
 //
 // The page enforces nothing: every rule is in the database functions and
 // Edge Functions it calls (docs/social-publishing.md).
@@ -16,14 +18,16 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useAuthOptional } from '../../lib/auth';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import {
-  addedNumbers, disconnectX, getSocialState, POST_TYPE_LABEL, publish, resolveNeedsCheck, review, runDetectors,
+  addedNumbers, disconnectX, getSocialState, hold, POST_TYPE_LABEL, publish, resolveNeedsCheck, review, runDetectors,
   startXConnect, updateSettings, weightedLength, X_RESULT_MESSAGE,
   type AuditRow, type Candidate, type Connection, type DetectorRun, type PublishResult, type Settings, type WeekRow,
 } from '../../lib/socialApi';
 
+const queued = (c: Candidate) => !!c.auto && c.approval_status === 'approved' && ['unpublished', 'failed'].includes(c.publication_status);
 const FILTERS = [
+  { key: 'queue', label: 'Going out', test: queued },
   { key: 'review', label: 'To review', test: (c: Candidate) => c.approval_status === 'pending' && c.publication_status === 'unpublished' },
-  { key: 'approved', label: 'Approved', test: (c: Candidate) => c.approval_status === 'approved' && c.publication_status !== 'published' },
+  { key: 'approved', label: 'Approved', test: (c: Candidate) => c.approval_status === 'approved' && c.publication_status !== 'published' && !queued(c) },
   { key: 'published', label: 'Published', test: (c: Candidate) => c.publication_status === 'published' },
   { key: 'closed', label: 'Rejected', test: (c: Candidate) => c.approval_status === 'rejected' || c.approval_status === 'superseded' },
   { key: 'all', label: 'All', test: () => true },
@@ -78,6 +82,7 @@ function CandidateCard({ c, settings, connection, onChanged }: { c: Candidate; s
   const [postId, setPostId] = useState('');
 
   const locked = ['publishing', 'published', 'needs_check'].includes(c.publication_status);
+  const thread = c.thread && c.thread.length > 1 ? c.thread : null;
   const edited = text.trim() !== c.text.trim();
   const len = weightedLength(text);
   const added = addedNumbers(text, c.generated_text);
@@ -126,10 +131,31 @@ function CandidateCard({ c, settings, connection, onChanged }: { c: Candidate; s
         {c.scheduled_for && <span>scheduled {when(c.scheduled_for)}</span>}
       </div>
 
-      <textarea value={text} onChange={(e) => setText(e.target.value)} disabled={locked || busy} rows={Math.min(9, text.split('\n').length + 1)}
-        className="w-full font-mono text-sm border border-chalk-300 rounded p-2 disabled:bg-chalk-100" aria-label={`Text of candidate ${c.candidate_id}`} />
+      {c.auto && !locked && (
+        <div className={`flex flex-wrap items-center gap-2 text-sm rounded p-2 ${c.held ? 'bg-amber-400/20' : 'bg-pitch-700/10'}`}>
+          {c.held
+            ? <span>On hold: it won&rsquo;t post until you release it.</span>
+            : <span>Posts automatically at <strong>{when(c.hold_until ?? null)}</strong>{c.notified_at ? ' (you were emailed)' : ''}.</span>}
+          <Btn tone={c.held ? 'primary' : 'danger'} disabled={busy} onClick={() => act(() => hold(c.candidate_id, !c.held))}>
+            {c.held ? 'Release' : 'Hold'}
+          </Btn>
+        </div>
+      )}
+      {thread ? (
+        <ol className="space-y-1" aria-label={`Thread of candidate ${c.candidate_id}`}>
+          {thread.map((p, i) => (
+            <li key={i} className="font-mono text-sm border border-chalk-300 rounded p-2 bg-chalk-100 whitespace-pre-wrap">
+              <span className="text-ink-500">{i + 1}/{thread.length} </span>{p}
+              <span className={`ml-2 text-xs ${weightedLength(p) > 280 ? 'text-loss-700' : 'text-ink-500'}`}>({weightedLength(p)}/280)</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <textarea value={text} onChange={(e) => setText(e.target.value)} disabled={locked || busy} rows={Math.min(9, text.split('\n').length + 1)}
+          className="w-full font-mono text-sm border border-chalk-300 rounded p-2 disabled:bg-chalk-100" aria-label={`Text of candidate ${c.candidate_id}`} />
+      )}
       <div className="flex flex-wrap gap-3 text-xs">
-        <span className={len > 280 ? 'text-loss-700' : 'text-ink-500'}>{len}/280</span>
+        {!thread && <span className={len > 280 ? 'text-loss-700' : 'text-ink-500'}>{len}/280</span>}
         {added.length > 0 && <span className="text-loss-700">New numbers not allowed: {added.join(', ')}</span>}
         {c.validation_errors?.length > 0 && <span className="text-loss-700">{c.validation_errors.join('; ')}</span>}
         {c.rejected_reason && <span className="text-ink-500">Rejected: {c.rejected_reason}</span>}
@@ -141,7 +167,7 @@ function CandidateCard({ c, settings, connection, onChanged }: { c: Candidate; s
 
       {!locked && (
         <div className="flex flex-wrap items-center gap-2">
-          {edited && <Btn tone="primary" disabled={busy || len > 280 || added.length > 0} onClick={() => act(() => review(c.candidate_id, 'edit', { text }))}>Save edit</Btn>}
+          {edited && !thread && <Btn tone="primary" disabled={busy || len > 280 || added.length > 0} onClick={() => act(() => review(c.candidate_id, 'edit', { text }))}>Save edit</Btn>}
           {c.approval_status !== 'approved' && <Btn tone="primary" disabled={busy || edited} onClick={() => act(() => review(c.candidate_id, 'approve'))}>Approve</Btn>}
           {c.approval_status !== 'rejected' && (
             <Btn disabled={busy} onClick={() => {
@@ -214,6 +240,8 @@ function LimitsForm({ s, onSave }: { s: Settings; onSave: (c: Partial<Settings>)
       {num('max_posts_per_month', 'Posts per month')}
       {num('min_minutes_between_posts', 'Minutes between posts')}
       {num('monthly_budget_usd', 'Monthly budget ($)', 0.01)}
+      {num('hold_minutes', 'Hold before posting (min)')}
+      {num('max_links_per_week', 'Links per week')}
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={v.allow_urls} onChange={(e) => setV({ ...v, allow_urls: e.target.checked })} />
         Allow links ({usd(s.cost_per_post_with_url_usd)} a post v {usd(s.cost_per_post_usd)})
@@ -221,6 +249,8 @@ function LimitsForm({ s, onSave }: { s: Settings; onSave: (c: Partial<Settings>)
       <Btn onClick={() => onSave({
         max_posts_per_day: v.max_posts_per_day, max_posts_per_month: v.max_posts_per_month,
         min_minutes_between_posts: v.min_minutes_between_posts, monthly_budget_usd: v.monthly_budget_usd, allow_urls: v.allow_urls,
+        ...(v.hold_minutes != null ? { hold_minutes: v.hold_minutes } : {}),
+        ...(v.max_links_per_week != null ? { max_links_per_week: v.max_links_per_week } : {}),
       })}>Save limits</Btn>
     </div>
   );
@@ -233,7 +263,9 @@ export default function SocialPage() {
   const [state, setState] = useState<Awaited<ReturnType<typeof getSocialState>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const filter = (FILTERS.find((f) => f.key === params.get('show')) ?? FILTERS[0]).key;
+  // Default tab: what's going out if anything is queued, else what needs review.
+  const defaultTab = (state?.candidates ?? []).some(queued) ? 'queue' : 'review';
+  const filter = (FILTERS.find((f) => f.key === params.get('show')) ?? FILTERS.find((f) => f.key === defaultTab)!).key;
   const xResult = params.get('x');
 
   const load = useCallback(() => {
@@ -294,6 +326,12 @@ export default function SocialPage() {
         </div>
       )}
       {error && <div className="text-sm text-loss-700">{error}</div>}
+      {s.breaker_tripped_at && (
+        <div className="flex flex-wrap items-center gap-2 text-sm rounded p-3 bg-loss-600/10 text-loss-700" role="alert">
+          <span><strong>Automatic posting stopped</strong> {when(s.breaker_tripped_at)}: {s.breaker_reason}. Check @FixtureSharkHQ, then reset.</span>
+          <Btn disabled={busy} onClick={() => doAct(() => updateSettings({ reset_breaker: true }))}>Reset and resume</Btn>
+        </div>
+      )}
 
       <section className="border border-chalk-300 rounded-lg bg-white p-3 space-y-3" data-testid="social-controls">
         <div className="flex flex-wrap gap-x-6 gap-y-2 items-center">
@@ -301,7 +339,8 @@ export default function SocialPage() {
             confirmOff="Turn the kill switch off? Live posting will still need live publishing on and a connected account." />
           <Toggle label="Live publishing" on={s.live_enabled} disabled={busy} onChange={(v) => doAct(() => updateSettings({ live_enabled: v }))}
             confirmOn="Enable live publishing? Posts still go only when you press Publish on an approved candidate." />
-          <span className="text-sm text-ink-500">Automatic publishing: off</span>
+          <Toggle label="Automatic posting" on={s.auto_publish_enabled} disabled={busy} onChange={(v) => doAct(() => updateSettings({ auto_publish_enabled: v }))}
+            confirmOn="Turn automatic posting on? Queued posts go out after their hold time unless you hold them." />
           <Toggle label="Detector" on={s.detector_enabled} disabled={busy} onChange={(v) => doAct(() => updateSettings({ detector_enabled: v }))} />
           <Btn disabled={busy} onClick={() => doAct(async () => { await runDetectors(); })}>Run detectors</Btn>
         </div>

@@ -15,9 +15,12 @@ import { supabase } from './supabase';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped tables, shapes below
 const db = supabase as unknown as { from: (t: string) => any; rpc: (f: string, a?: Record<string, unknown>) => any };
 
-export type PostType = 'fpl_captaincy' | 'team_xg_change' | 'prediction_accuracy' | 'historical_insight' | 'announcement';
+export type PostType = 'fpl_captaincy' | 'team_xg_change' | 'prediction_accuracy' | 'historical_insight' | 'announcement'
+  | 'fpl_price_changes' | 'gameweek_thread';
 export const POST_TYPE_LABEL: Record<PostType, string> = {
   fpl_captaincy: 'FPL captaincy',
+  fpl_price_changes: 'FPL price changes',
+  gameweek_thread: 'Gameweek thread',
   team_xg_change: 'Team xG change',
   prediction_accuracy: 'Prediction accuracy',
   historical_insight: 'Historical insight',
@@ -47,6 +50,13 @@ export type Candidate = {
   publish_attempts: number;
   last_error: string | null;
   created_at: string;
+  /** Phase 4: queued for automatic posting at hold_until unless held. */
+  thread?: string[] | null;
+  auto?: boolean;
+  hold_until?: string | null;
+  held?: boolean;
+  notified_at?: string | null;
+  x_post_ids?: string[] | null;
 };
 
 export type Settings = {
@@ -64,6 +74,13 @@ export type Settings = {
   allow_urls: boolean;
   max_live_attempts: number;
   updated_at: string;
+  hold_minutes?: number;
+  max_links_per_week?: number;
+  auto_post_types?: PostType[];
+  post_hours_from?: number;
+  post_hours_to?: number;
+  breaker_tripped_at?: string | null;
+  breaker_reason?: string | null;
 };
 
 export type Connection = {
@@ -121,7 +138,13 @@ export async function review(candidateId: number, action: 'approve' | 'reject' |
   return data;
 }
 
-export async function updateSettings(change: Partial<Settings>): Promise<void> {
+/** Stop (or release) an automatic post before it goes out. */
+export async function hold(candidateId: number, on: boolean): Promise<void> {
+  const { error } = await db.rpc('social_hold', { p_candidate_id: candidateId, p_hold: on });
+  if (error) fail(error, on ? 'Could not hold' : 'Could not release');
+}
+
+export async function updateSettings(change: Partial<Settings> & { reset_breaker?: boolean }): Promise<void> {
   const { error } = await db.rpc('social_update_settings', { p: change });
   if (error) fail(error, 'Could not save settings');
 }
