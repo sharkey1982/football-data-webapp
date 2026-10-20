@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-20 · Preview smoke test failed on a PR with no site changes
+- **Found:** PR #386 (a migration and an Edge Function only).
+- **Impact:** `smoke/preview` reported failure. No site code was involved, so it was a false alarm that would block the merge rule.
+- **Cause:** Netlify skips the build when only ignored paths change. Its status then links to the deploy log on app.netlify.com, which the smoke test browsed as if it were the preview: every page showed ERR_BLOCKED_BY_CLIENT.
+- **Fix:** `weekly-smoke.yml` recognises an app.netlify.com target and reports success, "No site changes: Netlify skipped the build", without browsing. PR #386 was merged on the Netlify checks; the fix applies from the next PR, because status-event workflows run from main.
+- **Prevention:** the fix itself. *Lesson: a check that can't tell "nothing to test" from "broken" teaches people to ignore it.*
+
+---
+
 ## 2026-10-18 · Fixtures head-to-head and FPL line-ups failing for every visitor (timeouts)
 - **Found:** the first browser smoke run (scripts/smoke/weekly_smoke.mjs), 18 Oct.
 - **Impact:** on /fixtures the head-to-head column's request returned HTTP 500 (it took 7.2 s for a season; public requests stop at 3 s). On /fpl/line-ups the "Worth reviewing" filter came back empty (1.9 s warm, failing under load); the page swallowed the error. The Football hub's model accuracy took 0.9-2.8 s. League tables took ~1.1 s on every call. Unknown since when: nothing tested the pages as a visitor sees them.
