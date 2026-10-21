@@ -45,7 +45,7 @@ const FIXED = [
   ['home', '/'], ['fixtures', '/fixtures'], ['tv-guide', '/tv-guide'], ['football-hub', '/football'],
   ['leagues', '/football/leagues'], ['records', '/football/records'], ['history-pace', '/football/history/pace'],
   ['model-scorecard', '/football/model-scorecard'], ['local-clubs', '/football/local-clubs'], ['finance', '/finance'],
-  ['fpl-hub', '/fpl'], ['fpl-gameweek', '/fpl/gameweek'], ['fpl-live', '/fpl/live'], ['fpl-optimal-squad', '/fpl/optimal-squad'],
+  ['fpl-hub', '/fpl'], ['fpl-start', '/fpl/start'], ['fpl-gameweek', '/fpl/gameweek'], ['fpl-live', '/fpl/live'], ['fpl-optimal-squad', '/fpl/optimal-squad'],
   ['fpl-player-points', '/fpl/player-points'], ['fpl-line-ups', '/fpl/line-ups'], ['fpl-injuries', '/fpl/injuries'],
   ['nfl-hub', '/nfl'], ['nfl-standings', '/nfl/standings'], ['nfl-fixtures', '/nfl/fixtures'], ['nfl-player-projections', '/nfl/player-projections'],
   ['tennis-hub', '/tennis'], ['tennis-results', '/tennis/results'], ['tennis-players', '/tennis/players'], ['tennis-grand-slams', '/tennis/grand-slams'],
@@ -57,7 +57,7 @@ const FIXED = [
 // (layout review, 21 Oct 2026: the most-visited pages were dead ends). FAILS
 // the page when it has none, so a dead end can't creep back.
 const MUST_LINK_ENTITIES = new Set([
-  'fixtures', 'table', 'team-strength', 'projections', 'league-table', 'team', 'match',
+  'fixtures', 'table', 'team-strength', 'projections', 'league-table', 'team', 'match', 'football-hub', 'fpl-start',
   'fpl-player-points', 'fpl-injuries',
 ]);
 const DYNAMIC = [

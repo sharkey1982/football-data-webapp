@@ -335,3 +335,43 @@ export function menuIndex(path: string, order: string[] = menuOrder()): number {
   order.forEach((p, i) => { if (p !== '/' && (target === p || target.startsWith(p + '/')) && p.length > len) { best = i; len = p.length; } });
   return best >= 0 ? best : Number.MAX_SAFE_INTEGER;
 }
+
+// ---- Hub page groups (layout review, 21 Oct 2026) ---------------------------
+// The Club and FPL home pages list every page in a few groups named for what
+// people come to do, not Discover / Predict. Paths only: labels and blurbs
+// still come from the stage links above, so a page is named in one place.
+// src/__tests__/hubGroups.test.ts checks every menu page is in exactly one
+// group, so a new page can't go missing from its hub.
+
+export type HubGroup = { name: string; paths: string[] };
+
+export const HUB_GROUPS: Partial<Record<ThemeKey, HubGroup[]>> = {
+  football: [
+    { name: 'This week', paths: ['/fixtures', '/football/projections', '/tv-guide'] },
+    { name: 'Teams & tables', paths: ['/table', '/teams', '/preview', '/football/local-clubs'] },
+    { name: 'History', paths: ['/football/leagues', '/football/records', '/football/history/trends', '/football/history/scorelines', '/football/history'] },
+    {
+      name: 'Insights & model',
+      paths: [
+        '/football/leagues-compared', '/football/countries-compared', '/team-strength', '/football/market-efficiency',
+        '/football/model-accuracy', '/football/model-returns', '/football/model-scorecard', '/finance', '/finance/compare', '/results-data',
+      ],
+    },
+  ],
+  fpl: [
+    { name: 'This week', paths: ['/fpl/live', '/fpl/gameweek', '/fpl/team-of-the-week', '/fpl/in-the-papers', '/fpl/price-risk', '/fpl/injuries'] },
+    { name: 'Players', paths: ['/fpl/player-points', '/fpl/player-scout', '/fpl/compare', '/fpl/value', '/fpl/set-pieces', '/fpl/minutes', '/fpl/line-ups'] },
+    { name: 'Plan my team', paths: ['/fpl/rate-my-team', '/fpl/optimal-squad', '/fantasy', '/fpl'] },
+    { name: 'History', paths: ['/fpl/optimal-squad-so-far', '/fpl/season-xi', '/fpl/articles'] },
+    { name: 'Insights & model', paths: ['/fpl/formations', '/fpl/model-xi', '/fpl/scoring-rules'] },
+  ],
+};
+
+/** A theme's hub groups with each path resolved to its menu link. */
+export function hubGroups(key: ThemeKey): { name: string; links: JourneyLink[] }[] {
+  const links = new Map(THEMES[key].stages.flatMap((s) => s.links).map((l) => [l.to, l]));
+  return (HUB_GROUPS[key] ?? []).map((g) => ({
+    name: g.name,
+    links: g.paths.map((p) => links.get(p)).filter((l): l is JourneyLink => l != null),
+  }));
+}

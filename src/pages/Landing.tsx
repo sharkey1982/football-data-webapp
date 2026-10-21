@@ -64,11 +64,14 @@ const ICONS = {
 // short: the name on a phone, where tiles are ~150px wide (the menu's label).
 type Tile = { title: string; short?: string; line: string; icon: keyof typeof ICONS };
 
-// The top menu's sections, in its order.
-const SECTIONS: (Tile & { to: string })[] = [
-  { to: '/football', title: 'Club football', line: 'Results, tables and predictions', icon: 'football' },
+// Club football and FPL are the main content (Chris, 21 Oct 2026): two large
+// tiles. The other sections sit in a smaller row beneath, with the game.
+const MAIN: (Tile & { to: string })[] = [
+  { to: '/football', title: 'Club football', line: 'Fixtures, tables and the model\u2019s predictions', icon: 'football' },
+  { to: '/fpl/start', title: 'Fantasy Premier League', short: 'FPL', line: 'Projected points, prices, injuries and Rate My Team', icon: 'shirt' },
+];
+const MORE: (Tile & { to: string })[] = [
   { to: '/international', title: 'International', line: 'Every nation since 1872', icon: 'globe' },
-  { to: '/fpl/start', title: 'Fantasy Premier League', short: 'FPL', line: 'Projections and line-ups', icon: 'shirt' },
   { to: '/nfl', title: 'NFL', line: 'Games, standings and UK TV', icon: 'gridiron' },
   { to: '/tennis', title: 'Tennis', line: 'Players, draws and rivalries', icon: 'tennis' },
 ];
@@ -78,6 +81,10 @@ const GAME: Tile = { title: 'Beat the Shark', line: 'Play a season in five minut
 // accessible name is the name plus the line.
 const TILE =
   'group flex flex-col justify-between gap-3 min-h-[8rem] sm:min-h-[10rem] rounded-xl border-2 p-3.5 sm:p-5 transition-all ' +
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400';
+
+const SMALL =
+  'group flex flex-col gap-1 rounded-lg border p-3 sm:p-4 transition-colors ' +
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400';
 
 function TileBody({ tile, play = false }: { tile: Tile; play?: boolean }) {
@@ -128,23 +135,37 @@ export default function Landing() {
       <div>
         <h1 className="font-display uppercase tracking-wide text-3xl sm:text-6xl text-amber-400 glow-amber leading-tight">Pick your side.</h1>
         <p className="text-chalk-300 mt-3 sm:mt-4 max-w-prose text-base sm:text-lg">
-          Results, tables and model predictions for club and international football, plus Fantasy Premier League tools, club finances, the NFL and tennis.
+          Results, tables and model predictions for club football, plus Fantasy Premier League tools. Also international football, club finances, the NFL and tennis.
         </p>
       </div>
 
-      <nav aria-label="Sections" className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4" data-testid="home-sections">
-        {SECTIONS.map((t) => (
-          <Link
-            key={t.to}
-            to={t.to}
-            className={`${TILE} border-pitch-700 bg-pitch-900 hover:border-amber-500 hover:bg-pitch-800 hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]`}
-          >
-            <TileBody tile={t} />
-          </Link>
-        ))}
-        <a href={GAME_URL} className={`${TILE} border-amber-400 bg-amber-500 hover:bg-amber-400 hover:shadow-[0_0_30px_rgba(227,180,85,0.45)]`}>
-          <TileBody tile={GAME} play />
-        </a>
+      <nav aria-label="Sections" className="space-y-5 sm:space-y-6" data-testid="home-sections">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {MAIN.map((t) => (
+            <Link
+              key={t.to}
+              to={t.to}
+              className={`${TILE} sm:min-h-[12rem] border-pitch-700 bg-pitch-900 hover:border-amber-500 hover:bg-pitch-800 hover:shadow-[0_0_30px_rgba(227,180,85,0.25)]`}
+            >
+              <TileBody tile={t} />
+            </Link>
+          ))}
+        </div>
+        <div>
+          <p className="font-mono text-[0.7rem] uppercase tracking-widest text-chalk-300 mb-2">Also on FixtureShark</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {MORE.map((t) => (
+              <Link key={t.to} to={t.to} className={`${SMALL} border-pitch-700 hover:border-amber-500 hover:bg-pitch-900`}>
+                <span className="font-display uppercase tracking-wide text-lg text-chalk-100 group-hover:text-amber-400">{t.title}</span>
+                <span className="text-[0.8rem] text-chalk-300 leading-snug">{t.line}</span>
+              </Link>
+            ))}
+            <a href={GAME_URL} className={`${SMALL} border-amber-400 bg-amber-500 hover:bg-amber-400`}>
+              <span className="font-display uppercase tracking-wide text-lg text-pitch-950">{GAME.title}</span>
+              <span className="text-[0.8rem] text-pitch-900 leading-snug">{GAME.line}</span>
+            </a>
+          </div>
+        </div>
       </nav>
     </div>
   );

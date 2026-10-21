@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import Landing from '../pages/Landing';
 
 describe('Landing page', () => {
-  it('one tile per top-menu section, then Beat the Shark', () => {
+  it('Club and FPL as the two main tiles, then the other sections and Beat the Shark', () => {
     render(
       <MemoryRouter>
         <Landing />
@@ -13,7 +13,7 @@ describe('Landing page', () => {
     );
     expect(screen.getByText('Pick your side.')).toBeInTheDocument();
     const tiles = screen.getByTestId('home-sections').querySelectorAll('a');
-    expect([...tiles].map((a) => a.getAttribute('href'))).toEqual(['/football', '/international', '/fpl/start', '/nfl', '/tennis', '/play/beat-the-shark/']);
+    expect([...tiles].map((a) => a.getAttribute('href'))).toEqual(['/football', '/fpl/start', '/international', '/nfl', '/tennis', '/play/beat-the-shark/']);
     expect(screen.getByRole('link', { name: /Club football/ })).toHaveAttribute('href', '/football');
     expect(screen.getByText('Fantasy Premier League').closest('a')).toHaveAttribute('href', '/fpl/start');
     // Club finances have no tile (they sit under Club) but are named in the summary.
