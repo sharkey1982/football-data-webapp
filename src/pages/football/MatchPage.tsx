@@ -15,6 +15,7 @@
 // recomputed number.
 // ============================================================================
 
+import { TeamLink } from '../../components/EntityLinks';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
@@ -165,7 +166,8 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
     <article className="space-y-6">
       <header>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">
-          {match.home_team_name} v {match.away_team_name}
+          <TeamLink slug={match.home_team_slug} from="match_page">{match.home_team_name}</TeamLink> v{' '}
+          <TeamLink slug={match.away_team_slug} from="match_page">{match.away_team_name}</TeamLink>
         </h1>
         <p className="text-ink-700 mt-1">
           {match.league_name}
@@ -280,6 +282,12 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
       )}
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+        <TeamLink slug={match.home_team_slug} from="match_page" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+          {match.home_team_name}
+        </TeamLink>
+        <TeamLink slug={match.away_team_slug} from="match_page" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
+          {match.away_team_name}
+        </TeamLink>
         <Link to="/fixtures" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">
           All fixtures &amp; results
         </Link>

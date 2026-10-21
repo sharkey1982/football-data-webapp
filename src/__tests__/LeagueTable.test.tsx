@@ -7,6 +7,7 @@ import LeagueTable from '../pages/LeagueTable';
 import * as api from '../lib/api';
 import * as fixturesApi from '../lib/fixturesApi';
 
+vi.mock('../lib/teamSlugs', () => ({ useTeamSlugs: () => new Map([[42, 'fulham']]) }));
 vi.mock('../lib/api', async () => {
   return {
     getLeagues: vi.fn(),
@@ -144,7 +145,7 @@ describe('LeagueTable page', () => {
     expect(screen.getByText(/Breach of profitability rules/)).toBeInTheDocument();
   });
 
-  it('clicking a team name navigates to its Fixtures Team view for the selected season', async () => {
+  it('links each team name to its own team page', async () => {
     mockedApi.getLeagues.mockResolvedValue([
       { league_id: 1, code: 'E0', name: 'Premier League', country_id: 1, competition_type: 'league' },
     ]);
@@ -158,7 +159,6 @@ describe('LeagueTable page', () => {
       },
     ]);
 
-    const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={['/table']}>
         <Routes>
@@ -168,13 +168,7 @@ describe('LeagueTable page', () => {
       </MemoryRouter>
     );
 
-    await user.click(await screen.findByText('Fulham'));
-
-    const probe = await screen.findByTestId('fixtures-probe');
-    const params = new URLSearchParams(probe.textContent ?? '');
-    expect(params.get('view')).toBe('team');
-    expect(params.get('team')).toBe('42');
-    expect(params.get('season')).toBe('13');
+    expect(await screen.findByRole('link', { name: 'Fulham' })).toHaveAttribute('href', '/football/teams/fulham');
   });
 
   it('names divisions as they were in a historic season, and as today for the current one', async () => {

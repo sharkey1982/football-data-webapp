@@ -56,6 +56,9 @@ export type JourneyTheme = {
   stages: JourneyStage[];
 };
 
+// Menu labels are plain descriptions of the page (layout review, 21 Oct
+// 2026): Price Changes, not Bullpit. A page keeps its own character in its
+// title -- the Bullpit page is still headed Bullpit.
 export const THEMES: Record<ThemeKey, JourneyTheme> = {
   football: {
     key: 'football',
@@ -76,9 +79,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'League Table', to: '/table', blurb: 'Standings computed from results, including point deductions.' },
           { label: 'Your Team', to: '/teams', blurb: 'One club at a time \u2014 form, history and head-to-head.', matchPrefix: ['/teams', '/football/teams'] },
           { label: 'Your Local Clubs', to: '/football/local-clubs', blurb: 'Put in your postcode: your nearest club at every level, Premier League to National League.' },
-          { label: 'Position Tracking', to: '/football/history', blurb: 'How far the table still moves, where teams in any position finished, and this season against every champion.', matchPrefix: ['/football/history'], excludePrefix: ['/football/history/trends', '/football/history/scorelines'] },
+          { label: 'Table Positions', to: '/football/history', blurb: 'How far the table still moves, where teams in any position finished, and this season against every champion.', matchPrefix: ['/football/history'], excludePrefix: ['/football/history/trends', '/football/history/scorelines'] },
           { label: 'Historic Trends', to: '/football/history/trends', blurb: 'Goals, home advantage, draws and title thresholds, season by season since 1992/93.', matchPrefix: ['/football/history/trends'] },
-          { label: 'Score Explore', to: '/football/history/scorelines', blurb: 'How often every scoreline happens, by league, era or club.', matchPrefix: ['/football/history/scorelines'] },
+          { label: 'Scorelines', to: '/football/history/scorelines', blurb: 'How often every scoreline happens, by league, era or club.', matchPrefix: ['/football/history/scorelines'] },
           { label: 'Past seasons', to: '/football/leagues', blurb: 'Every final table since 1992/93, with champions, promotions and relegations.', matchPrefix: ['/football/leagues'], excludePrefix: '/football/leagues-compared' },
           { label: 'Record Book', to: '/football/records', blurb: 'Most points, longest runs and biggest wins, league by league.', matchPrefix: ['/football/records'] },
           { label: 'League Insights', to: '/football/leagues-compared', blurb: 'All five English divisions on one axis \u2014 goals, home advantage, cards.' },
@@ -132,11 +135,11 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Gameweek Log', to: '/fpl/gameweek', blurb: 'A reflection every Tuesday and a preview every Thursday.', matchPrefix: ['/fpl/gameweek/202'] },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
-          { label: 'Bargain Basement', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
-          { label: 'In the papers', to: '/fpl/in-the-papers', blurb: 'The gameweek\u2019s price moves, injuries and ownership swings, plus the seven-day transfer window.' },
+          { label: 'Value for Money', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
+          { label: 'Gameweek News', to: '/fpl/in-the-papers', blurb: 'The gameweek\u2019s price moves, injuries and ownership swings, plus the seven-day transfer window.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
-          { label: "Managers' Dugout", to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
-          { label: 'Physio Room', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
+          { label: 'Formations', to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
+          { label: 'Injuries', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
           // Hindsight, not forecast -- what the best squad WAS. That's a
           // record of what happened, so it belongs in Discover.
           { label: 'Set-and-Forget XI', to: '/fpl/season-xi', blurb: 'The best XI of 2025/26 you could have picked in August and never touched.' },
@@ -175,7 +178,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Minutes Outlook', to: '/fpl/minutes', blurb: 'Who plays over the next 10 gameweeks, and who loses their place as injured players return.' },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
-          { label: 'Bullpit', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
+          { label: 'Price Changes', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
           { label: 'Rate My Team', to: '/fpl/rate-my-team', blurb: 'Enter your FPL ID: your squad against the model, and the transfers it rates most.' },
           { label: 'Optimiser', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },

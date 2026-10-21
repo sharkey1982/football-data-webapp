@@ -9,6 +9,8 @@
 // place, without digging through individual fixtures.
 // ============================================================================
 
+import { TeamLink } from '../components/EntityLinks';
+import { useTeamSlugs } from '../lib/teamSlugs';
 import { useAuthOptional } from '../lib/auth';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getLeagues, getCountries, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
@@ -27,6 +29,7 @@ function fmt(n: number | null, digits = 2): string {
 }
 
 export default function TeamStrengthPage({ adminMode = false }: { adminMode?: boolean } = {}) {
+  const teamSlugs = useTeamSlugs();
   // Since model config became admin-only at the database level, every
   // write control here is inert for a visitor: the buttons render, the
   // request goes out, and Postgres refuses it. Hiding them is not
@@ -563,7 +566,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
                     <Fragment key={r.team_id}>
                     <tr className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
                       <td className={['sticky left-0 z-10 px-3 py-1.5 font-medium text-ink-900', i % 2 === 1 ? 'bg-chalk-100' : 'bg-white'].join(' ')}>
-                        {r.canonical_name}
+                        <TeamLink slug={teamSlugs.get(r.team_id)} from="team_strength">{r.canonical_name}</TeamLink>
                         {r.is_estimated && (
                           <span
                             className="ml-1.5 text-[10px] uppercase tracking-wide text-amber-700"

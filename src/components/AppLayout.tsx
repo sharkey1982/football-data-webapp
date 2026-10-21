@@ -49,6 +49,13 @@ function isItemActive(pathname: string, item: NavItem): boolean {
   return prefixes.some((p) => pathname.startsWith(p));
 }
 
+/** Length of the longest of an item's prefixes the path starts with, so the
+ *  breadcrumb picks the most specific menu page a path sits under. */
+function longestPrefix(item: NavItem, pathname: string): number {
+  const prefixes = Array.isArray(item.matchPrefix) ? item.matchPrefix : [item.matchPrefix];
+  return Math.max(0, ...prefixes.filter((p) => pathname.startsWith(p)).map((p) => p.length));
+}
+
 function NavDropdown({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLLIElement>(null);
@@ -344,16 +351,30 @@ export default function AppLayout() {
   const onTennisPage = location.pathname !== '/tennis' && location.pathname.startsWith('/tennis/');
   const onIntlPage = location.pathname !== '/international' && location.pathname.startsWith('/international/');
   const backToHub = onFootballPage
-    ? { to: '/football', label: 'Football' }
+    ? { to: '/football', label: 'Football', group: footballGroup }
     : onFantasyPage
-      ? { to: '/fpl/start', label: 'Fantasy Premier League' }
+      ? { to: '/fpl/start', label: 'Fantasy Premier League', group: fantasyGroup }
       : onNflPage
-        ? { to: '/nfl', label: 'NFL' }
+        ? { to: '/nfl', label: 'NFL', group: nflGroup }
         : onTennisPage
-          ? { to: '/tennis', label: 'Tennis' }
+          ? { to: '/tennis', label: 'Tennis', group: navGroups.find((g) => g.label === MENU_LABEL.tennis) }
           : onIntlPage
-            ? { to: '/international', label: 'International' }
+            ? { to: '/international', label: 'International', group: navGroups.find((g) => g.label === MENU_LABEL.international) }
             : null;
+
+  // Breadcrumb (layout review, 21 Oct 2026): the section, then the menu page
+  // this one sits under. On that page itself the last crumb is plain text; on
+  // a page beneath it (a team, a match, a season) it links back up.
+  const menuParent = backToHub?.group
+    ? groupItems(backToHub.group)
+        .filter((item) => !item.exact || item.matchPrefix !== backToHub.to)
+        .filter((item) => isItemActive(location.pathname, item))
+        // The most specific match wins: /football/history/trends is under
+        // Historic Trends, not Position Tracking.
+        .sort((a, b) => longestPrefix(b, location.pathname) - longestPrefix(a, location.pathname))[0]
+    : undefined;
+  const menuParentPath = menuParent ? (typeof menuParent.to === 'string' ? menuParent.to : menuParent.to.pathname ?? '') : '';
+  const onMenuParentItself = menuParentPath === location.pathname;
 
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
@@ -385,9 +406,27 @@ export default function AppLayout() {
           in the smoke test (CLS budget 0.1). */}
       <main className="flex-1 min-h-screen max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
         {backToHub && (
-          <NavLink to={backToHub.to} className="inline-block text-sm font-mono text-ink-500 hover:text-ink-900 mb-4">
-            &larr; Back to {backToHub.label}
-          </NavLink>
+          <nav aria-label="Breadcrumb" className="text-sm font-mono text-ink-500 mb-4">
+            <ol className="flex flex-wrap items-center gap-x-1.5">
+              <li>
+                <NavLink to={backToHub.to} className="hover:text-ink-900 underline-offset-2 hover:underline">
+                  {backToHub.label}
+                </NavLink>
+              </li>
+              {menuParent && (
+                <li className="flex items-center gap-x-1.5">
+                  <span aria-hidden="true">&rsaquo;</span>
+                  {onMenuParentItself ? (
+                    <span aria-current="page" className="text-ink-700">{menuParent.label}</span>
+                  ) : (
+                    <Link to={menuParent.to} className="hover:text-ink-900 underline-offset-2 hover:underline">
+                      {menuParent.label}
+                    </Link>
+                  )}
+                </li>
+              )}
+            </ol>
+          </nav>
         )}
         <Outlet />
       </main>

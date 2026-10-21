@@ -50,7 +50,16 @@ const FIXED = [
   ['nfl-hub', '/nfl'], ['nfl-standings', '/nfl/standings'], ['nfl-fixtures', '/nfl/fixtures'], ['nfl-player-projections', '/nfl/player-projections'],
   ['tennis-hub', '/tennis'], ['tennis-results', '/tennis/results'], ['tennis-players', '/tennis/players'], ['tennis-grand-slams', '/tennis/grand-slams'],
   ['intl-hub', '/international'], ['intl-fixtures', '/international/fixtures'], ['intl-teams', '/international/teams'],
+  ['table', '/table'], ['team-strength', '/team-strength'], ['projections', '/football/projections'],
 ];
+
+// Pages that list teams, matches or players must link to their own pages
+// (layout review, 21 Oct 2026: the most-visited pages were dead ends). FAILS
+// the page when it has none, so a dead end can't creep back.
+const MUST_LINK_ENTITIES = new Set([
+  'fixtures', 'table', 'team-strength', 'projections', 'league-table', 'team', 'match',
+  'fpl-player-points', 'fpl-injuries',
+]);
 const DYNAMIC = [
   ['league-table', /^\/football\/leagues\/[^/]+\/[^/]+$/],
   ['team', /^\/football\/teams\/[^/]+$/],
@@ -193,6 +202,8 @@ async function testPage(browser, type, path) {
         h1: document.querySelectorAll('h1').length,
         empty_tables: tables.filter((t) => t.querySelectorAll('tbody tr').length === 0 && t.querySelectorAll('tr').length <= 1).length,
         tables: tables.length,
+        entity_links: [...(document.querySelector('main') ?? document).querySelectorAll('a[href]')]
+          .filter((a) => /^\/(football\/(teams|matches)|fpl\/(players|player-scout))\//.test(a.getAttribute('href') || '')).length,
         title: document.title,
       };
     });
@@ -214,6 +225,8 @@ async function testPage(browser, type, path) {
     if (m.spinner) res.errors.push('still showing "Loading" after the network went idle');
     if (!m.h1) res.errors.push('no <h1>');
     if (m.empty_tables) res.errors.push(`${m.empty_tables} of ${m.tables} table(s) have no rows`);
+    res.entity_links = m.entity_links;
+    if (MUST_LINK_ENTITIES.has(type) && m.entity_links === 0) res.errors.push('dead end: no links to team, match or player pages');
     if (MODE !== 'quick') {
       if (res.lcp_ms > BUDGETS.lcp_ms) res.warnings.push(`LCP ${res.lcp_ms} ms > ${BUDGETS.lcp_ms}`);
       if (res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}; moved: ${res.cls_sources.map((x) => `${x.element} (${x.value})`).join('; ')}`);

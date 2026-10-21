@@ -26,6 +26,9 @@ import { formatMatchDate, formatMatchDateWithYear, formatRefreshDate } from '../
 import FixtureCalendarHeatmap from '../components/FixtureCalendarHeatmap';
 import { ScoreChip } from '../components/ScoreChip';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { TeamLink } from '../components/EntityLinks';
+import { useTeamSlugs } from '../lib/teamSlugs';
+import { defaultFixtureDate } from '../lib/fixtureDates';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -201,6 +204,7 @@ function FixtureScoreCell({
  * labels and route lists. */
 export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'archive' | 'projections' } = {}) {
   const isProjections = variant === 'projections';
+  const teamSlugs = useTeamSlugs();
   const [fitRhos, setFitRhos] = useState<Map<number, number>>(new Map());
   // Only needed in projections mode -- the archive view shows results,
   // and fetching a lookup nothing reads would be waste on every visit.
@@ -544,7 +548,19 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
     setLoading(true);
     getFixturesForSeason(leagueId, seasonId)
       .then(async (rows) => {
-        if (rows.length > 0) return rows;
+        if (rows.length > 0) {
+          // Open on a day that has games, not an empty list (see
+          // defaultFixtureDate). Only replaces the untouched default.
+          const today = todayIsoDate();
+          const day = defaultFixtureDate(rows.map((r) => r.kickoff_date), today);
+          if (day && day !== today) {
+            setSelectedCalendarDates((prev) => (prev.size === 1 && prev.has(today) ? new Set([day]) : prev));
+            const [y, m] = day.split('-').map(Number);
+            setCalendarYear(y);
+            setCalendarMonth(m - 1);
+          }
+          return rows;
+        }
         // No scheduled fixtures for this division/season -- fall back to
         // the results archive, which covers past seasons (see dataCoverage.ts)
         // (fixtures.csv imports only ever cover the current official
@@ -1109,11 +1125,11 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                     )}
                     <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
                       <span className={['truncate font-medium min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
-                        {f.home_team_name}
+                        <TeamLink slug={teamSlugs.get(f.home_team_id)} from="fixtures">{f.home_team_name}</TeamLink>
                       </span>
                       <FixtureScoreCell f={f} rhoFor={rhoFor} h2h={!isProjections ? h2h.get(f.fixture_id) : undefined} />
                       <span className={['truncate font-medium text-right min-w-0', competitionTextClass(f.competition_type)].join(' ')}>
-                        {f.away_team_name}
+                        <TeamLink slug={teamSlugs.get(f.away_team_id)} from="fixtures">{f.away_team_name}</TeamLink>
                       </span>
                     </div>
                     <span
@@ -1241,9 +1257,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                               </span>
                             </span>
                             <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-3 min-w-0">
-                              <span className="truncate font-medium min-w-0">{f.home_team_name}</span>
+                              <span className="truncate font-medium min-w-0"><TeamLink slug={teamSlugs.get(f.home_team_id)} from={isProjections ? 'projections' : 'fixtures'}>{f.home_team_name}</TeamLink></span>
                               <FixtureScoreCell f={f} rhoFor={rhoFor} h2h={!isProjections ? h2h.get(f.fixture_id) : undefined} />
-                              <span className="truncate font-medium text-right min-w-0">{f.away_team_name}</span>
+                              <span className="truncate font-medium text-right min-w-0"><TeamLink slug={teamSlugs.get(f.away_team_id)} from={isProjections ? 'projections' : 'fixtures'}>{f.away_team_name}</TeamLink></span>
                             </div>
                             {/* A real anchor to the fixture's own canonical
                                 page. The row itself is a JS-only onClick,
@@ -1255,9 +1271,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                               <Link
                                 to={`/football/matches/${f.slug}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-xs text-pitch-800 hover:text-pitch-700 underline underline-offset-2 shrink-0 hidden sm:inline"
+                                className="text-xs text-pitch-800 hover:text-pitch-700 underline underline-offset-2 shrink-0"
                               >
-                                Prediction
+                                Match page
                               </Link>
                             )}
                             <span className="text-xs text-pitch-700 font-medium shrink-0 hidden sm:inline">

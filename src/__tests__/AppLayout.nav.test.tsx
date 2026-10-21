@@ -9,7 +9,7 @@ vi.mock('../lib/auth', async () => {
 const mockedAuth = authLib as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
@@ -184,28 +184,40 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Team Strength Admin' })).toHaveAttribute('href', '/admin/team-ratings');
   });
 
+  const crumbs = () => screen.queryByRole('navigation', { name: 'Breadcrumb' });
+
   it('treats Results Data as a Football page now it lives under Discover', () => {
     renderAt('/results-data');
-    expect(screen.getByRole('link', { name: /Back to Football/ })).toHaveAttribute('href', '/football');
+    expect(within(crumbs()!).getByRole('link', { name: 'Football' })).toHaveAttribute('href', '/football');
   });
 
-  it('shows a back-to-hub link on a Football destination page, pointing at /football', () => {
+  it('shows a breadcrumb on a Football destination page: hub link, then the page itself as plain text', () => {
     renderAt('/team-strength');
-    expect(screen.getByRole('link', { name: /Back to Football/ })).toHaveAttribute('href', '/football');
+    const nav = crumbs()!;
+    expect(within(nav).getByRole('link', { name: 'Football' })).toHaveAttribute('href', '/football');
+    expect(within(nav).getByText('Team Strength')).toHaveAttribute('aria-current', 'page');
   });
 
-  it('shows a back-to-hub link on a Fantasy destination page, pointing at /fpl/start', () => {
+  it('shows a breadcrumb on a Fantasy destination page, pointing at /fpl/start', () => {
     renderAt('/fpl/optimal-squad');
-    expect(screen.getByRole('link', { name: /Back to Fantasy Premier League/ })).toHaveAttribute('href', '/fpl/start');
+    expect(within(crumbs()!).getByRole('link', { name: 'Fantasy Premier League' })).toHaveAttribute('href', '/fpl/start');
+    expect(within(crumbs()!).getByText('Optimiser')).toHaveAttribute('aria-current', 'page');
   });
 
-  it('shows no back-to-hub link on the hub pages themselves, the landing page, or Admin pages -- there is nothing to loop back to', () => {
-    // /results-data deliberately NOT in this list any more: it moved into
-    // Football > Discover, so it's a theme page and correctly DOES offer
-    // a way back to the hub.
+  it('links the menu page back up from a page beneath it (a team page under Your Team)', () => {
+    renderAt('/football/teams/arsenal');
+    expect(within(crumbs()!).getByRole('link', { name: 'Your Team' })).toHaveAttribute('href', '/teams');
+  });
+
+  it('picks the most specific menu page a path sits under', () => {
+    renderAt('/football/history/trends/premier-league');
+    expect(within(crumbs()!).getByRole('link', { name: 'Historic Trends' })).toHaveAttribute('href', '/football/history/trends');
+  });
+
+  it('shows no breadcrumb on the hub pages themselves, the landing page, or Admin pages -- there is nothing to loop back to', () => {
     for (const path of ['/football', '/fpl/start', '/', '/source-data']) {
       renderAt(path);
-      expect(screen.queryByText(/Back to/)).not.toBeInTheDocument();
+      expect(crumbs()).not.toBeInTheDocument();
       cleanup();
     }
   });

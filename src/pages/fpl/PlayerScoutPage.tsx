@@ -314,7 +314,15 @@ export default function PlayerScoutPage() {
                         onClick={() => (p.slug ? navigate(`/fpl/player-scout/${p.slug}`) : setSelectedListPlayer(p))}
                       >
                         <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
-                          {p.web_name}{' '}
+                          {p.slug ? (
+                            // A real link, so the record is reachable without
+                            // JavaScript and opens in a new tab; the row click stays.
+                            <Link to={`/fpl/player-scout/${p.slug}`} onClick={(e) => e.stopPropagation()} className="hover:text-pitch-700 hover:underline underline-offset-2">
+                              {p.web_name}
+                            </Link>
+                          ) : (
+                            p.web_name
+                          )}{' '}
                           <span className="text-ink-500">{POSITION[p.element_type]}</span>
                         </th>
                         <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
