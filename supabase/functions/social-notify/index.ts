@@ -27,6 +27,7 @@ const LABEL: Record<string, string> = {
   fpl_market: "FPL market watch",
   fpl_week_changes: "FPL week's changes",
   gameweek_outlook: "The week ahead",
+  fixture_moved: "Fixture moved",
   prediction_accuracy: "Prediction accuracy",
   team_xg_change: "Team xG change",
   historical_insight: "Historical insight",
