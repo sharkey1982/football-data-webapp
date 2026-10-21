@@ -164,6 +164,8 @@ gameweek report calls them as soon as it publishes. A candidate with
 | Gameweek team-news update | `social_detect_gameweek_threads`, kind `preview_update`: the preview's `x_update`. Team-news day: the day before a deadline earlier than 17:00 (from 16:00), or the deadline day for an evening deadline (from 12:00). Once per gameweek, no link | ~1h after the detector sees it; expires at the deadline |
 | The week ahead | `social_detect_outlook`: whether the next gameweek is normal (Saturday deadline, games Saturday to Monday, everyone once) or what is different; cup and European games for PL teams before it; ties between teams that also meet in the league | 10:00 UK the morning after the previous reflection |
 | The week's changes | `social_detect_week_changes`: FPL an hour before this deadline v an hour before the last (`fpl_deadline_player_state`): price rises and falls, most bought and sold, biggest ownership rise, players ruled out | Deadline + 1h |
+| Fixture moved | `social_detect_fixture_moves`: FPL fixture changes (`fpl_fixture_changes`, logged by a trigger on `fpl_fixtures`) at least 30 minutes old, batched. A move to another gameweek says who now blanks or plays twice and names players owned by 5%+; a new date in the same gameweek is posted within three weeks of its deadline; time-only changes are logged, not posted | ~1h after the detector sees it
+| Fixture moved | `social_detect_fixture_moves`: FPL fixture changes (`fpl_fixture_changes`, logged by a trigger on `fpl_fixtures`) at least 30 minutes old, batched. A move to another gameweek says who now blanks or plays twice and names players owned by 5%+; a new date in the same gameweek is posted within three weeks of its deadline; time-only changes are logged, not posted | ~1h after the detector sees it |
 | Prediction accuracy | `social_detect_accuracy` | ~1h after it is created |
 
 Team xG changes and record streaks stay manual.
@@ -210,3 +212,7 @@ NFL, tennis, Beat the Shark blackjack and poker challenges: add a post type
 - **Preview:** first version on Friday morning when the deadline is Saturday or Sunday, otherwise the day before the deadline. Its X thread carries the week's one link.
 - **Team-news update:** extra pipeline runs (Friday 16:11 UTC; Tuesday and Friday 12:11 UTC for evening deadlines) refresh the preview after the press conferences; the refresh compares the day's first version with the latest (`team_news_thread`) and, if anything changed, queues a short linkless thread: what changed, then the captaincy numbers now.
 - **Midweek cup and European minutes** are not in the database yet, so the preview names teams on short rest but cannot yet say who played 90 minutes on Wednesday.
+
+### Cup and European lineups
+
+`cup_lineup_players`: who started, came on and went off in cup and European games for PL teams. Narrative only (reflection, preview, articles); the projections, start chances and formations never read it (Chris, 21 Oct 2026). Entered from what Chris sends (e.g. BBC line-up screenshots), through a migration.
