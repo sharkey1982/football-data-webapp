@@ -129,7 +129,7 @@ begin
   if jsonb_array_length(v_rows) > 40 then return jsonb_build_object('status', 'rejected', 'checks', v_checks); end if;
   if jsonb_array_length(v_rows) = 0 then return jsonb_build_object('status', 'none', 'reason', 'no availability changes'); end if;
 
-  v_text := format('FPL availability, %s', to_char(v_today, 'Dy DD Mon'));
+  v_text := format('FPL availability, %s', to_char(v_today, 'Dy FMDD Mon'));
   for r in select e from jsonb_array_elements(v_rows) e loop
     v_line := case (r->>'grp')::int
       when 1 then format('Out: %s (%s, %s%%)%s', r->>'web_name', r->>'team', private.social_fmt((r->>'own')::numeric, 1),
@@ -202,7 +202,7 @@ begin
     return jsonb_build_object('status', 'none', 'reason', 'too few transfers yet', 'moved', v_sum);
   end if;
 
-  v_text := format(E'FPL market watch, %s\nMost bought this gameweek: %s\nMost sold: %s', to_char(v_today, 'Dy DD Mon'), v_in, v_out);
+  v_text := format(E'FPL market watch, %s\nMost bought this gameweek: %s\nMost sold: %s', to_char(v_today, 'Dy FMDD Mon'), v_in, v_out);
   insert into public.social_post_candidates (post_type, text, generated_text, source_data, snapshot_at, dedupe_key,
                                              expires_at, validation_status, validation_errors, detector_run_id)
   values ('fpl_market', v_text, v_text,
