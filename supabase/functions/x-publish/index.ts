@@ -8,7 +8,8 @@
 //
 //   POST { candidate_id: number, mode: "dry_run" | "live" }
 //
-// A thread's posts go out as replies to the previous one. If a later post
+// A thread's posts go out as replies to the previous one; a candidate whose
+// source_data has reply_to_x_id (one of our own posts) replies to that post. If a later post
 // fails, the thread is recorded as posted with the ids so far and the error,
 // which trips the circuit breaker for automatic posts.
 //
@@ -122,10 +123,14 @@ Deno.serve(async (req) => {
   if (claimErr) return json({ error: claimErr.message }, 500);
   if (!claim?.ok) return json({ ok: false, mode, reasons: claim?.reasons ?? [], text: claim?.text, estimated_cost_usd: claim?.estimated_cost_usd });
   const posts: string[] = Array.isArray(claim.thread) && claim.thread.length ? claim.thread : [claim.text];
+  // A follow-up to an earlier thread of ours (e.g. the reflection's bonus correction) replies to its last post.
+  const { data: cand } = await sb.from("social_post_candidates").select("source_data").eq("candidate_id", candidateId).maybeSingle();
+  const replyTo = typeof cand?.source_data?.reply_to_x_id === "string" && /^\d+$/.test(cand.source_data.reply_to_x_id)
+    ? cand.source_data.reply_to_x_id as string : null;
 
   // ---- Dry run ends here: no tokens, no X.
   if (mode === "dry_run") {
-    return json({ ok: true, mode, would_post: { text: claim.text, thread: posts }, estimated_cost_usd: claim.estimated_cost_usd });
+    return json({ ok: true, mode, would_post: { text: claim.text, thread: posts, reply_to: replyTo }, estimated_cost_usd: claim.estimated_cost_usd });
   }
 
   // ---- Live.
@@ -144,6 +149,7 @@ Deno.serve(async (req) => {
   for (let i = 0; i < posts.length; i++) {
     const payload: Record<string, unknown> = { text: posts[i] };
     if (i > 0) payload.reply = { in_reply_to_tweet_id: ids[i - 1] };
+    else if (replyTo) payload.reply = { in_reply_to_tweet_id: replyTo };
     let res: Response;
     try {
       res = await fetch(POST_URL, {
