@@ -6,6 +6,13 @@ name: Gameweek report
 # corrections (a correction is a new version; published ones never change).
 # Output is in the run's annotations (logs can't be read from cloud sessions).
 on:
+  # The provisional reflection on the night the gameweek ends (Chris, 21 Oct
+  # 2026): checks after a 20:00 kick-off in BST and GMT. The report decides
+  # whether anything is due; most nights it exits at once.
+  schedule:
+    - cron: '20 21 * * *'
+    - cron: '20 22 * * *'
+    - cron: '50 22 * * *'
   workflow_dispatch:
     inputs:
       kind:
@@ -53,9 +60,13 @@ jobs:
           IN_PUBLISH: ${{ inputs.publish }}
         run: |
           set +e
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS="--auto --only reflection"
+          else
           ARGS="--kind ${IN_KIND} --gw ${IN_GW}"
           if [ "${IN_FROZEN}" = "true" ]; then ARGS="$ARGS --frozen"; fi
           if [ "${IN_PUBLISH}" = "true" ]; then ARGS="$ARGS --publish"; fi
+          fi
           python scripts/fpl_gameweek_report.py $ARGS 2>&1 | tee /tmp/r.log
           STATUS=${PIPESTATUS[0]}
           ENCODED=$(tail -c 3500 /tmp/r.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')

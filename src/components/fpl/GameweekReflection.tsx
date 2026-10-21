@@ -779,9 +779,11 @@ export default function GameweekReflection({ p }: { p: ReflectionPayload }) {
   };
   return (
     <>
-      {!p.gameweek_finished || !p.bonus_confirmed ? (
+      {p.provisional || !p.gameweek_finished || !p.bonus_confirmed ? (
         <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-ink-700 max-w-prose">
-          Written before FPL confirmed every result and bonus for the gameweek; matches not yet played are left out.
+          {p.provisional
+            ? 'Provisional: written the night the gameweek finished, before FPL confirmed bonus points. A confirmed version replaces it once FPL confirms bonus and the closing prices are in.'
+            : 'Written before FPL confirmed every result and bonus for the gameweek; matches not yet played are left out.'}
         </p>
       ) : null}
 

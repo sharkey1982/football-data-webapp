@@ -29,6 +29,13 @@ on:
     # behind everyone else's. :41 also avoids the :17/:23 FPL pg_cron jobs.
     - cron: '41 6 * * *'
     - cron: '41 18 * * *'
+    # Team news after the press conferences (Chris, 21 Oct 2026): the preview's
+    # update and its X thread. Friday 16:11 UTC for a Saturday deadline;
+    # Tuesday and Friday 12:11 UTC for an evening deadline on the day
+    # (Friday-night and midweek gameweeks). The report decides; other runs
+    # just refresh the projections.
+    - cron: '11 16 * * 5'
+    - cron: '11 12 * * 2,5'
   workflow_dispatch:
     inputs:
       rebuild_site:

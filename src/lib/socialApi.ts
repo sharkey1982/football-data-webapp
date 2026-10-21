@@ -16,11 +16,15 @@ import { supabase } from './supabase';
 const db = supabase as unknown as { from: (t: string) => any; rpc: (f: string, a?: Record<string, unknown>) => any };
 
 export type PostType = 'fpl_captaincy' | 'team_xg_change' | 'prediction_accuracy' | 'historical_insight' | 'announcement'
-  | 'fpl_price_changes' | 'gameweek_thread';
+  | 'fpl_price_changes' | 'gameweek_thread' | 'fpl_availability' | 'fpl_market' | 'fpl_week_changes' | 'gameweek_outlook';
 export const POST_TYPE_LABEL: Record<PostType, string> = {
   fpl_captaincy: 'FPL captaincy',
   fpl_price_changes: 'FPL price changes',
   gameweek_thread: 'Gameweek thread',
+  fpl_availability: 'FPL availability',
+  fpl_market: 'FPL market watch',
+  fpl_week_changes: "FPL week's changes",
+  gameweek_outlook: 'The week ahead',
   team_xg_change: 'Team xG change',
   prediction_accuracy: 'Prediction accuracy',
   historical_insight: 'Historical insight',

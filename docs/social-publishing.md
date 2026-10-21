@@ -145,14 +145,25 @@ app in @FixtureSharkHQ's [connected apps](https://x.com/settings/connected_apps)
    presses Publish, then turns the kill switch back on.
 4. **Automatic publishing**: live 20 Oct 2026 (see "Automatic posting").
 
-## Automatic posting (Phase 4, live 20 Oct 2026)
+## Automatic posting (Phase 4, live 20 Oct 2026; posting plan 21 Oct 2026)
+
+The weekly plan Chris agreed on 21 Oct 2026 (artifact "FixtureShark Posting
+Plan"; wording and times there are the reference until he changes them).
+Detectors run hourly (pg_cron `social-detect-candidates`, :25), and the
+gameweek report calls them as soon as it publishes. A candidate with
+`source_data.post_after` is not posted before that time.
 
 | Post | Detector | When it goes |
 |---|---|---|
-| Overnight FPL price changes | `social_detect_price_changes` (07:25 UTC run): today's prices v yesterday's 18:17 snapshot | ~1h after the morning run, only on days prices changed |
-| Captaincy top five | `social_detect_captaincy` | 24h before the deadline (the newest ranking replaces older queued ones) |
-| Gameweek preview / reflection thread | `social_detect_gameweek_threads`: newest published report's `x_thread` | ~1h after the detector sees it. Links are removed, except the preview's first post, which carries the week's one link |
-| Gameweek team-news update | `social_detect_gameweek_threads`, kind `preview_update`: the preview's `x_update`, from a version published after 16:00 UK (after the Friday press conferences). Once per gameweek, no link | ~1h after the detector sees it; expires at the deadline |
+| Overnight FPL price changes | `social_detect_price_changes` (06:00–12:00 UK): today's prices v yesterday's last snapshot. Old → new price and ownership, rises first, the rest counted | ~1h after FPL's morning refresh, only on days prices changed |
+| Availability | `social_detect_availability` (Tue–Fri, made 11:00–16:00 UK): new FPL flags (Out / Doubt / Back) since the last availability post, or yesterday, for players owned by 1%+ or in the projected top 50. Not on the deadline day | 12:30 UK |
+| Market watch | `social_detect_market` (made 19:00–21:00 UK): the gameweek's three most bought and sold (net), from today's FPL snapshot. Not in the 24h after a deadline. Price calls are added once the price model passes its test | 20:00 UK |
+| Captaincy top five | `social_detect_captaincy`: top five by projected points, plus the top two's blank chance from the newest preview once it has it | 24h before the deadline (the newest ranking replaces older queued ones) |
+| Gameweek preview / reflection thread | `social_detect_gameweek_threads`: newest published report's `x_thread`. The reflection is provisional the night the gameweek ends | ~1h after the detector sees it. Links are removed, except the preview's first post, which carries the week's one link |
+| Reflection correction | `social_detect_gameweek_threads`, kind `reflection_correction`: the confirmed version's `x_correction` (a captaincy score that bonus changed), as a reply to the posted provisional thread (`reply_to_x_id`) | ~1h after the confirmed version |
+| Gameweek team-news update | `social_detect_gameweek_threads`, kind `preview_update`: the preview's `x_update`. Team-news day: the day before a deadline earlier than 17:00 (from 16:00), or the deadline day for an evening deadline (from 12:00). Once per gameweek, no link | ~1h after the detector sees it; expires at the deadline |
+| The week ahead | `social_detect_outlook`: whether the next gameweek is normal (Saturday deadline, games Saturday to Monday, everyone once) or what is different; cup and European games for PL teams before it; ties between teams that also meet in the league | 10:00 UK the morning after the previous reflection |
+| The week's changes | `social_detect_week_changes`: FPL an hour before this deadline v an hour before the last (`fpl_deadline_player_state`): price rises and falls, most bought and sold, biggest ownership rise, players ruled out | Deadline + 1h |
 | Prediction accuracy | `social_detect_accuracy` | ~1h after it is created |
 
 Team xG changes and record streaks stay manual.
@@ -167,7 +178,7 @@ Team xG changes and record streaks stay manual.
 - **Worker:** pg_cron `social-auto-tick` every 10 minutes
   (`social_auto_tick()`):
   - queues new candidates and sends due emails;
-  - posts at most one due candidate, 07:00–22:00 UK, by calling `x-publish`
+  - posts at most one due candidate, 07:00–24:00 UK (midnight since 21 Oct 2026, for the Monday-night reflection), by calling `x-publish`
     with the worker token (`private.social_worker`, checked with
     `social_worker_ok`);
   - revalidates first: a candidate that is no longer true goes stale, and a
@@ -184,7 +195,7 @@ Team xG changes and record streaks stay manual.
   - a post stuck 'publishing' for 15 minutes.
 
   Reset with **Reset and resume** on this page. Manual posting is unaffected.
-- **Budget:** $5 a month, 60 posts a month, 5 a day (raised from 3 on 20 Oct 2026 for Fridays), 60 minutes apart.
+- **Budget:** $5 a month, 120 posts a month (60 until 21 Oct 2026), 5 a day (raised from 3 on 20 Oct 2026 for Fridays), 60 minutes apart.
 
 ## Future content
 
@@ -193,9 +204,9 @@ NFL, tennis, Beat the Shark blackjack and poker challenges: add a post type
 `{status, checks, candidate_id}`, a revalidation branch and a label in
 `src/lib/socialApi.ts`. `sport` is already a column.
 
-### Gameweek schedule (from GW8, 2026/27)
+### Gameweek schedule (from GW9, 2026/27)
 
-- **Reflection:** when FPL confirms the gameweek (bonus and data checked) and the closing prices are in, usually Monday night or Tuesday morning; at most 44 hours after the last kick-off.
+- **Reflection:** provisional on the night the gameweek's last match ends (workflow `gameweek-report.yml`, 21:20, 22:20 and 22:50 UTC: `--auto --only reflection`), 2h15m after the last kick-off, before FPL confirms bonus. The FPL points are refreshed first (`private.refresh_fpl_current_event()`). A confirmed version follows once FPL confirms bonus and the closing prices are in (at most 44 hours after the last kick-off); if bonus changed a captaincy score the thread gave, X gets one reply.
 - **Preview:** first version on Friday morning when the deadline is Saturday or Sunday, otherwise the day before the deadline. Its X thread carries the week's one link.
-- **Team-news update:** the preview is refreshed through the day; from 16:00 UK the refresh compares the day's first version with the latest (`team_news_thread` in `scripts/fpl_gameweek_report.py`) and, if anything changed, queues a short linkless thread: what changed, then the captaincy numbers now.
+- **Team-news update:** extra pipeline runs (Friday 16:11 UTC; Tuesday and Friday 12:11 UTC for evening deadlines) refresh the preview after the press conferences; the refresh compares the day's first version with the latest (`team_news_thread`) and, if anything changed, queues a short linkless thread: what changed, then the captaincy numbers now.
 - **Midweek cup and European minutes** are not in the database yet, so the preview names teams on short rest but cannot yet say who played 90 minutes on Wednesday.

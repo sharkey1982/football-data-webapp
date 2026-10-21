@@ -735,6 +735,7 @@ def captain_reliability(ctx: dict, pts: dict, ids: list[int], gw: int) -> list[d
 # Underlying form: xGI over the last 4 gameweeks with 180+ minutes in them
 # (60 a gameweek while fewer than 3 have been played).
 FORM_WEEKS, FORM_MIN_MINUTES = 4, 180
+PROVISIONAL_AFTER = timedelta(hours=2, minutes=15)   # after the last kickoff: the match is over
 BLANK_AT, HAUL_AT = 2, 10   # a blank: 2 points or fewer; a haul: 10 or more (before doubling)
 
 
@@ -1126,12 +1127,38 @@ def reddit_md(p: dict, url: str) -> str:
 
 def x_thread(p: dict, url: str) -> list[str]:
     gw = p["gw"]
-    posts = [f"FPL GW{gw} reflection: what happened against the model, and what the model changed. 🧵"]
+    first = f"FPL GW{gw} reflection: what happened against the model, and what the model changed. 🧵"
+    if not p.get("bonus_confirmed"):
+        first = (f"FPL GW{gw} reflection (provisional: bonus not yet confirmed). "
+                 "What happened against the model, and what the model changed. 🧵")
+    posts = [first]
     for k, title in THEMES[:3] + THEMES[4:]:
         v = p["verdicts"][k]
         posts += split_post(f"{title}: {v['head']} {v['rest']}".strip())
     posts.append(f"Set pieces, start-chance moves and the captaincy ranges: {url}")
     return posts
+
+
+def correction_post(old: dict, new: dict) -> list[str]:
+    """One post for X when confirmed bonus changes a captaincy score the provisional thread gave."""
+    gw = new["gw"]
+    find = lambda p: next((w for w in p.get("captaincy", {}).get("weeks", []) if w.get("gw") == gw), None)
+    a, b = find(old), find(new)
+    if not a or not b:
+        return []
+    changes, seen = [], set()
+    for k in ("premium", "form", "last", "best"):
+        x, y = a.get(k), b.get(k)
+        if not x or not y:
+            continue
+        if x["id"] == y["id"] and x["pts"] != y["pts"] and y["id"] not in seen:
+            seen.add(y["id"])
+            changes.append(f"{y['name']} {y['pts']} (was {x['pts']})")
+        elif x["id"] != y["id"] and k == "best":
+            changes.append(f"best captain now {y['name']} with {y['pts']}")
+    if not changes:
+        return []
+    return [f"FPL GW{gw} reflection update, with bonus now confirmed: " + "; ".join(changes) + "."]
 
 
 def split_post(text: str, limit: int = X_LIMIT) -> list[str]:
@@ -1545,24 +1572,51 @@ def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) 
     return rid, version, publish
 
 
-def reflection_due(d: Data, now: datetime) -> tuple[int | None, str]:
-    """The latest finished gameweek with confirmed bonus and no published reflection, once its
-    closing prices are in or PRICES_WAIT_HOURS after its last kickoff."""
+def latest_reflection(d: Data, sid: int, gw: int) -> dict | None:
+    rows = d.all("""select version, payload from public.fpl_gameweek_reports
+                     where season_id = %s and fpl_event_id = %s and kind = 'reflection' and status = 'published'
+                     order by version desc limit 1""", (sid, gw))
+    return rows[0] if rows else None
+
+
+def reflection_due(d: Data, now: datetime) -> tuple[int | None, str, bool]:
+    """(gameweek, reason, provisional).
+    Provisional (Chris, 21 Oct 2026): the night the gameweek's last match ends,
+    PROVISIONAL_AFTER after its kickoff, before FPL confirms bonus.
+    Confirmed: once FPL confirms bonus (data_checked) and the closing prices are
+    in, or PRICES_WAIT_HOURS after the last kickoff. Published once each."""
     sid = d.one("select public.fpl_current_season_id()")
+    # Confirmed: the latest checked gameweek without a confirmed reflection.
     gw = d.one("""select max(g.fpl_event_id) from public.fpl_gameweeks g
                    where g.season_id = %s and g.finished and coalesce((g.source_payload->>'data_checked')::boolean, false)
                      and not exists (select 1 from public.fpl_gameweek_reports r where r.season_id = g.season_id
-                                       and r.fpl_event_id = g.fpl_event_id and r.kind = 'reflection' and r.status = 'published')
+                                       and r.fpl_event_id = g.fpl_event_id and r.kind = 'reflection' and r.status = 'published'
+                                       and coalesce((r.payload->>'bonus_confirmed')::boolean, true))
                      and g.fpl_event_id >= %s""", (sid, REFLECTION_AUTO_FROM_GW))
-    if gw is None:
-        return None, ""
-    ctx = load_context(d, gw)
-    if prices_in(d, ctx, gw):
-        return gw, "closing prices in"
-    last = max((r["kickoff_time"] for r in ctx["fixtures"] if r["gw"] == gw and r["kickoff_time"]), default=None)
-    if last and now >= last + timedelta(hours=PRICES_WAIT_HOURS):
-        return gw, f"closing prices not in after {PRICES_WAIT_HOURS} hours; publishing without the rating moves"
-    return None, f"GW{gw} waiting for closing prices"
+    if gw is not None:
+        ctx = load_context(d, gw)
+        if prices_in(d, ctx, gw):
+            return gw, "bonus confirmed and closing prices in", False
+        last = max((r["kickoff_time"] for r in ctx["fixtures"] if r["gw"] == gw and r["kickoff_time"]), default=None)
+        if last and now >= last + timedelta(hours=PRICES_WAIT_HOURS):
+            return gw, f"closing prices not in after {PRICES_WAIT_HOURS} hours; publishing without the rating moves", False
+        why = f"GW{gw} waiting for closing prices"
+    else:
+        why = ""
+    # Provisional: every match of the gameweek over (FPL's live feed), no reflection yet.
+    row = d.all("""select f.fpl_event_id gw, max(f.kickoff_time) last_ko,
+                          bool_and(coalesce(lf.finished_provisional, f.finished, false)) all_over
+                     from public.fpl_fixtures f
+                     left join public.fpl_live_fixtures lf on lf.season_id = f.season_id and lf.fpl_fixture_id = f.fpl_fixture_id
+                    where f.season_id = %s and f.fpl_event_id = (
+                            select max(g.fpl_event_id) from public.fpl_gameweeks g
+                             where g.season_id = %s and g.deadline_time < %s and g.fpl_event_id >= %s)
+                    group by 1""", (sid, sid, now, REFLECTION_AUTO_FROM_GW))
+    if row and row[0]["all_over"] and row[0]["last_ko"] and now >= row[0]["last_ko"] + PROVISIONAL_AFTER:
+        pgw = row[0]["gw"]
+        if latest_reflection(d, sid, pgw) is None:
+            return pgw, "every match over; bonus not yet confirmed", True
+    return None, why, False
 
 
 def latest_preview(d: Data, gw: int) -> dict | None:
@@ -1640,12 +1694,21 @@ def run_preview(d: Data, gw: int, action: str, code_ref: str) -> bool:
 
 
 def team_news_thread(d: Data, gw: int, p: dict) -> list[str]:
-    """From 16:00 UK, after the press conferences: what changed since the day's first version, for X."""
+    """After the press conferences: what changed since the day's first version, for X.
+    The team-news day is the day before a deadline earlier than 17:00 (from 16:00:
+    Friday for a Saturday deadline), or the deadline day itself for an evening
+    deadline (from 12:00: Friday-night and midweek games). Chris, 21 Oct 2026."""
     from zoneinfo import ZoneInfo
-    now = datetime.now(ZoneInfo("Europe/London"))
-    if now.hour < 16:
-        return []
+    uk = ZoneInfo("Europe/London")
+    now = datetime.now(uk)
     sid = d.one("select public.fpl_current_season_id()")
+    deadline = d.one("select deadline_time from public.fpl_gameweeks where season_id = %s and fpl_event_id = %s", (sid, gw))
+    if deadline is None:
+        return []
+    dl = deadline.astimezone(uk)
+    day, from_hour = (dl.date(), 12) if dl.hour >= 17 else ((dl - timedelta(days=1)).date(), 16)
+    if now.date() != day or now.hour < from_hour or now >= dl:
+        return []
     base = d.one("""select payload from public.fpl_gameweek_reports
                      where season_id = %s and fpl_event_id = %s and kind = 'preview' and status = 'published' and not frozen
                        and (published_at at time zone 'Europe/London')::date = %s
@@ -1694,6 +1757,7 @@ def main():
     ap.add_argument("--publish", action="store_true")
     ap.add_argument("--frozen", action="store_true", help="preview from the deadline snapshot")
     ap.add_argument("--auto", action="store_true", help="publish whatever is due (pipeline step)")
+    ap.add_argument("--only", choices=["reflection", "preview"], help="with --auto: only this kind (nightly reflection run)")
     args = ap.parse_args()
 
     from db_direct import DirectDB
@@ -1701,22 +1765,42 @@ def main():
     code_ref = os.environ.get("GITHUB_SHA", "local")[:12]
     rebuild = False
     if args.auto:
-        gw, why = reflection_due(d, datetime.now(timezone.utc))
+        gw, why, provisional = (None, "skipped", False) if args.only == "preview" else reflection_due(d, datetime.now(timezone.utc))
         if gw is None:
             print(f"Reflection: nothing due{' (' + why + ')' if why else ''}.")
         else:
             print(f"Reflection: GW{gw} due ({why}).")
+            if provisional:
+                # FPL points are refreshed every 6 hours; bring them up to the final whistle.
+                try:
+                    d.one("select private.refresh_fpl_current_event() is not null")
+                except Exception as e:  # noqa: BLE001 - best effort; the report says provisional anyway
+                    print(f"  FPL refresh failed ({e}); using the last refresh.")
+            sid = d.one("select public.fpl_current_season_id()")
+            before = latest_reflection(d, sid, gw)
             p = build_reflection(d, gw)
+            if provisional:
+                p["bonus_confirmed"] = False
+                p["provisional"] = True
+            elif before and not before["payload"].get("bonus_confirmed", True):
+                p["x_correction"] = correction_post(before["payload"], p)
             rid, v, _ = store(d, p, True, code_ref)
             rebuild = True
-            print(f"Published GW{gw} reflection v{v} (report {rid}).")
+            print(f"Published GW{gw} reflection v{v}{' (provisional)' if provisional else ''} (report {rid}).")
             for h in p["headlines"]:
                 print(f"  {h}")
-        pgw, action = preview_due(d, datetime.now(timezone.utc))
-        if pgw is None:
-            print(f"Preview: nothing due{' (' + action + ')' if action else ''}.")
-        else:
-            rebuild = run_preview(d, pgw, action, code_ref) or rebuild
+        if args.only != "reflection":
+            pgw, action = preview_due(d, datetime.now(timezone.utc))
+            if pgw is None:
+                print(f"Preview: nothing due{' (' + action + ')' if action else ''}.")
+            else:
+                rebuild = run_preview(d, pgw, action, code_ref) or rebuild
+        if rebuild:
+            # Queue any X thread now rather than at the next hourly detector run.
+            try:
+                d.one("select public.social_run_detectors('report') is not null")
+            except Exception as e:  # noqa: BLE001
+                print(f"  Social detectors not run ({e}); the hourly run will pick it up.")
     else:
         if args.gw is None:
             sys.exit("--gw is required without --auto")

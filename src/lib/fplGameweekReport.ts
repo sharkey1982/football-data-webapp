@@ -73,6 +73,7 @@ export type ReflectionPayload = {
   deadline: string;
   generated_at: string;
   gameweek_finished: boolean;
+  provisional?: boolean;
   bonus_confirmed: boolean;
   prices_in: boolean;
   average: number | null;
