@@ -1,3 +1,5 @@
+import { TeamLink } from '../components/EntityLinks';
+import { useTeamSlugs } from '../lib/teamSlugs';
 import { trackEvent } from '../lib/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -42,6 +44,7 @@ type LeagueOption = { league_id: number; code: string; name: string };
 type Tab = PreviewTabId;
 
 export default function MatchPreview() {
+  const teamSlugs = useTeamSlugs();
   useDocumentHead({
     title: 'Match Preview',
     description: 'Head-to-head history, team form, and Dixon-Coles score probabilities for an upcoming fixture.',
@@ -366,13 +369,13 @@ export default function MatchPreview() {
                 )}
               </div>
               <div className="flex items-center justify-center gap-4 mb-1">
-                <span className="font-medium">{homeTeamName}</span>
+                <span className="font-medium"><TeamLink slug={homeTeamId ? teamSlugs.get(homeTeamId) : null} from="head_to_head">{homeTeamName}</TeamLink></span>
                 <ScoreChip
                   homeGoals={matchResult.full_time_home_goals}
                   awayGoals={matchResult.full_time_away_goals}
                   size="lg"
                 />
-                <span className="font-medium">{awayTeamName}</span>
+                <span className="font-medium"><TeamLink slug={awayTeamId ? teamSlugs.get(awayTeamId) : null} from="head_to_head">{awayTeamName}</TeamLink></span>
               </div>
               {matchResult.half_time_home_goals != null && matchResult.half_time_away_goals != null && (
                 <p className="text-center text-xs text-chalk-300 mb-3">
@@ -391,6 +394,13 @@ export default function MatchPreview() {
               <strong>{[modelUnavailable.home, modelUnavailable.away].filter(Boolean).join(' or ')}</strong> in this
               division &mdash; likely a newly promoted side with no top-flight history to fit a model on.
             </div>
+          )}
+
+          {homeTeamId && awayTeamId && (teamSlugs.get(homeTeamId) || teamSlugs.get(awayTeamId)) && (
+            <p className="text-sm text-ink-700 flex flex-wrap gap-x-4 gap-y-1">
+              <TeamLink slug={teamSlugs.get(homeTeamId)} from="head_to_head" className="text-pitch-800 underline underline-offset-2">{homeTeamName} team page</TeamLink>
+              <TeamLink slug={teamSlugs.get(awayTeamId)} from="head_to_head" className="text-pitch-800 underline underline-offset-2">{awayTeamName} team page</TeamLink>
+            </p>
           )}
 
           <PreviewTabs active={activeTab} onChange={setActiveTab} />

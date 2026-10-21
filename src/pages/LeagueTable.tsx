@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { TeamLink } from '../components/EntityLinks';
+import { useTeamSlugs } from '../lib/teamSlugs';
 import { seasonPathByCode } from '../lib/leagueSeasonApi';
 import { getReportedUnconfirmed } from '../lib/fixturesApi';
 import { useKeyedFetch } from '../hooks/useKeyedFetch';
@@ -30,7 +32,7 @@ export default function LeagueTable() {
     path: '/table',
   });
 
-  const navigate = useNavigate();
+  const teamSlugs = useTeamSlugs();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlLeagueId = searchParams.get('league') ? Number(searchParams.get('league')) : null;
   const urlSeasonId = searchParams.get('season') ? Number(searchParams.get('season')) : null;
@@ -163,10 +165,6 @@ export default function LeagueTable() {
     const next = new URLSearchParams(searchParams); if (v === 'timelapse') next.set('view', 'timelapse'); else next.delete('view'); setSearchParams(next, { replace: true });
   }
 
-  function viewTeamFixtures(teamId: number) {
-    navigate(`/fixtures?view=team&team=${teamId}&season=${seasonId}`);
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -294,12 +292,9 @@ export default function LeagueTable() {
                 >
                   <td className="px-3 py-2 text-right font-mono text-xs text-ink-500">{i + 1}</td>
                   <td className="px-3 py-2 font-medium whitespace-nowrap">
-                    <button
-                      onClick={() => viewTeamFixtures(r.team_id)}
-                      className="hover:text-pitch-700 hover:underline transition-colors text-left"
-                    >
+                    <TeamLink slug={teamSlugs.get(r.team_id)} from="league_table">
                       {r.team_name}
-                    </button>
+                    </TeamLink>
                   </td>
                   <td className="px-2 py-2 text-center font-mono text-xs">{r.played}</td>
                   <td className="px-2 py-2 text-center font-mono text-xs">{r.won}</td>
