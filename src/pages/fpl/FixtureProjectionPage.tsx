@@ -5,6 +5,9 @@ import ProjectionSummary from '../../components/fpl/ProjectionSummary';
 import TeamProjectionPanel from '../../components/fpl/TeamProjectionPanel';
 import ActualVsPredictedTable from '../../components/fpl/ActualVsPredictedTable';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { useDocumentHead } from '../../hooks/useDocumentHead';
+import { useNoindex } from '../../hooks/useNoindex';
+import NotFoundPage from '../NotFoundPage';
 
 export default function FixtureProjectionPage() {
   const { fixtureId } = useParams<{ fixtureId: string }>();
@@ -14,6 +17,7 @@ export default function FixtureProjectionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noProjectionsYet, setNoProjectionsYet] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   const [actual, setActual] = useState<FplActualVsPredictedFixture | null>(null);
   const [loadingActual, setLoadingActual] = useState(true);
@@ -27,11 +31,12 @@ export default function FixtureProjectionPage() {
     setLoading(true);
     setError(null);
     setNoProjectionsYet(false);
+    setNotFound(false);
     getFplFixtureProjection(parsedId)
       .then((data) => {
         if (cancelled) return;
         if (!data) {
-          setError(`No fixture found with ID ${parsedId}.`);
+          setNotFound(true);
         } else if (data.home.players.length === 0 && data.away.players.length === 0) {
           // Most fixtures don't have a player projection yet -- this is a
           // normal, expected state (the model hasn't been run for them),
@@ -77,8 +82,27 @@ export default function FixtureProjectionPage() {
     };
   }, [parsedId, invalidId]);
 
-  const displayError = invalidId ? 'Invalid fixture ID.' : error;
-  const displayLoading = invalidId ? false : loading;
+  // A per-fixture view keyed by FPL fixture id, reached from Match
+  // Projections. Not in the sitemap and noindex (also sent as an
+  // X-Robots-Tag header, netlify.toml): the indexable page for a match is
+  // /football/matches/:slug (audit 22 Oct 2026, S-10).
+  useNoindex(true);
+  const title = projection ? `${projection.home.team_name} v ${projection.away.team_name} \u2014 FPL player projections` : 'FPL fixture projections';
+  useDocumentHead({
+    title,
+    description: projection
+      ? `Projected FPL points and minutes for every ${projection.home.team_name} and ${projection.away.team_name} player.`
+      : 'Projected FPL points and minutes for one fixture.',
+    path: !invalidId ? `/fpl/fixture/${parsedId}` : undefined,
+  });
+
+  // Not found = no projection AND no played-match data for this id. A
+  // historical fixture can have the second without the first.
+  const missing = invalidId || (notFound && !loading && !loadingActual && !actual && !actualError);
+  if (missing) return <NotFoundPage />;
+
+  const displayError = error;
+  const displayLoading = loading;
 
   return (
     <div className="space-y-4">

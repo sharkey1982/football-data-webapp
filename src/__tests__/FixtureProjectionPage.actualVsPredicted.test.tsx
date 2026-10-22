@@ -136,14 +136,28 @@ describe('FixtureProjectionPage -- actual vs predicted', () => {
     expect(screen.getByText('Retrospective projection')).toBeInTheDocument();
   });
 
-  it('renders nothing extra when there is no actual data yet (a normal, unplayed fixture)', async () => {
+  it('renders the noindex not-found page for an id with neither a projection nor a result (audit S-05)', async () => {
     mockedFplApi.getFplFixtureProjection.mockResolvedValue(null);
     mockedFplApi.getFplActualVsPredicted.mockResolvedValue(null);
 
     renderPage('999');
 
-    await waitFor(() => expect(screen.getByText(/No fixture found/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument());
     expect(screen.queryByText('Actual result')).not.toBeInTheDocument();
+    expect(document.querySelector('meta[name="robots"][content="noindex"]')).not.toBeNull();
+  });
+
+  it('is noindex even when the fixture exists (audit S-10: not in the sitemap)', async () => {
+    mockedFplApi.getFplFixtureProjection.mockResolvedValue(null);
+    mockedFplApi.getFplActualVsPredicted.mockResolvedValue({
+      fixture_id: 5, matchweek: 1, kickoff_date: '2026-08-21', kickoff_time: null, home_team_id: 1, away_team_id: 7,
+      home: { team_id: 1, team_name: 'Arsenal', players: [] },
+      away: { team_id: 7, team_name: 'Coventry City', players: [] },
+    });
+    renderPage('5');
+    await waitFor(() => expect(screen.getByText('Actual result')).toBeInTheDocument());
+    expect(document.querySelector('meta[name="robots"][content="noindex"]')).not.toBeNull();
+    expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toMatch(/\/fpl\/fixture\/5$/);
   });
 
   it('does not render blank predicted-pitch panels for a played fixture with zero projections (real bug case)', async () => {

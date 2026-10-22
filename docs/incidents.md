@@ -21,6 +21,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · EFL and National League team pages served as bare app shells
+- **Found:** site audit of 22 Oct (S-03, S-10).
+- **Impact:** /football/teams/:slug for the 96 clubs outside the Premier League (Championship to National League) had the generic "FixtureShark" title, no canonical, the home page description and an empty body, while tables, fixtures and Local Clubs linked to them. Google ranked them at 50-70 (afc-wimbledon 51 impressions at 71). /fpl/fixture/:id was an indexable app shell with impressions.
+- **Cause:** generate-static and the sitemap built team pages only for clubs in this season's Premier League fixtures (written when only the Premier League had a team page body).
+- **Fix:** generate-static writes full team pages for every club in this season's five English leagues (two extra paged reads; odds requested in chunks of 200 ids) and the sitemap lists them. /fpl/fixture/:id sends `X-Robots-Tag: noindex` (netlify.toml), sets its own head and noindex, and an id with no data renders the not-found page.
+- **Prevention:** the team list in the sitemap and in generate-static come from the same league set. *Lesson: when a page type gains a body for one league, check which other URLs of that type are linked.*
+
+---
+
 ## 2026-10-20 · Preview smoke test failed on a PR with no site changes
 - **Found:** PR #386 (a migration and an Edge Function only).
 - **Impact:** `smoke/preview` reported failure. No site code was involved, so it was a false alarm that would block the merge rule.

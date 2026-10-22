@@ -106,6 +106,15 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     Strict-Transport-Security = "max-age=31536000"
 
+# Per-fixture FPL projections (/fpl/fixture/:id): served by the app shell,
+# not in the sitemap; the indexable page for a match is
+# /football/matches/:slug. Header-level noindex, since the shell carries no
+# robots tag a non-JS crawler could read (audit 22 Oct 2026, S-10).
+[[headers]]
+  for = "/fpl/fixture/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]
