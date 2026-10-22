@@ -37,8 +37,14 @@ describe('FPL projection guards', () => {
     expect(view).toMatch(/t\.team_start - \(10\)::numeric/);
     // ...and the scale-up targets 1 keeper / 10 outfield players,
     expect(view).toMatch(/CASE WHEN h\.is_gk THEN \(1\)::numeric ELSE \(10\)::numeric END\) - sum\(h\.s1\)/);
-    // never above a player's availability (or 0.98).
-    expect(view).toMatch(/LEAST\(0\.98, COALESCE\(n\.availability_probability, \(1\)::numeric\)\)/);
+    // never above a player's availability (or 0.98),
+    expect(view).toMatch(/LEAST\(0\.98, COALESCE\(c\.availability_probability, \(1\)::numeric\)\)/);
+    // and a start chance already above availability (a stale depth chart:
+    // Saka 50% at 0.94) is cut back to it before the scale-up.
+    expect(view).toMatch(
+      /GREATEST\(\(0\)::numeric, COALESCE\(n\.new_start, n\.prob_starting_xi\) - COALESCE\(n\.availability_probability, \(1\)::numeric\)\) AS over_avail/,
+    );
+    expect(view).toMatch(/COALESCE\(c\.new_start, c\.prob_starting_xi\) - c\.over_avail AS s1/);
   });
 
   it('refresh_fpl_projection_fixture_v6 skips fixtures that have kicked off', () => {

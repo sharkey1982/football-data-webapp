@@ -22,9 +22,16 @@
 -- 2. FPL news before every run (S-13): see scripts/refresh_fpl_projections.py.
 --    Saka (50%, news 21 Oct 20:30) was projected at start 0.94 on 21 Oct
 --    22:06 because fpl_players had last been refreshed at 18:17 (pg_cron,
---    6-hourly); availability is applied correctly when the data is current
---    (all 20,708 stored rows have start <= availability). The script now
---    calls public.refresh_fpl() first.
+--    6-hourly). The script now calls public.refresh_fpl() first.
+--    Backstop in the same view: the depth-chart start
+--    (fpl_depth_start_store) does not apply availability itself; it relies
+--    on the Python depth step having run on current availability, and that
+--    step only warns if it fails. With fresh availability (0.5) but the
+--    21 Oct depth store, Saka still came out at 0.94. A start chance above
+--    availability is now cut back to it (minutes 80 per start, 90 for a
+--    keeper) before the scale-up shares the gap out. Dry run 22 Oct, GW8:
+--    Saka 0.50, Penders 0.98, all 20 team-fixtures 11/1, none above
+--    availability.
 --
 -- 3. Frozen at kick-off (DQ-07): refresh_fpl_projection_fixture_v6 skipped
 --    only fixtures with status 'played', which is set hours after the match,
@@ -83,16 +90,27 @@ create or replace view public.fixture_player_expected_minutes_resolved_v3 with (
                     ELSE GREATEST((0)::numeric, (t.prob_starting_xi - ((((t.team_start - (10)::numeric) * t.prob_starting_xi) * ((1)::numeric - LEAST(t.prob_starting_xi, (1)::numeric))) / t.w_start_sum)))
                 END AS new_start
            FROM t
+        ), c AS (
+         -- Step 2 (22 Oct 2026): nobody starts above his availability. The
+         -- depth-chart start (fpl_depth_start_store, computed by
+         -- scripts/fpl_depth_chart.py) already applies it, but it is only as
+         -- fresh as the last run's depth step, which warns and carries on if
+         -- it fails: with the 21 Oct store, Saka (50%) had availability 0.5
+         -- and start 0.94. The start chance removed costs 80 minutes a start
+         -- (90 for a keeper) and is shared out again by step 3.
+         SELECT n.*,
+            GREATEST((0)::numeric, COALESCE(n.new_start, n.prob_starting_xi) - COALESCE(n.availability_probability, (1)::numeric)) AS over_avail
+           FROM n
         ), h AS (
-         -- Step 2 (22 Oct 2026): scale UP a team-fixture that has fewer than
+         -- Step 3 (22 Oct 2026): scale UP a team-fixture that has fewer than
          -- 10 outfield starters / 1 goalkeeper, e.g. when regulars are
          -- injured (Chelsea GW8: the only fit keeper, Penders, was left at
          -- 0.25). Nobody goes above his availability (or 0.98).
-         SELECT n.*,
-            COALESCE(n.new_start, n.prob_starting_xi) AS s1,
-            COALESCE(n.new_min, n.expected_minutes) AS m1,
-            GREATEST((0)::numeric, LEAST(0.98, COALESCE(n.availability_probability, (1)::numeric)) - COALESCE(n.new_start, n.prob_starting_xi)) AS cap
-           FROM n
+         SELECT c.*,
+            COALESCE(c.new_start, c.prob_starting_xi) - c.over_avail AS s1,
+            GREATEST((0)::numeric, COALESCE(c.new_min, c.expected_minutes) - c.over_avail * (CASE WHEN c.is_gk THEN 90 ELSE 80 END)::numeric) AS m1,
+            GREATEST((0)::numeric, LEAST(0.98, COALESCE(c.availability_probability, (1)::numeric)) - (COALESCE(c.new_start, c.prob_starting_xi) - c.over_avail)) AS cap
+           FROM c
         ), h2 AS (
          SELECT h.*,
             GREATEST((0)::numeric, (CASE WHEN h.is_gk THEN (1)::numeric ELSE (10)::numeric END) - sum(h.s1) OVER w2) AS deficit,
@@ -232,7 +250,7 @@ insert into public.model_change_log (changed_at, area, title, reason, detail, ve
 select '2026-10-22', 'prediction',
   'FPL: team sheets scaled up to 11 starters and 1 keeper',
   'Teams with regulars out were left short of 11 expected starters: Chelsea''s only fit keeper (Penders) had start 0.25 for GW8-12, Spurs GW8 9.63 starters, Coventry ~10.3 every week (audit DQ-08).',
-  'fixture_player_expected_minutes_resolved_v3 now also scales a team-fixture up to 10 outfield starters and 1 keeper: the gap is shared by start chance x headroom, then headroom, never above a player''s availability (or 0.98); minutes follow the added start chance. Teams already at 11 are unchanged.',
+  'fixture_player_expected_minutes_resolved_v3 now also scales a team-fixture up to 10 outfield starters and 1 keeper: the gap is shared by start chance x headroom, then headroom, never above a player''s availability (or 0.98); minutes follow the added start chance. Teams already at 11 are unchanged. A start chance above the player''s availability (a stale depth chart) is first cut back to it.',
   'leaguewide_v6', 'leaguewide_v6', 'migration 20261022110000'
 where not exists (select 1 from public.model_change_log where reference = 'migration 20261022110000');
 

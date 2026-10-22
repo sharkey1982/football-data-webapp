@@ -124,7 +124,9 @@ Here $p$ is capped at 1 inside the weights. Evidence recorded in the migration h
 - GK error: 10.9 → 2.8 minutes.
 - After the change: exactly 2 starting keepers and 180 GK minutes per fixture.
 
-**Scale-up (applied 2026-10-22, migration `20261022110000`).** After the limits above, a team-fixture whose goalkeepers sum to less than 1 start, or whose outfield players sum to less than 10, is scaled up. Each player's headroom is $c_i = \max(0, \min(a_i, 0.98) - p_i)$, where $a_i$ is his availability, so nobody goes above it. With deficit $D$, the first pass adds
+**Availability cap (applied 2026-10-22, migration `20261022110000`).** After the limits above, a start chance above the player's availability $a_i$ is cut to $a_i$, with 80 minutes less per unit removed (90 for a keeper). The depth chart already applies availability, so this only bites when `fpl_depth_start_store` is older than the availability (Saka on 21 Oct: availability 0.5, depth start 0.94).
+
+**Scale-up (applied 2026-10-22, migration `20261022110000`).** Then a team-fixture whose goalkeepers sum to less than 1 start, or whose outfield players sum to less than 10, is scaled up. Each player's headroom is $c_i = \max(0, \min(a_i, 0.98) - p_i)$, where $a_i$ is his availability, so nobody goes above it. With deficit $D$, the first pass adds
 
 $$\Delta_i = \min\left(c_i,\ D\,\frac{p_i c_i}{\sum_j p_j c_j}\right)$$
 
