@@ -41,7 +41,7 @@ function PlayerName({ p }: { p: OutlookPlayer }) {
       {p.slug ? (
         <Link to={`/fpl/players/${p.slug}`} className="text-pitch-800 underline underline-offset-2">{p.web_name}</Link>
       ) : p.web_name}
-      {star && <span className="ml-1 text-amber-600" title="Set as first choice when fit">&#9733;</span>}
+      {star && <span className="ml-1 text-amber-700" title="Set as first choice when fit">&#9733;</span>}
     </>
   );
 }
@@ -229,9 +229,9 @@ export default function MinutesOutlookPage() {
               : ''}
             Grey columns are what actually happened (minutes; <sup>s</sup> = came off the bench;{' '}
             <span className="text-loss-700">out</span> = injured or suspended at the time); green columns are the projections.
-            <span className="text-amber-600">&#9733;</span> = set by us as first choice when fit (his injury still applies).
+            <span className="text-amber-700">&#9733;</span> = set by us as first choice when fit (his injury still applies).
             Players are listed by playing role (left to right), so the ones competing for the same spot sit
-            together. <span className="text-amber-600">&bull;</span> marks a player not certain to be available (doubt, returning, or
+            together. <span className="text-amber-700">&bull;</span> marks a player not certain to be available (doubt, returning, or
             injured with no return date); <span className="text-loss-700">out</span> means not available. Hover a cell for
             the opponent and the reason. A club&rsquo;s start chances add up to about eleven a match, so a returning
             player&rsquo;s gain is someone else&rsquo;s loss.

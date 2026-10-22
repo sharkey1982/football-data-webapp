@@ -341,7 +341,7 @@ export default function ModelReturnsPage() {
           )}
 
           <p className="text-xs text-ink-500">
-            <span className="text-amber-600" aria-hidden="true">&uarr;</span> marks a team promoted into its division that season;
+            <span className="text-amber-700" aria-hidden="true">&uarr;</span> marks a team promoted into its division that season;
             the promoted filter includes, drops or keeps only bets on matches involving one. Before 2026/27, only the Premier
             League has been retro-fitted. Prices are from Bet365, Bet&amp;Win and Pinnacle (not every match), plus football-data.co.uk&rsquo;s market best and
             market average across many more bookmakers. &ldquo;Best of the books&rdquo; takes the highest price on file;

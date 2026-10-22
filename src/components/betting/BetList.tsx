@@ -25,7 +25,7 @@ const fmtDate = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
 
 const Promoted = () => (
-  <span className="text-amber-600 ml-0.5" title="Promoted this season" aria-label="promoted this season">
+  <span className="text-amber-700 ml-0.5" title="Promoted this season" aria-label="promoted this season">
     &uarr;
   </span>
 );

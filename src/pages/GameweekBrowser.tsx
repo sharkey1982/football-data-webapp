@@ -30,6 +30,7 @@ import { TeamLink } from '../components/EntityLinks';
 import { useTeamSlugs } from '../lib/teamSlugs';
 import { defaultFixtureDate } from '../lib/fixtureDates';
 import { hasKickedOff } from '../lib/fixtureStatus';
+import { rowKeys } from '../lib/rowKeys';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -848,8 +849,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       {viewMode === 'division' ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl">
           <div>
-            <label className={labelClass}>Country</label>
+            <label htmlFor="fixtures-country" className={labelClass}>Country</label>
             <select
+              id="fixtures-country"
               value={countryId ?? ''}
               onChange={(e) => setCountryId(e.target.value ? Number(e.target.value) : null)}
               className={selectClass}
@@ -863,8 +865,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             </select>
           </div>
           <div>
-            <label className={labelClass}>Competition</label>
+            <label htmlFor="fixtures-competition" className={labelClass}>Competition</label>
             <select
+              id="fixtures-competition"
               value={competitionType}
               onChange={(e) => setCompetitionType(e.target.value)}
               className={selectClass}
@@ -878,8 +881,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             </select>
           </div>
           <div>
-            <label className={labelClass}>Division</label>
+            <label htmlFor="fixtures-division" className={labelClass}>Division</label>
             <select
+              id="fixtures-division"
               value={leagueId ?? ''}
               onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : null)}
               className={selectClass}
@@ -893,8 +897,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             </select>
           </div>
           <div>
-            <label className={labelClass}>Season</label>
+            <label htmlFor="fixtures-season" className={labelClass}>Season</label>
             <select
+              id="fixtures-season"
               value={seasonId ?? ''}
               onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
               className={selectClass}
@@ -911,8 +916,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl relative">
           <div>
-            <label className={labelClass}>Country</label>
+            <label htmlFor="fixtures-country-2" className={labelClass}>Country</label>
             <select
+              id="fixtures-country-2"
               value={teamFilterCountryId ?? ''}
               onChange={(e) => setTeamFilterCountryId(e.target.value ? Number(e.target.value) : null)}
               className={selectClass}
@@ -926,8 +932,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             </select>
           </div>
           <div>
-            <label className={labelClass}>Division</label>
+            <label htmlFor="fixtures-division-2" className={labelClass}>Division</label>
             <select
+              id="fixtures-division-2"
               value={teamFilterLeagueId ?? ''}
               onChange={(e) => setTeamFilterLeagueId(e.target.value ? Number(e.target.value) : null)}
               className={selectClass}
@@ -944,8 +951,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             )}
           </div>
           <div className="relative">
-            <label className={labelClass}>Team</label>
+            <label htmlFor="fixtures-team" className={labelClass}>Team</label>
             <input
+              id="fixtures-team"
               type="text"
               value={teamDropdownOpen ? teamQuery : teamName}
               placeholder="Search for a team&hellip;"
@@ -974,8 +982,9 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
             )}
           </div>
           <div>
-            <label className={labelClass}>Season</label>
+            <label htmlFor="fixtures-season-2" className={labelClass}>Season</label>
             <select
+              id="fixtures-season-2"
               value={seasonId ?? ''}
               onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
               className={selectClass}
@@ -1110,6 +1119,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                       competitionRowClass(f.competition_type),
                     ].join(' ')}
                     onClick={() => exploreFixture(f)}
+                    {...rowKeys(() => exploreFixture(f))}
                   >
                     <span className={['font-mono text-xs w-32 shrink-0', f.competition_type === 'cup' ? 'text-cup-700' : 'text-ink-500'].join(' ')}>
                       {formatMatchDateWithYear(f.kickoff_date)}
@@ -1211,6 +1221,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                                 : 'hover:bg-chalk-100',
                             ].join(' ')}
                             onClick={() => exploreFixture(f)}
+                            {...rowKeys(() => exploreFixture(f))}
                           >
                             <span className="font-mono text-xs text-ink-500 w-28 shrink-0">
                               {formatMatchDate(f.kickoff_date)}

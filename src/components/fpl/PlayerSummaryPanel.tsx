@@ -68,7 +68,7 @@ export default function PlayerSummaryPanel({ profile, season }: { profile: Playe
   }, [profile]);
 
   const next = season.find((g) => !hasKickedOff(g.status) && g.projected_points != null) ?? null;
-  const tone = { good: 'text-pitch-800', warn: 'text-amber-600', bad: 'text-loss-700' };
+  const tone = { good: 'text-pitch-800', warn: 'text-amber-700', bad: 'text-loss-700' };
 
   return (
     <section aria-label="Player summary" className="grid grid-cols-2 sm:grid-cols-4 gap-2">

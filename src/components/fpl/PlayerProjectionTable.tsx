@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FplFixtureProjectionPlayer } from '../../lib/fplApi';
 import { formatSetPieceRoles } from '../../lib/fplApi';
+import { rowKeys } from '../../lib/rowKeys';
 
 type SortKey =
   | 'web_name'
@@ -51,7 +52,7 @@ function statusLabel(status: string | null): string | null {
 }
 
 function squadStatusLabel(status: FplFixtureProjectionPlayer['squad_status']): { text: string; className: string } | null {
-  if (status === 'rotation') return { text: 'Rotation pick', className: 'text-amber-600' };
+  if (status === 'rotation') return { text: 'Rotation pick', className: 'text-amber-700' };
   if (status === 'backup') return { text: 'Backup option', className: 'text-loss-700' };
   return null; // first_choice / unknown / null -- nothing notable to flag
 }
@@ -172,6 +173,11 @@ export default function PlayerProjectionTable({
                       onSelectPlayer(p.fpl_player_id);
                       setExpandedId(isExpanded ? null : p.fpl_player_id);
                     }}
+                    {...rowKeys(() => {
+                      onSelectPlayer(p.fpl_player_id);
+                      setExpandedId(isExpanded ? null : p.fpl_player_id);
+                    })}
+                    aria-expanded={isExpanded}
                     className={[
                       'border-b border-chalk-200 last:border-b-0 cursor-pointer transition-colors',
                       isSelected ? 'bg-amber-400/20' : 'hover:bg-chalk-100',
@@ -198,7 +204,7 @@ export default function PlayerProjectionTable({
                         {p.position_signal === 'deeper' && <span className="text-loss-600 ml-0.5">&#9660;</span>}
                       </span>
                     </td>
-                    <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-600' : 'text-ink-700'].join(' ')}>
+                    <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-700' : 'text-ink-700'].join(' ')}>
                       {pct(p.start_probability)}
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">

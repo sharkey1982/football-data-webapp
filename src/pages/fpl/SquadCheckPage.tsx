@@ -374,7 +374,7 @@ export default function SquadCheckPage() {
                         <td className="px-2 py-1.5">
                           <span className="text-xs text-ink-500 mr-1">{POSITION_LABEL[p.pos]}</span>
                           <PlayerLink p={p} />
-                          {view.next.captain === p.id && <span className="ml-1 text-xs font-mono text-amber-600" title={`Model's captain for GW${loaded.from}`}>C</span>}
+                          {view.next.captain === p.id && <span className="ml-1 text-xs font-mono text-amber-700" title={`Model's captain for GW${loaded.from}`}>C</span>}
                           {!inXi && <span className="ml-1 text-xs text-ink-500" title={`Not in the model's best XI for GW${loaded.from}`}>bench</span>}
                         </td>
                         <td className="px-2 py-1.5 text-right font-mono text-xs tabular-nums" title={p.purchaseKnown ? undefined : 'Bought before any transfer on record: selling price from the season-start price'}>

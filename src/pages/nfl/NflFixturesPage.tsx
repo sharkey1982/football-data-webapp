@@ -42,6 +42,7 @@ import NflWatchLine from '../../components/nfl/NflWatchLine';
 import { againstSpread } from '../../lib/nflStory';
 import ResultFlag from '../../components/ResultFlag';
 import { chanceText, nflTeamChance, resultFlag, vsExpectedText, winsVsExpected } from '../../lib/expectation';
+import { rowKeys } from '../../lib/rowKeys';
 
 function intParam(v: string | null): number | null {
   if (v == null || !/^\d{1,4}$/.test(v)) return null;
@@ -174,6 +175,7 @@ function TeamSeason({ team, season, games, model }: { team: NflTeam; season: num
                   key={g.game_id}
                   className={`cursor-pointer hover:bg-chalk-100 ${i % 2 ? 'bg-chalk-100/60' : ''}`}
                   onClick={() => navigate(nflGamePath(g.game_id), { state: { game: g } })}
+                  {...rowKeys(() => navigate(nflGamePath(g.game_id), { state: { game: g } }))}
                   onMouseEnter={prefetchGamePage}
                 >
                   <td className="px-3 py-2 text-xs text-ink-700 whitespace-nowrap">{weekLabel(g.game_type, g.week)}</td>

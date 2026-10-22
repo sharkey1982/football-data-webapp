@@ -658,7 +658,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
   function SetPieceBadges({ row }: { row: TacticalRoleRow }) {
     const formatted = formatSetPieceRoles(row.set_piece_roles);
     if (!formatted) return <span className="text-ink-400">&mdash;</span>;
-    return <span className="text-[10px] font-mono font-semibold text-amber-600" title={formatted.full}>{formatted.compact}</span>;
+    return <span className="text-[10px] font-mono font-semibold text-amber-700" title={formatted.full}>{formatted.compact}</span>;
   }
 
   /** Expected back: the admin date if set, else the one in FPL's news.

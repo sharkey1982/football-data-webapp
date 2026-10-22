@@ -106,7 +106,7 @@ export default function FinanceBarChart({ id, title, points, format, describe, n
         <p className="text-sm text-ink-500 py-6 text-center">{NOT_DISCLOSED} in any published period.</p>
       )}
       {anyNonComparable && hasData && (
-        <p className="text-[11px] text-amber-600 mt-1">
+        <p className="text-[11px] text-amber-700 mt-1">
           <span aria-hidden="true">{'\u2020'} </span>Hatched: not directly comparable with the years either side.
         </p>
       )}

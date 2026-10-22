@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Secondary text, amber text and focus ring under WCAG contrast; unlabelled filters; mouse-only rows
+- **Found:** site audit of 22 Oct (S-11, S-12).
+- **Impact:** `text-ink-500` (about 1,400 uses) was 4.4:1 on the page background and 3.9:1 on chalk-200 (AA needs 4.5:1); amber-600 text 2.9:1; the amber focus ring 2.1:1 on light surfaces (needs 3:1). Filters on /table, /fixtures, /football/projections and /preview had labels not tied to their selects, so screen readers announced them unnamed. Fixture, player and gameweek rows opened only on a mouse click.
+- **Cause:** colours chosen by eye; labels written as siblings without `htmlFor`; rows given `onClick` only.
+- **Fix:** ink-500 #6b7075 to #5a5f64 (5.7:1 / 5.1:1); new amber-700 #7d5c19 for amber text (5.4:1); focus ring pitch-800 on light surfaces, amber kept on dark panels; `htmlFor`/`id` on 14 filters; `rowKeys()` (tab stop, Enter/Space) on eight clickable row types, with `aria-expanded` where a row expands.
+- **Prevention:** label and row assertions in the LeagueTable and GameweekBrowser tests, `src/__tests__/rowKeys.test.tsx`. *Lesson: check a colour against the backgrounds it sits on, not on its own.*
+
+---
+
 ## 2026-10-22 · NFL Snap Outlook failing (HTTP 500); 47 menu pages never smoke-tested
 - **Found:** site audit of 22 Oct (S-09); the snap-outlook failure by the first smoke run over every menu page (run 187, against production).
 - **Impact:** /nfl/snap-outlook's snap request returned HTTP 500, so the page showed no outlook. Unknown since when: 47 of the 71 header-menu pages, this one included, were in no smoke run. /fpl was recorded as "fpl-hub" though it is Match Projections; the NFL entry tested a 301 (/nfl/standings); fpl-fixture reported "no URL in the sitemap" every run.

@@ -248,7 +248,7 @@ export default function SquadPitch({
             <span className="w-2 h-2 rounded-full border-2 border-loss-600" /> Deeper role (&#9660;)
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="text-amber-600 font-mono font-semibold text-[10px]">P1</span> Set-piece rank (P/FK/IFK/C)
+            <span className="text-amber-700 font-mono font-semibold text-[10px]">P1</span> Set-piece rank (P/FK/IFK/C)
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="text-sky-600 font-mono font-semibold text-[10px] uppercase">Rot</span> Rotation/backup pick

@@ -90,6 +90,9 @@ describe('GameweekBrowser date-selection-filters-list behaviour', () => {
     // entirely -- not merely collapsed, since it doesn't match today.
     expect(screen.queryByText('Liverpool')).not.toBeInTheDocument();
     expect(screen.queryByText('Matchweek 2')).not.toBeInTheDocument();
+    // Labelled filters and keyboard-reachable fixture rows (audit S-12).
+    expect(screen.getAllByLabelText('Division')[0].tagName).toBe('SELECT');
+    expect(screen.getByText('Arsenal').closest('li')).toHaveAttribute('tabindex', '0');
   });
 
   it('paging the calendar to a new month does not change the list -- only the date selection does', async () => {

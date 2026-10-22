@@ -169,7 +169,7 @@ export default function FplLivePage() {
           ) : (
             p.webName
           )}
-          {p.multiplier >= 2 && <span className="ml-1 text-xs font-mono text-amber-600" title={p.multiplier === 3 ? 'Triple captain' : 'Captain'}>{p.multiplier === 3 ? 'TC' : 'C'}</span>}
+          {p.multiplier >= 2 && <span className="ml-1 text-xs font-mono text-amber-700" title={p.multiplier === 3 ? 'Triple captain' : 'Captain'}>{p.multiplier === 3 ? 'TC' : 'C'}</span>}
           {p.isViceCaptain && p.multiplier < 2 && <span className="ml-1 text-xs font-mono text-ink-500" title="Vice-captain">V</span>}
           {p.subbedIn && <span className="ml-1 text-xs text-pitch-700" title="Automatic sub: on">&uarr; on</span>}
           {p.subbedOut && <span className="ml-1 text-xs text-loss-700" title="Automatic sub: off">&darr; off</span>}

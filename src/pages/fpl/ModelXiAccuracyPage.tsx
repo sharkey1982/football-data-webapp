@@ -22,6 +22,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getModelXiHistory, getModelXiPlayers, summariseModelXi, type ModelXiWeek, type ModelXiPlayer } from '../../lib/modelXiApi';
 import { getTeamOfTheWeek, type TotwPlayer } from '../../lib/teamOfWeekApi';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { rowKeys } from '../../lib/rowKeys';
 
 function Bars({ weeks }: { weeks: ModelXiWeek[] }) {
   const max = Math.max(...weeks.map((w) => Math.max(w.actual_xi_points, w.model_xi_actual_points, w.model_xi_projected)), 1);
@@ -240,6 +241,8 @@ export default function ModelXiAccuracyPage() {
                   <Fragment key={w.fpl_event_id}>
                   <tr
                     onClick={() => setOpen(open === w.fpl_event_id ? null : w.fpl_event_id)}
+                    {...rowKeys(() => setOpen(open === w.fpl_event_id ? null : w.fpl_event_id))}
+                    aria-expanded={open === w.fpl_event_id}
                     className="border-t border-chalk-200 cursor-pointer hover:bg-chalk-50"
                   >
                     <td className="px-3 py-2 text-ink-900">{w.fpl_event_id}</td>

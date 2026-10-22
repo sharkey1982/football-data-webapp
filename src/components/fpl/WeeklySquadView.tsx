@@ -190,7 +190,7 @@ export default function WeeklySquadView({
                       return (
                         <td key={w.matchweek} className="px-2 py-1.5 text-center font-mono text-xs">
                           {started ? (
-                            <span className={isCaptain ? 'text-amber-600 font-bold' : 'text-ink-900'}>
+                            <span className={isCaptain ? 'text-amber-700 font-bold' : 'text-ink-900'}>
                               {pts !== undefined ? pts.toFixed(0) : '\u2014'}
                               {isCaptain ? ' (C)' : isVice ? ' (V)' : ''}
                             </span>

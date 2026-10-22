@@ -114,7 +114,7 @@ export default function CaptainPlanner({ players, gws, defaults }: Props) {
                   <tr className="border-t border-chalk-300 bg-chalk-100/60">
                     <th scope="row" className="text-left font-medium px-2 py-1.5">Margin</th>
                     {plan.weeks.map((w) => (
-                      <td key={w.gw} className={`px-2 py-1.5 text-right font-mono tabular-nums ${w.margin != null && w.margin < 1 ? 'text-amber-600' : 'text-ink-500'}`}>
+                      <td key={w.gw} className={`px-2 py-1.5 text-right font-mono tabular-nums ${w.margin != null && w.margin < 1 ? 'text-amber-700' : 'text-ink-500'}`}>
                         {w.margin == null ? '—' : fmt(w.margin)}
                       </td>
                     ))}

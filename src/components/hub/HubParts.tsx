@@ -51,7 +51,7 @@ export function HubPageList({ title, groups }: { title: string; groups: { name: 
       <div className="grid gap-x-8 gap-y-6 grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]">
         {groups.map((g) => (
           <div key={g.name}>
-            <h3 className="font-mono text-xs uppercase tracking-widest text-amber-600 mb-2">{g.name}</h3>
+            <h3 className="font-mono text-xs uppercase tracking-widest text-amber-700 mb-2">{g.name}</h3>
             <ul className="space-y-1.5">
               {g.links.map((l) => (
                 <li key={l.to}>

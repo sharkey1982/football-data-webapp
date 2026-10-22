@@ -131,6 +131,9 @@ describe('LeagueTable page', () => {
 
     await screen.findByText('Arsenal');
 
+    // Each filter is named by its label (audit S-12).
+    for (const name of ['Country', 'Division', 'Season']) expect(screen.getByLabelText(name).tagName).toBe('SELECT');
+
     // Cup competitions never appear in the Division dropdown here.
     expect(screen.queryByRole('option', { name: /Carabao Cup/ })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Premier League/ })).toBeInTheDocument();

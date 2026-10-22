@@ -43,7 +43,7 @@ const pct = (x: number | null, dp = 0) => (x === null ? '\u2013' : `${(x * 100).
 const f3 = (x: number | null) => (x === null ? '\u2013' : x.toFixed(3));
 const signed = (x: number | null) => (x === null ? '\u2013' : `${x > 0 ? '+' : x < 0 ? '\u2212' : ''}${Math.abs(x).toFixed(3)}`);
 // Positive gap = model worse than market.
-const gapClass = (x: number | null) => (x === null ? 'text-ink-500' : x <= 0 ? 'text-pitch-800' : x < 0.015 ? 'text-amber-600' : 'text-loss-700');
+const gapClass = (x: number | null) => (x === null ? 'text-ink-500' : x <= 0 ? 'text-pitch-800' : x < 0.015 ? 'text-amber-700' : 'text-loss-700');
 
 function Toggle({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
