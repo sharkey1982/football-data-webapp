@@ -4,15 +4,21 @@
 # reproduce production yet (see README.md in this directory).
 project_id = "ppzfmpbnojyjeblelsuz"
 
-[functions.ingest-football-results]
-verify_jwt = false
+# Every deployed function, with its deployed verify_jwt (audit SEC-15,
+# 22 Oct 2026). A CLI deploy of a function missing here defaults to
+# verify_jwt = true, which would break the ones pg_net calls without a JWT.
+
+# Called by pg_cron with the x-ingest-token header (SEC-01).
 [functions.ingest-cup-data]
 verify_jwt = false
-[functions.backfill-football-raw]
-verify_jwt = false
-[functions.backfill-cup-raw]
-verify_jwt = false
+# Public, read-only squad optimiser; rate limited in the function (SEC-02).
 [functions.fpl-optimize-squad]
+verify_jwt = false
+# Admin JWT or internal token, checked in the function; called by pg_net.
+[functions.ai-lab-run]
+verify_jwt = false
+# Worker token, checked in the function; called by pg_net.
+[functions.social-notify]
 verify_jwt = false
 # Social publishing (docs/social-publishing.md). The callback is reached by
 # X redirecting the browser, so it cannot carry a Supabase JWT; start and
@@ -23,3 +29,15 @@ verify_jwt = false
 verify_jwt = false
 [functions.x-publish]
 verify_jwt = false
+
+# Retired: 410 stubs that require a JWT. Delete in the dashboard.
+[functions.ingest-football-results]
+verify_jwt = true
+[functions.fpl-entry]
+verify_jwt = true
+[functions.backfill-football-raw]
+verify_jwt = true
+[functions.backfill-cup-raw]
+verify_jwt = true
+# tennis-source-probe (deployed, verify_jwt = true) has no source in the repo:
+# a temporary probe of 16 Oct; delete it in the dashboard.

@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Public edge functions could write with the service role
+- **Found:** security audit, 22 Oct (SEC-01, SEC-02, SEC-15).
+- **Impact:** no outside calls seen in the logs. `backfill-cup-raw` and `backfill-football-raw` (verify_jwt off, service role, no caller) let anyone write unlimited raw rows; anyone could trigger `ingest-cup-data`'s full scrape and write; `fpl-optimize-squad` ran a 15 s search per request with no limit, returned database error details, and its source was not in the repo; `supabase/config.toml` disagreed with the deployed settings.
+- **Cause:** functions deployed by hand with verify_jwt off and no check of their own; config.toml not kept in step.
+- **Fix:** the two backfills are 410 stubs requiring a JWT; `ingest-cup-data` requires `x-ingest-token` (Vault secret `ingest_cup_token`, sent by pg_cron through `private.call_ingest_cup_data()`); `fpl-optimize-squad` source committed, a request problem returns 400 and anything else a generic 500, live searches capped (`fpl_optimizer_rate_ok`: 4 a minute per client, 30 overall); config.toml lists every deployed function with its real setting. Migration `20261022124000_edge_function_guards.sql`.
+- **Prevention:** config.toml is the record of every deployed function. *Lesson: a function that trusts its URL to stay secret is a public function.*
+
+---
+
 ## 2026-10-22 · Seven scheduled workflows could fail or stop unseen; intl reloads on every migration
 - **Found:** pipelines audit, 22 Oct (P-07, P-11).
 - **Impact:** apply-migrations, export-db-definitions, hindsight-optimal, schema-snapshot, sf-round and site-health wrote no run log (`job_health` "not_logged"), and gameweek-report had no `job_registry` row at all, so a dropped run (two sf-round runs in 14 days) was invisible. intl-import and intl-squads reloaded in full after every migration push: 63 `intl_import` rows in 14 days against 14 needed.
