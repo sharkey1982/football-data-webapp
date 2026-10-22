@@ -12,6 +12,7 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useKeyedFetch } from '../hooks/useKeyedFetch';
 import { getFixtureChanges, type FixtureChange } from '../lib/api';
 import { formatMatchDateWithYear } from '../lib/formatDate';
+import { hasKickedOff } from '../lib/fixtureStatus';
 
 const LEAGUES: [string, string][] = [
   ['E0', 'Premier League'], ['E1', 'Championship'], ['E2', 'League One'], ['E3', 'League Two'], ['EC', 'National League'],
@@ -37,8 +38,8 @@ export default function FixtureChangesPage() {
     path: '/fixtures/changes',
   });
 
-  const upcoming = (data ?? []).filter((c) => c.status !== 'played');
-  const played = (data ?? []).filter((c) => c.status === 'played');
+  const upcoming = (data ?? []).filter((c) => !hasKickedOff(c.status));
+  const played = (data ?? []).filter((c) => hasKickedOff(c.status));
 
   const table = (rows: FixtureChange[]) => (
     <div className="overflow-x-auto">

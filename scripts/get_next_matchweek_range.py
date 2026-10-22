@@ -52,7 +52,7 @@ def main():
         .select("matchweek")
         .eq("league_id", league_id)
         .eq("season_id", args.season_id)
-        .neq("status", "played")
+        .not_.in_("status", ["played", "awaiting_result"])  # kicked off is not upcoming
         .not_.is_("matchweek", "null")
         .gte("kickoff_date", datetime.date.today().isoformat())
         .order("matchweek", desc=False)
@@ -78,7 +78,7 @@ def main():
         .eq("league_id", league_id)
         .eq("season_id", args.season_id)
         .eq("matchweek", from_matchweek)
-        .eq("status", "played")
+        .in_("status", ["played", "awaiting_result"])
         .limit(1)
         .execute()
     )

@@ -181,6 +181,7 @@ import {
   type TennisSeasonIndexData,
 } from './lib/tennisApi';
 import { FIRST_YEAR as TENNIS_FIRST_YEAR, groupByTournament as tennisGroupByTournament, resultsSentence as tennisResultsSentence, seasonsSentence as tennisSeasonsSentence, playerSentence as tennisPlayerSentence, seasonSentence as tennisSeasonSentence } from './lib/tennisStats';
+import { hasKickedOff } from './lib/fixtureStatus';
 export {
   MATCH_COLUMNS as TENNIS_MATCH_COLUMNS,
   PLAYER_COLUMNS as TENNIS_PLAYER_COLUMNS,
@@ -245,7 +246,7 @@ export function renderPlayerPage(slug: string, data: PlayerPageData): RenderedPa
     </StaticRouter>
   );
 
-  const upcoming = data.season.filter((g) => g.projected_points != null && g.status !== 'played');
+  const upcoming = data.season.filter((g) => g.projected_points != null && !hasKickedOff(g.status));
   const total = upcoming.reduce((sum, g) => sum + (g.projected_points ?? 0), 0);
 
   return {

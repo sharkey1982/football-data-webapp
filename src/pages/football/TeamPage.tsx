@@ -30,6 +30,7 @@ import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 import TeamHistoryPanel from '../../components/TeamHistoryPanel';
 import ResultFlag from '../../components/ResultFlag';
 import { chanceText, pointsVsExpected, resultFlag, vsExpectedText, type Outcome } from '../../lib/expectation';
+import { hasKickedOff } from '../../lib/fixtureStatus';
 
 /** hasFinance: whether this club has published accounts. Static generation
  *  supplies it from ONE bulk query for every team; when absent the page asks
@@ -126,8 +127,8 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
 
   // A played fixture stays in the results while its score is awaited:
   // football-data confirms lower-league results up to three days later.
-  const played = matches.filter((m) => m.goals_for != null || m.status === 'played');
-  const upcoming = matches.filter((m) => m.status !== 'played').slice(0, 5);
+  const played = matches.filter((m) => m.goals_for != null || hasKickedOff(m.status));
+  const upcoming = matches.filter((m) => !hasKickedOff(m.status)).slice(0, 5);
   const outcome = (m: TeamPageMatch): Outcome | null =>
     m.goals_for == null || m.goals_against == null ? null : m.goals_for > m.goals_against ? 'W' : m.goals_for < m.goals_against ? 'L' : 'D';
   const vsExpected = pointsVsExpected(played.map((m) => ({ outcome: outcome(m), win: m.win_chance, draw: m.draw_chance })));

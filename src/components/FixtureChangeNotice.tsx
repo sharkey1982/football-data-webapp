@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFixtureChanges, type FixtureChange } from '../lib/api';
+import { hasKickedOff } from '../lib/fixtureStatus';
 
 const SEEN_KEY = 'fs-fixture-changes-seen';
 const WINDOW_DAYS = 7;
@@ -32,7 +33,7 @@ export function FixtureChangeNotice({ leagueCode = 'E0' }: { leagueCode?: string
     getFixtureChanges(leagueCode)
       .then((c) => {
         const since = Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
-        if (live) setChanges(c.filter((x) => new Date(x.changed_at).getTime() > since && x.status !== 'played'));
+        if (live) setChanges(c.filter((x) => new Date(x.changed_at).getTime() > since && !hasKickedOff(x.status)));
       })
       .catch(() => {
         if (live) setChanges([]);

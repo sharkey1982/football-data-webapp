@@ -30,6 +30,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Games with no result were shown as "played", then quietly relabelled "postponed"
+- **Found:** data-quality audit, 22 Oct (DQ-02, DQ-03).
+- **Impact:** 33 games from Tue 20 Oct (EFL and Champions League) were `played` with no score; results pages showed played games without a result. Worse, `reconcile_unreported_played_fixtures()` had relabelled 10 games whose results never arrived (8 League One, 1 League Two, 1 La Liga) as `postponed`, so tables, form, model fits and Last Man Standing left them out, the site called them postponed, and they were re-predicted as future games.
+- **Cause:** `status` was time-based (`played` once kick-off passed, with or without a result), and the reconcile step inferred a postponement from a missing result, which no source had reported.
+- **Fix:** `20261022101000_fixture_awaiting_result_status.sql`: new status `awaiting_result` (kicked off, no result or reported score). A trigger on `fixtures` keeps `played` for games with a result or reported score, and a trigger on `matches` moves a game to `played` the moment its result lands. `postponed` now comes only from a source. The 10 inferred postponements became `awaiting_result`. The site treats `awaiting_result` as kicked off (never upcoming) and shows "Result to follow" (`src/lib/fixtureStatus.ts`).
+- **Prevention:** integrity check `results_missing_48h` (warning) lists games awaiting a result more than 48 hours after kick-off. *Lesson: a status should say what a source told us, not what the clock implies.*
+
+---
+
 ## 2026-10-22 · Premier League games moved for TV kept their old date and were labelled "not televised"
 - **Found:** data-quality audit, 22 Oct (DQ-01).
 - **Impact:** 29 Premier League fixtures (GW13-16) showed FixtureDownload's old date or time; 19 of them still sat in the Saturday 15:00 slot and carried a "not shown live in the UK" row from the 3pm-blackout rule. Examples: Tottenham v Arsenal (really Sun 6 Dec 16:30), Chelsea v Aston Villa (Mon 21 Dec 20:00). Kick-off dates also feed predictions, Last Man Standing and "next fixture".

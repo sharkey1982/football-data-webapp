@@ -18,6 +18,14 @@ function makeBuilder(rows: any[]) {
       filtered = filtered.filter((r: any) => r[col] !== val);
       return api;
     },
+    // PostgREST .not(col, 'in', '(a,b)') -- used to exclude kicked-off statuses.
+    not: (col: string, op: string, val: string) => {
+      if (op === 'in') {
+        const vals = val.replace(/^\(|\)$/g, '').split(',');
+        filtered = filtered.filter((r: any) => !vals.includes(r[col]));
+      }
+      return api;
+    },
     order: () => api,
     limit: () => api,
     maybeSingle: () => Promise.resolve({ data: filtered[0] ?? null, error: null }),

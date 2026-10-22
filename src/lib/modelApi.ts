@@ -9,6 +9,7 @@
 import { supabase } from './supabase';
 import type { LeagueFitStatus, ModelFitRun } from '../types/database';
 import { getMostRecentFixtureSeason } from './referenceApi';
+import { KICKED_OFF_STATUSES } from './fixtureStatus';
 
 export async function getLeagueFitStatusFor(leagueId: number): Promise<LeagueFitStatus | null> {
   const { data, error } = await supabase.from('league_fit_status').select('*').eq('league_id', leagueId).maybeSingle();
@@ -524,7 +525,7 @@ export async function getFantasyFixtureDifficulty(
     )
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
-    .neq('status', 'played')
+    .not('status', 'in', `(${KICKED_OFF_STATUSES.join(',')})`)
     .order('matchweek', { ascending: true, nullsFirst: false })
     .order('kickoff_date', { ascending: true });
   if (error) throw error;

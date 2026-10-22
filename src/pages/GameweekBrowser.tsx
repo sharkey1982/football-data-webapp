@@ -29,6 +29,7 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 import { TeamLink } from '../components/EntityLinks';
 import { useTeamSlugs } from '../lib/teamSlugs';
 import { defaultFixtureDate } from '../lib/fixtureDates';
+import { hasKickedOff } from '../lib/fixtureStatus';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -136,7 +137,7 @@ function FixtureScoreCell({
   }
   // Played, result not yet confirmed: never show the pre-match prediction in
   // the score column, where it would read as the result.
-  if (f.status === 'played') {
+  if (hasKickedOff(f.status)) {
     return f.reported_home_goals != null && f.reported_away_goals != null ? (
       <div className="flex flex-col items-center" title="Reported score, awaiting confirmation">
         <ScoreChip homeGoals={f.reported_home_goals} awayGoals={f.reported_away_goals} size="sm" />
