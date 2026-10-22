@@ -115,7 +115,18 @@ def main():
         return supabase.rpc(fn, args).execute().data
 
     print(f"::notice::Calling the database {'directly (2-minute limit)' if db_url else 'through the API (8-second limit)'}.")
-    # Availability per fixture first. If this fails the projections still
+    # FPL news first (22 Oct 2026). fpl_players is otherwise refreshed only
+    # every 6 hours (pg_cron 'fpl-refresh-6-hourly', :17), so the 21 Oct
+    # 22:06 run used the 18:17 data and projected Saka -- 50% doubtful
+    # since 20:30 -- at start 0.94. refresh_fpl() takes ~2s; if FPL is down
+    # the run carries on with the last stored data.
+    try:
+        res = call("refresh_fpl")
+        print(f"::notice::FPL data refreshed: {res}")
+    except Exception as e:
+        print(f"::warning::Could not refresh FPL data ({e}); using the last stored players and news.")
+
+    # Availability per fixture next. If this fails the projections still
     # run on the previous stored availability, so warn rather than stop.
     try:
         n = call("refresh_fpl_fixture_availability")

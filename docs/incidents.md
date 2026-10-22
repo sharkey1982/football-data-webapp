@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · FPL projections: short team sheets, stale injury news, rewritten after kick-off
+- **Found:** production audit, 22 Oct (DQ-08, S-13, DQ-07), 40 hours before the GW8 deadline.
+- **Impact:** (1) Chelsea's only fit keeper (Penders) had start 0.25 for GW8-12, so Chelsea's clean-sheet and save points all but vanished and the optimiser would never pick a Chelsea keeper; 18 of 200 GW8-17 team-fixtures were more than 0.5 from 11 expected starters (Spurs GW8 9.63, Coventry ~10.3 every week). (2) Saka, 50% doubtful from 21 Oct 20:30, was projected at start 0.94 and shown #2 on the FPL hub; Timber (75%) likewise. (3) 4,591 of 4,662 v6 rows on played fixtures had been regenerated after kick-off, so stored history was not what users saw before the match.
+- **Cause:** (1) `fixture_player_expected_minutes_resolved_v3` only scaled a team DOWN to 10 outfield + 1 keeper, never up (a documented limitation). Goalkeepers are outside the depth chart, so a backup keeper kept his history rate. (2) The 21 Oct run started at 22:06 but `fpl_players` had last been refreshed at 18:17 (6-hourly pg_cron); availability itself was applied correctly. (3) `refresh_fpl_projection_fixture_v6` skipped only `status = 'played'`, which is set hours after the match.
+- **Fix:** migration `20261022110000_fpl_team_sheets_and_kickoff_freeze.sql`: scale-up to 11/1 within availability (bug fix within leaguewide_v6, `model_change_log`); the refresh skips fixtures whose kick-off has passed. `scripts/refresh_fpl_projections.py` calls `refresh_fpl()` before refreshing availability. Projections re-run on merge.
+- **Prevention:** checks `fpl_projection_team_starters` (failed if an upcoming team-fixture is outside 11 +/- 0.5 starters or 1 +/- 0.2 keepers) and `fpl_projection_respects_chance_of_playing` (warning if a player's next-gameweek start chance is above FPL's chance of playing); regression tests in the migration; `src/__tests__/fplProjectionGuards.test.ts`. *Lesson: a normaliser that only trims hides shortfalls; check the totals a team must have, not just the ceiling.*
+
+---
+
 ## 2026-10-22 · Premier League games moved for TV kept their old date and were labelled "not televised"
 - **Found:** data-quality audit, 22 Oct (DQ-01).
 - **Impact:** 29 Premier League fixtures (GW13-16) showed FixtureDownload's old date or time; 19 of them still sat in the Saturday 15:00 slot and carried a "not shown live in the UK" row from the 3pm-blackout rule. Examples: Tottenham v Arsenal (really Sun 6 Dec 16:30), Chelsea v Aston Villa (Mon 21 Dec 20:00). Kick-off dates also feed predictions, Last Man Standing and "next fixture".

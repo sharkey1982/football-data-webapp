@@ -124,6 +124,12 @@ Here $p$ is capped at 1 inside the weights. Evidence recorded in the migration h
 - GK error: 10.9 → 2.8 minutes.
 - After the change: exactly 2 starting keepers and 180 GK minutes per fixture.
 
+**Scale-up (applied 2026-10-22, migration `20261022110000`).** After the limits above, a team-fixture whose goalkeepers sum to less than 1 start, or whose outfield players sum to less than 10, is scaled up. Each player's headroom is $c_i = \max(0, \min(a_i, 0.98) - p_i)$, where $a_i$ is his availability, so nobody goes above it. With deficit $D$, the first pass adds
+
+$$\Delta_i = \min\left(c_i,\ D\,\frac{p_i c_i}{\sum_j p_j c_j}\right)$$
+
+(players already in contention take most of the gap); the second pass shares any remainder $R$ by remaining headroom, $\min\left(c_i - \Delta_i,\ R\,\frac{c_i-\Delta_i}{\sum_j (c_j-\Delta_j)}\right)$. A player who gains start chance gets $80\Delta$ more minutes ($90\Delta$ for a keeper), and his sub chance is capped at $1 - p_{start}$ (20 minutes less per unit of sub chance removed). Before it, Chelsea's only fit keeper for GW8-12 (Penders) stayed at 0.25 and Spurs GW8 had 9.63 expected starters; after it, every GW8-17 team-fixture had 10.98-11.00 starters and 0.98-1.00 keepers (dry run, 22 Oct). Guarded daily by `fpl_projection_team_starters` in `check_model_integrity()`.
+
 ### Tactical role (`fixture_player_tactical_consensus`)
 
 The source role with the highest $\sum w_s \cdot$ `source_start_probability` wins. Otherwise the fallback is `team_player_tactical_defaults` (confidence default 0.30), and failing that the FPL position (`GK`/`DEF`/`MID`/`CF`).
@@ -144,7 +150,7 @@ These are views, evaluated whenever `refresh_fpl_projection_fixture_v6` runs. Th
 
 1. **`lineup_confidence` mapping never matches.** `refresh_fpl_projection_fixture_v6_impl` maps `minutes_source` to a confidence value, where `'consensus_v3'` → 0.90. No view emits `'consensus_v3'`: the actual label is `'lineup_consensus_v3'`. Consensus-based rows therefore get the default 0.55, lower than nailed-history rows (0.80).
 2. **Sub probabilities are only partly capped.** The team-sheet limits cap goalkeepers and outfield starts and minutes, but not outfield **sub** probabilities. `_v3` normalises consensus-path subs to 4.25 per team without bounding $p_{sub} \le 1 - p_{start}$. The fallback-v6 path has no team sub total at all. Appearance points ($2p_{start} + p_{sub}$) can therefore still be inflated. `fpl_projection_frontend_feed_v6` clamps the *displayed* sub probability to $1 - p_{start}$, but the stored points are not recomputed.
-3. **Limits only reduce.** A team whose total is under 900 minutes or 10 starters is not scaled up. The migration notes 1,966 minutes per fixture after the change, against a notional 1,980.
+3. **Limits only reduce** (fixed 22 Oct 2026). Start chances are now scaled up to 10 outfield players and 1 keeper (see "Scale-up" above). Minutes are not scaled up to 990 on their own; they follow the added start chance.
 4. **`likely_starts` is inferred, not observed.** It is defined as `minutes >= 60`. A starter substituted before 60 minutes counts as a sub appearance.
 5. **Availability and squad state are applied as of today.** They are not tied to fixture dates (see "Return from injury" above).
 6. **Latent issue at season rollover.** `fixture_player_lineup_consensus` joins `fpl_players` on `canonical_team_id` with no season filter. `fixture_player_expected_minutes_v2` joins on `fpl_player_id` alone. Today `fpl_players` holds only season 13 (historic seasons live in `fpl_player_season_totals`), so there is no current effect. After the 2027/28 rollover, both joins could pick up the wrong season's rows.
