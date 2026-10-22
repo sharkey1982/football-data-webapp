@@ -236,7 +236,7 @@ export const isPlayed = (g: Pick<NflGame, 'home_score' | 'away_score'>): boolean
 const WEEK_COLS = 'team,position,season,season_type,rushing_yards,receiving_yards,rushing_tds,receiving_tds,targets,carries,game_id';
 
 export async function loadMatchup(gameId: string): Promise<MatchupData | null> {
-  const { data: gRows, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('game_id', gameId).limit(1);
+  const { data: gRows, error } = await supabase.from('nfl_games').select(GAME_COLUMNS).eq('game_id', gameId).limit(1);
   if (error) throw error;
   const game = ((gRows ?? []) as unknown as NflGame[])[0];
   if (!game) return null;
@@ -244,13 +244,13 @@ export async function loadMatchup(gameId: string): Promise<MatchupData | null> {
   // This season once a team has played; before week 2, last season.
   const played = isPlayed(game);
   const [projRes, stats, weeks, allowed, teamGames, actuals] = await Promise.all([
-    supabase.from('nfl_projections' as never).select(PROJECTION_COLUMNS).eq('game_id', gameId),
-    supabase.from('nfl_team_seasons' as never).select(TEAM_SEASON_COLUMNS).in('season', [game.season, game.season - 1]).in('franchise', teams),
-    supabase.from('nfl_player_weeks' as never).select(WEEK_COLS).in('season', [game.season, game.season - 1]).in('team', teams).eq('season_type', 'REG').limit(5000),
-    supabase.from('nfl_points_allowed' as never).select('season,defence,position,ppr_per_game,ppr_rank').in('season', [game.season, game.season - 1]).in('defence', teams),
-    supabase.from('nfl_team_games' as never).select(TEAM_GAME_COLUMNS).eq('season', game.season).eq('season_type', 'REG').in('franchise', teams),
+    supabase.from('nfl_projections').select(PROJECTION_COLUMNS).eq('game_id', gameId),
+    supabase.from('nfl_team_seasons').select(TEAM_SEASON_COLUMNS).in('season', [game.season, game.season - 1]).in('franchise', teams),
+    supabase.from('nfl_player_weeks').select(WEEK_COLS).in('season', [game.season, game.season - 1]).in('team', teams).eq('season_type', 'REG').limit(5000),
+    supabase.from('nfl_points_allowed').select('season,defence,position,ppr_per_game,ppr_rank').in('season', [game.season, game.season - 1]).in('defence', teams),
+    supabase.from('nfl_team_games').select(TEAM_GAME_COLUMNS).eq('season', game.season).eq('season_type', 'REG').in('franchise', teams),
     played
-      ? supabase.from('nfl_player_weeks' as never).select(PLAYER_ACTUAL_COLUMNS).eq('game_id', gameId)
+      ? supabase.from('nfl_player_weeks').select(PLAYER_ACTUAL_COLUMNS).eq('game_id', gameId)
       : Promise.resolve({ data: [], error: null }),
   ]);
   for (const r of [projRes, stats, weeks, allowed]) if (r.error) throw r.error;
@@ -304,11 +304,11 @@ export function currentWeek(weeks: MatchupWeekSummary[]): number | null {
 
 /** A regular-season week's games (latest season; default the current week) with each side's projected fantasy points (PPR, key line-up). */
 export async function loadMatchupWeek(week: number | null): Promise<MatchupWeek | null> {
-  const { data: sRow, error: sErr } = await supabase.from('nfl_games' as never).select('season').eq('game_type', 'REG').order('season', { ascending: false }).limit(1);
+  const { data: sRow, error: sErr } = await supabase.from('nfl_games').select('season').eq('game_type', 'REG').order('season', { ascending: false }).limit(1);
   if (sErr) throw sErr;
   const season = ((sRow ?? []) as { season: number }[])[0]?.season;
   if (!season) return null;
-  const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('season', season).eq('game_type', 'REG').limit(400);
+  const { data, error } = await supabase.from('nfl_games').select(GAME_COLUMNS).eq('season', season).eq('game_type', 'REG').limit(400);
   if (error) throw error;
   const all = (data ?? []) as unknown as NflGame[];
   const weeks = weekSummaries(all);

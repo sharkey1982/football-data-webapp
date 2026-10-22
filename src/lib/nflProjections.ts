@@ -124,7 +124,7 @@ export function projectionSentence(r: NflProjection, f: ScoringFormat): string {
 export async function loadProjections(): Promise<NflProjection[]> {
   const rows: NflProjection[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('nfl_projections' as never).select(PROJECTION_COLUMNS).order('proj_ppr', { ascending: false }).range(from, from + 999);
+    const { data, error } = await supabase.from('nfl_projections').select(PROJECTION_COLUMNS).order('proj_ppr', { ascending: false }).range(from, from + 999);
     if (error) throw error;
     rows.push(...((data ?? []) as unknown as NflProjection[]));
     if ((data ?? []).length < 1000) break;
@@ -135,13 +135,13 @@ export async function loadProjections(): Promise<NflProjection[]> {
 /** Projections for a set of games (e.g. one week). */
 export async function loadProjectionsFor(gameIds: string[]): Promise<NflProjection[]> {
   if (!gameIds.length) return [];
-  const { data, error } = await supabase.from('nfl_projections' as never).select(PROJECTION_COLUMNS).in('game_id', gameIds).order('proj_ppr', { ascending: false }).limit(3000);
+  const { data, error } = await supabase.from('nfl_projections').select(PROJECTION_COLUMNS).in('game_id', gameIds).order('proj_ppr', { ascending: false }).limit(3000);
   if (error) throw error;
   return (data ?? []) as unknown as NflProjection[];
 }
 
 export async function loadGameProjections(gameId: string): Promise<NflProjection[]> {
-  const { data, error } = await supabase.from('nfl_projections' as never).select(PROJECTION_COLUMNS).eq('game_id', gameId).order('proj_ppr', { ascending: false });
+  const { data, error } = await supabase.from('nfl_projections').select(PROJECTION_COLUMNS).eq('game_id', gameId).order('proj_ppr', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as NflProjection[];
 }

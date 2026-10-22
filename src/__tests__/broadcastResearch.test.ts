@@ -53,7 +53,11 @@ describe('broadcast research route', () => {
   });
 
   it('has no Airtable dependency left in the app source', () => {
-    const hits = sourceFiles(join(root, 'src')).filter((f) => /airtable/i.test(readFileSync(f, 'utf8')));
+    // database.generated.ts mirrors the live schema (airtable_record_id columns
+    // remain on the broadcast tables); it is generated, not app code.
+    const hits = sourceFiles(join(root, 'src'))
+      .filter((f) => !f.endsWith('database.generated.ts'))
+      .filter((f) => /airtable/i.test(readFileSync(f, 'utf8')));
     expect(hits).toEqual([]);
   });
 });

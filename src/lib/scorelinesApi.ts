@@ -19,16 +19,17 @@ export type ScorelinesData = { league: LeagueRef; rows: ScorelineRow[] };
 export type ScorelineQuery = { leagueId: number; from: number | null; to: number | null; teamId: number | null; venue: 'H' | 'A' | null };
 
 export async function getScorelines(q: ScorelineQuery): Promise<ScorelineRow[]> {
-  const { data, error } = await supabase.rpc('history_scorelines' as never, {
-    p_league_id: q.leagueId, p_from_year: q.from, p_to_year: q.to, p_team_id: q.teamId, p_venue: q.venue,
-  } as never);
+  const { data, error } = await supabase.rpc('history_scorelines', {
+    p_league_id: q.leagueId, // null filters are omitted, so the SQL defaults (null: no filter) apply.
+    p_from_year: q.from ?? undefined, p_to_year: q.to ?? undefined, p_team_id: q.teamId ?? undefined, p_venue: q.venue ?? undefined,
+  });
   if (error) throw error;
   return ((data ?? []) as unknown as ScorelineRow[]).map((r) => ({ ...r, matches: Number(r.matches) }));
 }
 
 /** Every club that has played in the league, by name. */
 export async function getLeagueClubs(leagueId: number): Promise<{ team_id: number; name: string }[]> {
-  const { data, error } = await supabase.from('team_season_summary' as never).select('team_id').eq('league_id', leagueId).limit(3000);
+  const { data, error } = await supabase.from('team_season_summary').select('team_id').eq('league_id', leagueId).limit(3000);
   if (error) throw error;
   const ids = [...new Set(((data ?? []) as unknown as { team_id: number }[]).map((r) => r.team_id))];
   const names = await teamNames(ids);

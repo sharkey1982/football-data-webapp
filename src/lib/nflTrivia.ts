@@ -13,7 +13,7 @@ import { NFL_HEAT_MAP_PATH, NFL_PLAYERS_PATH, NFL_SEASONS_PATH, NFL_TABLE_PATH, 
 async function standingsAll(): Promise<NflStanding[]> {
   const out: NflStanding[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).range(from, from + 999);
+    const { data, error } = await supabase.from('nfl_standings').select(STANDING_COLUMNS).range(from, from + 999);
     if (error) throw error;
     out.push(...((data ?? []) as unknown as NflStanding[]));
     if ((data ?? []).length < 1000) return out;
@@ -71,12 +71,12 @@ function bestRecordNow(rows: NflStanding[]): TriviaFact | null {
 }
 
 async function topFantasyScorer(): Promise<TriviaFact | null> {
-  const { data: s, error: sErr } = await supabase.from('nfl_season_summary' as never).select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
+  const { data: s, error: sErr } = await supabase.from('nfl_season_summary').select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
   if (sErr) throw sErr; // safely() drops this fact; a failed read is not "no finished season"
   const done = ((s ?? []) as { season: number; reg_games: number; reg_played: number }[]).find((x) => x.reg_games > 0 && x.reg_played === x.reg_games);
   if (!done) return null;
   const { data, error } = await supabase
-    .from('nfl_player_seasons' as never)
+    .from('nfl_player_seasons')
     .select('player_name,position,team_short,pts_ppr')
     .eq('season', done.season)
     .order('pts_ppr', { ascending: false })
@@ -94,12 +94,12 @@ async function topFantasyScorer(): Promise<TriviaFact | null> {
 }
 
 async function generousDefence(): Promise<TriviaFact | null> {
-  const { data: s, error: sErr } = await supabase.from('nfl_season_summary' as never).select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
+  const { data: s, error: sErr } = await supabase.from('nfl_season_summary').select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
   if (sErr) throw sErr; // safely() drops this fact; a failed read is not "no finished season"
   const done = ((s ?? []) as { season: number; reg_games: number; reg_played: number }[]).find((x) => x.reg_games > 0 && x.reg_played === x.reg_games);
   if (!done) return null;
   const { data, error } = await supabase
-    .from('nfl_points_allowed' as never)
+    .from('nfl_points_allowed')
     .select('defence_name,ppr_per_game')
     .eq('season', done.season)
     .eq('position', 'WR')

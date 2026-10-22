@@ -182,7 +182,7 @@ export async function loadClubSeason(teamSlug: string, startYear: number): Promi
   if (!team) return null;
 
   const { data: seasons, error: e1 } = await supabase
-    .from('team_season_summary' as never)
+    .from('team_season_summary')
     .select(
       'league_id, league_code, season_id, start_year, team_id, position, played, won, drawn, lost, goals_for, goals_against, goal_difference, deduction, points, split_group, champion, relegated, promoted, is_final, curtailed, split_format, clubs, comparable_group, games_in_season'
     )
@@ -196,14 +196,14 @@ export async function loadClubSeason(teamSlug: string, startYear: number): Promi
   const [leagueRes, snapRes, benchRes, eras] = await Promise.all([
     supabase.from('leagues').select('league_id, code, name, slug, countries(name)').eq('league_id', row.league_id).maybeSingle(),
     supabase
-      .from('team_match_snapshot' as never)
+      .from('team_match_snapshot')
       .select(SNAPSHOT_COLUMNS)
       .eq('league_id', row.league_id)
       .eq('season_id', row.season_id)
       .eq('team_id', team.team_id)
       .order('matches_played'),
     supabase
-      .from('league_pace_benchmarks' as never)
+      .from('league_pace_benchmarks')
       .select('league_id, comparable_group, matches_played, outcome, p25, p50, p75')
       .eq('league_id', row.league_id)
       .eq('comparable_group', row.comparable_group)

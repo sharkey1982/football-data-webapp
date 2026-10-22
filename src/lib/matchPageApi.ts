@@ -76,8 +76,8 @@ export function marketRecordSentence(r: MarketRecord | null | undefined, leagueN
 
 async function getMarket(fixtureId: number, leagueId: number): Promise<{ market: MarketLine | null; marketRecord: MarketRecord | null }> {
   const [line, record] = await Promise.all([
-    supabase.from('fixture_market_latest' as never).select('market_home, market_draw, market_away, captured_at').eq('fixture_id', fixtureId).maybeSingle(),
-    supabase.from('model_vs_market_by_league' as never).select('matches, from_date, model_log_loss, market_log_loss').eq('league_id', leagueId).maybeSingle(),
+    supabase.from('fixture_market_latest').select('market_home, market_draw, market_away, captured_at').eq('fixture_id', fixtureId).maybeSingle(),
+    supabase.from('model_vs_market_by_league').select('matches, from_date, model_log_loss, market_log_loss').eq('league_id', leagueId).maybeSingle(),
   ]);
   const l = (line.error ? null : line.data) as { market_home: number; market_draw: number; market_away: number; captured_at: string } | null;
   const r = (record.error ? null : record.data) as { matches: number; from_date: string; model_log_loss: number; market_log_loss: number } | null;

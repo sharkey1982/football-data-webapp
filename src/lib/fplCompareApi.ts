@@ -305,12 +305,12 @@ export async function getCompareHistory(playerIds: number[]): Promise<PlayerHist
   const [{ data: gwRows, error: gwError }, { data: startRows, error: startError }, { data: idRows, error: idError }, { data: seasonRows, error: seasonError }] =
     await Promise.all([
       supabase
-        .from('fpl_player_gameweeks' as any)
+        .from('fpl_player_gameweeks')
         .select('fpl_player_id, fpl_event_id, minutes, total_points, goals_scored, assists, expected_goals, expected_assists')
         .eq('season_id', seasonId)
         .in('fpl_player_id', playerIds),
       supabase
-        .from('fpl_player_start_record' as any)
+        .from('fpl_player_start_record')
         .select('fpl_player_id, starts, available_matches')
         .eq('season_id', seasonId)
         .in('fpl_player_id', playerIds),
@@ -334,7 +334,7 @@ export async function getCompareHistory(playerIds: number[]): Promise<PlayerHist
   let lastRows: any[] = [];
   if (prevSeason && codes.length) {
     const { data, error } = await supabase
-      .from('fpl_player_gameweek_history' as any)
+      .from('fpl_player_gameweek_history')
       .select('fpl_code, minutes, starts, total_points, expected_goals, expected_assists')
       .eq('season_id', prevSeason.season_id)
       .in('fpl_code', codes);

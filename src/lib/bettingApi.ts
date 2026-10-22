@@ -50,7 +50,7 @@ export async function getBettingReturns(o: BettingOptions): Promise<BettingRetur
     p_best_price: o.bestPrice,
     p_stake: o.stake ?? 10,
     p_season_id: o.seasonId ?? (await getCurrentSeasonId()),
-    p_league_id: o.leagueId ?? null,
+    p_league_id: o.leagueId ?? undefined, // omitted = the SQL default (null: all leagues)
     p_promoted: o.promoted ?? 'all',
   });
   if (error) throw error;
@@ -122,7 +122,7 @@ export async function getBettingBets(o: BettingOptions): Promise<BettingBet[]> {
     p_best_price: o.bestPrice,
     p_stake: o.stake ?? 10,
     p_season_id: o.seasonId ?? (await getCurrentSeasonId()),
-    p_league_id: o.leagueId ?? null,
+    p_league_id: o.leagueId ?? undefined, // omitted = the SQL default (null: all leagues)
     p_promoted: o.promoted ?? 'all',
   });
   if (error) throw error;

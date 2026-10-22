@@ -333,7 +333,7 @@ export const TEAM_SEASON_COLUMNS =
   'season,franchise,slug,team_name,short_name,conference,division,games,points_for,points_against,plays,attempts,carries,sacks_suffered,pass_yards,rush_yards,pass_tds,rush_tds,first_downs,giveaways,takeaways,def_sacks,def_st_tds,opp_plays,opp_attempts,opp_carries,opp_pass_yards,opp_rush_yards,opp_pass_tds,opp_rush_tds,penalties,penalty_yards,offence_epa,dst_points';
 
 async function loadTeamStats(season: number): Promise<NflTeamSeason[] | undefined> {
-  const { data, error } = await supabase.from('nfl_team_seasons' as never).select(TEAM_SEASON_COLUMNS).eq('season', season);
+  const { data, error } = await supabase.from('nfl_team_seasons').select(TEAM_SEASON_COLUMNS).eq('season', season);
   if (error) return undefined; // an extra: the table still shows without it
   const rows = (data ?? []) as unknown as NflTeamSeason[];
   return rows.length ? rows : undefined;
@@ -427,7 +427,7 @@ export function seasonRange(latest: number): number[] {
 }
 
 async function loadLatestSeason(): Promise<number | null> {
-  const { data, error } = await supabase.from('nfl_games' as never).select('season').order('season', { ascending: false }).limit(1);
+  const { data, error } = await supabase.from('nfl_games').select('season').order('season', { ascending: false }).limit(1);
   if (error) throw error;
   return ((data ?? []) as { season: number }[])[0]?.season ?? null;
 }
@@ -438,14 +438,14 @@ async function loadSeasons(): Promise<number[]> {
 }
 
 async function loadSeasonGames(season: number): Promise<NflGame[]> {
-  const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('season', season).order('week').limit(1000);
+  const { data, error } = await supabase.from('nfl_games').select(GAME_COLUMNS).eq('season', season).order('week').limit(1000);
   if (error) throw error;
   return (data ?? []) as unknown as NflGame[];
 }
 
 async function loadSeasonModel(season: number): Promise<NflGameModel[]> {
   // The model is an extra: if it can't be read, the fixtures still show.
-  const { data, error } = await supabase.from('nfl_game_model' as never).select(MODEL_COLUMNS).like('game_id', `${season}_%`).limit(1000);
+  const { data, error } = await supabase.from('nfl_game_model').select(MODEL_COLUMNS).like('game_id', `${season}_%`).limit(1000);
   if (error) return [];
   return (data ?? []) as unknown as NflGameModel[];
 }
@@ -461,7 +461,7 @@ export async function loadNflWeek(season: number | null, week: number | null): P
 export async function loadNflStandings(season: number): Promise<NflStandingsData | null> {
   const [seasons, res, games, teamStats] = await Promise.all([
     loadSeasons(),
-    supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('season', season),
+    supabase.from('nfl_standings').select(STANDING_COLUMNS).eq('season', season),
     loadSeasonGames(season).catch(() => undefined),
     loadTeamStats(season).catch(() => undefined),
   ]);
@@ -474,16 +474,16 @@ export async function loadNflStandings(season: number): Promise<NflStandingsData
 export const loadLatestNflSeason = loadLatestSeason;
 
 export async function loadNflTeam(slug: string): Promise<NflTeamData | null> {
-  const { data: teamRows, error } = await supabase.from('nfl_teams' as never).select(TEAM_COLUMNS).eq('slug', slug);
+  const { data: teamRows, error } = await supabase.from('nfl_teams').select(TEAM_COLUMNS).eq('slug', slug);
   if (error) throw error;
   const team = ((teamRows ?? []) as unknown as NflTeam[])[0];
   if (!team) return null;
   const seasons = await loadSeasons();
   const latest = seasons[seasons.length - 1];
   const [hist, games] = await Promise.all([
-    supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('franchise', team.franchise),
+    supabase.from('nfl_standings').select(STANDING_COLUMNS).eq('franchise', team.franchise),
     supabase
-      .from('nfl_games' as never)
+      .from('nfl_games')
       .select(GAME_COLUMNS)
       .eq('season', latest)
       .or(`home_franchise.eq.${team.franchise},away_franchise.eq.${team.franchise}`),
@@ -494,7 +494,7 @@ export async function loadNflTeam(slug: string): Promise<NflTeamData | null> {
 }
 
 export async function loadNflTeams(): Promise<NflTeam[]> {
-  const { data, error } = await supabase.from('nfl_teams' as never).select(TEAM_COLUMNS).order('name');
+  const { data, error } = await supabase.from('nfl_teams').select(TEAM_COLUMNS).order('name');
   if (error) throw error;
   return (data ?? []) as unknown as NflTeam[];
 }
@@ -516,7 +516,7 @@ const SUMMARY_SELECT =
   'season,reg_games,reg_played,points_per_game,home_win_share,one_score_share,overtime_games,ties,favourite_win_share,neutral_games';
 
 async function loadSummaries(): Promise<NflSeasonSummary[]> {
-  const { data, error } = await supabase.from('nfl_season_summary' as never).select(SUMMARY_SELECT).order('season');
+  const { data, error } = await supabase.from('nfl_season_summary').select(SUMMARY_SELECT).order('season');
   if (error) throw error;
   return (data ?? []) as unknown as NflSeasonSummary[];
 }
@@ -524,7 +524,7 @@ async function loadSummaries(): Promise<NflSeasonSummary[]> {
 export async function loadNflSeason(season: number): Promise<NflSeasonData | null> {
   const [seasons, st, games, summaries] = await Promise.all([
     loadSeasons(),
-    supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('season', season),
+    supabase.from('nfl_standings').select(STANDING_COLUMNS).eq('season', season),
     loadSeasonGames(season),
     loadSummaries(),
   ]);
@@ -542,7 +542,7 @@ export async function loadNflSeasonIndex(): Promise<NflSeasonIndexData> {
 async function loadAllStandings(): Promise<NflStanding[]> {
   const out: NflStanding[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).order('season').order('franchise').range(from, from + 999);
+    const { data, error } = await supabase.from('nfl_standings').select(STANDING_COLUMNS).order('season').order('franchise').range(from, from + 999);
     if (error) throw error;
     out.push(...((data ?? []) as unknown as NflStanding[]));
     if ((data ?? []).length < 1000) return out;

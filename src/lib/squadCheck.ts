@@ -108,7 +108,7 @@ export function assembleEntry(raw: RawEntry): FplEntry {
 }
 
 export async function fetchFplEntry(entryId: number): Promise<FplEntry> {
-  const { data, error } = await supabase.rpc('fpl_entry_fetch' as never, { p_entry_id: entryId } as never);
+  const { data, error } = await supabase.rpc('fpl_entry_fetch', { p_entry_id: entryId });
   if (error) throw new Error('Couldn’t reach FPL just now. Try again in a minute.');
   return assembleEntry(data as unknown as RawEntry);
 }

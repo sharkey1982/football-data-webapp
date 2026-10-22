@@ -97,6 +97,23 @@ jobs:
             git push
           fi
 
+      # Audit 2026-10-22 (CODE-08): the frontend's generated DB types had
+      # drifted 16 days (95 queried objects untyped, 108 `as never` casts).
+      # Generate fresh types from the live schema and fail this run (the
+      # snapshot above is already committed) if they differ from the
+      # committed file. Fix: regenerate src/types/database.generated.ts and
+      # open a PR (see scripts/check-db-types.mjs).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Check the generated DB types are current
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          npx --yes supabase@2 gen types typescript --db-url "$DB_URL" --schema public > /tmp/fresh-types.ts
+          node scripts/check-db-types.mjs src/types/database.generated.ts /tmp/fresh-types.ts
+
       # Audit P-07 (22 Oct 2026): one pipeline_runs row per run, so
       # job_health sees a failed or missing run (job_registry run_key
       # ^schema_snapshot$). Never fails the job.

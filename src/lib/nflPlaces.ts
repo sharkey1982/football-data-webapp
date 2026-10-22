@@ -247,19 +247,19 @@ export function pickReasons(t: PickerTeam, a: PickerAnswers, season: number): st
 // ---- Loaders (browser) ---------------------------------------------------------------
 
 async function latestSeason(): Promise<number | null> {
-  const { data, error } = await supabase.from('nfl_games' as never).select('season').order('season', { ascending: false }).limit(1);
+  const { data, error } = await supabase.from('nfl_games').select('season').order('season', { ascending: false }).limit(1);
   if (error) throw error;
   return ((data ?? []) as { season: number }[])[0]?.season ?? null;
 }
 
 async function seasonGames(season: number): Promise<NflGame[]> {
-  const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('season', season).limit(1000);
+  const { data, error } = await supabase.from('nfl_games').select(GAME_COLUMNS).eq('season', season).limit(1000);
   if (error) throw error;
   return (data ?? []) as unknown as NflGame[];
 }
 
 async function allTeams(): Promise<NflTeam[]> {
-  const { data, error } = await supabase.from('nfl_teams' as never).select(TEAM_COLUMNS).order('name');
+  const { data, error } = await supabase.from('nfl_teams').select(TEAM_COLUMNS).order('name');
   if (error) throw error;
   return (data ?? []) as unknown as NflTeam[];
 }
@@ -274,15 +274,15 @@ export async function loadRoadTrips(): Promise<RoadTrips | null> {
 export async function loadPicker(): Promise<PickerData | null> {
   const season = await latestSeason();
   if (season == null) return null;
-  const { data: done, error } = await supabase.from('nfl_standings' as never).select('season').eq('season_complete', true).order('season', { ascending: false }).limit(1);
+  const { data: done, error } = await supabase.from('nfl_standings').select('season').eq('season_complete', true).order('season', { ascending: false }).limit(1);
   if (error) throw error;
   const last = ((done ?? []) as { season: number }[])[0]?.season;
   if (last == null) return null;
   const [games, teams, standings, london] = await Promise.all([
     seasonGames(season),
     allTeams(),
-    supabase.from('nfl_standings' as never).select(STANDING_COLUMNS).eq('season', last),
-    supabase.from('nfl_games' as never).select('home_franchise,away_franchise').or('stadium.ilike.*wembley*,stadium.ilike.*tottenham*,stadium.ilike.*twickenham*').limit(1000),
+    supabase.from('nfl_standings').select(STANDING_COLUMNS).eq('season', last),
+    supabase.from('nfl_games').select('home_franchise,away_franchise').or('stadium.ilike.*wembley*,stadium.ilike.*tottenham*,stadium.ilike.*twickenham*').limit(1000),
   ]);
   if (standings.error) throw standings.error;
   if (london.error) throw london.error;

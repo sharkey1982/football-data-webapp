@@ -229,7 +229,7 @@ export function gameSentence(p: NflGamePreview): string {
 
 async function priorGames(franchise: string, game: NflGame): Promise<NflGame[]> {
   const { data, error } = await supabase
-    .from('nfl_games' as never)
+    .from('nfl_games')
     .select(GAME_COLUMNS)
     .or(`home_franchise.eq.${franchise},away_franchise.eq.${franchise}`)
     .lte('gameday', game.gameday)
@@ -246,7 +246,7 @@ export async function loadNflGame(gameId: string, known?: NflGame): Promise<NflG
   if (!/^\d{4}_\d{2}_[A-Z]{2,3}_[A-Z]{2,3}$/.test(gameId)) return null;
   let game = known && known.game_id === gameId ? known : undefined;
   if (!game) {
-    const { data, error } = await supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('game_id', gameId);
+    const { data, error } = await supabase.from('nfl_games').select(GAME_COLUMNS).eq('game_id', gameId);
     if (error) throw error;
     game = ((data ?? []) as unknown as NflGame[])[0];
   }
@@ -255,14 +255,14 @@ export async function loadNflGame(gameId: string, known?: NflGame): Promise<NflG
   const a = game.away_franchise;
   const [meetings, homeGames, awayGames, model] = await Promise.all([
     supabase
-      .from('nfl_games' as never)
+      .from('nfl_games')
       .select(GAME_COLUMNS)
       .or(`and(home_franchise.eq.${h},away_franchise.eq.${a}),and(home_franchise.eq.${a},away_franchise.eq.${h})`)
       .limit(200),
     priorGames(h, game),
     priorGames(a, game),
     // The model is an extra: if it can't be read, the rest still shows.
-    supabase.from('nfl_game_model' as never).select(MODEL_COLUMNS).eq('game_id', gameId),
+    supabase.from('nfl_game_model').select(MODEL_COLUMNS).eq('game_id', gameId),
   ]);
   if (meetings.error) throw meetings.error;
   const pool = new Map<string, NflGame>();

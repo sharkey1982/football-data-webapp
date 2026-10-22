@@ -255,7 +255,7 @@ export async function getPlayerGameweekPointsRange(fromMatchweek: number, toMatc
     recoveries?: string | null;
   }>((from, to) =>
     supabase
-      .from('fpl_player_gameweeks' as any)
+      .from('fpl_player_gameweeks')
       .select(
         // Only the three stats read below, not the whole raw record (660 KB -> a few KB, 18 Oct 2026).
         'fpl_player_id, fpl_fixture_id, total_points, minutes, goals_scored, assists, clean_sheets, goals_conceded, own_goals, penalties_saved, penalties_missed, yellow_cards, red_cards, saves, bonus, ' +

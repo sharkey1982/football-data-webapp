@@ -109,9 +109,7 @@ export function parseFplLive(raw: Raw): FplLiveData {
 }
 
 export async function fetchFplLive(entryId: number, event?: number): Promise<FplLiveData> {
-  const args: Record<string, number> = { p_entry_id: entryId };
-  if (event) args.p_event_id = event;
-  const { data, error } = await supabase.rpc('fpl_live_entry' as never, args as never);
+  const { data, error } = await supabase.rpc('fpl_live_entry', event ? { p_entry_id: entryId, p_event_id: event } : { p_entry_id: entryId });
   if (error) throw new FplLiveError('Couldn’t reach the server just now. Try again in a minute.', 'error');
   return parseFplLive(data as unknown as Raw);
 }

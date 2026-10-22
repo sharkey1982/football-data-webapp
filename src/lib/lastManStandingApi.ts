@@ -96,7 +96,7 @@ export async function loadLmsData(league: LmsLeague, seasonId: number): Promise<
   const prices = new Map<number, LmsPrice>();
   if (next.length) {
     const { data: px, error: pe } = await supabase
-      .from('fixture_market_latest' as never)
+      .from('fixture_market_latest')
       .select('fixture_id, market_home, market_draw, market_away, captured_at')
       .in('fixture_id', next);
     if (pe) throw pe;

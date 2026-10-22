@@ -227,7 +227,7 @@ const LIST_COLUMNS = 'season_label,fpl_event_id,kind,version,frozen,generated_at
 
 export async function loadReport(season: string, gw: number, kind: ReportKind): Promise<GameweekReport | null> {
   const { data, error } = await supabase
-    .from('fpl_gameweek_reports_latest' as never)
+    .from('fpl_gameweek_reports_latest')
     .select(`${LIST_COLUMNS},payload`)
     .eq('season_label', season)
     .eq('fpl_event_id', gw)
@@ -239,7 +239,7 @@ export async function loadReport(season: string, gw: number, kind: ReportKind): 
 
 export async function loadReportList(): Promise<ReportListEntry[]> {
   const { data, error } = await supabase
-    .from('fpl_gameweek_reports_latest' as never)
+    .from('fpl_gameweek_reports_latest')
     .select(LIST_COLUMNS)
     .order('fpl_event_id', { ascending: false })
     .order('kind', { ascending: true });

@@ -241,7 +241,7 @@ export function buildHeatMap(args: {
 // ---- Loaders -------------------------------------------------------------------------------
 
 async function latestPlayerSeason(): Promise<number> {
-  const { data, error } = await supabase.from('nfl_player_weeks' as never).select('season').order('season', { ascending: false }).limit(1);
+  const { data, error } = await supabase.from('nfl_player_weeks').select('season').order('season', { ascending: false }).limit(1);
   if (error) throw error;
   return ((data ?? []) as { season: number }[])[0]?.season ?? new Date().getFullYear();
 }
@@ -253,7 +253,7 @@ export async function loadPlayerScout(season: number | null): Promise<PlayerScou
   const s = season ?? latest;
   const rows: NflPlayerSeason[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('nfl_player_seasons' as never).select(SEASON_COLUMNS).eq('season', s).range(from, from + 999);
+    const { data, error } = await supabase.from('nfl_player_seasons').select(SEASON_COLUMNS).eq('season', s).range(from, from + 999);
     if (error) throw error;
     rows.push(...((data ?? []) as unknown as NflPlayerSeason[]));
     if ((data ?? []).length < 1000) break;
@@ -283,12 +283,12 @@ export function positionRank(d: Pick<PlayerPageData, 'peers'>, playerId: string,
 }
 
 export async function loadPlayerPage(slug: string): Promise<PlayerPageData | null> {
-  const { data: pRows, error } = await supabase.from('nfl_players' as never).select(PLAYER_COLUMNS).eq('slug', slug).limit(1);
+  const { data: pRows, error } = await supabase.from('nfl_players').select(PLAYER_COLUMNS).eq('slug', slug).limit(1);
   if (error) throw error;
   const player = ((pRows ?? []) as unknown as NflPlayer[])[0];
   if (!player) return null;
   const { data: sRows, error: e2 } = await supabase
-    .from('nfl_player_seasons' as never)
+    .from('nfl_player_seasons')
     .select(SEASON_COLUMNS)
     .eq('player_id', player.player_id)
     .order('season', { ascending: false });
@@ -296,7 +296,7 @@ export async function loadPlayerPage(slug: string): Promise<PlayerPageData | nul
   const seasons = (sRows ?? []) as unknown as NflPlayerSeason[];
   const weeksSeason = seasons[0]?.season ?? (await latestPlayerSeason());
   const { data: wRows, error: e3 } = await supabase
-    .from('nfl_player_weeks' as never)
+    .from('nfl_player_weeks')
     .select(WEEK_COLUMNS)
     .eq('player_id', player.player_id)
     .eq('season', weeksSeason)
@@ -311,7 +311,7 @@ export async function loadPlayerPage(slug: string): Promise<PlayerPageData | nul
   if (player.team && player.status !== 'RET' && (FANTASY_POSITIONS as readonly string[]).includes(pos)) {
     const [gRes, aRes] = await Promise.all([
       supabase
-        .from('nfl_games' as never)
+        .from('nfl_games')
         .select(GAME_COLUMNS)
         .eq('season', latest)
         .eq('game_type', 'REG')
@@ -319,7 +319,7 @@ export async function loadPlayerPage(slug: string): Promise<PlayerPageData | nul
         .or(`home_franchise.eq.${player.team},away_franchise.eq.${player.team}`)
         .order('week')
         .limit(6),
-      supabase.from('nfl_points_allowed' as never).select(ALLOWED_COLUMNS).in('season', [latest, latest - 1]).eq('position', pos),
+      supabase.from('nfl_points_allowed').select(ALLOWED_COLUMNS).in('season', [latest, latest - 1]).eq('position', pos),
     ]);
     if (gRes.error) throw gRes.error;
     if (aRes.error) throw aRes.error;
@@ -335,7 +335,7 @@ export async function loadPlayerPage(slug: string): Promise<PlayerPageData | nul
   }
   const posList = pos === 'RB' ? ['RB', 'FB'] : [pos];
   const { data: peerRows, error: e4 } = await supabase
-    .from('nfl_player_seasons' as never)
+    .from('nfl_player_seasons')
     .select('player_id,pts_std,pts_half,pts_ppr')
     .eq('season', weeksSeason)
     .in('position', posList)
@@ -347,7 +347,7 @@ export async function loadPlayerPage(slug: string): Promise<PlayerPageData | nul
 
 export async function loadTeamFantasyLeaders(franchise: string, season: number): Promise<NflPlayerSeason[]> {
   const { data, error } = await supabase
-    .from('nfl_player_seasons' as never)
+    .from('nfl_player_seasons')
     .select(SEASON_COLUMNS)
     .eq('season', season)
     .eq('team', franchise)
@@ -358,13 +358,13 @@ export async function loadTeamFantasyLeaders(franchise: string, season: number):
 }
 
 export async function loadHeatMap(position: FantasyPosition, format: ScoringFormat): Promise<HeatMapData> {
-  const { data: latestRow, error } = await supabase.from('nfl_games' as never).select('season').order('season', { ascending: false }).limit(1);
+  const { data: latestRow, error } = await supabase.from('nfl_games').select('season').order('season', { ascending: false }).limit(1);
   if (error) throw error;
   const season = ((latestRow ?? []) as { season: number }[])[0]?.season ?? new Date().getFullYear();
   const [teams, games, allowed] = await Promise.all([
-    supabase.from('nfl_teams' as never).select(TEAM_COLUMNS).order('name'),
-    supabase.from('nfl_games' as never).select(GAME_COLUMNS).eq('season', season).eq('game_type', 'REG').is('home_score', null).order('week').limit(1000),
-    supabase.from('nfl_points_allowed' as never).select(ALLOWED_COLUMNS).in('season', [season, season - 1]).limit(1000),
+    supabase.from('nfl_teams').select(TEAM_COLUMNS).order('name'),
+    supabase.from('nfl_games').select(GAME_COLUMNS).eq('season', season).eq('game_type', 'REG').is('home_score', null).order('week').limit(1000),
+    supabase.from('nfl_points_allowed').select(ALLOWED_COLUMNS).in('season', [season, season - 1]).limit(1000),
   ]);
   for (const r of [teams, games, allowed]) if (r.error) throw r.error;
   const all = (allowed.data ?? []) as unknown as PointsAllowed[];
