@@ -8,7 +8,8 @@
 #
 # pipeline_runs gets one row per area (integrity_football, integrity_nfl,
 # integrity_tennis, integrity_intl, integrity_club_grounds, integrity_gsc,
-# integrity_ga, integrity_jobs) and the combined row model_integrity_checks.
+# integrity_ga, integrity_broadcasts, integrity_jobs) and the combined row
+# model_integrity_checks.
 # Until 6 Oct only the combined row existed, so a football failure that had
 # been red for days hid any new NFL, tennis or international failure. An
 # area whose function errors or returns nothing is recorded as failed and the
@@ -46,6 +47,7 @@ AREAS = [
     ("club_grounds", "check_club_grounds"),      # Your Local Clubs; postcodes.io
     ("gsc", "check_gsc_integrity"),              # Search Console import (gsc-import.yml)
     ("ga", "check_ga_integrity"),                # Google Analytics import (ga-import.yml)
+    ("broadcasts", "check_broadcast_integrity"), # UK TV research route (docs/broadcast-research.md)
     ("jobs", "check_job_health"),                # every production job (job_registry / job_health)
 ]
 
