@@ -33,6 +33,7 @@ const OUT = join(process.cwd(), 'dist', 'sitemap.xml');
 // docs/season-rollover.md). If that read fails the season sections are skipped.
 let CURRENT_SEASON_ID = null;
 const PL_LEAGUE_ID = 1;
+const ENGLISH_LEAGUE_IDS = [1, 2, 3, 4, 5];
 const REQUEST_TIMEOUT_MS = 20000;
 const WATCHDOG_MS = 90000;
 
@@ -169,10 +170,16 @@ async function main() {
   // All independent -- fetched together, so total time is the slowest
   // request rather than the sum of a dozen serial ones.
   CURRENT_SEASON_ID = await query('rpc/fpl_current_season_id');
-  const [gwRows, scouts, eplFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons, clubSeasons] = await Promise.all([
+  // Football season (1 July - 30 June) for the team list, as generate-static
+  // and the team page use; it differs from the FPL season over the summer.
+  const footballSeasonId = (await query('rpc/current_season_id')) ?? CURRENT_SEASON_ID;
+  const [gwRows, scouts, leagueFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons, clubSeasons] = await Promise.all([
     queryAll(`fpl_player_gameweeks?select=fpl_event_id&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0`),
     queryAll('player_identity?select=slug&order=slug.asc'),
-    queryAll(`fixtures?select=home_team_id,away_team_id&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}`),
+    // Team pages: every club in this season's five English leagues
+    // (Premier League to National League), the set generate-static writes
+    // (22 Oct 2026, audit S-03; Premier League only before that).
+    queryAll(`fixtures?select=home_team_id,away_team_id&league_id=in.(${ENGLISH_LEAGUE_IDS.join(',')})&season_id=eq.${footballSeasonId}`),
     queryAll('teams?select=team_id,slug&slug=not.is.null'),
     queryAll(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null`),
     // Premier League only: generate-static writes match pages for league 1
@@ -203,11 +210,11 @@ async function main() {
   counts.scout = 0;
   for (const p of scouts ?? []) if (p.slug) { entries.push(urlEntry(`/fpl/player-scout/${p.slug}`, null)); counts.scout++; }
 
-  const eplTeamIds = new Set();
-  for (const f of eplFixtures ?? []) { eplTeamIds.add(f.home_team_id); eplTeamIds.add(f.away_team_id); }
+  const leagueTeamIds = new Set();
+  for (const f of leagueFixtures ?? []) { leagueTeamIds.add(f.home_team_id); leagueTeamIds.add(f.away_team_id); }
   counts.teams = 0;
   for (const t of teams ?? []) {
-    if (eplTeamIds.size === 0 || eplTeamIds.has(t.team_id)) { entries.push(urlEntry(`/football/teams/${t.slug}`)); counts.teams++; }
+    if (leagueTeamIds.size === 0 || leagueTeamIds.has(t.team_id)) { entries.push(urlEntry(`/football/teams/${t.slug}`)); counts.teams++; }
   }
 
   for (const p of players ?? []) entries.push(urlEntry(`/fpl/players/${p.slug}`));

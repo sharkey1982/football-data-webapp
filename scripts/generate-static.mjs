@@ -39,6 +39,8 @@ const ENTRY = join(process.cwd(), 'dist-ssr', 'entry-server.js');
 // docs/season-rollover.md). If that read fails the season pages are skipped.
 let SEASON_ID = null;
 const EPL_LEAGUE_ID = 1;
+// Championship, League One, League Two, National League (E1, E2, E3, EC).
+const EFL_LEAGUE_IDS = [2, 3, 4, 5];
 const MODEL_VERSION = 'leaguewide_v6';
 const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
 // Tennis rivalry pages: the most-played pairs per tour (see writeTennisPages).
@@ -299,6 +301,8 @@ async function main() {
   // watchdog discards everything not yet written -- which is how the
   // team and finance pages can vanish from a deploy that still succeeds.
   SEASON_ID = await query('rpc/fpl_current_season_id');
+  // The football season (1 July - 30 June), as the client's team page uses.
+  const footballSeason = query('rpc/current_season_id');
   const pending = {
     gameweeks: queryAll(`fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`),
     scouts: queryAll('player_identity?select=slug,canonical_name&order=slug.asc'),
@@ -313,6 +317,17 @@ async function main() {
       `matches?select=match_id,home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
         `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}`
     ),
+    // Team pages for the other English leagues (Championship to National
+    // League, 22 Oct 2026, audit S-03): this football season's fixtures and
+    // results. Two paged reads, about 2,200 + 530 rows.
+    eflFixtures: footballSeason.then((season) => season == null ? null : queryAll(
+      `fixtures?select=league_id,slug,kickoff_date,status,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,reported_home_goals,reported_away_goals` +
+        `&league_id=in.(${EFL_LEAGUE_IDS.join(',')})&season_id=eq.${season}&order=fixture_id.asc`
+    ).then((rows) => rows && { season, rows })),
+    eflMatches: footballSeason.then((season) => season == null ? null : queryAll(
+      `matches?select=match_id,league_id,home_team_id,away_team_id,match_date,full_time_home_goals,full_time_away_goals` +
+        `&league_id=in.(${EFL_LEAGUE_IDS.join(',')})&season_id=eq.${season}&order=match_id.asc`
+    )),
     players: queryAll(
       `fpl_players?select=fpl_player_id,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
     ),
@@ -1105,10 +1120,11 @@ async function main() {
   console.log(`Static: wrote ${pWritten} player page(s), skipped ${pSkipped}, from ${players.length} player(s).`);
 
   // ---- Team pages ---------------------------------------------------
-  // Scoped to teams that actually appear in this season's EPL fixtures.
-  // The teams table holds 242 rows across every division and European
-  // competition; generating pages for clubs with no fixtures here would
-  // produce empty shells and pad the sitemap with nothing.
+  // One per club in this season's Premier League, Championship, League One,
+  // League Two and National League fixtures (EFL and National League since
+  // 22 Oct 2026, audit S-03: until then those 96 clubs got the bare app shell,
+  // generic title and no canonical, while the tables and fixtures linked to
+  // them). Clubs outside these five leagues have no page body worth indexing.
   const ratings = await pending.ratings;
   const overrides = await pending.overrides;
   const acceptedFits = await pending.acceptedFits;
@@ -1117,92 +1133,126 @@ async function main() {
   // is ordered newest-first.
   const fitByLeague = new Map();
   for (const f of acceptedFits ?? []) if (!fitByLeague.has(f.league_id)) fitByLeague.set(f.league_id, f);
-  const currentFit = fitByLeague.get(EPL_LEAGUE_ID);
-
-  const ratingByTeam = new Map(
-    (ratings ?? []).filter((r) => currentFit && r.fit_run_id === currentFit.fit_run_id).map((r) => [r.team_id, r])
+  const currentFitRunIds = new Set([...fitByLeague.values()].map((f) => f.fit_run_id));
+  // Keyed by fit and team: a promoted club can hold ratings in two fits.
+  const ratingByFitTeam = new Map(
+    (ratings ?? []).filter((r) => currentFitRunIds.has(r.fit_run_id)).map((r) => [`${r.fit_run_id}|${r.team_id}`, r])
   );
   const overrideByTeam = new Map((overrides ?? []).map((o) => [o.team_id, o]));
+  const leagueNameById = new Map(((await pending.leagueRefs) ?? []).map((l) => [l.league_id, l.name]));
+  leagueNameById.set(EPL_LEAGUE_ID, 'Premier League');
+
+  // Closing market odds for this season's results: the pre-match win chance
+  // and Upset/Shock flags on team pages (src/lib/expectation.ts). Chunked so
+  // no request URL carries more than 200 ids.
+  async function closingOdds(matchRows) {
+    const ids = (matchRows ?? []).map((m) => m.match_id).filter((x) => x != null);
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i + 200));
+    const parts = await Promise.all(chunks.map((c) =>
+      query(`match_odds?select=match_id,price_home,price_draw,price_away&market=eq.1x2&bookmaker=eq.Avg&is_closing=eq.true&match_id=in.(${c.join(',')})`)
+    ));
+    return new Map(parts.flatMap((p) => p ?? []).map((o) => [o.match_id, o]));
+  }
 
   let tWritten = 0;
   let tSkipped = 0;
 
-  // Closing market odds for this season's results: the pre-match win chance
-  // and Upset/Shock flags on team pages (src/lib/expectation.ts).
-  const matchIds = (matches ?? []).map((m) => m.match_id).filter((x) => x != null);
-  const oddsRows = matchIds.length
-    ? (await query(`match_odds?select=match_id,price_home,price_draw,price_away&market=eq.1x2&bookmaker=eq.Avg&is_closing=eq.true&match_id=in.(${matchIds.join(',')})`)) ?? []
-    : [];
-  const oddsByMatch = new Map(oddsRows.map((o) => [o.match_id, o]));
+  function writeTeamPages({ leagueId, teamFixturesById, resultByKey, oddsByMatch, withPlayers }) {
+    const fit = fitByLeague.get(leagueId);
+    for (const [teamId, teamFixtures] of teamFixturesById.entries()) {
+      const team = teamById.get(teamId);
+      if (!team || !team.slug) {
+        tSkipped++;
+        continue;
+      }
 
-  for (const [teamId, teamFixtures] of fixturesByTeam.entries()) {
-    const team = teamById.get(teamId);
-    if (!team || !team.slug) {
-      tSkipped++;
-      continue;
-    }
+      const rating = fit ? ratingByFitTeam.get(`${fit.fit_run_id}|${teamId}`) : undefined;
+      const ov = overrideByTeam.get(teamId);
+      let gf = null;
+      let ga = null;
+      if (rating) {
+        gf = Math.exp(Number(rating.attack_strength) + Number(ov?.attack_adjustment ?? 0));
+        ga = Math.exp(-(Number(rating.defence_strength) + Number(ov?.defence_adjustment ?? 0)));
+      }
 
-    const rating = ratingByTeam.get(teamId);
-    const ov = overrideByTeam.get(teamId);
-    let gf = null;
-    let ga = null;
-    if (rating) {
-      gf = Math.exp(Number(rating.attack_strength) + Number(ov?.attack_adjustment ?? 0));
-      ga = Math.exp(-(Number(rating.defence_strength) + Number(ov?.defence_adjustment ?? 0)));
-    }
+      const teamMatches = teamFixtures.map((f) => {
+        const isHome = f.home_team_id === teamId;
+        const opp = teamById.get(isHome ? f.away_team_id : f.home_team_id);
+        const res = resultByKey.get(resultKey(f.home_team_id, f.away_team_id, f.kickoff_date));
+        return {
+          slug: f.slug ?? null,
+          kickoff_date: f.kickoff_date,
+          opponent_name: opp?.display_name ?? 'Unknown',
+          is_home: isHome,
+          status: f.status,
+          goals_for: res ? (isHome ? res.full_time_home_goals : res.full_time_away_goals) : null,
+          goals_against: res ? (isHome ? res.full_time_away_goals : res.full_time_home_goals) : null,
+          reported_goals_for: f.reported_home_goals == null ? null : isHome ? f.reported_home_goals : f.reported_away_goals,
+          reported_goals_against: f.reported_home_goals == null ? null : isHome ? f.reported_away_goals : f.reported_home_goals,
+          predicted_goals_for:
+            f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
+          predicted_goals_against:
+            f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
+          ...teamChances(res ? oddsByMatch.get(res.match_id) : undefined, isHome),
+        };
+      });
 
-    const teamMatches = teamFixtures.map((f) => {
-      const isHome = f.home_team_id === teamId;
-      const opp = teamById.get(isHome ? f.away_team_id : f.home_team_id);
-      const res = resultByKey.get(resultKey(f.home_team_id, f.away_team_id, f.kickoff_date));
-      return {
-        slug: f.slug ?? null,
-        kickoff_date: f.kickoff_date,
-        opponent_name: opp?.display_name ?? 'Unknown',
-        is_home: isHome,
-        status: f.status,
-        goals_for: res ? (isHome ? res.full_time_home_goals : res.full_time_away_goals) : null,
-        goals_against: res ? (isHome ? res.full_time_away_goals : res.full_time_home_goals) : null,
-        reported_goals_for: f.reported_home_goals == null ? null : isHome ? f.reported_home_goals : f.reported_away_goals,
-        reported_goals_against: f.reported_home_goals == null ? null : isHome ? f.reported_away_goals : f.reported_home_goals,
-        predicted_goals_for:
-          f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_home_goals : f.predicted_away_goals),
-        predicted_goals_against:
-          f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
-        ...teamChances(res ? oddsByMatch.get(res.match_id) : undefined, isHome),
+      const data = {
+        profile: {
+          team_id: teamId,
+          slug: team.slug,
+          display_name: team.display_name,
+          league_name: leagueNameById.get(leagueId) ?? null,
+          league_id: leagueId,
+          goals_for_per_game: gf,
+          goals_against_per_game: ga,
+          is_estimated: rating?.is_estimated === true,
+          fitted_at: fit?.fitted_at ?? null,
+        },
+        matches: teamMatches,
+        hasFinance: financeTeamIds.has(teamId),
+        // FPL squads exist for Premier League clubs only; elsewhere the
+        // client would fetch an empty list, so say so up front.
+        fplPlayers: withPlayers ? teamFplPlayers((players ?? []).filter((p) => p.canonical_team_id === teamId)) : [],
       };
-    });
 
-    const data = {
-      profile: {
-        team_id: teamId,
-        slug: team.slug,
-        display_name: team.display_name,
-        league_name: 'Premier League',
-        league_id: EPL_LEAGUE_ID,
-        goals_for_per_game: gf,
-        goals_against_per_game: ga,
-        is_estimated: rating?.is_estimated === true,
-        fitted_at: currentFit?.fitted_at ?? null,
-      },
-      matches: teamMatches,
-      hasFinance: financeTeamIds.has(teamId),
-      fplPlayers: teamFplPlayers((players ?? []).filter((p) => p.canonical_team_id === teamId)),
-    };
-
-    try {
-      const page = renderTeamPage(team.slug, data);
-      const dir = join(DIST, 'football', 'teams', team.slug);
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
-      tWritten++;
-    } catch (err) {
-      console.error(`Static: failed to render team ${team.slug}: ${err?.message ?? err}`);
-      tSkipped++;
+      try {
+        const page = renderTeamPage(team.slug, data);
+        const dir = join(DIST, 'football', 'teams', team.slug);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+        tWritten++;
+      } catch (err) {
+        console.error(`Static: failed to render team ${team.slug}: ${err?.message ?? err}`);
+        tSkipped++;
+      }
     }
   }
 
-  console.log(`Static: wrote ${tWritten} team page(s), skipped ${tSkipped}.`);
+  writeTeamPages({ leagueId: EPL_LEAGUE_ID, teamFixturesById: fixturesByTeam, resultByKey, oddsByMatch: await closingOdds(matches), withPlayers: true });
+  const eplTeams = tWritten;
+
+  const efl = await pending.eflFixtures;
+  const eflMatches = await pending.eflMatches;
+  if (!efl || !eflMatches) {
+    console.error('Static: EFL / National League fixtures or results unavailable -- those team pages stay client-rendered.');
+  } else {
+    const eflResultByKey = new Map(eflMatches.map((m) => [resultKey(m.home_team_id, m.away_team_id, m.match_date), m]));
+    const eflOdds = await closingOdds(eflMatches);
+    for (const leagueId of EFL_LEAGUE_IDS) {
+      const byTeam = new Map();
+      for (const f of efl.rows.filter((r) => r.league_id === leagueId).sort((x, y) => (x.kickoff_date < y.kickoff_date ? -1 : x.kickoff_date > y.kickoff_date ? 1 : 0))) {
+        for (const id of [f.home_team_id, f.away_team_id]) {
+          if (!byTeam.has(id)) byTeam.set(id, []);
+          byTeam.get(id).push(f);
+        }
+      }
+      writeTeamPages({ leagueId, teamFixturesById: byTeam, resultByKey: eflResultByKey, oddsByMatch: eflOdds, withPlayers: false });
+    }
+  }
+
+  console.log(`Static: wrote ${tWritten} team page(s) (${eplTeams} Premier League), skipped ${tSkipped} (${Math.round((Date.now() - STARTED_AT) / 1000)}s since start).`);
 
   await writeClubSeasonPages(leagueBulk, shell, buildDocument);
   await writeIntlFullPages(shell, buildDocument, renderStaticRouteHead);
