@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Premier League games moved for TV kept their old date and were labelled "not televised"
+- **Found:** data-quality audit, 22 Oct (DQ-01).
+- **Impact:** 29 Premier League fixtures (GW13-16) showed FixtureDownload's old date or time; 19 of them still sat in the Saturday 15:00 slot and carried a "not shown live in the UK" row from the 3pm-blackout rule. Examples: Tottenham v Arsenal (really Sun 6 Dec 16:30), Chelsea v Aston Villa (Mon 21 Dec 20:00). Kick-off dates also feed predictions, Last Man Standing and "next fixture".
+- **Cause:** `refresh_fixture_feeds()` took dates only from FixtureDownload, which lags TV picks; FPL's official feed (`fpl_fixtures.kickoff_time`) had the right ones but nothing copied them across. `apply_uk_3pm_blackout()` then trusted the stale slot.
+- **Fix:** `20261022100000_pl_kickoffs_follow_fpl.sql`: `sync_pl_kickoffs_from_fpl()` makes FPL's kick-off win for every FPL-mapped fixture (logged in `fixture_changes`; slugs unchanged), run by a trigger on `fpl_fixtures` (so each `refresh_fpl` applies moves at once) and by `refresh_fixture_feeds`, which no longer moves those fixtures back. The blackout rule also checks FPL's kick-off and drops rule rows for postponed fixtures.
+- **Prevention:** integrity check `pl_kickoff_matches_fpl`. *Lesson: when two feeds carry the same fact, decide which one wins and check that they agree.*
+
+---
+
 ## 2026-10-20 · Preview smoke test failed on a PR with no site changes
 - **Found:** PR #386 (a migration and an Edge Function only).
 - **Impact:** `smoke/preview` reported failure. No site code was involved, so it was a false alarm that would block the merge rule.
