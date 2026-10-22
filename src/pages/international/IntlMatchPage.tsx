@@ -27,6 +27,7 @@ import { INTL_MATCHES_PATH, ip1Grid, kindOfEdition, summariseGrid, type GridSumm
 import { ageOn, editionLabel, isReported, outcomeFor, pct, scoreText, shortDate, tournamentByCompetition, ukDateTime, type IntlMatch, type SquadPlayer, type TeamSummary, sideTitle } from '../../lib/intlStats';
 import type { PreviewTabId } from '../../lib/previewTabs';
 import { ukToday } from '../../lib/ukDate';
+import NotFoundPage from '../NotFoundPage';
 
 const sectionHeading = 'font-display uppercase tracking-wide text-lg text-ink-900';
 
@@ -124,7 +125,7 @@ export default function IntlMatchPage() {
 
   if (failed) return <p className="text-ink-700">This match is unavailable right now.</p>;
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
-  if (!d) return <p className="text-ink-700">No such match. <Link to={INTL_FIXTURES_PATH} className="underline">See every fixture and result</Link>.</p>;
+  if (!d) return <NotFoundPage message="No such match." back={{ to: INTL_FIXTURES_PATH, label: 'See every fixture and result' }} />;
 
   const m = d.match;
   const f = d.fixture;

@@ -123,6 +123,7 @@ describe('empty and missing states', () => {
   it('an unknown team gets "Team not found", consistent with the team page', () => {
     renderPage(null as unknown as ReturnType<typeof southendData>);
     expect(screen.getByRole('heading', { name: 'Team not found' })).toBeInTheDocument();
+    expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
   });
 });
 

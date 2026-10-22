@@ -32,11 +32,13 @@ describe('StagePage', () => {
 
   it('no longer offers the removed stages', () => {
     renderStage('football', 'validate');
-    expect(screen.getByRole('heading', { name: 'Not found' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
   it('shows a not-found state for an unknown stage', () => {
     renderStage('football', 'nonsense');
-    expect(screen.getByRole('heading', { name: 'Not found' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    // A soft 404 must not be indexed (audit S-05).
+    expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex');
   });
 });

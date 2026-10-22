@@ -41,6 +41,7 @@ import {
   seasonLabel,
   signedMoney,
 } from '../../lib/financeFormat';
+import NotFoundPage from '../NotFoundPage';
 
 type Props = { initialData?: ClubFinanceData | null };
 
@@ -103,14 +104,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
     );
   }
   if (data === undefined) return <p className="text-ink-500">Loading accounts&hellip;</p>;
-  if (data === null) {
-    return (
-      <div className="space-y-3">
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Team not found</h1>
-        <p><Link to="/teams" className="text-pitch-800 underline underline-offset-2">Browse all teams</Link></p>
-      </div>
-    );
-  }
+  if (data === null) return <NotFoundPage heading="Team not found" message="No club accounts at this address." back={{ to: '/teams', label: 'Browse all teams' }} />;
   if (!latest) {
     return (
       <div className="space-y-3">

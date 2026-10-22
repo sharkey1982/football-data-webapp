@@ -21,6 +21,7 @@ import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { intlTeamHead } from '../../lib/intlSeo';
 import { INTL_TEAMS_PATH, editionPathOf, intlFixturesPath, intlTeamPath, intlTeamPath as teamPath, loadIntlTeam, loadSquadHistory, type IntlTeamData } from '../../lib/intlApi';
 import { DATA_NOTE, titleList, titleText, isReported, reportedAsMatch, TOURNAMENTS, eloByYear, editionLabel, shortDate, tournamentHistory, type CompetitionTotal, type HistoryCell, type PairRecord, sideTitle } from '../../lib/intlStats';
+import NotFoundPage from '../NotFoundPage';
 
 const REACHED_CLASS = (c: HistoryCell) =>
   c.won ? 'bg-amber-500 text-pitch-950 border-amber-600' : c.reached === 'Runner-up' ? 'bg-pitch-800 text-chalk-100 border-pitch-900' : c.order >= 5 ? 'bg-chalk-200 text-pitch-800 border-pitch-600' : 'bg-white text-ink-700 border-chalk-300';
@@ -140,7 +141,7 @@ export default function IntlTeamPage({ initialData }: { initialData?: IntlTeamDa
   useNoindex(!loading && !failed && (!data || !t));
   if (failed) return <p className="text-ink-700">This team is unavailable right now.</p>;
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
-  if (!data || !t) return <p className="text-ink-700">No national team by that name. <Link to={INTL_TEAMS_PATH} className="underline">See every nation</Link>.</p>;
+  if (!data || !t) return <NotFoundPage message="No national team by that name." back={{ to: INTL_TEAMS_PATH, label: 'See every nation' }} />;
 
   const upcoming = data.fixtures.filter((f) => !f.match_key && !isReported(f));
   const reported = data.fixtures.filter(isReported).map(reportedAsMatch).reverse();

@@ -18,7 +18,8 @@ All pages are free to read. Data is updated daily. UK times and UK TV channels a
 ## Fantasy Premier League
 
 - [FPL hub](https://fixtureshark.com/fpl/start): player projections, predicted line-ups, injuries, value and squad tools.
-- [Player projections](https://fixtureshark.com/fpl): expected points per player for the next gameweeks.
+- [Player projections](https://fixtureshark.com/fpl/player-points): expected points per player for the next gameweeks.
+- [Match projections](https://fixtureshark.com/fpl): projected FPL returns from each Premier League fixture, gameweek by gameweek.
 - [Predicted line-ups](https://fixtureshark.com/fpl/line-ups), [Minutes outlook](https://fixtureshark.com/fpl/minutes), [Injuries](https://fixtureshark.com/fpl/injuries), [Value](https://fixtureshark.com/fpl/value), [Set pieces](https://fixtureshark.com/fpl/set-pieces).
 - [Compare players](https://fixtureshark.com/fpl/compare): up to five FPL players side by side, with projected points, xG, xA, expected minutes and fixtures.
 - [Player Scout](https://fixtureshark.com/fpl/player-scout): every FPL player's season-by-season record.

@@ -7,6 +7,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 import { BEAT_THE_SHARK } from './GameCard';
 import { PageErrorBoundary } from './PageErrorBoundary';
+import { STATIC_ROUTES, type RouteMeta } from '../lib/routeMeta';
+import { activeDocumentHeads, applyFallbackHead } from '../hooks/useDocumentHead';
+
+const ROUTE_META = new Map<string, RouteMeta>(STATIC_ROUTES.map((m) => [m.path, m]));
 
 type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[]; external?: boolean };
 /** A group's items may be split into the four journey stages
@@ -192,6 +196,23 @@ const MENU_LABEL = { football: 'Club', fpl: 'FPL', nfl: 'NFL', tennis: 'Tennis',
 
 export default function AppLayout() {
   const location = useLocation();
+
+  // Head fallback (audit 22 Oct 2026, S-10). Runs after the page's own
+  // effects (parents run after children), so a page that calls
+  // useDocumentHead keeps its head; for one that doesn't, the head comes
+  // from routeMeta, or the site defaults, instead of the previous page's.
+  // Not on the first render: the served HTML already has that URL's head
+  // (prerendered, or the shell's defaults).
+  const firstRoute = useRef(true);
+  useEffect(() => {
+    if (firstRoute.current) {
+      firstRoute.current = false;
+      return;
+    }
+    if (activeDocumentHeads() > 0) return;
+    const path = location.pathname.length > 1 ? location.pathname.replace(/\/+$/, '') : location.pathname;
+    applyFallbackHead(ROUTE_META.get(path) ?? null);
+  }, [location.pathname]);
 
   // AppLayout wraps every page and never unmounts on route changes (only
   // the <Outlet /> content swaps), so it's the right place to remember the
