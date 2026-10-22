@@ -15,6 +15,7 @@ import { getFixturesForSeason, type FixtureWithNames } from './fixturesApi';
 import { getCurrentFplSeasonId } from './currentSeason';
 import { CURRENT_MODEL_VERSION } from './fplModel';
 import { upcomingGameweek } from './landingApi';
+import { hasKickedOff } from './fixtureStatus';
 
 // ---- Club ------------------------------------------------------------------
 
@@ -36,7 +37,7 @@ export function favoured(h: number | null | undefined, a: number | null | undefi
 }
 
 
-const isPlayed = (f: FixtureWithNames) => f.full_time_home_goals != null || f.status === 'played';
+const isPlayed = (f: FixtureWithNames) => f.full_time_home_goals != null || hasKickedOff(f.status);
 
 /** The round coming up: the first matchweek with a game still to play (all
  *  of its games, so a Friday opener shows with the weekend), or, with no

@@ -20,6 +20,7 @@ import { supabase } from './supabase';
 import { num, FPL_POSITION_LABEL, CURRENT_MODEL_VERSION } from './fplApi';
 import type { FplElementType } from '../types/database';
 import { getCurrentFplSeasonId } from './currentSeason';
+import { hasKickedOff } from './fixtureStatus';
 
 /** FPL encodes position as 1-4 (GKP/DEF/MID/FWD). Postgres stores it as a
  * plain int, so generated types widen it to `number`; this narrows it back
@@ -63,7 +64,7 @@ export async function getSeasonSummary(): Promise<SeasonGameweekSummary[]> {
     const entry = byWeek.get(row.matchweek) ?? { dates: [], played: 0, total: 0 };
     entry.dates.push(row.kickoff_date!);
     entry.total += 1;
-    if (row.status === 'played') entry.played += 1;
+    if (hasKickedOff(row.status)) entry.played += 1;
     byWeek.set(row.matchweek, entry);
   }
 
@@ -115,7 +116,7 @@ export async function getGameweekInPlay(): Promise<{ gw: number; played: number;
     if (r.matchweek == null) continue;
     const g = byMw.get(r.matchweek) ?? { played: 0, total: 0 };
     g.total++;
-    if (r.status === 'played') g.played++;
+    if (hasKickedOff(r.status)) g.played++;
     byMw.set(r.matchweek, g);
   }
   const first = [...byMw.keys()].sort((a, b) => a - b).find((k) => byMw.get(k)!.played < byMw.get(k)!.total);
@@ -474,7 +475,7 @@ export async function getGameweekPlayerProjections(
       xpts_penalties: xpts?.xpts_penalties ?? null,
       lineup_confidence: xpts?.lineup_confidence ?? null,
       selected_by_percent: selectedByPercentByPlayer.get(p.fpl_player_id) ?? null,
-      is_retrospective: statusByFixture.get(p.fixture_id) === 'played',
+      is_retrospective: hasKickedOff(statusByFixture.get(p.fixture_id)),
       actual_started: actual?.started ?? null,
       actual_minutes: actual?.minutes ?? null,
       actual_points: actualPointsByKey.get(`${p.fixture_id}:${p.fpl_player_id}`) ?? null,
@@ -523,7 +524,7 @@ export async function getGameweekPlayerProjections(
       xpts_penalties: null,
       lineup_confidence: null,
       selected_by_percent: selectedByPercentByPlayer.get(r.fpl_player_id) ?? null,
-      is_retrospective: statusByFixture.get(r.fixture_id) === 'played',
+      is_retrospective: hasKickedOff(statusByFixture.get(r.fixture_id)),
       actual_started: r.actual_started,
       actual_minutes: r.actual_minutes,
       actual_points: actualPointsByKey.get(key) ?? null,

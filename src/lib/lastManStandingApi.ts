@@ -10,6 +10,7 @@
 import { supabase } from './supabase';
 import { outcomeProbs, type Cell, type Problem } from './lastManStanding';
 import type { FieldRound } from './lmsField';
+import { hasKickedOff } from './fixtureStatus';
 
 export const LMS_LEAGUES = {
   E0: { leagueId: 1, label: 'Premier League', game: 'PremSkins' },
@@ -141,7 +142,7 @@ export function fieldRound(data: LmsData, gw: number, source: ProbSource, teams:
 
 /** Gameweeks that still have an unplayed fixture, in order. */
 export function openRounds(fixtures: LmsFixture[]): number[] {
-  return [...new Set(fixtures.filter((f) => f.status !== 'played' && f.matchweek != null).map((f) => f.matchweek))].sort((a, b) => a - b);
+  return [...new Set(fixtures.filter((f) => !hasKickedOff(f.status) && f.matchweek != null).map((f) => f.matchweek))].sort((a, b) => a - b);
 }
 
 export type ProbSource = 'market' | 'dc';
@@ -166,7 +167,7 @@ export function buildProblem(data: LmsData, fromRound: number, source: ProbSourc
   const sorted = [...data.fixtures].sort((a, b) =>
     `${a.kickoffDate ?? ''} ${a.kickoffTime ?? ''}`.localeCompare(`${b.kickoffDate ?? ''} ${b.kickoffTime ?? ''}`));
   for (const f of sorted) {
-    if (f.status === 'played' || f.status === 'postponed') continue;
+    if (hasKickedOff(f.status) || f.status === 'postponed') continue;
     const k = byRound.get(f.matchweek);
     if (k == null) continue;
     let pH: number | null = null, pA: number | null = null;

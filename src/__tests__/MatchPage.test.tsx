@@ -169,6 +169,12 @@ describe('MatchPage', () => {
     await waitFor(() => expect(screen.getByText('Played. Result to follow.')).toBeInTheDocument());
   });
 
+  it('says the result is to follow for a kicked-off game awaiting its result (DQ-02)', async () => {
+    mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'awaiting_result', actual_home_goals: null, actual_away_goals: null });
+    renderAt(base.slug);
+    await waitFor(() => expect(screen.getByText('Kicked off. Result to follow.')).toBeInTheDocument());
+  });
+
   it('shows Where to watch with channel, streaming and free-to-air, and puts it in the page metadata', async () => {
     mocked.getMatchBySlug.mockResolvedValue({ ...base, status: 'scheduled', actual_home_goals: null, actual_away_goals: null });
     mockedBroadcasts.getFixtureBroadcast.mockResolvedValue([

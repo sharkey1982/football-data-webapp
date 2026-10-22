@@ -28,6 +28,7 @@ export default function GameweekFixtureList({
                     {formatMatchDate(f.kickoff_date)}
                     {f.kickoff_time ? ` \u2022 ${f.kickoff_time.slice(0, 5)}` : ''}
                     {f.status === 'played' && <span className="ml-1.5 text-ink-500">{'\u2022 Played'}</span>}
+                    {f.status === 'awaiting_result' && <span className="ml-1.5 text-ink-500">{'\u2022 Result to follow'}</span>}
                   </div>
                 </div>
                 <div className="scoreline px-2.5 py-1 text-xs font-mono shrink-0">

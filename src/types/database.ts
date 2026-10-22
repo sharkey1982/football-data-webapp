@@ -54,8 +54,9 @@ export type MatchResult = 'H' | 'D' | 'A';
 /** model_fit_runs.status — CHECK ('pending','accepted','rejected') */
 export type ModelFitRunStatus = 'pending' | 'accepted' | 'rejected';
 
-/** fixtures.status — CHECK ('scheduled','postponed','played') */
-export type FixtureStatus = 'scheduled' | 'postponed' | 'played';
+/** fixtures.status — CHECK ('scheduled','postponed','played','awaiting_result');
+ * see src/lib/fixtureStatus.ts */
+export type FixtureStatus = 'scheduled' | 'postponed' | 'played' | 'awaiting_result';
 
 /** fpl_players.element_type / fpl_player_projections.fpl_position —
  * FPL's own GKP/DEF/MID/FWD encoding, 1-4. */

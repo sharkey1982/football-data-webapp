@@ -24,6 +24,7 @@ import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { getFixtureBroadcast, broadcastToOffer, type FixtureBroadcast } from '../../lib/broadcastsApi';
 import WatchOptions from '../../components/WatchOptions';
 import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
+import { hasKickedOff } from '../../lib/fixtureStatus';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -202,7 +203,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
         </section>
       )}
 
-      {match.status === 'played' && !played && (
+      {hasKickedOff(match.status) && !played && (
         <section>
           <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Result</h2>
           {match.reported_home_goals != null && match.reported_away_goals != null ? (
@@ -211,7 +212,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
               <span className="block text-sm text-ink-500">Reported score, awaiting confirmation from the results feed.</span>
             </p>
           ) : (
-            <p className="text-ink-700 mt-1">Played. Result to follow.</p>
+            <p className="text-ink-700 mt-1">{match.status === 'awaiting_result' ? 'Kicked off. Result to follow.' : 'Played. Result to follow.'}</p>
           )}
         </section>
       )}

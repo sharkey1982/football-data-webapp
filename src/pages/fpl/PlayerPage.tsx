@@ -32,6 +32,7 @@ import PlayerCareerRecord from '../../components/fpl/PlayerCareerRecord';
 import PlayerSummaryPanel from '../../components/fpl/PlayerSummaryPanel';
 import PlayerPointsBreakdown from '../../components/fpl/PlayerPointsBreakdown';
 import { getPlayerCareer, type PlayerSeason } from '../../lib/playerScoutApi';
+import { hasKickedOff } from '../../lib/fixtureStatus';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -119,7 +120,7 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
     };
   }, [profile?.fpl_code]);
 
-  const upcoming = season.filter((g) => g.projected_points != null && g.status !== 'played');
+  const upcoming = season.filter((g) => g.projected_points != null && !hasKickedOff(g.status));
   const projectedTotal = upcoming.reduce((sum, g) => sum + (g.projected_points ?? 0), 0);
   const lastGenerated = season.map((g) => g.generated_at).filter((v): v is string => v != null).sort().at(-1) ?? null;
   const modelVersion = season.find((g) => g.model_version != null)?.model_version ?? null;

@@ -49,6 +49,7 @@ import { loadTrends, periodChanges, trendsPath } from './trendsApi';
 import { getScorelines, summariseScorelines } from './scorelinesApi';
 import { loadRecords } from './recordsApi';
 import { leagueBySlug, leaguePath, leagueSummaries, seasonDisplay } from './leagueSeasonApi';
+import { hasKickedOff } from './fixtureStatus';
 
 const PL_LEAGUE_ID = 1;
 
@@ -141,7 +142,7 @@ export async function upcomingGameweek(): Promise<{ matchweek: number; fixtureId
     if (r.matchweek == null) continue;
     const g = byMw.get(r.matchweek) ?? { ids: [], played: false };
     g.ids.push(r.fixture_id);
-    if (r.status === 'played') g.played = true;
+    if (hasKickedOff(r.status)) g.played = true;
     byMw.set(r.matchweek, g);
   }
   const mw = [...byMw.keys()].sort((a, b) => a - b).find((k) => !byMw.get(k)!.played);

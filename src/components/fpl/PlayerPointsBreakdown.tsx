@@ -14,9 +14,10 @@
 // ============================================================================
 
 import { BREAKDOWN_PARTS, type PlayerPageGameweek } from '../../lib/fplPlayerPageApi';
+import { hasKickedOff } from '../../lib/fixtureStatus';
 
 export default function PlayerPointsBreakdown({ season }: { season: PlayerPageGameweek[] }) {
-  const rows = season.filter((g) => g.status !== 'played' && g.breakdown && g.projected_points != null).slice(0, 8);
+  const rows = season.filter((g) => !hasKickedOff(g.status) && g.breakdown && g.projected_points != null).slice(0, 8);
   if (rows.length === 0) return null;
   const parts = BREAKDOWN_PARTS.filter((p) => rows.some((g) => Math.abs(g.breakdown![p.key]) >= 0.005));
   const sum = (key: (typeof BREAKDOWN_PARTS)[number]['key']) => rows.reduce((s, g) => s + g.breakdown![key], 0);

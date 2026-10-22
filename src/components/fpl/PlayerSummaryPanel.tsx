@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getPlayerContext, type PlayerContext, type PlayerPageGameweek, type PlayerPageProfile } from '../../lib/fplPlayerPageApi';
+import { hasKickedOff } from '../../lib/fixtureStatus';
 
 const STATUS: Record<string, { label: string; tone: 'good' | 'warn' | 'bad' }> = {
   a: { label: 'Available', tone: 'good' },
@@ -66,7 +67,7 @@ export default function PlayerSummaryPanel({ profile, season }: { profile: Playe
     return () => { cancelled = true; };
   }, [profile]);
 
-  const next = season.find((g) => g.status !== 'played' && g.projected_points != null) ?? null;
+  const next = season.find((g) => !hasKickedOff(g.status) && g.projected_points != null) ?? null;
   const tone = { good: 'text-pitch-800', warn: 'text-amber-600', bad: 'text-loss-700' };
 
   return (
