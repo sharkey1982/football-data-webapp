@@ -61,13 +61,6 @@ export async function getPriceChangeRisk(seasonId?: number): Promise<PriceRisk[]
  * so a riser and a faller at the same magnitude get the same label. */
 export type RiskBand = 'high' | 'medium' | 'low';
 
-export function riskBands(rows: PriceRisk[]): { high: number; medium: number } {
-  const sorted = rows.map((r) => Math.abs(r.pressure)).sort((a, b) => a - b);
-  if (sorted.length === 0) return { high: Infinity, medium: Infinity };
-  const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))];
-  return { high: at(0.9), medium: at(0.8) };
-}
-
 export function bandOf(row: PriceRisk, bands: { high: number; medium: number }): RiskBand {
   const p = Math.abs(row.pressure);
   if (p >= bands.high) return 'high';

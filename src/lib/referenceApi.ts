@@ -203,12 +203,6 @@ export async function getTeamById(teamId: number) {
 // Team categories ("Big Six", "Newly Promoted", etc.)
 // ----------------------------------------------------------------------------
 
-export async function getTeamCategories() {
-  const { data, error } = await supabase.from('team_categories').select('*').order('name');
-  if (error) throw error;
-  return data;
-}
-
 /** Teams belonging to a category for a given season. */
 export async function getTeamsInCategory(categoryId: number, seasonId: number) {
   const { data, error } = await supabase

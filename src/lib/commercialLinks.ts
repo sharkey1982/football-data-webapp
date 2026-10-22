@@ -95,16 +95,3 @@ export function resolveCommercialLink(canonicalUrl: string, partners: AffiliateP
   const url = partner.affiliateUrlTemplate.replace('{url}', encodeURIComponent(canonicalUrl));
   return { url, isAffiliate: true, partner: { name: partner.name, network: partner.network } };
 }
-
-/** Convenience wrapper: fetch + resolve in one call. Prefer
- * getActivePartners once per page (e.g. once for a whole fixture list)
- * and resolveCommercialLink per link when resolving many links on one
- * page, to avoid a fetch per fixture. */
-export async function getCommercialLink(
-  canonicalUrl: string,
-  category: AffiliateCategory,
-  market = 'GB'
-): Promise<CommercialLink> {
-  const partners = await getActivePartners(category, market);
-  return resolveCommercialLink(canonicalUrl, partners);
-}

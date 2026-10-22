@@ -155,8 +155,11 @@ async function queryAll(path, pageSize = 1000, { keyset } = {}) {
     // query() retries a transient error twice. A page that still fails returns null
     // for the WHOLE query: until 6 Oct the rows before the failure came back
     // as if complete, so (with oldest-first ordering) the current season was
-    // what silently went missing. null makes the caller skip the section and
-    // verify-dist's minimum page counts fail the build instead.
+    // what silently went missing. null makes the caller skip the section;
+    // verify-dist then reports the section below its minimum page count. It
+    // reports only and never fails the build, by design (a missing section
+    // must not cost a deploy). site-health.yml on the live site is the check
+    // that fails.
     if (page == null) {
       console.error(`Static: page at offset ${offset} failed after retries for ${path} -- discarding the partial result.`);
       return null;

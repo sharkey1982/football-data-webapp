@@ -2,8 +2,6 @@
   "scripts/analysis_captain_partnerships.ts :: @typescript-eslint/no-explicit-any": 8,
   "scripts/backfill-projections.ts :: @typescript-eslint/no-explicit-any": 3,
   "scripts/solve-hindsight-optimal.ts :: @typescript-eslint/no-explicit-any": 3,
-  "scripts/sync-fixtures.ts :: @typescript-eslint/no-explicit-any": 7,
-  "scripts/test-ratings.ts :: @typescript-eslint/no-explicit-any": 3,
   "src/__tests__/analytics.adminExclusion.test.ts :: @typescript-eslint/no-explicit-any": 2,
   "src/__tests__/FantasyFixtureDifficulty.centralPredictions.test.ts :: @typescript-eslint/no-explicit-any": 15,
   "src/__tests__/FantasyFixtures.test.tsx :: @typescript-eslint/no-explicit-any": 4,

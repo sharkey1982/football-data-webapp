@@ -246,48 +246,6 @@ export async function getMatchesForTeamAsFixtures(
   }));
 }
 
-/** Returns the distinct, ordered list of matchweek numbers available for a league+season. */
-export async function getAvailableMatchweeks(leagueId: number, seasonId: number): Promise<number[]> {
-  const { data, error } = await supabase
-    .from('fixtures')
-    .select('matchweek')
-    .eq('league_id', leagueId)
-    .eq('season_id', seasonId)
-    .not('matchweek', 'is', null)
-    .order('matchweek', { ascending: true });
-  if (error) throw error;
-
-  const seen = new Set<number>();
-  for (const row of data ?? []) {
-    if (row.matchweek !== null) seen.add(row.matchweek);
-  }
-  return [...seen].sort((a, b) => a - b);
-}
-
-/**
- * Returns a map of ISO date ('YYYY-MM-DD') to fixture count for a
- * league+season -- powers the calendar heat-map on the Fixtures page.
- * Only fetches the date column (no team joins) since counts are all the
- * calendar needs.
- */
-export async function getFixtureDateCounts(
-  leagueId: number,
-  seasonId: number
-): Promise<Record<string, number>> {
-  const { data, error } = await supabase
-    .from('fixtures')
-    .select('kickoff_date')
-    .eq('league_id', leagueId)
-    .eq('season_id', seasonId);
-  if (error) throw error;
-
-  const counts: Record<string, number> = {};
-  for (const row of data ?? []) {
-    counts[row.kickoff_date] = (counts[row.kickoff_date] ?? 0) + 1;
-  }
-  return counts;
-}
-
 /**
  * Fetches kickoff date + matchweek for every fixture in a league/season in
  * a single lightweight query. Powers both the calendar heat-map (date ->

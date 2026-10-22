@@ -39,11 +39,6 @@ export function loadTeamSlugs(): Promise<TeamSlugMap> {
   return cache;
 }
 
-/** Test hook: forget the cached map. */
-export function resetTeamSlugCache(): void {
-  cache = null;
-}
-
 /** The slug map, or an empty map until it arrives (names render as text
  *  meanwhile, then become links). A failure leaves them as text. */
 export function useTeamSlugs(): TeamSlugMap {

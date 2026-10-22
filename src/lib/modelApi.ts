@@ -54,17 +54,6 @@ export async function getLeagueFitStatus(): Promise<LeagueFitStatus[]> {
   return (data ?? []) as LeagueFitStatus[];
 }
 
-/** Fetches every available fit run for a league (any status), most recent first -- for a fit-history/data-health view, not production selection. */
-export async function getFitRunsForLeague(leagueId: number) {
-  const { data, error } = await supabase
-    .from('model_fit_runs')
-    .select('*')
-    .eq('league_id', leagueId)
-    .order('fitted_at', { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
 /** Fetches the single most recent fit run for a league, or null if none exists yet. */
 export async function getLatestFitRun(leagueId: number) {
   // NEVER select by fitted_at/fit_run_id or converged alone -- a fit can
@@ -632,39 +621,5 @@ export async function getFantasyFixtureDifficulty(
 
   const teams = [...byTeam.values()].sort((a, b) => a.team_name.localeCompare(b.team_name));
   return { fitRun, ratings, teams };
-}
-
-/**
- * Buckets every rated team's attack/defence strength into FDR-style
- * quintiles (1 = weakest, 5 = strongest), for the "simple rating" colour
- * toggle -- an alternative to the raw Dixon-Coles expected-goals scale that
- * mirrors the familiar 1-5 fixture-difficulty convention fantasy players
- * already know, independent of the model's actual goal-scale numbers.
- */
-export function computeFdrQuintiles(
-  ratings: TeamWithRating[]
-): Map<number, { attack_fdr: number; defence_fdr: number }> {
-  function quintileRanks(values: { team_id: number; value: number }[]): Map<number, number> {
-    const sorted = [...values].sort((a, b) => a.value - b.value);
-    const n = sorted.length;
-    const ranks = new Map<number, number>();
-    sorted.forEach((v, i) => {
-      const bucket = Math.min(5, Math.floor((i / n) * 5) + 1);
-      ranks.set(v.team_id, bucket);
-    });
-    return ranks;
-  }
-
-  const attackRanks = quintileRanks(ratings.map((r) => ({ team_id: r.team_id, value: r.attack_strength })));
-  const defenceRanks = quintileRanks(ratings.map((r) => ({ team_id: r.team_id, value: r.defence_strength })));
-
-  const result = new Map<number, { attack_fdr: number; defence_fdr: number }>();
-  for (const r of ratings) {
-    result.set(r.team_id, {
-      attack_fdr: attackRanks.get(r.team_id) ?? 3,
-      defence_fdr: defenceRanks.get(r.team_id) ?? 3,
-    });
-  }
-  return result;
 }
 
