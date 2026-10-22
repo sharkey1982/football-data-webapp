@@ -141,4 +141,59 @@ describe('trigger-workflow proxy', () => {
     expect(body.error).not.toContain('scope');
     expect(body.error).not.toContain('sharkey1982');
   });
+
+  describe('machine path (pg_cron, audit P-01)', () => {
+    const MACHINE = 'm'.repeat(64);
+    function machinePost(body: unknown, token: string): Request {
+      return new Request('https://example.test/.netlify/functions/trigger-workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-workflow-token': token },
+        body: JSON.stringify(body),
+      });
+    }
+
+    it('dispatches a scheduled workflow with the right token, without a session', async () => {
+      vi.stubEnv('WORKFLOW_TRIGGER_TOKEN', MACHINE);
+      const handler = await loadHandler();
+      const resp = await handler(machinePost({ workflow: 'fpl-projections-pipeline', inputs: { rebuild_site: true }, slot: 'fpl-pipeline-0641' }, MACHINE));
+      expect(resp.status).toBe(200);
+      expect(getUser).not.toHaveBeenCalled();
+      const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toContain('fpl-projections-pipeline.yml');
+      expect(JSON.parse(init.body)).toEqual({ ref: 'main', inputs: { rebuild_site: 'true' } });
+    });
+
+    it('starts daily-import and gameweek-report, which admins cannot', async () => {
+      vi.stubEnv('WORKFLOW_TRIGGER_TOKEN', MACHINE);
+      const handler = await loadHandler();
+      expect((await handler(machinePost({ workflow: 'daily-import', inputs: {} }, MACHINE))).status).toBe(200);
+      expect((await handler(machinePost({ workflow: 'gameweek-report', inputs: { auto: true } }, MACHINE))).status).toBe(200);
+      expect((await handler(post({ workflow: 'daily-import', inputs: {} }))).status).toBe(400);
+    });
+
+    it('rejects a wrong token, and any token when the env var is unset', async () => {
+      vi.stubEnv('WORKFLOW_TRIGGER_TOKEN', MACHINE);
+      let handler = await loadHandler();
+      expect((await handler(machinePost({ workflow: 'daily-import' }, 'x'.repeat(64)))).status).toBe(401);
+      expect((await handler(machinePost({ workflow: 'daily-import' }, MACHINE.slice(1)))).status).toBe(401);
+      vi.stubEnv('WORKFLOW_TRIGGER_TOKEN', '');
+      handler = await loadHandler();
+      expect((await handler(machinePost({ workflow: 'daily-import' }, MACHINE))).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('cannot start admin-only workflows or pass non-boolean flags', async () => {
+      vi.stubEnv('WORKFLOW_TRIGGER_TOKEN', MACHINE);
+      const handler = await loadHandler();
+      expect((await handler(machinePost({ workflow: 'simulate-final-table', inputs: { season_id: 13 } }, MACHINE))).status).toBe(400);
+      expect((await handler(machinePost({ workflow: 'fpl-projections-pipeline', inputs: { rebuild_site: 'yes' } }, MACHINE))).status).toBe(400);
+      expect((await handler(machinePost({ workflow: 'constructor', inputs: {} }, MACHINE))).status).toBe(400);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('admins still cannot ask for a site rebuild through the proxy', async () => {
+      const handler = await loadHandler();
+      expect((await handler(post({ workflow: 'fpl-projections-pipeline', inputs: { rebuild_site: true } }))).status).toBe(400);
+    });
+  });
 });
