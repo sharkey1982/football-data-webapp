@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · FPL reviews scored the model on projections rewritten after kick-off
+- **Found:** production audit, 22 Oct (DQ-07).
+- **Impact:** Team of the Week vs model, Model XI (players and history) and the start-accuracy comparison read the live `fpl_player_projections` for past gameweeks, rows that were regenerated for hours after kick-off. Scored from the deadline snapshots instead, the model XI's actual points drop from 72 to 58 for GW7 and from 60 to 46 for GW6, so the pages flattered the model. Model XI history also said "not generated before the deadline" for every week.
+- **Cause:** the deadline snapshots (`fpl_projection_snapshots`, from GW6) were only read by the gameweek report; the other consumers predate them. anon also had no SELECT grant on the snapshot table despite its public-read policy.
+- **Fix:** migration `20261022111000_fpl_reviews_read_deadline_snapshots.sql`: view `fpl_review_projections_v6` (pre_deadline, else late, snapshot per gameweek; live rows only for gameweeks without one, GW1-5), read by `get_totw_vs_model`, `get_model_xi_players`, `get_model_xi_history` and `fpl_prediction_actual_start_comparison`. Projections are also frozen at kick-off from migration `20261022110000`.
+- **Prevention:** `src/__tests__/fplReviewSnapshots.test.ts`. *Lesson: anything that compares a forecast with the outcome reads the frozen forecast, never the live table.*
+
+---
+
 ## 2026-10-22 · FPL projections: short team sheets, stale injury news, rewritten after kick-off
 - **Found:** production audit, 22 Oct (DQ-08, S-13, DQ-07), 40 hours before the GW8 deadline.
 - **Impact:** (1) Chelsea's only fit keeper (Penders) had start 0.25 for GW8-12, so Chelsea's clean-sheet and save points all but vanished and the optimiser would never pick a Chelsea keeper; 18 of 200 GW8-17 team-fixtures were more than 0.5 from 11 expected starters (Spurs GW8 9.63, Coventry ~10.3 every week). (2) Saka, 50% doubtful from 21 Oct 20:30, was projected at start 0.94 and shown #2 on the FPL hub; Timber (75%) likewise. (3) 4,591 of 4,662 v6 rows on played fixtures had been regenerated after kick-off, so stored history was not what users saw before the match.
