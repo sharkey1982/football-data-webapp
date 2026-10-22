@@ -172,7 +172,7 @@ export function buildSnapOutlook(input: {
 // ---- Loaders -------------------------------------------------------------------------------
 
 export async function loadOutlookTeams(): Promise<NflTeam[]> {
-  const { data, error } = await supabase.from('nfl_teams' as never).select(TEAM_COLUMNS).order('name');
+  const { data, error } = await supabase.from('nfl_teams').select(TEAM_COLUMNS).order('name');
   if (error) throw error;
   return (data ?? []) as unknown as NflTeam[];
 }
@@ -181,21 +181,21 @@ export async function loadSnapOutlook(teamSlug: string): Promise<SnapOutlook | n
   const teams = await loadOutlookTeams();
   const team = teams.find((t) => t.slug === teamSlug);
   if (!team) return null;
-  const { data: sRow, error: sErr } = await supabase.from('nfl_player_snaps' as never).select('season').order('season', { ascending: false }).limit(1);
+  const { data: sRow, error: sErr } = await supabase.from('nfl_player_snaps').select('season').order('season', { ascending: false }).limit(1);
   if (sErr) throw sErr;
   const season = ((sRow ?? []) as { season: number }[])[0]?.season;
   if (!season) return null;
   const [snaps, usage, depthNow, lastGame, injuries] = await Promise.all([
-    supabase.from('nfl_player_snaps' as never).select('player_id,player_name,player_slug,position,week,game_id,offense_snaps,team_offense_snaps').eq('season', season).eq('team', team.franchise).eq('game_type', 'REG').in('position', ['QB', 'RB', 'FB', 'WR', 'TE']).limit(3000),
-    supabase.from('nfl_player_weeks' as never).select('player_id,week,carries,targets').eq('season', season).eq('team', team.franchise).eq('season_type', 'REG').limit(3000),
-    supabase.from('nfl_depth_latest' as never).select('player_id,player_name,position,slot,depth,as_of').eq('team', team.franchise),
-    supabase.from('nfl_player_snaps' as never).select('game_id,week').eq('season', season).eq('team', team.franchise).order('week', { ascending: false }).limit(1),
-    supabase.from('nfl_projections' as never).select('player_id,injury_status,injury,kickoff_at').eq('team', team.franchise).order('kickoff_at', { ascending: false }).limit(200),
+    supabase.from('nfl_player_snaps').select('player_id,player_name,player_slug,position,week,game_id,offense_snaps,team_offense_snaps').eq('season', season).eq('team', team.franchise).eq('game_type', 'REG').in('position', ['QB', 'RB', 'FB', 'WR', 'TE']).limit(3000),
+    supabase.from('nfl_player_weeks').select('player_id,week,carries,targets').eq('season', season).eq('team', team.franchise).eq('season_type', 'REG').limit(3000),
+    supabase.from('nfl_depth_latest').select('player_id,player_name,position,slot,depth,as_of').eq('team', team.franchise),
+    supabase.from('nfl_player_snaps').select('game_id,week').eq('season', season).eq('team', team.franchise).order('week', { ascending: false }).limit(1),
+    supabase.from('nfl_projections').select('player_id,injury_status,injury,kickoff_at').eq('team', team.franchise).order('kickoff_at', { ascending: false }).limit(200),
   ]);
   for (const r of [snaps, usage, depthNow, lastGame]) if (r.error) throw r.error;
   const lastGameId = ((lastGame.data ?? []) as { game_id: string }[])[0]?.game_id;
   const before = lastGameId
-    ? await supabase.from('nfl_depth_by_game' as never).select('player_id,player_name,position,slot,depth').eq('game_id', lastGameId).eq('team', team.franchise)
+    ? await supabase.from('nfl_depth_by_game').select('player_id,player_name,position,slot,depth').eq('game_id', lastGameId).eq('team', team.franchise)
     : { data: [], error: null };
   // The next game's injury report: only the latest projection per player.
   const inj = new Map<string, InjuryRow>();

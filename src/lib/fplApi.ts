@@ -507,7 +507,7 @@ export async function getFplFixtureProjection(fixtureId: number): Promise<FplFix
   // position (depth chart, 10 Oct 2026). Optional: the pitch works without it.
   const placeShares = new Map<number, Record<string, number>>();
   try {
-    const { data: depthRows } = await supabase.from('fpl_depth_start_store' as never).select('fpl_player_id, group_shares').eq('fixture_id', fixtureId);
+    const { data: depthRows } = await supabase.from('fpl_depth_start_store').select('fpl_player_id, group_shares').eq('fixture_id', fixtureId);
     for (const r of (depthRows ?? []) as { fpl_player_id: number; group_shares: Record<string, number> | null }[]) {
       if (r.group_shares) placeShares.set(r.fpl_player_id, r.group_shares);
     }

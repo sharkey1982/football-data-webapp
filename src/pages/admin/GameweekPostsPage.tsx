@@ -29,7 +29,7 @@ type PostRow = {
 
 async function loadPosts(): Promise<PostRow[]> {
   const { data, error } = await supabase
-    .from('fpl_gameweek_reports_latest' as never)
+    .from('fpl_gameweek_reports_latest')
     .select('season_label,fpl_event_id,kind,version,frozen,published_at,title,reddit_md,x_thread')
     .order('published_at', { ascending: false })
     .limit(8);

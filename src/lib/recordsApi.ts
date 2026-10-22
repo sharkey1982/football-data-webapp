@@ -213,9 +213,9 @@ export async function loadRecords(leagueSlug: string): Promise<RecordsData | nul
   if (!league) return null;
   const [summaries, tablesRes, streaksRes, matchesRes] = await Promise.all([
     leagueSummaries(league.league_id),
-    supabase.from('team_season_summary' as never).select(TABLE_COLUMNS).eq('league_id', league.league_id).limit(3000),
-    supabase.rpc('history_record_streaks' as never, { p_league_id: league.league_id, p_limit: 10 } as never),
-    supabase.rpc('history_record_matches' as never, { p_league_id: league.league_id, p_limit: 10 } as never),
+    supabase.from('team_season_summary').select(TABLE_COLUMNS).eq('league_id', league.league_id).limit(3000),
+    supabase.rpc('history_record_streaks', { p_league_id: league.league_id, p_limit: 10 }),
+    supabase.rpc('history_record_matches', { p_league_id: league.league_id, p_limit: 10 }),
   ]);
   if (tablesRes.error) throw tablesRes.error;
   if (streaksRes.error) throw streaksRes.error;

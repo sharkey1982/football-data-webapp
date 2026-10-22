@@ -81,7 +81,7 @@ const TV_PRIORITY = ['Premier League', 'Champions League', 'Championship', 'Euro
  *  does), earliest kick-off first. */
 export async function getTvNextDay(today: string, limit = 5): Promise<{ date: string; items: TvItem[] } | null> {
   const { data, error } = await supabase
-    .from('upcoming_broadcast_fixtures' as never)
+    .from('upcoming_broadcast_fixtures')
     .select('fixture_id, slug, kickoff_date, kickoff_time, league_name, home_team_id, home_team_name, away_team_id, away_team_name, broadcaster, channel')
     .eq('market', 'GB')
     .gte('kickoff_date', today)

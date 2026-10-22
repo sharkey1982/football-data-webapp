@@ -63,17 +63,18 @@ export type WhnQuery = {
 };
 
 export async function getWhatHappenedNext(q: WhnQuery): Promise<WhnRow[]> {
-  const { data, error } = await supabase.rpc('history_what_happened_next' as never, {
+  const { data, error } = await supabase.rpc('history_what_happened_next', {
     p_league_id: q.leagueId,
     p_matches_played: q.played,
-    p_position_min: q.positionMin ?? null,
-    p_position_max: q.positionMax ?? null,
-    p_points_min: q.pointsMin ?? null,
-    p_points_max: q.pointsMax ?? null,
-    p_from_year: q.fromYear ?? null,
-    p_to_year: q.toYear ?? null,
-    p_comparable_group: q.comparableGroup ?? null,
-  } as never);
+    // Unset filters are omitted, so the SQL defaults (null: no filter) apply.
+    p_position_min: q.positionMin ?? undefined,
+    p_position_max: q.positionMax ?? undefined,
+    p_points_min: q.pointsMin ?? undefined,
+    p_points_max: q.pointsMax ?? undefined,
+    p_from_year: q.fromYear ?? undefined,
+    p_to_year: q.toYear ?? undefined,
+    p_comparable_group: q.comparableGroup ?? undefined,
+  });
   if (error) throw error;
   return (data ?? []) as unknown as WhnRow[];
 }
@@ -160,7 +161,7 @@ export type CurrentTeam = {
 /** The league's latest season (in progress, or the last finished one off-season). */
 export async function getLatestSeasonTable(leagueId: number): Promise<CurrentTeam[]> {
   const { data: latest, error: e1 } = await supabase
-    .from('team_season_summary' as never)
+    .from('team_season_summary')
     .select('season_id, start_year')
     .eq('league_id', leagueId)
     .order('start_year', { ascending: false })
@@ -169,7 +170,7 @@ export async function getLatestSeasonTable(leagueId: number): Promise<CurrentTea
   const seasonId = (latest as unknown as { season_id: number }[] | null)?.[0]?.season_id;
   if (!seasonId) return [];
   const { data, error } = await supabase
-    .from('team_season_summary' as never)
+    .from('team_season_summary')
     .select('team_id, season_id, season_label, played, points, position, comparable_group, clubs')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
@@ -214,7 +215,7 @@ export type PacePoint = { matches_played: number; points: number; position_at_pl
 
 export async function getTeamSeasonPace(leagueId: number, seasonId: number, teamId: number): Promise<PacePoint[]> {
   const { data, error } = await supabase
-    .from('team_match_snapshot' as never)
+    .from('team_match_snapshot')
     .select('matches_played, points, position_at_played')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
@@ -239,7 +240,7 @@ export type Benchmark = {
 
 export async function getPaceBenchmarks(leagueId: number, comparableGroup: string): Promise<Benchmark[]> {
   const { data, error } = await supabase
-    .from('league_pace_benchmarks' as never)
+    .from('league_pace_benchmarks')
     .select('matches_played, outcome, team_seasons, p10, p25, p50, p75, p90')
     .eq('league_id', leagueId)
     .eq('comparable_group', comparableGroup)
@@ -253,7 +254,7 @@ export type ChampionSeason = { season_id: number; season_label: string; team_id:
 /** The highest-scoring champions of this league and size -- chosen from the data, not a hand-picked list. */
 export async function getTopChampions(leagueId: number, comparableGroup: string, limit = 3): Promise<ChampionSeason[]> {
   const { data, error } = await supabase
-    .from('team_season_summary' as never)
+    .from('team_season_summary')
     .select('season_id, season_label, team_id, points')
     .eq('league_id', leagueId)
     .eq('comparable_group', comparableGroup)
@@ -276,7 +277,7 @@ export type ReliabilityRow = {
 
 export async function getTableReliability(leagueId: number, comparableGroup: string): Promise<ReliabilityRow[]> {
   const { data, error } = await supabase
-    .from('league_table_reliability' as never)
+    .from('league_table_reliability')
     .select('matches_played, seasons, rank_correlation, mean_abs_position_change, same_position_share')
     .eq('league_id', leagueId)
     .eq('comparable_group', comparableGroup)

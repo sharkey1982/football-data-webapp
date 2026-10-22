@@ -345,7 +345,7 @@ export type FixtureChange = {
  * it is now. Newest change first. */
 export async function getFixtureChanges(leagueCode?: string | null): Promise<FixtureChange[]> {
   let q = supabase
-    .from('fixture_changes_net' as never)
+    .from('fixture_changes_net')
     .select('fixture_id, slug, league_id, league_code, league_name, home_team_name, away_team_name, was_date, was_time, now_date, now_time, status, changes_logged, changed_at')
     .order('changed_at', { ascending: false })
     .limit(500);
@@ -567,7 +567,7 @@ export type ReportedResult = { fixture_id: number; kickoff_date: string; home_te
  * Display only: league tables are built from confirmed results. */
 export async function getReportedUnconfirmed(leagueId: number, seasonId: number): Promise<ReportedResult[]> {
   const { data, error } = await supabase
-    .from('fixtures_reported_unconfirmed' as never)
+    .from('fixtures_reported_unconfirmed')
     .select('fixture_id, kickoff_date, home_team_id, away_team_id, reported_home_goals, reported_away_goals')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)

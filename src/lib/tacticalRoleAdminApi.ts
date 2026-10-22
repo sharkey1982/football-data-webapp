@@ -225,7 +225,7 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
   // Other positions: optional (the table may not exist on an old database).
   const othersByPlayer = new Map<number, OtherPosition[]>();
   const { data: otherRows, error: otherErr } = await supabase
-    .from('team_player_other_positions' as never)
+    .from('team_player_other_positions')
     .select('fpl_player_id, tactical_role, depth_rank')
     .eq('season_id', await getCurrentFplSeasonId());
   if (otherErr) throw otherErr;
@@ -394,8 +394,8 @@ export async function saveManualReturnDate(teamId: number, fplPlayerId: number, 
 /** Adds (or re-ranks) another position a player plays. Admin only (RLS). */
 export async function saveOtherPosition(teamId: number, fplPlayerId: number, role: string, rank: number): Promise<void> {
   const { error } = await supabase
-    .from('team_player_other_positions' as never)
-    .upsert({ season_id: await getCurrentFplSeasonId(), team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, depth_rank: rank, set_at: new Date().toISOString() } as never,
+    .from('team_player_other_positions')
+    .upsert({ season_id: await getCurrentFplSeasonId(), team_id: teamId, fpl_player_id: fplPlayerId, tactical_role: role, depth_rank: rank, set_at: new Date().toISOString() },
       { onConflict: 'season_id,team_id,fpl_player_id,tactical_role' });
   if (error) throw error;
 }
@@ -404,7 +404,7 @@ export async function saveOtherPosition(teamId: number, fplPlayerId: number, rol
  * the BBC screenshots), for "Suggested from line-ups". */
 export async function getLineupStarts(): Promise<LineupStart[]> {
   const { data, error } = await supabase
-    .from('fixture_lineup_positions' as never)
+    .from('fixture_lineup_positions')
     .select('fpl_player_id, team_id, tactical_role');
   if (error) throw error;
   return (data ?? []) as LineupStart[];
@@ -412,7 +412,7 @@ export async function getLineupStarts(): Promise<LineupStart[]> {
 
 export async function removeOtherPosition(teamId: number, fplPlayerId: number, role: string): Promise<void> {
   const { error } = await supabase
-    .from('team_player_other_positions' as never)
+    .from('team_player_other_positions')
     .delete()
     .eq('season_id', await getCurrentFplSeasonId())
     .eq('team_id', teamId)
@@ -429,7 +429,7 @@ export async function getProjectedPlaceShares(matchweek: number): Promise<Map<nu
   const ids = (fixtureRows ?? []).map((f: { fixture_id: number }) => f.fixture_id);
   const out = new Map<number, Record<string, number>>();
   if (ids.length === 0) return out;
-  const { data, error } = await supabase.from('fpl_depth_start_store' as never).select('fpl_player_id, group_shares').in('fixture_id', ids);
+  const { data, error } = await supabase.from('fpl_depth_start_store').select('fpl_player_id, group_shares').in('fixture_id', ids);
   if (error) throw error;
   for (const r of (data ?? []) as { fpl_player_id: number; group_shares: Record<string, number> | null }[]) {
     if (r.group_shares && Object.keys(r.group_shares).length > 0 && !out.has(r.fpl_player_id)) out.set(r.fpl_player_id, r.group_shares);

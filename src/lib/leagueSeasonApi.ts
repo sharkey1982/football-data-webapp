@@ -332,7 +332,7 @@ export async function leagueBySlug(slug: string): Promise<LeagueRef | null> {
 
 export async function leagueSummaries(leagueId: number): Promise<SeasonSummary[]> {
   const { data, error } = await supabase
-    .from('league_season_summary' as never)
+    .from('league_season_summary')
     .select(SUMMARY_COLUMNS)
     .eq('league_id', leagueId)
     .order('start_year');
@@ -379,7 +379,7 @@ export async function loadLeagueSeason(leagueSlug: string, startYear: number): P
   const summary = seasons.find((s) => s.start_year === startYear);
   if (!summary) return null;
   const { data, error } = await supabase
-    .from('team_season_summary' as never)
+    .from('team_season_summary')
     .select(TABLE_COLUMNS)
     .eq('league_id', league.league_id)
     .eq('season_id', summary.season_id)
@@ -404,7 +404,7 @@ export async function loadLeagueIndex(leagueSlug: string): Promise<LeagueIndexDa
     leagueSummaries(league.league_id),
     eraNames(league.league_id),
     supabase
-      .from('team_season_summary' as never)
+      .from('team_season_summary')
       .select(TABLE_COLUMNS)
       .eq('league_id', league.league_id)
       .or('position.eq.1,relegated.eq.true,promoted.eq.true')
@@ -447,7 +447,7 @@ export function buildLeagueIndexSeasons(
 export async function loadLeaguesList(): Promise<LeaguesListEntry[]> {
   const [{ data: leagues, error: e1 }, { data: sums, error: e2 }] = await Promise.all([
     supabase.from('leagues').select('league_id, code, name, slug, countries(name)').eq('competition_type', 'league'),
-    supabase.from('league_season_summary' as never).select('league_id, start_year').limit(2000),
+    supabase.from('league_season_summary').select('league_id, start_year').limit(2000),
   ]);
   if (e1) throw e1;
   if (e2) throw e2;

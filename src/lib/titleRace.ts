@@ -136,7 +136,7 @@ export async function loadChampionPaths(d: LeagueIndexData, summary: TitleRaceSu
   const rows: { season_id: number; team_id: number; matches_played: number; points: number }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase
-      .from('team_match_snapshot' as never)
+      .from('team_match_snapshot')
       .select('season_id, team_id, matches_played, points')
       .eq('league_id', d.league.league_id)
       .or(filter)

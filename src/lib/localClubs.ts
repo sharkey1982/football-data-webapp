@@ -109,9 +109,9 @@ export async function lookupPostcode(raw: string, fetcher: typeof fetch = fetch)
 export async function loadLocalClubs(): Promise<LocalClubsData> {
   // One round trip: grounds with their club embedded, beside this season's divisions.
   const [grounds, standings] = await Promise.all([
-    supabase.from('club_grounds' as never).select('team_id,ground_name,latitude,longitude,teams(display_name,canonical_name,slug)'),
+    supabase.from('club_grounds').select('team_id,ground_name,latitude,longitude,teams(display_name,canonical_name,slug)'),
     supabase
-      .from('league_standings' as never)
+      .from('league_standings')
       .select('team_id,league_name,tier,season_start_year')
       .in('league_code', TOP_TIERS)
       .order('season_start_year', { ascending: false })
