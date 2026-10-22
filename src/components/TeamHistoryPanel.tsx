@@ -23,6 +23,7 @@ import {
 import { Link } from 'react-router-dom';
 import { seasonPathByCode } from '../lib/leagueSeasonApi';
 import { clubSeasonPath } from '../lib/clubSeasonApi';
+import { friendlyError } from '../lib/errorMessage';
 
 const VENUES: { value: Venue; label: string }[] = [
   { value: 'total', label: 'Total' },
@@ -314,7 +315,7 @@ export default function TeamHistoryPanel({ teamId, teamName, teamSlug }: { teamI
         setRows(s);
         setMonths(m);
       })
-      .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => live && setError(friendlyError(e, 'The team history could not be loaded')));
     return () => {
       live = false;
     };

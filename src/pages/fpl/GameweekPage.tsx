@@ -15,7 +15,7 @@ import GameweekNav from '../../components/fpl/season/GameweekNav';
 import GameweekFixtureList from '../../components/fpl/season/GameweekFixtureList';
 import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
 import SeasonActualVsProjectedTable from '../../components/fpl/season/SeasonActualVsProjectedTable';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 
@@ -96,7 +96,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setSummary(data);
       })
       .catch((e) => {
-        if (!cancelled) setSummaryError(getErrorMessage(e, 'Failed to load season summary'));
+        if (!cancelled) setSummaryError(friendlyError(e, 'Failed to load season summary'));
       });
     return () => {
       cancelled = true;
@@ -122,7 +122,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setFixtures(data);
       })
       .catch((e) => {
-        if (!cancelled) setFixturesError(getErrorMessage(e, 'Failed to load gameweek fixtures'));
+        if (!cancelled) setFixturesError(friendlyError(e, 'Failed to load gameweek fixtures'));
       })
       .finally(() => {
         if (!cancelled) setLoadingFixtures(false);
@@ -150,7 +150,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setPlayers(data);
       })
       .catch((e) => {
-        if (!cancelled) setPlayersError(getErrorMessage(e, 'Failed to load player projections'));
+        if (!cancelled) setPlayersError(friendlyError(e, 'Failed to load player projections'));
       })
       .finally(() => {
         if (!cancelled) setLoadingPlayers(false);
@@ -174,7 +174,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setActualVsProjected(data);
       })
       .catch((e) => {
-        if (!cancelled) setAvpError(getErrorMessage(e, 'Failed to load season actual vs projected totals'));
+        if (!cancelled) setAvpError(friendlyError(e, 'Failed to load season actual vs projected totals'));
       })
       .finally(() => {
         if (!cancelled) setLoadingAvp(false);

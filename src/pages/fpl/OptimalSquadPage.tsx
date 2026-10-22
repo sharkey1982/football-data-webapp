@@ -22,7 +22,7 @@ import WeeklySquadView from '../../components/fpl/WeeklySquadView';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getSquadPitchEnrichment } from '../../lib/fplApi';
 import { listScoutPlayers, POSITION, type ScoutListPlayer } from '../../lib/playerScoutApi';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 
 const MAX_RANGE_SPAN = 9; // to - from, matching the backend's own 10-GW cap
 
@@ -192,7 +192,7 @@ export default function OptimalSquadPage() {
       // own settings -- nothing user-identifying.
       trackEvent('optimiser_run', { from_gameweek: fromGw, to_gameweek: toGw, budget });
     } catch (e) {
-      setError(getErrorMessage(e, 'Failed to optimise squad'));
+      setError(friendlyError(e, 'Failed to optimise squad'));
       setResult(null);
     } finally {
       setLoading(false);

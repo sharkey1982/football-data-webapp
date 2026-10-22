@@ -13,7 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getSeasonSummary, type SeasonGameweekSummary } from '../../lib/fplSeasonApi';
 import { getActualMatchFixtures, type ActualMatchFixture } from '../../lib/fplActualMatchApi';
 import GameweekNav from '../../components/fpl/season/GameweekNav';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 
 export default function ActualMatchesPage() {
   const { matchweek: matchweekParam } = useParams<{ matchweek: string }>();
@@ -33,7 +33,7 @@ export default function ActualMatchesPage() {
         if (!cancelled) setSummary(data);
       })
       .catch((e) => {
-        if (!cancelled) setSummaryError(getErrorMessage(e, 'Failed to load the season summary'));
+        if (!cancelled) setSummaryError(friendlyError(e, 'Failed to load the season summary'));
       });
     return () => {
       cancelled = true;
@@ -65,7 +65,7 @@ export default function ActualMatchesPage() {
         if (!cancelled) setFixtures(data);
       })
       .catch((e) => {
-        if (!cancelled) setFixturesError(getErrorMessage(e, 'Failed to load fixtures'));
+        if (!cancelled) setFixturesError(friendlyError(e, 'Failed to load fixtures'));
       })
       .finally(() => {
         if (!cancelled) setLoadingFixtures(false);

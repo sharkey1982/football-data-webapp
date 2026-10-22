@@ -15,6 +15,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { trackEvent } from '../../lib/analytics';
 import { fetchFplLive, shouldPoll, toScoreInput, type FplLiveData } from '../../lib/fplLiveApi';
 import { fixtureState, scoreLiveTeam, type LiveFixture, type PlayerScore } from '../../lib/fplLiveScore';
+import { friendlyError } from '../../lib/errorMessage';
 
 const STORAGE_KEY = 'fixtureshark.fplId';
 const POLL_MS = 60_000;
@@ -95,7 +96,7 @@ export default function FplLivePage() {
       } catch (e) {
         if (req !== reqRef.current) return;
         setData(null);
-        setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+        setError(friendlyError(e, 'Something went wrong'));
       } finally {
         if (req === reqRef.current) setLoading(false);
       }
@@ -114,7 +115,8 @@ export default function FplLivePage() {
       setCheckedAt(new Date());
     } catch (e) {
       if (req !== reqRef.current) return;
-      setError(e instanceof Error ? `${e.message} Showing the last figures.` : 'Couldn\u2019t refresh. Showing the last figures.');
+      console.error('FPL live refresh:', e);
+      setError('Couldn\u2019t refresh. Showing the last figures.');
     }
   }, [urlId, urlGw]);
 

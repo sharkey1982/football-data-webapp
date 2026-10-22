@@ -32,6 +32,7 @@ import {
   type Position,
   type SquadPlayer,
 } from '../../lib/squadCheck';
+import { friendlyError } from '../../lib/errorMessage';
 
 const STORAGE_KEY = 'fixtureshark.fplId';
 const HORIZONS = [1, 5, 10];
@@ -116,7 +117,7 @@ export default function SquadCheckPage() {
       } catch (e) {
         if (live) {
           setLoaded(null);
-          setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+          setError(friendlyError(e, 'Something went wrong'));
         }
       } finally {
         if (live) setLoading(false);

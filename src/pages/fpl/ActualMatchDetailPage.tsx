@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getActualMatchDetail, type ActualMatchDetail, type ActualMatchPlayerStat } from '../../lib/fplActualMatchApi';
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 
 function statLine(p: ActualMatchPlayerStat): string {
   const parts: string[] = [];
@@ -93,7 +93,7 @@ export default function ActualMatchDetailPage() {
         else setDetail(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load match detail'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load match detail'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

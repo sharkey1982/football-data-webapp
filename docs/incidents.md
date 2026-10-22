@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Public pages could show raw database error text
+- **Found:** site audit of 22 Oct (S-19). Latent: no smoke run recorded one.
+- **Impact:** on a failed request, about 20 public pages (Team Strength, Player Projections, Optimal Squad, Compare, Scoring Rules, Model Scorecard, the TV guide and others) would have shown PostgREST text such as "permission denied for table ..." or "canceling statement due to statement timeout".
+- **Cause:** `getErrorMessage` passes the raw message through by design (useful on admin pages), and public pages used it too.
+- **Fix:** `friendlyError(e, what)`: database, API and network errors become "<what>. Please try again in a moment." with the raw error in the console; messages our own code writes for the visitor still show. Admin pages keep `getErrorMessage`.
+- **Prevention:** `src/__tests__/friendlyError.test.ts`. *Lesson: a message written for the developer is not a message for the visitor.*
+
+---
+
 ## 2026-10-22 · Secondary text, amber text and focus ring under WCAG contrast; unlabelled filters; mouse-only rows
 - **Found:** site audit of 22 Oct (S-11, S-12).
 - **Impact:** `text-ink-500` (about 1,400 uses) was 4.4:1 on the page background and 3.9:1 on chalk-200 (AA needs 4.5:1); amber-600 text 2.9:1; the amber focus ring 2.1:1 on light surfaces (needs 3:1). Filters on /table, /fixtures, /football/projections and /preview had labels not tied to their selects, so screen readers announced them unnamed. Fixture, player and gameweek rows opened only on a mouse click.

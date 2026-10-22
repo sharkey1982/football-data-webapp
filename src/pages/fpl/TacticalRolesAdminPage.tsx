@@ -66,7 +66,7 @@ import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import FormationPitch from '../../components/fpl/FormationPitch';
 import { Cell, ActualCell, type Mode as MinutesMode } from '../../components/fpl/MinutesCells';
 import { getMinutesOutlook, roleRank, type Outlook } from '../../lib/minutesOutlookApi';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
 type DisplayMode = 'table' | 'pitch';
@@ -205,7 +205,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         if (r.length > 0) setSelectedTeamId((prev) => prev ?? r[0].team_id);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load tactical role data'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load tactical role data'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -271,7 +271,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
     setSetPieceError(null);
     getSetPieceHierarchyForTeam(teamId)
       .then((m) => setSetPieceHierarchy(m))
-      .catch((e) => setSetPieceError(getErrorMessage(e, 'Failed to load set-piece takers')))
+      .catch((e) => setSetPieceError(friendlyError(e, 'Failed to load set-piece takers')))
       .finally(() => setSetPieceLoading(false));
   }
 
@@ -290,7 +290,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       await reorderSetPieceTaker(row.set_piece_hierarchy_id, selectedTeamId, type, direction);
       reloadSetPieceHierarchy(selectedTeamId);
     } catch (e) {
-      setSetPieceError(getErrorMessage(e, 'Failed to reorder'));
+      setSetPieceError(friendlyError(e, 'Failed to reorder'));
     }
   }
 
@@ -301,7 +301,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       await removeSetPieceTaker(row.set_piece_hierarchy_id);
       reloadSetPieceHierarchy(selectedTeamId);
     } catch (e) {
-      setSetPieceError(getErrorMessage(e, 'Failed to remove'));
+      setSetPieceError(friendlyError(e, 'Failed to remove'));
     }
   }
 
@@ -316,7 +316,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       setAddPlayerId('');
       reloadSetPieceHierarchy(selectedTeamId);
     } catch (e) {
-      setSetPieceError(getErrorMessage(e, 'Failed to add player'));
+      setSetPieceError(friendlyError(e, 'Failed to add player'));
     }
   }
 
@@ -328,7 +328,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       markSaved(row.fpl_player_id);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, tactical_role: newRole, source_name: 'manual', confidence: 1 } : r)));
     } catch (e) {
-      setSaveError(getErrorMessage(e, `Failed to save the new role for ${row.web_name}`));
+      setSaveError(friendlyError(e, `Failed to save the new role for ${row.web_name}`));
     } finally {
       setSavingId(null);
     }
@@ -342,7 +342,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       markSaved(row.fpl_player_id);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, depth_rank: newRank } : r)));
     } catch (e) {
-      setSaveError(getErrorMessage(e, `Failed to save the depth rank for ${row.web_name}`));
+      setSaveError(friendlyError(e, `Failed to save the depth rank for ${row.web_name}`));
     } finally {
       setSavingId(null);
     }
@@ -369,7 +369,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       await saveManualStatus(row.team_id, row.fpl_player_id, row.element_type, newStatus, note || null);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, status: newStatus, news: note || null, status_is_manual: true } : r)));
     } catch (e) {
-      setSaveError(getErrorMessage(e, `Failed to save the status for ${row.web_name}`));
+      setSaveError(friendlyError(e, `Failed to save the status for ${row.web_name}`));
     } finally {
       setSavingId(null);
     }
@@ -384,7 +384,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       markSaved(row.fpl_player_id);
       setRows((prev) => prev.map((r) => (r.fpl_player_id === row.fpl_player_id ? { ...r, manual_return_date: value } : r)));
     } catch (e) {
-      setSaveError(getErrorMessage(e, `Failed to save the return date for ${row.web_name}`));
+      setSaveError(friendlyError(e, `Failed to save the return date for ${row.web_name}`));
     } finally {
       setSavingId(null);
     }
@@ -403,7 +403,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         return { ...r, other_positions: rank === null ? rest : [...rest, { role, rank }].sort((a, b) => a.rank - b.rank) };
       }));
     } catch (e) {
-      setSaveError(getErrorMessage(e, `Failed to save ${row.web_name}'s other positions`));
+      setSaveError(friendlyError(e, `Failed to save ${row.web_name}'s other positions`));
     } finally {
       setSavingId(null);
     }
@@ -429,7 +429,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
         return { ...r, tactical_role: plan.mainRole, depth_rank: plan.depthRank, source_name: 'manual', confidence: 1, other_positions: others };
       }));
     } catch (e) {
-      setSaveError(getErrorMessage(e, `Failed to accept ${suggested} for ${row.web_name}`));
+      setSaveError(friendlyError(e, `Failed to accept ${suggested} for ${row.web_name}`));
     } finally {
       setSavingId(null);
     }
@@ -468,7 +468,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       setTeamFormation(await getTeamFormation(selectedTeamId));
       markSaved(-1 * selectedTeamId);
     } catch (e) {
-      setSaveError(getErrorMessage(e, 'Failed to save the formation'));
+      setSaveError(friendlyError(e, 'Failed to save the formation'));
     } finally {
       setSavingFormation(false);
     }
@@ -481,7 +481,7 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
       await markTeamReviewed(selectedTeamId);
       setReviewDates((prev) => new Map(prev).set(selectedTeamId, new Date().toISOString()));
     } catch (e) {
-      setSaveError(getErrorMessage(e, 'Failed to mark this team as reviewed'));
+      setSaveError(friendlyError(e, 'Failed to mark this team as reviewed'));
     } finally {
       setMarkingReviewed(false);
     }

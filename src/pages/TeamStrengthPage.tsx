@@ -16,7 +16,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getLeagues, getCountries, getTeamStrengthSummary, saveTeamStrengthOverride, type TeamStrengthSummary, type TeamStrengthRow } from '../lib/api';
 import { getDefaultMatchweek } from '../lib/fplSeasonApi';
 import { triggerWorkflow } from '../lib/workflowTrigger';
-import { getErrorMessage } from '../lib/errorMessage';
+import { friendlyError } from '../lib/errorMessage';
 
 type LeagueOption = { league_id: number; code: string; name: string; competition_type: string | null; country_id: number };
 type CountryOption = { country_id: number; name: string; code: string | null };
@@ -109,7 +109,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
         if (!cancelled) setSummary(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load team strength data');
+        if (!cancelled) setError(friendlyError(e, 'Failed to load team strength data'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -187,7 +187,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       if (leagueId !== null) setSummary(await getTeamStrengthSummary(leagueId));
       setEditingTeamId(null);
     } catch (e) {
-      setSaveError(getErrorMessage(e, 'Failed to save override'));
+      setSaveError(friendlyError(e, 'Failed to save override'));
     } finally {
       setSaving(false);
     }
@@ -210,7 +210,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       if (leagueId !== null) setSummary(await getTeamStrengthSummary(leagueId));
       setEditingTeamId(null);
     } catch (e) {
-      setSaveError(getErrorMessage(e, 'Failed to reset override'));
+      setSaveError(friendlyError(e, 'Failed to reset override'));
     } finally {
       setSaving(false);
     }
@@ -233,7 +233,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       await triggerWorkflow('refresh-fpl-projections', { from_matchweek: String(from), to_matchweek: String(to) });
       setRefreshResult(`Triggered for GW${from}\u2013${to} \u2014 typically takes 3\u20135 minutes (loops one fixture at a time with retries, to work around an intermittent gateway timeout). Note: this updates FPL player projections only -- it does not re-run the bonus or finishing-position simulations, or re-solve the optimizer. Those still need their own buttons/workflows run separately.`);
     } catch (e) {
-      setRefreshResult(`Failed: ${getErrorMessage(e, 'Could not trigger the refresh')}`);
+      setRefreshResult(`Failed: ${friendlyError(e, 'Could not trigger the refresh')}`);
     } finally {
       setRefreshing(false);
     }
@@ -247,7 +247,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       await triggerWorkflow('simulate-final-table', {});
       setTriggerSimResult('Triggered \u2014 the simulation typically takes 1\u20132 minutes to complete. Reload this page after that to see updated Proj. Pos values.');
     } catch (e) {
-      setTriggerSimResult(`Failed: ${getErrorMessage(e, 'Could not trigger the simulation')}`);
+      setTriggerSimResult(`Failed: ${friendlyError(e, 'Could not trigger the simulation')}`);
     } finally {
       setTriggeringSim(false);
     }
@@ -263,7 +263,7 @@ export default function TeamStrengthPage({ adminMode = false }: { adminMode?: bo
       await triggerWorkflow('simulate-fixture-bonus', { from_matchweek: String(from), to_matchweek: String(to) });
       setTriggerBonusResult(`Triggered for GW${from}\u2013${to} \u2014 typically takes 1\u20132 minutes. Run "Refresh FPL projections" above afterwards to pick up the new bonus values.`);
     } catch (e) {
-      setTriggerBonusResult(`Failed: ${getErrorMessage(e, 'Could not trigger the simulation')}`);
+      setTriggerBonusResult(`Failed: ${friendlyError(e, 'Could not trigger the simulation')}`);
     } finally {
       setTriggeringBonus(false);
     }

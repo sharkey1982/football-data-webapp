@@ -25,6 +25,7 @@ import {
   type PlayerHistory,
   type ComparePlayerOption,
 } from '../../lib/fplCompareApi';
+import { friendlyError } from '../../lib/errorMessage';
 
 type Measure = {
   key: string;
@@ -134,7 +135,7 @@ export default function ComparePlayersPage() {
           .then((h) => { if (live) setHistory(new Map(h.map((x) => [x.fpl_player_id, x]))); })
           .catch(() => { if (live) { setHistory(new Map()); setHistoryError(true); } });
       })
-      .catch((e) => { if (live) setError(e instanceof Error ? e.message : 'Could not load the comparison.'); })
+      .catch((e) => { if (live) setError(friendlyError(e, 'Could not load the comparison.')); })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [slugs, fromGw, toGw]);

@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getFplScoringRules, getFplPlayerListLite, type FplScoringRule, type FplPlayerLite } from '../../lib/fplScoringRulesApi';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import type { FplElementType } from '../../types/database';
 
 // fpl_scoring_rules' own position codes -- distinct from this app's usual
@@ -70,7 +70,7 @@ export default function ScoringRulesPage() {
         setPlayers(p);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load scoring rules'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load scoring rules'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

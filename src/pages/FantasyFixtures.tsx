@@ -15,6 +15,7 @@ import FantasyFixtureHeatmap, {
   type FantasyMetric,
 } from '../components/FantasyFixtureHeatmap';
 import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
+import { friendlyError } from '../lib/errorMessage';
 
 type FantasyDefenceMetric = 'goals' | 'cleansheet';
 
@@ -88,7 +89,7 @@ export default function FantasyFixtures() {
         if (cancelled) return;
         setData(fixtureData);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load fixture data');
+        if (!cancelled) setError(friendlyError(e, 'Failed to load fixture data'));
       } finally {
         if (!cancelled) setLoading(false);
       }

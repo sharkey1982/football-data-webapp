@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import { getSeasons } from '../../lib/referenceApi';
 import { getCurrentSeasonId } from '../../lib/currentSeason';
 import BetList from '../../components/betting/BetList';
@@ -118,7 +118,7 @@ export default function ModelReturnsPage() {
         );
         setSeasonId(cur);
       })
-      .catch((e) => live && setError(getErrorMessage(e, 'Could not load the seasons')));
+      .catch((e) => live && setError(friendlyError(e, 'Could not load the seasons')));
     return () => {
       live = false;
     };
@@ -142,7 +142,7 @@ export default function ModelReturnsPage() {
         setRows(r);
         setBets(b);
       })
-      .catch((e) => live && setError(getErrorMessage(e, 'Could not work out the returns')));
+      .catch((e) => live && setError(friendlyError(e, 'Could not work out the returns')));
     return () => {
       live = false;
     };

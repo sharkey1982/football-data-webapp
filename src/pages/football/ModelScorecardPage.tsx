@@ -22,6 +22,7 @@ import {
   type Score,
   type ScorecardRow,
 } from '../../lib/scorecardApi';
+import { friendlyError } from '../../lib/errorMessage';
 
 const DIVISIONS = [
   { value: 'all', label: 'All' },
@@ -132,7 +133,7 @@ export default function ModelScorecardPage() {
         setRows(s);
         setCalib(c);
       })
-      .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => live && setError(friendlyError(e, 'The scorecard could not be loaded')));
     return () => {
       live = false;
     };

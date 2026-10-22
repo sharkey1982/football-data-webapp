@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import WatchGuideView from '../../components/WatchGuideView';
 import { getWatchGuide, type WatchGuideFixture } from '../../lib/broadcastsApi';
 import { ukToday, addIsoDays } from '../../lib/ukDate';
+import { friendlyError } from '../../lib/errorMessage';
 
 export default function TvGuidePage() {
   const [fixtures, setFixtures] = useState<WatchGuideFixture[] | null>(null);
@@ -30,7 +31,7 @@ export default function TvGuidePage() {
           .then((rest) => live && setFixtures([...first, ...rest]))
           .catch(() => undefined); // keep the first three weeks if only the rest failed
       })
-      .catch((e) => live && setError(e instanceof Error ? e.message : 'Failed to load the TV guide'));
+      .catch((e) => live && setError(friendlyError(e, 'Failed to load the TV guide')));
     return () => {
       live = false;
     };

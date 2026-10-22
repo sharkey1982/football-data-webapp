@@ -13,7 +13,7 @@
 import { useEffect, useState } from 'react';
 import { getHindsightOptimalSquad, type FplHindsightResult } from '../../lib/fplOptimizerApi';
 import WeeklySquadView from '../../components/fpl/WeeklySquadView';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 
 export default function HindsightOptimalSquadPage() {
   const [result, setResult] = useState<FplHindsightResult | null>(null);
@@ -27,7 +27,7 @@ export default function HindsightOptimalSquadPage() {
         if (!cancelled) setResult(r);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load the hindsight-optimal squad'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load the hindsight-optimal squad'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

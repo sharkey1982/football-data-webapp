@@ -14,7 +14,7 @@ import { getDefaultMatchweek, getGameweekInPlay } from '../../lib/fplSeasonApi';
 import { getPlayerGameweekPointsRange, getTeamFixtureGoals, type PlayerGameweekPoints, type TeamFixtureGoals } from '../../lib/fplPlayerTableApi';
 import { FPL_POSITION_LABEL } from '../../lib/fplApi';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import CaptainPlanner, { type PlannerPlayer } from '../../components/fpl/CaptainPlanner';
 
 type ViewMode = 'by_gameweek' | 'by_contribution';
@@ -163,7 +163,7 @@ export default function PlayerProjectionsTablePage() {
         if (!cancelled) setDefaultGw(mw);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load the default gameweek'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load the default gameweek'));
       });
     return () => {
       cancelled = true;
@@ -181,7 +181,7 @@ export default function PlayerProjectionsTablePage() {
         if (!cancelled) setRawRows(data);
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load player points'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load player points'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -214,7 +214,7 @@ export default function PlayerProjectionsTablePage() {
         if (!cancelled) setTeamGoals(data);
       })
       .catch((e) => {
-        if (!cancelled) setTeamGoalsError(getErrorMessage(e, 'Failed to load team goals'));
+        if (!cancelled) setTeamGoalsError(friendlyError(e, 'Failed to load team goals'));
       })
       .finally(() => {
         if (!cancelled) setTeamGoalsLoading(false);

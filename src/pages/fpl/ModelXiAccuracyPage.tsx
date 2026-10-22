@@ -21,7 +21,7 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getModelXiHistory, getModelXiPlayers, summariseModelXi, type ModelXiWeek, type ModelXiPlayer } from '../../lib/modelXiApi';
 import { getTeamOfTheWeek, type TotwPlayer } from '../../lib/teamOfWeekApi';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import { rowKeys } from '../../lib/rowKeys';
 
 function Bars({ weeks }: { weeks: ModelXiWeek[] }) {
@@ -81,7 +81,7 @@ function SideBySide({ eventId }: { eventId: number }) {
         setModel(m);
         setActual(a);
       })
-      .catch((e) => live && setError(getErrorMessage(e, 'Could not load the elevens')));
+      .catch((e) => live && setError(friendlyError(e, 'Could not load the elevens')));
     return () => {
       live = false;
     };
@@ -161,7 +161,7 @@ export default function ModelXiAccuracyPage() {
     let live = true;
     getModelXiHistory()
       .then((w) => live && setWeeks(w))
-      .catch((e) => live && setError(getErrorMessage(e, 'Could not load the model XI history')));
+      .catch((e) => live && setError(friendlyError(e, 'Could not load the model XI history')));
     return () => {
       live = false;
     };
