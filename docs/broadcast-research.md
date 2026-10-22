@@ -112,11 +112,11 @@ is live", a rights statement that covers it plus the official fixture list).
 | E0 Premier League | premierleague.com news: "Broadcast selections" and "Fixture amendments" articles, published in blocks of several rounds | Sky Sports or TNT Sports, one row; Amazon Prime Video no longer holds PL rights. Saturday 15:00 games: blackout rule |
 | E1/E2/E3 EFL | skysports.com "Live EFL fixtures on Sky Sports" article (updated through the season); efl.com "fixture changes / TV selections" news | Saturday 12:30 and evening picks on Sky Sports / Sky Sports+. Midweek EFL games not picked for a main channel are streamed on Sky Sports+: only record them when the EFL or Sky page says so for that round |
 | LC Carabao Cup | efl.com "Carabao Cup round X schedule confirmed" | Sky Sports (Football / Main Event / Sky Sports+); ITV for some ties |
-| FAC FA Cup | thefa.com "Emirates FA Cup ... live on TV" round announcements | BBC (free) and TNT Sports |
-| EC National League | thenationalleague.org.uk "How to watch ... this weekend" and DAZN's National League page | DAZN (National League TV); some games on TNT Sports or BBC |
+| FAC FA Cup | thefa.com "Emirates FA Cup ... live on TV" round announcements (picks are announced a week or two before each round; none published yet is not a failure, just skip the round) | BBC (free) and TNT Sports |
+| EC National League | DAZN's National League page / fixture listings (dazn.com/en-GB). thenationalleague.org.uk renders in the browser only, so a page fetch returns an empty shell: don't rely on it | DAZN (National League TV); some games on TNT Sports or BBC |
 | UCL | uefa.com fixtures; tntsports.co.uk Champions League schedule; Amazon Prime Video UK's UCL match calendar (Tuesday top pick) | TNT Sports for every match except the Prime Video pick |
 | UEL / UECL | uefa.com fixtures + tntsports.co.uk statement that every Europa / Conference League match is live | TNT Sports (HBO Max) |
-| SC0 Scottish Premiership | spfl.co.uk "TV selections and fixture changes" / "Latest live broadcast selections" | Sky Sports or Premier Sports |
+| SC0 Scottish Premiership | spfl.co.uk "TV selections and fixture changes" when reachable (it refuses automated fetches); otherwise the broadcaster's own listings: Sky Sports' "Live Scottish football on Sky Sports" fixtures and Premier Sports' SPFL schedule. BBC Sport's Scottish Premiership TV list is fine as a cross-check | Sky Sports or Premier Sports |
 | D1 Bundesliga | bundesliga.com UK & Ireland media news; Sky Sports' Bundesliga schedule | Sky Sports, BBC (some), Amazon Prime Video, Bundesliga FAST channel (Samsung TV Plus) |
 | I1 Serie A | DAZN UK Serie A schedule (dazn.com/en-GB) | DAZN; TNT Sports for a few |
 | F1 Ligue 1 | ligue1.com / Ligue 1+ UK announcements | Ligue 1+ (streaming) |
