@@ -29,13 +29,28 @@
 # public.job_registry -- a scheduled workflow missing from the registry, or
 # whose latest scheduled run failed, is reported (needs GITHUB_TOKEN with
 # actions: read; skipped without it).
+#
+# 22 Oct 2026 (audit P-02): acknowledgements. The run had been red for 25
+# days on known, accepted failures (tennis from the PC), which hid every new
+# one. public.integrity_acknowledgements lists (check_name, subject, reason,
+# acknowledged_until). An acknowledged failure is reported as a WARNING,
+# with its reason, until that date; then it fails again by itself. subject
+# null covers the whole check; a subject covers one item of a list check
+# such as jobs_stale ("...: a (..); b (..)"), and the check still fails if
+# any item in it is not acknowledged. Each area's runtime is logged
+# (pipeline_runs started_at/finished_at) and an area slower than
+# SLOW_AREA_S warns: check_model_integrity took 10.6 s on 22 Oct against
+# "about 3 s" above.
 # ============================================================================
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
+import re
 import sys
+import time
 import urllib.request
 
 AREAS = [
@@ -49,10 +64,58 @@ AREAS = [
     ("ga", "check_ga_integrity"),                # Google Analytics import (ga-import.yml)
     ("broadcasts", "check_broadcast_integrity"), # UK TV research route (docs/broadcast-research.md)
     ("jobs", "check_job_health"),                # every production job (job_registry / job_health)
+    ("deadlines", "check_deadline_runs"),        # FPL runs close to each deadline; pg_cron dispatcher (P-01/P-06)
 ]
 
 # Workflows that are not production data jobs and need no registry row.
 NOT_JOBS = {"delete-merged-branch", "game-checks", "lab-experiment", "model-experiment", "fpl-evals"}
+
+
+SLOW_AREA_S = 60  # the per-area statement limit is 120 s
+
+
+def list_items(detail: str) -> list[str]:
+    """Item names of a list check's detail: 'Heading: a (x); b (y)' -> ['a', 'b']."""
+    if ": " not in (detail or ""):
+        return []
+    body = detail.split(": ", 1)[1]
+    return [m.group(0) for part in body.split("; ") if (m := re.match(r"[^\s(]+", part.strip()))]
+
+
+def apply_acknowledgements(rows: list[dict], acks: list[dict], today: dt.date) -> list[dict]:
+    """Failed rows covered by an active acknowledgement become warnings."""
+    active = [a for a in acks if a["acknowledged_until"] >= today]
+    out = []
+    for r in rows:
+        if r["status"] != "failed":
+            out.append(r)
+            continue
+        mine = [a for a in active if a["check_name"] == r["check_name"]]
+        whole = next((a for a in mine if not a.get("subject")), None)
+        if whole:
+            out.append({**r, "status": "warning",
+                        "detail": f"ACKNOWLEDGED until {whole['acknowledged_until']} ({whole['reason']}): {r['detail']}"})
+            continue
+        subjects = {a["subject"]: a for a in mine if a.get("subject")}
+        items = list_items(r["detail"])
+        covered = [i for i in items if i in subjects]
+        if items and len(covered) == len(items):
+            until = min(subjects[i]["acknowledged_until"] for i in covered)
+            out.append({**r, "status": "warning",
+                        "detail": f"ACKNOWLEDGED until {until} ({'; '.join(f'{i}: ' + subjects[i]['reason'] for i in covered)}): {r['detail']}"})
+        elif covered:
+            out.append({**r, "found": len(items) - len(covered),
+                        "detail": f"{r['detail']} [acknowledged: {', '.join(covered)}]"})
+        else:
+            out.append(r)
+    return out
+
+
+def acknowledgement_row(acks: list[dict], today: dt.date) -> dict:
+    active = [a for a in acks if a["acknowledged_until"] >= today]
+    names = ", ".join(f"{a['check_name']}{'/' + a['subject'] if a.get('subject') else ''} until {a['acknowledged_until']}" for a in active)
+    return {"check_name": "integrity_acknowledgements", "status": "ok", "found": len(active),
+            "detail": "Failures reported as warnings until a date (public.integrity_acknowledgements): " + (names or "none")}
 
 
 def area_status(rows: list[dict]) -> str:
@@ -101,6 +164,13 @@ class Runner:
             return self.db.query(sql, fetch="all") or []
         raise RuntimeError("needs SUPABASE_DB_URL")
 
+    def acknowledgements(self) -> list[dict]:
+        sql = "select check_name, subject, reason, acknowledged_until from public.integrity_acknowledgements"
+        if self.db is not None:
+            return self.db.query(sql, fetch="all") or []
+        data = self.sb.table("integrity_acknowledgements").select("check_name,subject,reason,acknowledged_until").execute().data or []
+        return [{**a, "acknowledged_until": dt.date.fromisoformat(a["acknowledged_until"])} for a in data]
+
     def log(self, row: dict) -> None:
         if self.db is not None:
             cols = list(row)
@@ -109,7 +179,8 @@ class Runner:
                 f"({', '.join(['%s'] * len(cols))}, now()) returning run_id",
                 [row[c] for c in cols])
         else:
-            self.sb.table("pipeline_runs").insert({**row, "finished_at": "now()"}).execute()
+            row = {k: (v.isoformat() if isinstance(v, dt.datetime) else v) for k, v in row.items()}
+            self.sb.table("pipeline_runs").insert({**row, "finished_at": dt.datetime.now(dt.timezone.utc).isoformat()}).execute()
 
 
 def github_rows(runner: Runner) -> list[dict]:
@@ -152,9 +223,17 @@ def github_rows(runner: Runner) -> list[dict]:
 def main() -> None:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     runner = Runner()
+    today = dt.datetime.now(dt.timezone.utc).date()
+    try:
+        acks = runner.acknowledgements()
+        ack_error = None
+    except Exception as e:  # noqa: BLE001 -- without them every failure stays a failure
+        acks, ack_error = [], f"{type(e).__name__}: {e}"[:300]
     all_rows: list[dict] = []
     for area, fn in AREAS:
         error = None
+        started = dt.datetime.now(dt.timezone.utc)
+        t0 = time.monotonic()
         try:
             rows = runner.check(fn)
             if not rows:
@@ -167,6 +246,14 @@ def main() -> None:
                 rows += github_rows(runner)
             except Exception as e:  # noqa: BLE001
                 rows.append({"check_name": "github_workflows", "status": "warning", "found": 1, "detail": f"GitHub API: {e}"[:300]})
+            rows.append(acknowledgement_row(acks, today) if ack_error is None else
+                        {"check_name": "integrity_acknowledgements", "status": "warning", "found": 1,
+                         "detail": f"Could not read acknowledgements, so none applied: {ack_error}"})
+        rows = apply_acknowledgements(rows, acks, today)
+        seconds = time.monotonic() - t0
+        if seconds > SLOW_AREA_S:
+            rows.append({"check_name": f"{fn}_runtime", "status": "warning", "found": round(seconds),
+                         "detail": f"{fn} took {seconds:.1f} s (warns above {SLOW_AREA_S} s; the limit is 120 s)"})
         for r in rows:
             mark = {"ok": "ok  ", "warning": "WARN", "failed": "FAIL"}.get(r["status"], r["status"])
             print(f"[{area}] [{mark}] {r['check_name']}: {r['found']} -- {r['detail']}")
@@ -174,8 +261,9 @@ def main() -> None:
                 print(f"::error::{area} {r['check_name']}: {r['found']} -- {r['detail']}")
             elif r["status"] == "warning":
                 print(f"::warning::{area} {r['check_name']}: {r['found']} -- {r['detail']}")
-        runner.log({"job_name": f"integrity_{area}", "status": area_status(rows), "summary": summarise(rows),
-                    "error_message": error})
+        runner.log({"job_name": f"integrity_{area}", "status": area_status(rows),
+                    "summary": f"{summarise(rows)} ({seconds:.1f} s)", "error_message": error,
+                    "started_at": started})
         all_rows += rows
     summary = summarise(all_rows)
     status = area_status(all_rows)
