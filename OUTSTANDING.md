@@ -169,6 +169,11 @@ Division filters. Defaults to England, so unchanged for the common
 case. Not yet applied anywhere else -- see the entry above.
 
 ### UK TV/streaming info: data source picked (ChatGPT-sourced), guide built -- DONE, feed ongoing
+**Superseded 22 Oct 2026:** Airtable and the ChatGPT harvesting step are gone.
+A scheduled Claude task researches official sources and submits rows as a
+migration calling `public.ingest_broadcasts()`; the procedure is
+`docs/broadcast-research.md`. The history below is kept for context.
+
 Resolved the "no free automated feed" gap from below not with an API but
 a manual-with-AI-help pipeline: a written prompt (in chat history) asks
 ChatGPT to source UK broadcast confirmations only from real, checkable

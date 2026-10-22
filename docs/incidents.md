@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · UK TV guide frozen since 18 Oct: Airtable API cap exhausted
+- **Found:** the 22 Oct audit (P-03 / DQ-04). `check_job_health` had flagged `jobs_stale` for `sync-airtable-broadcasts-3-hourly`, inside an alarm that was already red.
+- **Impact:** every sync from 18 Oct 18:40 failed with HTTP 429. Nothing added in Airtable after 18 Oct 15:40 reached `/tv-guide` or the match pages. For the next 7 days, only 8 of 24 National League, 2 of 12 Scottish Premiership and 4 of 9 Bundesliga fixtures had a listing.
+- **Cause:** the free Airtable plan allows about 1,000 API calls a month. The sync made about 60 a day (8 runs × 7-8 pages, plus tick and prune writes), so it ran out in under three weeks. The failed runs rolled back their own log row, so `job_health` still showed `last_status = success`.
+- **Fix:** Airtable removed (Chris's decision). `20261022150000_broadcasts_claude_research.sql` unschedules the cron job, drops `sync_airtable_broadcasts_from_api` and `sync_airtable_broadcasts`, and deletes the `airtable_token` secret. Their matching logic is now `match_broadcast_fixture()`, used by the new `ingest_broadcasts(rows, label)`. A scheduled Claude task researches official sources and submits rows through a migration (`docs/broadcast-research.md`). The Airtable data could not be exported first, because the connector uses the same capped API. The site already held everything up to 18 Oct; the first research run covers the gap.
+- **Prevention:** no API quota left to run out. `job_registry` job `broadcast-research` and the integrity area `broadcasts`: `broadcast_research_fresh` (warns after 5 days, fails after 9), `broadcast_decisions_next_10d` (PL/EFL/Carabao Cup fixtures without a GB decision) and `broadcast_unmatched_upcoming`. *Lesson: a free tier is a quota; work out the monthly call count before scheduling against it.*
+
+---
+
 ## 2026-10-22 · FPL reviews scored the model on projections rewritten after kick-off
 - **Found:** production audit, 22 Oct (DQ-07).
 - **Impact:** Team of the Week vs model, Model XI (players and history) and the start-accuracy comparison read the live `fpl_player_projections` for past gameweeks, rows that were regenerated for hours after kick-off. Scored from the deadline snapshots instead, the model XI's actual points drop from 72 to 58 for GW7 and from 60 to 46 for GW6, so the pages flattered the model. Model XI history also said "not generated before the deadline" for every week.

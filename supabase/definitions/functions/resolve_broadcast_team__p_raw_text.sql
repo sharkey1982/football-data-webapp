@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION public.resolve_broadcast_team(p_raw text)
  SET search_path TO 'public', 'pg_temp'
 AS $function$
   with c as (
-    select 1 lvl, team_id from public.team_aliases where source_name = 'Airtable' and raw_name = p_raw
+    select 1 lvl, team_id from public.team_aliases where source_name in ('broadcasts', 'Airtable') and raw_name = p_raw
     union all select 2, team_id from public.teams where lower(canonical_name) = lower(p_raw) or lower(display_name) = lower(p_raw)
     union all select 3, team_id from public.team_aliases where raw_name = p_raw
   ), lv as (
