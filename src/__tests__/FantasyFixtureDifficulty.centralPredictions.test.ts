@@ -22,7 +22,7 @@ function makeBuilder(rows: any[]) {
     not: (col: string, op: string, val: string) => {
       if (op === 'in') {
         const vals = val.replace(/^\(|\)$/g, '').split(',');
-        filtered = filtered.filter((r: any) => !vals.includes(r[col]));
+        filtered = filtered.filter((r: Record<string, unknown>) => !vals.includes(String(r[col])));
       }
       return api;
     },
