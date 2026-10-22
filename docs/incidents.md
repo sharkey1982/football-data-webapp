@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Database grants wider than needed (security audit)
+- **Found:** security audit, 22 Oct (SEC-07, SEC-09, SEC-18, Supabase advisors).
+- **Impact:** no misuse seen. anon and authenticated held TRUNCATE (which ignores RLS), TRIGGER, REFERENCES and MAINTAIN on every public table; anonymous visitors could read `sf.fantasy_managers.user_id` (the admin's auth UUID); five September backup tables (one with RLS off) and a staging table sat in public; 19 functions had no fixed search_path; two policies re-evaluated `auth.uid()` per row; one duplicate index.
+- **Cause:** Supabase's default privileges for tables postgres creates in public include those rights for the API roles; one-off tables were never cleaned up.
+- **Fix:** `20261022122000_security_hardening.sql`: revoke the four rights (existing tables and the default for new ones); column-level SELECT for anon on `sf.fantasy_managers` without `user_id`; drop the six tables; pin search_path (except five SQL functions inlined into views); `(select auth.uid())` in the two policies; drop the duplicate index.
+- **Prevention:** the Supabase security and performance advisors after each schema change. Not fixable by migration: anon EXECUTE on `extensions.http_*`, `net.*` and `cron.*` (granted by supabase_admin). *Lesson: a default grant is a decision nobody made.*
+
+---
+
 ## 2026-10-22 · Ligue 1 had Rennes v PSG twice; the Veikkausliiga table dropped the top six's latest game
 - **Found:** data-quality audit, 22 Oct (DQ-05, DQ-06).
 - **Impact:** fixture 5302 (6 Mar 2027) was Rennes v PSG, a repeat of the 23 Aug game, so its page, prediction and home advantage were wrong and PSG v Rennes was missing. In the Veikkausliiga table every championship-group team was one game short (HJK and KuPS 3 points short).
