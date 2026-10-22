@@ -542,56 +542,83 @@ export async function getGameweekPlayerProjections(
  * player has an actual result for -- never padded with unplayed weeks.
  */
 export async function getSeasonActualVsProjected(leagueId: number, seasonId: number): Promise<SeasonPlayerActualVsProjected[]> {
-  const { data: fixtureRows, error: fixtureError } = await supabase
-    .from('fixtures')
-    .select('fixture_id')
-    .eq('league_id', leagueId)
-    .eq('season_id', seasonId)
-    .eq('status', 'played');
-  if (fixtureError) throw fixtureError;
-  const playedFixtureIds = (fixtureRows ?? []).map((f) => f.fixture_id);
+  // Audit 22 Oct 2026 (CODE-02): every read here is paged (the API stops at
+  // 1,000 rows without saying so; a season passes that by gameweek 3), and
+  // gameweek rows are matched to projections through fpl_fixtures, because
+  // FPL's fixture numbers are not the site's fixture ids (35 of 380 agree).
+  const PAGE = 1000;
+  async function all<T>(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
+    const rows: T[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await build(from, from + PAGE - 1);
+      if (error) throw error;
+      const page = (data ?? []) as T[];
+      rows.push(...page);
+      if (page.length < PAGE) return rows;
+    }
+  }
+
+  const fixtureRows = await all<{ fixture_id: number }>((a, b) =>
+    supabase.from('fixtures').select('fixture_id').eq('league_id', leagueId).eq('season_id', seasonId).eq('status', 'played').order('fixture_id').range(a, b)
+  );
+  const playedFixtureIds = fixtureRows.map((f) => f.fixture_id);
   if (playedFixtureIds.length === 0) return [];
 
-  const { data: gwRows, error: gwError } = await supabase
-    .from('fpl_player_gameweeks')
-    .select('fpl_player_id, fpl_fixture_id, total_points')
-    .in('fpl_fixture_id', playedFixtureIds);
-  if (gwError) throw gwError;
+  const mapRows = await all<{ fpl_fixture_id: number; canonical_fixture_id: number | null }>((a, b) =>
+    supabase.from('fpl_fixtures').select('fpl_fixture_id, canonical_fixture_id').eq('season_id', seasonId).in('canonical_fixture_id', playedFixtureIds).order('fpl_fixture_id').range(a, b)
+  );
+  const canonicalByFpl = new Map<number, number>();
+  for (const r of mapRows) if (r.canonical_fixture_id != null) canonicalByFpl.set(r.fpl_fixture_id, r.canonical_fixture_id);
+  if (canonicalByFpl.size === 0) return [];
+
+  const gwRows = await all<{ fpl_player_id: number; fpl_fixture_id: number; total_points: number | null }>((a, b) =>
+    supabase
+      .from('fpl_player_gameweeks')
+      .select('fpl_player_id, fpl_fixture_id, total_points')
+      .eq('season_id', seasonId)
+      .in('fpl_fixture_id', [...canonicalByFpl.keys()])
+      .order('fpl_player_id')
+      .order('fpl_fixture_id')
+      .range(a, b)
+  );
 
   const byPlayer = new Map<number, { games: number; points: number; fixtureIds: number[] }>();
-  for (const row of (gwRows ?? [])) {
+  for (const row of gwRows) {
     if (row.total_points === null) continue;
+    const canonical = canonicalByFpl.get(row.fpl_fixture_id);
+    if (canonical == null) continue;
     const entry = byPlayer.get(row.fpl_player_id) ?? { games: 0, points: 0, fixtureIds: [] };
     entry.games += 1;
     entry.points += row.total_points;
-    entry.fixtureIds.push(row.fpl_fixture_id);
+    entry.fixtureIds.push(canonical);
     byPlayer.set(row.fpl_player_id, entry);
   }
 
   const playerIds = [...byPlayer.keys()];
   if (playerIds.length === 0) return [];
 
-  const { data: projRows, error: projError } = await supabase
-    .from('fpl_player_projections')
-    .select('fpl_player_id, fixture_id, expected_fpl_points')
-    .eq('model_version', SEASON_XPTS_MODEL_VERSION)
-    .eq('scenario_key', 'baseline')
-    .in('fpl_player_id', playerIds)
-    .in('fixture_id', playedFixtureIds);
-  if (projError) throw projError;
+  const projRows = await all<{ fpl_player_id: number; fixture_id: number; expected_fpl_points: number | string | null }>((a, b) =>
+    supabase
+      .from('fpl_player_projections')
+      .select('fpl_player_id, fixture_id, expected_fpl_points')
+      .eq('model_version', SEASON_XPTS_MODEL_VERSION)
+      .eq('scenario_key', 'baseline')
+      .in('fixture_id', playedFixtureIds)
+      .order('fixture_id')
+      .order('fpl_player_id')
+      .range(a, b)
+  );
   const projByKey = new Map<string, number>();
-  for (const row of projRows ?? []) {
+  for (const row of projRows) {
     const v = num(row.expected_fpl_points);
     if (v !== null) projByKey.set(`${row.fpl_player_id}:${row.fixture_id}`, v);
   }
 
-  const { data: nameRows, error: nameError } = await supabase
-    .from('fpl_players')
-    .select('fpl_player_id, web_name')
-    .in('fpl_player_id', playerIds);
-  if (nameError) throw nameError;
+  const nameRows = await all<{ fpl_player_id: number; web_name: string | null }>((a, b) =>
+    supabase.from('fpl_players').select('fpl_player_id, web_name').eq('season_id', seasonId).order('fpl_player_id').range(a, b)
+  );
   const nameByPlayer = new Map<number, string>();
-  for (const row of nameRows ?? []) nameByPlayer.set(row.fpl_player_id, row.web_name ?? 'Unknown');
+  for (const row of nameRows) nameByPlayer.set(row.fpl_player_id, row.web_name ?? 'Unknown');
 
   const out: SeasonPlayerActualVsProjected[] = [];
   for (const [playerId, entry] of byPlayer) {

@@ -14,6 +14,7 @@
 // you're on.
 // ============================================================================
 
+import { getCurrentSeasonId } from './currentSeason';
 import { chancesFromOdds } from './expectation';
 import { supabase } from './supabase';
 
@@ -142,6 +143,10 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
  * into "what's next". */
 export async function getTeamPageMatches(teamId: number, leagueId: number | null): Promise<TeamPageMatch[]> {
   if (leagueId == null) return [];
+  // This season only. Without it the matches read below spanned every season
+  // (1,311 Premier League games for Arsenal) and the API's 1,000-row cap
+  // dropped most of this season's results (audit 22 Oct 2026, CODE-03).
+  const seasonId = await getCurrentSeasonId();
   const { data, error } = await supabase
     .from('fixtures')
     .select(
@@ -151,6 +156,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
       'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
     )
     .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .order('kickoff_date', { ascending: true });
   if (error) throw error;
@@ -162,6 +168,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
     .from('matches')
     .select('match_id, home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals')
     .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
   const resultByKey = new Map<string, any>(
     (results ?? []).map((m) => [`${m.home_team_id}|${m.away_team_id}|${m.match_date}`, m])

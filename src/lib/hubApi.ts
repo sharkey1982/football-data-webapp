@@ -136,7 +136,11 @@ export async function getNextDeadline(): Promise<{ gw: number; deadline: string 
   return row ? { gw: row.fpl_event_id, deadline: row.deadline_time } : null;
 }
 
-export type ProjectedPick = { fplPlayerId: number; name: string; slug: string | null; team: string; teamId: number | null; price: number | null; points: number; games: number };
+export type ProjectedPick = {
+  fplPlayerId: number; name: string; slug: string | null; team: string; teamId: number | null; price: number | null; points: number; games: number;
+  /** FPL's availability flag ('a' available, 'd' doubtful, 'i' injured...) and its chance of playing, shown beside the pick. */
+  status: string | null; chance: number | null;
+};
 
 /** Projected points for the coming gameweek, summed per player so a double
  *  gameweek counts both games. Current model, baseline scenario. */
@@ -162,11 +166,11 @@ export async function getTopProjected(limit = 5): Promise<{ gw: number; picks: P
   if (top.length === 0) return { gw: gw.matchweek, picks: [] };
   const { data: players, error: pErr } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, web_name, slug, now_cost, canonical_team_id')
+    .select('fpl_player_id, web_name, slug, now_cost, canonical_team_id, status, chance_of_playing_next_round')
     .eq('season_id', await getCurrentFplSeasonId())
     .in('fpl_player_id', top.map(([id]) => id));
   if (pErr) throw pErr;
-  const byId = new Map(((players ?? []) as { fpl_player_id: number; web_name: string; slug: string | null; now_cost: number | null; canonical_team_id: number | null }[]).map((p) => [p.fpl_player_id, p]));
+  const byId = new Map(((players ?? []) as { fpl_player_id: number; web_name: string; slug: string | null; now_cost: number | null; canonical_team_id: number | null; status: string | null; chance_of_playing_next_round: number | null }[]).map((p) => [p.fpl_player_id, p]));
   const teamIds = [...new Set([...byId.values()].map((p) => p.canonical_team_id).filter((x): x is number => x != null))];
   const teamNames = new Map<number, string>();
   if (teamIds.length) {
@@ -187,6 +191,8 @@ export async function getTopProjected(limit = 5): Promise<{ gw: number; picks: P
         price: p?.now_cost != null ? p.now_cost / 10 : null,
         points: s.points,
         games: s.games,
+        status: p?.status ?? null,
+        chance: p?.chance_of_playing_next_round ?? null,
       };
     }),
   };

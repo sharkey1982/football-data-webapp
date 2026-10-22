@@ -227,6 +227,10 @@ async function testPage(browser, type, path) {
     if (m.empty_tables) res.errors.push(`${m.empty_tables} of ${m.tables} table(s) have no rows`);
     res.entity_links = m.entity_links;
     if (MUST_LINK_ENTITIES.has(type) && m.entity_links === 0) res.errors.push('dead end: no links to team, match or player pages');
+    // Layout shift barely depends on throttling, so previews (quick mode) warn
+    // on it too: the Club hub shipped at 0.37 because quick mode checked no
+    // budget at all (audit 22 Oct 2026, S-01).
+    if (MODE === 'quick' && res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}; moved: ${res.cls_sources.map((x) => `${x.element} (${x.value})`).join('; ')}`);
     if (MODE !== 'quick') {
       if (res.lcp_ms > BUDGETS.lcp_ms) res.warnings.push(`LCP ${res.lcp_ms} ms > ${BUDGETS.lcp_ms}`);
       if (res.cls > BUDGETS.cls) res.warnings.push(`CLS ${res.cls} > ${BUDGETS.cls}; moved: ${res.cls_sources.map((x) => `${x.element} (${x.value})`).join('; ')}`);

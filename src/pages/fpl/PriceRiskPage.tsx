@@ -113,7 +113,7 @@ export default function PriceRiskPage() {
   });
 
   useEffect(() => {
-    getPriceChangeRisk(13)
+    getPriceChangeRisk()
       .then(setRows)
       .catch(() => setRows([]));
   }, []);

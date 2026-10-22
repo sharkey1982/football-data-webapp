@@ -105,6 +105,29 @@ export function joined(names: string[]): string {
  * United left), which made "this gameweek" questions pick from one match.
  */
 export async function upcomingGameweek(): Promise<{ matchweek: number; fixtureIds: number[] } | null> {
+  // FPL's own calendar first: the gameweek whose deadline is next, and its
+  // fixtures as FPL assigns them, so a rearranged game sits in the gameweek
+  // it is actually played in (double gameweeks included). Falls back to the
+  // matchweek rule below when the FPL tables have nothing (audit 22 Oct 2026,
+  // S-14: one early-played rearranged game used to skip a whole gameweek).
+  const seasonId = await getCurrentFplSeasonId();
+  const { data: gws } = await supabase
+    .from('fpl_gameweeks')
+    .select('fpl_event_id, deadline_time')
+    .eq('season_id', seasonId)
+    .order('deadline_time', { ascending: true });
+  const now = Date.now();
+  const nextGw = ((gws ?? []) as { fpl_event_id: number; deadline_time: string }[]).find((g) => Date.parse(g.deadline_time) > now);
+  if (nextGw) {
+    const { data: fx } = await supabase
+      .from('fpl_fixtures')
+      .select('canonical_fixture_id')
+      .eq('season_id', seasonId)
+      .eq('fpl_event_id', nextGw.fpl_event_id);
+    const ids = ((fx ?? []) as { canonical_fixture_id: number | null }[]).map((r) => r.canonical_fixture_id).filter((x): x is number => x != null);
+    if (ids.length > 0) return { matchweek: nextGw.fpl_event_id, fixtureIds: ids };
+  }
+
   const { data, error } = await supabase
     .from('fixtures')
     .select('fixture_id, matchweek, status')
