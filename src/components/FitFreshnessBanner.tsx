@@ -27,6 +27,8 @@ function formatAgo(iso: string): string {
 
 export function FitFreshnessBanner({ leagueId, fitRun }: { leagueId: number | null; fitRun: ModelFitRun | null }) {
   const [status, setStatus] = useState<LeagueFitStatus | null>(null);
+  // Read the clock once per mount, not on every render (render must be pure).
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     if (!leagueId) {
@@ -59,7 +61,7 @@ export function FitFreshnessBanner({ leagueId, fitRun }: { leagueId: number | nu
 
   const messages: string[] = [];
 
-  const hoursOld = (Date.now() - new Date(fitRun.fitted_at).getTime()) / 36e5;
+  const hoursOld = (now - new Date(fitRun.fitted_at).getTime()) / 36e5;
   if (hoursOld > STALE_HOURS) {
     messages.push(`Predictions haven't been refreshed since ${formatAgo(fitRun.fitted_at)} \u2014 may be out of date.`);
   }

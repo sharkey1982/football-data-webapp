@@ -6,7 +6,7 @@
 // used by Fixtures & Results, team pages and tournament pages.
 // ============================================================================
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { intlMatchPath } from '../../lib/intlMatch';
 import { INTL_DISCOVER_PATH, INTL_HUB_PATH, editionPathOf, intlTeamPath } from '../../lib/intlApi';
@@ -191,7 +191,9 @@ export function GameRow({ m, showDate, showCompetition, team }: { m: IntlMatch; 
 /** One fixture from the feed: UK kick-off, teams, venue; "Result to follow" once played. */
 export function FixtureRow({ f, showDate }: { f: IntlFixture; showDate?: boolean }) {
   const { date, time } = ukDateTime(f.kickoff_utc);
-  const played = new Date(f.kickoff_utc).getTime() + 2.5 * 3600e3 < Date.now();
+  // Clock read once per mount, not on every render (render must be pure).
+  const [now] = useState(() => Date.now());
+  const played = new Date(f.kickoff_utc).getTime() + 2.5 * 3600e3 < now;
   return (
     <li className="px-3 py-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm" data-testid="intl-fixture">
       <span className="w-24 shrink-0 font-mono text-xs text-ink-500">{showDate ? `${date} ${time}` : time}</span>

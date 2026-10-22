@@ -171,9 +171,7 @@ export default function AppLayout() {
 
   // AppLayout wraps every page and never unmounts on route changes (only
   // the <Outlet /> content swaps), so it's the right place to remember the
-  // fixtures search string across navigation. Mutating a ref directly
-  // during render is safe here -- it's a derived cache of the current
-  // location, not new state, and doesn't need its own re-render.
+  // fixtures search string across navigation.
   // Single owner of pageview tracking. AppLayout wraps every route via
   // <Outlet/> and never unmounts on navigation, so this fires exactly
   // once per route change -- including the very first render, which
@@ -184,13 +182,15 @@ export default function AppLayout() {
     trackPageView(location.pathname + location.search);
   }, [location.pathname, location.search]);
 
-  const lastFixturesSearch = useRef('');
+  // Remembered in state (React's "adjust state while rendering" pattern):
+  // a ref written during render is unsafe under concurrent rendering.
+  const [lastFixturesSearch, setLastFixturesSearch] = useState('');
   const onFixturesRoute = location.pathname === '/fixtures';
-  if (onFixturesRoute) {
-    lastFixturesSearch.current = location.search;
+  if (onFixturesRoute && lastFixturesSearch !== location.search) {
+    setLastFixturesSearch(location.search);
   }
 
-  const fixturesTo: To = { pathname: '/fixtures', search: lastFixturesSearch.current };
+  const fixturesTo: To = { pathname: '/fixtures', search: onFixturesRoute ? location.search : lastFixturesSearch };
 
   // International: on the women's side (/international/women/...) the menu
   // links go to the women's pages, so the menu follows the Men | Women switch.
