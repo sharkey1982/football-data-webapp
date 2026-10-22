@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Duplicate BBC listing; a live listing on a postponed game
+- **Found:** data-quality audit, 22 Oct (DQ-17).
+- **Impact:** Dortmund v Bremen (9 Oct) showed BBC twice in Where to watch. Scunthorpe v Forest Green (3 Oct) is postponed in the fixtures feed but carries a "shown live on DAZN" listing, so one of the two is wrong.
+- **Cause:** two Airtable records for the same broadcast, and nothing checked broadcast rows against fixture status.
+- **Fix:** `20261022104000_broadcast_duplicates_postponed.sql` deletes the duplicate (row 160). The Scunthorpe row is left until a source settles it.
+- **Prevention:** integrity checks `broadcast_duplicate_rows` and `broadcast_on_postponed` (warnings).
+
+---
+
 ## 2026-10-22 · Public edge functions could write with the service role
 - **Found:** security audit, 22 Oct (SEC-01, SEC-02, SEC-15).
 - **Impact:** no outside calls seen in the logs. `backfill-cup-raw` and `backfill-football-raw` (verify_jwt off, service role, no caller) let anyone write unlimited raw rows; anyone could trigger `ingest-cup-data`'s full scrape and write; `fpl-optimize-squad` ran a 15 s search per request with no limit, returned database error details, and its source was not in the repo; `supabase/config.toml` disagreed with the deployed settings.
