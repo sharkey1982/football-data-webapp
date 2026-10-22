@@ -26,6 +26,13 @@ export type RouteMeta = {
   crumbs?: { name: string; path: string }[];
 };
 
+/** The page's own name for its breadcrumb: the title up to " — " or ": "
+ * ("Football records: most points, ..." -> "Football records"). Audit
+ * 22 Oct 2026, S-17: titles using a colon put the whole title in the crumb. */
+export function breadcrumbName(title: string): string {
+  return title.split(' — ')[0].split(': ')[0];
+}
+
 const FOOTBALL = { name: 'Football', path: '/football' };
 const FPL = { name: 'Fantasy Premier League', path: '/fpl/start' };
 const NFL = { name: 'NFL', path: '/nfl' };
