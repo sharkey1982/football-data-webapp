@@ -39,6 +39,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Tactical-roles minutes averages read half the season; "today" was the UTC date
+- **Found:** audit of 22 Oct (CODE-04, CODE-13).
+- **Impact:** /fpl/tactical-roles (admin) computed "average minutes per game" from the first 1,000 of 2,158 gameweek rows, so about half the players' games were missing. The daily import's `team_aliases` read (679 rows) would have dropped mappings silently past 1,000. Eleven pages and helpers took "today" as the UTC date, which between 00:00 and 01:00 BST is yesterday in the UK. Some team page reads ignored errors, so a failed read showed a club with no division or strength, or its played games as unplayed.
+- **Cause:** unpaged PostgREST selects (the server caps a response at 1,000 rows without an error), tests that mock responses and so never see the cap, `toISOString().slice(0, 10)` used as the UK date, and `{ data }` destructured without `error`.
+- **Fix:** `src/lib/pagedSelect.ts` (`selectAllPages`) for both reads. A test fake (`src/__tests__/helpers/postgrestFake.ts`) caps responses at 1,000 like the server. `src/lib/ukDate.ts` (`ukToday`, `addIsoDays`) is used at the 11 sites. Errors are thrown in `teamPageApi`, `tacticalRoleAdminApi` and `nflTrivia`.
+- **Prevention:** use `selectAllPages` for any read that can pass a few hundred rows, and the fake in tests. *Lesson: a mocked response can't show you a server limit.*
+
+---
+
 ## 2026-10-22 · UK TV guide frozen since 18 Oct: Airtable API cap exhausted
 - **Found:** the 22 Oct audit (P-03 / DQ-04). `check_job_health` had flagged `jobs_stale` for `sync-airtable-broadcasts-3-hourly`, inside an alarm that was already red.
 - **Impact:** every sync from 18 Oct 18:40 failed with HTTP 429. Nothing added in Airtable after 18 Oct 15:40 reached `/tv-guide` or the match pages. For the next 7 days, only 8 of 24 National League, 2 of 12 Scottish Premiership and 4 of 9 Bundesliga fixtures had a listing.

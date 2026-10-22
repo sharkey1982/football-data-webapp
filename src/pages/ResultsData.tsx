@@ -12,6 +12,7 @@ import {
 } from '../lib/api';
 import { formatMatchDate } from '../lib/formatDate';
 import { useLeagueSeasonNames } from '../hooks/useLeagueSeasonNames';
+import { ukToday } from '../lib/ukDate';
 
 type LeagueOption = {
   league_id: number;
@@ -108,7 +109,7 @@ export default function ResultsData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `matches-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `matches-export-${ukToday()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

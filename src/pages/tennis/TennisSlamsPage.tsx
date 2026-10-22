@@ -27,6 +27,7 @@ import {
 } from '../../lib/tennisApi';
 import { SLAMS, SLAM_SHORT, slamLeaders, slamNow, slamsSentence, slamTable, withSlams, type Slam, type SlamLeader, type SlamYear } from '../../lib/tennisEvents';
 import { DATA_NOTE, FIRST_YEAR, parseTour, shortDate } from '../../lib/tennisStats';
+import { ukToday } from '../../lib/ukDate';
 
 /** The Slam's usual surface, for the column headings. */
 const SURFACE: Record<Slam, string> = { 'Australian Open': 'Hard', 'French Open': 'Clay', Wimbledon: 'Grass', 'US Open': 'Hard' };
@@ -35,7 +36,7 @@ const SURFACE_CLASS: Record<string, string> = { Hard: 'border-t-[#2a6fdb]', Clay
 export default function TennisSlamsPage({ initialData, today }: { initialData?: TennisSlamsData; today?: string }) {
   const [params] = useSearchParams();
   const tour = parseTour(params.get('tour')) ?? initialData?.tour ?? 'ATP';
-  const day = today ?? new Date().toISOString().slice(0, 10);
+  const day = today ?? ukToday();
   const { data, failed, loading } = useKeyedFetch(tour, () => loadTennisSlams(tour), initialData ? { key: initialData.tour, data: initialData } : undefined);
   const table = useMemo(() => slamTable(data?.editions ?? []), [data]);
   const leaders = useMemo(() => slamLeaders(data?.editions ?? []), [data]);

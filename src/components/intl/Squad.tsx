@@ -11,9 +11,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { POSITIONS, ageOn, leagueBreakdown, shortDate, statusText, type IntlSquad, type SquadPlayer } from '../../lib/intlStats';
+import { ukToday } from '../../lib/ukDate';
 
 const wikiUrl = (title: string) => `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => ukToday();
 
 function PlayerName({ p }: { p: SquadPlayer }) {
   return p.wiki_title ? (
