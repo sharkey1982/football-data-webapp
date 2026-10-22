@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · NFL Snap Outlook failing (HTTP 500); 47 menu pages never smoke-tested
+- **Found:** site audit of 22 Oct (S-09); the snap-outlook failure by the first smoke run over every menu page (run 187, against production).
+- **Impact:** /nfl/snap-outlook's snap request returned HTTP 500, so the page showed no outlook. Unknown since when: 47 of the 71 header-menu pages, this one included, were in no smoke run. /fpl was recorded as "fpl-hub" though it is Match Projections; the NFL entry tested a 301 (/nfl/standings); fpl-fixture reported "no URL in the sitemap" every run.
+- **Cause:** `public.nfl_player_snaps` computes the team's snaps with a window partitioned by game and team, which stops the page's season and team filters reaching the table: every request sorted all 333,000 rows (1.8 s warm). The smoke list was hand-written.
+- **Fix:** `20261022130000_nfl_player_snaps_window_pushdown.sql` adds season and game type to the partition (identical values, checked row for row; 1.8 s to 0.14 s). The smoke test reads `scripts/smoke/menu-pages.json` (hubs and every menu page from journey.ts); /fpl is "fpl-match-projections", NFL is /nfl/table, fpl-fixture dropped.
+- **Prevention:** `src/__tests__/smokeMenuPages.test.ts` fails when the menu and the smoke list differ. Not done: previews still run main's smoke script (checking out the PR head would hand a fork's code the service key). *Lesson: a window function in a view hides the filters on top of it.*
+
+---
+
 ## 2026-10-22 · TV guide downloaded its first three weeks twice; /fpl jumped while loading
 - **Found:** site audit of 22 Oct (S-08), production smoke runs 80-135.
 - **Impact:** /tv-guide fetched 2.4 MB per visit: the next three weeks (412 KB), then the whole season again from the start (1,958 KB). /fpl had CLS 0.21-0.25 in every production run (budget 0.1). /fpl/player-points could fetch its 415 KB projections twice when the gameweek in play arrived after the default gameweek.
