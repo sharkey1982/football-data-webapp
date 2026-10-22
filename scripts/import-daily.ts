@@ -131,7 +131,8 @@ async function fail(supabase: SupabaseClient<Database> | null, message: string, 
 
 /**
  * Archive new or changed raw rows in source_match_rows, then run
- * backfill_match_odds() so today's results get their bookmaker odds.
+ * backfill_match_odds_for(division, season) so today's results get their
+ * bookmaker odds.
  * Returns a short note for the run log. Throws on any failure.
  */
 async function archiveRawRowsAndOdds(supabase: SupabaseClient<Database>, text: string, fileRows: RawRow[]): Promise<string> {
@@ -214,9 +215,14 @@ async function archiveRawRowsAndOdds(supabase: SupabaseClient<Database>, text: s
   }
 
   // Insert-only on match_odds' natural key, and skips matches that already
-  // have odds, so re-running is harmless.
-  const { data: oddsRows, error: oddsErr } = await supabase.rpc('backfill_match_odds' as never);
-  if (oddsErr) throw new Error(`backfill_match_odds: ${oddsErr.message}`);
+  // have odds, so re-running is harmless. Scoped to this division-season's
+  // archived files: the global backfill_match_odds() scans every archived
+  // row and outgrew the API role's 8 s statement timeout (P-04, 22 Oct 2026).
+  const { data: oddsRows, error: oddsErr } = await supabase.rpc(
+    'backfill_match_odds_for' as never,
+    { p_competition_code: LEAGUE_CODE, p_season_label: SEASON_LABEL } as never,
+  );
+  if (oddsErr) throw new Error(`backfill_match_odds_for(${LEAGUE_CODE}, ${SEASON_LABEL}): ${oddsErr.message}`);
   const note = `raw rows archived: ${archived}; odds rows added: ${Number(oddsRows ?? 0)}`;
   console.log(note);
   return note;
@@ -431,7 +437,9 @@ async function main() {
     }
   }
   const note = [skipNote, oddsNote].filter(Boolean).join(' | ') || null;
-  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: 'success', errorMessage: note });
+  // An odds failure fails the run in match_import_runs too, so job_health
+  // agrees with GitHub (P-04); rows_upserted still records the results kept.
+  await logRun(supabase, { rowsSeen: rows.length, rowsUpserted, status: oddsFailed ? 'failed' : 'success', errorMessage: note });
   if (oddsFailed) process.exit(1);
 }
 

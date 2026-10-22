@@ -21,6 +21,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Daily Premier League import failed three days running; its odds arrived only by luck
+- **Found:** pipelines audit, 22 Oct (P-04).
+- **Impact:** the daily-import workflow was red on 19, 20 and 21 Oct ("Import failed for E0"), which hid other failures. Premier League odds still arrived only because the Championship step's global odds pass happened to cover them; an E0-only run would have left them out. `match_import_runs` said `success`, so `job_health` disagreed with GitHub.
+- **Cause:** `scripts/import-daily.ts` called the global `backfill_match_odds()`, which scans every archived football-data.co.uk row (80k rows against 812k odds rows) and outgrew the API role's 8 s statement timeout. The odds failure was logged with status `success`.
+- **Fix:** `20261022102000_backfill_match_odds_scoped.sql` adds `backfill_match_odds_for(competition_code, season_label)` (one division-season's files, about 60 ms); the importer calls it for the league and season it just imported, and logs `failed` when the odds step fails.
+- **Prevention:** the run log now reports an odds failure as a failure. *Lesson: a step that does work for everyone should not be run by each caller.*
+
+---
+
 ## 2026-10-22 · FPL reviews scored the model on projections rewritten after kick-off
 - **Found:** production audit, 22 Oct (DQ-07).
 - **Impact:** Team of the Week vs model, Model XI (players and history) and the start-accuracy comparison read the live `fpl_player_projections` for past gameweeks, rows that were regenerated for hours after kick-off. Scored from the deadline snapshots instead, the model XI's actual points drop from 72 to 58 for GW7 and from 60 to 46 for GW6, so the pages flattered the model. Model XI history also said "not generated before the deadline" for every week.
