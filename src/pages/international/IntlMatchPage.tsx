@@ -26,6 +26,7 @@ import { INTL_FIXTURES_PATH, editionPathOf, intlTeamPath, loadIntlMatch, type In
 import { INTL_MATCHES_PATH, ip1Grid, kindOfEdition, summariseGrid, type GridSummary } from '../../lib/intlMatch';
 import { ageOn, editionLabel, isReported, outcomeFor, pct, scoreText, shortDate, tournamentByCompetition, ukDateTime, type IntlMatch, type SquadPlayer, type TeamSummary, sideTitle } from '../../lib/intlStats';
 import type { PreviewTabId } from '../../lib/previewTabs';
+import { ukToday } from '../../lib/ukDate';
 
 const sectionHeading = 'font-display uppercase tracking-wide text-lg text-ink-900';
 
@@ -60,7 +61,7 @@ function prediction(d: IntlMatchData): (GridSummary & { eloHome: number; eloAway
 
 function SquadBrief({ team, players }: { team: TeamSummary; players: SquadPlayer[] }) {
   if (!players.length) return <p className="text-sm text-ink-700">No current squad listed.</p>;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ukToday();
   const ages = players.filter((p) => p.birth_date).map((p) => ageOn(p.birth_date!, today));
   const caps = players.reduce((a, p) => a + (p.caps ?? 0), 0);
   const abroad = players.filter((p) => p.club_league_country && p.club_league_country !== team.team).length;

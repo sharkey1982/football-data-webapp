@@ -24,6 +24,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { loadTennisPlayer, tennisH2HCanonicalPath, tennisPlayerPath, tennisPlayersPath, tennisSeasonPath, type TennisPlayerData } from '../../lib/tennisApi';
 import { DATA_NOTE, parseTour, pctLabel, playerSentence, recordLabel, scoreLabel, shortDate, isIndexedPlayer, type NotableWin, type SplitRow, type TennisMatch, type TitleRow, type Tour } from '../../lib/tennisStats';
+import { ukToday } from '../../lib/ukDate';
 
 function splitColumns(label: string, link?: (key: string) => string): Column<SplitRow>[] {
   return [
@@ -197,7 +198,7 @@ export default function TennisPlayerPage({ initialData }: { initialData?: Tennis
 
 /** Full name, country, age and playing hand, when Wikidata has them. */
 function PlayerBio({ player }: { player: TennisPlayerData['player'] }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ukToday();
   // Not seen for a year: show age at the last match rather than today's.
   const retired = player.last_match < new Date(Date.parse(`${today}T12:00:00Z`) - 365 * 86400000).toISOString().slice(0, 10);
   const parts: React.ReactNode[] = [];

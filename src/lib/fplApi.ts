@@ -29,6 +29,7 @@ import type {
   PlayerSquadHierarchyRow,
 } from '../types/database';
 import { getCurrentFplSeasonId } from './currentSeason';
+import { selectAllPages } from './pagedSelect';
 
 /**
  * The model_version currently surfaced by the frontend as "the" production
@@ -138,14 +139,22 @@ export function seasonContextStats(
 export async function getGamesInvolvedCounts(playerIds: number[]): Promise<Map<number, number>> {
   const out = new Map<number, number>();
   if (playerIds.length === 0) return out;
-  const { data, error } = await supabase
-    .from('fpl_player_gameweeks')
-    .select('fpl_player_id, minutes')
-    .eq('season_id', await getCurrentFplSeasonId())
-    .in('fpl_player_id', playerIds)
-    .gt('minutes', 0);
-  if (error) throw error;
-  for (const row of (data ?? [])) out.set(row.fpl_player_id, (out.get(row.fpl_player_id) ?? 0) + 1);
+  const seasonId = await getCurrentFplSeasonId();
+  // Paged: the whole squad list has ~2,200 such rows by mid-season, over
+  // PostgREST's 1,000-row cap (audit 2026-10-22, CODE-04). Ordered by the
+  // primary key (fpl_player_id, fpl_fixture_id) so pages don't overlap.
+  const rows = await selectAllPages<{ fpl_player_id: number }>((from, to) =>
+    supabase
+      .from('fpl_player_gameweeks')
+      .select('fpl_player_id')
+      .eq('season_id', seasonId)
+      .in('fpl_player_id', playerIds)
+      .gt('minutes', 0)
+      .order('fpl_player_id')
+      .order('fpl_fixture_id')
+      .range(from, to),
+  );
+  for (const row of rows) out.set(row.fpl_player_id, (out.get(row.fpl_player_id) ?? 0) + 1);
   return out;
 }
 

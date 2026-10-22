@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import WatchGuideView from '../../components/WatchGuideView';
 import { getWatchGuide, type WatchGuideFixture } from '../../lib/broadcastsApi';
+import { ukToday, addIsoDays } from '../../lib/ukDate';
 
 export default function TvGuidePage() {
   const [fixtures, setFixtures] = useState<WatchGuideFixture[] | null>(null);
@@ -18,7 +19,7 @@ export default function TvGuidePage() {
   useEffect(() => {
     let live = true;
     // The next three weeks first (fast on mobile data), then the whole season.
-    const until = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
+    const until = addIsoDays(ukToday(), 21);
     let full = false;
     let shown = false;
     getWatchGuide('GB', { until })

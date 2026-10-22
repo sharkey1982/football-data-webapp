@@ -74,12 +74,16 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
   // Which division the team currently plays in -- taken from their most
   // recent fixture rather than stored on the team, because teams get
   // promoted and relegated.
-  const { data: recent } = await supabase
+  // Errors are thrown, not read as "no data": a failed read here would show
+  // the team with no division or strength as if that were the truth
+  // (audit 2026-10-22, CODE-13).
+  const { data: recent, error: recentErr } = await supabase
     .from('fixtures')
     .select('league_id, leagues(name)')
     .or(`home_team_id.eq.${team.team_id},away_team_id.eq.${team.team_id}`)
     .order('kickoff_date', { ascending: false })
     .limit(1);
+  if (recentErr) throw recentErr;
   const leagueId = recent?.[0]?.league_id ?? null;
   const leagueName = recent?.[0]?.leagues?.name ?? null;
 
@@ -92,28 +96,31 @@ export async function getTeamPageBySlug(slug: string): Promise<TeamPageProfile |
     // status = 'accepted' only -- a fit can converge and still be
     // statistically pathological, so this mirrors getLatestFitRun()
     // rather than taking the newest row.
-    const { data: fit } = await supabase
+    const { data: fit, error: fitErr } = await supabase
       .from('model_fit_runs')
       .select('fit_run_id, fitted_at')
       .eq('league_id', leagueId)
       .eq('status', 'accepted')
       .order('fitted_at', { ascending: false })
       .limit(1);
+    if (fitErr) throw fitErr;
     const fitRunId = fit?.[0]?.fit_run_id ?? null;
     fittedAt = fit?.[0]?.fitted_at ?? null;
 
     if (fitRunId != null) {
-      const { data: rating } = await supabase
+      const { data: rating, error: ratingErr } = await supabase
         .from('team_ratings')
         .select('attack_strength, defence_strength, is_estimated')
         .eq('fit_run_id', fitRunId)
         .eq('team_id', team.team_id)
         .maybeSingle();
-      const { data: override } = await supabase
+      if (ratingErr) throw ratingErr;
+      const { data: override, error: overrideErr } = await supabase
         .from('team_strength_manual_override')
         .select('attack_adjustment, defence_adjustment')
         .eq('team_id', team.team_id)
         .maybeSingle();
+      if (overrideErr) throw overrideErr;
 
       if (rating) {
         const atk = Number(rating.attack_strength) + Number(override?.attack_adjustment ?? 0);
@@ -164,12 +171,14 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
   const rows = (data ?? []);
   if (rows.length === 0) return [];
 
-  const { data: results } = await supabase
+  const { data: results, error: resultsErr } = await supabase
     .from('matches')
     .select('match_id, home_team_id, away_team_id, match_date, full_time_home_goals, full_time_away_goals')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+  // A failed read would show every played game as unplayed.
+  if (resultsErr) throw resultsErr;
   const resultByKey = new Map<string, any>(
     (results ?? []).map((m) => [`${m.home_team_id}|${m.away_team_id}|${m.match_date}`, m])
   );

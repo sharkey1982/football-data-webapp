@@ -26,6 +26,7 @@ import type { Database, MatchInsert, MatchResult } from '../src/types/database';
 import { createHash } from 'node:crypto';
 import { csvUrlFor, selectRows } from './lib/footballDataCsv';
 import { rowsToArchive, type RawRow } from './lib/rawArchive';
+import { selectAllPages } from '../src/lib/pagedSelect';
 
 const LEAGUE_CODE = process.env.IMPORT_LEAGUE_CODE ?? 'E0';
 // Season: IMPORT_SEASON_LABEL for a one-off (e.g. a historic season);
@@ -313,15 +314,18 @@ async function main() {
     for (const o of others ?? []) seasonIdByLabel.set(o.label, o.season_id);
   }
 
-  const { data: aliases, error: aliasErr } = await supabase
-    .from('team_aliases')
-    .select('team_id, raw_name')
-    .eq('source_name', SOURCE_NAME);
-  if (aliasErr) {
-    await fail(supabase, `Could not load team_aliases: ${aliasErr.message}`, rows.length);
+  // Paged: 679 aliases today, and past PostgREST's 1,000-row cap mappings
+  // would drop silently and rows be "skipped" (audit 2026-10-22, CODE-04).
+  let aliases: { team_id: number; raw_name: string }[] = [];
+  try {
+    aliases = await selectAllPages<{ team_id: number; raw_name: string }>((from, to) =>
+      supabase.from('team_aliases').select('team_id, raw_name').eq('source_name', SOURCE_NAME).order('team_alias_id').range(from, to),
+    );
+  } catch (e) {
+    await fail(supabase, `Could not load team_aliases: ${(e as { message?: string }).message ?? String(e)}`, rows.length);
   }
   const teamIdByRawName = new Map<string, number>();
-  for (const a of aliases ?? []) teamIdByRawName.set(a.raw_name, a.team_id);
+  for (const a of aliases) teamIdByRawName.set(a.raw_name, a.team_id);
 
   const inserts: MatchInsert[] = [];
   const skipped: string[] = excluded.map(

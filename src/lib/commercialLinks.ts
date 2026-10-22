@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { supabase } from './supabase';
+import { ukToday } from './ukDate';
 
 export type AffiliateCategory = 'streaming' | 'tickets' | 'merchandise' | 'travel' | 'stadium_experiences';
 
@@ -60,7 +61,7 @@ function toPartner(r: Record<string, unknown>): AffiliatePartner {
  * GB). A small table (a handful of rows) -- no caching layer, a fresh
  * fetch each time is cheap and always correct if a row changes. */
 export async function getActivePartners(category: AffiliateCategory, market = 'GB'): Promise<AffiliatePartner[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ukToday();
   const { data, error } = await db
     .from('affiliate_partners')
     .select(COLUMNS)

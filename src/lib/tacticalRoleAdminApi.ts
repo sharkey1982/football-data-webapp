@@ -224,10 +224,11 @@ export async function getTacticalRoleReview(): Promise<TacticalRoleRow[]> {
 
   // Other positions: optional (the table may not exist on an old database).
   const othersByPlayer = new Map<number, OtherPosition[]>();
-  const { data: otherRows } = await supabase
+  const { data: otherRows, error: otherErr } = await supabase
     .from('team_player_other_positions' as never)
     .select('fpl_player_id, tactical_role, depth_rank')
     .eq('season_id', await getCurrentFplSeasonId());
+  if (otherErr) throw otherErr;
   for (const o of (otherRows ?? []) as { fpl_player_id: number; tactical_role: string; depth_rank: number }[]) {
     othersByPlayer.set(o.fpl_player_id, [...(othersByPlayer.get(o.fpl_player_id) ?? []), { role: o.tactical_role, rank: o.depth_rank }].sort((a, b) => a.rank - b.rank));
   }

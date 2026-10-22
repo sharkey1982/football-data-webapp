@@ -15,6 +15,7 @@ import WatchGuideView from '../../components/WatchGuideView';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { TENNIS_TV_GUIDE_PATH, loadTennisGuide, type TennisGuideData } from '../../lib/tennisApi';
 import { tennisGuideItems } from '../../lib/tennisWatch';
+import { ukToday } from '../../lib/ukDate';
 
 const SOURCES = [
   { label: 'Sky Sports Tennis', url: 'https://www.sportspro.com/news/sky-sports-tennis-channel-uk-broadcast/' },
@@ -22,7 +23,7 @@ const SOURCES = [
 ];
 
 export default function TennisTvGuidePage({ initialData, today }: { initialData?: TennisGuideData; today?: string }) {
-  const day = today ?? new Date().toISOString().slice(0, 10);
+  const day = today ?? ukToday();
   const { data, failed } = useKeyedFetch(day, () => loadTennisGuide(day), initialData ? { key: day, data: initialData } : undefined);
   const fixtures = useMemo(() => (data ? tennisGuideItems(data.calendar, data.recent, day) : null), [data, day]);
   return (

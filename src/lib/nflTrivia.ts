@@ -71,7 +71,8 @@ function bestRecordNow(rows: NflStanding[]): TriviaFact | null {
 }
 
 async function topFantasyScorer(): Promise<TriviaFact | null> {
-  const { data: s } = await supabase.from('nfl_season_summary' as never).select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
+  const { data: s, error: sErr } = await supabase.from('nfl_season_summary' as never).select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
+  if (sErr) throw sErr; // safely() drops this fact; a failed read is not "no finished season"
   const done = ((s ?? []) as { season: number; reg_games: number; reg_played: number }[]).find((x) => x.reg_games > 0 && x.reg_played === x.reg_games);
   if (!done) return null;
   const { data, error } = await supabase
@@ -93,7 +94,8 @@ async function topFantasyScorer(): Promise<TriviaFact | null> {
 }
 
 async function generousDefence(): Promise<TriviaFact | null> {
-  const { data: s } = await supabase.from('nfl_season_summary' as never).select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
+  const { data: s, error: sErr } = await supabase.from('nfl_season_summary' as never).select('season,reg_games,reg_played').order('season', { ascending: false }).limit(3);
+  if (sErr) throw sErr; // safely() drops this fact; a failed read is not "no finished season"
   const done = ((s ?? []) as { season: number; reg_games: number; reg_played: number }[]).find((x) => x.reg_games > 0 && x.reg_played === x.reg_games);
   if (!done) return null;
   const { data, error } = await supabase

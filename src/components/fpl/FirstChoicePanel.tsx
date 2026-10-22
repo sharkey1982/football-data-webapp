@@ -11,9 +11,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getFirstChoices, removeFirstChoice, setFirstChoice, type FirstChoice, type OutlookPlayer } from '../../lib/minutesOutlookApi';
 import { triggerWorkflow } from '../../lib/workflowTrigger';
+import { ukToday } from '../../lib/ukDate';
 
 const BTN = 'min-h-11 px-4 rounded text-sm font-medium disabled:opacity-40';
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => ukToday();
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

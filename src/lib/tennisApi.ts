@@ -27,6 +27,7 @@ import {
   type TennisPlayer,
   type Tour,
 } from './tennisStats';
+import { ukToday } from './ukDate';
 
 export const TENNIS_HUB_PATH = '/tennis';
 export const TENNIS_DISCOVER_PATH = '/tennis/discover';
@@ -273,7 +274,7 @@ export async function loadTennisSlams(tour: Tour): Promise<TennisSlamsData> {
 // ---------------------------------------------------------------------------
 export type TennisGuideData = { calendar: CalendarRow[]; recent: TennisEdition[]; latestDate: string | null };
 
-export async function loadTennisGuide(today = new Date().toISOString().slice(0, 10)): Promise<TennisGuideData> {
+export async function loadTennisGuide(today = ukToday()): Promise<TennisGuideData> {
   const since = new Date(Date.parse(`${today}T12:00:00Z`) - 21 * 86400000).toISOString().slice(0, 10);
   const [calendar, recent] = await Promise.all([
     pagedView<CalendarRow>('tennis_calendar', CALENDAR_COLUMNS, (q) => q, 'usual_start'),

@@ -11,6 +11,7 @@
 //   * a final won by walkover is still a title; a "Not played" final is not.
 // ============================================================================
 
+import { ukToday } from './ukDate';
 export type Tour = 'ATP' | 'WTA';
 export const TOURS: Tour[] = ['ATP', 'WTA'];
 export const FIRST_YEAR: Record<Tour, number> = { ATP: 2000, WTA: 2007 };
@@ -357,7 +358,7 @@ function streaks(rows: TennisMatch[]): Streak[] {
 }
 
 /** complete: the season's last final (Tour Finals) has been played, or the year is over. */
-export function seasonSummary(tour: Tour, year: number, matches: TennisMatch[], today = new Date().toISOString().slice(0, 10)): SeasonSummary {
+export function seasonSummary(tour: Tour, year: number, matches: TennisMatch[], today = ukToday()): SeasonSummary {
   const rows = [...matches].sort(byPlayOrder);
   const finals = rows.filter(isTitle);
   const allFinals = finals.map(finalRow).sort((a, b) => a.date.localeCompare(b.date));
@@ -418,7 +419,7 @@ export function seasonSentence(s: SeasonSummary): string {
 /** One row per year for the seasons list, from that tour's finals. */
 export type SeasonIndexRow = { year: number; slams: FinalRow[]; topName: string | null; topSlug: string | null; topTitles: number; finals: number; complete: boolean };
 
-export function seasonIndex(finals: TennisMatch[], today = new Date().toISOString().slice(0, 10)): SeasonIndexRow[] {
+export function seasonIndex(finals: TennisMatch[], today = ukToday()): SeasonIndexRow[] {
   const byYear = new Map<number, TennisMatch[]>();
   for (const m of finals) if (isTitle(m)) byYear.set(m.year, [...(byYear.get(m.year) ?? []), m]);
   return [...byYear.entries()]
