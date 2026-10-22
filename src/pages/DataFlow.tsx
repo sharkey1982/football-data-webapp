@@ -10,7 +10,7 @@
 // survives.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   getFlowNodes,
   getFlowHistory,
@@ -279,9 +279,8 @@ export default function DataFlow() {
             </thead>
             <tbody>
               {shown.map((n) => (
-                <>
+                <Fragment key={n.node_key}>
                   <tr
-                    key={n.node_key}
                     onClick={() => setOpen(open === n.node_key ? null : n.node_key)}
                     className="border-t border-chalk-200 cursor-pointer hover:bg-chalk-50"
                   >
@@ -299,13 +298,13 @@ export default function DataFlow() {
                     </td>
                   </tr>
                   {open === n.node_key && (
-                    <tr key={`${n.node_key}-detail`}>
+                    <tr>
                       <td colSpan={4} className="p-0">
                         <NodeDetail node={n} onSaved={(u) => setNodes((prev) => (prev ?? []).map((p) => (p.node_key === u.node_key ? u : p)))} />
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -174,6 +174,18 @@ function PairBars({ items }: { items: { key: string; label: string; home: number
 
 type SortKey = 'season' | 'pyramid' | 'played' | 'won' | 'drawn' | 'lost' | 'gf' | 'ga' | 'gd' | 'cs' | 'pts' | 'ppg';
 
+// Declared outside SeasonTable so React keeps one component identity across renders.
+function Th({ k, label, cls = '', sortKey, dir, onSort }: { k: SortKey; label: string; cls?: string; sortKey: SortKey; dir: 'asc' | 'desc'; onSort: (k: SortKey) => void }) {
+  return (
+    <th aria-sort={sortKey === k ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={`px-2 py-2 font-medium ${cls}`}>
+      <button type="button" onClick={() => onSort(k)} className="whitespace-nowrap">
+        {label}
+        {sortKey === k && <span className="ml-1">{dir === 'asc' ? '\u25b2' : '\u25bc'}</span>}
+      </button>
+    </th>
+  );
+}
+
 function SeasonTable({ rows, venue, teamSlug }: { rows: StandingRow[]; venue: Venue; teamSlug?: string | null }) {
   const [sortKey, setSortKey] = useState<SortKey>('season');
   const [dir, setDir] = useState<'asc' | 'desc'>('desc');
@@ -222,24 +234,15 @@ function SeasonTable({ rows, venue, teamSlug }: { rows: StandingRow[]; venue: Ve
     { key: 'pts', label: 'Pts' },
     { key: 'ppg', label: 'PPG', hideMobile: true },
   ];
-  const Th = ({ k, label, cls = '' }: { k: SortKey; label: string; cls?: string }) => (
-    <th aria-sort={sortKey === k ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={`px-2 py-2 font-medium ${cls}`}>
-      <button type="button" onClick={() => onSort(k)} className="whitespace-nowrap">
-        {label}
-        {sortKey === k && <span className="ml-1">{dir === 'asc' ? '\u25b2' : '\u25bc'}</span>}
-      </button>
-    </th>
-  );
-
   return (
     <div className="border border-chalk-300 rounded-lg bg-white overflow-x-auto">
       <table className="w-full text-sm" aria-label="Season by season">
         <thead className="bg-chalk-100 text-ink-700">
           <tr>
-            <Th k="season" label="Season" cls="text-left" />
+            <Th k="season" label="Season" cls="text-left" sortKey={sortKey} dir={dir} onSort={onSort} />
             <th className="px-2 py-2 font-medium text-left hidden sm:table-cell">Div</th>
             {cols.map((c) => (
-              <Th key={c.key} k={c.key} label={c.label} cls={`text-right ${c.hideMobile ? 'hidden sm:table-cell' : ''}`} />
+              <Th key={c.key} k={c.key} label={c.label} cls={`text-right ${c.hideMobile ? 'hidden sm:table-cell' : ''}`} sortKey={sortKey} dir={dir} onSort={onSort} />
             ))}
           </tr>
         </thead>

@@ -41,11 +41,12 @@ export default function TitlesByLevel({ rows, name }: { rows: LevelTitles[]; nam
   const c = size / 2;
   const R = 84;
   const inner = 50;
-  let a = 0;
-  const segs = parts.map((p) => {
-    const a0 = a;
-    a += (p.n / total) * Math.PI * 2;
-    return { ...p, d: arc(c, c, R, inner, a0, a) };
+  // Cumulative start angle of each part, without reassigning a variable inside render callbacks.
+  const starts = parts.map((_, i) => parts.slice(0, i).reduce((s, q) => s + q.n, 0));
+  const segs = parts.map((p, i) => {
+    const a0 = (starts[i] / total) * Math.PI * 2;
+    const a1 = ((starts[i] + p.n) / total) * Math.PI * 2;
+    return { ...p, d: arc(c, c, R, inner, a0, a1) };
   });
   const top = parts.reduce((b, p) => (p.n > b.n ? p : b), parts[0]);
   return (

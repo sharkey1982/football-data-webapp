@@ -131,12 +131,13 @@ export default function LastManStandingPage() {
   const betaFitted = field?.fit ? Math.round(field.fit.beta * 10) / 10 : null;
   const beta = int(params.get('beta'), betaFitted ?? 7);
   const usedShare0 = field && field.before.length ? field.stateBefore.usedShare : undefined;
+  const fieldCurrent = field?.current ?? null;
   const pickShares0 = useMemo(() => {
-    if (!field?.current || !problem) return undefined;
-    const c = field.current.counts.map((n, j) => (problem.cells[0]?.[j] ? n : 0));
+    if (!fieldCurrent || !problem) return undefined;
+    const c = fieldCurrent.counts.map((n, j) => (problem.cells[0]?.[j] ? n : 0));
     const tot = c.reduce((a, b) => a + b, 0);
     return tot > 0 ? c.map((n) => n / tot) : undefined;
-  }, [field, problem]);
+  }, [fieldCurrent, problem]);
 
   const masks = useMemo(() => {
     if (!problem) return [];
