@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import { getSeasons } from '../../lib/referenceApi';
 import { getCurrentSeasonId } from '../../lib/currentSeason';
 import BetList from '../../components/betting/BetList';
@@ -118,7 +118,7 @@ export default function ModelReturnsPage() {
         );
         setSeasonId(cur);
       })
-      .catch((e) => live && setError(getErrorMessage(e, 'Could not load the seasons')));
+      .catch((e) => live && setError(friendlyError(e, 'Could not load the seasons')));
     return () => {
       live = false;
     };
@@ -142,7 +142,7 @@ export default function ModelReturnsPage() {
         setRows(r);
         setBets(b);
       })
-      .catch((e) => live && setError(getErrorMessage(e, 'Could not work out the returns')));
+      .catch((e) => live && setError(friendlyError(e, 'Could not work out the returns')));
     return () => {
       live = false;
     };
@@ -341,7 +341,7 @@ export default function ModelReturnsPage() {
           )}
 
           <p className="text-xs text-ink-500">
-            <span className="text-amber-600" aria-hidden="true">&uarr;</span> marks a team promoted into its division that season;
+            <span className="text-amber-700" aria-hidden="true">&uarr;</span> marks a team promoted into its division that season;
             the promoted filter includes, drops or keeps only bets on matches involving one. Before 2026/27, only the Premier
             League has been retro-fitted. Prices are from Bet365, Bet&amp;Win and Pinnacle (not every match), plus football-data.co.uk&rsquo;s market best and
             market average across many more bookmakers. &ldquo;Best of the books&rdquo; takes the highest price on file;

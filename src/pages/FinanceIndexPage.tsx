@@ -35,7 +35,7 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <p className="font-mono text-xs text-amber-600 uppercase tracking-widest">Statutory accounts</p>
+        <p className="font-mono text-xs text-amber-700 uppercase tracking-widest">Statutory accounts</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">The Boardroom</h1>
         <p><Link to="/finance/compare" className="text-pitch-800 underline underline-offset-2">Compare Club Finances &rarr;</Link></p>
         <p className="text-ink-700 max-w-prose">

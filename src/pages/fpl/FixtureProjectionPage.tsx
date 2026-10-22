@@ -4,7 +4,7 @@ import { getFplFixtureProjection, getFplActualVsPredicted, type FplFixtureProjec
 import ProjectionSummary from '../../components/fpl/ProjectionSummary';
 import TeamProjectionPanel from '../../components/fpl/TeamProjectionPanel';
 import ActualVsPredictedTable from '../../components/fpl/ActualVsPredictedTable';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useNoindex } from '../../hooks/useNoindex';
 import NotFoundPage from '../NotFoundPage';
@@ -49,7 +49,7 @@ export default function FixtureProjectionPage() {
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load projection'));
+        if (!cancelled) setError(friendlyError(e, 'Failed to load projection'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -72,7 +72,7 @@ export default function FixtureProjectionPage() {
         if (!cancelled) setActual(data);
       })
       .catch((e) => {
-        if (!cancelled) setActualError(getErrorMessage(e, 'Failed to load actual lineup data'));
+        if (!cancelled) setActualError(friendlyError(e, 'Failed to load actual lineup data'));
       })
       .finally(() => {
         if (!cancelled) setLoadingActual(false);

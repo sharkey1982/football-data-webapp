@@ -22,7 +22,7 @@ import WeeklySquadView from '../../components/fpl/WeeklySquadView';
 import GameweekRangeFilter from '../../components/fpl/GameweekRangeFilter';
 import { getSquadPitchEnrichment } from '../../lib/fplApi';
 import { listScoutPlayers, POSITION, type ScoutListPlayer } from '../../lib/playerScoutApi';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 
 const MAX_RANGE_SPAN = 9; // to - from, matching the backend's own 10-GW cap
 
@@ -73,7 +73,8 @@ function SquadTable({ players }: { players: FplOptimizerPlayer[] }) {
 export default function OptimalSquadPage() {
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
   // The gameweek in play, if any -- the range filter offers to leave it out.
-  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
+  // undefined while loading: the range filter waits for it (one data fetch, not two).
+  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null | undefined>(undefined);
   useEffect(() => {
     getGameweekInPlay().then(setInPlay).catch(() => setInPlay(null));
   }, []);
@@ -191,7 +192,7 @@ export default function OptimalSquadPage() {
       // own settings -- nothing user-identifying.
       trackEvent('optimiser_run', { from_gameweek: fromGw, to_gameweek: toGw, budget });
     } catch (e) {
-      setError(getErrorMessage(e, 'Failed to optimise squad'));
+      setError(friendlyError(e, 'Failed to optimise squad'));
       setResult(null);
     } finally {
       setLoading(false);
@@ -217,7 +218,8 @@ export default function OptimalSquadPage() {
 
       <div className="bg-white border border-chalk-300 rounded-lg p-3 space-y-3">
         <GameweekRangeFilter
-          inPlay={inPlay}
+          inPlay={inPlay ?? null}
+          inPlayLoading={inPlay === undefined}
           defaultGw={defaultGw}
           fromGw={fromGw}
           toGw={toGw}

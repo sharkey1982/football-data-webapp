@@ -47,7 +47,7 @@ export function Cell({ c, mode, fit, divider = false }: { c: OutlookCell | undef
           <span className="text-loss-700 font-medium">out</span>
         ) : (
           <>
-            {flagged && <span className="text-amber-600" aria-label="availability doubt">&bull;</span>}
+            {flagged && <span className="text-amber-700" aria-label="availability doubt">&bull;</span>}
             {label}
             {c.fixtures > 1 && <sup className="ml-px">&times;{c.fixtures}</sup>}
           </>

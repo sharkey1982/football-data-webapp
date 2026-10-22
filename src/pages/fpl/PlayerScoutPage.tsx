@@ -31,6 +31,7 @@ import {
   type ScoutSortKey,
   type GameweekBreakdown,
 } from '../../lib/playerScoutApi';
+import { rowKeys } from '../../lib/rowKeys';
 
 function Phasing({ s }: { s: PlayerSeason }) {
   if (s.points_early == null && s.points_mid == null && s.points_late == null) {
@@ -312,6 +313,7 @@ export default function PlayerScoutPage() {
                           i % 2 === 1 ? 'bg-chalk-100/60' : '',
                         ].join(' ')}
                         onClick={() => (p.slug ? navigate(`/fpl/player-scout/${p.slug}`) : setSelectedListPlayer(p))}
+                        {...rowKeys(() => (p.slug ? navigate(`/fpl/player-scout/${p.slug}`) : setSelectedListPlayer(p)))}
                       >
                         <th scope="row" className="text-left px-3 py-1.5 text-xs font-normal">
                           {p.slug ? (

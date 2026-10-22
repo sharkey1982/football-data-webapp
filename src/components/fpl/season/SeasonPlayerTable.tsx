@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { SeasonPlayerProjection } from '../../../lib/fplSeasonApi';
 import { FPL_POSITION_LABEL } from '../../../lib/fplApi';
+import { rowKeys } from '../../../lib/rowKeys';
 
 type SortKey =
   | 'web_name'
@@ -194,6 +195,8 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
                 <Fragment key={rowKey}>
                 <tr
                   onClick={() => hasBreakdown && setExpandedKey(isExpanded ? null : rowKey)}
+                  {...rowKeys(() => setExpandedKey(isExpanded ? null : rowKey), hasBreakdown)}
+                  aria-expanded={hasBreakdown ? isExpanded : undefined}
                   className={['border-b border-chalk-200 last:border-b-0 hover:bg-chalk-100 transition-colors', hasBreakdown ? 'cursor-pointer' : ''].join(' ')}
                 >
                   <td className="px-3 py-1.5">
@@ -220,7 +223,7 @@ export default function SeasonPlayerTable({ players }: { players: SeasonPlayerPr
                   <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">
                     {p.actual_points === null ? '\u2014' : p.actual_points}
                   </td>
-                  <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-600' : 'text-ink-700'].join(' ')}>
+                  <td className={['px-2 py-1.5 text-right font-mono text-xs', uncertain ? 'text-amber-700' : 'text-ink-700'].join(' ')}>
                     {pct(p.start_probability)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-mono text-xs text-ink-700">

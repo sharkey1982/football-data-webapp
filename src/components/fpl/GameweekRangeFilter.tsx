@@ -49,6 +49,11 @@ export default function GameweekRangeFilter({
    * or exclude it; excluded (the default), every preset counts from the
    * next FULL gameweek instead. Omit on pages where it doesn't apply. */
   inPlay = null,
+  /** True while the page is still finding out which gameweek is in play.
+   * The preset waits for it: applied before, it fired once with the in-play
+   * week and again without it, and the page fetched its data twice (audit
+   * 22 Oct 2026, S-08: /fpl/player-points downloaded 2 x 415 KB). */
+  inPlayLoading = false,
 }: {
   defaultGw: number | null;
   fromGw: number | null;
@@ -58,6 +63,7 @@ export default function GameweekRangeFilter({
   initialPreset?: GameweekRangePreset;
   presets?: GameweekRangePreset[];
   inPlay?: { gw: number; played: number; total: number } | null;
+  inPlayLoading?: boolean;
 }) {
   const [preset, setPreset] = useState<GameweekRangePreset>(initialPreset);
   const [includeInPlay, setIncludeInPlay] = useState(false);
@@ -66,14 +72,14 @@ export default function GameweekRangeFilter({
   const baseGw = defaultGw === null ? null : inPlayApplies && !includeInPlay ? defaultGw + 1 : defaultGw;
 
   useEffect(() => {
-    if (defaultGw === null) return;
+    if (defaultGw === null || inPlayLoading) return;
     applyPreset(preset);
     // Only re-run when the default first resolves -- a later change to
     // `preset` re-runs this deliberately (see applyPreset below), but this
     // effect itself must not fire again just because fromGw/toGw changed
     // as a RESULT of applying a preset, or picking "This GW" would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultGw, inPlayApplies]);
+  }, [defaultGw, inPlayApplies, inPlayLoading]);
 
   function applyPreset(p: GameweekRangePreset, base: number | null = baseGw) {
     setPreset(p);

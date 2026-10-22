@@ -15,6 +15,7 @@ import FantasyFixtureHeatmap, {
   type FantasyMetric,
 } from '../components/FantasyFixtureHeatmap';
 import { FitFreshnessBanner } from '../components/FitFreshnessBanner';
+import { friendlyError } from '../lib/errorMessage';
 
 type FantasyDefenceMetric = 'goals' | 'cleansheet';
 
@@ -37,7 +38,8 @@ export default function FantasyFixtures() {
   // start week, the span is how many fixtures the ranking averages.
   const [fromGw, setFromGw] = useState<number | null>(null);
   const [toGw, setToGw] = useState<number | null>(null);
-  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
+  // undefined while loading: the range filter waits for it (one data fetch, not two).
+  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null | undefined>(undefined);
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
   // Clean sheet probability is a goals-model output -- FDR has no
   // equivalent -- so switching to it forces the colour scale back to the
@@ -87,7 +89,7 @@ export default function FantasyFixtures() {
         if (cancelled) return;
         setData(fixtureData);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load fixture data');
+        if (!cancelled) setError(friendlyError(e, 'Failed to load fixture data'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -345,7 +347,8 @@ export default function FantasyFixtures() {
 
         <div className="w-full">
           <GameweekRangeFilter
-            inPlay={inPlay}
+            inPlay={inPlay ?? null}
+          inPlayLoading={inPlay === undefined}
             defaultGw={defaultGw}
             fromGw={fromGw}
             toGw={toGw}

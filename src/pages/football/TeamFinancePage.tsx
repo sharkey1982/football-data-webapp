@@ -41,6 +41,7 @@ import {
   seasonLabel,
   signedMoney,
 } from '../../lib/financeFormat';
+import NotFoundPage from '../NotFoundPage';
 
 type Props = { initialData?: ClubFinanceData | null };
 
@@ -103,14 +104,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
     );
   }
   if (data === undefined) return <p className="text-ink-500">Loading accounts&hellip;</p>;
-  if (data === null) {
-    return (
-      <div className="space-y-3">
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Team not found</h1>
-        <p><Link to="/teams" className="text-pitch-800 underline underline-offset-2">Browse all teams</Link></p>
-      </div>
-    );
-  }
+  if (data === null) return <NotFoundPage heading="Team not found" message="No club accounts at this address." back={{ to: '/teams', label: 'Browse all teams' }} />;
   if (!latest) {
     return (
       <div className="space-y-3">
@@ -149,7 +143,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
     <div className="space-y-8">
       {/* 1. HEADER */}
       <header className="space-y-2">
-        <p className="font-mono text-xs text-amber-600 uppercase tracking-widest">Club finances &middot; statutory accounts</p>
+        <p className="font-mono text-xs text-amber-700 uppercase tracking-widest">Club finances &middot; statutory accounts</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">{data.team.display_name} finances</h1>
         <dl className="text-sm text-ink-700 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
           <dt className="text-ink-500">Reporting entity</dt><dd>{latest.reporting_entity ?? NOT_DISCLOSED}</dd>
@@ -214,7 +208,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
       <section aria-labelledby="trends" className="space-y-2">
         <h2 id="trends" className="font-display uppercase tracking-wide text-lg text-ink-900">Over time</h2>
         {nonComparable.length > 0 && (
-          <p className="text-sm text-amber-600" role="note">
+          <p className="text-sm text-amber-700" role="note">
             {'\u2020'} {nonComparable.map((p) => fyLabel(p.period_end)).join(', ')} {nonComparable.length === 1 ? 'is' : 'are'} not directly comparable:
             later accounts restated {nonComparable.length === 1 ? 'that year' : 'those years'}, so {nonComparable.length === 1 ? 'it is' : 'they are'} shown
             hatched and no trend is drawn through {nonComparable.length === 1 ? 'it' : 'them'}.
@@ -244,7 +238,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
               <tr>
                 <th scope="col" className="sticky left-0 bg-chalk-200 text-left px-3 py-2 font-mono text-xs text-ink-500 font-normal">Figure</th>
                 {periods.map((p) => (
-                  <th key={p.period_end} scope="col" className={`px-3 py-2 text-right font-mono text-xs font-normal whitespace-nowrap ${p.is_comparable ? 'text-ink-700' : 'text-amber-600'}`}>
+                  <th key={p.period_end} scope="col" className={`px-3 py-2 text-right font-mono text-xs font-normal whitespace-nowrap ${p.is_comparable ? 'text-ink-700' : 'text-amber-700'}`}>
                     {fyLabel(p.period_end)}{p.is_comparable ? '' : ' \u2020'}
                   </th>
                 ))}
@@ -288,7 +282,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
         <ul className="text-xs text-ink-500 space-y-0.5">
           <li><span className="font-mono">&mdash;</span> Not disclosed in that year&rsquo;s filing. A disclosed zero is shown as &pound;0.</li>
           <li>Negative figures, in red, are losses or net liabilities.</li>
-          {nonComparable.length > 0 && <li className="text-amber-600">{'\u2020'} Not directly comparable with the years either side.</li>}
+          {nonComparable.length > 0 && <li className="text-amber-700">{'\u2020'} Not directly comparable with the years either side.</li>}
           <li>Rows marked <span className="font-mono">FixtureShark-derived</span> are calculated by FixtureShark from the filed figures; everything else is as filed.</li>
           {neverDisclosed.length > 0 && <li>Not disclosed in any period: {neverDisclosed.map(nameOf).join(', ')}.</li>}
         </ul>

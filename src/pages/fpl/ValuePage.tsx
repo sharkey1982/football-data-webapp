@@ -236,7 +236,7 @@ export default function ValuePage() {
                     <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums font-medium">
                       {r.points_per_million.toFixed(2)}
                     </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-amber-600">
+                    <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums text-amber-700">
                       {r.ownership?.toFixed(1)}%
                     </td>
                   </tr>

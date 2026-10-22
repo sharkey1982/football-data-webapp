@@ -12,6 +12,51 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Public pages could show raw database error text
+- **Found:** site audit of 22 Oct (S-19). Latent: no smoke run recorded one.
+- **Impact:** on a failed request, about 20 public pages (Team Strength, Player Projections, Optimal Squad, Compare, Scoring Rules, Model Scorecard, the TV guide and others) would have shown PostgREST text such as "permission denied for table ..." or "canceling statement due to statement timeout".
+- **Cause:** `getErrorMessage` passes the raw message through by design (useful on admin pages), and public pages used it too.
+- **Fix:** `friendlyError(e, what)`: database, API and network errors become "<what>. Please try again in a moment." with the raw error in the console; messages our own code writes for the visitor still show. Admin pages keep `getErrorMessage`.
+- **Prevention:** `src/__tests__/friendlyError.test.ts`. *Lesson: a message written for the developer is not a message for the visitor.*
+
+---
+
+## 2026-10-22 · Secondary text, amber text and focus ring under WCAG contrast; unlabelled filters; mouse-only rows
+- **Found:** site audit of 22 Oct (S-11, S-12).
+- **Impact:** `text-ink-500` (about 1,400 uses) was 4.4:1 on the page background and 3.9:1 on chalk-200 (AA needs 4.5:1); amber-600 text 2.9:1; the amber focus ring 2.1:1 on light surfaces (needs 3:1). Filters on /table, /fixtures, /football/projections and /preview had labels not tied to their selects, so screen readers announced them unnamed. Fixture, player and gameweek rows opened only on a mouse click.
+- **Cause:** colours chosen by eye; labels written as siblings without `htmlFor`; rows given `onClick` only.
+- **Fix:** ink-500 #6b7075 to #5a5f64 (5.7:1 / 5.1:1); new amber-700 #7d5c19 for amber text (5.4:1); focus ring pitch-800 on light surfaces, amber kept on dark panels; `htmlFor`/`id` on 14 filters; `rowKeys()` (tab stop, Enter/Space) on eight clickable row types, with `aria-expanded` where a row expands.
+- **Prevention:** label and row assertions in the LeagueTable and GameweekBrowser tests, `src/__tests__/rowKeys.test.tsx`. *Lesson: check a colour against the backgrounds it sits on, not on its own.*
+
+---
+
+## 2026-10-22 · NFL Snap Outlook failing (HTTP 500); 47 menu pages never smoke-tested
+- **Found:** site audit of 22 Oct (S-09); the snap-outlook failure by the first smoke run over every menu page (run 187, against production).
+- **Impact:** /nfl/snap-outlook's snap request returned HTTP 500, so the page showed no outlook. Unknown since when: 47 of the 71 header-menu pages, this one included, were in no smoke run. /fpl was recorded as "fpl-hub" though it is Match Projections; the NFL entry tested a 301 (/nfl/standings); fpl-fixture reported "no URL in the sitemap" every run.
+- **Cause:** `public.nfl_player_snaps` computes the team's snaps with a window partitioned by game and team, which stops the page's season and team filters reaching the table: every request sorted all 333,000 rows (1.8 s warm). The smoke list was hand-written.
+- **Fix:** `20261022130000_nfl_player_snaps_window_pushdown.sql` adds season and game type to the partition (identical values, checked row for row; 1.8 s to 0.14 s). The smoke test reads `scripts/smoke/menu-pages.json` (hubs and every menu page from journey.ts); /fpl is "fpl-match-projections", NFL is /nfl/table, fpl-fixture dropped.
+- **Prevention:** `src/__tests__/smokeMenuPages.test.ts` fails when the menu and the smoke list differ. Not done: previews still run main's smoke script (checking out the PR head would hand a fork's code the service key). *Lesson: a window function in a view hides the filters on top of it.*
+
+---
+
+## 2026-10-22 · TV guide downloaded its first three weeks twice; /fpl jumped while loading
+- **Found:** site audit of 22 Oct (S-08), production smoke runs 80-135.
+- **Impact:** /tv-guide fetched 2.4 MB per visit: the next three weeks (412 KB), then the whole season again from the start (1,958 KB). /fpl had CLS 0.21-0.25 in every production run (budget 0.1). /fpl/player-points could fetch its 415 KB projections twice when the gameweek in play arrived after the default gameweek.
+- **Cause:** the TV guide's second pass had no lower date bound and selected `*`; on /fpl the gameweek bar and the fixture-moved notice appeared above or between content already painted; the range filter applied its preset before knowing the in-play week, then again after.
+- **Fix:** second pass reads only `kickoff_date > until` and appends; named columns; /fpl shows its heading and a fixed-height placeholder for the gameweek bar while loading, and the notice sits below the bar; the range filter waits for the in-play answer (`inPlayLoading`) on the four pages that pass it. The twin `nfl_projections` and `tennis_players` reads in the smoke report are two pages of one paged read (1,000-row cap), not duplicates.
+- **Prevention:** `src/__tests__/auditPerf.test.tsx`, TvGuidePage test of the two passes; smoke CLS and payload budgets. *Lesson: a "load the rest" pass must start where the first one stopped.*
+
+---
+
+## 2026-10-22 · Stale titles and canonicals after navigation; indexable "not found" pages
+- **Found:** site audit of 22 Oct (S-05, S-10, S-17).
+- **Impact:** eleven pages (e.g. /fpl/player-points, /fpl, /team-strength) set no head, so after client-side navigation the tab title and `<link rel=canonical>` still named the previous page (e.g. Arsenal). "No such section/match/team" states under the hubs, international matches and teams, club finances and team-of-the-week rendered as normal 200 pages without noindex (soft 404s). llms.txt sent "Player projections" to /fpl, which is Match Projections.
+- **Cause:** the head was opt-in per page; not-found states were written page by page.
+- **Fix:** AppLayout applies the routeMeta head (or the site defaults, with no canonical) after each navigation when no mounted page manages the head (`activeDocumentHeads()`); every not-found branch renders `NotFoundPage` (noindex, with a link back to its list); llms.txt corrected.
+- **Prevention:** `src/__tests__/auditHeads.test.tsx`. *Lesson: a default that each page must remember to override is a default that some page forgets.*
+
+---
+
 ## 2026-10-22 · Home and hub pages empty without JavaScript; cookie banner held back LCP
 - **Found:** site audit of 22 Oct (S-04, S-07, S-12).
 - **Impact:** the raw HTML of /, /football, /fpl/start, /nfl, /tennis and /international had a head but no body, and the header menus rendered their links only when opened, so crawlers and link previews saw almost no internal links (Google has seen about 6.6% of the sitemap). On a third of pages the cookie banner, rendered by React after the bundle loaded, was the LCP element (prerendered pages: FCP ~700 ms, LCP ~2,100 ms). No skip link; menus did not close on Escape.

@@ -109,6 +109,9 @@
   --color-amber-400: #e3b455;
   --color-amber-500: #d4a03c;
   --color-amber-600: #b5862c;
+  /* Amber for TEXT on light backgrounds (audit 22 Oct 2026, S-11): 600 was
+     2.9:1 on chalk-100; 700 is 5.4:1 (4.8:1 on chalk-200). */
+  --color-amber-700: #7d5c19;
 
   /* Cup competitions get their own hue (steel blue) so they read as
      distinct from league fixtures wherever the two are mixed together
@@ -122,7 +125,9 @@
 
   --color-ink-900: #14171a;
   --color-ink-700: #3a3f42;
-  --color-ink-500: #6b7075;
+  /* #6b7075 until 22 Oct 2026: 4.4:1 on chalk-100 and 3.9:1 on chalk-200,
+     under WCAG AA's 4.5:1 (audit S-11). Now 5.7:1 and 5.1:1. */
+  --color-ink-500: #5a5f64;
 
   --color-loss-600: #a63d40;
   --color-loss-700: #8a3033;
@@ -149,9 +154,16 @@
   }
 
   /* Visible keyboard focus throughout -- not just for mouse users */
+  /* Dark ring on light surfaces (pitch-800: 9.7:1 on chalk-100; amber-500
+     was 2.1:1, under the 3:1 non-text minimum -- audit S-11); amber on the
+     dark header, footer banner and pitch panels, where it is 6.5:1. */
   :focus-visible {
-    outline: 2px solid var(--color-amber-500);
+    outline: 2px solid var(--color-pitch-800);
     outline-offset: 2px;
+  }
+  :is(.bg-pitch-950, .bg-pitch-900, .bg-pitch-800, .bg-pitch-700, .bg-ink-900) :focus-visible,
+  :is(.bg-pitch-950, .bg-pitch-900, .bg-pitch-800, .bg-pitch-700, .bg-ink-900):focus-visible {
+    outline-color: var(--color-amber-500);
   }
 }
 

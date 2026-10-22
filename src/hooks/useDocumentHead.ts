@@ -33,8 +33,47 @@ type DocumentHeadOptions = {
   jsonLd?: object;
 };
 
+// How many mounted pages currently manage the head. RouteHeadFallback
+// (AppLayout) fills the head from routeMeta only when none does (audit
+// 22 Oct 2026, S-10: pages without the hook kept the previous page's title
+// and canonical after client-side navigation).
+let activeHeads = 0;
+export function activeDocumentHeads(): number {
+  return activeHeads;
+}
+
+export const DEFAULT_DESCRIPTION =
+  'Football results, tables and model predictions, international football since 1872, Fantasy Premier League projections, club finances, the NFL and tennis.';
+
+/** Head for a route whose page doesn't set its own: the routeMeta title,
+ * description and canonical when the path has an entry, otherwise the site
+ * defaults with no canonical. Not restored on cleanup -- the next route's
+ * fallback or page overwrites every field. */
+export function applyFallbackHead(meta: { title: string; description?: string; path: string } | null): void {
+  document.title = meta ? `${meta.title} | ${BRAND_NAME}` : BRAND_NAME;
+  let descriptionTag = document.querySelector('meta[name="description"]');
+  if (!descriptionTag) {
+    descriptionTag = document.createElement('meta');
+    descriptionTag.setAttribute('name', 'description');
+    document.head.appendChild(descriptionTag);
+  }
+  descriptionTag.setAttribute('content', meta?.description ?? DEFAULT_DESCRIPTION);
+  let canonicalTag = document.querySelector('link[rel="canonical"]');
+  if (meta) {
+    if (!canonicalTag) {
+      canonicalTag = document.createElement('link');
+      canonicalTag.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonicalTag);
+    }
+    canonicalTag.setAttribute('href', absoluteUrl(meta.path));
+  } else {
+    canonicalTag?.remove();
+  }
+}
+
 export function useDocumentHead({ title, raw = false, description, path, jsonLd }: DocumentHeadOptions) {
   useEffect(() => {
+    activeHeads++;
     const previousTitle = document.title;
     document.title = raw ? title : `${title} | ${BRAND_NAME}`;
 
@@ -75,6 +114,7 @@ export function useDocumentHead({ title, raw = false, description, path, jsonLd 
     }
 
     return () => {
+      activeHeads--;
       document.title = previousTitle;
       if (descriptionTag) {
         if (previousDescription === null) {

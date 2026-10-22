@@ -15,6 +15,7 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { trackEvent } from '../../lib/analytics';
 import { fetchFplLive, shouldPoll, toScoreInput, type FplLiveData } from '../../lib/fplLiveApi';
 import { fixtureState, scoreLiveTeam, type LiveFixture, type PlayerScore } from '../../lib/fplLiveScore';
+import { friendlyError } from '../../lib/errorMessage';
 
 const STORAGE_KEY = 'fixtureshark.fplId';
 const POLL_MS = 60_000;
@@ -95,7 +96,7 @@ export default function FplLivePage() {
       } catch (e) {
         if (req !== reqRef.current) return;
         setData(null);
-        setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+        setError(friendlyError(e, 'Something went wrong'));
       } finally {
         if (req === reqRef.current) setLoading(false);
       }
@@ -114,7 +115,8 @@ export default function FplLivePage() {
       setCheckedAt(new Date());
     } catch (e) {
       if (req !== reqRef.current) return;
-      setError(e instanceof Error ? `${e.message} Showing the last figures.` : 'Couldn\u2019t refresh. Showing the last figures.');
+      console.error('FPL live refresh:', e);
+      setError('Couldn\u2019t refresh. Showing the last figures.');
     }
   }, [urlId, urlGw]);
 
@@ -169,7 +171,7 @@ export default function FplLivePage() {
           ) : (
             p.webName
           )}
-          {p.multiplier >= 2 && <span className="ml-1 text-xs font-mono text-amber-600" title={p.multiplier === 3 ? 'Triple captain' : 'Captain'}>{p.multiplier === 3 ? 'TC' : 'C'}</span>}
+          {p.multiplier >= 2 && <span className="ml-1 text-xs font-mono text-amber-700" title={p.multiplier === 3 ? 'Triple captain' : 'Captain'}>{p.multiplier === 3 ? 'TC' : 'C'}</span>}
           {p.isViceCaptain && p.multiplier < 2 && <span className="ml-1 text-xs font-mono text-ink-500" title="Vice-captain">V</span>}
           {p.subbedIn && <span className="ml-1 text-xs text-pitch-700" title="Automatic sub: on">&uarr; on</span>}
           {p.subbedOut && <span className="ml-1 text-xs text-loss-700" title="Automatic sub: off">&darr; off</span>}

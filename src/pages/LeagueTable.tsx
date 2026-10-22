@@ -176,8 +176,9 @@ export default function LeagueTable() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl">
         <div>
-          <label className={labelClass}>Country</label>
+          <label htmlFor="table-country" className={labelClass}>Country</label>
           <select
+            id="table-country"
             value={countryId ?? ''}
             onChange={(e) => setCountryId(e.target.value ? Number(e.target.value) : null)}
             className={selectClass}
@@ -191,8 +192,9 @@ export default function LeagueTable() {
           </select>
         </div>
         <div>
-          <label className={labelClass}>Division</label>
+          <label htmlFor="table-division" className={labelClass}>Division</label>
           <select
+            id="table-division"
             value={leagueId ?? ''}
             onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : null)}
             className={selectClass}
@@ -206,8 +208,9 @@ export default function LeagueTable() {
           </select>
         </div>
         <div>
-          <label className={labelClass}>Season</label>
+          <label htmlFor="table-season" className={labelClass}>Season</label>
           <select
+            id="table-season"
             value={seasonId ?? ''}
             onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : null)}
             className={selectClass}

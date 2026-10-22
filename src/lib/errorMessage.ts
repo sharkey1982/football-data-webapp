@@ -20,3 +20,23 @@ export function getErrorMessage(e: unknown, fallback: string): string {
   if (typeof e === 'string') return e;
   return fallback;
 }
+
+/** Database, API and network errors: PostgREST errors carry code/details/hint;
+ * the rest are recognised by their wording. Messages our own code throws for
+ * the visitor ("no FPL team with that ID", "No legal squad found") are not. */
+function isTechnical(e: unknown): boolean {
+  if (e && typeof e === 'object' && ('code' in e || 'details' in e || 'hint' in e)) return true;
+  const msg = getErrorMessage(e, '');
+  return !msg || /fetch|network|timeout|timed out|statement|permission|relation|column|syntax|jwt|pgrst|postgres|sql|schema|function .*does not exist|status code|\b[45]\d\d\b/i.test(msg);
+}
+
+/** For public pages (audit 22 Oct 2026, S-19): a plain sentence for the
+ * visitor instead of raw database or network text ("permission denied for
+ * table ...", "canceling statement due to statement timeout", "Failed to
+ * fetch"); the raw error goes to the console. A message our own code wrote
+ * for the visitor passes through. Admin pages keep getErrorMessage. */
+export function friendlyError(e: unknown, what: string): string {
+  if (!isTechnical(e)) return getErrorMessage(e, what);
+  console.error(`${what}:`, getErrorMessage(e, 'unknown error'), e);
+  return `${what.replace(/[.\s]+$/, '')}. Please try again in a moment.`;
+}

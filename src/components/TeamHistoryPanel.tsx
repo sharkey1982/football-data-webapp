@@ -23,6 +23,7 @@ import {
 import { Link } from 'react-router-dom';
 import { seasonPathByCode } from '../lib/leagueSeasonApi';
 import { clubSeasonPath } from '../lib/clubSeasonApi';
+import { friendlyError } from '../lib/errorMessage';
 
 const VENUES: { value: Venue; label: string }[] = [
   { value: 'total', label: 'Total' },
@@ -314,7 +315,7 @@ export default function TeamHistoryPanel({ teamId, teamName, teamSlug }: { teamI
         setRows(s);
         setMonths(m);
       })
-      .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => live && setError(friendlyError(e, 'The team history could not be loaded')));
     return () => {
       live = false;
     };
@@ -375,14 +376,14 @@ export default function TeamHistoryPanel({ teamId, teamName, teamSlug }: { teamI
         <div className="border border-chalk-300 rounded-lg bg-white p-3">
           <h3 className="text-sm text-ink-700 mb-1">Home v away by season</h3>
           <p className="text-xs text-ink-500 mb-2">
-            Points per game: <span className="text-pitch-700">home</span>, <span className="text-amber-600">away</span>
+            Points per game: <span className="text-pitch-700">home</span>, <span className="text-amber-700">away</span>
           </p>
           <PairBars items={seasonItems} />
         </div>
         <div className="border border-chalk-300 rounded-lg bg-white p-3">
           <h3 className="text-sm text-ink-700 mb-1">Home v away by month</h3>
           <p className="text-xs text-ink-500 mb-2">
-            Points per game across all seasons: <span className="text-pitch-700">home</span>, <span className="text-amber-600">away</span>
+            Points per game across all seasons: <span className="text-pitch-700">home</span>, <span className="text-amber-700">away</span>
           </p>
           <PairBars items={monthItems} />
         </div>

@@ -26,7 +26,7 @@
 // MODE=quick: no throttling and no budgets (errors only) -- for deploy previews.
 // ============================================================================
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium, devices } from 'playwright';
 
 const BASE = (process.env.BASE || 'https://fixtureshark.com').replace(/\/$/, '');
@@ -40,17 +40,30 @@ const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
 // our own for the API and JavaScript.
 export const BUDGETS = { lcp_ms: 2500, cls: 0.1, ttfb_ms: 800, fcp_ms: 1800, api_ms: 1500, js_kb: 350, requests: 120, api_payload_kb: 250 };
 
-// Fixed pages, then one sitemap URL per pattern for the dynamic page types.
-const FIXED = [
+// Named pages (their page_type keeps run history comparable), then every
+// other header-menu page and hub (audit 22 Oct 2026, S-09: 47 of the 71 menu
+// pages were never tested). menu-pages.json is written from src/lib/journey.ts
+// and a unit test fails when they differ (src/__tests__/smokeMenuPages.test.ts),
+// so a page added to the menu is smoke-tested from then on.
+const NAMED = [
   ['home', '/'], ['fixtures', '/fixtures'], ['tv-guide', '/tv-guide'], ['football-hub', '/football'],
   ['leagues', '/football/leagues'], ['records', '/football/records'], ['history-pace', '/football/history/pace'],
   ['model-scorecard', '/football/model-scorecard'], ['local-clubs', '/football/local-clubs'], ['finance', '/finance'],
-  ['fpl-hub', '/fpl'], ['fpl-start', '/fpl/start'], ['fpl-gameweek', '/fpl/gameweek'], ['fpl-live', '/fpl/live'], ['fpl-optimal-squad', '/fpl/optimal-squad'],
+  ['fpl-match-projections', '/fpl'], ['fpl-start', '/fpl/start'], ['fpl-gameweek', '/fpl/gameweek'], ['fpl-live', '/fpl/live'], ['fpl-optimal-squad', '/fpl/optimal-squad'],
   ['fpl-player-points', '/fpl/player-points'], ['fpl-line-ups', '/fpl/line-ups'], ['fpl-injuries', '/fpl/injuries'],
-  ['nfl-hub', '/nfl'], ['nfl-standings', '/nfl/standings'], ['nfl-fixtures', '/nfl/fixtures'], ['nfl-player-projections', '/nfl/player-projections'],
+  ['nfl-hub', '/nfl'], ['nfl-table', '/nfl/table'], ['nfl-fixtures', '/nfl/fixtures'], ['nfl-player-projections', '/nfl/player-projections'],
   ['tennis-hub', '/tennis'], ['tennis-results', '/tennis/results'], ['tennis-players', '/tennis/players'], ['tennis-grand-slams', '/tennis/grand-slams'],
   ['intl-hub', '/international'], ['intl-fixtures', '/international/fixtures'], ['intl-teams', '/international/teams'],
   ['table', '/table'], ['team-strength', '/team-strength'], ['projections', '/football/projections'],
+];
+const MENU_PAGES = JSON.parse(readFileSync(new URL('./menu-pages.json', import.meta.url), 'utf8'));
+/** page_type for a menu page without a NAMED entry: its path, e.g. menu-fpl-rate-my-team. */
+const menuPageType = (path) => `menu-${path.replace(/^\//, '').replace(/\//g, '-')}`;
+const FIXED = [
+  ...NAMED,
+  ...[...MENU_PAGES.hubs, ...MENU_PAGES.menu]
+    .filter((p, i, all) => all.indexOf(p) === i && !NAMED.some(([, q]) => q === p))
+    .map((p) => [menuPageType(p), p]),
 ];
 
 // Pages that list teams, matches or players must link to their own pages
@@ -65,7 +78,8 @@ const DYNAMIC = [
   ['team', /^\/football\/teams\/[^/]+$/],
   ['match', /^\/football\/matches\/[^/]+$/],
   ['fpl-player', /^\/fpl\/players\/[^/]+$/],
-  ['fpl-fixture', /^\/fpl\/fixture\/\d+$/],
+  // fpl-fixture dropped (S-09): /fpl/fixture/:id is noindex and not in the
+  // sitemap, so it was reported missing in every run.
   ['nfl-team', /^\/nfl\/teams\/[^/]+$/],
   ['nfl-game', /^\/nfl\/games\/[^/]+$/],
   ['tennis-player', /^\/tennis\/players\/atp\/[^/]+$/],

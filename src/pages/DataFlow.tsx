@@ -139,7 +139,7 @@ function NodeDetail({ node, onSaved }: { node: FlowNode; onSaved: (n: FlowNode) 
           {(history ?? []).map((h) => (
             <li key={h.history_id} className="text-xs flex gap-2">
               <span className="text-ink-500 font-mono whitespace-nowrap">{when(h.changed_at)}</span>
-              <span className={h.change === 'definition changed' ? 'text-amber-600 font-medium' : h.change === 'disappeared' ? 'text-loss-700 font-medium' : 'text-ink-700'}>
+              <span className={h.change === 'definition changed' ? 'text-amber-700 font-medium' : h.change === 'disappeared' ? 'text-loss-700 font-medium' : 'text-ink-700'}>
                 {h.change}
               </span>
               {h.detail && <span className="text-ink-500">{h.detail}</span>}
@@ -228,7 +228,7 @@ export default function DataFlow() {
               <li key={h.history_id} className="text-xs flex gap-2">
                 <span className="text-ink-500 font-mono whitespace-nowrap">{when(h.changed_at)}</span>
                 <span className="font-mono text-ink-700">{h.node_key.replace(/^(object|function):/, '')}</span>
-                <span className={h.change === 'definition changed' ? 'text-amber-600' : h.change === 'disappeared' ? 'text-loss-700' : 'text-ink-500'}>
+                <span className={h.change === 'definition changed' ? 'text-amber-700' : h.change === 'disappeared' ? 'text-loss-700' : 'text-ink-500'}>
                   {h.change}
                 </span>
               </li>

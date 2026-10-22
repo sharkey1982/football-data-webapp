@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import WatchGuideView from '../../components/WatchGuideView';
 import { getWatchGuide, type WatchGuideFixture } from '../../lib/broadcastsApi';
 import { ukToday, addIsoDays } from '../../lib/ukDate';
+import { friendlyError } from '../../lib/errorMessage';
 
 export default function TvGuidePage() {
   const [fixtures, setFixtures] = useState<WatchGuideFixture[] | null>(null);
@@ -18,25 +19,19 @@ export default function TvGuidePage() {
 
   useEffect(() => {
     let live = true;
-    // The next three weeks first (fast on mobile data), then the whole season.
+    // The next three weeks first (fast on mobile data), then only the rest
+    // of the season, appended (audit S-08: the second pass used to fetch the
+    // whole season again, the first three weeks included).
     const until = addIsoDays(ukToday(), 21);
-    let full = false;
-    let shown = false;
     getWatchGuide('GB', { until })
-      .then((f) => {
-        if (live && !full) {
-          shown = true;
-          setFixtures(f);
-        }
+      .then((first) => {
+        if (!live) return;
+        setFixtures(first);
+        return getWatchGuide('GB', { after: until })
+          .then((rest) => live && setFixtures([...first, ...rest]))
+          .catch(() => undefined); // keep the first three weeks if only the rest failed
       })
-      .catch(() => undefined); // the full load below reports any error
-    getWatchGuide('GB')
-      .then((f) => {
-        full = true;
-        if (live) setFixtures(f);
-      })
-      // Keep showing the first three weeks if only the rest failed.
-      .catch((e) => live && !shown && setError(e instanceof Error ? e.message : 'Failed to load the TV guide'));
+      .catch((e) => live && setError(friendlyError(e, 'Failed to load the TV guide')));
     return () => {
       live = false;
     };

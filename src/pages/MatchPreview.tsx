@@ -277,8 +277,9 @@ export default function MatchPreview() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-ink-700 mb-1">Division</label>
+        <label htmlFor="preview-division" className="block text-sm font-medium text-ink-700 mb-1">Division</label>
         <select
+          id="preview-division"
           value={leagueId ?? ''}
           onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : null)}
           className="w-full max-w-xs border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
@@ -304,8 +305,9 @@ export default function MatchPreview() {
         <>
           <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
             <div>
-              <label className="block text-sm font-medium text-ink-700 mb-1">Home team</label>
+              <label htmlFor="preview-home-team" className="block text-sm font-medium text-ink-700 mb-1">Home team</label>
               <select
+                id="preview-home-team"
                 value={homeTeamId ?? ''}
                 onChange={(e) => setHomeTeamId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"
@@ -323,8 +325,9 @@ export default function MatchPreview() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-700 mb-1">Away team</label>
+              <label htmlFor="preview-away-team" className="block text-sm font-medium text-ink-700 mb-1">Away team</label>
               <select
+                id="preview-away-team"
                 value={awayTeamId ?? ''}
                 onChange={(e) => setAwayTeamId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full border border-chalk-300 rounded px-3 py-2 bg-white focus:border-pitch-700"

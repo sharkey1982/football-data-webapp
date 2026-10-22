@@ -15,7 +15,7 @@ import GameweekNav from '../../components/fpl/season/GameweekNav';
 import GameweekFixtureList from '../../components/fpl/season/GameweekFixtureList';
 import SeasonPlayerTable from '../../components/fpl/season/SeasonPlayerTable';
 import SeasonActualVsProjectedTable from '../../components/fpl/season/SeasonActualVsProjectedTable';
-import { getErrorMessage } from '../../lib/errorMessage';
+import { friendlyError } from '../../lib/errorMessage';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 
@@ -31,6 +31,28 @@ function isTimeoutError(message: string): boolean {
  *  current gameweek in place under its own canonical rather than redirecting
  *  (7 Oct 2026 SEO audit: /fpl was a sitemap URL whose rendered canonical
  *  pointed at /fpl/gameweek/N, a URL that changes every week). */
+/** The page's heading and intro, shared with /fpl's loading state so the
+ * swap to the loaded page doesn't move anything. */
+export function MatchProjectionsIntro() {
+  return (
+    <div>
+      <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Match Projections</h1>
+      <p className="text-sm text-ink-500 mt-1">
+        Player-level fantasy projections built from each team&rsquo;s expected goals (read off betting-market prices, or this
+        site&rsquo;s own model where there are none), predicted formations and real tactical roles. Browse by gameweek, then
+        open a fixture for the full breakdown.
+      </p>
+    </div>
+  );
+}
+
+/** Holds the gameweek bar's height (bar 64px + gap + week strip 40px) while
+ * the summary loads: it arrived after the intro and pushed the page down
+ * (audit 22 Oct 2026, S-08: CLS 0.21 on /fpl in every production run). */
+export function GameweekNavPlaceholder() {
+  return <div aria-hidden="true" className="h-[112px] rounded-lg bg-chalk-200/60" />;
+}
+
 export default function GameweekPage({ currentWeek, canonicalPath }: { currentWeek?: number; canonicalPath?: string } = {}) {
   const { matchweek: matchweekParam } = useParams<{ matchweek: string }>();
   const matchweek = currentWeek ?? Number(matchweekParam);
@@ -74,7 +96,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setSummary(data);
       })
       .catch((e) => {
-        if (!cancelled) setSummaryError(getErrorMessage(e, 'Failed to load season summary'));
+        if (!cancelled) setSummaryError(friendlyError(e, 'Failed to load season summary'));
       });
     return () => {
       cancelled = true;
@@ -100,7 +122,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setFixtures(data);
       })
       .catch((e) => {
-        if (!cancelled) setFixturesError(getErrorMessage(e, 'Failed to load gameweek fixtures'));
+        if (!cancelled) setFixturesError(friendlyError(e, 'Failed to load gameweek fixtures'));
       })
       .finally(() => {
         if (!cancelled) setLoadingFixtures(false);
@@ -128,7 +150,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setPlayers(data);
       })
       .catch((e) => {
-        if (!cancelled) setPlayersError(getErrorMessage(e, 'Failed to load player projections'));
+        if (!cancelled) setPlayersError(friendlyError(e, 'Failed to load player projections'));
       })
       .finally(() => {
         if (!cancelled) setLoadingPlayers(false);
@@ -152,7 +174,7 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
         if (!cancelled) setActualVsProjected(data);
       })
       .catch((e) => {
-        if (!cancelled) setAvpError(getErrorMessage(e, 'Failed to load season actual vs projected totals'));
+        if (!cancelled) setAvpError(friendlyError(e, 'Failed to load season actual vs projected totals'));
       })
       .finally(() => {
         if (!cancelled) setLoadingAvp(false);
@@ -178,19 +200,19 @@ export default function GameweekPage({ currentWeek, canonicalPath }: { currentWe
 
   return (
     <div className="space-y-4">
-      <FixtureChangeNotice />
-      <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Match Projections</h1>
-        <p className="text-sm text-ink-500 mt-1">
-          Player-level fantasy projections built from each team&rsquo;s expected goals (read off betting-market prices, or this
-          site&rsquo;s own model where there are none), predicted formations and real tactical roles. Browse by gameweek, then
-          open a fixture for the full breakdown.
-        </p>
-      </div>
+      <MatchProjectionsIntro />
 
       {summaryError && <p className="text-loss-700 text-sm">{summaryError}</p>}
 
-      {summary.length > 0 && <GameweekNav matchweek={matchweek} summary={summary} onSelect={handleSelectMatchweek} />}
+      {summary.length > 0 ? (
+        <GameweekNav matchweek={matchweek} summary={summary} onSelect={handleSelectMatchweek} />
+      ) : (
+        !summaryError && <GameweekNavPlaceholder />
+      )}
+
+      {/* Below the gameweek bar, not above the heading: it loads on its own
+          and, at the top, pushed the whole page down when it appeared. */}
+      <FixtureChangeNotice />
 
       {loadingFixtures && <p className="text-ink-500 font-mono text-sm">{'Loading fixtures\u2026'}</p>}
       {fixturesError && <p className="text-loss-700 text-sm">{fixturesError}</p>}
