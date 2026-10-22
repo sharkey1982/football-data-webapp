@@ -4,11 +4,18 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SeasonXiPage from '../pages/fpl/SeasonXiPage';
 import * as api from '../lib/seasonXiApi';
+import * as currentSeason from '../lib/currentSeason';
+import * as referenceApi from '../lib/referenceApi';
 
 vi.mock('../lib/seasonXiApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/seasonXiApi');
-  return { ...actual, getSeasonBestXi: vi.fn(), getSeasonValueLeaders: vi.fn(), getXiSeasons: vi.fn(), getSeasonXiWeekly: vi.fn() };
+  return { ...actual, getSeasonBestXi: vi.fn(), getSeasonValueLeaders: vi.fn(), getXiSeasons: vi.fn(), getSeasonXiWeekly: vi.fn(), getRollingXiCandidates: vi.fn() };
 });
+// The page also looks up the season in progress and the rolling XI. Unstubbed,
+// those went to the network and could resolve after the test had torn down,
+// failing the run with "window is not defined" (flaky in CI, 22 Oct 2026).
+vi.mock('../lib/currentSeason', () => ({ getCurrentFplSeasonId: vi.fn(), getCurrentSeasonId: vi.fn(), resetCurrentSeasonCache: vi.fn() }));
+vi.mock('../lib/referenceApi', async () => ({ ...(await vi.importActual<object>('../lib/referenceApi')), getSeasons: vi.fn() }));
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 const p = (over: Partial<api.SeasonXiPlayer>): api.SeasonXiPlayer => ({
@@ -28,6 +35,9 @@ describe('SeasonXiPage', () => {
     mocked.getSeasonValueLeaders.mockResolvedValue([]);
     mocked.getXiSeasons.mockResolvedValue([]);
     mocked.getSeasonBestXi.mockResolvedValue([]);
+    mocked.getRollingXiCandidates.mockResolvedValue([]);
+    vi.mocked(currentSeason.getCurrentFplSeasonId).mockResolvedValue(12);
+    vi.mocked(referenceApi.getSeasons).mockResolvedValue([]);
   });
 
   it('shows August prices, not end-of-season prices', async () => {
