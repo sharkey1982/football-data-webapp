@@ -175,17 +175,8 @@ begin
 end;
 $mig$;
 
-do $mig$
-declare
-  d text := pg_get_functiondef('public.refresh_fpl_projection_fixture_v6(bigint, boolean)'::regprocedure);
-  a text := $a$    if v_status = 'played' then$a$;
-  b text := $b$    if v_status in ('played', 'awaiting_result') then$b$;
-begin
-  if position(b in d) > 0 then return; end if;
-  if (length(d) - length(replace(d, a, ''))) / length(a) <> 1 then raise exception 'refresh_fpl_projection_fixture_v6 anchor not found exactly once'; end if;
-  execute replace(d, a, b);
-end;
-$mig$;
+-- refresh_fpl_projection_fixture_v6 needs no change: since 20261022110000 it
+-- freezes a fixture once v_kickoff <= now(), which covers awaiting_result.
 
 do $mig$
 declare
