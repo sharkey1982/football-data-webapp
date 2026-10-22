@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Ligue 1 had Rennes v PSG twice; the Veikkausliiga table dropped the top six's latest game
+- **Found:** data-quality audit, 22 Oct (DQ-05, DQ-06).
+- **Impact:** fixture 5302 (6 Mar 2027) was Rennes v PSG, a repeat of the 23 Aug game, so its page, prediction and home advantage were wrong and PSG v Rennes was missing. In the Veikkausliiga table every championship-group team was one game short (HJK and KuPS 3 points short).
+- **Cause:** FixtureDownload's Ligue 1 feed lists Rennes v PSG for rounds 1 and 23, and `refresh_feed_nearest_date()` inserted the second listing because it only looked for the pairing within 60 days. The 2026 Veikkausliiga format row said each group plays 5 games; the championship group plays 10 (as in 2025).
+- **Fix:** `20261022103000_fixture_pairing_guard_fin_format.sql`: 5302 becomes PSG v Rennes (slug too; prediction recomputed); the feed matcher never inserts a pairing a double-round-robin league already has (SC0 excepted); partial unique index on the pairing for E0-E3, SP1, D1, I1, F1; FIN 2026 `group_games` [10,5] and the standings cache rebuilt.
+- **Prevention:** integrity checks `league_pairing_repeated` and `standings_played_matches`. *Lesson: a feed is a source, not the truth; check its shape against the competition's format.*
+
+---
+
 ## 2026-10-22 · Deadline-critical workflows started hours late (GitHub cron)
 - **Found:** pipelines audit, 22 Oct (P-01).
 - **Impact:** over 14 days GitHub started daily-import, the FPL pipeline and FFS team news 2 to 9.5 h after their cron times (median about 5 h). On 17 Oct (GW7, deadline 10:00 UTC) the morning projections and team news landed at 11:10 and 11:37, after the deadline; the new Friday post-press-conference update for GW8 (deadline Fri 23 Oct 17:30 UTC) was likely to land near or after it.
