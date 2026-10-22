@@ -51,7 +51,14 @@ function parseDate(s:string){const [d,m,y]=s.split('/').map(Number);return `${y}
 function parseTime(s:string){s=s.trim().toLowerCase(); if(s==='ft'||s==='aet'||s==='pens'||!s)return null; const m=s.match(/^(\d{1,2})(?:\.(\d{2}))?(am|pm)$/); if(!m)return null; let h=+m[1],mi=+(m[2]||0);if(m[3]==='pm'&&h<12)h+=12;if(m[3]==='am'&&h===12)h=0;return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}:00`}
 function rows(html:string){const out:any[]=[]; const trs=html.match(/<tr[^>]*(?:id="match-[^"]+-score-row"|title="[^"]+\s(?:v|\d+-\d+)\s[^"]+")[^>]*>[\s\S]*?<\/tr>/g)||[]; for(const tr of trs){const dm=tr.match(/export-only">(\d{1,2}\/\d{1,2}\/\d{4})<\/td>/); const sm=tr.match(/<td class="status"[^>]*>([^<]*)<\/td>/); const hm=tr.match(/home-team"[^>]*data-export="([^"]+)"/); const am=tr.match(/away-team"[^>]*?(?:colspan="2" )?data-export="([^"]+)"/); if(!dm||!hm||!am)continue; const scores=[...tr.matchAll(/<td class="score (?:home|away)-score">(\d+)<\/td>/g)].map(x=>+x[1]); out.push({date:parseDate(dm[1]),status:clean(sm?.[1]||''),home:clean(hm[1]),away:clean(am[1]),hg:scores.length===2?scores[0]:null,ag:scores.length===2?scores[1]:null}); } return out;}
 
-Deno.serve(async()=>{
+// 2026-10-22 (v13, audit SEC-01): the function is public (verify_jwt off)
+// and writes fixtures and matches with the service role, so anyone could
+// trigger a full scrape. It now requires the header x-ingest-token, checked
+// against the Vault secret ingest_cup_token (public.ingest_cup_token_ok);
+// pg_cron sends it via private.call_ingest_cup_data().
+Deno.serve(async(req)=>{
+ const {data:tokenOk}=await sb.rpc('ingest_cup_token_ok',{p_token:req.headers.get('x-ingest-token')??''});
+ if(tokenOk!==true)return Response.json({error:'forbidden'},{status:403});
  const {data:run}=await sb.from('result_ingestion_runs').insert({source_name:'FootballWebPages (cups)',status:'running'}).select('ingestion_run_id').single();
  const runId=run?.ingestion_run_id;
  const finish=async(fields:Record<string,unknown>)=>{ if(runId) await sb.from('result_ingestion_runs').update({finished_at:new Date().toISOString(),...fields}).eq('ingestion_run_id',runId); };
@@ -118,6 +125,6 @@ Deno.serve(async()=>{
   return Response.json({status,run_id:runId,results,carabao_mapping_gaps:[...gaps],predictions_updated:predictions});
  }catch(e){
   await finish({status:'failed',error_message:describeError(e)});
-  return Response.json({status:'failed',error:describeError(e)},{status:500});
+  return Response.json({status:'failed',error:'ingest failed; see result_ingestion_runs'},{status:500});
  }
 });
