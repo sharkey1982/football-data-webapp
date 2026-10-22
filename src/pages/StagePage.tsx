@@ -14,6 +14,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { THEMES, type StageKey, type ThemeKey } from '../lib/journey';
+import NotFoundPage from './NotFoundPage';
 
 export default function StagePage({ themeKey }: { themeKey: ThemeKey }) {
   const { stage: stageKey } = useParams<{ stage: string }>();
@@ -27,18 +28,7 @@ export default function StagePage({ themeKey }: { themeKey: ThemeKey }) {
   });
 
   if (!stage) {
-    return (
-      <div>
-        <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">Not found</h1>
-        <p className="text-ink-700 mt-2">
-          No such section.{' '}
-          <Link to={theme.hubPath} className="text-pitch-800 underline underline-offset-2">
-            Back to {theme.title}
-          </Link>
-          .
-        </p>
-      </div>
-    );
+    return <NotFoundPage message="No such section." back={{ to: theme.hubPath, label: `Back to ${theme.title}` }} />;
   }
 
   return (

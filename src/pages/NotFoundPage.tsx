@@ -12,7 +12,9 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useNoindex } from '../hooks/useNoindex';
 
-export default function NotFoundPage() {
+/** Every "no such thing" branch renders this (audit 22 Oct 2026, S-05), so
+ * each one is noindex. `message` and `back` let a page point to its list. */
+export default function NotFoundPage({ message, back }: { message?: string; back?: { to: string; label: string } } = {}) {
   useDocumentHead({ title: 'Page not found' });
 
   useNoindex(true);
@@ -20,10 +22,10 @@ export default function NotFoundPage() {
   return (
     <div className="mx-auto max-w-xl py-16 text-center">
       <h1 className="text-2xl font-semibold">Page not found</h1>
-      <p className="mt-3 text-sm opacity-80">This address doesn&rsquo;t match any page.</p>
+      <p className="mt-3 text-sm opacity-80">{message ?? 'This address doesn\u2019t match any page.'}</p>
       <p className="mt-6">
-        <Link to="/" className="underline">
-          Go to the home page
+        <Link to={back?.to ?? '/'} className="underline">
+          {back?.label ?? 'Go to the home page'}
         </Link>
       </p>
     </div>

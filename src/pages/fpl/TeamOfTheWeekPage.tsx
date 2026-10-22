@@ -24,6 +24,7 @@ import {
   type TotwComparison,
 } from '../../lib/teamOfWeekApi';
 import { layoutByBand, toScreen } from '../../lib/pitchLayout';
+import NotFoundPage from '../NotFoundPage';
 
 
 
@@ -106,7 +107,11 @@ export default function TeamOfTheWeekPage() {
     };
   }, [requestedGw]);
 
+  // /fpl/team-of-the-week/<not a gameweek>, or a gameweek with no team yet:
+  // not found, not the latest week under the wrong URL (audit S-05).
+  if (gwParam && requestedGw === undefined) return <NotFoundPage message="No such gameweek." back={{ to: '/fpl/team-of-the-week', label: 'Latest team of the week' }} />;
   if (xi === null) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
+  if (xi.length === 0 && requestedGw !== undefined) return <NotFoundPage message={`No team of the week for gameweek ${requestedGw} yet.`} back={{ to: '/fpl/team-of-the-week', label: 'Latest team of the week' }} />;
   if (xi.length === 0) {
     return (
       <div>

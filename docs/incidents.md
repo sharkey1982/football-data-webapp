@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Stale titles and canonicals after navigation; indexable "not found" pages
+- **Found:** site audit of 22 Oct (S-05, S-10, S-17).
+- **Impact:** eleven pages (e.g. /fpl/player-points, /fpl, /team-strength) set no head, so after client-side navigation the tab title and `<link rel=canonical>` still named the previous page (e.g. Arsenal). "No such section/match/team" states under the hubs, international matches and teams, club finances and team-of-the-week rendered as normal 200 pages without noindex (soft 404s). llms.txt sent "Player projections" to /fpl, which is Match Projections.
+- **Cause:** the head was opt-in per page; not-found states were written page by page.
+- **Fix:** AppLayout applies the routeMeta head (or the site defaults, with no canonical) after each navigation when no mounted page manages the head (`activeDocumentHeads()`); every not-found branch renders `NotFoundPage` (noindex, with a link back to its list); llms.txt corrected.
+- **Prevention:** `src/__tests__/auditHeads.test.tsx`. *Lesson: a default that each page must remember to override is a default that some page forgets.*
+
+---
+
 ## 2026-10-22 · Home and hub pages empty without JavaScript; cookie banner held back LCP
 - **Found:** site audit of 22 Oct (S-04, S-07, S-12).
 - **Impact:** the raw HTML of /, /football, /fpl/start, /nfl, /tennis and /international had a head but no body, and the header menus rendered their links only when opened, so crawlers and link previews saw almost no internal links (Google has seen about 6.6% of the sitemap). On a third of pages the cookie banner, rendered by React after the bundle loaded, was the LCP element (prerendered pages: FCP ~700 ms, LCP ~2,100 ms). No skip link; menus did not close on Escape.
