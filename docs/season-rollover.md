@@ -164,6 +164,23 @@ select * from check_model_integrity() where status <> 'ok';
   `backfill-football-raw` (`seasons` default `['2526']`), `backfill-cup-raw`
   (`['2025-2026']`), `scripts/sync-fixtures.ts` (superseded;
   `SYNC_SEASON_LABEL`).
+- **Naming hazard: `fpl_player_gameweek_history.fixture_id` is an FPL
+  fixture number, not a `fixtures.fixture_id`.** It holds FPL's own 1–380 per
+  season (seasons 8–12), the same range as canonical `fixtures.fixture_id`
+  1–380 (2026/27 Premier League), so a join to `fixtures` on it matches the
+  wrong games without any error, and orphan checks pass for the same reason.
+  Join through `fpl_fixtures (season_id, fpl_fixture_id)` instead. Renaming it
+  to `fpl_fixture_id` would touch 9 functions, 2 views, `import_fpl_gameweeks`,
+  the frontend (`fplCompareApi`, `fplArticles`, `fplArticleDecisions`) and
+  analysis scripts, so it is left as is (audit 2026-10-22, DQ-11).
+- "Previous FPL season" in `refresh_fpl_start_record` and
+  `fixture_player_expected_minutes_fallback` is the latest season before the
+  current one **by start year** with history rows (was `max(season_id)`;
+  migration `20261022141000`).
+- `fpl_player_snapshots` is keyed `(snapshot_date, fpl_player_id)` with a
+  nullable `season_id` (0 nulls today). Harmless while snapshots are taken
+  only for the current game; add `season_id` to the key if two seasons' games
+  ever overlap.
 - `league_standings` (owned elsewhere): its current season is the latest by
   start year with results, so the finished season shows `is_final = false`
   from 1 July until the first result of the new season arrives. Ordering is by

@@ -66,6 +66,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Prediction ledger stopped on 23 Sep; two retired-version fits still served League One and Two
+- **Found:** audit of 22 Oct (DQ-09, DQ-10).
+- **Impact:** (1) `match_predictions`, the archive behind Model Returns and the scorecard for past seasons, had no rows after 23 Sep and none for League One, League Two or the National League in 2026/27 (E0 50/70, E1 95/131, E2/E3/EC 0). Pages read the fixtures for the current season, so nothing showed yet, but at the 2027/28 rollover the 2026/27 track record would have lost most of its matches. (2) 80 played 2026/27 fixtures (E2 36, E3 44) showed predictions from fits #4 and #5 (`legacy_pre_v1`, retired 23 Sep), written after kick-off (11-23 Sep). No look-ahead (both fits date from June) and their scoring level is sound, but they were never what the site showed before those games.
+- **Cause:** (1) the ledger's only writer was `scripts/retrofit_verify_and_predict.py`, run by hand for the retro-fits. (2) The 23 Sep retirement rejected only the fits with the scoring-level offset (#2, #3, #6).
+- **Fix:** `20261022140000` re-predicts those 80 fixtures point-in-time with dc_baseline_v1 (old values in `prediction_corrections`), rejects #4 and #5, and adds a `model_change_log` row. `20261022140500` adds `record_match_predictions(season)`, which copies each played match's frozen fixture prediction into the ledger (accepted fit dated before the match, never overwrites). It runs from pg_cron at 09:45 and 21:45 (`record-match-predictions`, in `job_registry`). The file also backfills 2026/27.
+- **Prevention:** the cron job and its `job_registry` row (`jobs_stale` / `jobs_failed` flag it if it stops). *Lesson: a record that only a manual script writes stops being kept.*
+
+---
+
 ## 2026-10-20 · Preview smoke test failed on a PR with no site changes
 - **Found:** PR #386 (a migration and an Edge Function only).
 - **Impact:** `smoke/preview` reported failure. No site code was involved, so it was a false alarm that would block the merge rule.
