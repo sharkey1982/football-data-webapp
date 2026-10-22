@@ -274,4 +274,24 @@ describe('AppLayout main nav', () => {
     expect(screen.getByRole('link', { name: 'Poker: all the trainers' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
     expect(screen.getByRole('link', { name: 'Poker: heads-up v the Shark' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=match');
   });
+
+  it('remembers the last Fixtures filters on the menu link after leaving the page', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/fixtures?league=E1']}>
+        <Routes>
+          <Route path="/" element={<AppLayout />}>
+            <Route path="fixtures" element={<a href="#x">fixtures page</a>} />
+            <Route path="table" element={<div>table page</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+    await user.click(screen.getByRole('button', { name: /^Club/ }));
+    expect(screen.getByRole('link', { name: 'Fixtures & Results' })).toHaveAttribute('href', '/fixtures?league=E1');
+    await user.click(screen.getByRole('link', { name: 'League Table' }));
+    expect(screen.getByText('table page')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Club/ }));
+    expect(screen.getByRole('link', { name: 'Fixtures & Results' })).toHaveAttribute('href', '/fixtures?league=E1');
+  });
 });

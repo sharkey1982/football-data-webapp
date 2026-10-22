@@ -1,0 +1,48 @@
+# ============================================================================
+# .github/workflows/pr-checks.yml
+#
+# The pre-push sequence from CLAUDE.md, enforced on every pull request
+# (audit 2026-10-22, CODE-07): type check, unit tests, and lint against a
+# committed baseline so only NEW lint errors fail. Before this, nothing ran
+# vitest or eslint outside each session's own discipline.
+#
+# The Netlify deploy preview already runs `npm run build`, so the build is
+# not repeated here. Lint baseline: scripts/eslint-baseline.json, updated
+# with `node scripts/lint-baseline.mjs --update` after fixing errors.
+# ============================================================================
+name: PR checks
+
+on:
+  pull_request:
+
+# Read-only: this workflow only runs checks, it never writes anything.
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Placeholder client settings: the tests mock every request.
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install (npm ci)
+        run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.app.json
+      - name: Unit tests
+        run: timeout 580 npx vitest run
+      - name: Lint (new errors only)
+        if: always()
+        run: node scripts/lint-baseline.mjs
