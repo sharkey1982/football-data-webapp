@@ -44,6 +44,16 @@ def test_late_december_of_previous_year_is_kept():
     assert rows[0]["match_date"] == "2013-12-30"
 
 
+def test_status_typos_are_normalised():
+    rows = ti.to_rows("ATP", 2021, frame([
+        ("Astana", pd.Timestamp("2021-09-22"), "1st Round", "Ruusuvuori E.", "Bonzi B.", 6, 2, None, None, 1, 0, "Rrtired"),
+        ("Astana", pd.Timestamp("2021-09-23"), "2nd Round", "A A.", "B B.", None, None, None, None, None, None, "Walkoer"),
+        ("Astana", pd.Timestamp("2021-09-24"), "Quarterfinals", "A A.", "C C.", 6, 1, 6, 2, 2, 0, "Completed"),
+    ]))
+    assert [r["status"] for r in rows] == ["Retired", "Walkover", "Completed"]
+    assert rows[0]["raw"]["Comment"] == "Rrtired"  # source text kept in raw
+
+
 def test_tidy_name_keeps_key():
     for raw, want in [("Choi J-H.", "Choi J.H."), ("Del Potro J. M.", "Del Potro J.M."), ("Kim K", "Kim K."),
                       ("Mccabe J.", "McCabe J."), ("Sharapova, M.", "Sharapova M."),

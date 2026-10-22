@@ -66,6 +66,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Impossible values in old projections, match shots and tennis statuses
+- **Found:** data-quality audit, 22 Oct (DQ-15, DQ-16, DQ-17).
+- **Impact:** 61 GW4 projection rows (fixture 36, leaguewide_v4/v6 and prototype_v3) said a player could not appear yet gave him up to 1.4 expected minutes; 9 v6 totals were slightly negative. 16 historic matches (2000/01 to 2024/25, football-data.co.uk) had more shots on target than shots on one side (20 sides), skewing shot stats. Two tennis matches stored the source typos "Rrtired" and "Walkoer". Four European teams matched the FixtureDownload feed only through the canonical-name fallback.
+- **Cause:** a GW4 lineup input that set minutes without the matching probabilities; source errors in the CSVs and the tennis Comment column, stored as read.
+- **Fix:** `20261022163700_data_cleanups_dq15_17.sql`. The 61 rows are set to 0 throughout, which is what their own probabilities say. The bad shots pairs are nulled, because no other source in the database has them. The tennis statuses are corrected, and the four FixtureDownload aliases added.
+- **Prevention:** the trigger `matches_null_inconsistent_shots` nulls such a pair on any future write, so a re-import can't bring the pairs back. `tennis_import.py` normalises the two typos, with a test.
+
+---
+
 ## 2026-10-22 · Duplicate BBC listing; a live listing on a postponed game
 - **Found:** data-quality audit, 22 Oct (DQ-17).
 - **Impact:** Dortmund v Bremen (9 Oct) showed BBC twice in Where to watch. Scunthorpe v Forest Green (3 Oct) is postponed in the fixtures feed but carries a "shown live on DAZN" listing, so one of the two is wrong.
