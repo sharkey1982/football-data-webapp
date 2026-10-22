@@ -55,8 +55,49 @@ on:
 permissions:
   contents: read
 
+# One run at a time: a pg_cron dispatch and the GitHub cron fallback (or an
+# admin re-run) queue rather than race (audit P-01).
+concurrency:
+  group: fpl-projections-pipeline
+  cancel-in-progress: false
+
 jobs:
+  # Audit P-01 (22 Oct 2026): pg_cron dispatches this workflow on time
+  # (private.workflow_dispatch_slots, via netlify/functions/trigger-workflow);
+  # GitHub's own cron, hours late, is the fallback. A late scheduled run asks
+  # whether pg_cron already ran its slot and, if so, stops here. Any doubt
+  # (an error, no answer) means run: a duplicate run is harmless, a missed
+  # one is not.
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          EVENT: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          R=$(curl -s --max-time 20 -X POST "$SUPABASE_URL/rest/v1/rpc/workflow_slot_covered" \
+                -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+                -H "Content-Type: application/json" \
+                -d "{\"p_workflow\": \"fpl-projections-pipeline\", \"p_cron\": \"$CRON\"}" || echo "request failed")
+          if [ "$R" = "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::pg_cron already dispatched the slot for '$CRON'; this late scheduled run is skipped."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Slot not covered (answer: ${R:0:200}); running."
+          fi
+
   pipeline:
+    needs: gate
+    if: needs.gate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:

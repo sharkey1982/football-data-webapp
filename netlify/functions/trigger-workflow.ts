@@ -26,11 +26,24 @@
 //
 // GitHub errors are deliberately not passed through to the caller: they
 // can carry repo/token detail. They're logged server-side instead.
+//
+// MACHINE PATH (audit P-01, 22 Oct 2026). GitHub's own cron starts the
+// deadline-critical workflows hours late, so pg_cron dispatches them on time
+// (private.dispatch_due_workflows). pg_cron has no Supabase session; it sends
+// the header x-workflow-token instead, compared in constant time with the
+// env var WORKFLOW_TRIGGER_TOKEN (the same value is the Vault secret
+// workflow_trigger_token; generated in the database, never in the repo).
+// A wrong or missing machine token gets the same 401 as a bad session, and
+// the machine path may only start the scheduled workflows with their
+// scheduled inputs (MACHINE_WORKFLOWS), never the admin-only ones.
 // ============================================================================
 
+import { timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
-const ALLOWED_WORKFLOWS: Record<string, { file: string; inputKeys: string[] }> = {
+type WorkflowSpec = { file: string; inputKeys: string[] };
+
+const ALLOWED_WORKFLOWS: Record<string, WorkflowSpec> = {
   'simulate-fixture-bonus': { file: 'simulate-fixture-bonus.yml', inputKeys: ['from_matchweek', 'to_matchweek'] },
   'simulate-final-table': { file: 'simulate-final-table.yml', inputKeys: ['season_id'] },
   'refresh-fpl-projections': { file: 'refresh-fpl-projections.yml', inputKeys: ['from_matchweek', 'to_matchweek'] },
@@ -39,6 +52,18 @@ const ALLOWED_WORKFLOWS: Record<string, { file: string; inputKeys: string[] }> =
   'fpl-projections-pipeline': { file: 'fpl-projections-pipeline.yml', inputKeys: [] },
   'ffs-team-news': { file: 'ffs-team-news.yml', inputKeys: [] },
 };
+
+// What pg_cron may start, with the inputs its slots send
+// (private.workflow_dispatch_slots). rebuild_site is allowed only here: the
+// morning pipeline slot is the one scheduled run that rebuilds the site.
+export const MACHINE_WORKFLOWS: Record<string, WorkflowSpec> = {
+  'fpl-projections-pipeline': { file: 'fpl-projections-pipeline.yml', inputKeys: ['rebuild_site'] },
+  'ffs-team-news': { file: 'ffs-team-news.yml', inputKeys: [] },
+  'daily-import': { file: 'daily-import.yml', inputKeys: [] },
+  'gameweek-report': { file: 'gameweek-report.yml', inputKeys: ['auto'] },
+};
+
+const BOOLEAN_INPUTS = new Set(['rebuild_site', 'auto']);
 
 const REPO_OWNER = 'sharkey1982';
 const REPO_NAME = 'football-data-webapp';
@@ -61,12 +86,14 @@ const INPUT_RANGES: Record<string, { min: number; max: number }> = {
 // if this ever proves insufficient in practice.
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
+// pg_cron can have several slots due in the same minute (and retries).
+const MACHINE_RATE_LIMIT_MAX = 12;
 const recentCalls = new Map<string, number[]>();
 
-function rateLimited(userId: string): boolean {
+function rateLimited(userId: string, max = RATE_LIMIT_MAX): boolean {
   const now = Date.now();
   const hits = (recentCalls.get(userId) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  if (hits.length >= RATE_LIMIT_MAX) {
+  if (hits.length >= max) {
     recentCalls.set(userId, hits);
     return true;
   }
@@ -75,21 +102,19 @@ function rateLimited(userId: string): boolean {
   return false;
 }
 
+// Constant-time comparison; a length mismatch is a plain mismatch.
+export function machineTokenMatches(supplied: string, expected: string | undefined): boolean {
+  if (!expected || expected.length < 32 || !supplied) return false;
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-export default async (req: Request): Promise<Response> => {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-
-  const token = process.env.GITHUB_ACTIONS_TOKEN;
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  if (!token || !supabaseUrl || !supabaseKey) {
-    console.error('trigger-workflow misconfigured: missing GITHUB_ACTIONS_TOKEN or Supabase env');
-    return json({ error: 'Server is not configured for this operation' }, 500);
-  }
-
+async function checkAdmin(req: Request, supabaseUrl: string, supabaseKey: string): Promise<Response | null> {
   const accessToken = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!accessToken) return json({ error: 'Authentication required' }, 401);
 
@@ -116,6 +141,35 @@ export default async (req: Request): Promise<Response> => {
     return json({ error: 'Too many workflow triggers. Wait a minute and try again.' }, 429);
   }
 
+  return null;
+}
+
+export default async (req: Request): Promise<Response> => {
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
+  const token = process.env.GITHUB_ACTIONS_TOKEN;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!token || !supabaseUrl || !supabaseKey) {
+    console.error('trigger-workflow misconfigured: missing GITHUB_ACTIONS_TOKEN or Supabase env');
+    return json({ error: 'Server is not configured for this operation' }, 500);
+  }
+
+  const machineHeader = (req.headers.get('x-workflow-token') ?? '').trim();
+  let workflows: Record<string, WorkflowSpec> = ALLOWED_WORKFLOWS;
+  if (machineHeader) {
+    if (!machineTokenMatches(machineHeader, process.env.WORKFLOW_TRIGGER_TOKEN)) {
+      return json({ error: 'Authentication required' }, 401);
+    }
+    if (rateLimited('machine:pg_cron', MACHINE_RATE_LIMIT_MAX)) {
+      return json({ error: 'Too many workflow triggers. Wait a minute and try again.' }, 429);
+    }
+    workflows = MACHINE_WORKFLOWS;
+  } else {
+    const denied = await checkAdmin(req, supabaseUrl, supabaseKey);
+    if (denied) return denied;
+  }
+
   let body: { workflow?: string; inputs?: Record<string, unknown> };
   try {
     body = await req.json();
@@ -123,9 +177,9 @@ export default async (req: Request): Promise<Response> => {
     return json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const selected = body.workflow ? ALLOWED_WORKFLOWS[body.workflow] : undefined;
+  const selected = body.workflow && Object.hasOwn(workflows, body.workflow) ? workflows[body.workflow] : undefined;
   if (!selected) {
-    return json({ error: `Unknown workflow. Allowed: ${Object.keys(ALLOWED_WORKFLOWS).join(', ')}` }, 400);
+    return json({ error: `Unknown workflow. Allowed: ${Object.keys(workflows).join(', ')}` }, 400);
   }
 
   // Only this workflow's declared inputs are forwarded; unknown keys are
@@ -141,6 +195,11 @@ export default async (req: Request): Promise<Response> => {
   for (const key of selected.inputKeys) {
     const raw = supplied[key];
     if (raw === undefined || raw === null || raw === '') continue;
+    if (BOOLEAN_INPUTS.has(key)) {
+      if (typeof raw !== 'boolean') return json({ error: `Input "${key}" must be true or false` }, 400);
+      inputs[key] = String(raw);
+      continue;
+    }
     const range = INPUT_RANGES[key];
     const value = Number(raw);
     // Number('') is 0 and Number('3abc') is NaN -- both must fail, hence

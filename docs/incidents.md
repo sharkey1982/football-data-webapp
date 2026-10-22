@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Deadline-critical workflows started hours late (GitHub cron)
+- **Found:** pipelines audit, 22 Oct (P-01).
+- **Impact:** over 14 days GitHub started daily-import, the FPL pipeline and FFS team news 2 to 9.5 h after their cron times (median about 5 h). On 17 Oct (GW7, deadline 10:00 UTC) the morning projections and team news landed at 11:10 and 11:37, after the deadline; the new Friday post-press-conference update for GW8 (deadline Fri 23 Oct 17:30 UTC) was likely to land near or after it.
+- **Cause:** GitHub's scheduled events are best-effort and queue behind everyone else's; moving off the hour (25 Sep) did not help.
+- **Fix:** pg_cron dispatches the slots on time (`private.workflow_dispatch_slots`, `private.dispatch_due_workflows()` every minute) through `netlify/functions/trigger-workflow` with a machine token generated in Vault. Slots: the old daily cron times, the team-news update by the `team_news_thread` rule, and the FPL pipeline 2 h / FFS 2.5 h before every deadline. The GitHub crons stay as a fallback: a late run asks `workflow_slot_covered()` and skips itself if the slot already ran. Migrations `20261022120000`, `20261022120100`.
+- **Prevention:** every request and response is logged in `private.workflow_dispatches`; job `workflow-dispatcher` in `job_registry`. *Lesson: a scheduler with no service level is not a deadline.*
+
+---
+
 ## 2026-10-22 · UK TV guide frozen since 18 Oct: Airtable API cap exhausted
 - **Found:** the 22 Oct audit (P-03 / DQ-04). `check_job_health` had flagged `jobs_stale` for `sync-airtable-broadcasts-3-hourly`, inside an alarm that was already red.
 - **Impact:** every sync from 18 Oct 18:40 failed with HTTP 429. Nothing added in Airtable after 18 Oct 15:40 reached `/tv-guide` or the match pages. For the next 7 days, only 8 of 24 National League, 2 of 12 Scottish Premiership and 4 of 9 Bundesliga fixtures had a listing.
