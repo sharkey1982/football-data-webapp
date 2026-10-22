@@ -18,8 +18,8 @@ jobs:
     steps:
       # Audit P-07: start time for this run's pipeline_runs row (Log run).
       - run: echo "RUN_T0=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - run: npm install
