@@ -32,6 +32,8 @@ jobs:
       SITE: https://fixtureshark.com
       BASE: ${{ inputs.base }}
     steps:
+      # Audit P-07: start time for this run's pipeline_runs row (Log run).
+      - run: echo "RUN_T0=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
       - name: Check sitemap, key pages and a sample of sitemap URLs
         run: |
           python3 - <<'PY'
@@ -209,3 +211,31 @@ jobs:
               sys.exit(1)
           print("All checks passed.")
           PY
+
+      # Audit P-07 (22 Oct 2026): one pipeline_runs row per run, so
+      # job_health sees a failed or missing run (job_registry run_key
+      # ^site_health$). Never fails the job.
+      - name: Log run
+        if: always()
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          JOB_STATUS: ${{ job.status }}
+          EVENT: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - > /tmp/pipeline_run.json <<'PY'
+          import datetime, json, os
+          status = "success" if os.environ["JOB_STATUS"] == "success" else "failed"
+          print(json.dumps({
+              "job_name": "site_health",
+              "status": status,
+              "started_at": os.environ.get("RUN_T0") or None,
+              "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "summary": f"{os.environ['EVENT']} run, job {os.environ['JOB_STATUS']}: {os.environ['RUN_URL']}",
+          }))
+          PY
+          curl -s -o /dev/null -w "pipeline_runs insert: HTTP %{http_code}\n" --max-time 20 -X POST "$SUPABASE_URL/rest/v1/pipeline_runs" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" -H "Prefer: return=minimal" -d @/tmp/pipeline_run.json || true

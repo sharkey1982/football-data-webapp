@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Seven scheduled workflows could fail or stop unseen; intl reloads on every migration
+- **Found:** pipelines audit, 22 Oct (P-07, P-11).
+- **Impact:** apply-migrations, export-db-definitions, hindsight-optimal, schema-snapshot, sf-round and site-health wrote no run log (`job_health` "not_logged"), and gameweek-report had no `job_registry` row at all, so a dropped run (two sf-round runs in 14 days) was invisible. intl-import and intl-squads reloaded in full after every migration push: 63 `intl_import` rows in 14 days against 14 needed.
+- **Cause:** the registry trusted `github_scheduled_runs_ok`, which only sees the latest run's conclusion; the intl workflows' `workflow_run` trigger had no filter on what the migration changed.
+- **Fix:** each of the seven workflows ends with a "Log run" step writing a `pipeline_runs` row (always, never failing the job); `20261022123000_job_registry_run_logs.sql` points their registry rows at it with an expected interval and registers gameweek-report. The intl workflows' new `changes` job reloads after a migration push only when an added migration mentions `intl.` or `intlw.`.
+- **Prevention:** `jobs_stale` / `jobs_failed` now cover these jobs. *Lesson: a job that leaves no trace cannot be missed.*
+
+---
+
 ## 2026-10-22 · Integrity alarm red for 25 days on known failures
 - **Found:** pipelines audit, 22 Oct (P-02, P-09).
 - **Impact:** `model_integrity_checks` failed every day since 28 Sep, so the daily-import E0 failure and the Airtable outage arrived unnoticed inside an alarm that was already red.
