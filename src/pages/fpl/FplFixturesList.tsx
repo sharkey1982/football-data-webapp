@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import GameweekPage from './GameweekPage';
+import GameweekPage, { GameweekNavPlaceholder, MatchProjectionsIntro } from './GameweekPage';
 import { getDefaultMatchweek } from '../../lib/fplSeasonApi';
 import { getErrorMessage } from '../../lib/errorMessage';
 
@@ -33,6 +33,14 @@ export default function FplFixturesList() {
   }, []);
 
   if (error) return <p className="text-loss-700 text-sm">{error}</p>;
-  if (matchweek === null) return <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>;
+  // Same frame as the loaded page, so nothing jumps when it arrives (S-08).
+  if (matchweek === null) {
+    return (
+      <div className="space-y-4">
+        <MatchProjectionsIntro />
+        <GameweekNavPlaceholder />
+      </div>
+    );
+  }
   return <GameweekPage currentWeek={matchweek} canonicalPath="/fpl" />;
 }

@@ -37,6 +37,9 @@ const fixture = (id: number, home: string, away: string, offers: WatchOffer[], o
   homeTeamName: home, awayTeamName: away, homeTeamCountry: 'England', awayTeamCountry: 'England',
   predictedHomeGoals: null, predictedAwayGoals: null, offers, ...over,
 });
+// The page reads the next three weeks, then only what comes after them.
+const mockGuide = (list: broadcastsApi.WatchGuideFixture[]) =>
+  mockedBroadcasts.getWatchGuide.mockImplementation(async (_market, opts) => (opts?.after ? [] : list));
 const row = (name: string) => screen.getByRole('link', { name }).closest('li')!;
 
 beforeEach(() => {
@@ -45,7 +48,7 @@ beforeEach(() => {
 
 describe('TvGuidePage -- UK Watch Guide', () => {
   it('shows each state clearly: subscription, free, multiple free routes, PPV, not televised', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Charlton', 'Bristol City', [offer({ channel: 'Sky Sports+', serviceProduct: 'Sky Sports+ / Sky Sports app / NOW' })], { leagueName: 'Championship' }),
       fixture(2, 'Stenhousemuir', 'Livingston', [offer({ broadcaster: 'BBC', channel: 'BBC Scotland', serviceProduct: 'BBC Scotland / BBC iPlayer', accessType: 'free', isFreeToAir: true, isSubscription: false })]),
       fixture(3, 'Borussia Dortmund', 'Werder Bremen', [
@@ -88,14 +91,14 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('explains that an unlisted match is unconfirmed, and shows a plain empty state', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([]);
+    mockGuide([]);
     render_();
     expect(await screen.findByText('No confirmed UK broadcasts right now.')).toBeInTheDocument();
     expect(screen.getByText(/hasn.t had its UK broadcast confirmed yet/)).toBeInTheDocument();
   });
 
   it('quick filters: Free, PPV and Not on UK TV narrow the list; Clear restores it', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Charlton', 'Bristol City', [offer()]),
       fixture(2, 'Stenhousemuir', 'Livingston', [offer({ broadcaster: 'BBC', channel: 'BBC Scotland', accessType: 'free', isFreeToAir: true })]),
       fixture(4, 'Arsenal', 'Dortmund', [offer({ broadcaster: 'Amazon Prime Video', channel: null, accessType: 'ppv', isPpv: true })]),
@@ -123,7 +126,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('service filter finds a match through any of its routes (e.g. NOW inside a Sky offer)', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Charlton', 'Bristol City', [offer({ serviceProduct: 'Sky Sports+ / Sky Sports app / NOW' })]),
       fixture(2, 'Celtic', 'Hearts', [offer({ broadcaster: 'Premier Sports', channel: 'Premier Sports' })]),
     ]);
@@ -138,7 +141,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('a watchUrl matching an active partner resolves to the affiliate link, discloses it, and tracks the click', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Arsenal', 'Leeds', [offer({ watchUrl: 'https://www.nowtv.com/watch/some-match', broadcaster: 'NOW' })]),
     ]);
     mockedCommercialLinks.getActivePartners.mockResolvedValue([
@@ -156,7 +159,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('keeps provenance secondary: source and verified date sit behind a disclosure', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Arsenal', 'Leeds', [offer({ source: 'Premier League fixture list', sourceUrl: 'https://example.com/pl', verifiedAt: '2026-09-25T00:00:00Z' })]),
     ]);
     render_();
@@ -168,7 +171,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('team picker: search by accent-free name finds the club, and European ties still show', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'FC Bayern München', 'Borussia Dortmund', [offer()], { leagueCode: 'D1', leagueName: 'Bundesliga', countryName: 'Germany', leagueTier: 1, homeTeamCountry: 'Germany', awayTeamCountry: 'Germany' }),
       fixture(2, 'Arsenal', 'FC Bayern München', [offer()], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', countryName: 'Europe', competitionType: 'cup', awayTeamCountry: 'Germany' }),
       fixture(3, 'Arsenal', 'Leeds', [offer()]),
@@ -188,7 +191,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('picking a whole division shows every fixture its clubs play, European ties included', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Arsenal', 'Leeds', [offer()]),
       fixture(2, 'Arsenal', 'FC Bayern München', [offer()], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', countryName: 'Europe', competitionType: 'cup', awayTeamCountry: 'Germany' }),
       fixture(3, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
@@ -205,7 +208,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('team picker groups clubs under country and division headings', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Charlton', 'Bristol City', [offer()], { leagueCode: 'E1', leagueName: 'Championship' }),
       fixture(2, 'Arsenal', 'Leeds', [offer()]),
     ]);
@@ -222,7 +225,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const d1 = new Date(); d1.setDate(d1.getDate() + 1);
     const d2 = new Date(); d2.setDate(d2.getDate() + 2);
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Arsenal', 'Leeds', [offer()], { kickoffDate: ymd(d1) }),
       fixture(2, 'Charlton', 'Bristol City', [offer()], { kickoffDate: ymd(d2) }),
     ]);
@@ -240,7 +243,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
   });
 
   it('Saturday 3pm rule rows read as not televised, with the reason and no source or verified date', async () => {
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Aston Villa', 'Brentford', [offer({
         status: 'confirmed_not_televised', broadcaster: null, channel: null, accessType: null, isSubscription: false,
         source: 'rule:3pm_blackout', confidence: 'probable', availabilityNotes: 'Saturday 3pm kick-offs are not shown live in the UK.',
@@ -261,7 +264,7 @@ describe('TvGuidePage -- UK Watch Guide', () => {
 
   it('service summary: picking a team counts the games each service shows and the best pair', async () => {
     const tnt = { broadcaster: 'TNT Sports', channel: 'TNT Sports 1', serviceProduct: 'HBO Max' };
-    mockedBroadcasts.getWatchGuide.mockResolvedValue([
+    mockGuide([
       fixture(1, 'Arsenal', 'Leeds', [offer({ serviceProduct: 'Sky Sports app / NOW' })]),
       fixture(2, 'Liverpool', 'Arsenal', [offer()], { kickoffDate: '2099-10-17' }),
       fixture(3, 'Arsenal', 'Lille', [offer(tnt)], { leagueCode: 'UCL', leagueName: 'UEFA Champions League', competitionType: 'cup', awayTeamCountry: 'France' }),
@@ -295,5 +298,21 @@ describe('TvGuidePage -- UK Watch Guide', () => {
     mockedBroadcasts.getWatchGuide.mockRejectedValue(new Error('boom'));
     render_();
     expect(await screen.findByText('boom')).toBeInTheDocument();
+  });
+
+  it('loads the next three weeks, then only the fixtures after them (audit S-08)', async () => {
+    mockedBroadcasts.getWatchGuide.mockReset();
+    mockedBroadcasts.getWatchGuide.mockImplementation(async (_market, opts) =>
+      opts?.after
+        ? [fixture(902, 'Later Home', 'Later Away', [offer()], { kickoffDate: '2099-12-01' })]
+        : [fixture(901, 'Soon Home', 'Soon Away', [offer()])]
+    );
+    render_();
+    await screen.findByRole('link', { name: 'Later Home v Later Away' });
+    expect(screen.getByRole('link', { name: 'Soon Home v Soon Away' })).toBeInTheDocument();
+    const calls = mockedBroadcasts.getWatchGuide.mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1]?.until).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(calls[1][1]).toEqual({ after: calls[0][1]?.until });
   });
 });

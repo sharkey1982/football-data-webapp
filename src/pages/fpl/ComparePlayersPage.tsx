@@ -89,7 +89,8 @@ export default function ComparePlayersPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
-  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
+  // undefined while loading: the range filter waits for it (one data fetch, not two).
+  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null | undefined>(undefined);
   const [fromGw, setFromGw] = useState<number | null>(fromParam);
   const [toGw, setToGw] = useState<number | null>(toParam);
 
@@ -271,7 +272,8 @@ export default function ComparePlayersPage() {
           )}
         </div>
         <GameweekRangeFilter
-          inPlay={inPlay}
+          inPlay={inPlay ?? null}
+          inPlayLoading={inPlay === undefined}
           defaultGw={defaultGw}
           fromGw={fromGw}
           toGw={toGw}

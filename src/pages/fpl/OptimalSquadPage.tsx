@@ -73,7 +73,8 @@ function SquadTable({ players }: { players: FplOptimizerPlayer[] }) {
 export default function OptimalSquadPage() {
   const [defaultGw, setDefaultGw] = useState<number | null>(null);
   // The gameweek in play, if any -- the range filter offers to leave it out.
-  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null>(null);
+  // undefined while loading: the range filter waits for it (one data fetch, not two).
+  const [inPlay, setInPlay] = useState<{ gw: number; played: number; total: number } | null | undefined>(undefined);
   useEffect(() => {
     getGameweekInPlay().then(setInPlay).catch(() => setInPlay(null));
   }, []);
@@ -217,7 +218,8 @@ export default function OptimalSquadPage() {
 
       <div className="bg-white border border-chalk-300 rounded-lg p-3 space-y-3">
         <GameweekRangeFilter
-          inPlay={inPlay}
+          inPlay={inPlay ?? null}
+          inPlayLoading={inPlay === undefined}
           defaultGw={defaultGw}
           fromGw={fromGw}
           toGw={toGw}
