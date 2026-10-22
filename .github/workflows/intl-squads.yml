@@ -27,8 +27,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Audit P-11 (22 Oct 2026): after "Apply database migrations", reload
+  # only when the migrations it applied touch the intl / intlw schemas.
+  # Before, every migration push re-ran the full load (about 4.5 times the
+  # needed calls to Wikipedia, ClubElo and the sources). Other triggers
+  # always run.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      intl: ${{ steps.check.outputs.intl }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'workflow_run'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+      - id: check
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          RUN_OK: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+        run: |
+          if [ "$EVENT" != "workflow_run" ]; then echo "intl=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$RUN_OK" != "true" ]; then echo "intl=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          FILES=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- supabase/migrations/ || true)
+          if [ -n "$FILES" ] && grep -l -i -E '\bintlw?\.' $FILES >/dev/null 2>&1; then
+            echo "intl=true" >> "$GITHUB_OUTPUT"; echo "Migrations touching intl/intlw: $FILES"
+          else
+            echo "intl=false" >> "$GITHUB_OUTPUT"; echo "No intl/intlw migration in this push; skipping the reload."
+          fi
+
   run:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    needs: changes
+    if: needs.changes.outputs.intl == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -50,7 +82,8 @@ jobs:
   # pipeline_runs job_name intlw_squads). Its own job: either side failing
   # never stops the other.
   women:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    needs: changes
+    if: needs.changes.outputs.intl == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
