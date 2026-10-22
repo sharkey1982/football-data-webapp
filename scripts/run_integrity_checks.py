@@ -65,6 +65,7 @@ AREAS = [
     ("broadcasts", "check_broadcast_integrity"), # UK TV research route (docs/broadcast-research.md)
     ("jobs", "check_job_health"),                # every production job (job_registry / job_health)
     ("deadlines", "check_deadline_runs"),        # FPL runs close to each deadline; pg_cron dispatcher (P-01/P-06)
+    ("credentials", "check_credentials"),        # expiring keys (credential_expiries), X connection (SEC-13)
 ]
 
 # Workflows that are not production data jobs and need no registry row.
