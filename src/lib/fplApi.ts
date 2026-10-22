@@ -371,44 +371,6 @@ export type FplProjectedFixtureSummary = {
   predicted_away_goals: number | null;
 };
 
-/** Every fixture_id that currently has a prototype_v3 projection, most recent kickoff first. */
-export async function getFplProjectedFixtures(): Promise<FplProjectedFixtureSummary[]> {
-  const { data: projectionRows, error: projectionError } = await supabase
-    .from('fpl_player_projections')
-    .select('fixture_id')
-    .eq('model_version', CURRENT_MODEL_VERSION);
-  if (projectionError) throw projectionError;
-
-  const fixtureIds = [...new Set((projectionRows ?? []).map((r) => r.fixture_id))];
-  if (fixtureIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('fixtures')
-    .select(
-      `
-      fixture_id, kickoff_date, kickoff_time,
-      home_team_id, away_team_id, predicted_home_goals, predicted_away_goals,
-      home_team:teams!fixtures_home_team_id_fkey(canonical_name),
-      away_team:teams!fixtures_away_team_id_fkey(canonical_name)
-    `
-    )
-    .in('fixture_id', fixtureIds)
-    .order('kickoff_date', { ascending: true });
-  if (error) throw error;
-
-  return (data ?? []).map((row) => ({
-    fixture_id: row.fixture_id,
-    kickoff_date: row.kickoff_date,
-    kickoff_time: row.kickoff_time,
-    home_team_id: row.home_team_id,
-    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
-    away_team_id: row.away_team_id,
-    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
-    predicted_home_goals: row.predicted_home_goals,
-    predicted_away_goals: row.predicted_away_goals,
-  }));
-}
-
 /**
  * The full fixture-projection payload for one fixture: header (kickoff,
  * Dixon-Coles xG), both teams' predicted formation, and every projected

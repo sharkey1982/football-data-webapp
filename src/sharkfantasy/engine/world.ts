@@ -78,6 +78,3 @@ export function generateWorld(seed: string, universe = 'test'): World {
   world.baseline = { attack: s.reduce((a, x) => a + x.attack, 0) / s.length, defence: s.reduce((a, x) => a + x.defence, 0) / s.length };
   return world;
 }
-
-/** The one-line character of a player's type. */
-export const typeLine = (name: string) => TYPE_BY_NAME.get(name)?.line ?? '';

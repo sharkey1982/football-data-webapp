@@ -35,33 +35,6 @@ export type MatchWithNames = Match & {
 // Matches
 // ----------------------------------------------------------------------------
 
-export async function getRecentMatches(limit = 20): Promise<MatchWithNames[]> {
-  const { data, error } = await supabase
-    .from('matches')
-    .select(
-      `
-      *,
-      home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
-      away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
-      league:leagues(code, name),
-      season:seasons(label)
-    `
-    )
-    .order('match_date', { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-
-  return (data ?? []).map((row: any) => ({
-    ...row,
-    home_team_name: row.home_team?.canonical_name ?? 'Unknown',
-    away_team_name: row.away_team?.canonical_name ?? 'Unknown',
-    league_code: row.league?.code ?? '',
-    league_name: row.league?.name ?? '',
-    season_label: row.season?.label ?? '',
-  }));
-}
-
 export async function getMatchesForTeam(teamId: number, limit = 20) {
   const { data, error } = await supabase
     .from('matches')

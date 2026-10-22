@@ -217,13 +217,6 @@ export async function getFinanceDictionary(): Promise<FinanceMetricDef[]> {
   return (data ?? []) as FinanceMetricDef[];
 }
 
-/** team_ids with published finance data -- one query, all clubs. */
-export async function getTeamIdsWithFinance(): Promise<Set<number>> {
-  const { data, error } = await supabase.from('finance_published_periods').select('team_id');
-  if (error) throw error;
-  return new Set((data ?? []).map((r) => Number((r as { team_id: number }).team_id)));
-}
-
 export async function teamHasFinance(teamId: number): Promise<boolean> {
   const { count, error } = await supabase
     .from('finance_published_periods')

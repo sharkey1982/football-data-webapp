@@ -137,11 +137,3 @@ export function projectRounds(pv: PublicView, rounds: number[], P = PROJECTION_P
   }
   return out;
 }
-
-/** Expected points per player summed over the given rounds. */
-export function xpOver(pv: PublicView, rounds: number[]): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const p of pv.players) out[p.id] = 0;
-  for (const x of projectRounds(pv, rounds)) out[x.playerId] += x.xPoints;
-  return out;
-}

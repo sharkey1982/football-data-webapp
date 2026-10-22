@@ -82,26 +82,6 @@ export async function getModelCalibration(leagueId?: number): Promise<Calibratio
   }));
 }
 
-export async function getModelAccuracyFixtures(leagueId?: number): Promise<AccuracyFixture[]> {
-  const { data, error } = await supabase.rpc('get_model_accuracy', { p_league_id: leagueId ?? undefined });
-  if (error) throw error;
-  return (data ?? []).map((r: Record<string, unknown>) => ({
-    fixture_id: n(r.fixture_id),
-    league_code: String(r.league_code),
-    kickoff_date: String(r.kickoff_date),
-    home_team: String(r.home_team),
-    away_team: String(r.away_team),
-    p_home: n(r.p_home),
-    p_draw: n(r.p_draw),
-    p_away: n(r.p_away),
-    picked: String(r.picked),
-    actual: String(r.actual),
-    correct: Boolean(r.correct),
-    p_actual: n(r.p_actual),
-    brier: n(r.brier),
-  }));
-}
-
 /** A band is only worth drawing conclusions from once it holds enough
  * forecasts. The tails here sit on ~10 each, where a couple of results
  * swing the rate by 20 points. */

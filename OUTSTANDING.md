@@ -8,6 +8,37 @@ Ordered roughly by value, not by effort.
 
 ---
 
+## Status check, 22 Oct 2026 (audit CODE-12)
+
+The sections below were last reviewed on 27 Sep. The 22 Oct audit
+re-checked them against the code and the database.
+
+**Closed since then** (each heading below is marked):
+- League One kick-off times stored in UTC during BST: fixed. E2 Saturday
+  kick-offs show 12:30 and 15:00, like the other divisions.
+- Eager bundle "450KB (130KB gzipped)": it is now 507.5 kB / 144.8 kB.
+  The figure was out of date, not a fix.
+- Games layer and football finance pillar ("NOT STARTED"): both have shipped.
+- Incident 2026-09-26's "107 upcoming EC fixtures have no prediction":
+  resolved. No upcoming EC fixture lacks a prediction.
+- "npm ci is broken (lockfile/tsx mismatch)": no longer true. `npm ci`
+  works for the root and `evals/fpl` lockfiles.
+- `scripts/sync-fixtures.ts`, `test-joins.ts`, `test-ratings.ts` and
+  `gen_intlw_migration.py`: deleted, as nothing ran them. So were the
+  `optimizer:solve` and `sync:fixtures` npm scripts.
+
+**Still open** (confirmed 22 Oct):
+- Fixture-feed root cause (incident 2026-09-23, open).
+- Staged publication of FPL projection generations (incident 2026-09-25).
+- A build that should stop when the database is unreachable (incident
+  2026-10-04). `generate-static` exits 0 and `verify-dist` only reports,
+  by design. The enforcing check is `site-health.yml` on the live site.
+- Dead slug code in PlayerScoutPage and TeamExplorer (both below).
+- The 1X2 caveat ("1X2 not visible", below).
+- Belgium play-off split formats ("Split-format league tables", below).
+
+---
+
 ## Needs you
 
 ### Launch audit (2026-09-25) -- remaining items after the site-delivery PR
@@ -456,7 +487,7 @@ custom SMTP is the durable fix. Password sign-in works meanwhile.
 
 ## Known gaps
 
-### League One kick-off times stored in UTC during BST (found 2026-09-26)
+### League One kick-off times stored in UTC during BST (found 2026-09-26) -- FIXED (checked 22 Oct 2026)
 Most E2 fixtures (source FixtureDownload) dated in British Summer Time are
 an hour early: all 11 Saturday games on 26 Sep at 14:00 (real 15:00), the
 Sky 12:30 games at 11:30. E0, E1 and E3 times are UK time. Effects: wrong
@@ -1257,7 +1288,7 @@ Direct navigation to one would show an odd XI.
 
 
 
-### Eager bundle is 450KB (130KB gzipped)
+### Eager bundle is 450KB (130KB gzipped) -- now 507.5 kB / 144.8 kB (22 Oct 2026)
 AuthProvider wraps the whole app in App.tsx, which pulls supabase-js
 into the eager chunk. It was ~246KB before auth existed.
 
@@ -1781,7 +1812,7 @@ it gets harder every week.
 
 ---
 
-## PRODUCT: GAMES LAYER (Save Our Club et al) — ASSESSED, NOT STARTED
+## PRODUCT: GAMES LAYER (Save Our Club et al) — SHIPPED (was "assessed, not started"; checked 22 Oct 2026)
 Full brief retained separately. Position taken 2026-09-20:
 
   - Beat the Shark is the only one that reuses the existing model
@@ -1990,7 +2021,7 @@ aim, reasons recorded. Beginner reading ~12.2 min (target ~7).
 OPEN: owner balance (competent owners beat the target least; owners can't
 pick the team); further word cuts (story events, cash crises).
 
-## PRODUCT: FOOTBALL FINANCE PILLAR — ASSESSED, NOT STARTED
+## PRODUCT: FOOTBALL FINANCE PILLAR — SHIPPED (was "assessed, not started"; checked 22 Oct 2026)
 Full brief retained separately. Position taken 2026-09-20:
 
   - This is the most VALUABLE of the new ideas for SEO (evergreen,

@@ -215,18 +215,6 @@ export async function getPlayerSeason(fplPlayerId: number, teamId: number): Prom
   });
 }
 
-/** Slugs for every player in the season -- for the sitemap and for
- * prerendering, both of which need the full URL list up front. */
-export async function getAllPlayerSlugs(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('fpl_players')
-    .select('slug')
-    .eq('season_id', await getCurrentFplSeasonId())
-    .not('slug', 'is', null);
-  if (error) throw error;
-  return (data ?? []).map((r) => r.slug);
-}
-
 
 // ---- Context for the summary panel ----------------------------------------
 // Four independent sources, each allowed to fail on its own (a secondary

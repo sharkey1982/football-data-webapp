@@ -149,10 +149,3 @@ export function simulateSeason(rows: NflStanding[], games: NflGame[], ratings: M
     };
   });
 }
-
-/** Ratings before a season's first unplayed game, from every played game since 2002. */
-export function currentRatings(allPlayed: EloGame[], nextSeason: number): Map<string, number> {
-  const { ratings, season } = eloWalk(allPlayed);
-  if (season != null && season !== nextSeason) for (const [t, v] of ratings) ratings.set(t, 1500 + (1 - ELO.REG) * (v - 1500));
-  return ratings;
-}

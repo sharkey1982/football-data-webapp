@@ -86,10 +86,6 @@ src/
     TeamExplorer.tsx
     LeagueExplorer.tsx
     PredictionCentre.tsx
-scripts/
-  test-joins.ts   -- one-off diagnostic for the PostgREST join queries;
-                     not part of the app, just useful if a query ever
-                     starts failing and you want to isolate why
 ```
 
 ## Notes on the Prediction Centre

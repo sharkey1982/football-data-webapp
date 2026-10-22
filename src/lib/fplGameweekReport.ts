@@ -264,8 +264,3 @@ const STATUS: Record<string, string> = { a: 'available', d: 'doubtful', i: 'inju
 export function statusLabel(s: string | null | undefined): string {
   return STATUS[s ?? 'a'] ?? s ?? 'available';
 }
-
-/** Teams whose next-5 projected goals moved, biggest first; none when nothing moved. */
-export function movedTeams(rows: Next5Team[], min = 0.05): Next5Team[] {
-  return rows.filter((r) => Math.abs(r.for_change) >= min || Math.abs(r.against_change) >= min);
-}
