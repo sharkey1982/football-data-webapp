@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Integrity alarm red for 25 days on known failures
+- **Found:** pipelines audit, 22 Oct (P-02, P-09).
+- **Impact:** `model_integrity_checks` failed every day since 28 Sep, so the daily-import E0 failure and the Airtable outage arrived unnoticed inside an alarm that was already red.
+- **Cause:** accepted failures (tennis import PC-only since 5 Oct) had no way to be set aside, and `unique_function_names` failed on the deliberate 5-argument `social_finish_publish` wrapper.
+- **Fix:** `public.integrity_acknowledgements` (check, optional item, reason, date), read by `scripts/run_integrity_checks.py`: an acknowledged failure is a warning with its reason until the date, then fails again; a list check such as `jobs_stale` still fails while any other item in it is unacknowledged. Tennis acknowledged until 5 Nov. The 5-argument overload dropped. Each area's runtime is logged and warns above 60 s. Migration `20261022121000`. New area `deadlines` (`check_deadline_runs()`, migration `20261022121100`, audit P-06): the last FPL projections and FFS runs before each deadline must finish within 6 h of it, and no pg_cron dispatch slot may fail every attempt.
+- **Prevention:** `integrity_acknowledgements` line in every run lists what is set aside and until when; `scripts/test_run_integrity_checks.py` runs before the checks. *Lesson: an alarm that is always red is an alarm that is off.*
+
+---
+
 ## 2026-10-22 · Database grants wider than needed (security audit)
 - **Found:** security audit, 22 Oct (SEC-07, SEC-09, SEC-18, Supabase advisors).
 - **Impact:** no misuse seen. anon and authenticated held TRUNCATE (which ignores RLS), TRIGGER, REFERENCES and MAINTAIN on every public table; anonymous visitors could read `sf.fantasy_managers.user_id` (the admin's auth UUID); five September backup tables (one with RLS off) and a staging table sat in public; 19 functions had no fixed search_path; two policies re-evaluated `auth.uid()` per row; one duplicate index.
