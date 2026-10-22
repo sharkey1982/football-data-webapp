@@ -91,6 +91,18 @@ def clean(v) -> str | None:
     return s or None
 
 
+# Misspellings in the source's Comment column (audit DQ-17, 22 Oct 2026):
+# ATP 2021 Astana "Rrtired", WTA 2018 Rome "Walkoer". tennis.result_of()
+# maps them too; this keeps the stored status canonical. The raw jsonb keeps
+# the source text.
+STATUS_FIXES = {"Rrtired": "Retired", "Walkoer": "Walkover"}
+
+
+def status_of(v) -> str | None:
+    s = clean(v)
+    return STATUS_FIXES.get(s, s) if s else s
+
+
 def num(v):
     """Number or None. Accepts '6', 6.0, ' ', 'NR', NaN."""
     s = clean(v)
@@ -428,7 +440,7 @@ def to_rows(tour: str, year: int, df: pd.DataFrame) -> list[dict]:
             "w_pts": as_int(r.get("WPts")), "l_pts": as_int(r.get("LPts")),
             "w_games": w_games, "l_games": l_games,
             "w_sets": as_int(r.get("Wsets")), "l_sets": as_int(r.get("Lsets")),
-            "status": clean(r.get("Comment")),
+            "status": status_of(r.get("Comment")),
             "raw": {k: v for k, v in ((k, jsonable(v)) for k, v in r.items()) if v is not None},
         }
         for key, col in ODDS.items():
