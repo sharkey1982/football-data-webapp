@@ -215,14 +215,27 @@ const WATCH_GUIDE_PAGE = 1000;
  * loads the next three weeks first and the rest of the season after (18 Oct
  * 2026: the whole season was 1.25 MB, two thirds of it Saturday 3pm
  * not-televised rows months ahead, before anything showed on mobile data). */
-export async function getWatchGuide(market = 'GB', opts: { until?: string } = {}): Promise<WatchGuideFixture[]> {
+// The columns the guide shows (audit 22 Oct 2026, S-08: select=* also sent
+// market, league and team ids, is_live and uk_available for every broadcast
+// row, about 1.2 KB a row with the repeated keys).
+export const WATCH_GUIDE_COLUMNS =
+  'broadcast_id,status,broadcaster,channel,streaming_service,service_product,access_type,delivery_methods,platform_device,' +
+  'is_fast,is_free_to_air,is_subscription,is_ppv,watch_url,confidence,availability_notes,source,source_url,verified_at,' +
+  'fixture_id,slug,kickoff_date,kickoff_time,league_code,league_name,country_name,competition_type,league_tier,' +
+  'home_team_name,away_team_name,home_team_country,away_team_country,predicted_home_goals,predicted_away_goals';
+
+/** after (YYYY-MM-DD, exclusive): only fixtures after that date -- the TV
+ * guide's second pass, so the first three weeks aren't downloaded twice.
+ * A fixture's offers share its date, so splitting by date never splits one. */
+export async function getWatchGuide(market = 'GB', opts: { until?: string; after?: string } = {}): Promise<WatchGuideFixture[]> {
   const data: Record<string, unknown>[] = [];
   for (let from = 0; ; from += WATCH_GUIDE_PAGE) {
     let q = db
       .from('upcoming_watch_guide')
-      .select('*')
+      .select(WATCH_GUIDE_COLUMNS)
       .eq('market', market);
     if (opts.until) q = q.lte('kickoff_date', opts.until);
+    if (opts.after) q = q.gt('kickoff_date', opts.after);
     const { data: page, error } = await q
       .order('kickoff_date')
       .order('kickoff_time')

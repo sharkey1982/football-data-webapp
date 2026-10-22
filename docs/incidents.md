@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · TV guide downloaded its first three weeks twice; /fpl jumped while loading
+- **Found:** site audit of 22 Oct (S-08), production smoke runs 80-135.
+- **Impact:** /tv-guide fetched 2.4 MB per visit: the next three weeks (412 KB), then the whole season again from the start (1,958 KB). /fpl had CLS 0.21-0.25 in every production run (budget 0.1). /fpl/player-points could fetch its 415 KB projections twice when the gameweek in play arrived after the default gameweek.
+- **Cause:** the TV guide's second pass had no lower date bound and selected `*`; on /fpl the gameweek bar and the fixture-moved notice appeared above or between content already painted; the range filter applied its preset before knowing the in-play week, then again after.
+- **Fix:** second pass reads only `kickoff_date > until` and appends; named columns; /fpl shows its heading and a fixed-height placeholder for the gameweek bar while loading, and the notice sits below the bar; the range filter waits for the in-play answer (`inPlayLoading`) on the four pages that pass it. The twin `nfl_projections` and `tennis_players` reads in the smoke report are two pages of one paged read (1,000-row cap), not duplicates.
+- **Prevention:** `src/__tests__/auditPerf.test.tsx`, TvGuidePage test of the two passes; smoke CLS and payload budgets. *Lesson: a "load the rest" pass must start where the first one stopped.*
+
+---
+
 ## 2026-10-22 · Stale titles and canonicals after navigation; indexable "not found" pages
 - **Found:** site audit of 22 Oct (S-05, S-10, S-17).
 - **Impact:** eleven pages (e.g. /fpl/player-points, /fpl, /team-strength) set no head, so after client-side navigation the tab title and `<link rel=canonical>` still named the previous page (e.g. Arsenal). "No such section/match/team" states under the hubs, international matches and teams, club finances and team-of-the-week rendered as normal 200 pages without noindex (soft 404s). llms.txt sent "Player projections" to /fpl, which is Match Projections.
