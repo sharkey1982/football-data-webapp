@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-22 · Home and hub pages empty without JavaScript; cookie banner held back LCP
+- **Found:** site audit of 22 Oct (S-04, S-07, S-12).
+- **Impact:** the raw HTML of /, /football, /fpl/start, /nfl, /tennis and /international had a head but no body, and the header menus rendered their links only when opened, so crawlers and link previews saw almost no internal links (Google has seen about 6.6% of the sitemap). On a third of pages the cookie banner, rendered by React after the bundle loaded, was the LCP element (prerendered pages: FCP ~700 ms, LCP ~2,100 ms). No skip link; menus did not close on Escape.
+- **Cause:** static routes were written head-only; menus mounted their list on open; the banner was a React element shown from an effect.
+- **Fix:** home and the five hubs are prerendered with their first render; menu lists are always in the DOM (`hidden` until opened, `aria-controls`, Escape and tabbing away close them, focus returns to the button); the footer links the five hubs; the banner is in index.html, shown by an inline script when no choice is stored, and wired by CookieConsent (consent behaviour unchanged: nothing loads until Accept). Skip link to `#main-content`.
+- **Prevention:** `src/__tests__/auditSiteShell.test.tsx` (hub bodies contain the menu links, banner keys match analytics.ts, Escape and skip link). *Lesson: whatever the first paint needs should not wait for the bundle.*
+
+---
+
 ## 2026-10-22 · Public edge functions could write with the service role
 - **Found:** security audit, 22 Oct (SEC-01, SEC-02, SEC-15).
 - **Impact:** no outside calls seen in the logs. `backfill-cup-raw` and `backfill-football-raw` (verify_jwt off, service role, no caller) let anyone write unlimited raw rows; anyone could trigger `ingest-cup-data`'s full scrape and write; `fpl-optimize-squad` ran a 15 s search per request with no limit, returned database error details, and its source was not in the repo; `supabase/config.toml` disagreed with the deployed settings.

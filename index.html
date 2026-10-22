@@ -45,6 +45,34 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Cookie banner, in the static HTML (audit 22 Oct 2026, S-07). As a React
+      element it appeared only once the app's JS had loaded, and on a first
+      visit it was the largest thing painted, so LCP waited for the bundle.
+      Hidden by default; the inline script shows it on the production host
+      when no choice is stored. src/components/CookieConsent.tsx wires the
+      buttons. Nothing analytics-related loads until Accept is pressed.
+      Keep the storage keys in step with src/lib/analytics.ts.
+    -->
+    <section id="cookie-consent" aria-label="Cookie consent" hidden class="fixed bottom-0 inset-x-0 z-50 bg-pitch-900 text-chalk-100 border-t-2 border-amber-500">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        <p class="text-sm flex-1">We&rsquo;d like to use analytics cookies to understand how the site is used. They&rsquo;re optional, and nothing is set unless you accept.</p>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" data-consent="denied" class="text-sm border border-chalk-300 text-chalk-100 rounded px-4 py-2 hover:bg-pitch-800 transition-colors">Decline</button>
+          <button type="button" data-consent="granted" class="text-sm bg-amber-500 text-ink-900 rounded px-4 py-2 hover:bg-amber-400 transition-colors">Accept</button>
+        </div>
+      </div>
+    </section>
+    <script>
+      (function () {
+        try {
+          var s = window.localStorage;
+          if (location.hostname === 'fixtureshark.com' && s.getItem('fds-analytics-admin-device') !== '1' && !s.getItem('fds-analytics-consent')) {
+            document.getElementById('cookie-consent').hidden = false;
+          }
+        } catch (e) { /* storage blocked: the app decides once it loads */ }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

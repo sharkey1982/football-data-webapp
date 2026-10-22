@@ -60,6 +60,8 @@ function longestPrefix(item: NavItem, pathname: string): number {
 function NavDropdown({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLLIElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuId = `menu-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   const location = useLocation();
   const isGroupActive = groupItems(group).some((item) => isItemActive(location.pathname, item));
 
@@ -75,27 +77,49 @@ function NavDropdown({ group }: { group: NavGroup }) {
     function onClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
+    // Escape closes the menu and puts focus back on its button (audit
+    // 22 Oct 2026, S-12).
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    }
     document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   return (
-    <li ref={ref} className="relative">
+    <li
+      ref={ref}
+      className="relative"
+      // Tabbing out of an open menu closes it.
+      onBlur={(e) => {
+        if (open && ref.current && e.relatedTarget instanceof Node && !ref.current.contains(e.relatedTarget)) setOpen(false);
+      }}
+    >
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-controls={menuId}
         className={[
           'flex items-center gap-1 px-3 py-1.5 rounded transition-colors text-sm font-medium',
           isGroupActive ? 'bg-amber-500 text-ink-900' : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100',
         ].join(' ')}
       >
         {group.label}
-        <span className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>&#9662;</span>
+        <span aria-hidden="true" className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>&#9662;</span>
       </button>
-      {open && (
-        <ul className={`absolute left-0 ${group.alignRight ? 'sm:left-auto sm:right-0' : ''} top-full mt-1 min-w-[13rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium max-h-[75vh] overflow-y-auto`}>
+      {/* Always in the DOM, hidden until opened (audit 22 Oct 2026, S-04):
+          the prerendered HTML and crawlers get every menu link, so the
+          internal link graph doesn't depend on running the app. */}
+      {(
+        <ul id={menuId} hidden={!open} className={`absolute left-0 ${group.alignRight ? 'sm:left-auto sm:right-0' : ''} top-full mt-1 min-w-[13rem] bg-pitch-900 border border-pitch-700 rounded shadow-lg py-1 z-20 text-sm font-medium max-h-[75vh] overflow-y-auto`}>
           {group.items?.map((item) => (
             <li key={item.label}>
               {/* The games are their own site behind a proxy: a plain <a>,
@@ -379,6 +403,14 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-chalk-100 text-ink-900 flex flex-col">
+      {/* Skip link (audit 22 Oct 2026, S-12): first in the tab order,
+          visible only when focused. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-chalk-100 focus:px-3 focus:py-2 focus:text-ink-900 focus:underline"
+      >
+        Skip to content
+      </a>
       <header className="bg-pitch-900 text-chalk-100 border-b-4 border-amber-500">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-baseline gap-2">
@@ -405,7 +437,7 @@ export default function AppLayout() {
           flex-1 alone it sat in the first screen while a page's data loaded and
           jumped down when it arrived -- 0.14 of layout shift on 22 of 38 pages
           in the smoke test (CLS budget 0.1). */}
-      <main className="flex-1 min-h-screen max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 min-h-screen focus:outline-none max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
         {backToHub && (
           <nav aria-label="Breadcrumb" className="text-sm font-mono text-ink-500 mb-4">
             <ol className="flex flex-wrap items-center gap-x-1.5">
@@ -437,6 +469,19 @@ export default function AppLayout() {
       <CookieConsent />
 
       <footer className="border-t border-chalk-300 py-6">
+        {/* The five section hubs (audit 22 Oct 2026, S-04): plain links on
+            every page, prerendered ones included. */}
+        <nav aria-label="Sections" className="max-w-6xl mx-auto px-4 sm:px-6 mb-3">
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {(['football', 'fpl', 'nfl', 'tennis', 'international'] as const).map((key) => (
+              <li key={key}>
+                <Link to={THEMES[key].hubPath} className="text-pitch-800 underline underline-offset-2 hover:text-ink-900">
+                  {THEMES[key].title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">
           <span>{FOOTER_COVERAGE}</span>
           {/* Hiding the Admin menu from visitors removed the ONLY route

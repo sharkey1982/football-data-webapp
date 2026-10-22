@@ -135,7 +135,7 @@ export { buildGamePreview as buildNflGamePreview };
 export { teamChances, teamFplPlayers } from './lib/teamPageApi';
 export { buildLocalClubs, LOCAL_CLUBS_TIERS };
 export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
-import { STATIC_ROUTES, type RouteMeta } from './lib/routeMeta';
+import { STATIC_ROUTES, breadcrumbName, type RouteMeta } from './lib/routeMeta';
 import TennisResultsPage from './pages/tennis/TennisResultsPage';
 import TennisPlayersPage from './pages/tennis/TennisPlayersPage';
 import TennisPlayerPage from './pages/tennis/TennisPlayerPage';
@@ -182,6 +182,12 @@ import {
 } from './lib/tennisApi';
 import { FIRST_YEAR as TENNIS_FIRST_YEAR, groupByTournament as tennisGroupByTournament, resultsSentence as tennisResultsSentence, seasonsSentence as tennisSeasonsSentence, playerSentence as tennisPlayerSentence, seasonSentence as tennisSeasonSentence } from './lib/tennisStats';
 import { hasKickedOff } from './lib/fixtureStatus';
+import Landing from './pages/Landing';
+import FootballHub from './pages/FootballHub';
+import FplHub from './pages/FplHub';
+import NflHub from './pages/nfl/NflHub';
+import TennisHub from './pages/tennis/TennisHub';
+import IntlHub from './pages/international/IntlHub';
 export {
   MATCH_COLUMNS as TENNIS_MATCH_COLUMNS,
   PLAYER_COLUMNS as TENNIS_PLAYER_COLUMNS,
@@ -372,6 +378,30 @@ export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
   };
 }
 
+/** Home and section hubs: their first render (headings, card titles,
+ * skeletons and the full page list from journey.ts) needs no data, so it is
+ * prerendered. Crawlers and link previews get a body and the internal links
+ * (audit 22 Oct 2026, S-04). Data still loads in the browser. */
+const HUB_BODIES: Record<string, () => ReactElement> = {
+  '/': () => <Landing />,
+  '/football': () => <FootballHub />,
+  '/fpl/start': () => <FplHub />,
+  '/nfl': () => <NflHub />,
+  '/tennis': () => <TennisHub />,
+  '/international': () => <IntlHub />,
+};
+
+function hubBody(path: string): string {
+  const el = HUB_BODIES[path];
+  if (!el) return '';
+  try {
+    return staticPage(path, el());
+  } catch (err) {
+    console.error(`Static: hub body for ${path} failed: ${(err as Error)?.message ?? err}`);
+    return '';
+  }
+}
+
 /** Head tags and breadcrumbs for a static route.
  *
  * Content stays client-rendered for these -- they're interactive pages
@@ -385,10 +415,10 @@ export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
  * do is guess which page is which before rendering. */
 export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
   const crumbs = meta.crumbs
-    ? [...meta.crumbs, { name: meta.title.split(' — ')[0], path: meta.path }]
+    ? [...meta.crumbs, { name: breadcrumbName(meta.title), path: meta.path }]
     : [];
   return {
-    html: '',
+    html: hubBody(meta.path),
     title: `${meta.title} | ${BRAND_NAME}`,
     description: meta.description,
     canonical: `${SITE_URL}${meta.path}`,

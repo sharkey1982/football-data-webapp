@@ -162,8 +162,9 @@ describe('AppLayout main nav', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /^Club/ }));
 
+    // Closed menus stay in the DOM (hidden), so ask for what is visible.
     for (const stage of ['Discover', 'Predict']) {
-      expect(screen.getByText(stage)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: stage })).toBeInTheDocument();
     }
     // Validate folded into Predict -- it was QA language for an audience
     // that wants to know whether to trust a number, not to audit one.
@@ -263,16 +264,19 @@ describe('AppLayout main nav', () => {
   it('Play menu: the Beat the Shark games, as plain links to the game site', async () => {
     const user = userEvent.setup();
     renderAt('/');
-    await user.click(screen.getByRole('button', { name: /^Play/ }));
-    expect(screen.getByText('Sports')).toBeInTheDocument();
-    expect(screen.getByText('Casino & probability')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Football' })).toHaveAttribute('href', '/play/beat-the-shark/');
-    expect(screen.getByRole('link', { name: 'NFL' })).toHaveAttribute('href', '/play/beat-the-shark/nfl/');
-    expect(screen.getByRole('link', { name: 'World Cup' })).toHaveAttribute('href', '/play/beat-the-shark/world-cup/');
-    expect(screen.getByRole('link', { name: 'Tennis: Nations Cup' })).toHaveAttribute('href', '/play/beat-the-shark/nations-cup/');
-    expect(screen.getByRole('link', { name: 'Blackjack: all the games' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
-    expect(screen.getByRole('link', { name: 'Poker: all the trainers' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
-    expect(screen.getByRole('link', { name: 'Poker: heads-up v the Shark' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=match');
+    const playButton = screen.getByRole('button', { name: /^Play/ });
+    await user.click(playButton);
+    // Scoped to the open menu: the footer also links the Football and NFL hubs.
+    const menu = within(document.getElementById(playButton.getAttribute('aria-controls')!)!);
+    expect(menu.getByText('Sports')).toBeInTheDocument();
+    expect(menu.getByText('Casino & probability')).toBeInTheDocument();
+    expect(menu.getByRole('link', { name: 'Football' })).toHaveAttribute('href', '/play/beat-the-shark/');
+    expect(menu.getByRole('link', { name: 'NFL' })).toHaveAttribute('href', '/play/beat-the-shark/nfl/');
+    expect(menu.getByRole('link', { name: 'World Cup' })).toHaveAttribute('href', '/play/beat-the-shark/world-cup/');
+    expect(menu.getByRole('link', { name: 'Tennis: Nations Cup' })).toHaveAttribute('href', '/play/beat-the-shark/nations-cup/');
+    expect(menu.getByRole('link', { name: 'Blackjack: all the games' })).toHaveAttribute('href', '/play/beat-the-shark/blackjack/');
+    expect(menu.getByRole('link', { name: 'Poker: all the trainers' })).toHaveAttribute('href', '/play/beat-the-shark/poker/');
+    expect(menu.getByRole('link', { name: 'Poker: heads-up v the Shark' })).toHaveAttribute('href', '/play/beat-the-shark/poker/?mode=match');
   });
 
   it('remembers the last Fixtures filters on the menu link after leaving the page', async () => {
