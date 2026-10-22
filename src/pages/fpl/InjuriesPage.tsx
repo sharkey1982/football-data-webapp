@@ -40,7 +40,7 @@ export default function InjuriesPage() {
   });
 
   useEffect(() => {
-    getInjuryReport(13)
+    getInjuryReport()
       .then(setRows)
       .catch(() => setRows([]));
   }, []);

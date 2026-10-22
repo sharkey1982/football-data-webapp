@@ -19,7 +19,7 @@ import { getPriceChangeRisk, type PriceRisk } from '../lib/priceRiskApi';
 import { getInjuryReport, STATUS_LABEL, type InjuryRow } from '../lib/injuryApi';
 import { loadReportList, reportPath, type ReportListEntry } from '../lib/fplGameweekReport';
 import { PlayerLink } from '../components/EntityLinks';
-import { HubCard, HubNote, HubPageList, HubPlayStrip, HUB_LINK } from '../components/hub/HubParts';
+import { HubCard, HubNote, HubPageList, HubPlayStrip, HubSkeleton, HUB_LINK } from '../components/hub/HubParts';
 
 type Load<T> = { status: 'loading' } | { status: 'error' } | { status: 'ok'; data: T };
 
@@ -100,7 +100,7 @@ export default function FplHub() {
 
       <div className="flex flex-wrap gap-6 items-start">
         <HubCard title="Most projected points" more={{ to: '/fpl/player-points', label: 'All players' }} className="flex-[999_1_34rem] min-w-0" testId="hub-projected">
-          {top.status === 'loading' && <HubNote>Loading&hellip;</HubNote>}
+          {top.status === 'loading' && <HubSkeleton rows={6} rowClass="h-11" />}
           {top.status === 'error' && <HubNote>The projections didn&rsquo;t load.</HubNote>}
           {top.status === 'ok' && (!top.data || top.data.picks.length === 0) && <HubNote>No projections for the coming gameweek yet.</HubNote>}
           {top.status === 'ok' && top.data && top.data.picks.length > 0 && (
@@ -121,7 +121,14 @@ export default function FplHub() {
                       <td className="px-4 py-2.5 font-mono text-xs text-ink-500">{i + 1}</td>
                       <td className="py-2.5">
                         <PlayerLink slug={p.slug} from="fpl_hub" className={NAME}>{p.name}</PlayerLink>
-                        {p.games > 1 && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-amber-600">{p.games} games</span>}
+                        {p.games > 1 && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-ink-700">{p.games} games</span>}
+                        {p.status && p.status !== 'a' && (
+                          // FPL's flag, shown beside the projection: the model's minutes
+                          // can lag late injury news (audit 22 Oct 2026, S-13).
+                          <span className="ml-1.5 text-[10px] uppercase tracking-wide text-loss-700" title="FPL availability flag">
+                            {STATUS_LABEL[p.status] ?? p.status}{p.chance != null ? ` ${p.chance}%` : ''}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 text-ink-700 hidden sm:table-cell">{p.team}</td>
                       <td className="py-2.5 text-right font-mono text-xs">{p.price != null ? `£${p.price.toFixed(1)}m` : '—'}</td>
@@ -137,7 +144,7 @@ export default function FplHub() {
 
         <div className="flex-[1_1_18rem] min-w-0 space-y-6">
           <HubCard title="Price pressure" more={{ to: '/fpl/price-risk', label: 'All' }} testId="hub-prices">
-            {prices.status === 'loading' && <HubNote>Loading&hellip;</HubNote>}
+            {prices.status === 'loading' && <HubSkeleton rows={6} rowClass="h-9" />}
             {prices.status === 'error' && <HubNote>Prices didn&rsquo;t load.</HubNote>}
             {prices.status === 'ok' && risers.length + fallers.length === 0 && <HubNote>No one under pressure right now.</HubNote>}
             {prices.status === 'ok' && risers.length + fallers.length > 0 && (
@@ -157,7 +164,7 @@ export default function FplHub() {
           </HubCard>
 
           <HubCard title="Injury news" more={{ to: '/fpl/injuries', label: 'All' }} testId="hub-injuries">
-            {injuries.status === 'loading' && <HubNote>Loading&hellip;</HubNote>}
+            {injuries.status === 'loading' && <HubSkeleton rows={5} rowClass="h-9" />}
             {injuries.status === 'error' && <HubNote>Injury news didn&rsquo;t load.</HubNote>}
             {injuries.status === 'ok' && flagged.length === 0 && <HubNote>No one flagged.</HubNote>}
             {flagged.length > 0 && (

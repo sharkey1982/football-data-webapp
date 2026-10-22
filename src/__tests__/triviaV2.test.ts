@@ -205,3 +205,16 @@ describe('every question leads somewhere', () => {
     for (const f of [...(await getFootballTrivia()), ...(await getFplTrivia())]) expect(f.link?.to).toMatch(/^\//);
   });
 });
+
+describe('the gameweek comes from FPL’s own calendar when it has one', () => {
+  it('takes the next deadline and that gameweek’s fixtures, including a rearranged one', async () => {
+    tables.fpl_gameweeks = [
+      { fpl_event_id: 7, deadline_time: '2000-01-01T10:00:00Z' },
+      { fpl_event_id: 8, deadline_time: '2999-01-01T10:00:00Z' },
+    ];
+    tables.fpl_fixtures = [{ canonical_fixture_id: 71 }, { canonical_fixture_id: 99 }];
+    // The matchweek rule would say 6; FPL says 8.
+    tables.fixtures = [{ fixture_id: 51, matchweek: 6, status: 'scheduled' }];
+    expect(await upcomingGameweek()).toEqual({ matchweek: 8, fixtureIds: [71, 99] });
+  });
+});

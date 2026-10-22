@@ -92,3 +92,18 @@ export function HubHeader({ eyebrow, title, children }: { eyebrow: string; title
     </header>
   );
 }
+
+/** Placeholder rows the same height as the loaded rows, so a card doesn't
+ *  grow when its data arrives and push the page down. The Club hub moved by
+ *  0.37 (layout shift) on a phone before these (audit 22 Oct 2026, S-01). */
+export function HubSkeleton({ rows, rowClass }: { rows: number; rowClass: string }) {
+  return (
+    <ul aria-hidden="true" className="divide-y divide-chalk-200">
+      {Array.from({ length: rows }, (_, i) => (
+        <li key={i} className={`px-4 flex items-center ${rowClass}`}>
+          <span className="block h-3 w-2/3 rounded bg-chalk-200" />
+        </li>
+      ))}
+    </ul>
+  );
+}

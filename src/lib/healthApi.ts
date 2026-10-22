@@ -12,12 +12,25 @@ import { supabase } from './supabase';
 import type { FplIngestionRun, MatchImportRun, PipelineRun } from '../types/database';
 
 export async function getFitRunRhos(): Promise<Map<number, number>> {
-  const { data, error } = await supabase
-    .from('model_fit_runs')
-    .select('fit_run_id, rho')
-    .not('rho', 'is', null);
-  if (error) throw error;
-  return new Map((data ?? []).map((r) => [Number(r.fit_run_id), Number(r.rho)]));
+  // Paged and ordered, newest first. The API returns at most 1,000 rows per
+  // request and says nothing when it stops; model_fit_runs passed 1,000 on
+  // 15 Oct 2026, the newest fits (the ones every upcoming fixture uses) were
+  // the ones cut off, and Results Projections silently lost its 1X2 and
+  // market numbers (audit 22 Oct 2026, CODE-01).
+  const out = new Map<number, number>();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('model_fit_runs')
+      .select('fit_run_id, rho')
+      .not('rho', 'is', null)
+      .order('fit_run_id', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    for (const r of data ?? []) out.set(Number(r.fit_run_id), Number(r.rho));
+    if ((data ?? []).length < PAGE) break;
+  }
+  return out;
 }
 
 /** Most recent daily match-result import runs (any status), newest first -- for the Data Health page's "results added" section. */

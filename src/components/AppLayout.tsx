@@ -6,6 +6,7 @@ import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 import { BEAT_THE_SHARK } from './GameCard';
+import { PageErrorBoundary } from './PageErrorBoundary';
 
 type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: boolean; excludePrefix?: string | string[]; external?: boolean };
 /** A group's items may be split into the four journey stages
@@ -428,7 +429,9 @@ export default function AppLayout() {
             </ol>
           </nav>
         )}
-        <Outlet />
+        <PageErrorBoundary key={location.pathname}>
+          <Outlet />
+        </PageErrorBoundary>
       </main>
 
       <CookieConsent />

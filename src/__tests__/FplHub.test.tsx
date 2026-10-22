@@ -28,7 +28,10 @@ describe('FPL home page', () => {
     m(hubApi).getNextDeadline.mockResolvedValue({ gw: 8, deadline: '2026-10-23T17:30:00Z' });
     m(hubApi).getTopProjected.mockResolvedValue({
       gw: 8,
-      picks: [{ fplPlayerId: 1, name: 'Haaland', slug: 'erling-haaland', team: 'Manchester City', teamId: 9, price: 14.5, points: 7.49, games: 1 }],
+      picks: [
+        { fplPlayerId: 1, name: 'Haaland', slug: 'erling-haaland', team: 'Manchester City', teamId: 9, price: 14.5, points: 7.49, games: 1, status: 'a', chance: null },
+        { fplPlayerId: 12, name: 'Saka', slug: 'bukayo-saka', team: 'Arsenal', teamId: 1, price: 9.6, points: 6.82, games: 1, status: 'd', chance: 50 },
+      ],
     });
     m(priceRiskApi).getPriceChangeRisk.mockResolvedValue([
       { fpl_player_id: 2, web_name: 'Saka', slug: 'bukayo-saka', team_name: 'Arsenal', position_label: 'MID', price: 10, ownership: 40, transfers_in: 0, transfers_out: 0, net_transfers: 120000, pressure: 0.9, direction: 'rise' },
@@ -51,6 +54,12 @@ describe('FPL home page', () => {
     expect(await within(screen.getByTestId('hub-prices')).findByRole('link', { name: 'Saka' })).toHaveAttribute('href', '/fpl/players/bukayo-saka');
     expect(await within(screen.getByTestId('hub-injuries')).findByRole('link', { name: 'Palmer' })).toHaveAttribute('href', '/fpl/players/cole-palmer');
     expect(screen.getByText(/Doubtful · 75%/)).toBeInTheDocument();
+  });
+
+  it('shows FPL\u2019s availability flag beside a flagged pick', async () => {
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    const card = await screen.findByTestId('hub-projected');
+    expect(await within(card).findByText('Doubtful 50%')).toBeInTheDocument();
   });
 
   it('sends an FPL ID to Rate My Team', async () => {

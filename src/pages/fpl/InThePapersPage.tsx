@@ -48,7 +48,7 @@ export default function InThePapersPage() {
   });
 
   useEffect(() => {
-    getDigestGameweeks(13)
+    getDigestGameweeks()
       .then((g) => { setGameweeks(g); setGw(g[0]?.gameweek ?? null); })
       .catch(() => { setGameweeks([]); setError(true); });
   }, []);

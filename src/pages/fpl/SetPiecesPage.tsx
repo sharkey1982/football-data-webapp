@@ -43,13 +43,13 @@ export default function SetPiecesPage() {
   });
 
   useEffect(() => {
-    getSetPieceTakers(13)
+    getSetPieceTakers()
       .then(setTakers)
       .catch(() => setTakers([]));
     getSetPieceBreakdown()
       .then(setShare)
       .catch(() => setShare(null));
-    getSetPieceIndex(13)
+    getSetPieceIndex()
       .then(setIndex)
       .catch(() => setIndex([]));
   }, []);

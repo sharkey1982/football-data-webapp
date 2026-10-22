@@ -57,7 +57,7 @@ export default function ValuePage() {
   });
 
   useEffect(() => {
-    getActualValueTable(13)
+    getActualValueTable()
       .then(setRows)
       .catch(() => setRows([]));
   }, []);
