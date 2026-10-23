@@ -38,6 +38,7 @@ export default function IntlTvGuidePage() {
         <GenderSwitch />
       </div>
       <WatchGuideView
+      section="intl"
         fixtures={failed ? [] : fixtures}
         error={failed ? 'Failed to load the TV guide' : null}
         title={women ? 'Women’s internationals on TV' : 'Internationals on TV'}

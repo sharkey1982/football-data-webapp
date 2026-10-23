@@ -28,6 +28,7 @@ export default function TennisTvGuidePage({ initialData, today }: { initialData?
   const fixtures = useMemo(() => (data ? tennisGuideItems(data.calendar, data.recent, day) : null), [data, day]);
   return (
     <WatchGuideView
+      section="tennis"
       fixtures={failed ? [] : fixtures}
       error={failed ? 'Failed to load the TV guide' : null}
       title="Tennis on TV"

@@ -21,6 +21,13 @@ import { ukToday } from './ukDate';
 
 export type AffiliateCategory = 'streaming' | 'tickets' | 'merchandise' | 'travel' | 'stadium_experiences';
 
+/** The site section a link sits in. A partner applies only in the sections
+ * listed in its `sections` column (23 Oct 2026): an empty list means
+ * nowhere, so a newly activated partner can't spread across the site by
+ * domain match alone -- 16 football broadcasts link to dazn.com, and
+ * DAZN's first trial is the NFL section only. */
+export type AffiliateSection = 'club' | 'fpl' | 'nfl' | 'tennis' | 'intl';
+
 export type AffiliatePartner = {
   partnerId: number;
   name: string;
@@ -57,10 +64,10 @@ function toPartner(r: Record<string, unknown>): AffiliatePartner {
   };
 }
 
-/** Active, in-date-window partner rows for a category (and market, default
- * GB). A small table (a handful of rows) -- no caching layer, a fresh
+/** Active, in-date-window partner rows for a category in one site section
+ * (and market, default GB). A small table (a handful of rows) -- no caching layer, a fresh
  * fetch each time is cheap and always correct if a row changes. */
-export async function getActivePartners(category: AffiliateCategory, market = 'GB'): Promise<AffiliatePartner[]> {
+export async function getActivePartners(category: AffiliateCategory, section: AffiliateSection, market = 'GB'): Promise<AffiliatePartner[]> {
   const today = ukToday();
   const { data, error } = await db
     .from('affiliate_partners')
@@ -68,6 +75,7 @@ export async function getActivePartners(category: AffiliateCategory, market = 'G
     .eq('category', category)
     .eq('market', market)
     .eq('active', true)
+    .contains('sections', [section])
     .or(`valid_from.is.null,valid_from.lte.${today}`)
     .or(`valid_to.is.null,valid_to.gte.${today}`);
   if (error) throw error;

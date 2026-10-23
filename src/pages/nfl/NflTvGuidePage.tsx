@@ -19,13 +19,15 @@ export default function NflTvGuidePage() {
   const fixtures = useMemo(() => (data ? data.games.map((g) => nflGuideItem(g, data.model[g.game_id])) : null), [data]);
   return (
     <WatchGuideView
+      section="nfl"
       fixtures={failed ? [] : fixtures}
       error={failed ? 'Failed to load the TV guide' : null}
       title="NFL on TV"
       intro={
         <>
-          Every NFL game left this season and how to watch it live in the UK; times are UK time. Every game streams on DAZN NFL Game Pass; Sky Sports and 5
-          (free) show the games below as their published rights say, and pick some Sunday games week by week.{' '}
+          Every NFL game left this season and how to watch it live in the UK; times are UK time. DAZN NFL Game Pass streams every game live except two Sunday games a week (one at 18:00, one
+          at 21:25), which it shows on demand 24 hours later. Sky Sports and 5 (free) show the games below as their published rights say, and
+          pick some Sunday games week by week.{' '}
           {`Rights last checked ${RULES_CHECKED}: `}
           {NFL_TV_SOURCES.map((s, i) => (
             <span key={s.url}>
@@ -39,7 +41,7 @@ export default function NflTvGuidePage() {
       emptyText="No NFL games left this season."
       head={{
         title: 'NFL on TV — UK Watch Guide',
-        description: 'Every NFL game left this season in UK time, with how to watch it live in the UK: Sky Sports, 5 (free) and DAZN NFL Game Pass.',
+        description: 'Every NFL game left this season in UK time, with how to watch it live in the UK: Sky Sports, 5 (free) and DAZN NFL Game Pass, including the Game Pass Sunday blackouts.',
         path: NFL_TV_PATH,
       }}
     />

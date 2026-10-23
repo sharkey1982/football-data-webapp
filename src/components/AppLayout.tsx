@@ -1,3 +1,4 @@
+import BetaChip from './BetaChip';
 import { THEMES, stagePath, type JourneyLink } from '../lib/journey';
 import { trackPageView } from '../lib/analytics';
 import { CookieConsent } from './CookieConsent';
@@ -19,7 +20,7 @@ type NavItem = { to: To; label: string; matchPrefix: string | string[]; exact?: 
  * part of that journey (Admin) stay flat, because forcing
  * them into stage headings would invent a structure they don't have. */
 type NavSection = { label: string; to?: string; items: NavItem[] };
-type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[]; alignRight?: boolean };
+type NavGroup = { label: string; items?: NavItem[]; sections?: NavSection[]; alignRight?: boolean; beta?: boolean };
 
 /** Every item in a group, whether it's flat or sectioned -- used for
  * group-level highlighting so both shapes behave identically. */
@@ -117,6 +118,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
         ].join(' ')}
       >
         {group.label}
+        {group.beta && <BetaChip className="hidden sm:inline" />}
         <span aria-hidden="true" className={`text-xs transition-transform ${open ? 'rotate-180' : ''}`}>&#9662;</span>
       </button>
       {/* Always in the DOM, hidden until opened (audit 22 Oct 2026, S-04):
@@ -269,6 +271,7 @@ export default function AppLayout() {
     const theme = THEMES[key];
     return {
       label: MENU_LABEL[key],
+      beta: theme.beta,
       // Overview sits above the stage headings as a plain item, not an
       // empty section -- a heading with nothing under it reads as a
       // rendering bug.

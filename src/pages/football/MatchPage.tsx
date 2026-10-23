@@ -93,7 +93,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   // today) every watch link just falls back to its canonical URL.
   useEffect(() => {
     let live = true;
-    getActivePartners('streaming')
+    getActivePartners('streaming', 'club')
       .then((p) => live && setStreamingPartners(p))
       .catch(() => live && setStreamingPartners([]));
     return () => {
