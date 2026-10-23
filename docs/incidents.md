@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-23 · Smoke check passed PRs on runs that tested nothing (my merges of #423 and #425)
+- **Found:** checking `smoke_runs` after merging #425: no run was recorded for its last commit, yet its `smoke/preview` status said success.
+- **Impact:** #423 was merged on a "success" from a migration-only commit; the real run on its site code (run 191) had failed on /fixtures and /tv-guide. #425's rebased commit likewise. Both failures were HTTP 400s from columns the PR's own migration had not yet created; the pages fell back to plain links, and production was clean once the migrations ran (run 194: 88 pages, 0 failures). So no visitor-facing harm, but the check gave no evidence for either merge.
+- **Cause:** when Netlify skips a build (only ignored paths changed), `weekly-smoke.yml` posted `success` with "No site changes" without testing. I read the status, not the run.
+- **Fix:** a skipped build now smoke-tests the PR's existing deploy preview (same site code), and the status says so; it passes on nothing only when there is no PR. A frontend that reads a new column now waits for its migration, merged first in its own PR (as CLAUDE.md says).
+- **Prevention:** the workflow change. *Lesson: a green check is evidence only if it ran; read the run, not the badge.*
+
+---
+
 ## 2026-10-23 · Premier Sports games filed under Prime Video in the football TV guide
 - **Found:** Chris, on /tv-guide with the Prime Video service filter.
 - **Impact:** Premier Sports' LaLiga games (9 upcoming) appeared under "Prime Video" and read "Requires Prime Video subscription". They need a Premier Sports subscription; Prime Video Channels is only one place to buy it, as an add-on.
