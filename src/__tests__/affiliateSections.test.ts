@@ -3,6 +3,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const calls: { method: string; args: unknown[] }[] = [];
+let rows: Record<string, unknown>[] = [];
 vi.mock('../lib/supabase', () => {
   const chain: Record<string, unknown> = {};
   for (const m of ['select', 'eq', 'or', 'contains']) {
@@ -11,7 +12,7 @@ vi.mock('../lib/supabase', () => {
       return chain;
     };
   }
-  (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve({ data: [], error: null });
+  (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve({ data: rows, error: null });
   return { supabase: { from: (t: string) => (calls.push({ method: 'from', args: [t] }), chain) } };
 });
 
@@ -20,6 +21,7 @@ import { nflWatch } from '../lib/nflWatch';
 
 beforeEach(() => {
   calls.length = 0;
+  rows = [];
 });
 
 describe('affiliate partners by section', () => {
@@ -27,6 +29,16 @@ describe('affiliate partners by section', () => {
     await getActivePartners('streaming', 'nfl');
     expect(calls).toContainEqual({ method: 'contains', args: ['sections', ['nfl']] });
     expect(calls).toContainEqual({ method: 'eq', args: ['active', true] });
+  });
+
+  it("uses the section's own link when there is one, else the general link", async () => {
+    rows = [{
+      partner_id: 3, name: 'DAZN UK', category: 'streaming', network: 'Awin', canonical_domain: 'dazn.com', market: 'GB',
+      affiliate_url_template: 'https://aw.example/?ued={url}',
+      section_url_templates: { nfl: 'https://aw.example/?campaign=NFL&ued={url}' },
+    }];
+    expect((await getActivePartners('streaming', 'nfl'))[0].affiliateUrlTemplate).toBe('https://aw.example/?campaign=NFL&ued={url}');
+    expect((await getActivePartners('streaming', 'club'))[0].affiliateUrlTemplate).toBe('https://aw.example/?ued={url}');
   });
 
   it('a page with no partners keeps the canonical link (football DAZN links stay plain)', () => {

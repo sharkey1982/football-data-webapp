@@ -69,7 +69,11 @@ const PROVIDERS: { key: string; label: string; match: RegExp }[] = [
   { key: 'sky_sports', label: 'Sky Sports', match: /\bsky\b/i },
   { key: 'now', label: 'NOW', match: /\bNOW\b/ },
   { key: 'tnt_sports', label: 'TNT Sports', match: /\btnt\b|hbo max|discovery\+/i },
-  { key: 'prime_video', label: 'Prime Video', match: /prime video|amazon/i },
+  // "Prime Video Channels" is a shop for other services' add-ons (Premier
+  // Sports, LALIGATV): watching through it needs that service's
+  // subscription, so it doesn't make a game a Prime Video game (23 Oct 2026:
+  // Premier Sports' LaLiga games showed under the Prime Video filter).
+  { key: 'prime_video', label: 'Prime Video', match: /prime video(?!\s*channels)|amazon/i },
   { key: 'premier_sports', label: 'Premier Sports', match: /premier sports/i },
   { key: 'bbc', label: 'BBC', match: /\bbbc\b|iplayer/i },
   { key: 'itv', label: 'ITV', match: /\bitv/i },
@@ -115,7 +119,12 @@ export function offerRequirement(o: WatchOffer): string {
   if (tier === 'free_compatible_device') return o.platformDevice ? `Free on ${o.platformDevice}` : 'Free on compatible devices';
   if (tier === 'ppv') return 'Extra payment (pay-per-view)';
   if (tier === 'subscription') {
-    const keys = providerKeys(o).filter((k) => k !== 'now');
+    // The broadcaster's own subscription first: a Premier Sports game also
+    // sold through another platform still needs Premier Sports. Before
+    // 23 Oct 2026 this took the first match in list order, so Premier
+    // Sports games read "Requires Prime Video subscription".
+    const own = providerKeys({ broadcaster: o.broadcaster, channel: o.channel, streamingService: null, serviceProduct: null }).filter((k) => k !== 'now');
+    const keys = own.length > 0 ? own : providerKeys(o).filter((k) => k !== 'now');
     return keys.length > 0 ? `Requires ${providerLabel(keys[0])} subscription` : 'Requires a subscription';
   }
   return 'Access details not confirmed';
