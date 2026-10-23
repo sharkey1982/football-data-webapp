@@ -47,19 +47,23 @@ export type CommercialLink = {
   partner?: { name: string; network: string | null };
 };
 
-const COLUMNS = 'partner_id,name,category,network,canonical_domain,affiliate_url_template,market';
+const COLUMNS = 'partner_id,name,category,network,canonical_domain,affiliate_url_template,section_url_templates,market';
 
 // Newer than the generated types; the row shape above is the contract.
 const db = supabase as unknown as { from: (t: string) => any };
 
-function toPartner(r: Record<string, unknown>): AffiliatePartner {
+/** `section` picks that section's own link when the partner has one (e.g.
+ * DAZN's NFL link carries the "NFL Game Pass on DAZN" campaign so NFL clicks
+ * report separately), else the partner's general link. */
+function toPartner(r: Record<string, unknown>, section?: AffiliateSection): AffiliatePartner {
+  const bySection = (r.section_url_templates ?? {}) as Partial<Record<AffiliateSection, string>>;
   return {
     partnerId: Number(r.partner_id),
     name: String(r.name),
     category: r.category as AffiliateCategory,
     network: (r.network as string | null) ?? null,
     canonicalDomain: String(r.canonical_domain),
-    affiliateUrlTemplate: (r.affiliate_url_template as string | null) ?? null,
+    affiliateUrlTemplate: (section && bySection[section]) || ((r.affiliate_url_template as string | null) ?? null),
     market: String(r.market),
   };
 }
@@ -79,7 +83,7 @@ export async function getActivePartners(category: AffiliateCategory, section: Af
     .or(`valid_from.is.null,valid_from.lte.${today}`)
     .or(`valid_to.is.null,valid_to.gte.${today}`);
   if (error) throw error;
-  return ((data ?? []) as Record<string, unknown>[]).map(toPartner);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => toPartner(r, section));
 }
 
 /** Pure matching logic, kept separate from the fetch so it's testable

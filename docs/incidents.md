@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-23 · Premier Sports games filed under Prime Video in the football TV guide
+- **Found:** Chris, on /tv-guide with the Prime Video service filter.
+- **Impact:** Premier Sports' LaLiga games (9 upcoming) appeared under "Prime Video" and read "Requires Prime Video subscription". They need a Premier Sports subscription; Prime Video Channels is only one place to buy it, as an add-on.
+- **Cause:** the provider regex matched "Prime Video Channels" in `streaming_service`; the requirement line took the first provider in list order (Prime Video before Premier Sports), not the broadcaster.
+- **Fix:** `watchGuide.ts`: "Prime Video Channels" no longer counts as Prime Video; the requirement names the broadcaster's own subscription first.
+- **Prevention:** `src/__tests__/watchGuideProviders.test.ts`. *Lesson: "available via X" is not "is X".*
+
+---
+
 ## 2026-10-23 · NFL TV guide said DAZN Game Pass shows every game live
 - **Found:** checking DAZN's UK Game Pass help page before switching on the DAZN affiliate link (PR #423).
 - **Impact:** since the NFL TV guide launched (4 Oct), every regular-season game listed DAZN as live. Game Pass blacks out one 18:00 and one 21:25 UK Sunday game each week (on demand 24 hours later), so two games a week were wrong. About to get worse: the affiliate link would have sat on those games too.
