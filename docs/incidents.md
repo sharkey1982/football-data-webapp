@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-23 · GW8 captaincy and team-news posts never went out
+- **Found:** Chris, after the GW8 deadline (Fri 23 Oct, 18:30 UK): no captaincy post and no late preview post on @FixtureSharkHQ. (The GW8 preview thread did post, Thu 22 Oct 08:10.)
+- **Impact:** No GW8 captaincy post. The Friday team-news update thread was not sent. Nothing wrong was posted.
+- **Cause:** (1) Captaincy: the ranking queued at 05:05 Thu (to post 24h before the deadline) failed its re-check at 18:30 Thu because one projected value had moved by 0.1. The detector only made a new candidate when the top three players changed, which did not happen until 16:50 Fri, by when the detector's window (closing 3h before the deadline) had shut. So nothing replaced it. The stale candidate was then re-checked and audited every 10 minutes until the deadline (about 140 audit rows). (2) Team news: the thread was made at 17:25 Fri with a 60-minute hold, so it was due at 18:25, but the worker runs every 10 minutes and the post expired at 18:30, just before the next run.
+- **Fix:** `20261023210000_social_missed_deadline_posts.sql`: the captaincy candidate key covers every number in the post, so a stale ranking is replaced on the next hourly run; a replacement posts 15 minutes after it is made; the window runs to 90 minutes before the deadline; captaincy stops once posted for the gameweek; every hold ends at least 20 minutes before expiry; a stale queued candidate is retired instead of re-checked.
+- **Prevention:** *Lesson: a re-check that can fail must have a path that produces the replacement, and a schedule must be checked against the worker's tick, not just the clock time.*
+
+---
+
 ## 2026-10-23 · Smoke check passed PRs on runs that tested nothing (my merges of #423 and #425)
 - **Found:** checking `smoke_runs` after merging #425: no run was recorded for its last commit, yet its `smoke/preview` status said success.
 - **Impact:** #423 was merged on a "success" from a migration-only commit; the real run on its site code (run 191) had failed on /fixtures and /tv-guide. #425's rebased commit likewise. Both failures were HTTP 400s from columns the PR's own migration had not yet created; the pages fell back to plain links, and production was clean once the migrations ran (run 194: 88 pages, 0 failures). So no visitor-facing harm, but the check gave no evidence for either merge.
