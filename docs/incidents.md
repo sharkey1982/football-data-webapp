@@ -12,6 +12,24 @@ fixing something else.
 
 ---
 
+## 2026-10-23 · NFL TV guide said DAZN Game Pass shows every game live
+- **Found:** checking DAZN's UK Game Pass help page before switching on the DAZN affiliate link (PR #423).
+- **Impact:** since the NFL TV guide launched (4 Oct), every regular-season game listed DAZN as live. Game Pass blacks out one 18:00 and one 21:25 UK Sunday game each week (on demand 24 hours later), so two games a week were wrong. About to get worse: the affiliate link would have sat on those games too.
+- **Cause:** `nflWatch` was written from the rights summary ("every game") without the blackout clause in DAZN's own help article.
+- **Fix:** Sunday-window regular-season games now carry a DAZN entry with the blackout note and no watch link; the guide intro says so; rights re-checked 23 Oct.
+- **Prevention:** `src/__tests__/affiliateSections.test.ts` (window games have no DAZN link; Thursday, Sunday night, London, play-off and Super Bowl games keep it). Not done: naming the actual blacked-out games each week (DAZN lists them by Wednesday). *Lesson: read the provider's own small print before saying "every".*
+
+---
+
+## 2026-10-23 · Affiliate partners matched by domain alone, site-wide
+- **Found:** before activating DAZN for the NFL section (PR #423).
+- **Impact:** none (no partner was ever active). Switching DAZN on would have put affiliate links on the 16 football broadcasts that link to dazn.com, on Club pages.
+- **Cause:** `getActivePartners` filtered by category and market only.
+- **Fix:** `affiliate_partners.sections` (empty = nowhere); every caller passes its section. DAZN is `{nfl}`.
+- **Prevention:** `src/__tests__/affiliateSections.test.ts` checks the section filter is sent. *Lesson: an on-switch needs a scope.*
+
+---
+
 ## 2026-10-22 · Public pages could show raw database error text
 - **Found:** site audit of 22 Oct (S-19). Latent: no smoke run recorded one.
 - **Impact:** on a failed request, about 20 public pages (Team Strength, Player Projections, Optimal Squad, Compare, Scoring Rules, Model Scorecard, the TV guide and others) would have shown PostgREST text such as "permission denied for table ..." or "canceling statement due to statement timeout".
