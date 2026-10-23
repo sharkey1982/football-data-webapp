@@ -8,7 +8,14 @@
 // either, so this works from the published UK rights for 2026/27 instead,
 // and says plainly which games are picked week by week:
 //
-//   * DAZN NFL Game Pass   every game, live (subscription).
+//   * DAZN NFL Game Pass   every game live (subscription) EXCEPT two Sunday
+//                          games a week, one in each of the 18:00 and 21:25
+//                          UK windows, blacked out until 24 hours after the
+//                          game; DAZN names them by Wednesday (DAZN help,
+//                          checked 23 Oct 2026). The site said "every game"
+//                          until then. Those window games get no DAZN watch
+//                          link, so an affiliate link can never sit on a
+//                          game that may not be live on DAZN.
 //   * Sky Sports NFL       the prime-time games (Thursday, Sunday and Monday
 //                          nights -- after 23:00 UK), every London and
 //                          European game, the play-offs and the Super Bowl;
@@ -27,7 +34,7 @@ import type { WatchOffer } from './watchGuide';
 import { favourLabel, nflGamePath, ukDateKey, weekLabel, type NflGame, type NflGameModel } from './nflApi';
 import type { WatchGuideItem } from '../components/WatchGuideView';
 
-export const RULES_CHECKED = '4 October 2026';
+export const RULES_CHECKED = '23 October 2026';
 
 export const NFL_TV_SOURCES = [
   { label: 'Sky Sports: NFL on Sky', url: 'https://www.skysports.com/watch/nfl-on-sky' },
@@ -80,7 +87,21 @@ const DAZN = () =>
     deliveryMethods: ['streaming'],
     watchUrl: 'https://www.dazn.com/',
     source: 'rule:nfl_game_pass',
-    availabilityNotes: 'NFL Game Pass on DAZN streams every game live.',
+    availabilityNotes: 'NFL Game Pass on DAZN streams this game live.',
+  });
+
+/** A Sunday 18:00 or 21:25 game: one game in each window is blacked out on
+ * Game Pass each week. No watch link (see the header). */
+const DAZN_MAYBE_BLACKED_OUT = () =>
+  offer({
+    broadcaster: 'DAZN',
+    serviceProduct: 'DAZN NFL Game Pass',
+    streamingService: 'DAZN app',
+    deliveryMethods: ['streaming'],
+    watchUrl: null,
+    source: 'rule:nfl_game_pass_blackout',
+    availabilityNotes:
+      'Game Pass blacks out one 18:00 and one 21:25 Sunday game each week (on demand 24 hours after the game); DAZN names them by Wednesday.',
   });
 
 const SKY = (why: string) =>
@@ -115,10 +136,11 @@ export type NflWatch = {
 };
 
 export function nflWatch(g: Pick<NflGame, 'game_type' | 'kickoff_at' | 'neutral_site' | 'stadium'>): NflWatch {
-  const offers: WatchOffer[] = [DAZN()];
   let pickedWeekly: string | null = null;
-  if (!g.kickoff_at) return { offers, pickedWeekly: 'Kick-off time not set yet; UK broadcasts follow once it is.', listingsUrl: SKY_LISTINGS };
+  if (!g.kickoff_at) return { offers: [DAZN_MAYBE_BLACKED_OUT()], pickedWeekly: 'Kick-off time not set yet; UK broadcasts follow once it is.', listingsUrl: SKY_LISTINGS };
   const { day, hour } = ukParts(g.kickoff_at);
+  const sundayWindow = g.game_type === 'REG' && day === 'Sun' && hour >= 17 && hour < 23;
+  const offers: WatchOffer[] = [sundayWindow ? DAZN_MAYBE_BLACKED_OUT() : DAZN()];
   const primetime = hour >= 23 || hour < 6;
   // By stadium, not neutral_site: nflverse marks the Jaguars' London games as
   // Jaguars home games, and they are London games all the same.
@@ -138,7 +160,7 @@ export function nflWatch(g: Pick<NflGame, 'game_type' | 'kickoff_at' | 'neutral_
     offers.push(SKY('Sky Sports shows every European game live.'));
   } else if (primetime) {
     offers.push(SKY('Sky Sports shows the prime-time games (Thursday, Sunday and Monday nights) live.'));
-  } else if (day === 'Sun' && hour >= 17 && hour < 23) {
+  } else if (sundayWindow) {
     pickedWeekly =
       'Sky Sports and 5 pick their Sunday games each week: Sky shows several of the 18:00 and 21:25 games (some on Sky Sports+), and 5 shows one early-evening game on 5ACTION and one late game on 5, free.';
   } else {

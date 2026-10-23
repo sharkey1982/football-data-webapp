@@ -256,7 +256,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
   const known = (useLocation().state as { game?: NflGame } | null)?.game;
   const { data: p, failed, loading } = useKeyedFetch(gameId, () => loadNflGame(gameId, known?.game_id === gameId ? known : undefined), initialData ? { key: initialData.game.game_id, data: initialData } : undefined);
   const [tab, setTab] = useState<PreviewTabId>('prediction');
-  const { data: partners } = useKeyedFetch('streaming', () => getActivePartners('streaming').catch(() => []));
+  const { data: partners } = useKeyedFetch('streaming:nfl', () => getActivePartners('streaming', 'nfl').catch(() => []));
   // Player Projections: only for games still to play (the table holds each team's next game).
   const { data: projections } = useKeyedFetch(`proj:${gameId}`, () => loadGameProjections(gameId).catch(() => []));
 

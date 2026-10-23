@@ -620,7 +620,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
   // link being canonical instead of affiliate.
   useEffect(() => {
     let live = true;
-    getActivePartners('streaming')
+    getActivePartners('streaming', 'club')
       .then((p) => live && setStreamingPartners(p))
       .catch(() => live && setStreamingPartners([]));
     return () => {

@@ -21,7 +21,7 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatMatchDateWithYear } from '../lib/formatDate';
 import type { WatchGuideFixture } from '../lib/broadcastsApi';
-import { getActivePartners, type AffiliatePartner } from '../lib/commercialLinks';
+import { getActivePartners, type AffiliatePartner, type AffiliateSection } from '../lib/commercialLinks';
 import WatchOptions from './WatchOptions';
 import ServiceCoverageCard from './ServiceCoverageCard';
 import TeamPicker from './TeamPicker';
@@ -61,6 +61,8 @@ export type WatchGuideViewProps = {
   head: { title: string; description: string; path: string };
   /** The team picker (football clubs and divisions, NFL teams); off for tennis, whose rows are tournaments. */
   teamPicker?: boolean;
+  /** Which section's affiliate partners apply to this guide's links. */
+  section: AffiliateSection;
 };
 
 type Quick = 'all' | 'tonight' | 'weekend' | 'free' | 'subscription' | 'ppv' | 'not_live';
@@ -92,7 +94,7 @@ function matchesQuick(f: WatchGuideItem, q: Quick): boolean {
   return tiers.includes(q);
 }
 
-export default function WatchGuideView({ fixtures, error, title, intro, emptyText, head, teamPicker = true }: WatchGuideViewProps) {
+export default function WatchGuideView({ fixtures, error, title, intro, emptyText, head, teamPicker = true, section }: WatchGuideViewProps) {
   const [partners, setPartners] = useState<AffiliatePartner[]>([]);
   const [quick, setQuick] = useState<Quick>('all');
   const [competition, setCompetition] = useState('');
@@ -109,13 +111,13 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
   // guide down, it just leaves every link canonical.
   useEffect(() => {
     let live = true;
-    getActivePartners('streaming')
+    getActivePartners('streaming', section)
       .then((p) => live && setPartners(p))
       .catch(() => live && setPartners([]));
     return () => {
       live = false;
     };
-  }, []);
+  }, [section]);
 
   const all = fixtures ?? [];
   const competitions = useMemo(() => [...new Set(all.map((f) => f.leagueName))].sort(), [all]);

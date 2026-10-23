@@ -18,6 +18,7 @@ import { TriviaCarousel } from './TriviaCarousel';
 import type { TriviaFact } from '../lib/landingApi';
 import { stagePath, type JourneyTheme } from '../lib/journey';
 import { GameCard, type BeatTheSharkGame } from './GameCard';
+import BetaChip from './BetaChip';
 
 /** game: the section's Beat the Shark game, shown under the two doors. */
 export function ThemeHub({ theme, trivia, game }: { theme: JourneyTheme; trivia: TriviaFact[]; game?: BeatTheSharkGame }) {
@@ -25,7 +26,10 @@ export function ThemeHub({ theme, trivia, game }: { theme: JourneyTheme; trivia:
     <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-5 sm:p-10 space-y-6">
       <div>
         <p className="font-mono text-xs text-amber-400 uppercase tracking-widest">{theme.eyebrow}</p>
-        <h1 className="font-display uppercase tracking-wide text-3xl sm:text-5xl text-amber-400 mt-2 glow-amber">{theme.title}</h1>
+        <h1 className="font-display uppercase tracking-wide text-3xl sm:text-5xl text-amber-400 mt-2 glow-amber">
+          {theme.title}
+          {theme.beta && <BetaChip className="align-middle text-xs sm:text-sm ml-3" />}
+        </h1>
         <p className="text-chalk-300 mt-2 max-w-prose text-sm sm:text-base">{theme.intro}</p>
       </div>
 

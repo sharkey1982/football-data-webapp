@@ -28,7 +28,9 @@ export default function AffiliateDisclosurePage() {
 
       <p className="text-ink-700">
         Any link marked with a small "Ad" tag next to it is an affiliate link. Links without that
-        tag are not.
+        tag are not. Our affiliate links run through the Awin network. Clicking one takes you to
+        Awin and then on to the company's site; Awin sets a cookie there to record that you came
+        from FixtureShark. FixtureShark's own pages load no affiliate tracking scripts.
       </p>
 
       <p className="text-ink-700">

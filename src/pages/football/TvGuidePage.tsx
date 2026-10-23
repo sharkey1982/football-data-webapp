@@ -39,6 +39,7 @@ export default function TvGuidePage() {
 
   return (
     <WatchGuideView
+      section="club"
       fixtures={fixtures}
       error={error}
       title="Football on TV"

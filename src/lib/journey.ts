@@ -54,6 +54,9 @@ export type JourneyTheme = {
   hubPath: string;
   intro: string;
   stages: JourneyStage[];
+  /** Newer section whose data can lag (Chris, 23 Oct 2026): a "Beta" chip
+   * beside the menu heading and the hub title. */
+  beta?: boolean;
 };
 
 // Menu labels are plain descriptions of the page (layout review, 21 Oct
@@ -197,6 +200,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
   nfl: {
     key: 'nfl',
     title: 'NFL',
+    beta: true,
     eyebrow: 'FixtureShark \u00b7 NFL',
     hubPath: '/nfl',
     intro: 'Every NFL result since 2002, how to watch in the UK, the player numbers for fantasy, and projected points for the next game.',
@@ -249,6 +253,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
   tennis: {
     key: 'tennis',
     title: 'Tennis',
+    beta: true,
     eyebrow: 'FixtureShark \u00b7 Tennis',
     hubPath: '/tennis',
     intro: 'Every ATP result since 2000 and every WTA result since 2007: day by day, player by player and season by season.',
