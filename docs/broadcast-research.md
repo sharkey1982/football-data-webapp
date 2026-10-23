@@ -173,7 +173,7 @@ object per row:
 | `delivery_methods` | no | array of `tv_channel`, `streaming`, `fast`, `web`, `app` (default from channel / streaming_service) |
 | `is_live`, `uk_available` | no | booleans, default true. `uk_available: false` hides the row from the guide |
 | `is_fast` | no | boolean (free ad-supported TV channel) |
-| `watch_url` | no | https link to watch, if the broadcaster gives one |
+| `watch_url` | no | https link to watch, if the broadcaster gives one. For DAZN listings always send `https://www.dazn.com/en-GB` (it carries the site's DAZN affiliate link on Club pages; plain on any other link) |
 | `source` | yes | Human description, e.g. `Premier League official broadcast selections, checked 22 Oct 2026` |
 | `source_url` | listings | https page that confirms it |
 | `verified_at` | no | When you checked (default now) |
