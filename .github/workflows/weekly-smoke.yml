@@ -37,6 +37,7 @@ permissions:
   contents: read
   statuses: write
   pull-requests: read
+  actions: read
 
 jobs:
   smoke:
@@ -51,7 +52,7 @@ jobs:
       group: smoke-${{ github.event_name == 'status' && github.event.sha || 'production' }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
         with:
@@ -63,6 +64,22 @@ jobs:
         run: |
           mkdir -p /tmp/pw && cd /tmp/pw && npm init -y >/dev/null && npm install --no-audit --no-fund playwright@1.56.1 >/dev/null
           npx playwright install --with-deps chromium >/dev/null
+      - name: Wait for a running FPL projections pipeline
+        # 25 Oct 2026: a preview smoke run (91 pages) on top of the projections
+        # pipeline ran the database out of memory twice (18:44, 18:58). The
+        # pipeline is the heaviest job there is, so let it finish first
+        # (up to 40 minutes, then test anyway).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 80); do
+            n=$(gh api "repos/${{ github.repository }}/actions/workflows/fpl-projections-pipeline.yml/runs?status=in_progress&per_page=5" --jq '.total_count' 2>/dev/null || echo 0)
+            q=$(gh api "repos/${{ github.repository }}/actions/workflows/fpl-projections-pipeline.yml/runs?status=queued&per_page=5" --jq '.total_count' 2>/dev/null || echo 0)
+            if [ "${n:-0}" = 0 ] && [ "${q:-0}" = 0 ]; then echo "No projections run in progress."; exit 0; fi
+            echo "Projections pipeline running ($n in progress, $q queued): waiting 30s ($i/80)."
+            sleep 30
+          done
+          echo "::warning::Projections pipeline still running after 40 minutes; testing anyway."
       - name: Mark preview pending
         if: github.event_name == 'status'
         env:
