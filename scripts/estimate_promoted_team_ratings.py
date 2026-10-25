@@ -39,7 +39,16 @@
 # fixtures and are missing a rating in that league's latest fit run are
 # considered.
 #
+# --relegated-proxy (leagues whose division below isn't loaded, e.g. I1 and
+# SC0, 25 Oct 2026): a team still unresolved after the adjacent divisions
+# gets the AVERAGE rating, in the target fit, of the clubs relegated from
+# the target league at the end of last season (in last season's matches,
+# not in this season's). Promoted sides finish near the bottom (see above),
+# and the clubs they replace are the best evidence of bottom-of-the-table
+# strength in that league. Marked is_estimated with a note saying so.
+#
 # Usage:
+#   python scripts/estimate_promoted_team_ratings.py --target-league I1 --relegated-proxy
 #   python scripts/estimate_promoted_team_ratings.py --target-league E1 --below-league E2 --above-league E0
 #   python scripts/estimate_promoted_team_ratings.py --target-league E0 --below-league E1 --dry-run
 #   python scripts/estimate_promoted_team_ratings.py --target-league E0 --below-league E1 --as-of 2025-08-14
@@ -129,6 +138,32 @@ def current_season_team_ids(supabase, league_id):
     return season_id, ids
 
 
+def previous_season_team_ids(supabase, league_id, season_id):
+    """(season_id, team ids) of this league's latest season before season_id in the matches archive."""
+    prev = (
+        supabase.table("matches")
+        .select("season_id")
+        .eq("league_id", league_id)
+        .lt("season_id", season_id)
+        .order("season_id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not prev.data:
+        return None, set()
+    prev_id = prev.data[0]["season_id"]
+    rows = (
+        supabase.table("matches")
+        .select("home_team_id, away_team_id")
+        .eq("league_id", league_id)
+        .eq("season_id", prev_id)
+        .limit(2000)
+        .execute()
+    )
+    ids = {r["home_team_id"] for r in (rows.data or [])} | {r["away_team_id"] for r in (rows.data or [])}
+    return prev_id, ids
+
+
 def compute_gap(target_ratings, other_ratings, target_code, other_code, direction_label):
     """Median (target - other) attack/defence gap from teams rated in both
     divisions' current fits right now. Returns None if fewer than 3 such
@@ -159,13 +194,15 @@ def main():
     parser.add_argument("--target-league", required=True)
     parser.add_argument("--below-league", default=None, help="Division below -- for teams promoted UP into --target-league.")
     parser.add_argument("--above-league", default=None, help="Division above -- for teams relegated DOWN into --target-league.")
+    parser.add_argument("--relegated-proxy", action="store_true",
+                        help="Fallback: unresolved teams get the average rating of last season's relegated clubs in the target fit.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--as-of", type=date.fromisoformat, default=None,
                         help="Retro-fit date (YYYY-MM-DD): use only fits made by the end of it.")
     args = parser.parse_args()
 
-    if not args.below_league and not args.above_league:
-        print("ERROR: at least one of --below-league / --above-league is required.", file=sys.stderr)
+    if not args.below_league and not args.above_league and not args.relegated_proxy:
+        print("ERROR: at least one of --below-league / --above-league / --relegated-proxy is required.", file=sys.stderr)
         sys.exit(1)
 
     url = os.environ.get("SUPABASE_URL")
@@ -230,6 +267,23 @@ def main():
     names_res = supabase.table("teams").select("team_id, canonical_name").in_("team_id", needing_estimate).execute()
     name_by_id = {t["team_id"]: t["canonical_name"] for t in (names_res.data or [])}
 
+    # Fallback basis: last season's relegated clubs, as rated in the target fit.
+    proxy = None
+    if args.relegated_proxy:
+        prev_id, prev_ids = previous_season_team_ids(supabase, target_league_id, season_id)
+        relegated = [t for t in prev_ids - current_team_ids if t in target_ratings]
+        if relegated:
+            proxy = {
+                "attack": statistics.mean(target_ratings[t]["attack_strength"] for t in relegated),
+                "defence": statistics.mean(target_ratings[t]["defence_strength"] for t in relegated),
+                "n": len(relegated),
+                "season_id": prev_id,
+            }
+            print(f"  Relegated-club proxy: {len(relegated)} club(s) from season_id={prev_id}, "
+                  f"mean attack {proxy['attack']:+.4f}, defence {proxy['defence']:+.4f}")
+        else:
+            print("  Relegated-club proxy unavailable: no relegated club from last season has a rating in the target fit.")
+
     rows_to_write = []
     unresolvable = []
     for team_id in needing_estimate:
@@ -264,6 +318,27 @@ def main():
             )
             resolved = True
             break  # prefer the first direction that has data for this team (below, then above)
+        if not resolved and proxy is not None:
+            note = (
+                f"Estimated for {args.target_league} as the average rating of the {proxy['n']} club(s) relegated from "
+                f"{args.target_league} last season (season_id={proxy['season_id']}), as rated in this fit "
+                f"(attack={proxy['attack']:.3f}, defence={proxy['defence']:.3f}): the division below isn't loaded. "
+                "This is a rough estimate, not a genuine fit -- treat with caution."
+            )
+            print(f"  {name}: estimated attack={proxy['attack']:.3f}, defence={proxy['defence']:.3f} (relegated-club proxy)")
+            rows_to_write.append(
+                {
+                    "fit_run_id": target_fit["fit_run_id"],
+                    "team_id": team_id,
+                    "attack_strength": proxy["attack"],
+                    "defence_strength": proxy["defence"],
+                    "is_estimated": True,
+                    "estimated_from_team_id": None,
+                    "estimated_from_fit_run_id": target_fit["fit_run_id"],
+                    "estimation_note": note,
+                }
+            )
+            resolved = True
         if not resolved:
             unresolvable.append(name)
 
