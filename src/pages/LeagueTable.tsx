@@ -341,7 +341,7 @@ export default function LeagueTable() {
           {reported.data && reported.data.length > 0 && (
             <div className="px-4 py-3 border-t border-chalk-300 bg-chalk-100 text-xs text-ink-700 space-y-1" data-testid="reported-results">
               <p className="font-medium">
-                {`${reported.data.length} ${reported.data.length === 1 ? 'result' : 'results'} reported, not yet in this table (awaiting confirmation from the results feed):`}
+                {`${reported.data.length} provisional ${reported.data.length === 1 ? 'result' : 'results'}, not yet in this table (awaiting confirmation from the results feed):`}
               </p>
               {reported.data.map((r) => (
                 <p key={r.fixture_id}>

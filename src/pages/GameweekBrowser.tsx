@@ -140,9 +140,9 @@ function FixtureScoreCell({
   // the score column, where it would read as the result.
   if (hasKickedOff(f.status)) {
     return f.reported_home_goals != null && f.reported_away_goals != null ? (
-      <div className="flex flex-col items-center" title="Reported score, awaiting confirmation">
+      <div className="flex flex-col items-center" title="Provisional: full-time score, awaiting confirmation">
         <ScoreChip homeGoals={f.reported_home_goals} awayGoals={f.reported_away_goals} size="sm" />
-        <span className="text-[10px] text-ink-500 mt-0.5">Reported</span>
+        <span className="text-[10px] text-ink-500 mt-0.5">Provisional</span>
       </div>
     ) : (
       <span className="text-xs text-ink-500">Result to follow</span>

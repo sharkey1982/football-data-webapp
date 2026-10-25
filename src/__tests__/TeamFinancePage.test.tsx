@@ -197,7 +197,7 @@ describe('team page results awaiting confirmation', () => {
     });
     const results = screen.getByRole('heading', { name: 'Results this season' }).parentElement!;
     expect(results.textContent).toContain('Gateshead');
-    expect(results.textContent).toMatch(/Barrow.*2–4 \(reported\)/);
+    expect(results.textContent).toMatch(/Barrow.*2–4 \(provisional\)/);
     expect(results.textContent).toMatch(/Yeovil.*Result to follow/);
     expect(results.textContent).not.toContain('Eastleigh');
   });
