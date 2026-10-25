@@ -31,6 +31,7 @@ const LABEL: Record<string, string> = {
   match_predictions: "Match-day predictions",
   daily_market: "Daily market view",
   lineup_vs_model: "Line-ups v our model",
+  team_news: "Team news",
   quiz: "Quiz question",
   quiz_answer: "Quiz answer",
   fact: "Did you know",
