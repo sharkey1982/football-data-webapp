@@ -7,11 +7,11 @@ name: Daily International Import (non-English top flights)
 # import -- they're isolated at the workflow level, not just the
 # per-league try/continue level already used inside each loop.
 #
-# Results only -- no Dixon-Coles fitting, no prediction refresh. Per an
-# explicit instruction: ingest the factual data first, decide separately
-# and later whether/how it feeds into any prediction calculations. Adding
-# a fit step for these leagues is a deliberate future decision, not an
-# oversight here.
+# Results for all of these. Dixon-Coles fits and predictions ONLY for the
+# leagues that passed Model Lab experiment E1 (docs/experiments.md) and
+# Chris approved for the site (25 Oct 2026): Serie A (I1) and the Scottish
+# Premiership (SC0). La Liga, the Bundesliga and Ligue 1 failed E1 and are
+# not fitted. Adding a league here needs its own Model Lab pass first.
 #
 # No fixture-sync step either: these leagues have no `fixtures` table
 # rows at all yet (only `matches`, the completed-results archive), so
@@ -58,6 +58,59 @@ jobs:
             echo "::endgroup::"
           done
           exit $FAILED
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - uses: actions/setup-python@v6
+        if: always()
+        with:
+          python-version: '3.12'
+      - if: always()
+        run: pip install -r scripts/requirements.txt
+
+      # Fit (dc_v1_1, same script and quality gates as the English leagues;
+      # a rejected fit is written for audit and never used), then estimate
+      # any club without a direct rating. Their divisions below aren't
+      # loaded, so a promoted club gets the average rating of last season's
+      # relegated clubs (--relegated-proxy), marked is_estimated. Each
+      # league is independent of the other.
+      - name: Fit and estimate (I1, SC0)
+        if: always()
+        run: |
+          set +e
+          FAILED=0
+          for LEAGUE in I1 SC0; do
+            echo "::group::Fitting $LEAGUE"
+            python scripts/fit_dixon_coles.py --league-code "$LEAGUE"
+            if [ $? -ne 0 ]; then
+              echo "::error::Fit failed or was rejected for $LEAGUE"
+              FAILED=1
+              echo "::endgroup::"
+              continue
+            fi
+            echo "::endgroup::"
+            echo "::group::Estimating unrated clubs for $LEAGUE"
+            python scripts/estimate_promoted_team_ratings.py --target-league "$LEAGUE" --relegated-proxy
+            RC=$?
+            if [ $RC -eq 2 ]; then
+              echo "::warning::$LEAGUE has club(s) with no rating and no estimation basis -- see the output"
+            elif [ $RC -ne 0 ]; then
+              echo "::error::Estimation failed for $LEAGUE"
+              FAILED=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $FAILED
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # Puts every league's newest accepted fit onto its upcoming fixtures
+      # (league-agnostic; the English import runs it too, at 06:00).
+      - name: Refresh fixture predictions
+        if: always()
+        run: npm run predictions:refresh
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
