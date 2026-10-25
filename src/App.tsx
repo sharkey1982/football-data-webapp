@@ -93,6 +93,7 @@ function SquadCheckRedirect() {
 }
 const HindsightOptimalSquadPage = lazy(() => import('./pages/fpl/HindsightOptimalSquadPage'));
 const PlayerProjectionsTablePage = lazy(() => import('./pages/fpl/PlayerProjectionsTablePage'));
+const FplFixturesPage = lazy(() => import('./pages/fpl/FplFixturesPage'));
 const ScoringRulesPage = lazy(() => import('./pages/fpl/ScoringRulesPage'));
 const FplArticlesPage = lazy(() => import('./pages/fpl/ArticlesPage'));
 const CaptainTopPickArticle = lazy(() => import('./pages/fpl/articles/CaptainTopPickArticle'));
@@ -789,6 +790,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <PlayerPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/fixtures"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FplFixturesPage />
               </Suspense>
             }
           />

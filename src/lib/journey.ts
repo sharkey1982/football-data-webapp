@@ -164,6 +164,8 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           // slicing it rather than the other way round.
           { label: 'Player Projections', to: '/fpl/player-points', blurb: 'Every player, sortable, across a gameweek range.' },
           { label: 'Match Projections', to: '/fpl', blurb: 'Projected returns, gameweek by gameweek.', exact: true },
+          // Fixture difficulty with cup and European games between gameweeks (Chris, 25 Oct 2026).
+          { label: 'Fixtures', to: '/fpl/fixtures', blurb: 'Every side’s next gameweeks by expected goals, with midweek cup games and rest days.' },
           // Next to the projections it compares: up to five players side by
           // side, minutes included (Chris, 9 Oct 2026).
           { label: 'Compare Players', to: '/fpl/compare', blurb: 'Up to five players side by side: points, xG, minutes and fixtures.' },
@@ -366,7 +368,7 @@ export const HUB_GROUPS: Partial<Record<ThemeKey, HubGroup[]>> = {
   fpl: [
     { name: 'This week', paths: ['/fpl/live', '/fpl/gameweek', '/fpl/team-of-the-week', '/fpl/in-the-papers', '/fpl/price-risk', '/fpl/injuries'] },
     { name: 'Players', paths: ['/fpl/player-points', '/fpl/player-scout', '/fpl/compare', '/fpl/value', '/fpl/set-pieces', '/fpl/minutes', '/fpl/line-ups'] },
-    { name: 'Plan my team', paths: ['/fpl/rate-my-team', '/fpl/optimal-squad', '/fantasy', '/fpl'] },
+    { name: 'Plan my team', paths: ['/fpl/rate-my-team', '/fpl/optimal-squad', '/fpl/fixtures', '/fantasy', '/fpl'] },
     { name: 'History', paths: ['/fpl/optimal-squad-so-far', '/fpl/season-xi', '/fpl/articles'] },
     { name: 'Insights & model', paths: ['/fpl/formations', '/fpl/model-xi', '/fpl/scoring-rules'] },
   ],

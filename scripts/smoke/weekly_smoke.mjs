@@ -50,7 +50,7 @@ const NAMED = [
   ['leagues', '/football/leagues'], ['records', '/football/records'], ['history-pace', '/football/history/pace'],
   ['model-scorecard', '/football/model-scorecard'], ['local-clubs', '/football/local-clubs'], ['finance', '/finance'],
   ['fpl-match-projections', '/fpl'], ['fpl-start', '/fpl/start'], ['fpl-gameweek', '/fpl/gameweek'], ['fpl-live', '/fpl/live'], ['fpl-optimal-squad', '/fpl/optimal-squad'],
-  ['fpl-player-points', '/fpl/player-points'], ['fpl-line-ups', '/fpl/line-ups'], ['fpl-injuries', '/fpl/injuries'],
+  ['fpl-player-points', '/fpl/player-points'], ['fpl-fixtures', '/fpl/fixtures'],['fpl-line-ups', '/fpl/line-ups'], ['fpl-injuries', '/fpl/injuries'],
   ['nfl-hub', '/nfl'], ['nfl-table', '/nfl/table'], ['nfl-fixtures', '/nfl/fixtures'], ['nfl-player-projections', '/nfl/player-projections'],
   ['tennis-hub', '/tennis'], ['tennis-results', '/tennis/results'], ['tennis-players', '/tennis/players'], ['tennis-grand-slams', '/tennis/grand-slams'],
   ['intl-hub', '/international'], ['intl-fixtures', '/international/fixtures'], ['intl-teams', '/international/teams'],
