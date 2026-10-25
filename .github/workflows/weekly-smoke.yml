@@ -100,6 +100,14 @@ jobs:
                 exit 0
               fi
               BASE="https://deploy-preview-${PR}--footballdatashark.netlify.app"
+              # A PR whose every commit skipped the build has no preview at all
+              # (25 Oct 2026: PRs #429-#432 failed on 78 "not found" pages).
+              CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "${BASE}/" || echo 000)
+              if [ "$CODE" != 200 ]; then
+                echo "Netlify skipped the build and PR #${PR} has no preview (HTTP ${CODE}): nothing to smoke-test."
+                echo "skipped=1" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
               echo "Netlify skipped the build: testing PR #${PR}'s existing preview, ${BASE}."
               echo "reused=1" >> "$GITHUB_OUTPUT"
               export BASE ;;
