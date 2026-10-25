@@ -17,7 +17,7 @@ const db = supabase as unknown as { from: (t: string) => any; rpc: (f: string, a
 
 export type PostType = 'fpl_captaincy' | 'team_xg_change' | 'prediction_accuracy' | 'historical_insight' | 'announcement'
   | 'fpl_price_changes' | 'gameweek_thread' | 'fpl_availability' | 'fpl_market' | 'fpl_week_changes' | 'gameweek_outlook' | 'fixture_moved'
-  | 'match_predictions' | 'quiz' | 'quiz_answer' | 'fact';
+  | 'match_predictions' | 'quiz' | 'quiz_answer' | 'fact' | 'daily_market';
 export const POST_TYPE_LABEL: Record<PostType, string> = {
   fpl_captaincy: 'FPL captaincy',
   fpl_price_changes: 'FPL price changes',
@@ -28,6 +28,7 @@ export const POST_TYPE_LABEL: Record<PostType, string> = {
   gameweek_outlook: 'The week ahead',
   fixture_moved: 'Fixture moved',
   match_predictions: 'Match-day predictions',
+  daily_market: 'Daily market view',
   quiz: 'Quiz question',
   quiz_answer: 'Quiz answer',
   fact: 'Did you know',

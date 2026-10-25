@@ -29,6 +29,7 @@ const LABEL: Record<string, string> = {
   gameweek_outlook: "The week ahead",
   fixture_moved: "Fixture moved",
   match_predictions: "Match-day predictions",
+  daily_market: "Daily market view",
   quiz: "Quiz question",
   quiz_answer: "Quiz answer",
   fact: "Did you know",
