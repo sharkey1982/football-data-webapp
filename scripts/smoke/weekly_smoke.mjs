@@ -57,6 +57,8 @@ const NAMED = [
   ['table', '/table'], ['team-strength', '/team-strength'], ['projections', '/football/projections'],
   // Range views (25 Oct 2026): a week's games on the fixtures list and the TV guide.
   ['fixtures-week', '/fixtures?range=week'], ['tv-guide-week', '/tv-guide?range=week'],
+  // My FixtureShark preferences (25 Oct 2026).
+  ['my-preferences', '/my'],
 ];
 const MENU_PAGES = JSON.parse(readFileSync(new URL('./menu-pages.json', import.meta.url), 'utf8'));
 /** page_type for a menu page without a NAMED entry: its path, e.g. menu-fpl-rate-my-team. */

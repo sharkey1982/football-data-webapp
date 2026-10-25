@@ -18507,6 +18507,20 @@ export type Database = {
           season_id: number
         }[]
       }
+      get_my_club_cards: {
+        Args: { p_team_ids: number[] }
+        Returns: Json
+      }
+      get_my_club_options: {
+        Args: never
+        Returns: {
+          league_id: number
+          league_name: string
+          name: string
+          slug: string
+          team_id: number
+        }[]
+      }
       get_model_xi_history: {
         Args: { p_league_id?: number; p_season_id?: number }
         Returns: {

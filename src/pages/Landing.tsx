@@ -13,8 +13,10 @@
 // amber, so the grid is 2 x 3 on a phone and 3 x 2 on desktop.
 // ============================================================================
 
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { MyHome } from '../components/my/MyHome';
+import { dismissStrip, opensMyPage, readPrefs, stripDismissed } from '../lib/myPrefs';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { PopularTools } from '../components/hub/PopularTools';
 
@@ -130,11 +132,36 @@ export default function Landing() {
       'Football results, tables and model predictions, international football since 1872, Fantasy Premier League projections, club finances, the NFL and tennis.',
     path: '/',
   });
+  // My FixtureShark (25 Oct 2026): with a club chosen (and "open on my page"
+  // on), the personal page comes first and this panel follows it, unchanged
+  // but for its heading level. ?view=all shows the panel alone.
+  const [params] = useSearchParams();
+  const [prefs] = useState(readPrefs);
+  const [stripHidden, setStripHidden] = useState(stripDismissed);
+  const personal = opensMyPage(prefs) && params.get('view') !== 'all';
+  const Heading = personal ? 'h2' : 'h1';
 
   return (
+    <div className="space-y-8">
+      {personal && <MyHome prefs={prefs} />}
+      {!personal && !prefs.club && !stripHidden && (
+        <aside aria-label="Make FixtureShark yours" data-testid="my-strip" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-amber-500 bg-amber-400/15 px-4 py-3">
+          <p className="flex-1 min-w-[14rem] text-sm text-ink-900">
+            <strong>Make FixtureShark yours.</strong> Pick your club, FPL ID and teams, and this page opens on them. Saved in this browser only.
+          </p>
+          <Link to="/my" className="inline-flex items-center min-h-11 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-ink-900 text-sm font-semibold">Choose my teams</Link>
+          <button
+            type="button"
+            onClick={() => { dismissStrip(); setStripHidden(true); }}
+            className="inline-flex items-center min-h-11 px-3 rounded-lg text-sm text-ink-700 hover:bg-chalk-200"
+          >
+            No thanks
+          </button>
+        </aside>
+      )}
     <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-4 sm:p-10 space-y-5 sm:space-y-8">
       <div>
-        <h1 className="font-display uppercase tracking-wide text-3xl sm:text-6xl text-amber-400 glow-amber leading-tight">Pick your side.</h1>
+        <Heading className="font-display uppercase tracking-wide text-3xl sm:text-6xl text-amber-400 glow-amber leading-tight">Pick your side.</Heading>
         <p className="text-chalk-300 mt-3 sm:mt-4 max-w-prose text-base sm:text-lg">
           Results, tables and model predictions for club football, plus Fantasy Premier League tools. Also international football, club finances, the NFL and tennis.
         </p>
@@ -170,6 +197,7 @@ export default function Landing() {
       </nav>
 
       <PopularTools from="home" tone="dark" />
+    </div>
     </div>
   );
 }
