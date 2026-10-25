@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { BEAT_THE_SHARK } from '../components/GameCard';
+import { PopularTools } from '../components/hub/PopularTools';
 import { hubGroups } from '../lib/journey';
 import { getFootballTrivia, type TriviaFact } from '../lib/landingApi';
 import { getCurrentSeasonId } from '../lib/currentSeason';
@@ -194,6 +195,8 @@ export default function FootballHub() {
           </HubCard>
         </div>
       </div>
+
+      <PopularTools from="football_hub" section="football" />
 
       <HubPageList title="All club pages" groups={hubGroups('football')} />
 

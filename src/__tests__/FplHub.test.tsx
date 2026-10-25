@@ -8,12 +8,14 @@ import * as hubApi from '../lib/hubApi';
 import * as priceRiskApi from '../lib/priceRiskApi';
 import * as injuryApi from '../lib/injuryApi';
 import * as reportApi from '../lib/fplGameweekReport';
+import * as stateApi from '../lib/fplGameweekState';
 
 vi.mock('../lib/landingApi', async () => ({ ...(await vi.importActual<typeof landingApi>('../lib/landingApi')), getFplTrivia: vi.fn() }));
 vi.mock('../lib/hubApi', async () => ({ ...(await vi.importActual<typeof hubApi>('../lib/hubApi')), getNextDeadline: vi.fn(), getTopProjected: vi.fn() }));
 vi.mock('../lib/priceRiskApi', async () => ({ ...(await vi.importActual<typeof priceRiskApi>('../lib/priceRiskApi')), getPriceChangeRisk: vi.fn() }));
 vi.mock('../lib/injuryApi', async () => ({ ...(await vi.importActual<typeof injuryApi>('../lib/injuryApi')), getInjuryReport: vi.fn() }));
 vi.mock('../lib/fplGameweekReport', async () => ({ ...(await vi.importActual<typeof reportApi>('../lib/fplGameweekReport')), loadReportList: vi.fn() }));
+vi.mock('../lib/fplGameweekState', async () => ({ ...(await vi.importActual<typeof stateApi>('../lib/fplGameweekState')), getOpenGameweek: vi.fn() }));
 
 const m = (mod: unknown) => mod as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -40,6 +42,10 @@ describe('FPL home page', () => {
       { fpl_player_id: 3, web_name: 'Palmer', slug: 'cole-palmer', team_id: 4, team_name: 'Chelsea', position_label: 'MID', price: 10.5, ownership: 30, total_points: 40, status: 'd', chance_next_round: 75, news: '', return_date: null, fixtures_missed: null, next_fixture_date: null },
     ]);
     m(reportApi).loadReportList.mockResolvedValue([]);
+    m(stateApi).getOpenGameweek.mockResolvedValue({
+      state: { openGw: 7, nextGw: 8, showToggle: false, gamesRemaining: 0, defaultView: 'next' },
+      games: [], topScorers: [], mostCaptained: null, mostSelected: null,
+    });
   });
 
   it('opens on the gameweek and its deadline in UK time', async () => {
@@ -79,7 +85,68 @@ describe('FPL home page', () => {
   it('lists every FPL page in groups', () => {
     render(<MemoryRouter><FplHub /></MemoryRouter>);
     for (const g of ['This week', 'Players', 'Plan my team', 'History', 'Insights & model']) expect(screen.getByRole('heading', { level: 3, name: g })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Price Changes' })).toHaveAttribute('href', '/fpl/price-risk');
+    expect(within(screen.getByRole('region', { name: 'All FPL pages' })).getByRole('link', { name: 'Price Changes' })).toHaveAttribute('href', '/fpl/price-risk');
+  });
+
+  it('shows the most useful tools, FPL first, and leaves the next gameweek alone outside a live one', async () => {
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    const row = screen.getByTestId('popular-tools');
+    const links = within(row).getAllByRole('link');
+    expect(links[0]).toHaveAttribute('href', '/fpl/rate-my-team');
+    expect(within(row).getByRole('link', { name: /League Table/ })).toHaveAttribute('href', '/table');
+    expect(await screen.findByRole('heading', { name: 'Gameweek 8' })).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-gw-toggle')).not.toBeInTheDocument();
+  });
+});
+
+describe('FPL home page mid-gameweek', () => {
+  const openData = (remaining: number) => ({
+    state: { openGw: 8, nextGw: 9, showToggle: true, gamesRemaining: remaining, defaultView: remaining > 0 ? 'open' : 'next' },
+    games: [
+      { id: 71, kickoff: '2026-10-24T14:00:00Z', home: 'ARS', away: 'CRY', homeScore: 2, awayScore: 0, minutes: 90, state: 'done' },
+      ...(remaining > 0 ? [{ id: 75, kickoff: '2026-10-25T14:00:00Z', home: 'EVE', away: 'TOT', homeScore: null, awayScore: null, minutes: 0, state: 'not_started' }] : []),
+    ],
+    topScorers: [{ fplPlayerId: 4, name: 'Gabriel', slug: 'gabriel', team: 'ARS', points: 15, minutes: 90, ownership: 30 }],
+    mostCaptained: { fplPlayerId: 411, name: 'Haaland', slug: 'erling-haaland', team: 'MCI', points: 2, minutes: 90, ownership: 60 },
+    mostSelected: null,
+  });
+
+  beforeEach(() => {
+    m(landingApi).getFplTrivia.mockResolvedValue([]);
+    m(hubApi).getNextDeadline.mockResolvedValue({ gw: 9, deadline: '2026-10-31T11:00:00Z' });
+    m(hubApi).getTopProjected.mockResolvedValue({ gw: 9, picks: [] });
+    m(priceRiskApi).getPriceChangeRisk.mockResolvedValue([]);
+    m(injuryApi).getInjuryReport.mockResolvedValue([]);
+    m(reportApi).loadReportList.mockResolvedValue([]);
+  });
+
+  it('opens on the gameweek in progress with its scores, and toggles to the next deadline', async () => {
+    m(stateApi).getOpenGameweek.mockResolvedValue(openData(1));
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Gameweek 8' })).toBeInTheDocument();
+    const scores = screen.getByTestId('hub-gw-scores');
+    expect(within(scores).getByText('2–0')).toBeInTheDocument();
+    expect(within(scores).getByText('Still to play')).toBeInTheDocument();
+    expect(within(screen.getByTestId('hub-gw-top')).getByRole('link', { name: 'Haaland' })).toHaveAttribute('href', '/fpl/players/erling-haaland');
+    expect(screen.getByRole('button', { name: 'GW8 (in progress)' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'GW9 (next deadline)' }));
+    expect(await screen.findByRole('heading', { name: 'Gameweek 9' })).toBeInTheDocument();
+    expect(screen.getByTestId('hub-projected')).toBeInTheDocument();
+  });
+
+  it('opens on the next gameweek once the last game has finished, keeping the toggle', async () => {
+    m(stateApi).getOpenGameweek.mockResolvedValue(openData(0));
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: 'GW9 (next deadline)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('heading', { name: 'Gameweek 9' })).toBeInTheDocument();
+  });
+
+  it('links the reflection when it is published', async () => {
+    m(stateApi).getOpenGameweek.mockResolvedValue(openData(0));
+    m(reportApi).loadReportList.mockResolvedValue([{ fpl_event_id: 8, kind: 'reflection', season_label: '2026-27', title: 'GW8 reflection' }]);
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'GW8 (in progress)' }));
+    expect(await screen.findByRole('link', { name: 'Read the Gameweek 8 reflection' })).toHaveAttribute('href', '/fpl/gameweek/2026-27/8/reflection');
   });
 });
 
