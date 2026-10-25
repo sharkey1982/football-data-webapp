@@ -31,3 +31,19 @@ warning, never an error in the FPL refresh.
   league table ("N provisional results, not yet in this table").
 - Not read: league tables, the model, history, facts and X posts. These use
   confirmed results only.
+
+## Football League scores (Championship, League One, League Two)
+
+Added 25 Oct 2026 (migration `20261025190000_efl_reported_scores_fwp.sql`).
+FixtureDownload's 04:15 run often doesn't have Saturday's EFL scores by Sunday
+morning, so `public.refresh_efl_reported_scores()` reads footballwebpages'
+current month page for each division (last month's too in a month's first three
+days) at 17:20, 22:20 and 06:20 UTC (cron `refresh-efl-reported-scores`,
+logged in `fixture_refresh_runs` with competitions E1/E2/E3).
+
+It writes `reported_*` with `reported_source = 'FootballWebPages'` only for a past
+game that has no confirmed result and no score from another source (an empty
+score, or one it wrote itself), and marks it played. It never moves kick-offs or
+adds fixtures. FixtureDownload's daily run may later replace the score with its
+own; both are display only. An unmapped club name fails the run with the name in
+`error_message`: add a `team_aliases` row (source FootballWebPages).
