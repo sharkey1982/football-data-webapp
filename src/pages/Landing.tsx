@@ -16,6 +16,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { PopularTools } from '../components/hub/PopularTools';
 
 /* The game is NOT part of this React app: it is its own Netlify site,
    proxied in at /play/beat-the-shark/. So this must be a plain <a>, never
@@ -167,6 +168,8 @@ export default function Landing() {
           </div>
         </div>
       </nav>
+
+      <PopularTools from="home" tone="dark" />
     </div>
   );
 }
