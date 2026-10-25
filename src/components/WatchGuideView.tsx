@@ -117,7 +117,7 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
   const onParam = params.get('on');
   const anchor = range === 'today' || !onParam || !ISO.test(onParam) ? ukNow : onParam;
   const fixed = range === 'today' || range === 'week' || range === 'month' ? range : null;
-  const bounds = fixed ? rangeBounds(fixed, anchor) : null;
+  const bounds = useMemo(() => (fixed ? rangeBounds(fixed, anchor) : null), [fixed, anchor]);
   function setRange(r: DateRange, on?: string) {
     const next = new URLSearchParams(params);
     if (r === 'all') next.delete('range');
@@ -156,14 +156,14 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
   // Everything except the calendar's own date selection -- so the calendar
   // shows where the matching fixtures fall, and picking a team lights up
   // that team's dates (European ties included).
-  const beforeDates = all.filter(
+  const beforeDates = useMemo(() => all.filter(
     (f) =>
       matchesQuick(f, quick) &&
       (!bounds || (f.kickoffDate >= bounds.start && f.kickoffDate <= bounds.end)) &&
       (!competition || f.leagueName === competition) &&
       (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
       (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))
-  );
+  ), [all, quick, bounds, competition, provider, team, pickedTeams]);
   // The service summary: the picked team and/or competition, every date,
   // on TV or not -- the question is which service to have, not this week.
   const coverageLabel = [

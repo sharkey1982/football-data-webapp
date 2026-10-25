@@ -106,10 +106,9 @@ export function openGameweeks(data: GridData): { gw: number; first: string; last
  *  gap of 10+ days with no club games for them. */
 export function buildColumns(data: GridData, range: Range): Column[] {
   const open = openGameweeks(data);
-  let gws = open;
-  if (range === 'gw') gws = open.slice(0, 1);
-  else if (range === 'next6') gws = open.slice(0, 6);
-  else gws = open.filter((g) => g.first <= addDays(data.today, 31));
+  let gws = range === 'gw' ? open.slice(0, 1)
+    : range === 'next6' ? open.slice(0, 6)
+    : open.filter((g) => g.first <= addDays(data.today, 31));
   if (!gws.length) gws = open.slice(0, 1);
   const cols: Column[] = [];
   let prevLast = data.today < (gws[0]?.first ?? data.today) ? addDays(data.today, -1) : null;
