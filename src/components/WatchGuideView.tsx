@@ -17,7 +17,7 @@
 // ============================================================================
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { formatMatchDateWithYear } from '../lib/formatDate';
 import type { WatchGuideFixture } from '../lib/broadcastsApi';
@@ -26,6 +26,9 @@ import WatchOptions from './WatchOptions';
 import ServiceCoverageCard from './ServiceCoverageCard';
 import TeamPicker from './TeamPicker';
 import FixtureCalendarHeatmap from './FixtureCalendarHeatmap';
+import RangeControl from './RangeControl';
+import { emptyRangeText, longDay, nextDateAfter, parseRange, rangeBounds, rangeCaption, stepRange, type DateRange } from '../lib/dateRange';
+import { ukToday } from '../lib/ukDate';
 import { buildTeamGroups, groupOptionLabel, GROUP_PREFIX, teamsForValue } from '../lib/teamGroups';
 import {
   fixtureWatchState,
@@ -77,6 +80,10 @@ const QUICK: { key: Quick; label: string }[] = [
   { key: 'not_live', label: 'Not on UK TV' },
 ];
 
+// TV guides list what's coming, so 'All upcoming' is the default here.
+const GUIDE_RANGES: readonly DateRange[] = ['all', 'today', 'week', 'month'];
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
 const selectClass = 'w-full sm:w-52 border border-chalk-300 rounded px-2 py-1.5 text-sm bg-white focus:border-pitch-700';
 const labelClass = 'block text-xs font-medium text-ink-500 mb-1';
 
@@ -103,6 +110,23 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
   // Calendar: same two-month heatmap and multi-select behaviour as the
   // fixtures page. No dates selected = no date filter.
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  // ?range=today|week|month (and ?on=YYYY-MM-DD for another week or month).
+  const [params, setParams] = useSearchParams();
+  const range = parseRange(params.get('range'), GUIDE_RANGES) ?? 'all';
+  const ukNow = ukToday();
+  const onParam = params.get('on');
+  const anchor = range === 'today' || !onParam || !ISO.test(onParam) ? ukNow : onParam;
+  const fixed = range === 'today' || range === 'week' || range === 'month' ? range : null;
+  const bounds = fixed ? rangeBounds(fixed, anchor) : null;
+  function setRange(r: DateRange, on?: string) {
+    const next = new URLSearchParams(params);
+    if (r === 'all') next.delete('range');
+    else next.set('range', r);
+    if (on && on !== ukNow) next.set('on', on);
+    else next.delete('on');
+    setParams(next, { replace: true });
+    setSelectedDates(new Set());
+  }
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
@@ -135,6 +159,7 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
   const beforeDates = all.filter(
     (f) =>
       matchesQuick(f, quick) &&
+      (!bounds || (f.kickoffDate >= bounds.start && f.kickoffDate <= bounds.end)) &&
       (!competition || f.leagueName === competition) &&
       (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
       (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))
@@ -155,7 +180,15 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
     [all, competition, team, pickedTeams]
   );
   const filtered = selectedDates.size === 0 ? beforeDates : beforeDates.filter((f) => selectedDates.has(f.kickoffDate));
-  const filtersActive = quick !== 'all' || competition !== '' || provider !== '' || team !== '' || selectedDates.size > 0;
+  // An empty range points at the next day with games under the same filters.
+  const nextGames = bounds && filtered.length === 0
+    ? nextDateAfter(
+        all.filter((f) => matchesQuick(f, quick) && (!competition || f.leagueName === competition) &&
+          (!provider || f.offers.some((o) => providerKeys(o).includes(provider))) &&
+          (!team || pickedTeams.has(f.homeTeamName) || pickedTeams.has(f.awayTeamName))).map((f) => f.kickoffDate),
+        bounds.end)
+    : null;
+  const filtersActive = range !== 'all' || quick !== 'all' || competition !== '' || provider !== '' || team !== '' || selectedDates.size > 0;
 
   const { dateCounts, dateTypes } = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -227,6 +260,15 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
               </button>
             ))}
           </div>
+          <div className="mt-3">
+            <RangeControl
+              options={GUIDE_RANGES}
+              value={range}
+              onChange={(r) => setRange(r)}
+              onStep={(dir) => (fixed === 'week' || fixed === 'month') && setRange(fixed, stepRange(fixed, anchor, dir))}
+              caption={fixed ? rangeCaption(fixed, anchor) : undefined}
+            />
+          </div>
           {/* Two-across on phones so the matches start within the first screen. */}
           <div className="grid grid-cols-2 gap-2 mt-3 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
             <div>
@@ -257,6 +299,7 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
                 type="button"
                 onClick={() => {
                   setQuick('all');
+                  if (range !== 'all') setRange('all');
                   setCompetition('');
                   setProvider('');
                   setTeam('');
@@ -300,7 +343,24 @@ export default function WatchGuideView({ fixtures, error, title, intro, emptyTex
       {fixtures && fixtures.length === 0 && !error && (
         <p className="text-ink-500 text-sm mt-6">{emptyText}</p>
       )}
-      {all.length > 0 && filtered.length === 0 && <p className="text-ink-500 text-sm mt-6">No matches for that filter.</p>}
+      {all.length > 0 && filtered.length === 0 && !bounds && <p className="text-ink-500 text-sm mt-6">No matches for that filter.</p>}
+      {all.length > 0 && filtered.length === 0 && bounds && (
+        <div className="mt-6 text-sm text-ink-500" data-testid="range-empty">
+          <p>
+            {emptyRangeText(range)}
+            {nextGames ? <>. Next games: {longDay(nextGames)}.</> : ' in the guide yet.'}
+          </p>
+          {nextGames && (
+            <button
+              type="button"
+              onClick={() => (range === 'today' ? (setRange('all'), setSelectedDates(new Set([nextGames]))) : setRange(range, nextGames))}
+              className="mt-2 rounded border border-pitch-700 px-3 py-1 text-xs text-pitch-700"
+            >
+              Go to {longDay(nextGames)}
+            </button>
+          )}
+        </div>
+      )}
 
       {groups.length > 0 && (
         <div className="mt-5 space-y-6">
