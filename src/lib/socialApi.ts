@@ -237,3 +237,33 @@ export const X_RESULT_MESSAGE: Record<string, string> = {
   not_configured: 'X_CLIENT_ID and X_CLIENT_SECRET are not set as Edge Function secrets.',
   save_failed: 'Could not save the connection.',
 };
+
+// ---- Engagement (x-metrics; social_metrics_report) -------------------------
+export type MetricsTypeRow = {
+  post_type: PostType; posts: number; median_impressions: number | null; median_engagements: number | null;
+  engagement_rate: number | null; likes: number | null; replies: number | null; reposts: number | null; url_clicks: number | null;
+};
+export type MetricsPostRow = {
+  candidate_id: number; post_type: PostType; published_at: string; text: string; x_post_id: string;
+  impressions: number | null; engagements: number; rate: number | null;
+};
+export type MetricsRun = {
+  run_id: number; started_at: string; finished_at: string | null; triggered_by: string; posts_requested: number;
+  posts_read: number; posts_missing: number; fields: string | null; estimated_cost_usd: number; error: string | null;
+};
+export type MetricsReport = {
+  types: MetricsTypeRow[]; top: MetricsPostRow[]; bottom: MetricsPostRow[];
+  settled_posts: number; fresh_posts: number; last_run: MetricsRun | null;
+};
+
+/** Per post type engagement, from the latest read of posts at least 24 hours old. */
+export async function getMetricsReport(): Promise<MetricsReport> {
+  const { data, error } = await db.rpc('social_metrics_report');
+  if (error) fail(error, 'Could not load engagement');
+  return data as MetricsReport;
+}
+
+/** Read the last 30 days' posts from X now (at most 300, about $0.001 each). */
+export async function readMetricsNow(): Promise<{ posts_read: number; posts_missing: number; estimated_cost_usd: number }> {
+  return invoke('x-metrics', { triggered_by: 'admin' });
+}

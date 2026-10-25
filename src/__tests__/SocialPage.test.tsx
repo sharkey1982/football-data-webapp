@@ -12,7 +12,8 @@ vi.mock('../lib/auth', () => ({
 }));
 vi.mock('../lib/socialApi', async () => {
   const actual = await vi.importActual<typeof socialApi>('../lib/socialApi');
-  return { ...actual, getSocialState: vi.fn(), review: vi.fn(), publish: vi.fn(), updateSettings: vi.fn(), runDetectors: vi.fn(), hold: vi.fn() };
+  return { ...actual, getSocialState: vi.fn(), review: vi.fn(), publish: vi.fn(), updateSettings: vi.fn(), runDetectors: vi.fn(), hold: vi.fn(),
+    getMetricsReport: vi.fn(), readMetricsNow: vi.fn() };
 });
 void React;
 const api = socialApi as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -39,6 +40,7 @@ describe('SocialPage', () => {
   beforeEach(() => {
     admin = true;
     vi.clearAllMocks();
+    api.getMetricsReport.mockResolvedValue({ types: [], top: [], bottom: [], settled_posts: 0, fresh_posts: 0, last_run: null });
   });
 
   it('is admin only', () => {
@@ -98,5 +100,22 @@ describe('SocialPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('automatic post #4: X 400');
     await userEvent.click(screen.getByRole('button', { name: 'Reset and resume' }));
     expect(api.updateSettings).toHaveBeenCalledWith({ reset_breaker: true });
+  });
+
+  it('shows engagement by post type and the best posts', async () => {
+    api.getSocialState.mockResolvedValue(state(candidate));
+    api.getMetricsReport.mockResolvedValue({
+      types: [{ post_type: 'fpl_price_changes', posts: 4, median_impressions: 812, median_engagements: 14, engagement_rate: 0.021,
+                likes: 30, replies: 4, reposts: 6, url_clicks: 0 }],
+      top: [{ candidate_id: 9, post_type: 'fpl_price_changes', published_at: '2026-10-22T01:00:00Z', text: 'Price rises tonight',
+              x_post_id: '123', impressions: 900, engagements: 30, rate: 0.0333 }],
+      bottom: [], settled_posts: 4, fresh_posts: 1, last_run: null,
+    });
+    render(<MemoryRouter><SocialPage /></MemoryRouter>);
+    const section = await screen.findByTestId('social-engagement');
+    await waitFor(() => expect(section).toHaveTextContent('812'));
+    expect(section).toHaveTextContent('2.1%');
+    expect(section).toHaveTextContent('Price rises tonight');
+    expect(section).toHaveTextContent('3.3%');
   });
 });
