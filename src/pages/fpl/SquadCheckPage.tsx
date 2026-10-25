@@ -33,26 +33,11 @@ import {
   type SquadPlayer,
 } from '../../lib/squadCheck';
 import { friendlyError } from '../../lib/errorMessage';
+import { readStoredFplId as readStoredId, storeFplId as storeId } from '../../lib/fplIdStore';
 
-const STORAGE_KEY = 'fixtureshark.fplId';
 const HORIZONS = [1, 5, 10];
 const MIN_GAINS = [0.5, 1, 2, 3, 5];
 
-function readStoredId(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function storeId(id: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, id);
-  } catch {
-    /* storage unavailable: the URL still carries the id */
-  }
-}
 
 type Loaded = { entry: FplEntry; squad: SquadPlayer[]; pool: Map<number, CheckPlayer>; from: number; to: number };
 

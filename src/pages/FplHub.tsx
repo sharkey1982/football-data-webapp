@@ -27,6 +27,8 @@ import { loadReportList, reportPath, type ReportListEntry } from '../lib/fplGame
 import { PlayerLink } from '../components/EntityLinks';
 import { HubCard, HubNote, HubPageList, HubPlayStrip, HubSkeleton, HUB_LINK } from '../components/hub/HubParts';
 import { PopularTools } from '../components/hub/PopularTools';
+import { MyLiveScore } from '../components/fpl/MyLiveScore';
+import { forgetFplId, readStoredFplId, storeFplId } from '../lib/fplIdStore';
 import { getOpenGameweek, type LiveGame, type LivePlayerPoints, type OpenGameweek } from '../lib/fplGameweekState';
 
 type Load<T> = { status: 'loading' } | { status: 'error' } | { status: 'ok'; data: T };
@@ -42,7 +44,9 @@ export default function FplHub() {
   });
 
   const navigate = useNavigate();
-  const [fplId, setFplId] = useState('');
+  // The FPL ID remembered in this browser (shared with Rate My Team and FPL Live).
+  const [storedId, setStoredId] = useState(readStoredFplId);
+  const [fplId, setFplId] = useState(storedId);
   const [deadline, setDeadline] = useState<Load<{ gw: number; deadline: string } | null>>({ status: 'loading' });
   const [top, setTop] = useState<Load<{ gw: number; picks: ProjectedPick[] } | null>>({ status: 'loading' });
   const [prices, setPrices] = useState<Load<PriceRisk[]>>({ status: 'loading' });
@@ -75,7 +79,10 @@ export default function FplHub() {
   function rate(e: FormEvent) {
     e.preventDefault();
     const id = fplId.trim();
-    if (/^\d{1,9}$/.test(id)) navigate(`/fpl/rate-my-team?id=${id}`);
+    if (/^\d{1,9}$/.test(id)) {
+      storeFplId(id);
+      navigate(`/fpl/rate-my-team?id=${id}`);
+    }
   }
 
   const nextGw = deadline.status === 'ok' && deadline.data ? deadline.data.gw : top.status === 'ok' && top.data ? top.data.gw : null;
@@ -150,6 +157,17 @@ export default function FplHub() {
       <div className="flex flex-wrap gap-6 items-start">
         {view === 'open' && live ? (
           <div className="flex-[999_1_34rem] min-w-0 space-y-6">
+            {storedId && (
+              <MyLiveScore
+                key={storedId}
+                fplId={storedId}
+                onForget={() => {
+                  forgetFplId();
+                  setStoredId('');
+                  setFplId('');
+                }}
+              />
+            )}
             <InProgress data={live} reflectionTo={reflection ? reportPath(reflection.season_label, reflection.fpl_event_id, 'reflection') : null} />
           </div>
         ) : (

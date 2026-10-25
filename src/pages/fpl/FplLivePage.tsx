@@ -16,27 +16,12 @@ import { trackEvent } from '../../lib/analytics';
 import { fetchFplLive, shouldPoll, toScoreInput, type FplLiveData } from '../../lib/fplLiveApi';
 import { fixtureState, scoreLiveTeam, type LiveFixture, type PlayerScore } from '../../lib/fplLiveScore';
 import { friendlyError } from '../../lib/errorMessage';
+import { readStoredFplId as readStoredId, storeFplId as storeId } from '../../lib/fplIdStore';
 
-const STORAGE_KEY = 'fixtureshark.fplId';
 const POLL_MS = 60_000;
 const POS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
 const CHIP: Record<string, string> = { bboost: 'Bench Boost', '3xc': 'Triple Captain', freehit: 'Free Hit', wildcard: 'Wildcard', manager: 'Assistant Manager' };
 
-function readStoredId(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function storeId(id: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, id);
-  } catch {
-    /* storage unavailable: the URL still carries the id */
-  }
-}
 
 const kickoffFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
 const timeFmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
