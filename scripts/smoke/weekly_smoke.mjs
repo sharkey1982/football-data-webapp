@@ -55,6 +55,8 @@ const NAMED = [
   ['tennis-hub', '/tennis'], ['tennis-results', '/tennis/results'], ['tennis-players', '/tennis/players'], ['tennis-grand-slams', '/tennis/grand-slams'],
   ['intl-hub', '/international'], ['intl-fixtures', '/international/fixtures'], ['intl-teams', '/international/teams'],
   ['table', '/table'], ['team-strength', '/team-strength'], ['projections', '/football/projections'],
+  // Range views (25 Oct 2026): a week's games on the fixtures list and the TV guide.
+  ['fixtures-week', '/fixtures?range=week'], ['tv-guide-week', '/tv-guide?range=week'],
 ];
 const MENU_PAGES = JSON.parse(readFileSync(new URL('./menu-pages.json', import.meta.url), 'utf8'));
 /** page_type for a menu page without a NAMED entry: its path, e.g. menu-fpl-rate-my-team. */

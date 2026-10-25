@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { buildModelFromLambdas, derivedMarkets } from '../lib/matchPageApi';
 import type { FixtureHeadToHead } from '../lib/api';
@@ -29,6 +29,9 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 import { TeamLink } from '../components/EntityLinks';
 import { useTeamSlugs } from '../lib/teamSlugs';
 import { defaultFixtureDate } from '../lib/fixtureDates';
+import RangeControl from '../components/RangeControl';
+import { datesBetween, emptyRangeText, longDay, nextDateAfter, parseRange, rangeBounds, rangeCaption, stepRange, type DateRange } from '../lib/dateRange';
+import { ukToday } from '../lib/ukDate';
 import { hasKickedOff } from '../lib/fixtureStatus';
 import { rowKeys } from '../lib/rowKeys';
 
@@ -44,6 +47,8 @@ function monthLabel(year: number, month: number): string {
 /** Today as a local 'YYYY-MM-DD' key, matching the format `kickoff_date`
  *  and the calendar's own date keys use. Used to default the fixtures
  *  list to "today" on load, rather than an empty or unfiltered list. */
+const FIXTURE_RANGES: readonly DateRange[] = ['next', 'today', 'week', 'month'];
+
 function todayIsoDate(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -319,6 +324,19 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
   const [selectedCalendarDates, setSelectedCalendarDates] = useState<Set<string>>(
     () => new Set([todayIsoDate()])
   );
+  // Range views (?range=today|week|month, ?on=YYYY-MM-DD for another week or
+  // month). 'next' = next matchday, the default; null = days picked by hand
+  // on the calendar. The range only sets selectedCalendarDates: the season is
+  // already loaded whole, so no extra query.
+  const [range, setRange] = useState<DateRange | null>(() => parseRange(searchParams.get('range'), FIXTURE_RANGES) ?? 'next');
+  const [rangeOn, setRangeOn] = useState<string | null>(() => {
+    const on = searchParams.get('on');
+    return on && /^\d{4}-\d{2}-\d{2}$/.test(on) ? on : null;
+  });
+  const rangeAnchor = range === 'today' || !rangeOn ? ukToday() : rangeOn;
+  const fixedRange = range === 'today' || range === 'week' || range === 'month' ? range : null;
+  // Week and month views list several days, so each day gets a heading.
+  const dayHeadings = fixedRange === 'week' || fixedRange === 'month';
   // Which matchweek/month sections are expanded, keyed by group key (see
   // groupFixtures below). A Set rather than a single value, since more
   // than one section can be open at once.
@@ -465,6 +483,12 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
     return [...map.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [seasonFixtures, historicMode, selectedCalendarDates]);
 
+  // An empty range points at the next day with games after it.
+  const rangeNextGames = useMemo(() => {
+    if (!fixedRange || !seasonFixtures) return null;
+    return nextDateAfter(seasonFixtures.map((f) => f.kickoff_date), rangeBounds(fixedRange, rangeAnchor).end);
+  }, [fixedRange, rangeAnchor, seasonFixtures]);
+
   // Which groups have any fixture in a given (year, month) -- used both to
   // decide which sections the calendar's two visible months should expand
   // (the actual "calendar filters the list" behaviour) and, on first load,
@@ -527,10 +551,12 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       if (competitionType) params.type = competitionType;
       if (leagueId) params.league = String(leagueId);
       if (seasonId) params.season = String(seasonId);
+      if (fixedRange) params.range = fixedRange;
+      if (fixedRange && fixedRange !== 'today' && rangeOn) params.on = rangeOn;
     }
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, countryId, competitionType, leagueId, seasonId, teamId]);
+  }, [viewMode, countryId, competitionType, leagueId, seasonId, teamId, fixedRange, rangeOn]);
 
   // Fetches the WHOLE season's fixtures in one go -- powers the calendar,
   // the matchweek grouping, and the list, all from a single source of
@@ -544,25 +570,17 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
     setCalendarMonth(today.getMonth());
     setHistoricMode(false);
     setExpandedGroups(new Set());
+    // A new division or season opens on its range again, not hand-picked days.
+    setRange((r) => r ?? 'next');
 
     if (viewMode !== 'division' || !leagueId || !seasonId) return;
 
     setLoading(true);
     getFixturesForSeason(leagueId, seasonId)
       .then(async (rows) => {
-        if (rows.length > 0) {
-          // Open on a day that has games, not an empty list (see
-          // defaultFixtureDate). Only replaces the untouched default.
-          const today = todayIsoDate();
-          const day = defaultFixtureDate(rows.map((r) => r.kickoff_date), today);
-          if (day && day !== today) {
-            setSelectedCalendarDates((prev) => (prev.size === 1 && prev.has(today) ? new Set([day]) : prev));
-            const [y, m] = day.split('-').map(Number);
-            setCalendarYear(y);
-            setCalendarMonth(m - 1);
-          }
-          return rows;
-        }
+        // The opening day (next matchday) or range is applied by the range
+        // effect below once the rows are in.
+        if (rows.length > 0) return rows;
         // No scheduled fixtures for this division/season -- fall back to
         // the results archive, which covers past seasons (see dataCoverage.ts)
         // (fixtures.csv imports only ever cover the current official
@@ -591,6 +609,32 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, leagueId, seasonId]);
+
+  // Apply the range to the calendar selection. Next matchday opens on a day
+  // that has games, not an empty list (see defaultFixtureDate); a fixed range
+  // selects all its days. Historic seasons keep their whole-season view.
+  useEffect(() => {
+    if (!seasonFixtures || seasonFixtures.length === 0 || historicMode || range === null) return;
+    let day: string | null;
+    if (range === 'next') {
+      day = defaultFixtureDate(seasonFixtures.map((r) => r.kickoff_date), ukToday());
+      if (!day) return;
+      setSelectedCalendarDates(new Set([day]));
+    } else {
+      const b = rangeBounds(range as 'today' | 'week' | 'month', rangeAnchor);
+      setSelectedCalendarDates(new Set(datesBetween(b.start, b.end)));
+      day = b.start;
+    }
+    const [y, m] = day.split('-').map(Number);
+    setCalendarYear(y);
+    setCalendarMonth(m - 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seasonFixtures, historicMode, range, rangeAnchor]);
+
+  function chooseRange(r: DateRange, on: string | null = null) {
+    setRange(r);
+    setRangeOn(on);
+  }
 
   // UK broadcast info -- fetched independently of the fixture list above so
   // a hiccup here can never take down the schedule itself. See
@@ -664,6 +708,8 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
   // actually filters the fixture list below (see `groups`). Scrolls to
   // that date's section on select; nothing to scroll to on deselect.
   function toggleCalendarDate(date: string) {
+    setRange(null);
+    setRangeOn(null);
     setSelectedCalendarDates((prev) => {
       const next = new Set(prev);
       if (next.has(date)) {
@@ -1000,6 +1046,18 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
         </div>
       )}
 
+      {viewMode === 'division' && leagueId && seasonId && !historicMode && (
+        <div className="mb-3">
+          <RangeControl
+            options={FIXTURE_RANGES}
+            value={range ?? 'next'}
+            onChange={(r) => chooseRange(r)}
+            onStep={(dir) => fixedRange && fixedRange !== 'today' && chooseRange(fixedRange, stepRange(fixedRange, rangeAnchor, dir))}
+            caption={fixedRange ? rangeCaption(fixedRange, rangeAnchor) : undefined}
+          />
+        </div>
+      )}
+
       {viewMode === 'division' && leagueId && seasonId && (
         <div className="flex flex-col sm:flex-row gap-4 items-start">
           <FixtureCalendarHeatmap
@@ -1037,7 +1095,11 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                 compare several at once.
                 {selectedCalendarDates.size > 0 && (
                   <button
-                    onClick={() => setSelectedCalendarDates(new Set())}
+                    onClick={() => {
+                      setRange(null);
+                      setRangeOn(null);
+                      setSelectedCalendarDates(new Set());
+                    }}
                     className="ml-2 text-pitch-700 font-medium hover:underline"
                   >
                     Clear
@@ -1161,6 +1223,24 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
         <>
           {loading && <p className="text-ink-500 font-mono text-sm">Loading fixtures&hellip;</p>}
 
+          {fixedRange && !loading && !historicMode && seasonFixtures && seasonFixtures.length > 0 && groups.length === 0 && (
+            <div className="text-sm text-ink-500 mb-3" data-testid="range-empty">
+              <p>
+                {emptyRangeText(fixedRange)}
+                {rangeNextGames ? <>. Next games: {longDay(rangeNextGames)}.</> : ' left this season.'}
+              </p>
+              {rangeNextGames && (
+                <button
+                  type="button"
+                  onClick={() => (fixedRange === 'today' ? chooseRange('next') : chooseRange(fixedRange, rangeNextGames))}
+                  className="mt-2 rounded border border-pitch-700 px-3 py-1 text-xs text-pitch-700"
+                >
+                  Go to {longDay(rangeNextGames)}
+                </button>
+              )}
+            </div>
+          )}
+
           {groups.length > 0 && (
             <div className="inline-flex rounded-lg border border-chalk-300 overflow-hidden text-xs mb-2" role="group" aria-label="Filter by UK broadcast">
               {([
@@ -1211,7 +1291,13 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                             if (broadcastFilter === 'tv') return summary.kind === 'broadcast';
                             return summary.kind === 'broadcast' && summary.freeToAir;
                           })
-                          .map((f) => (
+                          .map((f, i, arr) => (
+                          <Fragment key={f.fixture_id}>
+                          {dayHeadings && (i === 0 || arr[i - 1].kickoff_date !== f.kickoff_date) && (
+                            <li className="px-4 py-1.5 bg-chalk-100 font-display uppercase tracking-wide text-xs text-ink-500">
+                              {formatMatchDateWithYear(f.kickoff_date)}
+                            </li>
+                          )}
                           <li
                             key={f.fixture_id}
                             className={[
@@ -1292,6 +1378,7 @@ export default function GameweekBrowser({ variant = 'archive' }: { variant?: 'ar
                               Explore &rarr;
                             </span>
                           </li>
+                          </Fragment>
                         ))}
                       </ul>
                     )}
