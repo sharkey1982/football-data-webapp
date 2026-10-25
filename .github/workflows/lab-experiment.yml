@@ -85,10 +85,10 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, backtest_depth_ties, backtest_depth_recency, backtest_depth_cover, backtest_depth_deep_backup, analysis_transfer_captaincy, analysis_xg_vs_fdr]
+        options: [f1, e1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, backtest_depth_ties, backtest_depth_recency, backtest_depth_cover, backtest_depth_deep_backup, analysis_transfer_captaincy, analysis_xg_vs_fdr]
         default: f1
       open_holdout:
-        description: "f1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
+        description: "f1/e1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
         type: boolean
         default: false
 
@@ -113,6 +113,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/lab_f1.py ${{ inputs.open_holdout && '--open-holdout' || '' }}
+      - name: E1 (Dixon-Coles for European leagues)
+        if: inputs.job == 'e1'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/lab_e1.py ${{ inputs.open_holdout && '--open-holdout' || '' }}
       - name: F4
         if: inputs.job == 'f4'
         env:
