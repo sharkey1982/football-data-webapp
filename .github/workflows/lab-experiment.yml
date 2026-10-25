@@ -76,6 +76,12 @@ name: Model Lab
 #   open_holdout, the sealed GW7-8 holdout once (refuses before GW8 has
 #   finished). Writes lab_scorings and analysis_results (lab_d1_depth_guard).
 #
+# x1: experiment X1_start_model (registered 25 Oct): start probability from
+#   playing records (logistic, scaled to 11 per side) v the published model
+#   and the last-XI guess. Data read once into a local cache. Tuning GW2-5,
+#   validation GW6; with open_holdout, GW7-8 once. Writes lab_scorings and
+#   analysis_results (lab_x1_start_model).
+#
 # analysis_transfer_captaincy: the captaincy squads re-solved with FPL
 #   transfers (1 free a week, 5 banked, -4 hits) against the fixed squad,
 #   on the same projections. Writes analysis_results (transfer_captaincy).
@@ -91,10 +97,10 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, e1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, backtest_depth_ties, backtest_depth_recency, backtest_depth_cover, backtest_depth_deep_backup, d1, analysis_transfer_captaincy, analysis_xg_vs_fdr]
+        options: [f1, e1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, backtest_depth_ties, backtest_depth_recency, backtest_depth_cover, backtest_depth_deep_backup, d1, x1, analysis_transfer_captaincy, analysis_xg_vs_fdr]
         default: f1
       open_holdout:
-        description: "f1/e1/d1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
+        description: "f1/e1/d1/x1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
         type: boolean
         default: false
 
@@ -271,6 +277,21 @@ jobs:
           set +e
           python -m pytest -q scripts/test_fpl_depth_chart.py 2>&1 | tail -3 | tee /tmp/bt.log
           python scripts/lab_d1_depth_guard.py ${{ inputs.open_holdout && '--open-holdout' || '' }} 2>&1 | tee -a /tmp/bt.log
+          STATUS=${PIPESTATUS[0]}
+          ENCODED=$(tail -c 3000 /tmp/bt.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
+      - name: X1 (start probability from playing records)
+        if: inputs.job == 'x1'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q scripts/test_lab_x1_start_model.py 2>&1 | tail -3 | tee /tmp/bt.log
+          python scripts/lab_x1_start_model.py ${{ inputs.open_holdout && '--open-holdout' || '' }} 2>&1 | tee -a /tmp/bt.log
           STATUS=${PIPESTATUS[0]}
           ENCODED=$(tail -c 3000 /tmp/bt.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
           if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
