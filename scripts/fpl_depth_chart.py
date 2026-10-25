@@ -78,6 +78,36 @@ OUTFIELD_PLACES = 10
 #   above his own availability.
 DEEP_BACKUP_BY_RATE = False
 NEIGHBOUR_COVER = False
+# Experiment D1 (25 Oct 2026, docs/experiments.md): low-down picks in the
+# published line-ups. Found (Chris, 25 Oct): Man Utd GW8, Sesko was listed
+# CF rank 1 by the FPL-position fallback, which made a second striker's
+# place next to Cunha in a one-striker side; Sesko was out, so Zirkzee
+# (fallback CF, 51 minutes and no starts all season) took that place at 0.9
+# and was published 90% to start. Three rules, off until D1 is scored:
+#   FALLBACK_NO_PLACES: players whose role only comes from the FPL-position
+#     fallback (no named source) don't create places; they can still fill
+#     open ones.
+#   BACKUP_SEED_MATCHES: a backup's take rate wears down with evidence, as
+#     a first choice's floor does: min(BACKUP_TAKE, (starts + BACKUP_TAKE K)
+#     / (available + K)). None = the flat BACKUP_TAKE.
+#   PLAUSIBILITY_CAP: a final start chance of PLAUS_MIN_P or more for a
+#     player who started PLAUS_MAX_STARTS or fewer of his last
+#     PLAUS_WINDOW team matches while available (and was available for at
+#     least PLAUS_MIN_AVAIL of them) is cut to the cap, unless he is a named
+#     first choice set by hand (rank 1 from 'manual' or a BBC line-up) or
+#     has an admin "start chance when fit". Nothing is redistributed: the
+#     club's total goes down, which says "we don't know who takes it".
+# The review list (players the rule flags) is kept whether or not the cap
+# is on, so roles can be fixed before the deadline.
+FALLBACK_NO_PLACES = False
+BACKUP_SEED_MATCHES: float | None = None
+PLAUSIBILITY_CAP: float | None = None
+PLAUS_MIN_P = 0.60
+PLAUS_MAX_STARTS = 1
+PLAUS_WINDOW = 5
+PLAUS_MIN_AVAIL = 2
+FALLBACK_SOURCES = ("fpl_position_fallback",)
+HAND_SET_RANK_SOURCES = ("manual", "bbc_screenshot")
 NEIGHBOURS = {"FWD": ("AM", "LW", "RW"), "DEF": ("PIV",)}
 
 ROLE_GROUP = {
@@ -127,6 +157,12 @@ class Player:
     # Other positions he plays, each with his rank there: [("LW", 2), ...]
     # (10 Oct 2026, "Also plays" on Starting Lineups).
     others: list = field(default_factory=list)
+    # D1 inputs (25 Oct 2026): where his role and rank came from, and his
+    # starts / matches available over the team's last PLAUS_WINDOW matches.
+    role_source: str | None = None
+    rank_source: str | None = None
+    starts_last: float | None = None
+    avail_last: float | None = None
     group: str | None = field(default=None, init=False)
     line: str | None = field(default=None, init=False)
     generic: bool = field(default=False, init=False)
@@ -157,13 +193,61 @@ class Player:
                 return min(RANK1_CAP, max(self.rate or 0.0, RANK1_FLOOR))
             seeded = (self.starts + RANK1_FLOOR * k) / (self.available + k)
             return min(RANK1_CAP, max(self.rate or 0.0, seeded))
+        return backup_seeded(self)
+
+    @property
+    def fallback(self) -> bool:
+        """Role only from the FPL-position fallback, rank not set by hand."""
+        return (self.role_source or "") in FALLBACK_SOURCES and (self.rank_source or "") not in HAND_SET_RANK_SOURCES
+
+    @property
+    def hand_set_first_choice(self) -> bool:
+        return self.first_choice is not None or (self.depth_rank <= 1 and (self.rank_source or "") in HAND_SET_RANK_SOURCES)
+
+
+def backup_seeded(p: "Player") -> float:
+    """A backup's take rate: flat, or worn down by his record (D1 rule 2)."""
+    k = BACKUP_SEED_MATCHES
+    if k is None or p.starts is None or p.available is None:
         return BACKUP_TAKE
+    return min(BACKUP_TAKE, max(0.0, (p.starts + BACKUP_TAKE * k) / (p.available + k)))
+
+
+def implausible(p: "Player", start_probability: float) -> bool:
+    """D1 rule 3: a high start chance his recent record doesn't support."""
+    if p.hand_set_first_choice or p.starts_last is None or p.avail_last is None:
+        return False
+    return (start_probability >= PLAUS_MIN_P and p.avail_last >= PLAUS_MIN_AVAIL
+            and p.starts_last <= PLAUS_MAX_STARTS)
+
+
+def apply_plausibility(players: list["Player"], result: dict) -> tuple[dict, list[dict]]:
+    """Cap implausible start chances (when PLAUSIBILITY_CAP is set). Returns
+    the result and every flagged player (capped or, with the cap off, the
+    ones that would be), for the admin review list."""
+    by_id = {p.fpl_player_id: p for p in players}
+    flags = []
+    out = dict(result)
+    for pid, val in result.items():
+        p = by_id.get(pid)
+        s = val[0]
+        if p is None or not implausible(p, s):
+            continue
+        capped = min(s, PLAUSIBILITY_CAP) if PLAUSIBILITY_CAP is not None else s
+        flags.append({"fpl_player_id": pid, "raw_probability": round(s, 4), "probability": round(capped, 4),
+                      "starts_last": p.starts_last, "avail_last": p.avail_last, "depth_rank": p.depth_rank,
+                      "role": p.role, "role_source": p.role_source, "capped": PLAUSIBILITY_CAP is not None})
+        if PLAUSIBILITY_CAP is not None:
+            out[pid] = (round(capped, 4),) + tuple(val[1:])
+    return out, flags
 
 
 def backup_take(p: "Player") -> float:
     """How often a backup (rank 2+) takes an open place when fit."""
     if DEEP_BACKUP_BY_RATE and p.depth_rank >= 3 and p.first_choice is None:
         return p.pick()
+    if p.first_choice is None:
+        return backup_seeded(p)
     return BACKUP_TAKE
 
 
@@ -256,7 +340,7 @@ def fill_line(open_dist: list[float], weights: dict[int, float]) -> dict[int, fl
 def group_places(players: list[Player], formation: str | None) -> dict[str, int]:
     places: dict[str, int] = {}
     for p in players:
-        if p.group and p.depth_rank <= 1:
+        if p.group and p.depth_rank <= 1 and not (FALLBACK_NO_PLACES and p.fallback):
             places[p.group] = places.get(p.group, 0) + 1
     template = TEMPLATES.get((formation or "").strip())
     if template:
@@ -457,6 +541,7 @@ INPUT_SQL = "select * from public.get_fpl_depth_inputs()"
 def compute(rows: list[dict]) -> list[dict]:
     """rows: one per (fixture, club, player) from get_fpl_depth_inputs()."""
     out: list[dict] = []
+    FLAGS.clear()
     key = lambda r: (r["fixture_id"], r["team_id"])
     for (fixture_id, team_id), grp in groupby(sorted(rows, key=key), key=key):
         grp = list(grp)
@@ -472,6 +557,10 @@ def compute(rows: list[dict]) -> list[dict]:
                 starts=None if r.get("starts") is None else float(r["starts"]),
                 available=None if r.get("available") is None else float(r["available"]),
                 others=_others(r.get("other_roles")),
+                role_source=r.get("role_source"),
+                rank_source=r.get("rank_source"),
+                starts_last=None if r.get("starts_last") is None else float(r["starts_last"]),
+                avail_last=None if r.get("avail_last") is None else float(r["avail_last"]),
             )
             for r in grp
         ]
@@ -484,6 +573,9 @@ def compute(rows: list[dict]) -> list[dict]:
             result = _sim_cache[key_]
         else:
             result = {pid: (s, g, rank, {g: s} if s > 0 else {}) for pid, (s, g, rank) in allocate(players, formation).items()}
+        result, flags = apply_plausibility(players, result)
+        for f in flags:
+            FLAGS.append({"fixture_id": fixture_id, "team_id": team_id, **f})
         for pid, (s, g, rank, shares) in result.items():
             out.append({"fixture_id": fixture_id, "team_id": team_id, "fpl_player_id": pid,
                         "start_probability": s, "depth_group": g, "depth_rank": rank, "group_shares": shares})
@@ -491,6 +583,9 @@ def compute(rows: list[dict]) -> list[dict]:
 
 
 _sim_cache: dict = {}
+# Players flagged by the D1 plausibility rule in the last compute() (the
+# admin review list; fpl_replace_start_flags stores them).
+FLAGS: list[dict] = []
 
 
 def _others(v) -> list:
