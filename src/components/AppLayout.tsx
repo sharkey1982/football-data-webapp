@@ -452,6 +452,14 @@ export default function AppLayout() {
               {navGroups.map((group) => (
                 <NavDropdown key={group.label} group={group} />
               ))}
+              <li>
+                <NavLink
+                  to="/my"
+                  className={({ isActive }) => `flex items-center px-3 py-1.5 rounded transition-colors text-sm font-medium ${isActive ? 'bg-amber-500 text-ink-900' : 'text-chalk-200 hover:bg-pitch-700 hover:text-chalk-100'}`}
+                >
+                  My preferences
+                </NavLink>
+              </li>
             </ul>
           </nav>
         </div>

@@ -24,6 +24,7 @@ const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
 const MatchPreview = lazy(() => import('./pages/MatchPreview'));
 const GameweekBrowser = lazy(() => import('./pages/GameweekBrowser'));
 const Landing = lazy(() => import('./pages/Landing'));
+const MyPreferences = lazy(() => import('./pages/MyPreferences'));
 const FootballHub = lazy(() => import('./pages/FootballHub'));
 const FplHub = lazy(() => import('./pages/FplHub'));
 const PlayerPage = lazy(() => import('./pages/fpl/PlayerPage'));
@@ -417,6 +418,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <GameweekBrowser variant="projections" />
+              </Suspense>
+            }
+          />
+          <Route
+            path="my"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <MyPreferences />
               </Suspense>
             }
           />
