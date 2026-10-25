@@ -18,9 +18,10 @@ import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useAuthOptional } from '../../lib/auth';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import {
-  addedNumbers, disconnectX, getSocialState, hold, POST_TYPE_LABEL, publish, resolveNeedsCheck, review, runDetectors,
-  startXConnect, updateSettings, weightedLength, X_RESULT_MESSAGE,
-  type AuditRow, type Candidate, type Connection, type DetectorRun, type PublishResult, type Settings, type WeekRow,
+  addedNumbers, disconnectX, getMetricsReport, getSocialState, hold, POST_TYPE_LABEL, publish, readMetricsNow, resolveNeedsCheck,
+  review, runDetectors, startXConnect, updateSettings, weightedLength, X_RESULT_MESSAGE,
+  type AuditRow, type Candidate, type Connection, type DetectorRun, type MetricsPostRow, type MetricsReport, type MetricsTypeRow,
+  type PublishResult, type Settings, type WeekRow,
 } from '../../lib/socialApi';
 
 const queued = (c: Candidate) => !!c.auto && c.approval_status === 'approved' && ['unpublished', 'failed'].includes(c.publication_status);
@@ -256,6 +257,77 @@ function LimitsForm({ s, onSave }: { s: Settings; onSave: (c: Partial<Settings>)
   );
 }
 
+const pct = (n: number | null) => (n == null ? '—' : `${(Number(n) * 100).toFixed(1)}%`);
+const whole = (n: number | null) => (n == null ? '—' : Math.round(Number(n)).toLocaleString('en-GB'));
+
+/** Engagement by post type (x-metrics, weekly): which posts land. */
+function Engagement() {
+  const [report, setReport] = useState<MetricsReport | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    getMetricsReport().then(setReport).catch((e) => setMsg(e instanceof Error ? e.message : String(e)));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const readNow = async () => {
+    if (!window.confirm('Read the last 30 days of posts from X now? About $0.001 a post, at most 300 posts.')) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await readMetricsNow();
+      setMsg(`Read ${r.posts_read} post(s), ${r.posts_missing} missing (deleted), about ${usd(r.estimated_cost_usd)}.`);
+      load();
+    } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
+  const typeCols: Column<MetricsTypeRow>[] = [
+    { key: 't', label: 'Type', render: (r) => POST_TYPE_LABEL[r.post_type] ?? r.post_type, sortValue: (r) => r.post_type },
+    { key: 'n', label: 'Posts', align: 'right', render: (r) => r.posts, sortValue: (r) => r.posts, descFirst: true },
+    { key: 'i', label: 'Median views', align: 'right', render: (r) => whole(r.median_impressions), sortValue: (r) => r.median_impressions, descFirst: true },
+    { key: 'e', label: 'Median engagements', align: 'right', render: (r) => whole(r.median_engagements), sortValue: (r) => r.median_engagements, descFirst: true },
+    { key: 'r', label: 'Engagement rate', align: 'right', render: (r) => pct(r.engagement_rate), sortValue: (r) => r.engagement_rate, descFirst: true },
+    { key: 'l', label: 'Likes', align: 'right', render: (r) => whole(r.likes), sortValue: (r) => r.likes, descFirst: true },
+    { key: 'p', label: 'Replies', align: 'right', render: (r) => whole(r.replies), sortValue: (r) => r.replies, descFirst: true },
+    { key: 's', label: 'Reposts', align: 'right', render: (r) => whole(r.reposts), sortValue: (r) => r.reposts, descFirst: true },
+  ];
+  const postList = (title: string, rows: MetricsPostRow[]) => (
+    <div className="space-y-1">
+      <h3 className="text-sm font-semibold text-ink-900">{title}</h3>
+      {rows.length === 0 && <p className="text-xs text-ink-500">None yet.</p>}
+      <ul className="space-y-1">
+        {rows.map((p) => (
+          <li key={p.candidate_id} className="text-xs border border-chalk-300 rounded bg-white p-2">
+            <span className="font-semibold">{pct(p.rate)}</span> · {whole(p.impressions)} views · {p.engagements} engagements ·{' '}
+            {POST_TYPE_LABEL[p.post_type] ?? p.post_type} · {when(p.published_at)}{' '}
+            <a className="underline" href={`https://x.com/FixtureSharkHQ/status/${p.x_post_id}`} target="_blank" rel="noreferrer">view</a>
+            <div className="text-ink-700 mt-0.5">{p.text}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+  const run = report?.last_run;
+  return (
+    <section className="space-y-2" data-testid="social-engagement">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-semibold text-ink-900">Engagement</h2>
+        <Btn disabled={busy} onClick={readNow}>Read from X now</Btn>
+      </div>
+      <p className="text-xs text-ink-500">
+        Read from X every Monday at 07:40 (posts from the last 30 days). Posts under 24 hours old at the last read are left out
+        ({report?.fresh_posts ?? 0} now). Engagements: likes, replies, reposts, quotes, bookmarks and link clicks; a thread counts once,
+        with the views of its first post.
+        {run && <> Last read {when(run.started_at)}: {run.posts_read} post(s), {usd(run.estimated_cost_usd)}{run.error ? `, error: ${run.error}` : ''}.</>}
+      </p>
+      {msg && <p className="text-xs text-ink-700">{msg}</p>}
+      <SortableTable columns={typeCols} rows={report?.types ?? []} rowKey={(r) => r.post_type} empty="No reads yet." />
+      <div className="grid gap-3 md:grid-cols-2">
+        {postList('Best five (engagement rate, 20+ views)', report?.top ?? [])}
+        {postList('Worst five', report?.bottom ?? [])}
+      </div>
+    </section>
+  );
+}
+
 export default function SocialPage() {
   useDocumentHead({ title: 'Social publishing' });
   const isAdmin = useAuthOptional()?.isAdmin ?? false;
@@ -373,6 +445,8 @@ export default function SocialPage() {
         {shown.length === 0 && <p className="text-sm text-ink-500">None.</p>}
         {shown.map((c) => <CandidateCard key={`${c.candidate_id}:${c.text}`} c={c} settings={s} connection={x} onChanged={load} />)}
       </section>
+
+      <Engagement />
 
       <section className="space-y-2">
         <h2 className="font-semibold text-ink-900">Weekly report</h2>

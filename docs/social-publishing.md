@@ -202,6 +202,33 @@ Team xG changes and record streaks stay manual.
   Reset with **Reset and resume** on this page. Manual posting is unaffected.
 - **Budget:** $5 a month, 160 posts a month (120 from 21 Oct, 160 from 25 Oct 2026), 5 a day (raised from 3 on 20 Oct 2026 for Fridays), 60 minutes apart.
 
+## Engagement (from 25 Oct 2026)
+
+Chris, 25 Oct 2026: every post should tell readers something new, and post
+types that don't land get dropped. To decide that from data:
+
+- **`x-metrics`** (Edge Function, `verify_jwt` off; worker token or an admin
+  JWT): reads every post published in the last 30 days (each post of a
+  thread), newest first, at most 300 a run, 100 ids per `GET /2/tweets`. It
+  asks for `public_metrics,non_public_metrics,organic_metrics` (our own posts,
+  user-context token, under 30 days old) and falls back to `public_metrics`
+  if X refuses (400/403). Deleted posts come back as errors and count as
+  missing. Tokens are refreshed exactly as in `x-publish`.
+- **Schedule:** pg_cron `social-x-metrics`, Monday 07:40 UTC
+  (`private.social_metrics_call`). Also "Read from X now" on /admin/social.
+- **Cost:** X bills owned reads per post, about $0.001; each run logs its
+  estimate in `social_metrics_runs.estimated_cost_usd` (300 posts = $0.30 at
+  most). Not counted against the $5 posting budget.
+- **Tables:** `social_post_metrics` (one row per post per read: impressions,
+  likes, replies, reposts, quotes, bookmarks, link and profile clicks, raw
+  `metrics` jsonb); `social_metrics_runs` (one row per run). Admin read only.
+- **Report:** `social_metrics_report()` (admin only), shown as "Engagement" on
+  /admin/social: per post type the posts, median views, median engagements
+  and engagement rate (engagements / views), plus the five best and worst
+  posts by rate (20+ views). It uses each post's latest read and leaves out
+  posts under 24 hours old at that read. A thread counts once: the views of
+  its first post, engagements summed over all its posts.
+
 ## Future content
 
 NFL, tennis, Beat the Shark blackjack and poker challenges: add a post type
