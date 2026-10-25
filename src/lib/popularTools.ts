@@ -26,8 +26,7 @@ export const POPULAR_TOOLS: PopularTool[] = [
   { id: 'price-changes', label: 'Price Changes', to: '/fpl/price-risk', blurb: 'Who is about to rise or fall tonight.', section: 'fpl' },
   { id: 'injuries', label: 'Injuries', to: '/fpl/injuries', blurb: 'Every flagged player, most-owned first.', section: 'fpl' },
   { id: 'optimal-squad', label: 'Optimal Squad', to: '/fpl/optimal-squad', blurb: 'The best 15 the model can pick for your budget.', section: 'fpl' },
-  // FPL Fixtures: add once /fpl/fixtures is on main.
-  // { id: 'fpl-fixtures', label: 'FPL Fixtures', to: '/fpl/fixtures', blurb: 'Every gameweek’s fixtures and difficulty.', section: 'fpl' },
+  { id: 'fpl-fixtures', label: 'FPL Fixtures', to: '/fpl/fixtures', blurb: 'Fixture difficulty, with midweek cup and European games.', section: 'fpl' },
   { id: 'league-table', label: 'League Table', to: '/table', blurb: 'Standings from results, deductions included.', section: 'football' },
   { id: 'match-predictions', label: 'Match Predictions', to: '/football/projections', blurb: 'Predicted scorelines for every upcoming game.', section: 'football' },
 ];
