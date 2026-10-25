@@ -341,6 +341,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/fixtures',
+    title: 'FPL Fixtures — gameweek difficulty with cup and European games',
+    description: 'Every Premier League side’s next FPL gameweeks coloured by expected goals, with League Cup, FA Cup and European midweek games, short rest and international breaks.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/optimal-squad',
     title: 'FPL Optimiser \u2014 the best squad under budget',
     description:
