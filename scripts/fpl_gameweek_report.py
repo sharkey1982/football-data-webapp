@@ -1546,6 +1546,9 @@ def build_reflection(d: Data, gw: int) -> dict:
     return p
 
 
+PUBLISHED: list[str] = []   # what this run published (the X detectors run if anything was)
+
+
 def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) -> tuple[int, int, bool]:
     sid = d.one("select public.fpl_current_season_id()")
     kind, gw = p["kind"], p["gw"]
@@ -1569,6 +1572,8 @@ def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) 
                    values (%s, %s, %s, %s, %s, %s, %s, case when %s then now() end, %s, %s, %s::jsonb, %s, %s::jsonb, %s)
                    returning report_id""",
                 (sid, p["season"], gw, kind, version, status, frozen, publish, title, summary, json.dumps(p, default=str), md, json.dumps(xt), code_ref))
+    if publish:
+        PUBLISHED.append(f"{kind} GW{gw} v{version}")
     return rid, version, publish
 
 
@@ -1795,8 +1800,9 @@ def main():
                 print(f"Preview: nothing due{' (' + action + ')' if action else ''}.")
             else:
                 rebuild = run_preview(d, pgw, action, code_ref) or rebuild
-        if rebuild:
-            # Queue any X thread now rather than at the next hourly detector run.
+        if PUBLISHED:
+            # Queue any X thread now rather than at the next hourly detector run
+            # (preview updates too: the team-news thread can't wait an hour).
             try:
                 d.one("select public.social_run_detectors('report') is not null")
             except Exception as e:  # noqa: BLE001
