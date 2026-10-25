@@ -248,9 +248,9 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
                           <ResultFlag kind={resultFlag(m.win_chance, outcome(m))} chance={m.win_chance} />
                         </>
                       ) : m.reported_goals_for != null ? (
-                        <span title="Reported score, awaiting confirmation">
+                        <span title="Provisional: full-time score, awaiting confirmation">
                           {m.reported_goals_for}&ndash;{m.reported_goals_against}
-                          <span className="font-sans text-ink-500"> (reported)</span>
+                          <span className="font-sans text-ink-500"> (provisional)</span>
                         </span>
                       ) : (
                         <span className="font-sans text-ink-500">Result to follow</span>

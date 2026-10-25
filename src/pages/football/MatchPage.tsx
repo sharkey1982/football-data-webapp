@@ -209,7 +209,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
           {match.reported_home_goals != null && match.reported_away_goals != null ? (
             <p className="text-ink-900 mt-1 text-lg">
               {match.home_team_name} {match.reported_home_goals}&ndash;{match.reported_away_goals} {match.away_team_name}
-              <span className="block text-sm text-ink-500">Reported score, awaiting confirmation from the results feed.</span>
+              <span className="block text-sm text-ink-500">Provisional: the full-time score, awaiting confirmation from the results feed.</span>
             </p>
           ) : (
             <p className="text-ink-700 mt-1">{match.status === 'awaiting_result' ? 'Kicked off. Result to follow.' : 'Played. Result to follow.'}</p>

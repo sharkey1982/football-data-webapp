@@ -282,7 +282,7 @@ describe('LeagueTable page', () => {
       </MemoryRouter>
     );
     const note = await screen.findByTestId('reported-results');
-    expect(note.textContent).toContain('1 result reported, not yet in this table');
+    expect(note.textContent).toContain('1 provisional result, not yet in this table');
     expect(note.textContent).toContain('Sat 26 Sep: Southend 2\u20134 Barrow');
     expect(mockedReported.getReportedUnconfirmed).toHaveBeenCalledWith(5, 13);
   });
