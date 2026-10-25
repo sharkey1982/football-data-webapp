@@ -269,3 +269,72 @@ def test_neighbour_cover_in_simulation():
     out = _with_flags(True, True, lambda: allocate_sim(_liverpool_no_striker(), "4-2-3-1", sims=4000))
     assert out[3][0] < 0.15
     assert sum(out[i][3].get("CF", 0) for i in (4, 5, 6)) > 0.5
+
+
+# ---- D1 (25 Oct 2026): low-down picks ------------------------------------
+
+import fpl_depth_chart as dc  # noqa: E402
+
+
+def man_utd():
+    """GW8: Cunha the named CF; Sesko CF rank 1 only from the FPL-position
+    fallback and out; Zirkzee fallback CF backup, 0 starts in 6 available."""
+    P = Player
+    return [
+        P(1, "RB", 1, 1.0, 0.9, None, 2, starts=6, available=6),
+        P(2, "RCB", 1, 1.0, 0.9, None, 2, starts=6, available=6),
+        P(3, "LCB", 1, 1.0, 0.9, None, 2, starts=6, available=6),
+        P(4, "LB", 1, 1.0, 0.9, None, 2, starts=6, available=6),
+        P(5, "DM", 1, 1.0, 0.9, None, 3, starts=6, available=6),
+        P(6, "CM", 1, 1.0, 0.9, None, 3, starts=6, available=6),
+        P(7, "RW", 1, 1.0, 0.9, None, 3, starts=6, available=6),
+        P(8, "AM", 1, 1.0, 0.9, None, 3, starts=6, available=6),
+        P(9, "LW", 1, 1.0, 0.9, None, 3, starts=6, available=6),
+        P(10, "CF", 1, 1.0, 0.8, None, 4, starts=5, available=6, role_source="fantasy_football_scout"),  # Cunha
+        P(11, "CF", 1, 0.0, 0.1, None, 4, starts=0, available=2, role_source="fpl_position_fallback"),   # Sesko, out
+        P(12, "CF", 2, 1.0, 0.05, None, 4, starts=0, available=6, role_source="fpl_position_fallback",
+          starts_last=0, avail_last=5),                                                                  # Zirkzee
+    ]
+
+
+@pytest.fixture
+def d1_off():
+    saved = (dc.FALLBACK_NO_PLACES, dc.BACKUP_SEED_MATCHES, dc.PLAUSIBILITY_CAP)
+    yield
+    dc.FALLBACK_NO_PLACES, dc.BACKUP_SEED_MATCHES, dc.PLAUSIBILITY_CAP = saved
+
+
+def test_d1_current_rules_reproduce_the_zirkzee_case(d1_off):
+    dc.FALLBACK_NO_PLACES, dc.BACKUP_SEED_MATCHES, dc.PLAUSIBILITY_CAP = False, None, None
+    assert group_places(man_utd(), "4-2-3-1")["CF"] == 2
+    assert allocate(man_utd(), "4-2-3-1")[12][0] == pytest.approx(0.9)
+
+
+def test_d1_fallback_players_do_not_create_places(d1_off):
+    dc.FALLBACK_NO_PLACES = True
+    assert group_places(man_utd(), "4-2-3-1")["CF"] == 1
+    assert allocate(man_utd(), "4-2-3-1")[12][0] < 0.25
+
+
+def test_d1_backup_take_wears_down_with_evidence(d1_off):
+    dc.BACKUP_SEED_MATCHES = 3.0
+    z = man_utd()[11]
+    assert z.pick() == pytest.approx(0.9 * 3 / (6 + 3))
+    fresh = Player(13, "CF", 2, 1.0, None, None, 4)          # no record: flat rate
+    assert fresh.pick() == pytest.approx(dc.BACKUP_TAKE)
+
+
+def test_d1_plausibility_cap_and_review_list(d1_off):
+    dc.FALLBACK_NO_PLACES, dc.BACKUP_SEED_MATCHES = False, None
+    players = man_utd()
+    res = {pid: (s, g, r, {}) for pid, (s, g, r) in allocate(players, "4-2-3-1").items()}
+    dc.PLAUSIBILITY_CAP = None
+    same, flags = dc.apply_plausibility(players, res)
+    assert same[12][0] == pytest.approx(0.9) and [f["fpl_player_id"] for f in flags] == [12] and not flags[0]["capped"]
+    dc.PLAUSIBILITY_CAP = 0.40
+    capped, flags = dc.apply_plausibility(players, res)
+    assert capped[12][0] == pytest.approx(0.40) and flags[0]["capped"]
+    # A hand-set first choice is never capped.
+    players[11].depth_rank, players[11].rank_source = 1, "manual"
+    _, flags = dc.apply_plausibility(players, res)
+    assert flags == []

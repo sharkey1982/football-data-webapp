@@ -22,6 +22,7 @@
 // ============================================================================
 
 import { AdminGateNotice } from '../../components/AdminGateNotice';
+import { StartFlagsPanel } from '../../components/fpl/StartFlagsPanel';
 import { useAuthOptional } from '../../lib/auth';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -839,6 +840,8 @@ export default function TacticalRolesAdminPage({ adminMode = false }: { adminMod
             : 'Who the model expects each club to start, and in which role \u2014 the lineup behind every player projection on the site. Shown by depth, so 2nd and 3rd choice are visible too, with injuries and suspensions already accounted for. This is the settled, long-term picture, not a pick for the very next match \u2014 team news close to kickoff can still differ from it.'}
         </p>
       </div>
+
+      {adminMode && <StartFlagsPanel />}
 
       {loading && <p className="text-ink-500 font-mono text-sm">{'Loading\u2026'}</p>}
       {error && <p className="text-loss-700 text-sm">{error}</p>}

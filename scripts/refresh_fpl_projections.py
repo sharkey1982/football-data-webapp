@@ -151,6 +151,19 @@ def main():
         else:
             n = supabase.rpc("fpl_replace_depth_start", {"p_rows": depth_rows}).execute().data
         print(f"::notice::Pecking-order start chances refreshed: {n} rows from {len(inputs)} inputs.")
+        # Review list (D1, 25 Oct 2026): start chances the player's recent
+        # record doesn't support, shown on /fpl/tactical-roles. Its own try:
+        # a failure here must not undo the start chances just stored.
+        try:
+            from fpl_depth_chart import FLAGS
+            flags_payload = json.dumps(FLAGS)
+            if direct is not None:
+                nf = direct.query("select public.fpl_replace_start_flags(%s::jsonb)", (flags_payload,))
+            else:
+                nf = supabase.rpc("fpl_replace_start_flags", {"p_rows": FLAGS}).execute().data
+            print(f"::notice::Start-chance review list: {nf} player(s) flagged.")
+        except Exception as e:
+            print(f"::warning::Could not store the start-chance review list ({e}).")
     except Exception as e:
         print(f"::warning::Could not refresh pecking-order start chances ({e}); using the previous stored rows.")
 
