@@ -88,8 +88,8 @@ describe('FplLivePage', () => {
     const xi = screen.getByTestId('live-xi');
     expect(within(xi).getByTestId('live-player-13')).toHaveTextContent('on');
     expect(within(screen.getByTestId('live-bench')).getByTestId('live-player-7')).toHaveTextContent('off');
-    // Projected final: 21 + 4.5 (player 8) + captain 6 x 30/90 x 2 = 4.
-    expect(within(screen.getByTestId('live-projected')).getByText('29.5')).toBeInTheDocument();
+    // Projected final: 21 + 4.5 (player 8) + captain (6 - 2 appearance) x 30/90 x 2 = 2.67 -> 28.2.
+    expect(within(screen.getByTestId('live-projected')).getByText('28.2')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Player6' })).toHaveAttribute('href', '/fpl/players/player-6');
   });
 

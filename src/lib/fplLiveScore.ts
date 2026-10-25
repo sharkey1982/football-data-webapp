@@ -235,6 +235,8 @@ function worstBonusState(states: BonusState[]): BonusState {
   return 'none';
 }
 
+const APPEARANCE_POINTS = 2;
+
 function remainingProjection(p: PlayerScore, projections: Map<number, Map<number, number>> | undefined, fixtures: Map<number, LiveFixture>): number {
   if (!projections) return 0;
   const byFixture = projections.get(p.element);
@@ -250,7 +252,18 @@ function remainingProjection(p: PlayerScore, projections: Map<number, Map<number
       // live figure once he is on; only the rest of the match is still to come.
       // A player not yet on late in the match is unlikely to add much.
       if (pf.minutes === 0 && played >= 60) continue;
-      total += (xp * (90 - played)) / 90;
+      if (pf.minutes > 0) {
+        // He is on: his appearance points are already in the live figure (1,
+        // then 2 at 60 minutes), so only the rest of his projection is pro
+        // rata, plus the second appearance point if he can still reach 60.
+        // (25 Oct 2026: counting the whole projection pro rata re-added the
+        // appearance points for every player on the pitch.)
+        const rest = (Math.max(0, xp - APPEARANCE_POINTS) * (90 - played)) / 90;
+        const secondAppearancePoint = pf.minutes < 60 && pf.minutes + (90 - played) >= 60 ? 1 : 0;
+        total += rest + secondAppearancePoint;
+      } else {
+        total += (xp * (90 - played)) / 90;
+      }
     }
   }
   return total;

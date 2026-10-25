@@ -279,12 +279,22 @@ describe('scoreLiveTeam live behaviour', () => {
   });
 
   it('projected remaining: unplayed fixtures count in full, live ones pro rata, bench excluded', () => {
-    const s = squad({ state: { 6: 'ns', 7: 'live', 13: 'ns' } });
+    const s = squad({ minutes: { 7: 45 }, state: { 6: 'ns', 7: 'live', 13: 'ns' } });
     s.fixtures = s.fixtures.map((f) => (f.id === 7 ? { ...f, minutes: 45 } : f));
     const projections = new Map([[6, new Map([[6, 5]])], [7, new Map([[7, 4]])], [13, new Map([[13, 3]])]]);
     const r = scoreLiveTeam({ ...s, chip: null, transferCost: 0, projections });
+    // Player 7, on for 45 of 45: (4 - 2 appearance) x 45/90 = 1, plus the second appearance point at 60.
     expect(r.projectedRemaining).toBeCloseTo(5 + 2);
     expect(r.projectedFinal).toBeCloseTo(r.net + 7);
+  });
+
+  it('projected remaining does not re-add appearance points for a player already past 60 minutes', () => {
+    const s = squad({ minutes: { 7: 70 }, state: { 7: 'live' } });
+    s.fixtures = s.fixtures.map((f) => (f.id === 7 ? { ...f, minutes: 70 } : f));
+    const projections = new Map([[7, new Map([[7, 6]])]]);
+    const r = scoreLiveTeam({ ...s, chip: null, transferCost: 0, projections });
+    // (6 - 2) x 20/90, no appearance point left to earn (it was 6 x 20/90 = 1.33 before).
+    expect(r.projectedRemaining).toBeCloseTo((4 * 20) / 90);
   });
 });
 
