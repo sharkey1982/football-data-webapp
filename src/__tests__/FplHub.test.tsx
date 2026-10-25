@@ -9,6 +9,7 @@ import * as priceRiskApi from '../lib/priceRiskApi';
 import * as injuryApi from '../lib/injuryApi';
 import * as reportApi from '../lib/fplGameweekReport';
 import * as stateApi from '../lib/fplGameweekState';
+import * as liveApi from '../lib/fplLiveApi';
 
 vi.mock('../lib/landingApi', async () => ({ ...(await vi.importActual<typeof landingApi>('../lib/landingApi')), getFplTrivia: vi.fn() }));
 vi.mock('../lib/hubApi', async () => ({ ...(await vi.importActual<typeof hubApi>('../lib/hubApi')), getNextDeadline: vi.fn(), getTopProjected: vi.fn() }));
@@ -16,6 +17,26 @@ vi.mock('../lib/priceRiskApi', async () => ({ ...(await vi.importActual<typeof p
 vi.mock('../lib/injuryApi', async () => ({ ...(await vi.importActual<typeof injuryApi>('../lib/injuryApi')), getInjuryReport: vi.fn() }));
 vi.mock('../lib/fplGameweekReport', async () => ({ ...(await vi.importActual<typeof reportApi>('../lib/fplGameweekReport')), loadReportList: vi.fn() }));
 vi.mock('../lib/fplGameweekState', async () => ({ ...(await vi.importActual<typeof stateApi>('../lib/fplGameweekState')), getOpenGameweek: vi.fn() }));
+vi.mock('../lib/fplLiveApi', async () => ({ ...(await vi.importActual<typeof liveApi>('../lib/fplLiveApi')), fetchFplLive: vi.fn() }));
+
+// A finished-ish team: players 1-11 on teams 1-11, all played 90 minutes (2 pts each); 12-15 bench.
+async function liveTeam() {
+  const { parseFplLive } = await vi.importActual<typeof liveApi>('../lib/fplLiveApi');
+  const ids = Array.from({ length: 15 }, (_, k) => k + 1);
+  return parseFplLive({
+    status: 'ok',
+    entry: { id: 1234567, name: 'Shark Attack', player_name: 'Chris S' },
+    event: { id: 8, name: 'Gameweek 8', deadline: '2026-10-23T17:30:00Z', finished: false, data_checked: false, is_current: true, current_event: 8 },
+    picks: { active_chip: null, event_transfers_cost: 4, automatic_subs: [],
+             picks: ids.map((i) => ({ element: i, position: i, multiplier: i <= 11 ? 1 : 0, is_captain: i === 6, is_vice_captain: i === 1 })) },
+    players: ids.map((i) => ({ id: i, web_name: `Player${i}`, slug: null, team: i, type: i === 1 || i === 12 ? 1 : i <= 5 ? 2 : i <= 9 ? 3 : 4, minutes: 90,
+                               explain: [{ fixture: i, stats: [{ identifier: 'minutes', value: 90, points: 2 }] }] })),
+    teams: [],
+    fixtures: ids.map((i) => ({ id: i, team_h: i, team_a: 100 + i, kickoff_time: '2026-10-24T14:00:00Z', started: true, finished_provisional: true,
+                                finished: false, minutes: 90, team_h_score: 1, team_a_score: 0, bps: [], bonus: [] })),
+    projections: [],
+  } as never);
+}
 
 const m = (mod: unknown) => mod as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -26,6 +47,8 @@ function Where() {
 
 describe('FPL home page', () => {
   beforeEach(() => {
+    localStorage.removeItem('fixtureshark.fplId');
+    m(liveApi).fetchFplLive.mockReset();
     m(landingApi).getFplTrivia.mockResolvedValue([]);
     m(hubApi).getNextDeadline.mockResolvedValue({ gw: 8, deadline: '2026-10-23T17:30:00Z' });
     m(hubApi).getTopProjected.mockResolvedValue({
@@ -66,6 +89,23 @@ describe('FPL home page', () => {
     render(<MemoryRouter><FplHub /></MemoryRouter>);
     const card = await screen.findByTestId('hub-projected');
     expect(await within(card).findByText('Doubtful 50%')).toBeInTheDocument();
+  });
+
+  it('remembers the FPL ID entered for Rate My Team', async () => {
+    localStorage.removeItem('fixtureshark.fplId');
+    render(
+      <MemoryRouter initialEntries={['/fpl/start']}>
+        <Routes>
+          <Route path="/fpl/start" element={<FplHub />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText(/your FPL ID/), { target: { value: '7654321' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rate it' }));
+    expect(await screen.findByTestId('where')).toHaveTextContent('/fpl/rate-my-team?id=7654321');
+    expect(localStorage.getItem('fixtureshark.fplId')).toBe('7654321');
+    localStorage.removeItem('fixtureshark.fplId');
   });
 
   it('sends an FPL ID to Rate My Team', async () => {
@@ -112,6 +152,8 @@ describe('FPL home page mid-gameweek', () => {
   });
 
   beforeEach(() => {
+    localStorage.removeItem('fixtureshark.fplId');
+    m(liveApi).fetchFplLive.mockReset();
     m(landingApi).getFplTrivia.mockResolvedValue([]);
     m(hubApi).getNextDeadline.mockResolvedValue({ gw: 9, deadline: '2026-10-31T11:00:00Z' });
     m(hubApi).getTopProjected.mockResolvedValue({ gw: 9, picks: [] });
@@ -132,6 +174,31 @@ describe('FPL home page mid-gameweek', () => {
     fireEvent.click(screen.getByRole('button', { name: 'GW9 (next deadline)' }));
     expect(await screen.findByRole('heading', { name: 'Gameweek 9' })).toBeInTheDocument();
     expect(screen.getByTestId('hub-projected')).toBeInTheDocument();
+  });
+
+  it('shows the remembered team\u2019s live score, and forgets it on request', async () => {
+    localStorage.setItem('fixtureshark.fplId', '1234567');
+    m(liveApi).fetchFplLive.mockResolvedValue(await liveTeam());
+    m(stateApi).getOpenGameweek.mockResolvedValue(openData(1));
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    const card = await screen.findByTestId('hub-my-score');
+    // 11 x 2 + captain's extra 2 = 24, minus the 4-point hit.
+    expect(await within(card).findByTestId('hub-my-points')).toHaveTextContent('20');
+    expect(within(card).getByText('Shark Attack')).toBeInTheDocument();
+    expect(within(card).getByText(/Captain:/)).toHaveTextContent('Player6');
+    expect(within(card).getByRole('link', { name: /Full live score/ })).toHaveAttribute('href', '/fpl/live?id=1234567');
+    expect(screen.getByLabelText(/your FPL ID/)).toHaveValue('1234567');
+    fireEvent.click(within(card).getByRole('button', { name: 'Not your team?' }));
+    expect(screen.queryByTestId('hub-my-score')).not.toBeInTheDocument();
+    expect(localStorage.getItem('fixtureshark.fplId')).toBeNull();
+  });
+
+  it('shows no live-score card without a remembered ID', async () => {
+    localStorage.removeItem('fixtureshark.fplId');
+    m(stateApi).getOpenGameweek.mockResolvedValue(openData(1));
+    render(<MemoryRouter><FplHub /></MemoryRouter>);
+    expect(await screen.findByTestId('hub-gw-scores')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-my-score')).not.toBeInTheDocument();
   });
 
   it('opens on the next gameweek once the last game has finished, keeping the toggle', async () => {
