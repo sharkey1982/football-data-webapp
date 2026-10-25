@@ -166,7 +166,10 @@ gameweek report calls them as soon as it publishes. A candidate with
 | The week's changes | `social_detect_week_changes`: FPL an hour before this deadline v an hour before the last (`fpl_deadline_player_state`): price rises and falls, most bought and sold, biggest ownership rise, players ruled out | Deadline + 1h |
 | Fixture moved | `social_detect_fixture_moves`: FPL fixture changes (`fpl_fixture_changes`, logged by a trigger on `fpl_fixtures`) at least 30 minutes old, batched. A move to another gameweek says who now blanks or plays twice and names players owned by 5%+; a new date in the same gameweek is posted within three weeks of its deadline; time-only changes are logged, not posted | ~1h after the detector sees it
 | Fixture moved | `social_detect_fixture_moves`: FPL fixture changes (`fpl_fixture_changes`, logged by a trigger on `fpl_fixtures`) at least 30 minutes old, batched. A move to another gameweek says who now blanks or plays twice and names players owned by 5%+; a new date in the same gameweek is posted within three weeks of its deadline; time-only changes are logged, not posted | ~1h after the detector sees it |
-| Prediction accuracy | `social_detect_accuracy` | ~1h after it is created |
+| Match-day predictions | `social_detect_match_predictions` (from 07:00 on Premier League match days): each game's FixtureShark expected goals (accepted fit only) and the UK channel when `fixture_broadcasts` has it confirmed ("not on UK TV" for confirmed blackouts). A thread when it doesn't fit one post | 10:00, or two hours before the first kick-off if earlier |
+| Quiz and answer | `social_detect_quiz`: Wednesday (not a match day), a question from `private.social_pl_facts` (this season's PL results and FPL data; a tie gives no question; a template is not reused within 4 weeks). The answer is a reply to the posted question | Question 12:00, answer 18:00 |
+| Did you know | `social_detect_fact`: Tuesday and Thursday, not on match days, from the same facts | 11:00 |
+| Prediction accuracy | `social_detect_accuracy`: right results, the betting favourite's record, best call, biggest surprise, season so far. Checks this gameweek's predictions came from accepted fits made before kick-off (until 25 Oct 2026 it waited for the whole integrity run to pass) | ~1h after it is created |
 
 Team xG changes and record streaks stay manual.
 
