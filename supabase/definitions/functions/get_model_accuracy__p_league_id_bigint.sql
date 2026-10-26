@@ -32,7 +32,7 @@ AS $function$
   join public.matches m on m.league_id = f.league_id and m.season_id = f.season_id
     and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
     and m.match_date = f.kickoff_date
-  cross join lateral public.fixture_derived_markets(
+  cross join lateral public.fixture_derived_markets_cached(
     f.predicted_home_goals::numeric, f.predicted_away_goals::numeric, r.rho::numeric) dm
   where f.status = 'played'
     and f.predicted_home_goals is not null

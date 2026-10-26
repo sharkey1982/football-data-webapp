@@ -21,7 +21,7 @@ create or replace view public.fixture_player_expected_minutes_v2 with (security_
             COALESCE(u.sub_appearances, (0)::bigint) AS hist_subs,
             COALESCE(u.avg_sub_minutes, (20)::numeric) AS hist_sub_mins
            FROM (((fixture_player_lineup_consensus c
-             JOIN fpl_players p ON ((p.fpl_player_id = c.fpl_player_id)))
+             JOIN fpl_players p ON (((p.fpl_player_id = c.fpl_player_id) AND (p.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)))))
              LEFT JOIN player_squad_hierarchy h ON (((h.season_id = p.season_id) AND (h.fpl_player_id = p.fpl_player_id))))
              LEFT JOIN fpl_player_substitution_usage u ON (((u.season_id = p.season_id) AND (u.fpl_player_id = c.fpl_player_id))))
         ), r AS (

@@ -10,6 +10,7 @@ AS $function$
   select min(f.matchweek)
   from public.fpl_player_projections pr
   join public.fixtures f on f.fixture_id = pr.fixture_id
-  where pr.model_version = 'leaguewide_v6';
+  where pr.model_version = 'leaguewide_v6'
+    and f.season_id = (select public.fpl_current_season_id());
 $function$
 ;

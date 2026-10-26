@@ -3,9 +3,14 @@
 
 create materialized view public.model_scorecard_matches as
  WITH cur AS (
-         SELECT max(matches.season_id) AS s
-           FROM matches
-          WHERE ((matches.league_id >= 1) AND (matches.league_id <= 5))
+         SELECT se_cur.season_id AS s,
+            se_cur.start_year AS y
+           FROM seasons se_cur
+          WHERE (se_cur.start_year = ( SELECT max(se_m.start_year) AS max
+                   FROM seasons se_m
+                  WHERE (se_m.season_id IN ( SELECT matches.season_id
+                           FROM matches
+                          WHERE ((matches.league_id >= 1) AND (matches.league_id <= 5))))))
         ), preds AS (
          SELECT m.match_id,
             m.league_id,
@@ -20,7 +25,9 @@ create materialized view public.model_scorecard_matches as
             mp.fit_run_id
            FROM (match_predictions mp
              JOIN matches m USING (match_id))
-          WHERE ((m.season_id < ( SELECT cur.s
+          WHERE ((( SELECT se_p.start_year
+                   FROM seasons se_p
+                  WHERE (se_p.season_id = m.season_id)) < ( SELECT cur.y
                    FROM cur)) AND (m.full_time_home_goals IS NOT NULL))
         UNION ALL
          SELECT m.match_id,

@@ -19,12 +19,25 @@ create or replace view public.fpl_prediction_actual_start_comparison with (secur
     (p.generated_at < ((f.kickoff_date)::timestamp without time zone + (COALESCE(f.kickoff_time, '00:00:00'::time without time zone))::interval)) AS generated_pre_kickoff
    FROM ((fixture_actual_lineup_players a
      JOIN fixtures f ON ((f.fixture_id = a.fixture_id)))
-     LEFT JOIN LATERAL ( SELECT pp.model_version,
-            pp.start_probability,
-            pp.expected_minutes,
-            pp.generated_at
-           FROM fpl_player_projections pp
-          WHERE ((pp.fixture_id = a.fixture_id) AND (pp.fpl_player_id = a.fpl_player_id))
-          ORDER BY pp.generated_at DESC
+     LEFT JOIN LATERAL ( SELECT q.model_version,
+            q.start_probability,
+            q.expected_minutes,
+            q.generated_at
+           FROM ( SELECT 'leaguewide_v6'::text AS model_version,
+                    rp.start_probability,
+                    rp.expected_minutes,
+                    rp.generated_at,
+                    0 AS pri
+                   FROM fpl_review_projections_v6 rp
+                  WHERE ((rp.fixture_id = a.fixture_id) AND (rp.fpl_player_id = a.fpl_player_id))
+                UNION ALL
+                 SELECT pp.model_version,
+                    pp.start_probability,
+                    pp.expected_minutes,
+                    pp.generated_at,
+                    1 AS pri
+                   FROM fpl_player_projections pp
+                  WHERE ((pp.fixture_id = a.fixture_id) AND (pp.fpl_player_id = a.fpl_player_id))) q
+          ORDER BY q.pri, q.generated_at DESC
          LIMIT 1) p ON (true))
   WHERE (a.starter OR (a.minutes > 0));

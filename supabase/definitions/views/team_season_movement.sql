@@ -15,8 +15,12 @@ create or replace view public.team_season_movement as
            FROM matches
           WHERE ((matches.league_id >= 1) AND (matches.league_id <= 5))
         ), first_season AS (
-         SELECT min(ts.season_id) AS season_id
-           FROM ts
+         SELECT se_first.season_id
+           FROM seasons se_first
+          WHERE (se_first.start_year = ( SELECT min(se_m.start_year) AS min
+                   FROM seasons se_m
+                  WHERE (se_m.season_id IN ( SELECT ts.season_id
+                           FROM ts))))
         )
  SELECT t.league_id,
     t.season_id,
@@ -32,5 +36,7 @@ create or replace view public.team_season_movement as
         END AS movement,
     ((t.season_id <> ( SELECT first_season.season_id
            FROM first_season)) AND ((p.league_id IS NULL) OR (p.league_id > t.league_id))) AS is_promoted
-   FROM (ts t
-     LEFT JOIN ts p ON (((p.team_id = t.team_id) AND (p.season_id = (t.season_id - 1)))));
+   FROM (((ts t
+     LEFT JOIN seasons se_t ON ((se_t.season_id = t.season_id)))
+     LEFT JOIN seasons se_prev ON ((se_prev.start_year = (se_t.start_year - 1))))
+     LEFT JOIN ts p ON (((p.team_id = t.team_id) AND (p.season_id = se_prev.season_id))));

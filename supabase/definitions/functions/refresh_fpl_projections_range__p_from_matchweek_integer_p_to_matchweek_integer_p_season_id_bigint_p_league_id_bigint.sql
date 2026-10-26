@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function refresh_fpl_projections_range(p_from_matchweek integer, p_to_matchweek integer, p_season_id bigint, p_league_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.refresh_fpl_projections_range(p_from_matchweek integer, p_to_matchweek integer, p_season_id bigint DEFAULT 13, p_league_id bigint DEFAULT 1)
+CREATE OR REPLACE FUNCTION public.refresh_fpl_projections_range(p_from_matchweek integer, p_to_matchweek integer, p_season_id bigint DEFAULT fpl_current_season_id(), p_league_id bigint DEFAULT 1)
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER

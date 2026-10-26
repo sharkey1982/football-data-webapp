@@ -24,8 +24,13 @@ create or replace view public.fpl_projection_secondary_scoring with (security_in
             a.expected_minutes,
             a.penalty_exposure,
             f.home_team_id,
-            f.predicted_home_goals,
-            f.predicted_away_goals,
+            COALESCE(f.market_home_goals, f.predicted_home_goals) AS predicted_home_goals,
+            COALESCE(f.market_away_goals, f.predicted_away_goals) AS predicted_away_goals,
+            a.prob_starting_xi,
+            a.prob_sub_appearance,
+            COALESCE(eb.p_full, (1)::numeric) AS eb_full,
+            COALESCE(eb.p_off_60_84, (0)::numeric) AS eb_mid,
+            COALESCE(eb.p_off_before_60, (0)::numeric) AS eb_early,
             h.mins,
             h.saves,
             h.yc,
@@ -33,9 +38,10 @@ create or replace view public.fpl_projection_secondary_scoring with (security_in
             h.og,
             h.ps,
             h.pm
-           FROM ((fpl_projection_leaguewide_allocation_v2 a
+           FROM (((fpl_projection_leaguewide_allocation_v2 a
              JOIN fixtures f ON ((f.fixture_id = a.fixture_id)))
              JOIN h ON ((h.fpl_player_id = a.fpl_player_id)))
+             LEFT JOIN fpl_player_exit_bands eb ON (((eb.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)) AND (eb.fpl_player_id = a.fpl_player_id))))
         )
  SELECT fixture_id,
     team_id,
@@ -45,15 +51,39 @@ create or replace view public.fpl_projection_secondary_scoring with (security_in
             ELSE (0)::numeric
         END AS xpts_saves,
         CASE
-            WHEN (element_type = ANY (ARRAY[1, 2])) THEN ((- ((
+            WHEN (element_type = ANY (ARRAY[1, 2])) THEN (- (((prob_starting_xi)::double precision * ((((eb_full)::double precision * ((
             CASE
                 WHEN (team_id = home_team_id) THEN predicted_away_goals
                 ELSE predicted_home_goals
-            END / (2.0)::double precision) - (((1)::double precision - exp((('-2'::integer)::double precision *
+            END / (2.0)::double precision) - (((1.0)::double precision - exp((('-2.0'::numeric)::double precision *
             CASE
                 WHEN (team_id = home_team_id) THEN predicted_away_goals
                 ELSE predicted_home_goals
-            END))) / (4.0)::double precision))) * (LEAST((1)::numeric, (expected_minutes / (60)::numeric)))::double precision)
+            END))) / (4.0)::double precision))) + ((eb_mid)::double precision * (((
+            CASE
+                WHEN (team_id = home_team_id) THEN predicted_away_goals
+                ELSE predicted_home_goals
+            END * ((72.7 / 90.0))::double precision) / (2.0)::double precision) - (((1.0)::double precision - exp(((('-2.0'::numeric)::double precision *
+            CASE
+                WHEN (team_id = home_team_id) THEN predicted_away_goals
+                ELSE predicted_home_goals
+            END) * ((72.7 / 90.0))::double precision))) / (4.0)::double precision)))) + ((eb_early)::double precision * (((
+            CASE
+                WHEN (team_id = home_team_id) THEN predicted_away_goals
+                ELSE predicted_home_goals
+            END * ((47.0 / 90.0))::double precision) / (2.0)::double precision) - (((1.0)::double precision - exp(((('-2.0'::numeric)::double precision *
+            CASE
+                WHEN (team_id = home_team_id) THEN predicted_away_goals
+                ELSE predicted_home_goals
+            END) * ((47.0 / 90.0))::double precision))) / (4.0)::double precision))))) + ((prob_sub_appearance)::double precision * (((
+            CASE
+                WHEN (team_id = home_team_id) THEN predicted_away_goals
+                ELSE predicted_home_goals
+            END * ((18.2 / 90.0))::double precision) / (2.0)::double precision) - (((1.0)::double precision - exp(((('-2.0'::numeric)::double precision *
+            CASE
+                WHEN (team_id = home_team_id) THEN predicted_away_goals
+                ELSE predicted_home_goals
+            END) * ((18.2 / 90.0))::double precision))) / (4.0)::double precision)))))
             ELSE (0)::double precision
         END AS xpts_goals_conceded,
     ((((- ((yc + (0.35 * (5)::numeric)) / (mins + (450)::numeric))) * expected_minutes) - (((3)::numeric * ((rc + (0.03 * (5)::numeric)) / (mins + (450)::numeric))) * expected_minutes)) - (((2)::numeric * ((og + (0.02 * (5)::numeric)) / (mins + (450)::numeric))) * expected_minutes)) AS xpts_cards_own_goals,

@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_completed_gameweeks(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_completed_gameweeks(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_completed_gameweeks(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(fpl_event_id integer, players bigint, total_points bigint, best_score integer)
  LANGUAGE sql
  STABLE
