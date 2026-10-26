@@ -6,7 +6,7 @@ import {
   buildFinanceIndex, groupFinanceByTeam, latestFilingDate, latestPeriod, normalisePeriod, toNum,
 } from '../lib/financeApi';
 import { southendData, southendPeriodRows, southendTeam, dictionary } from './fixtures/southendFinance';
-import { comparabilityReason, currencySymbol, periodPhrase, registrationLabel, sourceName, tidyOriginal } from '../lib/financeFormat';
+import { comparabilityReason, currencySymbol, negativeIsAdverse, periodPhrase, registrationLabel, sourceName, tidyOriginal } from '../lib/financeFormat';
 import { buildComparison, otherCurrencyClubs } from '../lib/financeCompare';
 
 describe('currency: shown as filed, never converted', () => {
@@ -28,6 +28,15 @@ describe('currency: shown as filed, never converted', () => {
     const clubs = buildComparison([gbp, eur]);
     expect(clubs.map((c) => c.team.slug)).toEqual(['southend']);
     expect(otherCurrencyClubs([gbp, eur])).toEqual(['Real Madrid']);
+  });
+});
+
+describe('player impairment sign', () => {
+  it('labels a negative impairment as a reversal and does not treat it as adverse', () => {
+    expect(signedLabel('player_impairment', -26_025_000, 'x')).toBe('Player impairment reversed');
+    expect(signedLabel('player_impairment', 60_874_000, 'x')).toBe('Player impairment');
+    expect(negativeIsAdverse('player_impairment')).toBe(false);
+    expect(negativeIsAdverse('operating_profit')).toBe(true);
   });
 });
 

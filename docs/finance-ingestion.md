@@ -97,9 +97,12 @@ never replayed; the stage table itself was dropped on 2026-10-22.
   Supabase connector. One file per club batch loads private rows
   (`validation_status = 'validated'`); publication is a separate, later file
   that flips the reviewed period and its metric values to `published`.
-- **Currency:** the frontend formats every amount as £ (`src/lib/financeFormat.ts`)
-  and shows the consolidated/company-only label for the latest period only. No
-  non-GBP club (Real Madrid, team 146) is published until that changes.
+- **Currency:** every amount is shown in the currency its period was filed in
+  and never converted (`currencySymbol` in `src/lib/financeFormat.ts`). Cross-club
+  comparisons use GBP clubs only and name any club left out. Non-GBP clubs can be
+  published (Real Madrid, EUR, from 2026-10-26).
+- **Club reports abroad:** `finance-fetch.yml` also takes `reports` (slug=https URL)
+  and commits those documents to `finance-sources/annual-reports/<slug>/`.
 
 ## Batch audit: Wolves, Burnley, Southampton (2026-10-26)
 
@@ -121,3 +124,19 @@ result -> PBT, PBT - tax = PAT, total assets - total liabilities = net assets.
 Also in this change: `20261026100000_finance_mapping_provenance_backfill.sql`
 registers the 78 (concept, metric, version) combinations that 785 existing
 values cited without a mapping row. No values change.
+
+## Real Madrid (team 146) re-verification and fill (2026-10-26)
+
+All 72 previously loaded values re-checked against the page images of the six
+audited reports (same SHA-256 as loaded): 0 mismatches; every next-report
+comparative agrees. Filled from the reports
+(`20261026130000_finance_real_madrid_fill.sql`), 30 values:
+borrowings (bank borrowings + the Bernabéu remodelling loans carried in "Other
+financial liabilities"; leases, transfer and trade creditors excluded),
+average employees, player amortisation (player registrations only, all
+sections), player impairment (stored as a charge; FY2020, FY2021 and FY2023 are
+net reversals, shown as negative and labelled as reversals) and profit on player
+disposals (note 4.3 net gain after carrying amount; FY2023 excludes a €15.0m
+tax-provision release). Matchday stays NULL: the reports bundle it with
+membership, tours and other stadium income, which sits in `revenue_other`.
+FY2020–FY2022 stay non-comparable (COVID; consolidation from FY2022).

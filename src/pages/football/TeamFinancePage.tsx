@@ -42,6 +42,7 @@ import {
   fyLabel,
   isSignedMetric,
   longDate,
+  negativeIsAdverse,
   neutralLabel,
   periodPhrase,
   registrationLabel,
@@ -285,7 +286,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
                   {periods.map((p) => {
                     const v = metricValue(p, k);
                     return (
-                      <td key={p.period_end} className={`px-3 py-1.5 text-right font-mono whitespace-nowrap ${v == null ? 'text-ink-500' : v < 0 ? 'text-loss-600' : ''}`}
+                      <td key={p.period_end} className={`px-3 py-1.5 text-right font-mono whitespace-nowrap ${v == null ? 'text-ink-500' : v < 0 && negativeIsAdverse(k) ? 'text-loss-600' : ''}`}
                         title={v == null ? NOT_DISCLOSED : isCount(k) ? formatCount(v) : moneyText(k, v, true, p.currency)}>
                         {v == null ? <span aria-label={NOT_DISCLOSED}>&mdash;</span> : isCount(k) ? formatCount(v) : formatMoneyShort(v, p.currency)}
                       </td>
@@ -315,7 +316,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
           <li><span className="font-mono">&mdash;</span> Not disclosed in that year&rsquo;s filing. A disclosed zero is shown as {currencySymbol(cur)}0.</li>
           {cur !== 'GBP' && <li>Figures are in {currencyName(cur)}, as filed, and are not converted to pounds.</li>}
           <li>Under each year: <em>group</em> means consolidated accounts for the whole group, <em>company</em> the club company alone.</li>
-          <li>Negative figures, in red, are losses or net liabilities.</li>
+          <li>Negative figures, in red, are losses or net liabilities.{periods.some((p) => (p.player_impairment ?? 0) < 0) ? ' A negative player impairment is a reversal of earlier impairments, not a loss.' : ''}</li>
           {nonComparable.length > 0 && <li className="text-amber-700">{'\u2020'} Not directly comparable with the years either side.</li>}
           <li>Rows marked <span className="font-mono">FixtureShark-derived</span> are calculated by FixtureShark from the filed figures; everything else is as filed.</li>
           {neverDisclosed.length > 0 && <li>Not disclosed in any period: {neverDisclosed.map(nameOf).join(', ')}.</li>}
