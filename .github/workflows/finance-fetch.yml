@@ -1,0 +1,57 @@
+# ============================================================================
+# Fetch statutory accounts from Companies House for finance ingestion.
+#
+# Why: Claude work sessions can't reach Companies House (egress allowlist),
+# and scheduled/data jobs shouldn't depend on Chris's PC. This downloads the
+# original accounts documents in the cloud and uploads them, with a manifest
+# of source URLs and SHA-256 hashes, as a run artifact. The session then
+# fetches the artifact via the GitHub API and does extraction/validation.
+#
+# Read-only: it writes nothing to the database. Loading happens later through
+# a reviewed data migration (apply-migrations.yml), like every other DB write.
+#
+# Dispatch:
+#   gh api -X POST repos/sharkey1982/football-data-webapp/actions/workflows/finance-fetch.yml/dispatches \
+#     -f ref=main -f "inputs[companies]=01989823:2020 00054222:2020"
+# ============================================================================
+name: Finance fetch (Companies House)
+
+on:
+  workflow_dispatch:
+    inputs:
+      companies:
+        description: 'Space-separated COMPANY_NUMBER[:FROM_YEAR], e.g. "01989823:2020 00054222:2020"'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch
+        env:
+          COMPANIES: ${{ inputs.companies }}
+        run: |
+          set -euo pipefail
+          args=()
+          for c in $COMPANIES; do
+            printf '%s' "$c" | grep -Eq '^[A-Za-z0-9]{8}(:[0-9]{4})?$' || { echo "::error::bad input $c"; exit 2; }
+            args+=(--company "$c")
+          done
+          python3 scripts/finance_fetch_companies_house.py --out ch "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: companies-house-accounts
+          path: ch/
+          retention-days: 30
+          if-no-files-found: error
