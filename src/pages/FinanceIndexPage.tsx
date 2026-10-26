@@ -28,7 +28,7 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
 
   useDocumentHead({
     title: 'The Boardroom: club finances from statutory accounts',
-    description: 'Football club finances from the accounts clubs file at Companies House: revenue, profit and loss, cash, borrowings and net assets, with every figure traceable to its source.',
+    description: 'Football club finances from statutory accounts (Companies House filings and clubs\u2019 audited reports): revenue, profit and loss, cash, borrowings and net assets, with every figure traceable to its source.',
     path: '/finance',
   });
 
@@ -39,8 +39,9 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">The Boardroom</h1>
         <p><Link to="/finance/compare" className="text-pitch-800 underline underline-offset-2">Compare Club Finances &rarr;</Link></p>
         <p className="text-ink-700 max-w-prose">
-          What clubs earn, spend, owe and hold &mdash; taken from the accounts they file by law at Companies House,
-          with every figure traceable to the filing it came from. Clubs appear here once their accounts have been checked.
+          What clubs earn, spend, owe and hold &mdash; taken from the accounts they file by law (at Companies House for English
+          clubs; audited annual reports for clubs abroad), with every figure traceable to the filing it came from and shown in the
+          currency it was filed in. Clubs appear here once their accounts have been checked.
         </p>
       </header>
 
@@ -53,7 +54,7 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
           {entries.map(({ team, latest, periodCount }) => {
             const rev = scaled(latest.revenue_total, latest.unit_scale);
             const pbt = scaled(latest.profit_before_tax, latest.unit_scale);
-            const pbtText = signedMoney('profit_before_tax', pbt, 'Profit or loss before tax');
+            const pbtText = signedMoney('profit_before_tax', pbt, 'Profit or loss before tax', true, latest.currency);
             return (
               <li key={team.team_id}>
                 <Link to={`/football/teams/${team.slug}/finances`}
@@ -61,7 +62,7 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
                   <p className="font-display uppercase tracking-wide text-xl text-ink-900">{team.display_name}</p>
                   <p className="text-xs text-ink-500">{latest.reporting_entity}</p>
                   <p className="text-sm text-ink-700 mt-2">
-                    {fyLabel(latest.period_end)}: revenue {formatMoneyShort(rev)} &middot; {pbtText.label.toLowerCase()} {pbtText.amount}
+                    {fyLabel(latest.period_end)}: revenue {formatMoneyShort(rev, latest.currency)} &middot; {pbtText.label.toLowerCase()} {pbtText.amount}
                   </p>
                   <p className="text-xs text-ink-500 mt-1">{periodCount} {periodCount === 1 ? 'year' : 'years'} of accounts</p>
                 </Link>

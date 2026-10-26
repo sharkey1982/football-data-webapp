@@ -14,6 +14,7 @@
 # Dispatch:
 #   gh api -X POST repos/sharkey1982/football-data-webapp/actions/workflows/finance-fetch.yml/dispatches \
 #     -f ref=main -f "inputs[companies]=01989823:2020 00054222:2020"
+#   Club reports abroad: -f "inputs[reports]=real-madrid=https://.../report.pdf"
 # ============================================================================
 name: Finance fetch (Companies House)
 
@@ -22,7 +23,12 @@ on:
     inputs:
       companies:
         description: 'Space-separated COMPANY_NUMBER[:FROM_YEAR], e.g. "01989823:2020 00054222:2020"'
-        required: true
+        required: false
+        default: ''
+      reports:
+        description: 'Space-separated slug=https-URL of clubs'' own annual reports (clubs outside the UK)'
+        required: false
+        default: ''
 
 permissions:
   contents: write  # pushes the documents to the finance-sources branch
@@ -41,9 +47,14 @@ jobs:
       - name: Fetch
         env:
           COMPANIES: ${{ inputs.companies }}
+          REPORTS: ${{ inputs.reports }}
         run: |
           set -euo pipefail
-          args=()
+          args=(--reports-out reports)
+          for r in $REPORTS; do
+            printf '%s' "$r" | grep -Eq '^[a-z0-9-]{2,40}=https://[^ ]+$' || { echo "::error::bad report input $r"; exit 2; }
+            args+=(--report "$r")
+          done
           for c in $COMPANIES; do
             printf '%s' "$c" | grep -Eq '^[A-Za-z0-9]{8}(:[0-9]{4})?$' || { echo "::error::bad input $c"; exit 2; }
             args+=(--company "$c")
@@ -56,7 +67,7 @@ jobs:
           set -euo pipefail
           git config user.name "finance-fetch"
           git config user.email "actions@github.com"
-          tmp=$(mktemp -d); cp -r ch "$tmp/"
+          tmp=$(mktemp -d); mkdir -p ch reports; cp -r ch reports "$tmp/"
           if git ls-remote --exit-code --heads origin finance-sources >/dev/null; then
             git fetch -q --depth 1 origin finance-sources
             git checkout -q -B finance-sources FETCH_HEAD
@@ -64,8 +75,10 @@ jobs:
             git checkout -q --orphan finance-sources; git rm -rqf .
           fi
           git clean -fdxq
-          mkdir -p companies-house && cp -r "$tmp"/ch/* companies-house/
-          git add companies-house
+          mkdir -p companies-house annual-reports
+          cp -r "$tmp"/ch/. companies-house/
+          cp -r "$tmp"/reports/. annual-reports/
+          git add companies-house annual-reports
           git diff --cached --quiet && { echo "Nothing new."; exit 0; }
           git commit -qm "Companies House accounts, fetch run $RUN_ID"
           git push -q origin finance-sources

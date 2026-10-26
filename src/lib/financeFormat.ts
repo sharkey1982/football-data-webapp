@@ -5,7 +5,8 @@
 // and Supabase so the rules that matter most can be tested on their own:
 //
 //   * NULL means NOT DISCLOSED. It is never shown as zero, never estimated.
-//   * ZERO is a real, disclosed value and is shown as £0.
+//   * ZERO is a real, disclosed value and is shown as £0 (€0 for a club
+//     filing in euros -- figures keep their filed currency, never converted).
 //   * A NEGATIVE value is labelled in words ("Operating loss", "Net
 //     liabilities") and shown unsigned, rather than as an unexplained minus.
 //   * Values are stored in whole units multiplied by unit_scale (1 for the
@@ -20,26 +21,101 @@ export function scaled(value: number | null | undefined, unitScale: number | nul
   return value * (unitScale ?? 1);
 }
 
+/**
+ * Symbol for a period's reporting currency. Figures are shown in the currency
+ * they were filed in and NEVER converted: a club reporting in euros is shown
+ * in euros. Unknown currencies fall back to their ISO code ("CHF 5.1m").
+ */
+const SYMBOLS: Record<string, string> = { GBP: '£', EUR: '€', USD: '$' };
+export function currencySymbol(currency: string | null | undefined): string {
+  const c = (currency ?? 'GBP').toUpperCase();
+  return SYMBOLS[c] ?? `${c} `;
+}
+
+/** Plain-English currency name for notes: "pounds", "euros". */
+export function currencyName(currency: string | null | undefined): string {
+  const c = (currency ?? 'GBP').toUpperCase();
+  return ({ GBP: 'pounds', EUR: 'euros', USD: 'US dollars' } as Record<string, string>)[c] ?? c;
+}
+
 /** Full money value: "£5,101,100". Null -> "Not disclosed". Zero -> "£0". */
-export function formatMoneyFull(value: number | null): string {
+export function formatMoneyFull(value: number | null, currency?: string | null): string {
   if (value == null) return NOT_DISCLOSED;
   const sign = value < 0 ? '-' : '';
-  return `${sign}£${Math.abs(Math.round(value)).toLocaleString('en-GB')}`;
+  return `${sign}${currencySymbol(currency)}${Math.abs(Math.round(value)).toLocaleString('en-GB')}`;
 }
 
 /**
  * Abbreviated money value for cards, charts and narrow tables:
- * £5.1m, £760k, £48k, £900. Null -> "Not disclosed". Zero -> "£0".
+ * £1.23bn, £5.1m, £760k, £48k, £900. Null -> "Not disclosed". Zero -> "£0".
  * Sign is kept here; use signedLabel() when the sign should become words.
  */
-export function formatMoneyShort(value: number | null): string {
+export function formatMoneyShort(value: number | null, currency?: string | null): string {
   if (value == null) return NOT_DISCLOSED;
-  if (value === 0) return '£0';
+  const s = currencySymbol(currency);
+  if (value === 0) return `${s}0`;
   const sign = value < 0 ? '-' : '';
   const v = Math.abs(value);
-  if (v >= 1_000_000) return `${sign}£${(v / 1_000_000).toFixed(v >= 10_000_000 ? 1 : 2).replace(/\.?0+$/, '')}m`;
-  if (v >= 1_000) return `${sign}£${Math.round(v / 1_000).toLocaleString('en-GB')}k`;
-  return `${sign}£${Math.round(v).toLocaleString('en-GB')}`;
+  if (v >= 1_000_000_000) return `${sign}${s}${(v / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}bn`;
+  if (v >= 1_000_000) return `${sign}${s}${(v / 1_000_000).toFixed(v >= 10_000_000 ? 1 : 2).replace(/\.?0+$/, '')}m`;
+  if (v >= 1_000) return `${sign}${s}${Math.round(v / 1_000).toLocaleString('en-GB')}k`;
+  return `${sign}${s}${Math.round(v).toLocaleString('en-GB')}`;
+}
+
+/**
+ * Who published the filing, from its source URL, so pages never claim every
+ * club files at Companies House (Manchester United file with the SEC; Real
+ * Madrid publish audited annual reports).
+ */
+export function sourceName(url: string | null | undefined): string {
+  const u = (url ?? '').toLowerCase();
+  if (u.includes('company-information.service.gov.uk') || u.includes('companieshouse.gov.uk')) return 'Companies House';
+  if (u.includes('sec.gov')) return 'the US SEC (EDGAR)';
+  return 'the club’s audited annual report';
+}
+
+/** "Company number" for a UK registration, otherwise "Registration number". */
+export function registrationLabel(url: string | null | undefined): string {
+  return sourceName(url) === 'Companies House' ? 'Company number' : 'Registration number';
+}
+
+type ComparabilityInput = { period_end: string; period_months: number | null; is_consolidated: boolean | null; is_comparable: boolean };
+
+/**
+ * Why a period is flagged not comparable, as far as the published data can
+ * show it: an accounting period that isn't 12 months, or a switch between
+ * company-only and whole-group accounts. Anything else is a restatement,
+ * reclassification or one-off break recorded with the filing.
+ */
+export function comparabilityReason(p: ComparabilityInput, prev: ComparabilityInput | null): string {
+  const reasons: string[] = [];
+  const m = p.period_months == null ? null : Math.round(p.period_months);
+  if (m != null && m !== 12) reasons.push(`a ${m}-month accounting period`);
+  if (prev && prev.is_consolidated != null && p.is_consolidated != null && prev.is_consolidated !== p.is_consolidated) {
+    reasons.push(p.is_consolidated ? 'the accounts start covering the whole group' : 'the accounts cover the company only, not the group');
+  }
+  return reasons.length ? reasons.join('; ') : 'restated or reclassified in later accounts, or a one-off break in the figures';
+}
+
+/**
+ * An "as filed" value for display. Printed values ("(16,228)", "26,548 +
+ * 43,924") pass through untouched; bare machine numbers such as
+ * "148570.000000000000" lose their trailing zeros and gain grouping
+ * ("148,570"). The value itself is never rounded or rescaled.
+ */
+export function tidyOriginal(v: string | null | undefined): string | null {
+  if (v == null) return null;
+  const t = v.trim();
+  const m = /^(-?)(\d+)(?:\.(\d*?)0*)?$/.exec(t);
+  if (!m) return t;
+  const int = Number(m[2]).toLocaleString('en-GB');
+  return `${m[1]}${int}${m[3] ? `.${m[3]}` : ''}`;
+}
+
+/** "12 months to 31 May 2025" / "13 months to 30 June 2025". */
+export function periodPhrase(periodEnd: string, months: number | null): string {
+  const m = months == null ? 12 : Math.round(months);
+  return m === 12 ? `Year to ${longDate(periodEnd)}` : `${m} months to ${longDate(periodEnd)}`;
 }
 
 export function formatCount(value: number | null): string {
@@ -93,11 +169,11 @@ export function isSignedMetric(metricKey: string): boolean {
 }
 
 /** A signed money figure as words plus an unsigned amount: "Operating loss £1.34m". */
-export function signedMoney(metricKey: string, value: number | null, fallback: string, short = true): { label: string; amount: string } {
+export function signedMoney(metricKey: string, value: number | null, fallback: string, short = true, currency?: string | null): { label: string; amount: string } {
   const label = signedLabel(metricKey, value, fallback);
   if (value == null) return { label, amount: NOT_DISCLOSED };
   const abs = isSignedMetric(metricKey) ? Math.abs(value) : value;
-  return { label, amount: short ? formatMoneyShort(abs) : formatMoneyFull(abs) };
+  return { label, amount: short ? formatMoneyShort(abs, currency) : formatMoneyFull(abs, currency) };
 }
 
 /** "FY2025" from a period end date. Financial years are named by the year they end in. */

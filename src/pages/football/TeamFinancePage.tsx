@@ -10,7 +10,10 @@
 //
 // Data-quality rules, shown to the reader as well as enforced:
 //   * Not disclosed (null) is never shown as zero.
-//   * Zero is shown as £0.
+//   * Zero is shown as £0 (or €0: figures keep the currency they were filed
+//     in and are never converted).
+//   * Each year shows whether the accounts are company-only or whole-group,
+//     and any period that isn't 12 months.
 //   * Negative values are labelled in words: Operating loss, Net liabilities.
 //   * Non-comparable periods are flagged, never smoothed over.
 //   * Statutory figures and FixtureShark-derived figures are labelled apart.
@@ -29,6 +32,9 @@ import {
 } from '../../lib/financeApi';
 import {
   NOT_DISCLOSED,
+  comparabilityReason,
+  currencyName,
+  currencySymbol,
   formatCount,
   formatMoneyFull,
   formatMoneyShort,
@@ -37,9 +43,13 @@ import {
   isSignedMetric,
   longDate,
   neutralLabel,
+  periodPhrase,
+  registrationLabel,
   scaled,
   seasonLabel,
   signedMoney,
+  sourceName,
+  tidyOriginal,
 } from '../../lib/financeFormat';
 import NotFoundPage from '../NotFoundPage';
 
@@ -90,8 +100,8 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
   useDocumentHead({
     title: team ? `${team.display_name} finances \u2014 revenue, profit and loss, cash` : 'Club finances',
     description: team && latest
-      ? `${team.display_name}'s statutory accounts, ${fyLabel(periods[0].period_end)}\u2013${fyLabel(latest.period_end)}, from Companies House: revenue, profit and loss, cash, borrowings and net assets.`
-      : 'Club finances from statutory accounts filed at Companies House.',
+      ? `${team.display_name}'s statutory accounts, ${fyLabel(periods[0].period_end)}\u2013${fyLabel(latest.period_end)}, from ${sourceName(latest.source_url)}: revenue, profit and loss, cash, borrowings and net assets.`
+      : 'Club finances from statutory accounts.',
     path: `/football/teams/${slug ?? ''}/finances`,
   });
 
@@ -127,9 +137,18 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
   const shownRows = TABLE_ORDER.filter((k) => periods.some((p) => p[k] != null));
   const neverDisclosed = TABLE_ORDER.filter((k) => !periods.some((p) => p[k] != null));
 
-  const moneyText = (k: FinanceMetricKey, v: number | null, full = false) =>
-    isCount(k) ? formatCount(v) : isSignedMetric(k) ? (() => { const s = signedMoney(k, v, nameOf(k), !full); return v == null ? s.amount : `${s.label} ${s.amount}`; })()
-      : full ? formatMoneyFull(v) : formatMoneyShort(v);
+  // Every amount keeps the currency its period was filed in.
+  const cur = latest.currency ?? 'GBP';
+  const moneyText = (k: FinanceMetricKey, v: number | null, full = false, ccy: string | null = cur) =>
+    isCount(k) ? formatCount(v) : isSignedMetric(k) ? (() => { const s = signedMoney(k, v, nameOf(k), !full, ccy); return v == null ? s.amount : `${s.label} ${s.amount}`; })()
+      : full ? formatMoneyFull(v, ccy) : formatMoneyShort(v, ccy);
+  const short = (v: number | null) => formatMoneyShort(v, cur);
+  const scopeText = (c: boolean | null) => (c == null ? NOT_DISCLOSED : c ? 'Consolidated (whole group)' : 'Company only (not the wider group)');
+  const scopes = new Set(periods.map((p) => p.is_consolidated));
+  const yearsWhere = (c: boolean | null) => periods.filter((p) => p.is_consolidated === c).map((p) => fyLabel(p.period_end));
+  const span = (ys: string[]) => (ys.length > 1 ? `${ys[0]}\u2013${ys[ys.length - 1]}` : ys[0] ?? '');
+  const reasons = periods.map((p, i) => (p.is_comparable ? null : { p, why: comparabilityReason(p, i > 0 ? periods[i - 1] : null) })).filter((x): x is { p: FinancePeriod; why: string } => x != null);
+  const source = sourceName(latest.source_url);
 
   // The story in brief: only compares with the previous year when BOTH are
   // comparable -- a change across a non-comparable period would mislead.
@@ -148,14 +167,19 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
         <dl className="text-sm text-ink-700 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
           <dt className="text-ink-500">Reporting entity</dt><dd>{latest.reporting_entity ?? NOT_DISCLOSED}</dd>
           <dt className="text-ink-500">Latest period</dt>
-          <dd>Year to {longDate(latest.period_end)} ({fyLabel(latest.period_end)} &middot; the {seasonLabel(latest.period_end)} season)</dd>
-          <dt className="text-ink-500">Company number</dt><dd className="font-mono">{latest.company_number ?? NOT_DISCLOSED}</dd>
+          <dd>{periodPhrase(latest.period_end, latest.period_months)} ({fyLabel(latest.period_end)} &middot; the {seasonLabel(latest.period_end)} season)</dd>
+          <dt className="text-ink-500">{registrationLabel(latest.source_url)}</dt><dd className="font-mono">{latest.company_number ?? NOT_DISCLOSED}</dd>
           <dt className="text-ink-500">Accounts</dt>
-          <dd>{latest.is_consolidated == null ? NOT_DISCLOSED : latest.is_consolidated ? 'Consolidated (whole group)' : 'Company only (not the wider group)'}</dd>
+          <dd data-testid="finance-scope">
+            {scopes.size > 1
+              ? [true, false].filter((c) => scopes.has(c)).map((c) => `${scopeText(c)} in ${span(yearsWhere(c))}`).join('; ')
+              : scopeText(latest.is_consolidated)}
+          </dd>
+          {cur !== 'GBP' && (<><dt className="text-ink-500">Currency</dt><dd data-testid="finance-currency">{currencyName(cur)} ({currencySymbol(cur).trim()}), as filed &mdash; not converted to pounds</dd></>)}
           {latest.filing_date && (<><dt className="text-ink-500">Filed</dt><dd>{longDate(latest.filing_date)}</dd></>)}
         </dl>
         <p className="text-sm text-ink-700 max-w-prose">
-          These figures come from the accounts the club files by law at Companies House. Anything a filing does not
+          These figures come from {source === 'Companies House' ? 'the accounts the club files by law at Companies House' : source}. Anything a filing does not
           disclose is shown as <em>Not disclosed</em> &mdash; FixtureShark never estimates it.
           {latest.source_url && (<> <a href={latest.source_url} className="text-pitch-800 underline underline-offset-2" rel="noopener">Read the original {fyLabel(latest.period_end)} filing</a>.</>)}
         </p>
@@ -168,12 +192,12 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
       <section aria-labelledby="brief" className="rounded-lg bg-pitch-950 text-chalk-100 p-4 space-y-1">
         <h2 id="brief" className="font-display uppercase tracking-wide text-lg text-amber-400">In brief</h2>
         <p className="text-sm">
-          In the year to {longDate(latest.period_end)}, {data.team.display_name} brought in {rev == null ? 'revenue that was not disclosed' : `revenue of ${formatMoneyShort(rev)}`}
-          {canCompare ? `, ${rev! >= revPrev! ? 'up' : 'down'} from ${formatMoneyShort(revPrev)} the year before` : ''}.
-          {op != null && ` The club made an ${op < 0 ? 'operating loss' : 'operating profit'} of ${formatMoneyShort(Math.abs(op))}`}
-          {op != null && na != null && ` and ended the year with ${na < 0 ? 'net liabilities' : 'net assets'} of ${formatMoneyShort(Math.abs(na))}`}
+          In the {latest.period_months != null && Math.round(latest.period_months) !== 12 ? `${Math.round(latest.period_months)} months` : 'year'} to {longDate(latest.period_end)}, {data.team.display_name} brought in {rev == null ? 'revenue that was not disclosed' : `revenue of ${short(rev)}`}
+          {canCompare ? `, ${rev! >= revPrev! ? 'up' : 'down'} from ${short(revPrev)} the year before` : ''}.
+          {op != null && ` The club made an ${op < 0 ? 'operating loss' : 'operating profit'} of ${short(Math.abs(op))}`}
+          {op != null && na != null && ` and ended the period with ${na < 0 ? 'net liabilities' : 'net assets'} of ${short(Math.abs(na))}`}
           {op != null ? '.' : ''}
-          {prev && !prev.is_comparable && ` ${fyLabel(prev.period_end)} is not directly comparable, so no year-on-year change is given.`}
+          {prev && (!prev.is_comparable || !latest.is_comparable) && ` ${fyLabel((!latest.is_comparable ? latest : prev).period_end)} is not directly comparable, so no year-on-year change is given.`}
         </p>
         <p className="text-xs text-chalk-300">
           More revenue is not the same as financial health: read it alongside profit or loss, cash and net assets.
@@ -187,8 +211,8 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
           {SUMMARY.map((k) => {
             const v = metricValue(latest, k);
             const label = isSignedMetric(k) ? signedMoney(k, v, nameOf(k)).label : nameOf(k);
-            const amount = isCount(k) ? formatCount(v) : isSignedMetric(k) ? signedMoney(k, v, nameOf(k)).amount : formatMoneyShort(v);
-            const full = isCount(k) ? '' : isSignedMetric(k) ? signedMoney(k, v, nameOf(k), false).amount : formatMoneyFull(v);
+            const amount = isCount(k) ? formatCount(v) : isSignedMetric(k) ? signedMoney(k, v, nameOf(k), true, cur).amount : formatMoneyShort(v, cur);
+            const full = isCount(k) ? '' : isSignedMetric(k) ? signedMoney(k, v, nameOf(k), false, cur).amount : formatMoneyFull(v, cur);
             return (
               <li key={k} className="rounded-lg border border-ink-500/20 bg-white/60 p-3" data-metric={k}>
                 <p className="text-xs text-ink-500">{label}</p>
@@ -208,11 +232,15 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
       <section aria-labelledby="trends" className="space-y-2">
         <h2 id="trends" className="font-display uppercase tracking-wide text-lg text-ink-900">Over time</h2>
         {nonComparable.length > 0 && (
-          <p className="text-sm text-amber-700" role="note">
-            {'\u2020'} {nonComparable.map((p) => fyLabel(p.period_end)).join(', ')} {nonComparable.length === 1 ? 'is' : 'are'} not directly comparable:
-            later accounts restated {nonComparable.length === 1 ? 'that year' : 'those years'}, so {nonComparable.length === 1 ? 'it is' : 'they are'} shown
-            hatched and no trend is drawn through {nonComparable.length === 1 ? 'it' : 'them'}.
-          </p>
+          <div className="text-sm text-amber-700" role="note" data-testid="finance-noncomparable">
+            <p>
+              {'\u2020'} {nonComparable.length === 1 ? 'This year is' : 'These years are'} not directly comparable with the years either side, so{' '}
+              {nonComparable.length === 1 ? 'it is' : 'they are'} shown hatched and no trend is drawn through {nonComparable.length === 1 ? 'it' : 'them'}:
+            </p>
+            <ul className="list-disc pl-5">
+              {reasons.map(({ p, why }) => <li key={p.period_end}>{fyLabel(p.period_end)}: {why}.</li>)}
+            </ul>
+          </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           {TRENDS.map((k) => {
@@ -220,7 +248,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
             const title = isSignedMetric(k) ? neutralLabel(k, nameOf(k)) : nameOf(k);
             return (
               <FinanceBarChart key={k} id={k} title={title} points={points}
-                format={(v) => (isCount(k) ? formatCount(v) : formatMoneyShort(v))}
+                format={(v) => (isCount(k) ? formatCount(v) : short(v))}
                 describe={(v) => moneyText(k, v)}
                 note={k === 'revenue_total' ? 'Bigger is not automatically healthier.' : k === 'staff_costs' && periods.some((p) => p.staff_costs == null) ? 'Missing bars were not disclosed in that year\u2019s filing.' : undefined} />
             );
@@ -240,6 +268,10 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
                 {periods.map((p) => (
                   <th key={p.period_end} scope="col" className={`px-3 py-2 text-right font-mono text-xs font-normal whitespace-nowrap ${p.is_comparable ? 'text-ink-700' : 'text-amber-700'}`}>
                     {fyLabel(p.period_end)}{p.is_comparable ? '' : ' \u2020'}
+                    <span className="block text-[10px] text-ink-500" data-testid="period-basis">
+                      {p.is_consolidated == null ? '' : p.is_consolidated ? 'group' : 'company'}
+                      {p.period_months != null && Math.round(p.period_months) !== 12 ? ` \u00b7 ${Math.round(p.period_months)} months` : ''}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -254,8 +286,8 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
                     const v = metricValue(p, k);
                     return (
                       <td key={p.period_end} className={`px-3 py-1.5 text-right font-mono whitespace-nowrap ${v == null ? 'text-ink-500' : v < 0 ? 'text-loss-600' : ''}`}
-                        title={v == null ? NOT_DISCLOSED : isCount(k) ? formatCount(v) : moneyText(k, v, true)}>
-                        {v == null ? <span aria-label={NOT_DISCLOSED}>&mdash;</span> : isCount(k) ? formatCount(v) : formatMoneyShort(v)}
+                        title={v == null ? NOT_DISCLOSED : isCount(k) ? formatCount(v) : moneyText(k, v, true, p.currency)}>
+                        {v == null ? <span aria-label={NOT_DISCLOSED}>&mdash;</span> : isCount(k) ? formatCount(v) : formatMoneyShort(v, p.currency)}
                       </td>
                     );
                   })}
@@ -280,7 +312,9 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
           </table>
         </div>
         <ul className="text-xs text-ink-500 space-y-0.5">
-          <li><span className="font-mono">&mdash;</span> Not disclosed in that year&rsquo;s filing. A disclosed zero is shown as &pound;0.</li>
+          <li><span className="font-mono">&mdash;</span> Not disclosed in that year&rsquo;s filing. A disclosed zero is shown as {currencySymbol(cur)}0.</li>
+          {cur !== 'GBP' && <li>Figures are in {currencyName(cur)}, as filed, and are not converted to pounds.</li>}
+          <li>Under each year: <em>group</em> means consolidated accounts for the whole group, <em>company</em> the club company alone.</li>
           <li>Negative figures, in red, are losses or net liabilities.</li>
           {nonComparable.length > 0 && <li className="text-amber-700">{'\u2020'} Not directly comparable with the years either side.</li>}
           <li>Rows marked <span className="font-mono">FixtureShark-derived</span> are calculated by FixtureShark from the filed figures; everything else is as filed.</li>
@@ -308,7 +342,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
                   <tr className="text-ink-500 font-mono">
                     <th scope="col" className="text-left font-normal pr-3">Year</th>
                     <th scope="col" className="text-right font-normal pr-3">Published</th>
-                    <th scope="col" className="text-left font-normal pr-3">XBRL concept</th>
+                    <th scope="col" className="text-left font-normal pr-3">Concept</th>
                     <th scope="col" className="text-right font-normal pr-3">As filed</th>
                     <th scope="col" className="text-left font-normal pr-3">Filing</th>
                     <th scope="col" className="text-right font-normal pr-3">Mapping</th>
@@ -322,9 +356,9 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
                     return (
                       <tr key={p.period_end} className="border-t border-ink-500/10 align-top">
                         <th scope="row" className="text-left font-normal pr-3 py-1">{fyLabel(p.period_end)}{p.is_comparable ? '' : ' \u2020'}</th>
-                        <td className="text-right font-mono pr-3 py-1">{v == null ? NOT_DISCLOSED : isCount(sourceMetric) ? formatCount(v) : formatMoneyFull(v)}</td>
+                        <td className="text-right font-mono pr-3 py-1">{v == null ? NOT_DISCLOSED : isCount(sourceMetric) ? formatCount(v) : formatMoneyFull(v, p.currency)}</td>
                         <td className="font-mono pr-3 py-1 break-all">{pv?.original_xbrl_concept ?? '\u2014'}</td>
-                        <td className="text-right font-mono pr-3 py-1">{pv?.original_value != null ? `${pv.original_value}${pv.original_unit ? ` ${pv.original_unit}` : ''}` : '\u2014'}</td>
+                        <td className="text-right font-mono pr-3 py-1">{pv?.original_value != null ? `${tidyOriginal(pv.original_value)}${pv.original_unit ? ` ${pv.original_unit}` : ''}` : '\u2014'}</td>
                         <td className="pr-3 py-1">{pv?.filing_reference ?? '\u2014'}</td>
                         <td className="text-right font-mono pr-3 py-1">{pv?.mapping_version != null ? `v${pv.mapping_version}` : '\u2014'}</td>
                         <td className="py-1">
@@ -339,8 +373,9 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
               </table>
             </div>
             <p className="text-[11px] text-ink-500">
-              &ldquo;As filed&rdquo; is the value exactly as it appears in the filing&rsquo;s machine-readable (iXBRL) data. A dash means the filing did not
-              disclose this figure. The mapping version records which rule turned the filed concept into this figure.
+              &ldquo;As filed&rdquo; is the value as it appears in the filing &mdash; its machine-readable (iXBRL) data where there is any, otherwise the
+              printed statements and notes (concepts starting <span className="font-mono">pdf:</span>), where a figure built from several printed lines
+              shows the sum. A dash means the filing did not disclose this figure. The mapping version records which rule turned the filed concept into this figure.
             </p>
           </div>
         </details>

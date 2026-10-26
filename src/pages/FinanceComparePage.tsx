@@ -16,7 +16,7 @@ import BarRace from '../components/finance/BarRace';
 import { getAllClubFinance } from '../lib/financeApi';
 import { fyLabel, formatMoneyShort } from '../lib/financeFormat';
 import {
-  buildComparison, financialYears, forYear, growthTakeaway, money, smallClubIds, wageRatio, wageTakeaway,
+  buildComparison, otherCurrencyClubs, financialYears, forYear, growthTakeaway, money, smallClubIds, wageRatio, wageTakeaway,
   type ComparisonClub,
 } from '../lib/financeCompare';
 
@@ -46,8 +46,9 @@ function Row({ name, slug, children, value }: { name: string; slug: string; chil
   );
 }
 
-export default function FinanceComparePage({ initialData }: { initialData?: ComparisonClub[] } = {}) {
+export default function FinanceComparePage({ initialData, otherCurrency: initialOther }: { initialData?: ComparisonClub[]; otherCurrency?: string[] } = {}) {
   const [all, setAll] = useState<ComparisonClub[] | undefined>(initialData);
+  const [otherCurrency, setOtherCurrency] = useState<string[]>(initialOther ?? []);
   const [error, setError] = useState(false);
   const [includeSmall, setIncludeSmall] = useState(false);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: 'revenue', dir: -1 });
@@ -57,14 +58,14 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
     if (initialData) return;
     let cancelled = false;
     getAllClubFinance()
-      .then((d) => { if (!cancelled) setAll(buildComparison(d)); })
+      .then((d) => { if (!cancelled) { setAll(buildComparison(d)); setOtherCurrency(otherCurrencyClubs(d)); } })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, [initialData]);
 
   useDocumentHead({
     title: 'Compare Club Finances',
-    description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from filings at Companies House.',
+    description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from their statutory accounts.',
     path: '/finance/compare',
   });
 
@@ -186,7 +187,12 @@ export default function FinanceComparePage({ initialData }: { initialData?: Comp
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-ink-500">n/d not disclosed · ‡ company accounts only (others are group accounts) · from filings at Companies House</p>
+        <p className="text-xs text-ink-500">n/d not disclosed · ‡ company accounts only (others are group accounts) · from clubs&rsquo; statutory accounts, in pounds</p>
+        {otherCurrency.length > 0 && (
+          <p className="text-xs text-ink-500" data-testid="other-currency-note">
+            Not compared here because they file in another currency and FixtureShark never converts figures: {otherCurrency.join(', ')}. Their own finance pages show the accounts as filed.
+          </p>
+        )}
       </section>
     </div>
   );

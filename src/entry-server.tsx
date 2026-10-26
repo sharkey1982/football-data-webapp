@@ -68,9 +68,9 @@ import {
   type LeagueSeasonData,
   type LeaguesListEntry,
 } from './lib/leagueSeasonApi';
-import { buildComparison } from './lib/financeCompare';
+import { buildComparison, otherCurrencyClubs } from './lib/financeCompare';
 import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
-import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney } from './lib/financeFormat';
+import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney, sourceName } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
 import NflFixturesPage from './pages/nfl/NflFixturesPage';
@@ -629,14 +629,15 @@ export function renderTeamFinancePage(slug: string, data: ClubFinanceData): Rend
   );
   const name = data.team.display_name;
   const latest = latestPeriod(data.periods);
-  let description = `Statutory accounts for ${name}, from Companies House.`;
+  let description = `Statutory accounts for ${name}.`;
   if (latest) {
     const rev = scaled(latest.revenue_total, latest.unit_scale);
-    const pbt = signedMoney('profit_before_tax', scaled(latest.profit_before_tax, latest.unit_scale), 'Profit or loss before tax');
+    const pbt = signedMoney('profit_before_tax', scaled(latest.profit_before_tax, latest.unit_scale), 'Profit or loss before tax', true, latest.currency);
     const first = data.periods[0];
+    const months = latest.period_months == null ? 12 : Math.round(latest.period_months);
     description =
-      `${name}'s statutory accounts ${fyLabel(first.period_end)}\u2013${fyLabel(latest.period_end)}, from Companies House. ` +
-      `In the year to ${longDate(latest.period_end)}: revenue ${formatMoneyShort(rev)}, ${pbt.label.toLowerCase()} ${pbt.amount}.`;
+      `${name}'s statutory accounts ${fyLabel(first.period_end)}\u2013${fyLabel(latest.period_end)}, from ${sourceName(latest.source_url)}. ` +
+      `In the ${months === 12 ? 'year' : `${months} months`} to ${longDate(latest.period_end)}: revenue ${formatMoneyShort(rev, latest.currency)}, ${pbt.label.toLowerCase()} ${pbt.amount}.`;
   }
   return {
     html,
@@ -660,7 +661,7 @@ export function renderFinanceComparePage(clubs: ClubFinanceData[]): RenderedPage
     <StaticRouter location={path}>
       <Routes>
         <Route element={<AppLayout />}>
-        <Route path="/finance/compare" element={<FinanceComparePage initialData={buildComparison(clubs)} />} />
+        <Route path="/finance/compare" element={<FinanceComparePage initialData={buildComparison(clubs)} otherCurrency={otherCurrencyClubs(clubs)} />} />
       </Route>
       </Routes>
     </StaticRouter>
@@ -668,7 +669,7 @@ export function renderFinanceComparePage(clubs: ClubFinanceData[]): RenderedPage
   return {
     html,
     title: `Compare Club Finances: revenue, wages, debt | ${BRAND_NAME}`,
-    description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from filings at Companies House.',
+    description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from their statutory accounts.',
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'The Boardroom', path: '/finance' }, { name: 'Compare Club Finances', path }])],
   };
@@ -689,7 +690,7 @@ export function renderFinanceIndexPage(entries: FinanceIndexEntry[]): RenderedPa
     html,
     title: `The Boardroom: club finances from statutory accounts | ${BRAND_NAME}`,
     description:
-      'Football club finances from the accounts clubs file at Companies House: revenue, profit and loss, cash, borrowings and net assets, each figure traceable to its source.',
+      'Football club finances from statutory accounts (Companies House filings and clubs\u2019 audited reports): revenue, profit and loss, cash, borrowings and net assets, each figure traceable to its source.',
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'The Boardroom', path }])],
   };
