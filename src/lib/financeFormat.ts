@@ -142,7 +142,16 @@ const SIGNED_LABELS: Record<string, { positive: string; negative: string }> = {
   profit_after_tax: { positive: 'Profit after tax', negative: 'Loss after tax' },
   net_assets: { positive: 'Net assets', negative: 'Net liabilities' },
   profit_on_player_disposals: { positive: 'Profit on player sales', negative: 'Loss on player sales' },
+  // Stored as a charge, so a negative figure is a net REVERSAL of earlier
+  // impairments -- good news, never shown as a loss.
+  player_impairment: { positive: 'Player impairment', negative: 'Player impairment reversed' },
 };
+
+/** Whether a negative value is bad news (shown in red). Not for impairment,
+ *  where a negative figure is a reversal. */
+export function negativeIsAdverse(metricKey: string): boolean {
+  return metricKey !== 'player_impairment';
+}
 
 /** Neutral label used when there is no value to take a sign from. */
 const NEUTRAL_LABELS: Record<string, string> = {
@@ -151,6 +160,7 @@ const NEUTRAL_LABELS: Record<string, string> = {
   profit_after_tax: 'Profit or loss after tax',
   net_assets: 'Net assets or liabilities',
   profit_on_player_disposals: 'Profit or loss on player sales',
+  player_impairment: 'Player impairment (negative = reversed)',
 };
 
 export function signedLabel(metricKey: string, value: number | null, fallback: string): string {
