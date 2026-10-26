@@ -6,6 +6,60 @@ import {
   buildFinanceIndex, groupFinanceByTeam, latestFilingDate, latestPeriod, normalisePeriod, toNum,
 } from '../lib/financeApi';
 import { southendData, southendPeriodRows, southendTeam, dictionary } from './fixtures/southendFinance';
+import { comparabilityReason, currencySymbol, periodPhrase, registrationLabel, sourceName, tidyOriginal } from '../lib/financeFormat';
+import { buildComparison, otherCurrencyClubs } from '../lib/financeCompare';
+
+describe('currency: shown as filed, never converted', () => {
+  it('formats euros with €, pounds by default, and unknown codes by ISO code', () => {
+    expect(formatMoneyShort(1_234_000_000, 'EUR')).toBe('€1.23bn');
+    expect(formatMoneyShort(5_100_000, 'EUR')).toBe('€5.1m');
+    expect(formatMoneyFull(0, 'EUR')).toBe('€0');
+    expect(formatMoneyShort(5_100_000)).toBe('£5.1m');
+    expect(formatMoneyShort(5_100_000, null)).toBe('£5.1m');
+    expect(currencySymbol('CHF')).toBe('CHF ');
+    expect(signedMoney('profit_before_tax', -1_340_000, 'x', true, 'EUR')).toEqual({ label: 'Loss before tax', amount: '€1.34m' });
+  });
+
+  it('leaves non-GBP clubs out of cross-club comparisons, and names them', () => {
+    const gbp = southendData();
+    const eur = southendData();
+    eur.team = { team_id: 146, slug: 'real-madrid', display_name: 'Real Madrid' };
+    eur.periods = eur.periods.map((p) => ({ ...p, team_id: 146, currency: 'EUR' }));
+    const clubs = buildComparison([gbp, eur]);
+    expect(clubs.map((c) => c.team.slug)).toEqual(['southend']);
+    expect(otherCurrencyClubs([gbp, eur])).toEqual(['Real Madrid']);
+  });
+});
+
+describe('as-filed values', () => {
+  it('tidies bare machine numbers without rounding, and leaves printed values alone', () => {
+    expect(tidyOriginal('148570.000000000000')).toBe('148,570');
+    expect(tidyOriginal('398.0000000000000000')).toBe('398');
+    expect(tidyOriginal('-1234.5000')).toBe('-1,234.5');
+    expect(tidyOriginal('(16,228)')).toBe('(16,228)');
+    expect(tidyOriginal('26,548 + 43,924')).toBe('26,548 + 43,924');
+    expect(tidyOriginal('-')).toBe('-');
+    expect(tidyOriginal(null)).toBeNull();
+  });
+});
+
+describe('sources and comparability wording', () => {
+  it('names the publisher from the source URL', () => {
+    expect(sourceName('https://find-and-update.company-information.service.gov.uk/company/00089767/filing-history/x/document')).toBe('Companies House');
+    expect(sourceName('https://www.sec.gov/Archives/edgar/data/1549107/x.htm')).toBe('the US SEC (EDGAR)');
+    expect(sourceName('https://www.realmadrid.com/report.pdf')).toBe('the club\u2019s audited annual report');
+    expect(registrationLabel('https://www.realmadrid.com/report.pdf')).toBe('Registration number');
+  });
+
+  it('explains period length and scope switches, and falls back to restatement', () => {
+    const base = { period_end: '2025-06-30', period_months: 12, is_consolidated: false, is_comparable: false };
+    expect(comparabilityReason({ ...base, period_months: 13 }, base)).toBe('a 13-month accounting period');
+    expect(comparabilityReason({ ...base, is_consolidated: true }, base)).toBe('the accounts start covering the whole group');
+    expect(comparabilityReason(base, base)).toMatch(/^restated or reclassified/);
+    expect(periodPhrase('2025-06-30', 13)).toBe('13 months to 30 June 2025');
+    expect(periodPhrase('2025-06-30', 12)).toBe('Year to 30 June 2025');
+  });
+});
 
 describe('null versus zero', () => {
   it('never turns a missing value into zero', () => {

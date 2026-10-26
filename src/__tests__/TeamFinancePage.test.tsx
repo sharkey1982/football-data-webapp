@@ -21,6 +21,53 @@ function renderPage(data = southendData()) {
 const card = (metric: string) => document.querySelector(`li[data-metric="${metric}"]`) as HTMLElement;
 const row = (metric: string) => document.querySelector(`tr[data-metric="${metric}"]`) as HTMLElement;
 
+/** Southend's rows re-dressed as a euro club filing audited reports abroad:
+ *  company-only for the first two years, then group accounts, with a
+ *  13-month year. Exercises currency, scope and period-length display. */
+function euroClub() {
+  const d = southendData();
+  d.periods = d.periods.map((p, i) => ({
+    ...p,
+    currency: 'EUR',
+    source_url: 'https://www.realmadrid.com/en/club/annual-report.pdf',
+    company_number: 'G-28034718',
+    is_consolidated: i >= 2,
+    period_months: i === 3 ? 13 : 12,
+    is_comparable: i !== 2 && i !== 3,
+  }));
+  return d;
+}
+
+describe('a club filing in euros, with scope and period changes', () => {
+  it('shows every amount in euros and says nothing is converted', () => {
+    renderPage(euroClub());
+    expect(screen.getByTestId('finance-currency').textContent).toMatch(/euros \(€\), as filed — not converted to pounds/);
+    expect(card('revenue_total').textContent).toMatch(/€/);
+    expect(card('revenue_total').textContent).not.toMatch(/£/);
+    const cells = Array.from(row('revenue_total').querySelectorAll('td')).map((td) => td.textContent ?? '');
+    expect(cells.some((t) => t.includes('€'))).toBe(true);
+    expect(cells.some((t) => t.includes('£'))).toBe(false);
+  });
+
+  it('names the real source and registration, not Companies House', () => {
+    renderPage(euroClub());
+    expect(screen.getByText(/the club’s audited annual report/)).toBeInTheDocument();
+    expect(screen.getByText('Registration number')).toBeInTheDocument();
+    expect(screen.queryByText('Company number')).toBeNull();
+  });
+
+  it('shows the scope change and the 13-month year per period, with the reason for each † year', () => {
+    renderPage(euroClub());
+    expect(screen.getByTestId('finance-scope').textContent).toMatch(/Consolidated \(whole group\) in FY2021–FY2025; Company only \(not the wider group\) in FY2019–FY2020/);
+    const basis = screen.getAllByTestId('period-basis').map((e) => e.textContent);
+    expect(basis[0]).toBe('company');
+    expect(basis[3]).toBe('group · 13 months');
+    const note = screen.getByTestId('finance-noncomparable').textContent ?? '';
+    expect(note).toMatch(/FY2021: the accounts start covering the whole group/);
+    expect(note).toMatch(/FY2022: a 13-month accounting period/);
+  });
+});
+
 describe('Southend finance page', () => {
   it('shows the header: entity, period, company number, accounts type and the filing link', () => {
     renderPage();
@@ -66,7 +113,7 @@ describe('Southend finance page', () => {
 
   it('flags FY2024 as not comparable, in the text, the table and the charts', () => {
     renderPage();
-    expect(screen.getByRole('note').textContent).toMatch(/FY2024 is not directly comparable/);
+    expect(screen.getByRole('note').textContent).toMatch(/FY2024: restated or reclassified in later accounts/);
     expect(screen.getByRole('columnheader', { name: /FY2024 †/ })).toBeInTheDocument();
     const revenueChart = screen.getByRole('img', { name: /^Revenue:/ });
     expect(revenueChart.getAttribute('aria-label')).toMatch(/FY2024 £2\.52m \(not comparable\)/);

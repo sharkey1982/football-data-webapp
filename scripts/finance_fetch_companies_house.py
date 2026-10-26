@@ -115,14 +115,54 @@ def list_filings(company: str, debug_dir: Path) -> list[dict]:
     return rows
 
 
+def fetch_reports(specs: list[str], rdir: Path) -> int:
+    """Download each SLUG=URL report as-is with a manifest (URL, time, bytes,
+    SHA-256). Only https URLs; the file name keeps the URL's own name."""
+    failures = 0
+    by_slug: dict[str, list[dict]] = {}
+    for spec in specs:
+        slug, _, url = spec.partition("=")
+        if not re.fullmatch(r"[a-z0-9-]{2,40}", slug) or not url.startswith("https://"):
+            print(f"::error::bad --report {spec!r} (want slug=https://...)")
+            return 2
+        try:
+            body, final, ctype = get(url)
+        except RuntimeError as e:
+            print(f"::warning::{e}")
+            failures += 1
+            continue
+        name = re.sub(r"[^A-Za-z0-9._-]+", "_", urllib.parse.unquote(url.split("?", 1)[0].rsplit("/", 1)[-1])) or "report"
+        d = rdir / slug
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_bytes(body)
+        by_slug.setdefault(slug, []).append({
+            "file": name, "source_url": url, "resolved_url": final.split("?", 1)[0],
+            "content_type": ctype, "bytes": len(body), "sha256": hashlib.sha256(body).hexdigest(),
+            "retrieved_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        })
+        time.sleep(0.6)
+    for slug, files in by_slug.items():
+        mf = rdir / slug / "manifest.json"
+        old = json.loads(mf.read_text()) if mf.exists() else []
+        keep = [o for o in old if o["file"] not in {f["file"] for f in files}]
+        mf.write_text(json.dumps(keep + files, indent=2))
+        print(f"{slug}: {len(files)} report(s)")
+    return failures
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--company", action="append", required=True,
+    ap.add_argument("--company", action="append", default=[],
                     help="COMPANY_NUMBER[:FROM_YEAR], repeatable")
+    ap.add_argument("--report", action="append", default=[],
+                    help="SLUG=URL of a club's own published annual report (clubs outside the UK), repeatable")
+    ap.add_argument("--reports-out", default=None,
+                    help="where --report documents go (default: <out>/annual-reports)")
     args = ap.parse_args()
     out = Path(args.out)
     failures = 0
+    failures += fetch_reports(args.report, Path(args.reports_out) if args.reports_out else out / "annual-reports")
     for spec in args.company:
         company, _, from_year = spec.partition(":")
         company = company.strip().upper()

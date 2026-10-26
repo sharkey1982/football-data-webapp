@@ -26,10 +26,21 @@ export function wageRatio(p: FinancePeriod): number | null {
   return w == null || r == null || r <= 0 ? null : w / r;
 }
 
-/** Every club with a latest period, largest revenue first. */
+/** Comparisons rank clubs against each other, so they only use accounts in
+ *  pounds: figures are never converted, and euros ranked against pounds would
+ *  mislead. Clubs filing in another currency keep their own page. */
+const isGbp = (p: FinancePeriod) => (p.currency ?? 'GBP').toUpperCase() === 'GBP';
+
+/** Clubs left out of comparisons because they file in another currency. */
+export function otherCurrencyClubs(data: Iterable<ClubFinanceData>): string[] {
+  return [...data].filter((d) => d.periods.length > 0 && !d.periods.every(isGbp)).map((d) => d.team.display_name).sort();
+}
+
+/** Every club with a latest period in pounds, largest revenue first. */
 export function buildComparison(data: Iterable<ClubFinanceData>): ComparisonClub[] {
   const out: ComparisonClub[] = [];
   for (const d of data) {
+    if (!d.periods.every(isGbp)) continue;
     const latest = latestPeriod(d.periods);
     if (latest) out.push({ team: d.team, periods: d.periods, latest });
   }
