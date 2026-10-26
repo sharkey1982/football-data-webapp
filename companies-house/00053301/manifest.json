@@ -1,0 +1,1313 @@
+[
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-09-25",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2026 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzU0NzU2OTE2NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzU0NzU2OTE2NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-09-25_MzU0NzU2OTE2NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzU0NzU2OTE2NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/9NQ8pVWN8m1azWpug4qgnObg5grtpc84Ku7zOAe4oyc/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 85635,
+        "sha256": "e72f187dd5d8a820eb1bcddc396692b23f53a41461856e9c009f03375412f649",
+        "retrieved_at": "2026-10-26T06:35:49+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-09-15",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Rasmus Frokiaer Ankersen as a director on 15 September 2026",
+    "made_up_to": null,
+    "transaction_id": "MzU0NDk1NDg5OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzU0NDk1NDg5OGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-09-15_MzU0NDk1NDg5OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzU0NDk1NDg5OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/nNtVifLgD4wZWXmzq54IRrdHovB4r0kZr_-Q80lpd4I/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82262,
+        "sha256": "3452cd7b428438b0e54c8da6b0e9595d521c06fb705ec705709d42d36b82c1ba",
+        "retrieved_at": "2026-10-26T06:35:51+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-04-22",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Rolf Boegli as a director on 22 April 2026",
+    "made_up_to": null,
+    "transaction_id": "MzUxNzc3OTkwN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUxNzc3OTkwN2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-04-22_MzUxNzc3OTkwN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUxNzc3OTkwN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ksXd-ZtxqY56WWL45XJnC2oQKjTeVuszls8F-DXSS_g/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 81446,
+        "sha256": "3054c2329e6663242799370547b9d05a1f7186181d2e9087ec372962a25ab302",
+        "retrieved_at": "2026-10-26T06:35:53+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-04-22",
+    "filing_type": "AP01",
+    "description": "Appointment of Ms Katharina Maria Mathilde Liebherr as a director on 22 April 2026",
+    "made_up_to": null,
+    "transaction_id": "MzUxNzc3OTcyN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUxNzc3OTcyN2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-04-22_MzUxNzc3OTcyN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUxNzc3OTcyN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/QCG5KrI6ZVlZzEhJe7PZ_9BQauNGt_gixGEhASgmj0Y/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 88466,
+        "sha256": "daa20329b0490d5ef2eb52bfad5ec2e0626c33e86fe8ad73676c9a0e77bb9ad1",
+        "retrieved_at": "2026-10-26T06:35:55+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-04-04",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2025",
+    "made_up_to": "2025-06-30",
+    "transaction_id": "MzUxMzExMTAwNmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUxMzExMTAwNmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-06-30_MzUxMzExMTAwNmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUxMzExMTAwNmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/kGTRKOV5iyHDNFURXZLZt0OcdKswsgRZB7wJqKqy-WU/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1723785,
+        "sha256": "8efa6fb35d7f460a7b2d41f12071621ba14fd1fdd1f4707ce70e694a9bc5b65c",
+        "retrieved_at": "2026-10-26T06:35:57+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-02-24",
+    "filing_type": "CH01",
+    "description": "Director's details changed for Mr Rasmus Ankersen on 24 February 2026",
+    "made_up_to": null,
+    "transaction_id": "MzUwNjg2NzA2N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUwNjg2NzA2N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-02-24_MzUwNjg2NzA2N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUwNjg2NzA2N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/jzrnHemV8AUG1UAijOUzzUrt8P8I6iMnl5z4s8YJHqY/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 87763,
+        "sha256": "9857a188b5019621ba88810e6a4f207aa7b37bebdc3ce667511785c8e4a2e161",
+        "retrieved_at": "2026-10-26T06:35:59+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-02-23",
+    "filing_type": "AP03",
+    "description": "Appointment of Ms Katrina Dick as a secretary on 23 February 2026",
+    "made_up_to": null,
+    "transaction_id": "MzUwNjU3NTU4NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUwNjU3NTU4NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-02-23_MzUwNjU3NTU4NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUwNjU3NTU4NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/j_2ZaD9-e0oWVv9hNL6E2ARTvyCXqe6XsXXUS_n06Wg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 17137,
+        "sha256": "09e112f98c20f29ffc4f4feeba7bb68eb3066d88ec13dbd530013a6e366720f8",
+        "retrieved_at": "2026-10-26T06:36:01+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2026-02-23",
+    "filing_type": "TM02",
+    "description": "Termination of appointment of Tim Greenwell as a secretary on 23 February 2026",
+    "made_up_to": null,
+    "transaction_id": "MzUwNjU3NTQ1MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUwNjU3NTQ1MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-02-23_MzUwNjU3NTQ1MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzUwNjU3NTQ1MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/0Gjcje_OLvGKHPt2EHMRKAwhJ6xIDXXDx2el5CqEDCE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 13871,
+        "sha256": "223d58cedd1be3090a8727664d24faf990a6f0ee9399f6cfe09a6d1085e29773",
+        "retrieved_at": "2026-10-26T06:36:02+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2025-09-25",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2025 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzQ4MjcwODA0OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ4MjcwODA0OGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-09-25_MzQ4MjcwODA0OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ4MjcwODA0OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/nVP69wSCSkPYOcTH5KnYuy-FyEedO7OpIgXvHY0qzxw/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 84701,
+        "sha256": "68be6180e866190cbc2eb13b0bc4658fb2a0e3c530e0cde9af832025253b82db",
+        "retrieved_at": "2026-10-26T06:36:04+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2025-05-02",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2024",
+    "made_up_to": "2024-06-30",
+    "transaction_id": "MzQ2NDk0Nzg2OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ2NDk0Nzg2OGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-06-30_MzQ2NDk0Nzg2OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ2NDk0Nzg2OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/t5YqVXhFWbpJeEgZRrpzEbFrmJgYGzyQU-yZCL535Qs/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1600860,
+        "sha256": "9a41568ab11879ddb5396db77d75378045ac51f09aa55848120c80ecc9d67d92",
+        "retrieved_at": "2026-10-26T06:36:07+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2025-02-26",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Henrik Juel Kraft as a director on 1 February 2025",
+    "made_up_to": null,
+    "transaction_id": "MzQ1NjU3MjAwMGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ1NjU3MjAwMGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-02-26_MzQ1NjU3MjAwMGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ1NjU3MjAwMGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/hm3aVnU_dm2KaOJFwnGUfWIJAFHWJkWjOW9MXJKtkaQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82336,
+        "sha256": "e2249441795cc538d51fe4965511c5358bb2118f0db150dd6bc7e92a033961d5",
+        "retrieved_at": "2026-10-26T06:36:09+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2024-10-25",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2024 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzQ0MDk0ODE5MWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ0MDk0ODE5MWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-10-25_MzQ0MDk0ODE5MWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQ0MDk0ODE5MWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/fr-gZPvtoPyszXm1FUGNmP9c5mianDknK2xvKjJiDiE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 85856,
+        "sha256": "2f0285301cfb3364f6ef2e173b6a8260fc4204ed753462d905e8fc4bef63a410",
+        "retrieved_at": "2026-10-26T06:36:10+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2024-09-27",
+    "filing_type": "MR01",
+    "description": "Registration of charge 000533010037, created on 20 September 2024",
+    "made_up_to": null,
+    "transaction_id": "MzQzNzU0ODMxN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQzNzU0ODMxN2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-09-27_MzQzNzU0ODMxN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQzNzU0ODMxN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/bLqDfo1AlDtFWYIMZFRCs43bynwj9qN516lWZQk0yy8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 2909998,
+        "sha256": "acb1f0c25d2d18198c22a742cbb74885644c1d8df3c0d782010a3280f28b9f55",
+        "retrieved_at": "2026-10-26T06:36:13+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2024-04-02",
+    "filing_type": "CH01",
+    "description": "Director's details changed for Rolf Bogli on 2 April 2024",
+    "made_up_to": null,
+    "transaction_id": "MzQxNjg5MjcwMGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQxNjg5MjcwMGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-04-02_MzQxNjg5MjcwMGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQxNjg5MjcwMGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/gJRRYj2EsGm-qSMxMImgf2fTj8JLYZDQiQd2x-81qPo/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 87006,
+        "sha256": "0f9aad8a3aac02092b037edde87fb862595a8a0fbceb6ba3a9dac8c619f030fe",
+        "retrieved_at": "2026-10-26T06:36:15+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2024-03-03",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2023",
+    "made_up_to": "2023-06-30",
+    "transaction_id": "MzQxMjc5NTgxNGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQxMjc5NTgxNGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-30_MzQxMjc5NTgxNGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzQxMjc5NTgxNGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/eGIioufi05aJ162EX9YZ8xCWknmhzqi9enQrs1VtWOA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1532409,
+        "sha256": "e8b471b678bd7b54709ad435f5670a33a6c1b17c7cf454f282d6e891fc06bcda",
+        "retrieved_at": "2026-10-26T06:36:18+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-10-11",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Toby Andrew Murray Steele as a director on 4 October 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM5NjA1MDY3MWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM5NjA1MDY3MWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-10-11_MzM5NjA1MDY3MWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM5NjA1MDY3MWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/SS2hQfZ_DFfc6efjl5A3YFNDuFkZznUcyMCaiUtbqYM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82722,
+        "sha256": "afb3859d42b1b46e19d0ffe23ca257eff4fce2339ae78fbd57685bdf69ca6394",
+        "retrieved_at": "2026-10-26T06:36:19+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-10-05",
+    "filing_type": "MA",
+    "description": "Memorandum and Articles of Association",
+    "made_up_to": null,
+    "transaction_id": "MzM5NDc4NTA0M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM5NDc4NTA0M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-10-05_MzM5NDc4NTA0M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM5NDc4NTA0M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/lxtdsxSyH2WOlcOMK5wJC7_EKcIpw43JcgOruYzAWKc/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1351493,
+        "sha256": "076960cf46c6c48487aea24aeea64c6e6286c1d602b4dab96b2323e16fffecb2",
+        "retrieved_at": "2026-10-26T06:36:22+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-10-05",
+    "filing_type": "RESOLUTIONS",
+    "description": "Resolutions RES01 \u2010 Resolution of alteration of Articles of Association",
+    "made_up_to": null,
+    "transaction_id": "WUNEMDlYMzRhZGlxemtjeA",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/WUNEMDlYMzRhZGlxemtjeA/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-10-05_WUNEMDlYMzRhZGlxemtjeA.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/WUNEMDlYMzRhZGlxemtjeA/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/cs--Pdv98KYAYmBVaNsWkodNS8sWcJBqME_8tHNwtU0/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 29094,
+        "sha256": "dbb8d8440c25af00a1d36d93b88c1d9e14b7b095f402484d6142c8d1303ee494",
+        "retrieved_at": "2026-10-26T06:36:24+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-09-22",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2023 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzM5NDA1MTAzNWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM5NDA1MTAzNWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-09-22_MzM5NDA1MTAzNWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM5NDA1MTAzNWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/_nAbmdQWtKFYC0kqJvrQj5Q_8szv6KtfCg5mFAc9cIE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 83465,
+        "sha256": "1122de729f6b7db925bd1dc880757cb8cd905bad23c4a02d0b553eb1a02cad05",
+        "retrieved_at": "2026-10-26T06:36:25+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-07-18",
+    "filing_type": "RP04AP01",
+    "description": "Second filing for the appointment of Mr Rolf Bogli as a director",
+    "made_up_to": null,
+    "transaction_id": "MzM4NTk0MTk3MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4NTk0MTk3MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-07-18_MzM4NTk0MTk3MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4NTk0MTk3MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/gysyMCpJk2n39MN8rnDkxgtjc2TSVgjodBeF05f-dDQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 27118,
+        "sha256": "f9e6bb1d6cb6f136c819c5076180262522570a068b8386817a1b5ea3e62edc49",
+        "retrieved_at": "2026-10-26T06:36:27+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-07-03",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Andrew Timothy Young as a director on 1 July 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM4NTA0NzMzOGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4NTA0NzMzOGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-07-03_MzM4NTA0NzMzOGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4NTA0NzMzOGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/N9c0JtpCAEkX9pHGZ18tA5qL2od1ElI3Y6-qOa5iMlg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 88980,
+        "sha256": "59a8bc77027d80faf847e5ef534150521366b84aa80b8288575bc1f6dea93c72",
+        "retrieved_at": "2026-10-26T06:36:29+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-07-03",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Philip John Samuel Parsons as a director on 1 July 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM4NTA0NzA5OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4NTA0NzA5OWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-07-03_MzM4NTA0NzA5OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4NTA0NzA5OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/zL0oUZe2lO2mZtPIZe8yqbYhC_AaYdVKLrSJG_Kv-go/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89357,
+        "sha256": "007e3e05f4060440da4a07ccc84b36b18fed14503e864cc512eb1c819329f1e6",
+        "retrieved_at": "2026-10-26T06:36:31+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-06-12",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Martin Semmens as a director on 9 June 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM4MjUyOTY4N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjUyOTY4N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-12_MzM4MjUyOTY4N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjUyOTY4N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/UqXG_5wbT13fqNPdLCjNfbWuboP9l7SK2t-YFjCGElU/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82557,
+        "sha256": "1ac53b60760c5be29678cd9a8217799ea76ba7998594fb61ad4cc65d8c4e6fe3",
+        "retrieved_at": "2026-10-26T06:36:33+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-06-07",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Rolf Bogli as a director on 28 May 2023 ANNOTATION Clarification a second filed AP01 was registered on 18/07/2023.",
+    "made_up_to": null,
+    "transaction_id": "MzM4MjE4NzAwMGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NzAwMGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-07_MzM4MjE4NzAwMGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NzAwMGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/i50yqstJ122f6weW1llIpAW2vL5EkaWod8_cV0CsZWo/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 23558,
+        "sha256": "a20e31ab44f650fff0b16260fe1f631007dd4965492569c629a1b71642d33f8a",
+        "retrieved_at": "2026-10-26T06:36:34+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-06-07",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Timothy Greenwell as a director on 28 May 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM4MjE4NTk5N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NTk5N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-07_MzM4MjE4NTk5N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NTk5N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ouQ3EGQQYFh553upYwKnhKl5CZLskn9VhAkUZSgpl_I/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 83732,
+        "sha256": "281a716a4b3622b7205e74191f14689cda7e1a8758e0c9638787e197f315defd",
+        "retrieved_at": "2026-10-26T06:36:36+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-06-07",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Michelle Butler as a director on 28 May 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM4MjE4NTk4MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NTk4MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-07_MzM4MjE4NTk4MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NTk4MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/7StteLTTgp6JsLbpHu5t75jPIAqkSYM_qeRjhNNhdBo/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82592,
+        "sha256": "482b71b71cdbea1736a6e9baeca2f13066022089e4f8d4e5658a09280491172e",
+        "retrieved_at": "2026-10-26T06:36:38+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-06-07",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Matthew Crocker as a director on 28 May 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM4MjE4NTM2MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NTM2MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-07_MzM4MjE4NTM2MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM4MjE4NTM2MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/C8GVJpM2KHDywFZrRF9pP2NL0pUUCO1PJKVvyMdQOOU/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 83300,
+        "sha256": "987c073dc71dd59e078c21a24cae6ba628fe9d050f41e372dad1ce681110d673",
+        "retrieved_at": "2026-10-26T06:36:40+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-04-08",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2022",
+    "made_up_to": "2022-06-30",
+    "transaction_id": "MzM3NTI0ODk1MWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM3NTI0ODk1MWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-06-30_MzM3NTI0ODk1MWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM3NTI0ODk1MWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/uNfYXEjG_awkE7gkzwpwtfaHqUIJktoA310srdAr6YQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1443639,
+        "sha256": "da97f963b0aeff821c321fa804335303732c2a1aeb9dd6a4b9e575e9e10aefb4",
+        "retrieved_at": "2026-10-26T06:36:42+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-04-04",
+    "filing_type": "CH01",
+    "description": "Director's details changed for Mr Dragan Solak on 4 April 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM3NTE4NDc3N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM3NTE4NDc3N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-04-04_MzM3NTE4NDc3N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM3NTE4NDc3N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/FzJordfAEL9FigAsVfoL-qscNSkgHSlCXI3ezPe2dTg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 87331,
+        "sha256": "329494538ca688b978ed24c5e2a89ad9126a2db2deb29abff62a26ba9436ac9c",
+        "retrieved_at": "2026-10-26T06:36:44+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2023-02-01",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of David Thomas as a director on 27 January 2023",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODk4M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM2Nzk0ODk4M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODk4M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM2Nzk0ODk4M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/uH-X6jj77gJwchvwSa_9EoycEb6yxHoifGZCNrMjp04/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82866,
+        "sha256": "fa80e41852ad95b0e4d7e8cfb7ce13b5aba09db98725fb1b61855c4af81d1244",
+        "retrieved_at": "2026-10-26T06:36:45+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-10-04",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2022 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzM1NDA1NDExNGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM1NDA1NDExNGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-10-04_MzM1NDA1NDExNGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzM1NDA1NDExNGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/sAc7w1fu-XkPNv9vS5SF2Tp215nSg2HJNFlmDCpqUWw/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 85094,
+        "sha256": "1714dbec9ccc23181f1f0480a8398dfcf4de3cf06ba31c4edc7c94fb8ac99118",
+        "retrieved_at": "2026-10-26T06:36:47+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-03-24",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2021",
+    "made_up_to": "2021-06-30",
+    "transaction_id": "MzMzMzU5OTk1N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMzMzU5OTk1N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-06-30_MzMzMzU5OTk1N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMzMzU5OTk1N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/gLrKZfCvAYffomAC4IHqADRGX4wQ8R1fBbEq1sHauzU/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1687014,
+        "sha256": "d7f38d322ea8c58723bd1277cc08a54a32f10217d1c8e1ee30a38ce0fb96003a",
+        "retrieved_at": "2026-10-26T06:36:51+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-02-09",
+    "filing_type": "CH01",
+    "description": "Director's details changed for Mr Rasmus Ankerson on 9 February 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyOTM2NjEwNGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTM2NjEwNGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-02-09_MzMyOTM2NjEwNGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTM2NjEwNGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Yu3Z4Lab3Jjwrvkqw6nPc8ng_tKS5Qzrv98k9rWjJos/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 87366,
+        "sha256": "92010d848c4b3e10653f6cebe396d8d1e0a5e7bc60e6df7bcee2187da1e473f3",
+        "retrieved_at": "2026-10-26T06:36:54+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-02-09",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Tim Greenwell as a director on 9 February 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyOTMzOTgyMmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzOTgyMmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-02-09_MzMyOTMzOTgyMmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzOTgyMmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/jZ9Evklg3F5u_0frO1ub4tdlBCTtb7iqlyVw9wRygN8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89158,
+        "sha256": "4c087b06e78df7680d0b64e52e42ea9b4f749607272d373fdece19400d983ed0",
+        "retrieved_at": "2026-10-26T06:37:07+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-02-09",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Rasmus Ankerson as a director on 9 February 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyOTMzOTU3NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzOTU3NWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-02-09_MzMyOTMzOTU3NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzOTU3NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/GCf9uijwhg2Q5UXipbp_hsKvAFUMYUGC8K353FL4n-A/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89027,
+        "sha256": "fd33ee2fee655602f25acf6528af694052e07058e76a2ab7a69bd6045815d00d",
+        "retrieved_at": "2026-10-26T06:37:09+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-02-09",
+    "filing_type": "AP01",
+    "description": "Appointment of Mrs Michelle Butler as a director on 9 February 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyOTMzOTMwN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzOTMwN2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-02-09_MzMyOTMzOTMwN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzOTMwN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/5Pu_ge_EH3fJNnLLuBCE0sQYlmnwoLQa0-6aN3795ow/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 88756,
+        "sha256": "b497e5e6c0f2570a8c7c9f2932dbc4fd0baf501bdfc089d5847df215ae1b06ce",
+        "retrieved_at": "2026-10-26T06:37:11+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-02-09",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Matthew Crocker as a director on 9 February 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyOTMzODgzNWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzODgzNWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-02-09_MzMyOTMzODgzNWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyOTMzODgzNWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ZUotwZITl-zkzw-HlmFZIWUsCyO-8YamNYlo6IFJ5ZE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 88837,
+        "sha256": "7c11d7359514500f1bf64257213494361430f961570609c1bc2f45b5415f76be",
+        "retrieved_at": "2026-10-26T06:37:13+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-01-04",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Dragan Solak as a director on 22 December 2021",
+    "made_up_to": null,
+    "transaction_id": "MzMyNTYyNDUyMWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDUyMWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-01-04_MzMyNTYyNDUyMWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDUyMWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/b25YEfE7_hlQXCgeXbwz0b5atuLrKvgiGxR8uH0w3gE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89712,
+        "sha256": "83e21f982330b2f5e087e114ea11923e58e9530a867faa05b53b36f0ac2471e1",
+        "retrieved_at": "2026-10-26T06:37:14+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-01-04",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Henrik Juel Kraft as a director on 22 December 2021",
+    "made_up_to": null,
+    "transaction_id": "MzMyNTYyNDMzOWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDMzOWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-01-04_MzMyNTYyNDMzOWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDMzOWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/LBCSyfJbGeR0xqn49gtIWPC5aoaBoMQXCG5ITTItfnA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89149,
+        "sha256": "146a98eb603a14f92e8e92cbbc4ae5d7c7e4ecc2586d5336cbe541ca50afdefa",
+        "retrieved_at": "2026-10-26T06:37:16+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-01-04",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Jisheng Gao as a director on 22 December 2021",
+    "made_up_to": null,
+    "transaction_id": "MzMyNTYyNDE2OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDE2OWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-01-04_MzMyNTYyNDE2OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDE2OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/yWasMVC_fny6YpyBIFk0YAEqcajH_8bUmBxyDD_Zcmc/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82935,
+        "sha256": "e7ce03795e4d688072af062cd1b353fbc2a1e4438345501f6d28c15c0391b9bc",
+        "retrieved_at": "2026-10-26T06:37:18+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2022-01-04",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Jingna Gao as a director on 22 December 2021",
+    "made_up_to": null,
+    "transaction_id": "MzMyNTYyNDA4MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDA4MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-01-04_MzMyNTYyNDA4MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMyNTYyNDA4MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/mmyFMyWvA4CU1dOCTIiSRmQkrYw7rwE-OB99VWOO5O0/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82186,
+        "sha256": "dde2049dc3e07d0eea9756d6cdad13b04fd56596c8335ddd2d836778f0f27b69",
+        "retrieved_at": "2026-10-26T06:37:20+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2021-09-22",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2021 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzMxNDY1NTUyOWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMxNDY1NTUyOWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-09-22_MzMxNDY1NTUyOWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzMxNDY1NTUyOWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/UlOylOMMyWrxZQw88JefX12mQP1IgigMl9ZvozqXOmY/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 84289,
+        "sha256": "444c88a7351b8bb51f27e67fe44e0e9b326c5b3d2d1cea76c073a361b94914f5",
+        "retrieved_at": "2026-10-26T06:37:22+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2021-02-01",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2020",
+    "made_up_to": "2020-06-30",
+    "transaction_id": "MzI4OTk5ODM3OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI4OTk5ODM3OGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-06-30_MzI4OTk5ODM3OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI4OTk5ODM3OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ri8STeCnfZdfD9i74FV6n8qw8rgf6wTLlORZvWV7Rso/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1451813,
+        "sha256": "b5db7394996197e0b1d6f02ffa115bf44790852ab99d70c245ea7b7e8264f99b",
+        "retrieved_at": "2026-10-26T06:37:24+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-09-21",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2020 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzI3ODIwNDQzM2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3ODIwNDQzM2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-09-21_MzI3ODIwNDQzM2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3ODIwNDQzM2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/S-K0CNBk15djiTQJY4B57L5W5udZkUtUeUlq3XzC9P4/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 20012,
+        "sha256": "deafde90c77c2c05b67025a37692fd30ff5099d04a3063a0c5f9bfd1586398e7",
+        "retrieved_at": "2026-10-26T06:37:26+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-07-20",
+    "filing_type": "RESOLUTIONS",
+    "description": "Resolutions RES01 \u2010 Resolution of adoption of Articles of Association",
+    "made_up_to": null,
+    "transaction_id": "QTk4VVg2RkVhZGlxemtjeA",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/QTk4VVg2RkVhZGlxemtjeA/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-07-20_QTk4VVg2RkVhZGlxemtjeA.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/QTk4VVg2RkVhZGlxemtjeA/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/wSj-hfqNcPbtv_cCzGR1sqiM_gFsBTk3-TMr5B-4pXQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 205561,
+        "sha256": "7c47424507174c9a72af1f9cbbd2352c46bf55c6b2de1edc2bfa2e39759e46b5",
+        "retrieved_at": "2026-10-26T06:37:28+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-07-20",
+    "filing_type": "MA",
+    "description": "Memorandum and Articles of Association",
+    "made_up_to": null,
+    "transaction_id": "MzI3MjkzNzA0N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MjkzNzA0N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-07-20_MzI3MjkzNzA0N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MjkzNzA0N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/cM2zVnfijRter5Nq1cWNoqDKvMW_Q9Y_fk6yybRBXv8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1340417,
+        "sha256": "22874c4df46c018da44cbb2049a2625c77f6ded4f29bb9597bc6b4bd84adb5d6",
+        "retrieved_at": "2026-10-26T06:37:30+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-07-03",
+    "filing_type": "MR01",
+    "description": "Registration of charge 000533010036, created on 30 June 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI3MjMxNDA0MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MjMxNDA0MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-07-03_MzI3MjMxNDA0MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MjMxNDA0MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/k-mh-0UouBk9eX8dFMs7ZBLb9gfXoBV9dDlPQ2cRsIc/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 222423,
+        "sha256": "8e3893c78abb1e526ad805cce4bfb1cd4e0d7a0083bb60e094c14ea22629f685",
+        "retrieved_at": "2026-10-26T06:37:32+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-07-02",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 000533010034 in full",
+    "made_up_to": null,
+    "transaction_id": "MzI3MjI0NjI0M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MjI0NjI0M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-07-02_MzI3MjI0NjI0M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MjI0NjI0M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/FQO9yQ13kb7k957lodUONB4fJYJKnJgSnAsYVEDqlHg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 14986,
+        "sha256": "165ff01f761aaf10bec7c07a6187ceee075e3304e09fc8f25831e5a6d0ec326c",
+        "retrieved_at": "2026-10-26T06:37:34+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-06-29",
+    "filing_type": "MR01",
+    "description": "Registration of charge 000533010035, created on 29 June 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI3MTkxMjQ4MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MTkxMjQ4MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-06-29_MzI3MTkxMjQ4MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI3MTkxMjQ4MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/WKaUUcqUdH4pycsqOmC0ztHvLZh3qrPE9zqStceMWiA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1580508,
+        "sha256": "52906064b41b5706a21f855a752d451daa60ae559e2c4d1951ee943aefb9fcec",
+        "retrieved_at": "2026-10-26T06:37:36+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2020-04-07",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2019",
+    "made_up_to": "2019-06-30",
+    "transaction_id": "MzI2MTQ4MDc1N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI2MTQ4MDc1N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-06-30_MzI2MTQ4MDc1N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI2MTQ4MDc1N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/BU2tXb7GXUrUUYZnuhBnBRzweXfUyPKPQ_WoRtydoQY/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1356320,
+        "sha256": "2bb3072dcb146d43133f41c7e320d2aa1f4544bcd3549d1a7674b7274200fc7c",
+        "retrieved_at": "2026-10-26T06:37:39+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-09-23",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 21 September 2019 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzI0NDkwOTY2MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI0NDkwOTY2MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-09-23_MzI0NDkwOTY2MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI0NDkwOTY2MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Qm3QN3dHXw8_exV0e5fZ34Id8eJGpvp-x-gYNz7Oe4k/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 20039,
+        "sha256": "52a5b85f50d85a5e4c299a0a7ef8647b2d56ee99cc5ed2fd7d43f1b311fa0c60",
+        "retrieved_at": "2026-10-26T06:37:40+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-08-07",
+    "filing_type": "CH01",
+    "description": "Director's details changed for Mr Jisheng Gao on 1 July 2019",
+    "made_up_to": null,
+    "transaction_id": "MzI0MTIzNjY2M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI0MTIzNjY2M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-08-07_MzI0MTIzNjY2M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzI0MTIzNjY2M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/oAUdiiUmITEfeaJlM3hLx3QOHKa0C1byokKYhM7eOmQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 16564,
+        "sha256": "37017c87fdd6c9d69bbc8157def5f7445b4061f55b56662eecf575fdc5c60033",
+        "retrieved_at": "2026-10-26T06:37:42+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-07-23",
+    "filing_type": "MR01",
+    "description": "Registration of charge 000533010034, created on 19 July 2019",
+    "made_up_to": null,
+    "transaction_id": "MzIzOTk5MjQ1OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzOTk5MjQ1OWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-07-23_MzIzOTk5MjQ1OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzOTk5MjQ1OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/0qmo2eo7BHZATctt1uhj2O2Frj-Ezd2wsEmx3xFv7iM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1143233,
+        "sha256": "d160a5757a20de0ca1469e2d4e6297ef78667f3d0d29382efdf1042e6bf5118a",
+        "retrieved_at": "2026-10-26T06:37:44+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-07-23",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 000533010033 in full",
+    "made_up_to": null,
+    "transaction_id": "MzIzOTk5MDYzOGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzOTk5MDYzOGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-07-23_MzIzOTk5MDYzOGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzOTk5MDYzOGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/C_vvnJngfrfoMFJYdXrElgH4eeLlH39gmcTnLgoVYH8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 14891,
+        "sha256": "5f6c2092925d836628969fed0fe7c9758f3698a779b90945c44c2d4fd91d2b23",
+        "retrieved_at": "2026-10-26T06:37:46+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-07-01",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Ralph Krueger as a director on 30 June 2019",
+    "made_up_to": null,
+    "transaction_id": "MzIzODIyNjcxMmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzODIyNjcxMmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-07-01_MzIzODIyNjcxMmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzODIyNjcxMmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/iQTKUo7cBKNp5htR92XpRp4Ef7KB-D-fGu5qsC7rXVI/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 13310,
+        "sha256": "6ec3ce1ac6198bbc08675f8c1ff703adea3e3a51bffde21b9b3314ad07a5bb64",
+        "retrieved_at": "2026-10-26T06:37:48+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-06-25",
+    "filing_type": "AP01",
+    "description": "Appointment of Jingna Gao as a director on 25 June 2019",
+    "made_up_to": null,
+    "transaction_id": "MzIzNzc4MjAxNGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzNzc4MjAxNGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-06-25_MzIzNzc4MjAxNGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzNzc4MjAxNGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/sLNutGsKlJeRlBqksd-s7ltgGeNLwXU1fc5N3nd-D6A/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 18458,
+        "sha256": "89e55c02ca9171780311a4da833b8196d0490178a61b3752f69471d070d7c9c0",
+        "retrieved_at": "2026-10-26T06:37:49+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00053301",
+    "filed_date": "2019-06-25",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Jisheng Gao as a director on 25 June 2019",
+    "made_up_to": null,
+    "transaction_id": "MzIzNzc4MTk0MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzNzc4MTk0MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-06-25_MzIzNzc4MTk0MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00053301/filing-history/MzIzNzc4MTk0MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/A2WZWkVo8-XT0qRg-IToB3P6Wu1FCHxx6S0RfWObR3c/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 18499,
+        "sha256": "63e75ec2ae986717edcfe10274d4503fefd96c9d47b13fee04c16bf136772c90",
+        "retrieved_at": "2026-10-26T06:37:51+00:00"
+      }
+    ]
+  }
+]

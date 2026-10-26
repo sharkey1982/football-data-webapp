@@ -1,0 +1,1152 @@
+[
+  {
+    "company_number": "01989823",
+    "filed_date": "2026-04-03",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2025",
+    "made_up_to": "2025-06-30",
+    "transaction_id": "MzUxMjczNDEyNmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzUxMjczNDEyNmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-06-30_MzUxMjczNDEyNmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzUxMjczNDEyNmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/_eqEO9Fh6G4YA9PFduC_jhNEsdXoGk7Auxr3bVwxFaU/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1584158,
+        "sha256": "ab7fab6e7b6f6b89ea4dd6eb340c372b4b11a769080dc5c3235c46f9e2a534e2",
+        "retrieved_at": "2026-10-26T06:31:49+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2026-01-02",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Jiaying Shi as a director on 19 December 2025",
+    "made_up_to": null,
+    "transaction_id": "MzQ5NzM3MzAxM2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ5NzM3MzAxM2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-01-02_MzQ5NzM3MzAxM2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ5NzM3MzAxM2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/r2N1EMky41nqlVNWKybTIF71QzIXeOG6k8FL5M--Jjg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89331,
+        "sha256": "da152ac1b024dee7930c5f441c892d5383a96fa5ce8c24992158b731d2f1d3b6",
+        "retrieved_at": "2026-10-26T06:31:50+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2026-01-02",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Yu Shi as a director on 19 December 2025",
+    "made_up_to": null,
+    "transaction_id": "MzQ5NzM2NDgwN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ5NzM2NDgwN2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-01-02_MzQ5NzM2NDgwN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ5NzM2NDgwN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/FRv1wWiqh-qmcF4SXfvUHxDb6-VDhswm_vbiFq4jv6o/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 83229,
+        "sha256": "2421fd13542ff857a7a0411c06c69fdf8933734546c99cfdd1705fcba538eb5a",
+        "retrieved_at": "2026-10-26T06:31:52+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-12-11",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2025 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzQ5MzYyMTUxMWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ5MzYyMTUxMWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-12-11_MzQ5MzYyMTUxMWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ5MzYyMTUxMWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Xnejt31JaVeEduRGHq28tb7UCtK1Jox7l3E_A_U8oPM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 86281,
+        "sha256": "bfa67cf701c5ec490a86058bc32f95231a5b78488bcba9f8cc4e9c4c86171db2",
+        "retrieved_at": "2026-10-26T06:31:54+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-09-16",
+    "filing_type": "PSC05",
+    "description": "Change of details for W. W. (1990) Limited as a person with significant control on 21 July 2016",
+    "made_up_to": null,
+    "transaction_id": "MzQ4MTM2MjMyMGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ4MTM2MjMyMGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-09-16_MzQ4MTM2MjMyMGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ4MTM2MjMyMGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/gR3kaPAmmv9dAFMtDESWcS45VEyzox7v1cq703NYc7c/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21722,
+        "sha256": "992f0f09139a4035a31a3af70386cfb7b5764888fb17f9ec82eaf0ef9a85a8b9",
+        "retrieved_at": "2026-10-26T06:31:56+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-09-16",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230019, created on 15 September 2025",
+    "made_up_to": null,
+    "transaction_id": "MzQ4MTQyNjM1M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ4MTQyNjM1M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-09-16_MzQ4MTQyNjM1M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ4MTQyNjM1M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/3_5ZnUGnNINJ9yyd-D3L89qq6JQtqClseScI8jgmTHw/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 3949813,
+        "sha256": "c0384bf9a442adb4acb48d58b53e6c59270f67f4cf10a77657d075cdd3510476",
+        "retrieved_at": "2026-10-26T06:31:58+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-07-24",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230017 in full",
+    "made_up_to": null,
+    "transaction_id": "MzQ3NTAzMzc4MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ3NTAzMzc4MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-07-24_MzQ3NTAzMzc4MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ3NTAzMzc4MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/WSiDwXfeJrlMcy0tGJlVAPIs7yZOxEdKabHmzjx55cY/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95298,
+        "sha256": "32ce0dcffa04ca61b267ae3fc92ea77a05ebf7c019370fb63ec2e7651324119a",
+        "retrieved_at": "2026-10-26T06:32:00+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-07-24",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230015 in full",
+    "made_up_to": null,
+    "transaction_id": "MzQ3NTAzMzY2NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ3NTAzMzY2NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-07-24_MzQ3NTAzMzY2NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ3NTAzMzY2NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Y2osOMxZVW8rAGsHtoB_2vE6Jgi9DTxRGkcLVm1VUSc/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95387,
+        "sha256": "c434a8a1285caee88ae2075edf644a777ffee2c98fe69af54af4f68a340d9cb6",
+        "retrieved_at": "2026-10-26T06:32:02+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-02-28",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 31 May 2024",
+    "made_up_to": "2024-05-31",
+    "transaction_id": "MzQ1NjcwNDYzNmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ1NjcwNDYzNmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-05-31_MzQ1NjcwNDYzNmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ1NjcwNDYzNmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/10wxhCpHJjvL1qpDkyYhvy5IRFNtwzsiYNZyJeJ0ja0/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1485925,
+        "sha256": "18497269d26c6a1667194412404db0a58018fa2c6dc4a182e3ec4175ea07f587",
+        "retrieved_at": "2026-10-26T06:32:04+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2025-02-06",
+    "filing_type": "AA01",
+    "description": "Current accounting period extended from 31 May 2025 to 30 June 2025",
+    "made_up_to": null,
+    "transaction_id": "MzQ1Mzk2NjUwNWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ1Mzk2NjUwNWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-02-06_MzQ1Mzk2NjUwNWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ1Mzk2NjUwNWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/_4ZKB1KQcLuNvM92C5pQJFPMPZ9PgyvqBeHxWoiB6to/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 82426,
+        "sha256": "a96dce94fcb86ba836e96b7e801f750f64741799990140c01b9e783c70818c68",
+        "retrieved_at": "2026-10-26T06:32:06+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2024-11-28",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2024 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzQ0NTI4NDgyM2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ0NTI4NDgyM2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-11-28_MzQ0NTI4NDgyM2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQ0NTI4NDgyM2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ePzsml6gbkh6BlBnjY824R1LjCuuEcVNUlIotJuezSA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 87441,
+        "sha256": "90d2049b9a781b76e9766713d8ccce35cf9277fefac59263b19fa734e18dfecd",
+        "retrieved_at": "2026-10-26T06:32:08+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2024-03-01",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 31 May 2023",
+    "made_up_to": "2023-05-31",
+    "transaction_id": "MzQxMzA4NjEyMmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQxMzA4NjEyMmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-05-31_MzQxMzA4NjEyMmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQxMzA4NjEyMmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/S-YMfQGTmnMfSg_GHbsGzzP8jWo1Oxble2JOLMutIfE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1516361,
+        "sha256": "9a49e0cad5bbf1539ba138976120cb3303ff3febbd4ef7d332915c07caeffd17",
+        "retrieved_at": "2026-10-26T06:32:11+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-11-29",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2023 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzQwMTk5NzYxNWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQwMTk5NzYxNWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-11-29_MzQwMTk5NzYxNWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzQwMTk5NzYxNWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/1TPhsS3pEeZ68L8ypM_5NuFRPkYdS4OwX4n4Zx2LcFc/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 85657,
+        "sha256": "07ffa05e509263147fec6896cf2b37396ca0f584c8a3ee99b4ae924bc095ddca",
+        "retrieved_at": "2026-10-26T06:32:12+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-03-03",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 31 May 2022",
+    "made_up_to": "2022-05-31",
+    "transaction_id": "MzM3MTE5NzA3M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM3MTE5NzA3M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-05-31_MzM3MTE5NzA3M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM3MTE5NzA3M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/BaSstUSY9q5MMo6LNpH0m5OCSqqgikC3qo7vL_Vajrs/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1338357,
+        "sha256": "bf7b77451d4207942fc55f46420f6eb52dc5310e1faf142272a56d78fbe04c1b",
+        "retrieved_at": "2026-10-26T06:32:15+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230008 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0Nzk0MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0Nzk0MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0Nzk0MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0Nzk0MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/scR5VrpdtD1jIeKn4S3T2gH0EgKOzufsgPb7-Hmvg5Q/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 96298,
+        "sha256": "4a4e960cf9e6253feb36f9543c7f221f0412e6fae2027bbb0ca1097ad8d29ae7",
+        "retrieved_at": "2026-10-26T06:32:17+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230009 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODA5NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODA5NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODA5NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODA5NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/tD8KU_jGeZddUUg2goWNoxGwKNahtMO7cRJSM6X0p_k/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95337,
+        "sha256": "e29ef2ec3df7eb66eeb0558331dbadfb1cec797e1e89fb74310abab10e35289a",
+        "retrieved_at": "2026-10-26T06:32:18+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230010 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODE5M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODE5M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODE5M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODE5M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/_cA07xLwgperDEobb1dEVI9KIwA6bfRh7k-SVdLHHJ8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95766,
+        "sha256": "a664e2c33c3101e699482bac7fe913fd5ea0e7a0b41b5ea83aea669f59fc26a0",
+        "retrieved_at": "2026-10-26T06:32:20+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230011 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODI1NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODI1NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODI1NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODI1NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/HNb8p3-f5gXHKaLQLuIKxbw1L6jQcBcNXBnPiLere1A/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95395,
+        "sha256": "8b9387b31df3ec747516e604954d0e55d2f21364b1354d00875b41ee9608d84c",
+        "retrieved_at": "2026-10-26T06:32:22+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230012 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODMzOWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODMzOWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODMzOWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODMzOWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/OLESQSe5AD7HIuOvV8VH9egj4bMHkRRW2VntLVVFV8A/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95359,
+        "sha256": "a0a7338d4f761961dbb300c66523a54d32a7bbe548a053ad4d9e5c930636d933",
+        "retrieved_at": "2026-10-26T06:32:24+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230013 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODQzMmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODQzMmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODQzMmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODQzMmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/4X0HaCn-O4nDWA1c08fpMM76rVBu9tNbczKh97iMb3Q/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95938,
+        "sha256": "99e144f00d74efe33944bea7dd5264bbb7ce3f15b4cc51bb07deb4ad65513c9a",
+        "retrieved_at": "2026-10-26T06:32:26+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230016 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODY0NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODY0NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODY0NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODY0NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/nfGMTz46-o2M80tZecnKvKBEf7kx2SUVEFxySyCaFGs/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 96122,
+        "sha256": "1716dc714a3077af285f0a8e036694fbfa07813d5502b725775dd04bf90536ee",
+        "retrieved_at": "2026-10-26T06:32:27+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230014 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODY0NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODY0NWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODY0NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODY0NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/AwRj6yvEQUDfGshvkiqYxVk_EXLOzEEcZH5Ufew5szE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95898,
+        "sha256": "92942ac64aefca31b4390f66bc8152e63aa4c7537842e3698fa3f222508d34d5",
+        "retrieved_at": "2026-10-26T06:32:29+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2023-02-01",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230018 in full",
+    "made_up_to": null,
+    "transaction_id": "MzM2Nzk0ODg3NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODg3NWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-02-01_MzM2Nzk0ODg3NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM2Nzk0ODg3NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ryley5QHv6JsXYSjdqdCjbTFVVCAVhOWoRk8JC9oDRs/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 95732,
+        "sha256": "f344da54edb5e823a815ec0a6ea0d23bc3b58b8abe299d38d096df83b8cf3d86",
+        "retrieved_at": "2026-10-26T06:32:31+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2022-11-28",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2022 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzM1OTk3MTY4OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM1OTk3MTY4OWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-11-28_MzM1OTk3MTY4OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM1OTk3MTY4OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/_1upVZ7xHp6d38cPewk9pxccogKJnLpnjjKWQA2w670/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 86002,
+        "sha256": "c0f87133a6a6578c72e68f4863692b1f589cd2e9ad28d9e37b35fbe9827c07fc",
+        "retrieved_at": "2026-10-26T06:32:33+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2022-08-15",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230018, created on 10 August 2022",
+    "made_up_to": null,
+    "transaction_id": "MzM0ODY4NzcxNWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM0ODY4NzcxNWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-08-15_MzM0ODY4NzcxNWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzM0ODY4NzcxNWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/iUox67ZJ4GQkCWMIaY93gCWb-SbSH2OPGJXRJdlC4ng/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1214786,
+        "sha256": "600c82396a6146788c341737a5875a81ea9491554e5ec93eebd882bdafb82127",
+        "retrieved_at": "2026-10-26T06:32:35+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2022-03-02",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 31 May 2021",
+    "made_up_to": "2021-05-31",
+    "transaction_id": "MzMzMTQ3ODg5M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMzMTQ3ODg5M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-05-31_MzMzMTQ3ODg5M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMzMTQ3ODg5M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/cddsNnW9Dxi7UXMAP-rR2ruCfbDpd6pMl_KMjGXNdfE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1333949,
+        "sha256": "54b3eea613a69de6f8191d3ba518291840dfa3a1c0e9d6cb8aa197830891853c",
+        "retrieved_at": "2026-10-26T06:32:38+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2022-02-08",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230017, created on 8 February 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyOTE4OTcxM2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyOTE4OTcxM2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-02-08_MzMyOTE4OTcxM2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyOTE4OTcxM2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/rp02Rv55lQUJ0jzLwiPw9fKYbpXaonv8Sy8ZpOCX38c/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1141405,
+        "sha256": "8580c4f7266d50606d3ff9db4f23467d04cbb5da4dfb567b0fb56ce69b702e11",
+        "retrieved_at": "2026-10-26T06:32:40+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2022-01-17",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230016, created on 13 January 2022",
+    "made_up_to": null,
+    "transaction_id": "MzMyNjgxNzQ1M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyNjgxNzQ1M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-01-17_MzMyNjgxNzQ1M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyNjgxNzQ1M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/_TMddX-MmSDCZTZQm9zWrq17HmJ2N399Wua15R3rHJ4/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1663717,
+        "sha256": "1d61fcd3cee9a07b116e93f21c135e262d977f24e29b1bd59cae86b29f407894",
+        "retrieved_at": "2026-10-26T06:32:43+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2021-12-19",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230015, created on 10 December 2021",
+    "made_up_to": null,
+    "transaction_id": "MzMyNDA4NjE0NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyNDA4NjE0NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-12-19_MzMyNDA4NjE0NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyNDA4NjE0NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/eONrKJw64eeKMqNxTfMvUGiCm3ABcwKeUK3maFKRIiM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1095219,
+        "sha256": "32bee1235c140ebfeb1c2cabcfaa40f328a6c46359ebf4cb5ee9cc558e1953b4",
+        "retrieved_at": "2026-10-26T06:32:45+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2021-11-29",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2021 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzMyMTcwMDkwN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyMTcwMDkwN2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-11-29_MzMyMTcwMDkwN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMyMTcwMDkwN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/tqDixaTIEwXCYGTsGLQwSd_YJxc7FDAt36ku6Q2CLCM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 85309,
+        "sha256": "7ea96d93419d6119063fb8c2684bffc7fa01ce56af502fa3925c9930e3bb7822",
+        "retrieved_at": "2026-10-26T06:32:47+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2021-08-09",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230014, created on 22 July 2021",
+    "made_up_to": null,
+    "transaction_id": "MzMxMDE0NjI1NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMxMDE0NjI1NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-08-09_MzMxMDE0NjI1NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzMxMDE0NjI1NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/C2C_IzzHZ4ZPHC7QDtEouUwsCvoSeRzZdlg2RD4zaN8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1815256,
+        "sha256": "200633e9dd2bfd85cdf4dcd8af484346ce7fdb908895a244fd12fb3a649e623b",
+        "retrieved_at": "2026-10-26T06:32:50+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2021-03-18",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 31 May 2020",
+    "made_up_to": "2020-05-31",
+    "transaction_id": "MzI5NDcyNjk1M2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI5NDcyNjk1M2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-05-31_MzI5NDcyNjk1M2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI5NDcyNjk1M2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/NIo164wRJC2LPU5K_z_RE1UVQX5MpFG5FtMoftsfQIg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1315157,
+        "sha256": "9f78501b8434fe771b07e5bbef58137f0389863531b9369d2074989970ee12a1",
+        "retrieved_at": "2026-10-26T06:32:52+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-12-17",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230012, created on 10 December 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI4NjI5MzU0OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI4NjI5MzU0OWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-12-17_MzI4NjI5MzU0OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI4NjI5MzU0OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/7kQ5rI88lw5Oe6tRv-UBZS_skDlgw70x1mB8LdSSd9I/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 2308576,
+        "sha256": "7449f4f084fb8b66386753035219019f899e6aedcc7758cbb642290b785a0a1d",
+        "retrieved_at": "2026-10-26T06:32:55+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-12-17",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230013, created on 10 December 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI4NjI5NTE0OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI4NjI5NTE0OWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-12-17_MzI4NjI5NTE0OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI4NjI5NTE0OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/k0u83A_6-eoH5fKgARQW0Wh1RezNiKs0HMznvIjKduQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1551940,
+        "sha256": "05004b55750285512a8dac3ce896b813d9aafa884239679d9893c3fbf119cc4e",
+        "retrieved_at": "2026-10-26T06:32:57+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-11-27",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2020 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzI4NDU3MzY5NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI4NDU3MzY5NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-11-27_MzI4NDU3MzY5NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI4NDU3MzY5NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/wsCe2eWkQ-NE5gG3btWcCgUFHdOafknXpnbZgObKD50/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 20741,
+        "sha256": "e4fede2d5e0bd8e204d6b1f5377dd5bbecf70f2e03ed63b018eff15399ea70b2",
+        "retrieved_at": "2026-10-26T06:32:59+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-11-19",
+    "filing_type": "RESOLUTIONS",
+    "description": "Resolutions RES13 \u2010 Re-documents/transactions/deed 11/09/2019 RES01 \u2010 Resolution of alteration of Articles of Association",
+    "made_up_to": null,
+    "transaction_id": "QTlIT0s5UENhZGlxemtjeA",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/QTlIT0s5UENhZGlxemtjeA/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-11-19_QTlIT0s5UENhZGlxemtjeA.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/QTlIT0s5UENhZGlxemtjeA/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/SiWtz4C__HGNveih8S__1VL0zQUb1bJ6ycbSqcxm21o/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 90612,
+        "sha256": "e2a63c3afa7a249722f87756c62298613c0274c23b46fa849889f1ef0e3b6773",
+        "retrieved_at": "2026-10-26T06:33:00+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-07-29",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230011, created on 29 July 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI3NDE0MTY4N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI3NDE0MTY4N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-07-29_MzI3NDE0MTY4N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI3NDE0MTY4N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/nFV9T2PqBkTDrt_iDsQGZuYXntdntRtAVCtOKfyxu5k/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1311560,
+        "sha256": "35f1a30011b55dccec19d1e628736e861167526387726acfa21fbd7ddae8763e",
+        "retrieved_at": "2026-10-26T06:33:03+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-04-09",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Xiaotian Sun as a director on 9 April 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI2MjE1NDIyM2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI2MjE1NDIyM2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-04-09_MzI2MjE1NDIyM2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI2MjE1NDIyM2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/E_8MNEuJ4NxBJpaoCcgtAGHCMxsOWMwisCwcZyCQUBs/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 13683,
+        "sha256": "1d90580f0088fc091896aaeeefaf7aaa377f921d922b87d331f915f31b232d72",
+        "retrieved_at": "2026-10-26T06:33:05+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-03-06",
+    "filing_type": "TM01",
+    "description": "Termination of appointment of Kevin Daniel Thelwell as a director on 9 February 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI1OTE2MjUwMGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1OTE2MjUwMGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-03-06_MzI1OTE2MjUwMGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1OTE2MjUwMGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/7DSgVZCr6UnXaI12x8xVifyLiAy_NFwb4ovG_XfJ_p0/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 13784,
+        "sha256": "953c33b66278e3fb067275f960908307c10e00fc5837c5b3feb861c5a2504cb7",
+        "retrieved_at": "2026-10-26T06:33:06+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-02-17",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 31 May 2019",
+    "made_up_to": "2019-05-31",
+    "transaction_id": "MzI1NzA5NjQ1MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1NzA5NjQ1MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-05-31_MzI1NzA5NjQ1MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1NzA5NjQ1MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/H5Qk-1jVpbNZ8YUqfBTw1t43r8wAgMkM1KQR0-DAKFQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1355838,
+        "sha256": "ad916dee9a517ac1d697758355147e46f5b7c77f93b0a6979b08ca1d393305d9",
+        "retrieved_at": "2026-10-26T06:33:09+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-02-10",
+    "filing_type": "PSC02",
+    "description": "Notification of W. W. (1990) Limited as a person with significant control on 21 July 2016",
+    "made_up_to": null,
+    "transaction_id": "MzI1Njg3MTM5N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1Njg3MTM5N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-02-10_MzI1Njg3MTM5N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1Njg3MTM5N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/POgE7vEZvPAVgGD1wgDhCQzMGfInaG-Nazc2kxWZNH8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 19806,
+        "sha256": "4b96f929979d11b13f03c8aa38b0d7ea44eb6fc00117df6164b0f70e51d7b917",
+        "retrieved_at": "2026-10-26T06:33:10+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-02-10",
+    "filing_type": "PSC07",
+    "description": "Cessation of Guo Guangchang as a person with significant control on 21 July 2016",
+    "made_up_to": null,
+    "transaction_id": "MzI1Njg3MDQ0N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1Njg3MDQ0N2FkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-02-10_MzI1Njg3MDQ0N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1Njg3MDQ0N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/SwQeSTMrfWnegpNOE_yamaKRB64IADN5WCxSWAhf_NE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 15077,
+        "sha256": "43696985d625d363767c8871e5a08cc312f4956b0c5932665ce8149a1e112961",
+        "retrieved_at": "2026-10-26T06:33:12+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-02-10",
+    "filing_type": "PSC07",
+    "description": "Cessation of Fosun International Holdings Ltd. as a person with significant control on 21 July 2016",
+    "made_up_to": null,
+    "transaction_id": "MzI1Njg3MDI3NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1Njg3MDI3NWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-02-10_MzI1Njg3MDI3NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1Njg3MDI3NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/7W1mFT54EJgA0qaApa59ZFdpbmmk0djgQQYsk0mSGjg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 15319,
+        "sha256": "b84ddbfe49a7422499707edd8d0a751ad7a46ef99cc54bd98a64f70918193210",
+        "retrieved_at": "2026-10-26T06:33:13+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-01-17",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230010, created on 13 January 2020",
+    "made_up_to": null,
+    "transaction_id": "MzI1NDg1OTMyNGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1NDg1OTMyNGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-01-17_MzI1NDg1OTMyNGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1NDg1OTMyNGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/YffWtt_gQMAoNFqZypHg2NFwiaLoRHfmIND4mO7CR5o/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 938271,
+        "sha256": "19f9be15f9fb1767714ae5f1ead909f3666f802591daae6dd07da44869f74a7d",
+        "retrieved_at": "2026-10-26T06:33:16+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2020-01-03",
+    "filing_type": "CS01",
+    "description": "Confirmation statement made on 27 November 2019 with no updates",
+    "made_up_to": null,
+    "transaction_id": "MzI1MzY5Njc3NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1MzY5Njc3NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-01-03_MzI1MzY5Njc3NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI1MzY5Njc3NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/e6H8p9hlve5zX8fM35knip8yuAEIn65oEzWtdLit9zg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 20774,
+        "sha256": "74c633c70e896cde0204e4279551d2829c9764063e722c8bf7f552fbb06f4dc7",
+        "retrieved_at": "2026-10-26T06:33:17+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2019-09-25",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230009, created on 13 September 2019",
+    "made_up_to": null,
+    "transaction_id": "MzI0NTE0MjA1MmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NTE0MjA1MmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-09-25_MzI0NTE0MjA1MmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NTE0MjA1MmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/bqpYnYLK2ns2dkNtwwdP8yusZT0G3uP1lMw3KPANrzg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1296904,
+        "sha256": "235466fab267367cf369dfc5fbb20f716a43ff7d276e827cb6fda35cf9e584d3",
+        "retrieved_at": "2026-10-26T06:33:20+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2019-09-25",
+    "filing_type": "MR01",
+    "description": "Registration of charge 019898230008, created on 13 September 2019",
+    "made_up_to": null,
+    "transaction_id": "MzI0NTE0MjU0MWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NTE0MjU0MWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-09-25_MzI0NTE0MjU0MWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NTE0MjU0MWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Gu_3zwlnMz5_FrgSfy2V56kEZYoVnnc6ysgeFSW4LiQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 984750,
+        "sha256": "681007abc38538a09957a9ae32e2370bb362481e1525a98f108ab6f9d0a9c9db",
+        "retrieved_at": "2026-10-26T06:33:22+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2019-09-17",
+    "filing_type": "AP01",
+    "description": "Appointment of Mr Kevin Daniel Thelwell as a director on 4 September 2019",
+    "made_up_to": null,
+    "transaction_id": "MzI0NDM3MDQ5NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NDM3MDQ5NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-09-17_MzI0NDM3MDQ5NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NDM3MDQ5NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/BGdK0ew2G2JKsUyZNAalgV9KJnKdudAVWgTuqqcEa5Y/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 19732,
+        "sha256": "d44191b95b628d684e1c41fd4b760b9c060c08d81c99266461fc24e17f496606",
+        "retrieved_at": "2026-10-26T06:33:24+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2019-09-16",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230007 in full",
+    "made_up_to": null,
+    "transaction_id": "MzI0NDMzMjE2NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NDMzMjE2NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-09-16_MzI0NDMzMjE2NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NDMzMjE2NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/uKAgsLYaNziHy_4OUms_iK7Xr0IvAqajnHGT_BMgQy0/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 15553,
+        "sha256": "08ad1e0739e319b6bb24d4b0267af30440a753ee45983a9fdf8cf637cfa6ed6f",
+        "retrieved_at": "2026-10-26T06:33:28+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "01989823",
+    "filed_date": "2019-09-16",
+    "filing_type": "MR04",
+    "description": "Satisfaction of charge 019898230006 in full",
+    "made_up_to": null,
+    "transaction_id": "MzI0NDMzMTY1MWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NDMzMTY1MWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2019-09-16_MzI0NDMzMTY1MWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/01989823/filing-history/MzI0NDMzMTY1MWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/2f7-VshUafD2QrvtiUSoKRgHqA4RkPTP4RfTuKyYPy8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 15565,
+        "sha256": "ae54766a95f4b4b1a3746caac5f88e747ca0c541f83dbaf1fcbf92ca4c733dcf",
+        "retrieved_at": "2026-10-26T06:33:29+00:00"
+      }
+    ]
+  }
+]
