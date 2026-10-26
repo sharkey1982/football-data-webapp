@@ -1245,3 +1245,18 @@ fixing something else.
   proxy ("60+ minutes = started") silently diverges from the fact it stands
   for -- use the recorded fact when the source has it; and a one-off import
   that overrides a live feed needs an expiry.*
+
+## 2026-10-26 · PR #478 merged with the "checks" unit-test job red
+
+- **What happened:** Claude's merge script waited for the Netlify previews,
+  smoke test and the `checks` job, but on timing out it fell through to the
+  merge call instead of stopping. The `checks` job had failed (Unit tests),
+  so #478 (Real Madrid private fill, impairment labels) merged with a red check.
+- **Impact:** none found. The same commit's job passed on re-run (flaky), the
+  full suite (1,364 tests) passes locally on main, and the migration only
+  added private (unpublished) rows.
+- **Fix:** re-ran the failed job: green on attempt 2.
+- **Prevention:** merge only inside the success branch of the wait; a
+  timeout or any failed check (status or check-run) exits without merging.
+  *Lesson: "wait then act" scripts must make the action conditional on the
+  wait's result, not on the wait finishing.*
