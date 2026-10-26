@@ -95,6 +95,12 @@ def list_filings(company: str, debug_dir: Path) -> list[dict]:
                 continue
             desc = strip_tags(tds[2])
             found += 1
+            ftype = strip_tags(tds[1])
+            # The site does not always honour ?category=accounts (26 Oct 2026:
+            # every filing came back), so keep accounts types explicitly:
+            # AA = annual accounts, AAMD = amended accounts.
+            if ftype not in ("AA", "AAMD"):
+                continue
             rows.append({
                 "company_number": company,
                 "filed_date": parse_date(strip_tags(tds[0])),
