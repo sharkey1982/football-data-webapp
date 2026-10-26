@@ -267,9 +267,9 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/fpl/price-risk',
-    title: 'Bullpit \u2014 FPL price change risk',
+    title: 'Bullpit \u2014 FPL price changes tonight',
     description:
-      'Which Fantasy Premier League players are under the most transfer pressure to rise or fall in price.',
+      'Which Fantasy Premier League players FPL\u2019s own price predictor expects to rise or fall tonight, and how often it is right.',
     crumbs: [FPL],
   },
   {

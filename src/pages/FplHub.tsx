@@ -21,7 +21,7 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 import { hubGroups } from '../lib/journey';
 import { getFplTrivia, type TriviaFact } from '../lib/landingApi';
 import { formatDeadline, getNextDeadline, getTopProjected, type ProjectedPick } from '../lib/hubApi';
-import { getPriceChangeRisk, type PriceRisk } from '../lib/priceRiskApi';
+import { fmtProgress, getPriceChangeRisk, type PriceRisk } from '../lib/priceRiskApi';
 import { getInjuryReport, STATUS_LABEL, type InjuryRow } from '../lib/injuryApi';
 import { loadReportList, reportPath, type ReportListEntry } from '../lib/fplGameweekReport';
 import { PlayerLink } from '../components/EntityLinks';
@@ -34,7 +34,6 @@ import { getOpenGameweek, type LiveGame, type LivePlayerPoints, type OpenGamewee
 type Load<T> = { status: 'loading' } | { status: 'error' } | { status: 'ok'; data: T };
 
 const NAME = 'font-medium text-ink-900 hover:text-pitch-700 hover:underline underline-offset-2';
-const net = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(Math.round(n)).toLocaleString('en-GB')}`;
 
 export default function FplHub() {
   useDocumentHead({
@@ -216,10 +215,10 @@ export default function FplHub() {
         )}
 
         <div className="flex-[1_1_18rem] min-w-0 space-y-6">
-          <HubCard title="Price pressure" more={{ to: '/fpl/price-risk', label: 'All' }} testId="hub-prices">
+          <HubCard title="Price changes tonight" more={{ to: '/fpl/price-risk', label: 'All' }} testId="hub-prices">
             {prices.status === 'loading' && <HubSkeleton rows={6} rowClass="h-9" />}
             {prices.status === 'error' && <HubNote>Prices didn&rsquo;t load.</HubNote>}
-            {prices.status === 'ok' && risers.length + fallers.length === 0 && <HubNote>No one under pressure right now.</HubNote>}
+            {prices.status === 'ok' && risers.length + fallers.length === 0 && <HubNote>No one near a price change right now.</HubNote>}
             {prices.status === 'ok' && risers.length + fallers.length > 0 && (
               <ul className="divide-y divide-chalk-200 text-sm">
                 {[...risers.map((p) => ({ p, up: true })), ...fallers.map((p) => ({ p, up: false }))].map(({ p, up }) => (
@@ -229,7 +228,7 @@ export default function FplHub() {
                       <PlayerLink slug={p.slug} from="fpl_hub" className={NAME}>{p.web_name}</PlayerLink>
                       <span className="text-ink-500"> {p.team_name}</span>
                     </span>
-                    <span className="font-mono text-xs text-ink-500 whitespace-nowrap">{net(p.net_transfers)}</span>
+                    <span className="font-mono text-xs text-ink-500 whitespace-nowrap" title="FPL\u2019s own price predictor: 100% = expected tonight">{fmtProgress(p.pressure)}</span>
                   </li>
                 ))}
               </ul>

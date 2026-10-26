@@ -139,7 +139,7 @@ export const SCOUT_SORT_COLUMNS = [
   { key: 'now_cost', label: 'Price' },
   { key: 'minutes', label: 'Mins' },
   { key: 'points_per_million', label: 'Per £m' },
-  { key: 'price_pressure', label: 'Pressure' },
+  { key: 'price_pressure', label: 'Price %' },
   { key: 'goals_scored', label: 'Goals' },
   { key: 'assists', label: 'Assists' },
   { key: 'total_points', label: 'Points' },
@@ -227,8 +227,8 @@ export type ScoutListPlayer = {
   selected_by_percent: number | null;
   points_per_million: number | null;
   seasons_played: number;
-  /** Absolute transfer pressure from Bullpit. Null means nothing
-   * notable -- which is different from zero. */
+  /** FPL's own price predictor, % of the way to a change (absolute;
+   * direction below). Null means under 50% -- different from zero. */
   price_pressure: number | null;
   price_direction: 'rise' | 'fall' | null;
 };

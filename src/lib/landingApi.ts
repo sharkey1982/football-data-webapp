@@ -316,22 +316,22 @@ export async function getTopActualFplScorerTrivia(): Promise<TriviaFact | null> 
   };
 }
 
-/** Whose price is under most pressure to RISE -- the Bullpit's question. */
+/** Who FPL's own price predictor has closest to a RISE -- the Bullpit's question. */
 export async function getPriceRiskTrivia(): Promise<TriviaFact | null> {
   const { data, error } = await supabase.rpc('get_price_change_risk', { p_season_id: await getCurrentFplSeasonId() });
   if (error) throw error;
-  const risers = ((data ?? []) as { web_name: string; team_name: string; direction: string; pressure: number; net_transfers: number }[])
+  const risers = ((data ?? []) as { web_name: string; team_name: string; direction: string; pressure: number }[])
     .filter((r) => r.direction === 'rise')
     .sort((a, b) => Number(b.pressure) - Number(a.pressure))
     .slice(0, 4);
   if (risers.length < 2) return null;
-  const win = tiedWithFirst(risers.map((r) => Number(r.pressure)));
-  const net = (n: number) => `${n >= 0 ? '+' : ''}${Math.round(n).toLocaleString('en-GB')} net transfers`;
+  const pct = (r: { pressure: number }) => Math.round(Number(r.pressure));
+  const win = tiedWithFirst(risers.map(pct));
   return {
-    question: 'Whose price is under the most pressure to rise right now?',
-    ...shuffleFact(risers.map((r) => r.web_name), win, risers.map((r) => `${r.team_name} \u00b7 ${net(Number(r.net_transfers))}`)),
-    explanation: `${joined(win.map((i) => `${risers[i].web_name} (${risers[i].team_name})`))} \u2014 ${net(Number(risers[0].net_transfers))}, more pressure than anyone. Pressure changes daily, so check before the deadline.`,
-    link: { to: '/fpl/price-risk', label: 'See who\u2019s under pressure in the Bullpit' },
+    question: 'Who is closest to a price rise, by FPL\u2019s own price predictor?',
+    ...shuffleFact(risers.map((r) => r.web_name), win, risers.map((r) => `${r.team_name} \u00b7 ${pct(r)}% of the way`)),
+    explanation: `${joined(win.map((i) => `${risers[i].web_name} (${risers[i].team_name})`))} \u2014 ${pct(risers[0])}% of the way to a rise in FPL\u2019s figures${pct(risers[0]) >= 100 ? ', so expected to rise tonight' : ''}. It changes every day, so check before the deadline.`,
+    link: { to: '/fpl/price-risk', label: 'See tonight\u2019s expected price changes in the Bullpit' },
   };
 }
 

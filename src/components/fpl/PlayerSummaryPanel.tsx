@@ -3,7 +3,7 @@
 //
 // The summary at the top of a player's page. What the page already has
 // (position, club, price, the next gameweek's minutes and start chance) is
-// shown at once -- including in the pre-rendered HTML. Price pressure,
+// shown at once -- including in the pre-rendered HTML. Price change (FPL's predictor),
 // ownership movement, set-piece duties and fitness come from getPlayerContext
 // and fill in when loaded; each is independent, and a tile whose source
 // fails simply isn't shown.
@@ -104,15 +104,15 @@ export default function PlayerSummaryPanel({ profile, season }: { profile: Playe
       )}
 
       {ctx?.priceRisk && (
-        <Tile label="Price pressure" to="/fpl/price-risk">
-          {ctx.priceRisk.direction === 'rise' && <span className="text-pitch-800">Under pressure to rise</span>}
-          {ctx.priceRisk.direction === 'fall' && <span className="text-loss-700">Under pressure to fall</span>}
-          {ctx.priceRisk.direction !== 'rise' && ctx.priceRisk.direction !== 'fall' && <span className="text-ink-700">No significant pressure</span>}
-          {ctx.priceRisk.net_transfers !== 0 && (
-            <span className="block text-xs text-ink-500">
-              {ctx.priceRisk.net_transfers > 0 ? '+' : ''}{Math.round(ctx.priceRisk.net_transfers).toLocaleString('en-GB')} net transfers
-            </span>
+        <Tile label="Price change" to="/fpl/price-risk">
+          {ctx.priceRisk.direction === 'rise' && (
+            <span className="text-pitch-800">{Math.abs(ctx.priceRisk.pressure) >= 100 ? 'Expected to rise tonight' : `${Math.round(ctx.priceRisk.pressure)}% of the way to a rise`}</span>
           )}
+          {ctx.priceRisk.direction === 'fall' && (
+            <span className="text-loss-700">{Math.abs(ctx.priceRisk.pressure) >= 100 ? 'Expected to fall tonight' : `${Math.round(Math.abs(ctx.priceRisk.pressure))}% of the way to a fall`}</span>
+          )}
+          {ctx.priceRisk.direction !== 'rise' && ctx.priceRisk.direction !== 'fall' && <span className="text-ink-700">Not close to a change</span>}
+          <span className="block text-xs text-ink-500">FPL&rsquo;s own price predictor</span>
         </Tile>
       )}
 

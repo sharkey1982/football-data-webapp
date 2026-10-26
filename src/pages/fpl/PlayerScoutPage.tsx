@@ -340,7 +340,7 @@ export default function PlayerScoutPage() {
                             <span className="text-ink-500">&ndash;</span>
                           ) : (
                             <span className={p.price_direction === 'rise' ? 'text-pitch-800' : 'text-loss-700'}>
-                              {p.price_direction === 'rise' ? '\u2191' : '\u2193'} {p.price_pressure}
+                              {p.price_direction === 'rise' ? '\u2191' : '\u2193'} {Math.round(p.price_pressure)}%
                             </span>
                           )}
                         </td>

@@ -83,16 +83,16 @@ describe('Player summary panel', () => {
     expect(screen.getByText(/Expected role: Attacking midfielder/)).toBeInTheDocument();
   });
 
-  it('fills in price pressure, ownership, set pieces and fitness, each linking to its page', async () => {
+  it('fills in price change, ownership, set pieces and fitness, each linking to its page', async () => {
     mocked.getPlayerContext.mockResolvedValue({
-      priceRisk: { direction: 'rise', pressure: 40, net_transfers: 52000 },
+      priceRisk: { direction: 'rise', pressure: 87.4, net_transfers: 52000 },
       market: { ownership_now: 31.2, ownership_change: 1.4, price_change: 0.1, from_date: '2026-09-14' },
       setPieces: [{ type: 'penalty', rank: 1 }, { type: 'direct_free_kick', rank: 2 }, { type: 'corner_left', rank: 1 }],
       fitness: { status: 'd', chance_next_round: 75, news: 'Knock - 75% chance of playing', return_date: null },
     });
     render(<MemoryRouter><PlayerSummaryPanel profile={profile} season={season} /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByText('Under pressure to rise')).toBeInTheDocument());
-    expect(screen.getByText('+52,000 net transfers')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('87% of the way to a rise')).toBeInTheDocument());
+    expect(screen.getByText(/FPL.s own price predictor/)).toBeInTheDocument();
     expect(screen.getByText(/31\.2%/).textContent).toMatch(/▲ 1\.4 in 7 days/);
     expect(screen.getByText(/Penalties:/).textContent).toBe('Penalties: 1st choice');
     expect(screen.getByText(/Direct free kicks:/).textContent).toBe('Direct free kicks: 2nd choice');

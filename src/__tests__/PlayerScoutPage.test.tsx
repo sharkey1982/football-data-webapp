@@ -83,7 +83,7 @@ describe('PlayerScoutPage', () => {
 
     // Each header sits over its own column (Points and Player were swapped).
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.replace(/[↑↓]/g, '').trim());
-    expect(headers).toEqual(['Player', 'Price', 'Mins', 'Per £m', 'Pressure', 'Goals', 'Assists', 'Points', 'Club']);
+    expect(headers).toEqual(['Player', 'Price', 'Mins', 'Per £m', 'Price %', 'Goals', 'Assists', 'Points', 'Club']);
     const cells = screen.getByRole('rowheader', { name: /Haaland/ }).closest('tr')!.querySelectorAll('td');
     expect(cells[cells.length - 2].textContent).toBe('33'); // Points
     expect(cells[cells.length - 1].textContent).toBe('Manchester City');

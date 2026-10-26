@@ -183,7 +183,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Minutes Outlook', to: '/fpl/minutes', blurb: 'Who plays over the next 10 gameweeks, and who loses their place as injured players return.' },
           // Heat map before the optimiser: you check the fixtures before
           // you pick a squad, not after.
-          { label: 'Price Changes', to: '/fpl/price-risk', blurb: 'Who\u2019s under transfer pressure to rise or fall in price.' },
+          { label: 'Price Changes', to: '/fpl/price-risk', blurb: 'Who FPL\u2019s own predictor expects to rise or fall in price tonight.' },
           { label: 'Fixture Heat Map', to: '/fantasy', blurb: 'Which teams have the kindest run of fixtures.' },
           { label: 'Rate My Team', to: '/fpl/rate-my-team', blurb: 'Enter your FPL ID: your squad against the model, and the transfers it rates most.' },
           { label: 'Optimiser', to: '/fpl/optimal-squad', blurb: 'The best squad the model can build under budget.', excludePrefix: '/fpl/optimal-squad-so-far' },
