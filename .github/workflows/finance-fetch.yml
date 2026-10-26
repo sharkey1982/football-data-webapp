@@ -3,9 +3,10 @@
 #
 # Why: Claude work sessions can't reach Companies House (egress allowlist),
 # and scheduled/data jobs shouldn't depend on Chris's PC. This downloads the
-# original accounts documents in the cloud and uploads them, with a manifest
-# of source URLs and SHA-256 hashes, as a run artifact. The session then
-# fetches the artifact via the GitHub API and does extraction/validation.
+# original accounts documents in the cloud and commits them, with a manifest
+# of source URLs and SHA-256 hashes, to the `finance-sources` branch (never
+# main). Sessions read that branch with git; run artifacts can't be used
+# because their blob storage is blocked from work sessions too.
 #
 # Read-only: it writes nothing to the database. Loading happens later through
 # a reviewed data migration (apply-migrations.yml), like every other DB write.
@@ -24,7 +25,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write  # pushes the documents to the finance-sources branch
 
 jobs:
   fetch:
@@ -48,10 +49,24 @@ jobs:
             args+=(--company "$c")
           done
           python3 scripts/finance_fetch_companies_house.py --out ch "${args[@]}"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: companies-house-accounts
-          path: ch/
-          retention-days: 30
-          if-no-files-found: error
+      - name: Commit to finance-sources branch
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name "finance-fetch"
+          git config user.email "actions@github.com"
+          tmp=$(mktemp -d); cp -r ch "$tmp/"
+          if git ls-remote --exit-code --heads origin finance-sources >/dev/null; then
+            git fetch -q --depth 1 origin finance-sources
+            git checkout -q -B finance-sources FETCH_HEAD
+          else
+            git checkout -q --orphan finance-sources; git rm -rqf .
+          fi
+          git clean -fdxq
+          mkdir -p companies-house && cp -r "$tmp"/ch/* companies-house/
+          git add companies-house
+          git diff --cached --quiet && { echo "Nothing new."; exit 0; }
+          git commit -qm "Companies House accounts, fetch run $RUN_ID"
+          git push -q origin finance-sources
+          echo "Pushed to finance-sources"

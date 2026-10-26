@@ -5,7 +5,7 @@ Companies House website (no API key), for finance ingestion.
 Why it exists: Claude work sessions cannot reach Companies House (the egress
 allowlist blocks it), so the GitHub Actions workflow `finance-fetch.yml` runs
 this in the cloud and uploads the files as a run artifact. The session then
-downloads the artifact through the GitHub API and does extraction/OCR there.
+fetches that branch with git and does extraction/OCR there.
 
 It only reads the "accounts" category of each company's filing history and
 downloads the original documents. It writes nothing to the database.

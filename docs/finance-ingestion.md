@@ -88,9 +88,10 @@ never replayed; the stage table itself was dropped on 2026-10-22.
 ## Loading rules from 2026-10-26
 
 - **Fetching:** work sessions cannot reach Companies House. Dispatch
-  `.github/workflows/finance-fetch.yml` with company numbers; it uploads the
+  `.github/workflows/finance-fetch.yml` with company numbers; it commits the
   original documents plus a manifest (source URL, retrieval time, bytes,
-  SHA-256) as a run artifact, which the session downloads with `gh run download`.
+  SHA-256) to the `finance-sources` branch (never main), which the session
+  reads with git. Run artifacts can't be used: their storage is blocked too.
 - **Loading:** like every other database write, finance rows reach production
   only through a migration file applied by `apply-migrations.yml` — never the
   Supabase connector. One file per club batch loads private rows
