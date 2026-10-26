@@ -18685,6 +18685,47 @@ export type Database = {
           transfers_in: number
           transfers_out: number
           web_name: string
+          progress: number
+          projected_next: number
+          likelihood: number
+          hourly_rate: number
+          locked_until: string
+          calibrating: boolean
+          outlook: string
+          updated_at: string
+        }[]
+      }
+      get_price_changes_recent: {
+        Args: { p_nights?: number; p_season_id?: number }
+        Returns: {
+          fpl_player_id: number
+          night: string
+          ownership: number
+          position_label: string
+          price_after: number
+          price_before: number
+          progress: number
+          slug: string
+          team_name: string
+          web_name: string
+        }[]
+      }
+      get_price_predictor_record: {
+        Args: { p_days?: number; p_season_id?: number }
+        Returns: {
+          expected_falls: number
+          expected_rises: number
+          fell: number
+          falls: number
+          falls_expected: number
+          from_night: string
+          nights: number
+          possible: number
+          possible_changed: number
+          rises: number
+          rises_expected: number
+          rose: number
+          to_night: string
         }[]
       }
       get_public_read_audit: {

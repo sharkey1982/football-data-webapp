@@ -107,16 +107,17 @@ describe('historic questions name a season span, not the database', () => {
 });
 
 describe('questions that send people around the site', () => {
-  it('Bullpit: only risers, the highest pressure is correct, with net transfers and a link', async () => {
+  it('Bullpit: only risers, closest to a rise by FPL\u2019s predictor is correct, with a link', async () => {
     rpcs.get_price_change_risk = [
-      { web_name: 'Kostoulas', team_name: 'Brighton', direction: 'rise', pressure: 65.2, net_transfers: 41000 },
-      { web_name: 'Elanga', team_name: 'Newcastle', direction: 'fall', pressure: 90, net_transfers: -60000 },
-      { web_name: 'Manzambi', team_name: 'Brentford', direction: 'rise', pressure: 57.9, net_transfers: 33000 },
+      { web_name: 'Kostoulas', team_name: 'Brighton', direction: 'rise', pressure: 104.2, net_transfers: 41000 },
+      { web_name: 'Elanga', team_name: 'Newcastle', direction: 'fall', pressure: -120, net_transfers: -60000 },
+      { web_name: 'Manzambi', team_name: 'Brentford', direction: 'rise', pressure: 87.9, net_transfers: 33000 },
     ];
     const f = (await getPriceRiskTrivia())!;
     expect(f.options).not.toContain('Elanga');
     expect(correctLabels(f)).toEqual(['Kostoulas']);
-    expect(f.optionDetails![f.options.indexOf('Kostoulas')]).toBe('Brighton \u00b7 +41,000 net transfers');
+    expect(f.optionDetails![f.options.indexOf('Kostoulas')]).toBe('Brighton \u00b7 104% of the way');
+    expect(f.explanation).toContain('expected to rise tonight');
     expect(f.link?.to).toBe('/fpl/price-risk');
   });
 

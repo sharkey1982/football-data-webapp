@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import PriceRiskPage from '../pages/fpl/PriceRiskPage';
@@ -8,75 +8,79 @@ import * as api from '../lib/priceRiskApi';
 
 vi.mock('../lib/priceRiskApi', async () => {
   const actual = await vi.importActual<typeof api>('../lib/priceRiskApi');
-  return { ...actual, getPriceChangeRisk: vi.fn() };
+  return { ...actual, getPriceChangeRisk: vi.fn(), getPriceRecord: vi.fn(), getRecentPriceChanges: vi.fn() };
 });
 const mocked = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 const row = (over: Partial<api.PriceRisk>): api.PriceRisk => ({
   fpl_player_id: 1, web_name: 'Popular', slug: 'popular', team_name: 'Arsenal',
   position_label: 'MID', price: 6.1, ownership: 40, transfers_in: 20000, transfers_out: 0,
-  net_transfers: 20000, pressure: 0.5, direction: 'rise', ...over,
+  net_transfers: 20000, pressure: 60, progress: 60, projected_next: 70, direction: 'rise', outlook: 'building',
+  updated_at: '2026-10-26T21:47:00Z', ...over,
 });
 
-describe('PriceRiskPage', () => {
-  it('ranks by pressure, not raw net transfers', async () => {
-    mocked.getPriceChangeRisk.mockResolvedValue([
-      // Ordering comes from the RPC; the page must not re-sort by net
-      // transfers, which would put the 40%-owned player first and be
-      // exactly wrong -- the same 20,000 moves are noise at that
-      // ownership and decisive at 2%.
-      row({ fpl_player_id: 2, web_name: 'Differential', slug: 'diff', ownership: 2, net_transfers: 20000, pressure: 10 }),
-      row({}),
-    ]);
+const record: api.PriceRecord = {
+  from_night: '2026-09-28', to_night: '2026-10-25', nights: 28,
+  expected_rises: 30, rose: 30, expected_falls: 200, fell: 197, possible: 40, possible_changed: 26,
+  rises: 45, rises_expected: 30, falls: 220, falls_expected: 197,
+};
 
+beforeEach(() => {
+  mocked.getPriceRecord.mockResolvedValue(record);
+  mocked.getRecentPriceChanges.mockResolvedValue([]);
+});
+
+function section(name: RegExp) {
+  return screen.getByRole('region', { name });
+}
+
+describe('PriceRiskPage (FPL price predictor)', () => {
+  it('splits players into expected tonight, could go tonight and closest to the line', async () => {
+    mocked.getPriceChangeRisk.mockResolvedValue([
+      row({ fpl_player_id: 1, web_name: 'Konsa', pressure: 131, progress: 131, outlook: 'expected' }),
+      row({ fpl_player_id: 2, web_name: 'Bogle', pressure: 97.8, progress: 97.8, projected_next: 102.8, outlook: 'possible' }),
+      row({ fpl_player_id: 3, web_name: 'Gvardiol', pressure: -92, progress: -92, projected_next: -95, direction: 'fall', outlook: 'close' }),
+    ]);
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
 
-    await waitFor(() => expect(screen.getByText('Differential')).toBeInTheDocument());
-    const names = screen.getAllByRole('rowheader').map((r) => r.textContent ?? '');
-    expect(names[0]).toContain('Differential');
+    await waitFor(() => expect(screen.getByText('Konsa')).toBeInTheDocument());
+    expect(within(section(/Expected tonight/)).getByText('Konsa')).toBeInTheDocument();
+    expect(within(section(/Could go tonight/)).getByText('Bogle')).toBeInTheDocument();
+    expect(within(section(/Closest to the line/)).getByText('Gvardiol')).toBeInTheDocument();
+    expect(within(section(/Closest to the line/)).getByText('−92%')).toBeInTheDocument();
   });
 
-  it('states plainly that it ranks risk rather than predicting a change', async () => {
+  it('says these are FPL’s figures, not ours, and shows the running record', async () => {
     mocked.getPriceChangeRisk.mockResolvedValue([row({})]);
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
 
-    // FPL's threshold isn't public, so claiming a definite change would
-    // be overclaiming. Pinned, because it's the kind of caveat that
-    // quietly disappears in a later edit.
-    await waitFor(() => expect(screen.getByText(/doesn.t publish its price-change threshold/)).toBeInTheDocument());
-    expect(screen.getByText(/no figure here is a prediction/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/These are FPL.s figures, not ours/)).toBeInTheDocument());
+    const rec = section(/How often FPL.s predictor is right/);
+    expect(rec).toHaveTextContent('Over the last 28 nights');
+    expect(rec).toHaveTextContent('30 of 30 players at 100% or more rose');
+    expect(rec).toHaveTextContent('197 of 200');
   });
 
-  it('ranks by pressure across BOTH directions, so the most urgent leads', async () => {
-    // Two separate tables couldn't answer "who is under most pressure":
-    // the top faller might outrank every riser, and splitting them hides
-    // that. One table, sorted on absolute pressure.
+  it('ranks by progress across both directions, so the closest to a change leads', async () => {
     mocked.getPriceChangeRisk.mockResolvedValue([
-      row({ fpl_player_id: 1, web_name: 'SmallRiser', slug: 'a', pressure: 2, direction: 'rise' }),
-      row({ fpl_player_id: 2, web_name: 'BigFaller', slug: 'b', pressure: -9, direction: 'fall' }),
-      row({ fpl_player_id: 3, web_name: 'MidRiser', slug: 'c', pressure: 5, direction: 'rise' }),
+      row({ fpl_player_id: 1, web_name: 'SmallRiser', pressure: 55, progress: 55 }),
+      row({ fpl_player_id: 2, web_name: 'BigFaller', pressure: -88, progress: -88, direction: 'fall' }),
+      row({ fpl_player_id: 3, web_name: 'MidRiser', pressure: 70, progress: 70 }),
     ]);
-
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('BigFaller')).toBeInTheDocument());
 
-    const names = screen.getAllByRole('row').slice(1).map((r) => r.textContent ?? '');
-    // The faller leads despite every other row being a riser.
+    const names = within(section(/Closest to the line/)).getAllByRole('rowheader').map((r) => r.textContent ?? '');
     expect(names[0]).toContain('BigFaller');
     expect(names[1]).toContain('MidRiser');
     expect(names[2]).toContain('SmallRiser');
   });
 
-  it('filters by direction, which is the one thing that actually changes the view', async () => {
-    // The old "risk band" filter could never change anything: the tables
-    // show the top 15 by pressure, and far more than 15 rows already sit
-    // in the high band, so the top 15 were always high whatever was
-    // picked. Direction genuinely narrows what's on screen.
+  it('filters by direction', async () => {
     mocked.getPriceChangeRisk.mockResolvedValue([
-      row({ fpl_player_id: 1, web_name: 'Riser', slug: 'riser', pressure: 8, direction: 'rise' }),
-      row({ fpl_player_id: 2, web_name: 'Faller', slug: 'faller', pressure: -8, direction: 'fall' }),
+      row({ fpl_player_id: 1, web_name: 'Riser', pressure: 80, progress: 80 }),
+      row({ fpl_player_id: 2, web_name: 'Faller', pressure: -80, progress: -80, direction: 'fall' }),
     ]);
-
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Riser')).toBeInTheDocument());
     expect(screen.getByText('Faller')).toBeInTheDocument();
@@ -91,9 +95,18 @@ describe('PriceRiskPage', () => {
     expect(screen.queryByText('Riser')).not.toBeInTheDocument();
   });
 
-  it('explains that high risk is relative, not a fixed number', async () => {
+  it('lists last night’s changes with FPL’s figure the evening before', async () => {
     mocked.getPriceChangeRisk.mockResolvedValue([row({})]);
+    mocked.getRecentPriceChanges.mockResolvedValue([
+      { night: '2026-10-25', fpl_player_id: 9, web_name: 'Konsa', slug: 'konsa', team_name: 'Aston Villa', position_label: 'DEF',
+        price_before: 4.6, price_after: 4.7, ownership: 19.6, progress: 131 },
+    ]);
     render(<MemoryRouter><PriceRiskPage /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByText(/top tenth of today/)).toBeInTheDocument());
+
+    await waitFor(() => expect(screen.getByRole('region', { name: /Changed overnight after Sun 25 Oct/ })).toBeInTheDocument());
+    const s = section(/Changed overnight/);
+    expect(within(s).getByText('Konsa')).toBeInTheDocument();
+    expect(s).toHaveTextContent('£4.6m → £4.7m');
+    expect(s).toHaveTextContent('131%');
   });
 });
