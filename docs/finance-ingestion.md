@@ -79,3 +79,23 @@ been created. Browser roles receive `SELECT` only on the reviewed public
 objects; raw ingestion tables remain private. Run
 `supabase/tests/finance_schema_contract.sql` after future finance DDL changes to
 detect contract or privilege drift.
+
+The two transient-stage migrations (`20260922092911`, `20260924045456`) were
+applied in production during the initial ingestion but only committed on
+2026-10-26, for history. Both predate the apply-migrations floor, so they are
+never replayed; the stage table itself was dropped on 2026-10-22.
+
+## Loading rules from 2026-10-26
+
+- **Fetching:** work sessions cannot reach Companies House. Dispatch
+  `.github/workflows/finance-fetch.yml` with company numbers; it uploads the
+  original documents plus a manifest (source URL, retrieval time, bytes,
+  SHA-256) as a run artifact, which the session downloads with `gh run download`.
+- **Loading:** like every other database write, finance rows reach production
+  only through a migration file applied by `apply-migrations.yml` — never the
+  Supabase connector. One file per club batch loads private rows
+  (`validation_status = 'validated'`); publication is a separate, later file
+  that flips the reviewed period and its metric values to `published`.
+- **Currency:** the frontend formats every amount as £ (`src/lib/financeFormat.ts`)
+  and shows the consolidated/company-only label for the latest period only. No
+  non-GBP club (Real Madrid, team 146) is published until that changes.
