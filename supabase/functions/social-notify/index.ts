@@ -4,6 +4,7 @@
 // Emails Chris about automatic X posting (Phase 4, docs/social-publishing.md):
 //   { kind: "queued", candidate_id }   a post's hold has started: what it says,
 //                                      when it goes, and where to press Hold
+//   { kind: "draft", candidate_id }    a post that waits for Chris's OK
 //   { kind: "breaker", reason }        automatic posting has stopped itself
 // Called only by the database (private.social_notify, pg_net) with the worker
 // token in x-social-token. Sends through Resend.
@@ -82,6 +83,18 @@ Deno.serve(async (req) => {
       posts.map((p, i) => `<p style="white-space:pre-wrap;border-left:3px solid #1b4332;padding:4px 10px;margin:8px 0">` +
                           `${posts.length > 1 ? `<b>${i + 1}/${posts.length}</b> ` : ""}${esc(p)}</p>`).join("") +
       `<p style="color:#666;font-size:12px">Post #${c.candidate_id}. It is checked against the data again just before it goes; if anything changed, it won't post.</p>`;
+  } else if (body?.kind === "draft") {
+    // A post that waits for Chris's OK (model-v-market gaps, 28 Oct 2026).
+    const { data: c } = await sb.from("social_post_candidates")
+      .select("candidate_id, post_type, text, thread, expires_at").eq("candidate_id", body.candidate_id).maybeSingle();
+    if (!c) return Response.json({ ok: false, reason: "candidate not found" });
+    const posts: string[] = Array.isArray(c.thread) && c.thread.length ? c.thread : [c.text];
+    subject = `Needs your OK: ${LABEL[c.post_type] ?? c.post_type}`;
+    html = `<p>This X post <b>won't go</b> unless you approve and post it on <a href="https://fixtureshark.com/admin/social">fixtureshark.com/admin/social</a>. ` +
+      `It expires at <b>${esc(ukTime(c.expires_at))}</b> (UK).</p>` +
+      posts.map((p, i) => `<p style="white-space:pre-wrap;border-left:3px solid #b08a2e;padding:4px 10px;margin:8px 0">` +
+                          `${posts.length > 1 ? `<b>${i + 1}/${posts.length}</b> ` : ""}${esc(p)}</p>`).join("") +
+      `<p style="color:#666;font-size:12px">Post #${c.candidate_id}.</p>`;
   } else if (body?.kind === "breaker") {
     subject = "Automatic X posting has stopped";
     html = `<p>Automatic posting to @FixtureSharkHQ switched itself off:</p><p><b>${esc(String(body.reason ?? "unknown"))}</b></p>
