@@ -176,12 +176,16 @@ describe('OptimalSquadPage', () => {
     await waitFor(() => expect(screen.getByText('This GW')).toBeInTheDocument());
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
     // The range filter applies presets only once the default and in-play
-    // gameweeks have both loaded; on a slow runner the click can land before
-    // that, and Build then sends the page's initial 5-5 range (CI flake on
-    // #478 and #483). Build only once the range really reads 5-14.
-    await waitFor(() => expect(screen.getByLabelText('To GW')).toHaveValue(14));
+    // gameweeks have both loaded; on a slow runner a click that lands before
+    // that is ignored, and Build then sends the page's initial 5-5 range (CI
+    // flakes on #478, #483 and #495). Waiting for the value alone isn't
+    // enough (the ignored click never re-fires), so press the preset until
+    // the range really reads 5-14, then Build.
+    await waitFor(async () => {
+      await user.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
+      expect(screen.getByLabelText('To GW')).toHaveValue(14);
+    }, { timeout: 5000 });
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
     await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 14, 100, [], []));
