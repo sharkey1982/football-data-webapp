@@ -247,3 +247,16 @@ small-company accounts, so many figures are not disclosed rather than missing.
 | Peterborough (62, 00290803) | 84 | company | none | Turnover split only retail vs "football and commercial" (-> other). Borrowings not disclosed (loans without interest status). |
 | Wigan (41, 13161421) | 81 | company | FY2021 (5 months, ~3 trading), FY2023 (GBP4.13m owner-loan write-back) | Company formed 2021 (Phoenix 2021 Ltd) after administration: no FY2020. Owner loans without terms -> borrowings not disclosed. |
 | Doncaster (68, 03739676) | 32 | company (filleted) | FY2022 (restated) | Doncaster Rovers Limited, not the shell 00170192. No income statement in any year: balance sheet, headcount and some amortisation only. |
+
+## Batch audit: Oxford, Rotherham, Wycombe (2026-10-28) -- Championship-and-above since 2020/21 complete
+
+Load `20261028180000_...` then guarded publish `20261028180500_...`
+(18 periods / 207 values / 3 latest). With these, every club that has played
+in the Championship or Premier League since 2020/21 has published accounts.
+Every period reconciles exactly.
+
+| Club (team, company) | Values | Scope | Non-comparable | Notes |
+|---|---|---|---|---|
+| Oxford (87, 00470509) | 76 | company | FY2020, FY2022-24 (restated or reclassified in each following year) | FY2020-23 unaudited small-company accounts (single turnover line, no staff note). Group (owner) loans GBP14m to GBP58m; borrowings not disclosed. |
+| Rotherham (28, 06550400) | 96 | company | none | ASD Lighting owner loan (to GBP9.5m) not stated interest-free: borrowings not disclosed. Transfer and sell-on fees sit in turnover (other). |
+| Wycombe (84, 05132509) | 35 | company (filleted) | FY2020 (13 months), FY2022 (11 months) | No income statement in any year: balance sheet, headcount and amortisation only. |
