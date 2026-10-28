@@ -32,8 +32,9 @@ function GroupCard({ g }: { g: MoveGroup }) {
       </h2>
       <p className="text-sm text-ink-700">{g.moves.length} move{g.moves.length === 1 ? '' : 's'}: {g.moves.map((mv) => `${mv.team.display_name} (${fyLabel(mv.after.period_end)})`).join(', ')}.</p>
       {groupTakeaway(g) && <p className="text-sm text-ink-900">{groupTakeaway(g)}</p>}
-      <dl className="grid grid-cols-3 gap-2 text-sm">
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
         <div><dt className="text-xs text-ink-500">Median revenue change</dt><dd className="font-mono">{signedPct(g.medianRevenueChange)}</dd></div>
+        <div><dt className="text-xs text-ink-500">Median broadcast &amp; league change</dt><dd className="font-mono">{signedPct(g.medianBroadcastChange)}</dd></div>
         <div><dt className="text-xs text-ink-500">Median wages / revenue</dt><dd className="font-mono">{pct(g.medianWagesBefore)} → {pct(g.medianWagesAfter)}</dd></div>
         <div><dt className="text-xs text-ink-500">Pre-tax loss the season after</dt><dd className="font-mono">{g.lossesAfter.of ? `${g.lossesAfter.losses} of ${g.lossesAfter.of}` : nd}</dd></div>
       </dl>
@@ -50,6 +51,7 @@ const COLS: Col[] = [
   { key: 'revB', label: 'Revenue before', get: (mv) => mv.revenueBefore, fmt: m },
   { key: 'revA', label: 'Revenue after', get: (mv) => mv.revenueAfter, fmt: m },
   { key: 'revC', label: 'Change', get: (mv) => mv.revenueChange, fmt: signedPct },
+  { key: 'bcC', label: 'Broadcast change', get: (mv) => mv.broadcastChange, fmt: signedPct },
   { key: 'wB', label: 'Wages before', get: (mv) => mv.wagesBefore, fmt: pct },
   { key: 'wA', label: 'Wages after', get: (mv) => mv.wagesAfter, fmt: pct },
   { key: 'pB', label: 'Pre-tax before', get: (mv) => mv.pbtBefore, fmt: m },
@@ -153,7 +155,7 @@ export default function FinanceMovesPage({ initialData }: { initialData?: Financ
               </table>
             </div>
             <p className="text-xs text-ink-500">
-              Before = the last season in the old division; after = the first season in the new one. Wages = staff costs as a share of revenue.
+              Before = the last season in the old division; after = the first season in the new one. Broadcast change = broadcasting and league income (including parachute payments where clubs report them there). Wages = staff costs as a share of revenue.
               n/d not disclosed · † a year that isn&rsquo;t comparable (a period other than 12 months, a switch between company and group accounts, or a restatement), left out of the medians
               · PL Premier League, Champ Championship, L1 League One, L2 League Two, NL National League · in pounds, from clubs&rsquo; statutory accounts
             </p>
