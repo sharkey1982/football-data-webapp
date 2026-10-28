@@ -167,6 +167,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">{data.team.display_name} finances</h1>
         <dl className="text-sm text-ink-700 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
           <dt className="text-ink-500">Reporting entity</dt><dd>{latest.reporting_entity ?? NOT_DISCLOSED}</dd>
+          {data.team.division && (<><dt className="text-ink-500">Division</dt><dd data-testid="finance-division"><Link to={`/finance?division=${data.team.division.league_slug}`} className="text-pitch-800 underline underline-offset-2">{data.team.division.league_name}</Link> (this season)</dd></>)}
           <dt className="text-ink-500">Latest period</dt>
           <dd>{periodPhrase(latest.period_end, latest.period_months)} ({fyLabel(latest.period_end)} &middot; the {seasonLabel(latest.period_end)} season)</dd>
           <dt className="text-ink-500">{registrationLabel(latest.source_url)}</dt><dd className="font-mono">{latest.company_number ?? NOT_DISCLOSED}</dd>

@@ -86,7 +86,18 @@ export type FinanceMetricDef = {
   expected_sign: string | null;
 };
 
-export type FinanceTeam = { team_id: number; slug: string; display_name: string };
+/** A club's current domestic league (from finance_club_divisions). */
+export type FinanceDivision = {
+  league_code: string;
+  league_name: string;
+  league_slug: string;
+  country: string | null;
+  country_order: number;
+  division_order: number;
+};
+
+/** division is the club's current league; absent when not known. */
+export type FinanceTeam = { team_id: number; slug: string; display_name: string; division?: FinanceDivision | null };
 
 export type ClubFinanceData = {
   team: FinanceTeam;
@@ -188,6 +199,53 @@ export function groupFinanceByTeam(
   return byTeam;
 }
 
+export function normaliseDivision(r: Record<string, unknown>): FinanceDivision & { team_id: number } {
+  return {
+    team_id: Number(r.team_id),
+    league_code: String(r.league_code ?? ''),
+    league_name: String(r.league_name ?? ''),
+    league_slug: String(r.league_slug ?? ''),
+    country: (r.country as string) ?? null,
+    country_order: toNum(r.country_order) ?? 9,
+    division_order: toNum(r.division_order) ?? 9,
+  };
+}
+
+/** Teams with their current division attached (unknown stays undefined). */
+export function attachDivisions<T extends FinanceTeam>(teams: T[], rows: Record<string, unknown>[]): T[] {
+  const byTeam = new Map(rows.map((r) => { const d = normaliseDivision(r); return [d.team_id, d] as const; }));
+  return teams.map((t) => {
+    const d = byTeam.get(t.team_id);
+    if (!d) return t;
+    const { team_id: _omit, ...division } = d;
+    void _omit;
+    return { ...t, division };
+  });
+}
+
+export type DivisionOption = { slug: string; name: string; count: number };
+
+/** Filter choices: every division present, England's pyramid first, then
+ *  other countries by tier; each with how many clubs it has. */
+export function divisionOptions(teams: FinanceTeam[]): DivisionOption[] {
+  const m = new Map<string, DivisionOption & { co: number; dor: number }>();
+  for (const t of teams) {
+    const d = t.division;
+    if (!d || !d.league_slug) continue;
+    const o = m.get(d.league_slug) ?? { slug: d.league_slug, name: d.league_name, count: 0, co: d.country_order, dor: d.division_order };
+    o.count += 1;
+    m.set(d.league_slug, o);
+  }
+  return [...m.values()]
+    .sort((a, b) => a.co - b.co || a.dor - b.dor || a.name.localeCompare(b.name))
+    .map(({ slug, name, count }) => ({ slug, name, count }));
+}
+
+/** True when no division filter is set, or the team is in that division. */
+export function inDivision(team: FinanceTeam, slug: string | null | undefined): boolean {
+  return !slug || team.division?.league_slug === slug;
+}
+
 /** The latest period: the one flagged is_latest, else the most recent. */
 export function latestPeriod(periods: FinancePeriod[]): FinancePeriod | null {
   if (!periods.length) return null;
@@ -211,6 +269,19 @@ export function buildFinanceIndex(data: Iterable<ClubFinanceData>): FinanceIndex
 
 // ---- runtime fetchers (the browser, for pages not pre-rendered) -----------
 
+/** Current divisions. A failure (or the view not existing yet) degrades to
+ *  no divisions -- the pages still render, just without the filter. */
+async function getDivisionRows(teamIds?: number[]): Promise<Record<string, unknown>[]> {
+  try {
+    let q = supabase.from('finance_club_divisions').select('*');
+    if (teamIds) q = q.in('team_id', teamIds);
+    const { data, error } = await q;
+    return error ? [] : ((data ?? []) as Record<string, unknown>[]);
+  } catch {
+    return [];
+  }
+}
+
 export async function getFinanceDictionary(): Promise<FinanceMetricDef[]> {
   const { data, error } = await supabase.from('finance_metric_dictionary').select('metric_key, display_name, definition, metric_type, statement_type, value_kind, expected_sign');
   if (error) throw error;
@@ -231,7 +302,7 @@ export async function getClubFinanceBySlug(slug: string): Promise<ClubFinanceDat
   const { data: team, error: tErr } = await supabase.from('teams').select('team_id, slug, display_name').eq('slug', slug).maybeSingle();
   if (tErr) throw tErr;
   if (!team) return null;
-  const t = team as FinanceTeam;
+  const [t] = attachDivisions([team as FinanceTeam], await getDivisionRows([(team as FinanceTeam).team_id]));
   const [pRes, provRes, dRes, dict] = await Promise.all([
     supabase.from('finance_published_periods').select('*').eq('team_id', t.team_id),
     supabase.from('finance_published_provenance').select('*').eq('team_id', t.team_id),
@@ -260,9 +331,12 @@ export async function getFinanceIndex(): Promise<FinanceIndexEntry[]> {
   const periods = (rows ?? []).map((r) => normalisePeriod(r as Record<string, unknown>));
   const ids = [...new Set(periods.map((p) => p.team_id))];
   if (!ids.length) return [];
-  const { data: teams, error: tErr } = await supabase.from('teams').select('team_id, slug, display_name').in('team_id', ids);
+  const [{ data: teams, error: tErr }, divs] = await Promise.all([
+    supabase.from('teams').select('team_id, slug, display_name').in('team_id', ids),
+    getDivisionRows(),
+  ]);
   if (tErr) throw tErr;
-  return buildFinanceIndex(groupFinanceByTeam((teams ?? []) as FinanceTeam[], periods, [], [], []).values());
+  return buildFinanceIndex(groupFinanceByTeam(attachDivisions((teams ?? []) as FinanceTeam[], divs), periods, [], [], []).values());
 }
 
 /** Every club's published periods, for the comparison page. Two queries in
@@ -273,7 +347,10 @@ export async function getAllClubFinance(): Promise<ClubFinanceData[]> {
   const periods = (rows ?? []).map((r) => normalisePeriod(r as Record<string, unknown>));
   const ids = [...new Set(periods.map((p) => p.team_id))];
   if (!ids.length) return [];
-  const { data: teams, error: tErr } = await supabase.from('teams').select('team_id, slug, display_name').in('team_id', ids);
+  const [{ data: teams, error: tErr }, divs] = await Promise.all([
+    supabase.from('teams').select('team_id, slug, display_name').in('team_id', ids),
+    getDivisionRows(),
+  ]);
   if (tErr) throw tErr;
-  return [...groupFinanceByTeam((teams ?? []) as FinanceTeam[], periods, [], [], []).values()];
+  return [...groupFinanceByTeam(attachDivisions((teams ?? []) as FinanceTeam[], divs), periods, [], [], []).values()];
 }
