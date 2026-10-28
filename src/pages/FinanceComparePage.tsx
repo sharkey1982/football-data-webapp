@@ -21,6 +21,7 @@ import {
 } from '../lib/financeCompare';
 import { divisionOptions, inDivision } from '../lib/financeApi';
 import DivisionFilter from '../components/finance/DivisionFilter';
+import { mixClubs, mixTakeaway, tradingClubs, tradingTakeaway } from '../lib/financeMix';
 import { useDivisionParam } from '../hooks/useDivisionParam';
 
 const nd = <span className="text-ink-500">n/d</span>;
@@ -171,6 +172,62 @@ export default function FinanceComparePage({ initialData, otherCurrency: initial
         </ul>
         <p className="text-xs text-ink-500">Line: 70%, a widely used warning level.</p>
       </Section>
+
+      {(() => {
+        const { shown, unsplit } = mixClubs(clubs);
+        if (!shown.length) return null;
+        const seg = [
+          { k: 'matchday', label: 'Matchday', cls: 'bg-pitch-800' },
+          { k: 'broadcast', label: 'Broadcast & league', cls: 'bg-pitch-600' },
+          { k: 'commercial', label: 'Commercial', cls: 'bg-amber-500' },
+          { k: 'other', label: 'Other', cls: 'bg-ink-500/40' },
+        ] as const;
+        return (
+          <Section title="Where the money comes from" takeaway={mixTakeaway(shown)}>
+            <ul className="flex flex-wrap gap-3 text-xs text-ink-700" aria-label="Key">
+              {seg.map((s) => <li key={s.k} className="flex items-center gap-1"><span className={`inline-block h-3 w-3 rounded-sm ${s.cls}`} aria-hidden="true" />{s.label}</li>)}
+            </ul>
+            <ul className="space-y-1.5" aria-label="Revenue by source" data-testid="revenue-mix">
+              {shown.map(({ club: c, mix }) => (
+                <Row key={c.team.team_id} name={c.team.display_name} slug={c.team.slug}
+                  value={<>{pct(mix.matchday)} · {pct(mix.broadcast)} · {pct(mix.commercial)}{mix.other > 0.005 ? <> · {pct(mix.other)}</> : null}</>}>
+                  <div className="absolute inset-y-0 left-0 right-0 flex overflow-hidden rounded" role="img"
+                    aria-label={`Matchday ${pct(mix.matchday)}, broadcast and league ${pct(mix.broadcast)}, commercial ${pct(mix.commercial)}, other ${pct(mix.other)}`}>
+                    {seg.map((s) => <div key={s.k} className={s.cls} style={{ width: `${mix[s.k] * 100}%` }} />)}
+                  </div>
+                </Row>
+              ))}
+            </ul>
+            <p className="text-xs text-ink-500">
+              Shares of revenue, matchday · broadcast &amp; league · commercial (· other). Clubs label income differently, so treat small gaps with care.
+              {unsplit.length > 0 && <> Not shown because their accounts don&rsquo;t split revenue this way: {unsplit.join(', ')}.</>}
+            </p>
+          </Section>
+        );
+      })()}
+
+      {(() => {
+        const { shown, undisclosed } = tradingClubs(clubs);
+        if (!shown.length) return null;
+        const max = Math.max(1, ...shown.map((t) => Math.max(Math.abs(t.sales), t.amortisation ?? 0)));
+        return (
+          <Section title="Player trading" takeaway={tradingTakeaway(shown)}>
+            <ul className="space-y-1.5" aria-label="Profit on player sales and amortisation" data-testid="player-trading">
+              {shown.map((t) => (
+                <Row key={t.club.team.team_id} name={t.club.team.display_name} slug={t.club.team.slug}
+                  value={<>{t.sales < 0 ? `loss ${m(-t.sales)}` : m(t.sales)} <span className="text-ink-500">· amortisation {m(t.amortisation)}</span></>}>
+                  <div className={`absolute top-0 h-2.5 left-0 rounded ${t.sales < 0 ? 'bg-loss-600' : 'bg-pitch-700'}`} style={{ width: `${(Math.abs(t.sales) / max) * 100}%` }} />
+                  {t.amortisation != null && <div className="absolute bottom-0 h-2 left-0 rounded bg-ink-500/40" style={{ width: `${(t.amortisation / max) * 100}%` }} />}
+                </Row>
+              ))}
+            </ul>
+            <p className="text-xs text-ink-500">
+              Top bar: profit on selling players. Lower bar: amortisation, the cost of players bought, spread over their contracts.
+              {undisclosed.length > 0 && <> Not shown because player-sale profit isn&rsquo;t disclosed: {undisclosed.join(', ')}.</>}
+            </p>
+          </Section>
+        );
+      })()}
 
       <section aria-labelledby="all-h" className="space-y-2">
         <h2 id="all-h" className="font-display uppercase tracking-wide text-lg text-ink-900">Every figure</h2>

@@ -14,6 +14,9 @@
 
 import type { ClubFinanceData, FinanceDivision, FinancePeriod, FinanceTeam } from './financeApi';
 import { money, wageRatio } from './financeCompare';
+import { scaled } from './financeFormat';
+
+const change = (a: number | null, b: number | null) => (a == null || b == null || a <= 0 ? null : b / a - 1);
 
 export const MOVES_DESCRIPTION =
   'What promotion and relegation do to a football club\u2019s accounts: revenue, wages and pre-tax result in the season before the move and the season after, from statutory accounts.';
@@ -31,6 +34,8 @@ export type FinanceMove = {
   revenueAfter: number | null;
   /** Fractional change in revenue (0.25 = +25%). Null unless both disclosed. */
   revenueChange: number | null;
+  /** Fractional change in broadcast and league income. Null unless both disclosed. */
+  broadcastChange: number | null;
   wagesBefore: number | null;
   wagesAfter: number | null;
   pbtBefore: number | null;
@@ -72,6 +77,7 @@ export function clubMoves(d: ClubFinanceData): FinanceMove[] {
       revenueBefore: rb,
       revenueAfter: ra,
       revenueChange: rb == null || ra == null || rb <= 0 ? null : ra / rb - 1,
+      broadcastChange: change(scaled(before.revenue_broadcast, before.unit_scale), scaled(after.revenue_broadcast, after.unit_scale)),
       wagesBefore: wageRatio(before),
       wagesAfter: wageRatio(after),
       pbtBefore: money(before, 'profit_before_tax'),
@@ -98,6 +104,7 @@ export type MoveGroup = {
   /** Moves used for the medians (both years comparable). */
   comparableCount: number;
   medianRevenueChange: number | null;
+  medianBroadcastChange: number | null;
   medianWagesBefore: number | null;
   medianWagesAfter: number | null;
   /** Clubs with a pre-tax loss in the season after, of those disclosed. */
@@ -136,6 +143,7 @@ export function groupMoves(moves: FinanceMove[]): MoveGroup[] {
       moves: ms,
       comparableCount: comp.length,
       medianRevenueChange: enough ? median(vals(comp.map((m) => m.revenueChange))) : null,
+      medianBroadcastChange: vals(comp.map((m) => m.broadcastChange)).length >= MIN_FOR_MEDIAN ? median(vals(comp.map((m) => m.broadcastChange))) : null,
       medianWagesBefore: enough ? median(vals(comp.map((m) => m.wagesBefore))) : null,
       medianWagesAfter: enough ? median(vals(comp.map((m) => m.wagesAfter))) : null,
       lossesAfter: { losses: pbt.filter((v) => v < 0).length, of: pbt.length },
