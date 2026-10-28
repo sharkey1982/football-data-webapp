@@ -159,3 +159,25 @@ liabilities = net assets).
 | West Brom (11, 03295063) | 101 | company | FY2020 (13m), FY2021 (11m) | Borrowings: FY2024 factoring only; MSD loan sits in the parent. Other revenue null (never printed). |
 | Stoke (9, 00099885) | 108 | company | FY2020, FY2021 (COVID season split across 31 May year end; FY2021 staff restated) | Borrowings nil: owner funding disclosed as interest-free. FY2022 includes GBP120m loan waiver. |
 | Watford (39, 00104194) | 107 | company | FY2020-FY2022 (operating line excluded player sales until FY2023; FY2021 restated) | Borrowings: lender and Hornets Investment loans (interest-bearing). Amortisation shown net of impairment. |
+
+## Batch audit: five more Championship clubs (2026-10-28)
+
+Companies House full accounts (image PDFs, page-image verified; Bristol City
+FY2025 cross-checked to iXBRL). Load `20261028120000_...` (private), then the
+guarded publish `20261028120500_...` (27 periods / 452 values / 5 latest). All
+periods reconcile exactly. A standing rule now runs before every load
+(`finalise` step): a zero that the filing does not print becomes NULL, except a
+borrowings nil the filing states (loans "interest-free" / "non-interest-bearing").
+
+| Club (team, company) | Periods | Values | Non-comparable | Notes |
+|---|---|---|---|---|
+| Birmingham (34, 00027318) | FY2020-25 | 96 | FY2021 (restated) | Borrowings: FY2024-25 are the 11.9% Knighthead facility as printed (rounded to GBP0.1m). Other revenue not disclosed. |
+| Blackburn (21, 00053482) | FY2020-25 | 101 | none | Overdraft only; parent loans interest-free. FY2023 borrowings null. |
+| Bristol City (64, 03230871) | FY2020-25 | 106 | FY2020-21 (COVID split, 31 May year end), FY2023 (13m) | Pula Sport loan (3%) from FY2022. |
+| Cardiff (22, 00109065) | FY2020-25 | 100 | FY2020-21 (COVID split), FY2023-24 (restated) | Interest-bearing shareholder/director/finance loans; Sala provision not borrowings. |
+| Derby (27, 14190771) | FY2023-25 | 49 | FY2023 (first period after administration; restated) | New company since the July 2022 takeover; the old company filed nothing for 2019/20-2021/22. |
+
+**QPR held back:** company 00060094 is the football-operations subsidiary (its
+revenue is mostly a management charge to QPR Holdings Limited; matchday and
+commercial income sit elsewhere). Publish QPR from QPR Holdings' consolidated
+accounts instead.
