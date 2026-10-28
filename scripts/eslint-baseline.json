@@ -30,7 +30,7 @@
   "src/components/PageErrorBoundary.tsx :: react-refresh/only-export-components": 2,
   "src/components/TeamHistoryPanel.tsx :: react-hooks/set-state-in-effect": 1,
   "src/components/tennis/TennisBits.tsx :: react-refresh/only-export-components": 1,
-  "src/entry-server.tsx :: react-refresh/only-export-components": 86,
+  "src/entry-server.tsx :: react-refresh/only-export-components": 87,
   "src/lib/aiLabApi.ts :: @typescript-eslint/no-explicit-any": 15,
   "src/lib/auth.tsx :: @typescript-eslint/no-explicit-any": 1,
   "src/lib/auth.tsx :: react-refresh/only-export-components": 2,

@@ -16,6 +16,7 @@ import AppLayout from './components/AppLayout';
 const InThePapersPage = lazy(() => import('./pages/fpl/InThePapersPage'));
 const TeamFinancePage = lazy(() => import('./pages/football/TeamFinancePage'));
 const FinanceComparePage = lazy(() => import('./pages/FinanceComparePage'));
+const FinanceMovesPage = lazy(() => import('./pages/FinanceMovesPage'));
 const AffiliateDisclosurePage = lazy(() => import('./pages/AffiliateDisclosurePage'));
 const TvGuidePage = lazy(() => import('./pages/football/TvGuidePage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -394,6 +395,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <ClubSeasonPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="finance/promotion-relegation"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FinanceMovesPage />
               </Suspense>
             }
           />

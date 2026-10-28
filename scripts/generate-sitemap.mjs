@@ -344,6 +344,7 @@ async function main() {
       const latest = site.sitemap.map((s) => s.lastmod).filter(Boolean).sort().pop() ?? null;
       if (!staticPaths.includes('/finance')) entries.push(urlEntry('/finance', latest));
       if (!staticPaths.includes('/finance/compare')) entries.push(urlEntry('/finance/compare', latest));
+      if (!staticPaths.includes('/finance/promotion-relegation')) entries.push(urlEntry('/finance/promotion-relegation', latest));
     } catch (err) {
       console.error('Sitemap: finance pages skipped --', err?.message ?? err);
     }

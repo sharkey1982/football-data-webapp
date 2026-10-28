@@ -39,6 +39,8 @@ import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
 import TeamFinancePage from './pages/football/TeamFinancePage';
 import FinanceIndexPage from './pages/FinanceIndexPage';
 import FinanceComparePage from './pages/FinanceComparePage';
+import FinanceMovesPage from './pages/FinanceMovesPage';
+import { allMoves, MOVES_DESCRIPTION } from './lib/financeMoves';
 import HistoryHubPage from './pages/football/HistoryHubPage';
 import type { HistoryHubData } from './lib/historyApi';
 import LeaguesPage from './pages/football/LeaguesPage';
@@ -672,6 +674,26 @@ export function renderFinanceComparePage(clubs: ClubFinanceData[]): RenderedPage
     description: 'Football clubs\u2019 latest accounts side by side: revenue, wages, profit and loss, borrowings and cash, from their statutory accounts.',
     canonical: `${SITE_URL}${path}`,
     structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'The Boardroom', path: '/finance' }, { name: 'Compare Club Finances', path }])],
+  };
+}
+
+export function renderFinanceMovesPage(clubs: ClubFinanceData[]): RenderedPage {
+  const path = '/finance/promotion-relegation';
+  const html = renderToString(
+    <StaticRouter location={path}>
+      <Routes>
+        <Route element={<AppLayout />}>
+        <Route path={path} element={<FinanceMovesPage initialData={allMoves(clubs)} />} />
+      </Route>
+      </Routes>
+    </StaticRouter>
+  );
+  return {
+    html,
+    title: `Promotion and Relegation: the Money | ${BRAND_NAME}`,
+    description: MOVES_DESCRIPTION,
+    canonical: `${SITE_URL}${path}`,
+    structuredData: [breadcrumb([{ name: 'Football', path: '/football' }, { name: 'The Boardroom', path: '/finance' }, { name: 'Promotion and Relegation', path }])],
   };
 }
 
