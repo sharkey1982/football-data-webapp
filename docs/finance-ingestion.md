@@ -210,3 +210,23 @@ Load `20261028150000_...` then guarded publish `20261028150500_...`
 |---|---|---|---|---|
 | Bolton (40, 11761052) | 71 | group (Football Ventures (Whites)) | FY2020 (first period after administration, ~10 months' trading), FY2022 (staff restated) | Club company is dormant; group includes the stadium hotel. Revenue split not separable. FY2020-21 borrowings null (loans without stated terms). |
 | Lincoln (107, 00045611) | 102 | company | FY2021, FY2022, FY2024 (restated) | iXBRL. Borrowings = fan bonds. FY2020-22 revenue categories printed in GBP000 (rounding vs turnover kept as printed). |
+
+## Batch audit: League One batch 1 (2026-10-28)
+
+Load `20261028160000_...` then guarded publish `20261028160500_...`
+(35 periods / 560 values / 6 latest). Reading FY2021-25, Plymouth (all years)
+and Sheffield Wednesday FY2020 and FY2022-24 were read from the exact iXBRL
+text; the rest from page-image-verified scanned PDFs. All periods reconcile
+exactly except Reading FY2025 (turnover categories GBP1 under turnover as
+printed; kept). Sheffield Wednesday has five years: FY2025 accounts were never
+filed (administration). Leicester's average employees were caught scaled by
+1,000 by the extraction (GBP000 rule applied to a headcount) and corrected.
+
+| Club (team, company) | Values | Scope | Non-comparable | Notes |
+|---|---|---|---|---|
+| Leicester (3, 04593477) | 106 | group from FY2021 | FY2020-21 (COVID deferral at a 31 May year end; scope switch), FY2022 (restated), FY2023 (13 months; restated) | Group loans treated as interest-bearing (interest accrues). FY2025 creditors note vs net debt note differ by GBP0.42m (creditors used). |
+| Luton (78, 06133975) | 91 | company | FY2020 (13 months, small-company accounts), FY2021 (headcount restated) | Nil borrowings FY2021-24 (all loans stated interest-free). FY2024 is the Premier League season. |
+| Sheffield Wednesday (26, 02509978) | 71 | company | none | FY2021 from the amended filing (no figure differences). Turnover split only commercial vs "match receipts and associated" (incl. league distributions) -> other. Owner loans excluded (no interest terms). |
+| Huddersfield (29, 01771361) | 98 | group from FY2021 | FY2020-23 (scope switch; restated each following year) | FY2021-25 borrowings null (part of other loans without stated interest status). |
+| Reading (42, 00053703) | 97 | company; group FY2025 | FY2024 (restated), FY2025 (scope switch; disposal profit moved inside operating result) | Borrowings null every year (group/related loans without stated terms). Going-concern uncertainty FY2020-24. |
+| Plymouth (76, 07796376) | 97 | company; group FY2025 | FY2025 (scope switch) | FY2020-24 borrowings null (pension-deficit loan interest status not stated); FY2025 director loan at 2%. |
