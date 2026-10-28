@@ -140,3 +140,22 @@ disposals (note 4.3 net gain after carrying amount; FY2023 excludes a €15.0m
 tax-provision release). Matchday stays NULL: the reports bundle it with
 membership, tours and other stadium income, which sits in `revenue_other`.
 FY2020–FY2022 stay non-comparable (COVID; consolidation from FY2022).
+
+## Batch audit: six Championship clubs (2026-10-28)
+
+Companies House full accounts (image PDFs; OCR to find pages, every figure
+confirmed against the page image; Watford FY2022/24/25 cross-checked to iXBRL).
+Load `20261028100000_finance_load_championship_six.sql` (private), then the
+guarded publish `20261028100500_finance_publish_championship_six.sql` (runs only
+if exactly 36 periods / 634 values / 6 latest are present). All 36 periods
+reconcile exactly (categories = turnover, operating -> PBT -> PAT, assets -
+liabilities = net assets).
+
+| Club (team, company) | Values | Scope | Non-comparable | Notes |
+|---|---|---|---|---|
+| Sheffield United (63, 00061564) | 103 | company | FY2020 (13m), FY2021 (11m), FY2023 (restated; FTE headcount) | Borrowings: bank + factored loans; FY2020 null (interest charged, no loan disclosed). |
+| Middlesbrough (33, 01947851) | 107 | company | FY2020 (restated: deferred tax) | Borrowings: bank loans only (FY2023+); group/EFL/director loans interest-free. FY2020 null. 2024 debt-for-equity swap (GBP148.7m). |
+| Norwich (44, 00154044) | 108 | group (PLC) | FY2020 (13m, amended filing), FY2021 (11m), FY2022 (VAT restatement) | Borrowings include Norfolk shareholder loans (interest-bearing per the reports) and the FY2020 mini-bond. |
+| West Brom (11, 03295063) | 101 | company | FY2020 (13m), FY2021 (11m) | Borrowings: FY2024 factoring only; MSD loan sits in the parent. Other revenue null (never printed). |
+| Stoke (9, 00099885) | 108 | company | FY2020, FY2021 (COVID season split across 31 May year end; FY2021 staff restated) | Borrowings nil: owner funding disclosed as interest-free. FY2022 includes GBP120m loan waiver. |
+| Watford (39, 00104194) | 107 | company | FY2020-FY2022 (operating line excluded player sales until FY2023; FY2021 restated) | Borrowings: lender and Hornets Investment loans (interest-bearing). Amortisation shown net of impairment. |
