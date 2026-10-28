@@ -1,0 +1,206 @@
+[
+  {
+    "company_number": "00048409",
+    "filed_date": "2026-03-31",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2025",
+    "made_up_to": "2025-06-30",
+    "transaction_id": "MzUxMzU3NDM0MWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzUxMzU3NDM0MWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzUxMzU3NDM0MWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-06-30_MzUxMzU3NDM0MWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzUxMzU3NDM0MWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/dcoYQrDtsM2TPRlpMdFf5q0e6bSLceQgrATjwBelU60/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 551323,
+        "sha256": "03b047c3244b6f0050360cc0102cf13dc664ec11e92f7f9ac350e8c2951e52e4",
+        "retrieved_at": "2026-10-28T15:55:27+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2025-06-30_MzUxMzU3NDM0MWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzUxMzU3NDM0MWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/dcoYQrDtsM2TPRlpMdFf5q0e6bSLceQgrATjwBelU60/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 260606,
+        "sha256": "aebc2b69b4291bdc4851e0669574edd59a16c862aabb4848f121f803cf0c796f",
+        "retrieved_at": "2026-10-28T15:55:29+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00048409",
+    "filed_date": "2025-03-25",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2024",
+    "made_up_to": "2024-06-30",
+    "transaction_id": "MzQ2MDAxMDY3N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQ2MDAxMDY3N2FkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQ2MDAxMDY3N2FkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-06-30_MzQ2MDAxMDY3N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQ2MDAxMDY3N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/GLGJz4S-PIgfnkbaqdmz9da5hCnHJ9FyFtzZTKMAM3s/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 549168,
+        "sha256": "e75e179833cd61f7ad7150f460c149aa0b1f56eb8812e6d65a0375430bb14124",
+        "retrieved_at": "2026-10-28T15:55:31+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2024-06-30_MzQ2MDAxMDY3N2FkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQ2MDAxMDY3N2FkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/GLGJz4S-PIgfnkbaqdmz9da5hCnHJ9FyFtzZTKMAM3s/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 259426,
+        "sha256": "9a667ddbd702bdef258fee073b65dd0ecdfd3b9138bba7fb22e9871eed58f0a0",
+        "retrieved_at": "2026-10-28T15:55:33+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00048409",
+    "filed_date": "2024-03-27",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2023",
+    "made_up_to": "2023-06-30",
+    "transaction_id": "MzQxNjI5NjQ2NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQxNjI5NjQ2NGFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQxNjI5NjQ2NGFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-30_MzQxNjI5NjQ2NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQxNjI5NjQ2NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/LclKCDqggP7j0WF2jn-jAKZx8SlWeV0UCAsUvLZl76w/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 528716,
+        "sha256": "55d9ab6ce693fbf9b8d2ad4d530a7596bcbabbcf992661db48bc6066d8a88247",
+        "retrieved_at": "2026-10-28T15:55:35+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2023-06-30_MzQxNjI5NjQ2NGFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzQxNjI5NjQ2NGFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/LclKCDqggP7j0WF2jn-jAKZx8SlWeV0UCAsUvLZl76w/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 252308,
+        "sha256": "ab519d86cefbb35982e6b682911f321ed4523e3b2aecca015f640709a4927b15",
+        "retrieved_at": "2026-10-28T15:55:37+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00048409",
+    "filed_date": "2023-03-10",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2022",
+    "made_up_to": "2022-06-30",
+    "transaction_id": "MzM3MjIyNDU4OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzM3MjIyNDU4OGFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzM3MjIyNDU4OGFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-06-30_MzM3MjIyNDU4OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzM3MjIyNDU4OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/aoCQJFASyNl-5KYmDdRromNX98aYXQ-P04be0Djl7c8/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 534478,
+        "sha256": "e5ecf463ce4adeffdea34c299df54d791e95ea4d24cd66cad9bd03f5ea9711b1",
+        "retrieved_at": "2026-10-28T15:55:39+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2022-06-30_MzM3MjIyNDU4OGFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzM3MjIyNDU4OGFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/aoCQJFASyNl-5KYmDdRromNX98aYXQ-P04be0Djl7c8/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 263715,
+        "sha256": "82139efc9dfcf7b7fe7ca616690a20ebfc3d7dbe8c1cfcca1064407761d5ce3d",
+        "retrieved_at": "2026-10-28T15:55:40+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00048409",
+    "filed_date": "2022-02-28",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2021",
+    "made_up_to": "2021-06-30",
+    "transaction_id": "MzMzMTMyNTc5OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMzMTMyNTc5OWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMzMTMyNTc5OWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-06-30_MzMzMTMyNTc5OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMzMTMyNTc5OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/GyTXrWznzMzby8g5XznREKxPXNPZILQy2Xp-BsY9QiA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 571653,
+        "sha256": "868db79af9de9a94ca32e7d8d44321f4d50b6fc1d9329aaf151e71ceabae22ba",
+        "retrieved_at": "2026-10-28T15:55:43+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2021-06-30_MzMzMTMyNTc5OWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMzMTMyNTc5OWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/GyTXrWznzMzby8g5XznREKxPXNPZILQy2Xp-BsY9QiA/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 278007,
+        "sha256": "bdf498d2b370c5b8e3cb3cd8aabbdd13254d8f1a84661fc6ab5b9a547f75e379",
+        "retrieved_at": "2026-10-28T15:55:45+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00048409",
+    "filed_date": "2021-05-28",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2020",
+    "made_up_to": "2020-06-30",
+    "transaction_id": "MzMwMjY0OTQ0NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMwMjY0OTQ0NWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMwMjY0OTQ0NWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-06-30_MzMwMjY0OTQ0NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMwMjY0OTQ0NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/tGhh0JdxTcYjyuCIFjV-nVoL_qbN5SvGrfajKUTMsRw/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 523283,
+        "sha256": "435d196d85367f6202c245edf4dcfe4aa1f877ce118797a41027c8321a9f3428",
+        "retrieved_at": "2026-10-28T15:55:48+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2020-06-30_MzMwMjY0OTQ0NWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00048409/filing-history/MzMwMjY0OTQ0NWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/tGhh0JdxTcYjyuCIFjV-nVoL_qbN5SvGrfajKUTMsRw/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 265411,
+        "sha256": "06a6120294f72af9b79f014e74aa7be3b9b17d2c89571f52981a77dd339f1349",
+        "retrieved_at": "2026-10-28T15:55:49+00:00"
+      }
+    ]
+  }
+]

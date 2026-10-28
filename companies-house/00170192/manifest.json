@@ -1,0 +1,196 @@
+[
+  {
+    "company_number": "00170192",
+    "filed_date": "2026-08-12",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2026",
+    "made_up_to": "2026-05-31",
+    "transaction_id": "MzUzODI5ODQ1MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzUzODI5ODQ1MGFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzUzODI5ODQ1MGFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2026-05-31_MzUzODI5ODQ1MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzUzODI5ODQ1MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/urW2HGfXJJf0e3UWCCGThQ-DMIuHPb6_Xx4s1Gxs3Ag/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 88349,
+        "sha256": "0a291460b267b01855e96b3e8dbc7089f972351d9d08d121cc9bbc05982e458c",
+        "retrieved_at": "2026-10-28T15:56:29+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2026-05-31_MzUzODI5ODQ1MGFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzUzODI5ODQ1MGFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/urW2HGfXJJf0e3UWCCGThQ-DMIuHPb6_Xx4s1Gxs3Ag/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 163122,
+        "sha256": "0b00f77d7a23d02cdddf7efbe9b216b83ce28bec2b5f141f57de492692fa4500",
+        "retrieved_at": "2026-10-28T15:56:31+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00170192",
+    "filed_date": "2025-09-25",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2025",
+    "made_up_to": "2025-05-31",
+    "transaction_id": "MzQ4MjY2ODQwOWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQ4MjY2ODQwOWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQ4MjY2ODQwOWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-05-31_MzQ4MjY2ODQwOWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQ4MjY2ODQwOWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/9VyRuGOU-rds6m57D_I5940VN7hUn5zerXLcyRiAw7A/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89653,
+        "sha256": "52bfe68211737caba70392752d8779356104ebd8fa02f763809b68671cbbeeb8",
+        "retrieved_at": "2026-10-28T15:56:33+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2025-05-31_MzQ4MjY2ODQwOWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQ4MjY2ODQwOWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/9VyRuGOU-rds6m57D_I5940VN7hUn5zerXLcyRiAw7A/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 168033,
+        "sha256": "5c756df99827c7706c3e34d1ec6447263262055000f4f05403453317ffb7a16a",
+        "retrieved_at": "2026-10-28T15:56:34+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00170192",
+    "filed_date": "2024-09-11",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2024",
+    "made_up_to": "2024-05-31",
+    "transaction_id": "MzQzNTMwOTQyM2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQzNTMwOTQyM2FkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQzNTMwOTQyM2FkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-05-31_MzQzNTMwOTQyM2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQzNTMwOTQyM2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/iQt37GKUSLjLcZp2s1_1s3oR5MQG76eZEgKFVVyPqng/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 89727,
+        "sha256": "e7a17ca557f779a7a7d2f283ef78526f0a856887d85201b3946cc5c0355d9fa0",
+        "retrieved_at": "2026-10-28T15:56:36+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2024-05-31_MzQzNTMwOTQyM2FkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzQzNTMwOTQyM2FkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/iQt37GKUSLjLcZp2s1_1s3oR5MQG76eZEgKFVVyPqng/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 168429,
+        "sha256": "d506c05f6c079586d3277d2db1cc8449babda933bd67ad70e927b481d95e554f",
+        "retrieved_at": "2026-10-28T15:56:38+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00170192",
+    "filed_date": "2023-11-09",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2023",
+    "made_up_to": "2023-05-31",
+    "transaction_id": "MzM5OTM4NDQ4OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzM5OTM4NDQ4OGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-05-31_MzM5OTM4NDQ4OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzM5OTM4NDQ4OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/qcWe4tG38kENaAGcWAv2nyH6IDSMaB9_el-yfcjDdyA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 148833,
+        "sha256": "f7f965a8a6333fa4f13e14a75b5eef542ec42d9610ac0265c0298bc72ccf6225",
+        "retrieved_at": "2026-10-28T15:56:40+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00170192",
+    "filed_date": "2022-09-14",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2022",
+    "made_up_to": "2022-05-31",
+    "transaction_id": "MzM1MTgzODE5NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzM1MTgzODE5NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-05-31_MzM1MTgzODE5NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzM1MTgzODE5NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/GchVSOw38GrGnHo0yLaEdLOpijhFga3j6jgLH1X8akg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 146699,
+        "sha256": "596471250bfd2a6d1c1455f40858c61b95fdc55830c13e68c22e05ba2eee98c2",
+        "retrieved_at": "2026-10-28T15:56:42+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00170192",
+    "filed_date": "2021-09-04",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2021",
+    "made_up_to": "2021-05-31",
+    "transaction_id": "MzMxMTk5MzcwMWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzMxMTk5MzcwMWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-05-31_MzMxMTk5MzcwMWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzMxMTk5MzcwMWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/w6weeie6c5Pqp-Nx1kIQXp1rWfnfOUMwC4aK_LXSDYY/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 176669,
+        "sha256": "debb4db7a64ba5ef3ff8a6a0f32a42927ca7a328d9180fc0d73ba24694557d23",
+        "retrieved_at": "2026-10-28T15:56:44+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00170192",
+    "filed_date": "2020-09-22",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 31 May 2020",
+    "made_up_to": "2020-05-31",
+    "transaction_id": "MzI3ODE1MTU4NGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzI3ODE1MTU4NGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-05-31_MzI3ODE1MTU4NGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00170192/filing-history/MzI3ODE1MTU4NGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/hIJaf6-V4DDGjTHvxPX-Bw68iGPqOVCxKheUW_YD24w/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 128535,
+        "sha256": "082c56cbc066cc8f12c41ed8aa1b69c160ba18c7dca8cd3af9a7e09531336b74",
+        "retrieved_at": "2026-10-28T15:56:45+00:00"
+      }
+    ]
+  }
+]
