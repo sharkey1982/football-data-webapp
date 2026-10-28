@@ -147,11 +147,16 @@ export function groupMoves(moves: FinanceMove[]): MoveGroup[] {
     (a.direction === b.direction ? 0 : a.direction === 'relegated' ? -1 : 1));
 }
 
+/** "the Premier League", "the Championship", but "League One" (no article). */
+export function leagueWithArticle(name: string): string {
+  return /^League (One|Two)$/.test(name) ? name : `the ${name}`;
+}
+
 /** One sentence for a group, written only from what the data supports. */
 export function groupTakeaway(g: MoveGroup): string | null {
   if (g.medianRevenueChange == null) return null;
   const pct = Math.round(Math.abs(g.medianRevenueChange) * 100);
   const dir = g.medianRevenueChange >= 0 ? 'rose' : 'fell';
-  const verb = g.direction === 'relegated' ? `dropping from the ${g.from.league_name} to the ${g.to.league_name}` : `going up from the ${g.from.league_name} to the ${g.to.league_name}`;
+  const verb = g.direction === 'relegated' ? `dropping from ${leagueWithArticle(g.from.league_name)} to ${leagueWithArticle(g.to.league_name)}` : `going up from ${leagueWithArticle(g.from.league_name)} to ${leagueWithArticle(g.to.league_name)}`;
   return `After ${verb}, revenue ${dir} by a median ${pct}% (${g.comparableCount} comparable move${g.comparableCount === 1 ? '' : 's'}).`;
 }

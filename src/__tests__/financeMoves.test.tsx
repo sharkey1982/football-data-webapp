@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FinanceMovesPage from '../pages/FinanceMovesPage';
-import { allMoves, clubMoves, groupMoves, groupTakeaway, median } from '../lib/financeMoves';
+import { allMoves, clubMoves, groupMoves, groupTakeaway, leagueWithArticle, median } from '../lib/financeMoves';
 import type { ClubFinanceData, FinanceDivision, FinancePeriod } from '../lib/financeApi';
 
 afterEach(cleanup);
@@ -78,6 +78,11 @@ describe('finance moves', () => {
     // One relegation: too few for a median, and no sentence.
     expect(groups[0].medianRevenueChange).toBeNull();
     expect(groupTakeaway(groups[0])).toBeNull();
+  });
+
+  it('writes league names the way they are said', () => {
+    expect(leagueWithArticle('League One')).toBe('League One');
+    expect(leagueWithArticle('Championship')).toBe('the Championship');
   });
 
   it('median handles odd, even and empty lists', () => {
