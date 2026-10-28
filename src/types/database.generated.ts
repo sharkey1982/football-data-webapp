@@ -12023,6 +12023,19 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_club_divisions: {
+        Row: {
+          country: string | null
+          country_order: number | null
+          division_order: number | null
+          league_code: string | null
+          league_id: number | null
+          league_name: string | null
+          league_slug: string | null
+          team_id: number | null
+        }
+        Relationships: []
+      }
       finance_derived_metrics: {
         Row: {
           calculation_version: number | null

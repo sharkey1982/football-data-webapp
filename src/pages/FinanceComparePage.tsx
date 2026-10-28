@@ -19,6 +19,8 @@ import {
   buildComparison, otherCurrencyClubs, financialYears, forYear, growthTakeaway, money, smallClubIds, wageRatio, wageTakeaway,
   type ComparisonClub,
 } from '../lib/financeCompare';
+import { divisionOptions, inDivision } from '../lib/financeApi';
+import DivisionFilter, { useDivisionParam } from '../components/finance/DivisionFilter';
 
 const nd = <span className="text-ink-500">n/d</span>;
 const m = (v: number | null) => (v == null ? nd : formatMoneyShort(v));
@@ -69,10 +71,15 @@ export default function FinanceComparePage({ initialData, otherCurrency: initial
     path: '/finance/compare',
   });
 
-  const small = useMemo(() => smallClubIds(all ?? []), [all]);
+  const options = useMemo(() => divisionOptions((all ?? []).map((c) => c.team)), [all]);
+  const [division, setDivision] = useDivisionParam(options);
+  const inDiv = useMemo(() => (all ?? []).filter((c) => inDivision(c.team, division)), [all, division]);
+  // "Smaller clubs" is judged within the chosen division, so a Championship
+  // view is not emptied by Premier League revenue.
+  const small = useMemo(() => smallClubIds(inDiv), [inDiv]);
   // base: every club in view (smaller clubs on request); clubs: each one's
   // period for the chosen year -- every chart, takeaway and the table follow it.
-  const base = useMemo(() => (all ?? []).filter((c) => includeSmall || !small.has(c.team.team_id)), [all, includeSmall, small]);
+  const base = useMemo(() => inDiv.filter((c) => includeSmall || !small.has(c.team.team_id)), [inDiv, includeSmall, small]);
   const { view: clubs, missing } = useMemo(() => forYear(base, year), [base, year]);
 
   if (error) return <p className="text-ink-700">The accounts could not be loaded just now. Please try again shortly.</p>;
@@ -104,6 +111,7 @@ export default function FinanceComparePage({ initialData, otherCurrency: initial
     <div className="space-y-5">
       <header className="space-y-2">
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">Compare Club Finances</h1>
+        <DivisionFilter options={options} value={division} onChange={setDivision} total={all.length} />
         <label className="flex items-center gap-2 text-sm text-ink-700">
           Year
           <select value={year} onChange={(e) => setYear(e.target.value)} className="border border-ink-500/30 rounded px-2 py-1 text-sm">
@@ -115,7 +123,7 @@ export default function FinanceComparePage({ initialData, otherCurrency: initial
         {small.size > 0 && (
           <label className="flex items-center gap-2 text-sm text-ink-700">
             <input type="checkbox" checked={includeSmall} onChange={(e) => setIncludeSmall(e.target.checked)} />
-            Include smaller clubs ({all.filter((c) => small.has(c.team.team_id)).map((c) => c.team.display_name).join(', ')})
+            Include smaller clubs ({inDiv.filter((c) => small.has(c.team.team_id)).map((c) => c.team.display_name).join(', ')})
           </label>
         )}
       </header>

@@ -10,12 +10,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
-import { getFinanceIndex, type FinanceIndexEntry } from '../lib/financeApi';
+import { divisionOptions, getFinanceIndex, inDivision, type FinanceIndexEntry } from '../lib/financeApi';
+import DivisionFilter, { useDivisionParam } from '../components/finance/DivisionFilter';
 import { formatMoneyShort, fyLabel, scaled, signedMoney } from '../lib/financeFormat';
 
 export default function FinanceIndexPage({ initialData }: { initialData?: FinanceIndexEntry[] } = {}) {
   const [entries, setEntries] = useState<FinanceIndexEntry[] | undefined>(initialData);
   const [error, setError] = useState(false);
+  const options = divisionOptions((entries ?? []).map((e) => e.team));
+  const [division, setDivision] = useDivisionParam(options);
+  const shown = (entries ?? []).filter((e) => inDivision(e.team, division));
 
   useEffect(() => {
     if (initialData) return;
@@ -49,9 +53,11 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
       {!error && entries === undefined && <p className="text-ink-500">Loading clubs&hellip;</p>}
       {!error && entries && entries.length === 0 && <p className="text-ink-700">No club accounts have been published yet.</p>}
 
+      {entries && entries.length > 0 && <DivisionFilter options={options} value={division} onChange={setDivision} total={entries.length} />}
+
       {entries && entries.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {entries.map(({ team, latest, periodCount }) => {
+          {shown.map(({ team, latest, periodCount }) => {
             const rev = scaled(latest.revenue_total, latest.unit_scale);
             const pbt = scaled(latest.profit_before_tax, latest.unit_scale);
             const pbtText = signedMoney('profit_before_tax', pbt, 'Profit or loss before tax', true, latest.currency);
@@ -61,6 +67,7 @@ export default function FinanceIndexPage({ initialData }: { initialData?: Financ
                   className="block rounded-lg border border-ink-500/20 bg-white/60 p-4 hover:border-amber-500 transition-colors">
                   <p className="font-display uppercase tracking-wide text-xl text-ink-900">{team.display_name}</p>
                   <p className="text-xs text-ink-500">{latest.reporting_entity}</p>
+                  {team.division && <p className="text-xs text-amber-700 mt-0.5" data-testid="club-division">{team.division.league_name}</p>}
                   <p className="text-sm text-ink-700 mt-2">
                     {fyLabel(latest.period_end)}: revenue {formatMoneyShort(rev, latest.currency)} &middot; {pbtText.label.toLowerCase()} {pbtText.amount}
                   </p>

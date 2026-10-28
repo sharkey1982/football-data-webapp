@@ -6,8 +6,9 @@
 // be tested directly:
 //
 //   ONE query per public finance view for EVERY club, plus one for the teams
-//   those rows reference -- five requests in total, however many clubs have
-//   data. Never one request per club.
+//   those rows reference -- six requests in total (periods, provenance,
+//   derived, dictionary, divisions, teams), however many clubs have data.
+//   Never one request per club.
 //
 // A finance page is generated for any team appearing in
 // finance_published_periods -- not only Premier League teams (Southend, the
@@ -20,11 +21,13 @@
  * @returns {Promise<null | {periods:any[],provenance:any[],derived:any[],dictionary:any[],teams:any[]}>}
  */
 export async function fetchFinanceBulk(queryAll) {
-  const [periods, provenance, derived, dictionary] = await Promise.all([
+  const [periods, provenance, derived, dictionary, divisions] = await Promise.all([
     queryAll('finance_published_periods?select=*&order=team_id.asc,period_end.asc'),
     queryAll('finance_published_provenance?select=*&order=team_id.asc,period_end.asc'),
     queryAll('finance_derived_metrics?select=*&order=team_id.asc,period_end.asc'),
     queryAll('finance_metric_dictionary?select=*&order=metric_key.asc'),
+    // Current division of each club, for the finance filters. Optional.
+    queryAll('finance_club_divisions?select=*&order=team_id.asc'),
   ]);
   // Periods are the one view that must load: without them there is nothing
   // to publish. The others degrade (a page without provenance still renders
@@ -32,7 +35,7 @@ export async function fetchFinanceBulk(queryAll) {
   if (!periods) return null;
   const ids = [...new Set(periods.map((r) => Number(r.team_id)))];
   const teams = ids.length ? await queryAll(`teams?select=team_id,slug,display_name&team_id=in.(${ids.join(',')})`) : [];
-  return { periods, provenance: provenance ?? [], derived: derived ?? [], dictionary: dictionary ?? [], teams: teams ?? [] };
+  return { periods, provenance: provenance ?? [], derived: derived ?? [], dictionary: dictionary ?? [], divisions: divisions ?? [], teams: teams ?? [] };
 }
 
 /**
@@ -45,9 +48,12 @@ export async function fetchFinanceBulk(queryAll) {
 export function buildFinanceSite(bulk, entry) {
   // The SSR entry exposes the finance module as the `finance` namespace.
   const fin = entry.finance ?? entry;
-  const teams = bulk.teams
-    .filter((t) => t && t.slug)
-    .map((t) => ({ team_id: Number(t.team_id), slug: t.slug, display_name: t.display_name }));
+  const teams = fin.attachDivisions(
+    bulk.teams
+      .filter((t) => t && t.slug)
+      .map((t) => ({ team_id: Number(t.team_id), slug: t.slug, display_name: t.display_name })),
+    bulk.divisions ?? []
+  );
   const grouped = fin.groupFinanceByTeam(
     teams,
     bulk.periods.map(fin.normalisePeriod),
