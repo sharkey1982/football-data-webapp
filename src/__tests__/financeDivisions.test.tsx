@@ -3,7 +3,10 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import FinanceIndexPage from '../pages/FinanceIndexPage';
-import { attachDivisions, buildFinanceIndex, divisionOptions, inDivision, type ClubFinanceData, type FinanceTeam } from '../lib/financeApi';
+import FinanceComparePage from '../pages/FinanceComparePage';
+import TeamFinancePage from '../pages/football/TeamFinancePage';
+import { buildComparison } from '../lib/financeCompare';
+import { attachDivisions, attachPeriodDivisions, buildFinanceIndex, divisionOptions, divisionShort, inDivision, type ClubFinanceData, type FinanceTeam } from '../lib/financeApi';
 import { southendData } from './fixtures/southendFinance';
 
 afterEach(cleanup);
@@ -85,5 +88,54 @@ describe('finance index division filter', () => {
     cleanup();
     renderIndex('/finance?division=nonsense');
     expect(screen.getAllByTestId('club-division')).toHaveLength(3);
+  });
+});
+
+const pdiv = (team_id: number, period_end: string, code: string, name: string, slug: string, order: number) =>
+  ({ team_id, period_end, league_code: code, league_name: name, league_slug: slug, country: 'England', country_order: 0, division_order: order });
+
+/** Club 1 is in the Premier League now but was in the Championship in the
+ *  season of its 2025 accounts; club 2 the reverse. */
+function seasonClubs(): ClubFinanceData[] {
+  return clubs().slice(0, 2).map((d) => {
+    const id = d.team.team_id;
+    const rows = d.periods.map((p) => id === 1
+      ? pdiv(id, p.period_end, 'E1', 'Championship', 'championship', 2)
+      : pdiv(id, p.period_end, 'E0', 'Premier League', 'premier-league', 1));
+    return { ...d, periods: attachPeriodDivisions(d.periods, rows) };
+  });
+}
+
+describe('division in the season the accounts cover', () => {
+  it('gives short labels for the English pyramid and names elsewhere', () => {
+    expect(divisionShort({ league_code: 'E1', league_name: 'Championship', league_slug: 'championship', country: 'England', country_order: 0, division_order: 2 })).toBe('Champ');
+    expect(divisionShort({ league_code: 'SP1', league_name: 'La Liga', league_slug: 'la-liga', country: 'Spain', country_order: 1, division_order: 1 })).toBe('La Liga');
+    expect(divisionShort(null)).toBe('');
+  });
+
+  it('labels every year on the team page with that season\u2019s division', () => {
+    const [d] = seasonClubs();
+    render(
+      <MemoryRouter initialEntries={['/football/teams/club-1/finances']}>
+        <Routes><Route path="/football/teams/:slug/finances" element={<TeamFinancePage initialData={d} />} /></Routes>
+      </MemoryRouter>
+    );
+    const labels = screen.getAllByTestId('period-division').map((e) => e.textContent);
+    expect(labels.length).toBe(d.periods.length);
+    expect(new Set(labels)).toEqual(new Set(['Champ']));
+    expect(screen.getByText(/in the Championship\)/)).toBeInTheDocument();
+  });
+
+  it('filters the compare page by the division that season, not today\u2019s', () => {
+    render(
+      <MemoryRouter initialEntries={['/finance/compare?division=championship']}>
+        <Routes><Route path="/finance/compare" element={<FinanceComparePage initialData={buildComparison(seasonClubs())} />} /></Routes>
+      </MemoryRouter>
+    );
+    // Club 1 is Premier League today but its accounts are a Championship season.
+    expect(screen.getByRole('button', { name: 'Championship (1)' })).toHaveAttribute('aria-pressed', 'true');
+    const names = screen.getAllByRole('row').map((r) => r.textContent ?? '').filter((t) => /Club \d/.test(t));
+    expect(names.some((t) => t.includes('Club 1'))).toBe(true);
+    expect(names.some((t) => t.includes('Club 2'))).toBe(false);
   });
 });

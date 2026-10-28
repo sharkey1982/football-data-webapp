@@ -72,16 +72,25 @@ export default function FinanceComparePage({ initialData, otherCurrency: initial
     path: '/finance/compare',
   });
 
-  const options = useMemo(() => divisionOptions((all ?? []).map((c) => c.team)), [all]);
+  // Each club's period for the chosen year ("latest" = its most recent).
+  const { view: yearView, missing } = useMemo(() => forYear(all ?? [], year), [all, year]);
+  // The division filter uses the division each club played in during the
+  // season those accounts cover -- not today's division, which is wrong for
+  // most past years (promotion and relegation).
+  const asOfSeason = (c: ComparisonClub) => ({ ...c.team, division: c.latest.division ?? null });
+  const options = useMemo(() => divisionOptions(yearView.map(asOfSeason)), [yearView]);
   const [division, setDivision] = useDivisionParam(options);
-  const inDiv = useMemo(() => (all ?? []).filter((c) => inDivision(c.team, division)), [all, division]);
+  const inDiv = useMemo(() => yearView.filter((c) => inDivision(asOfSeason(c), division)), [yearView, division]);
   // "Smaller clubs" is judged within the chosen division, so a Championship
   // view is not emptied by Premier League revenue.
   const small = useMemo(() => smallClubIds(inDiv), [inDiv]);
-  // base: every club in view (smaller clubs on request); clubs: each one's
-  // period for the chosen year -- every chart, takeaway and the table follow it.
-  const base = useMemo(() => inDiv.filter((c) => includeSmall || !small.has(c.team.team_id)), [inDiv, includeSmall, small]);
-  const { view: clubs, missing } = useMemo(() => forYear(base, year), [base, year]);
+  // clubs: the periods in view -- every chart, takeaway and the table follow
+  // it; base: the same clubs across all their years, for the timelapse.
+  const clubs = useMemo(() => inDiv.filter((c) => includeSmall || !small.has(c.team.team_id)), [inDiv, includeSmall, small]);
+  const base = useMemo(() => {
+    const ids = new Set(clubs.map((c) => c.team.team_id));
+    return (all ?? []).filter((c) => ids.has(c.team.team_id));
+  }, [all, clubs]);
 
   if (error) return <p className="text-ink-700">The accounts could not be loaded just now. Please try again shortly.</p>;
   if (!all) return <p className="text-ink-500">Loading accounts&hellip;</p>;
@@ -112,7 +121,8 @@ export default function FinanceComparePage({ initialData, otherCurrency: initial
     <div className="space-y-5">
       <header className="space-y-2">
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">Compare Club Finances</h1>
-        <DivisionFilter options={options} value={division} onChange={setDivision} total={all.length} />
+        <DivisionFilter options={options} value={division} onChange={setDivision} total={yearView.length} />
+        {options.length > 1 && <p className="text-xs text-ink-500">Division in the season the accounts cover.</p>}
         <label className="flex items-center gap-2 text-sm text-ink-700">
           Year
           <select value={year} onChange={(e) => setYear(e.target.value)} className="border border-ink-500/30 rounded px-2 py-1 text-sm">

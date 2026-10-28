@@ -12083,6 +12083,20 @@ export type Database = {
           },
         ]
       }
+      finance_period_divisions: {
+        Row: {
+          country: string | null
+          country_order: number | null
+          division_order: number | null
+          league_code: string | null
+          league_name: string | null
+          league_slug: string | null
+          period_end: string | null
+          season_id: number | null
+          team_id: number | null
+        }
+        Relationships: []
+      }
       finance_published_periods: {
         Row: {
           average_employees: number | null

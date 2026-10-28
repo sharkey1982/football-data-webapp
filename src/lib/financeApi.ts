@@ -52,6 +52,8 @@ export type FinancePeriod = {
   filing_date: string | null;
   source_url: string | null;
   validation_status: string | null;
+  /** Division the club played in during the season this period covers. */
+  division?: FinanceDivision | null;
 } & Record<FinanceMetricKey, number | null>;
 
 export type FinanceProvenance = {
@@ -223,6 +225,29 @@ export function attachDivisions<T extends FinanceTeam>(teams: T[], rows: Record<
   });
 }
 
+/** Periods with the division of the season each covers (from
+ *  finance_period_divisions); unknown stays undefined. */
+export function attachPeriodDivisions<T extends FinancePeriod>(periods: T[], rows: Record<string, unknown>[]): T[] {
+  const key = (team: unknown, end: unknown) => `${Number(team)}|${String(end).slice(0, 10)}`;
+  const byKey = new Map(rows.map((r) => {
+    const { team_id: _omit, ...division } = normaliseDivision(r);
+    void _omit;
+    return [key(r.team_id, r.period_end), division] as const;
+  }));
+  return periods.map((p) => {
+    const d = byKey.get(key(p.team_id, p.period_end));
+    return d ? { ...p, division: d } : p;
+  });
+}
+
+/** Short division label for narrow columns: PL, Champ, L1, L2, NL; others
+ *  by name (La Liga). */
+const SHORT: Record<string, string> = { E0: 'PL', E1: 'Champ', E2: 'L1', E3: 'L2', EC: 'NL' };
+export function divisionShort(d: FinanceDivision | null | undefined): string {
+  if (!d) return '';
+  return SHORT[d.league_code] ?? d.league_name;
+}
+
 export type DivisionOption = { slug: string; name: string; count: number };
 
 /** Filter choices: every division present, England's pyramid first, then
@@ -269,6 +294,19 @@ export function buildFinanceIndex(data: Iterable<ClubFinanceData>): FinanceIndex
 
 // ---- runtime fetchers (the browser, for pages not pre-rendered) -----------
 
+/** Division in each period's season. Degrades to none on failure, so a
+ *  page renders without the labels rather than not at all. */
+async function getPeriodDivisionRows(teamId?: number): Promise<Record<string, unknown>[]> {
+  try {
+    let q = supabase.from('finance_period_divisions').select('*');
+    if (teamId != null) q = q.eq('team_id', teamId);
+    const { data, error } = await q;
+    return error ? [] : ((data ?? []) as Record<string, unknown>[]);
+  } catch {
+    return [];
+  }
+}
+
 /** Current divisions. A failure (or the view not existing yet) degrades to
  *  no divisions -- the pages still render, just without the filter. */
 async function getDivisionRows(teamIds?: number[]): Promise<Record<string, unknown>[]> {
@@ -303,18 +341,19 @@ export async function getClubFinanceBySlug(slug: string): Promise<ClubFinanceDat
   if (tErr) throw tErr;
   if (!team) return null;
   const [t] = attachDivisions([team as FinanceTeam], await getDivisionRows([(team as FinanceTeam).team_id]));
-  const [pRes, provRes, dRes, dict] = await Promise.all([
+  const [pRes, provRes, dRes, dict, pdivs] = await Promise.all([
     supabase.from('finance_published_periods').select('*').eq('team_id', t.team_id),
     supabase.from('finance_published_provenance').select('*').eq('team_id', t.team_id),
     supabase.from('finance_derived_metrics').select('*').eq('team_id', t.team_id),
     getFinanceDictionary(),
+    getPeriodDivisionRows(t.team_id),
   ]);
   if (pRes.error) throw pRes.error;
   if (provRes.error) throw provRes.error;
   if (dRes.error) throw dRes.error;
   const grouped = groupFinanceByTeam(
     [t],
-    (pRes.data ?? []).map((r) => normalisePeriod(r as Record<string, unknown>)),
+    attachPeriodDivisions((pRes.data ?? []).map((r) => normalisePeriod(r as Record<string, unknown>)), pdivs),
     (provRes.data ?? []).map((r) => normaliseProvenance(r as Record<string, unknown>)),
     (dRes.data ?? []).map((r) => normaliseDerived(r as Record<string, unknown>)),
     dict
@@ -347,10 +386,11 @@ export async function getAllClubFinance(): Promise<ClubFinanceData[]> {
   const periods = (rows ?? []).map((r) => normalisePeriod(r as Record<string, unknown>));
   const ids = [...new Set(periods.map((p) => p.team_id))];
   if (!ids.length) return [];
-  const [{ data: teams, error: tErr }, divs] = await Promise.all([
+  const [{ data: teams, error: tErr }, divs, pdivs] = await Promise.all([
     supabase.from('teams').select('team_id, slug, display_name').in('team_id', ids),
     getDivisionRows(),
+    getPeriodDivisionRows(),
   ]);
   if (tErr) throw tErr;
-  return [...groupFinanceByTeam(attachDivisions((teams ?? []) as FinanceTeam[], divs), periods, [], [], []).values()];
+  return [...groupFinanceByTeam(attachDivisions((teams ?? []) as FinanceTeam[], divs), attachPeriodDivisions(periods, pdivs), [], [], []).values()];
 }

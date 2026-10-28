@@ -6,8 +6,9 @@
 // be tested directly:
 //
 //   ONE query per public finance view for EVERY club, plus one for the teams
-//   those rows reference -- six requests in total (periods, provenance,
-//   derived, dictionary, divisions, teams), however many clubs have data.
+//   those rows reference -- seven requests in total (periods, provenance,
+//   derived, dictionary, current divisions, season divisions, teams),
+//   however many clubs have data.
 //   Never one request per club.
 //
 // A finance page is generated for any team appearing in
@@ -21,13 +22,15 @@
  * @returns {Promise<null | {periods:any[],provenance:any[],derived:any[],dictionary:any[],teams:any[]}>}
  */
 export async function fetchFinanceBulk(queryAll) {
-  const [periods, provenance, derived, dictionary, divisions] = await Promise.all([
+  const [periods, provenance, derived, dictionary, divisions, periodDivisions] = await Promise.all([
     queryAll('finance_published_periods?select=*&order=team_id.asc,period_end.asc'),
     queryAll('finance_published_provenance?select=*&order=team_id.asc,period_end.asc'),
     queryAll('finance_derived_metrics?select=*&order=team_id.asc,period_end.asc'),
     queryAll('finance_metric_dictionary?select=*&order=metric_key.asc'),
     // Current division of each club, for the finance filters. Optional.
     queryAll('finance_club_divisions?select=*&order=team_id.asc'),
+    // Division in the season each period covers. Optional.
+    queryAll('finance_period_divisions?select=*&order=team_id.asc,period_end.asc'),
   ]);
   // Periods are the one view that must load: without them there is nothing
   // to publish. The others degrade (a page without provenance still renders
@@ -35,7 +38,7 @@ export async function fetchFinanceBulk(queryAll) {
   if (!periods) return null;
   const ids = [...new Set(periods.map((r) => Number(r.team_id)))];
   const teams = ids.length ? await queryAll(`teams?select=team_id,slug,display_name&team_id=in.(${ids.join(',')})`) : [];
-  return { periods, provenance: provenance ?? [], derived: derived ?? [], dictionary: dictionary ?? [], divisions: divisions ?? [], teams: teams ?? [] };
+  return { periods, provenance: provenance ?? [], derived: derived ?? [], dictionary: dictionary ?? [], divisions: divisions ?? [], periodDivisions: periodDivisions ?? [], teams: teams ?? [] };
 }
 
 /**
@@ -56,7 +59,7 @@ export function buildFinanceSite(bulk, entry) {
   );
   const grouped = fin.groupFinanceByTeam(
     teams,
-    bulk.periods.map(fin.normalisePeriod),
+    fin.attachPeriodDivisions(bulk.periods.map(fin.normalisePeriod), bulk.periodDivisions ?? []),
     bulk.provenance.map(fin.normaliseProvenance),
     bulk.derived.map(fin.normaliseDerived),
     bulk.dictionary

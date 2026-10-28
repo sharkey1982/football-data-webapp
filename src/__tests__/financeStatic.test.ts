@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 // @ts-expect-error -- plain .mjs build script, no type declarations
 import { fetchFinanceBulk, buildFinanceSite } from '../../scripts/lib/financeStatic.mjs';
 import {
-  attachDivisions, buildFinanceIndex, groupFinanceByTeam, latestFilingDate, normaliseDerived, normalisePeriod, normaliseProvenance,
+  attachDivisions, attachPeriodDivisions, buildFinanceIndex, groupFinanceByTeam, latestFilingDate, normaliseDerived, normalisePeriod, normaliseProvenance,
 } from '../lib/financeApi';
 import { renderTeamFinancePage, renderFinanceIndexPage } from '../entry-server';
 import { southendData, southendPeriodRows, southendProvenanceRows, southendDerivedRows, dictionary } from './fixtures/southendFinance';
 
 // The same functions the build scripts import from the SSR bundle.
-const entry = { attachDivisions, buildFinanceIndex, groupFinanceByTeam, latestFilingDate, normaliseDerived, normalisePeriod, normaliseProvenance };
+const entry = { attachDivisions, attachPeriodDivisions, buildFinanceIndex, groupFinanceByTeam, latestFilingDate, normaliseDerived, normalisePeriod, normaliseProvenance };
 
 function fakeDb(clubCount: number) {
   const periods: Record<string, unknown>[] = [];
@@ -26,6 +26,7 @@ function fakeDb(clubCount: number) {
     if (path.startsWith('finance_derived_metrics')) return southendDerivedRows.map((r) => ({ ...r, team_id: 1000 }));
     if (path.startsWith('finance_metric_dictionary')) return dictionary;
     if (path.startsWith('finance_club_divisions')) return [{ team_id: 1000, league_code: 'E1', league_name: 'Championship', league_slug: 'championship', country: 'England', country_order: 0, division_order: 2 }];
+    if (path.startsWith('finance_period_divisions')) return [{ team_id: 1000, period_end: '2025-07-31', league_code: 'EC', league_name: 'National League', league_slug: 'national-league', country: 'England', country_order: 0, division_order: 5 }];
     if (path.startsWith('teams')) return teams;
     return null;
   };
@@ -33,12 +34,12 @@ function fakeDb(clubCount: number) {
 }
 
 describe('static generation fetches in bulk', () => {
-  it('makes six requests in total, whether there is one club or fifty', async () => {
+  it('makes seven requests in total, whether there is one club or fifty', async () => {
     for (const n of [1, 50]) {
       const db = fakeDb(n);
       const bulk = await fetchFinanceBulk(db.queryAll);
       const site = buildFinanceSite(bulk, entry);
-      expect(db.calls).toHaveLength(6);
+      expect(db.calls).toHaveLength(7);
       expect(site.clubs).toHaveLength(n);
     }
   });
@@ -49,6 +50,14 @@ describe('static generation fetches in bulk', () => {
     const byId = new Map(site.clubs.map((c: { team: { team_id: number; division?: { league_name: string } } }) => [c.team.team_id, c.team]));
     expect(byId.get(1000)?.division?.league_name).toBe('Championship');
     expect(byId.get(1001)?.division).toBeUndefined();
+  });
+
+  it('attaches the division of the season each period covers', async () => {
+    const db = fakeDb(1);
+    const site = buildFinanceSite(await fetchFinanceBulk(db.queryAll), entry);
+    const p = site.clubs[0].periods.find((x: { period_end: string }) => x.period_end === '2025-07-31');
+    expect(p.division?.league_name).toBe('National League');
+    expect(site.clubs[0].periods.find((x: { period_end: string }) => x.period_end === '2024-07-31').division).toBeUndefined();
   });
 
   it('fetches the teams for exactly the team_ids that have published periods', async () => {
