@@ -230,3 +230,20 @@ filed (administration). Leicester's average employees were caught scaled by
 | Huddersfield (29, 01771361) | 98 | group from FY2021 | FY2020-23 (scope switch; restated each following year) | FY2021-25 borrowings null (part of other loans without stated interest status). |
 | Reading (42, 00053703) | 97 | company; group FY2025 | FY2024 (restated), FY2025 (scope switch; disposal profit moved inside operating result) | Borrowings null every year (group/related loans without stated terms). Going-concern uncertainty FY2020-24. |
 | Plymouth (76, 07796376) | 97 | company; group FY2025 | FY2025 (scope switch) | FY2020-24 borrowings null (pension-deficit loan interest status not stated); FY2025 director loan at 2%. |
+
+## Batch audit: League One batch 2 (2026-10-28)
+
+Load `20261028170000_...` then guarded publish `20261028170500_...`
+(35 periods / 441 values / 6 latest). Blackpool, Doncaster and most later
+years elsewhere were read from exact iXBRL text; scanned years from
+page-image-verified PDFs. Every period reconciles exactly. Smaller clubs file
+small-company accounts, so many figures are not disclosed rather than missing.
+
+| Club (team, company) | Values | Scope | Non-comparable | Notes |
+|---|---|---|---|---|
+| Blackpool (38, 00048409) | 97 | company | FY2020-21 (turnover regrouped later) | Nil borrowings (parent loans stated interest-free; no bank debt). "Football" income -> other from FY2022. |
+| Bradford (47, 05102915) | 46 | company (unaudited, small) | none | FY2020 filleted (no P&L). No turnover split, staff costs or headcount in any year. Borrowings not disclosed (loans line without interest terms). |
+| Barnsley (45, 04573250) | 101 | company | FY2020-21 (COVID split, 31 May year end), FY2024 (13 months; restated) | Borrowings not disclosed (loans inside other creditors). |
+| Peterborough (62, 00290803) | 84 | company | none | Turnover split only retail vs "football and commercial" (-> other). Borrowings not disclosed (loans without interest status). |
+| Wigan (41, 13161421) | 81 | company | FY2021 (5 months, ~3 trading), FY2023 (GBP4.13m owner-loan write-back) | Company formed 2021 (Phoenix 2021 Ltd) after administration: no FY2020. Owner loans without terms -> borrowings not disclosed. |
+| Doncaster (68, 03739676) | 32 | company (filleted) | FY2022 (restated) | Doncaster Rovers Limited, not the shell 00170192. No income statement in any year: balance sheet, headcount and some amortisation only. |
