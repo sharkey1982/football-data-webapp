@@ -24,6 +24,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import FinanceBarChart, { type ChartPoint } from '../../components/finance/FinanceBarChart';
 import {
+  divisionShort,
   getClubFinanceBySlug,
   latestPeriod,
   type ClubFinanceData,
@@ -169,7 +170,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
           <dt className="text-ink-500">Reporting entity</dt><dd>{latest.reporting_entity ?? NOT_DISCLOSED}</dd>
           {data.team.division && (<><dt className="text-ink-500">Division</dt><dd data-testid="finance-division"><Link to={`/finance?division=${data.team.division.league_slug}`} className="text-pitch-800 underline underline-offset-2">{data.team.division.league_name}</Link> (this season)</dd></>)}
           <dt className="text-ink-500">Latest period</dt>
-          <dd>{periodPhrase(latest.period_end, latest.period_months)} ({fyLabel(latest.period_end)} &middot; the {seasonLabel(latest.period_end)} season)</dd>
+          <dd>{periodPhrase(latest.period_end, latest.period_months)} ({fyLabel(latest.period_end)} &middot; the {seasonLabel(latest.period_end)} season{latest.division ? `, in the ${latest.division.league_name}` : ''})</dd>
           <dt className="text-ink-500">{registrationLabel(latest.source_url)}</dt><dd className="font-mono">{latest.company_number ?? NOT_DISCLOSED}</dd>
           <dt className="text-ink-500">Accounts</dt>
           <dd data-testid="finance-scope">
@@ -270,6 +271,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
                 {periods.map((p) => (
                   <th key={p.period_end} scope="col" className={`px-3 py-2 text-right font-mono text-xs font-normal whitespace-nowrap ${p.is_comparable ? 'text-ink-700' : 'text-amber-700'}`}>
                     {fyLabel(p.period_end)}{p.is_comparable ? '' : ' \u2020'}
+                    {p.division && <span className="block text-[10px] text-amber-700" data-testid="period-division" title={p.division.league_name}>{divisionShort(p.division)}</span>}
                     <span className="block text-[10px] text-ink-500" data-testid="period-basis">
                       {p.is_consolidated == null ? '' : p.is_consolidated ? 'group' : 'company'}
                       {p.period_months != null && Math.round(p.period_months) !== 12 ? ` \u00b7 ${Math.round(p.period_months)} months` : ''}
@@ -316,7 +318,7 @@ export default function TeamFinancePage({ initialData }: Props = {}) {
         <ul className="text-xs text-ink-500 space-y-0.5">
           <li><span className="font-mono">&mdash;</span> Not disclosed in that year&rsquo;s filing. A disclosed zero is shown as {currencySymbol(cur)}0.</li>
           {cur !== 'GBP' && <li>Figures are in {currencyName(cur)}, as filed, and are not converted to pounds.</li>}
-          <li>Under each year: <em>group</em> means consolidated accounts for the whole group, <em>company</em> the club company alone.</li>
+          <li>Under each year: the division the club played in that season{periods.some((p) => p.division) ? ` (${[...new Map(periods.filter((p) => p.division).map((p) => [divisionShort(p.division), p.division!.league_name])).entries()].map(([s, n]) => (s === n ? n : `${s} ${n}`)).join(', ')})` : ''}; then <em>group</em> for consolidated accounts of the whole group, or <em>company</em> for the club company alone.</li>
           <li>Negative figures, in red, are losses or net liabilities.{periods.some((p) => (p.player_impairment ?? 0) < 0) ? ' A negative player impairment is a reversal of earlier impairments, not a loss.' : ''}</li>
           {nonComparable.length > 0 && <li className="text-amber-700">{'\u2020'} Not directly comparable with the years either side.</li>}
           <li>Rows marked <span className="font-mono">FixtureShark-derived</span> are calculated by FixtureShark from the filed figures; everything else is as filed.</li>
