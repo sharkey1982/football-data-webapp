@@ -1260,3 +1260,20 @@ fixing something else.
   timeout or any failed check (status or check-run) exits without merging.
   *Lesson: "wait then act" scripts must make the action conditional on the
   wait's result, not on the wait finishing.*
+
+## 2026-10-28 · Intermittent "Unit tests" failures in PR checks (#478, #483)
+
+- **What happened:** the same test failed twice in CI and passed on re-run
+  and locally: `OptimalSquadPage` "Next 10 GWs preset requests a 10-week
+  range". Found via the check-run annotations (Vitest's GitHub reporter),
+  since job logs are not readable from work sessions.
+- **Cause:** a race in the test, not the page. The range filter applies a
+  preset only once the default and in-play gameweeks have both loaded; the
+  test clicked "Next 10 GWs" and then "Build" as soon as the buttons
+  rendered, so on a slow runner Build sent the initial 5-5 range. Mock call
+  history also accumulated across tests, which made the failure misleading
+  (and could let a broken assertion pass on an earlier test's call).
+- **Fix:** wait until "To GW" reads 14 before clicking Build; clear mock
+  calls before each test in the file.
+- **Prevention:** when a CI-only failure appears, read the annotations
+  (`gh api repos/.../check-runs/<job id>/annotations`) before re-running.
