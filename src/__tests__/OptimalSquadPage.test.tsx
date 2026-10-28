@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OptimalSquadPage from '../pages/fpl/OptimalSquadPage';
@@ -92,6 +92,10 @@ function buildResult(overrides: Partial<FplOptimizerResult> = {}): FplOptimizerR
 }
 
 describe('OptimalSquadPage', () => {
+  // Call history is per test: without this, calls from earlier tests pile
+  // up and a toHaveBeenCalledWith can pass on a previous test's call.
+  beforeEach(() => vi.clearAllMocks());
+
   it('shows exactly 15 squad players with the correct 2/5/5/3 position split, and a visually distinct bench', async () => {
     mockedSeasonApi.getDefaultMatchweek.mockResolvedValue(5);
     mockedOptimizerApi.optimizeFplSquad.mockResolvedValue(buildResult());
@@ -173,6 +177,11 @@ describe('OptimalSquadPage', () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Next 10 GWs' }));
+    // The range filter applies presets only once the default and in-play
+    // gameweeks have both loaded; on a slow runner the click can land before
+    // that, and Build then sends the page's initial 5-5 range (CI flake on
+    // #478 and #483). Build only once the range really reads 5-14.
+    await waitFor(() => expect(screen.getByLabelText('To GW')).toHaveValue(14));
     await user.click(screen.getByRole('button', { name: 'Build Optimal Squad' }));
 
     await waitFor(() => expect(mockedOptimizerApi.optimizeFplSquad).toHaveBeenCalledWith(5, 14, 100, [], []));
