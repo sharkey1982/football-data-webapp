@@ -181,3 +181,22 @@ borrowings nil the filing states (loans "interest-free" / "non-interest-bearing"
 revenue is mostly a management charge to QPR Holdings Limited; matchday and
 commercial income sit elsewhere). Publish QPR from QPR Holdings' consolidated
 accounts instead.
+
+## Batch audit: seven more clubs (2026-10-28)
+
+Load `20261028130000_...` (private) then guarded publish `20261028130500_...`
+(42 periods / 671 values / 7 latest). Portsmouth and Wrexham (all years) and
+Millwall FY2025 were read from their iXBRL documents' exact text (no OCR); the
+rest from page-image-verified scanned PDFs. All periods reconcile exactly except
+Charlton FY2025 (turnover note GBP1k above the P&L line: rounding in the filing,
+both kept as printed).
+
+| Club (team, company) | Values | Scope | Non-comparable | Notes |
+|---|---|---|---|---|
+| QPR (7, 03197756) | 102 | group (QPR Holdings) | FY2020-21 (COVID split; FY2021 restated) | Replaces the earlier held-back subsidiary. Bonds (6%, 8%) are the borrowings. |
+| Charlton (24, 01788466) | 104 | company | FY2021 (revenue reclassified), FY2022 (staff restated) | Owner/group loans stated interest-free. |
+| Millwall (35, 01924222) | 94 | company | FY2024 (restated, new auditor) | FY2021-23 borrowings null (EFL loan terms not stated). |
+| Portsmouth (82, 07940335) | 96 | company | FY2023 (revenue re-analysed) | No operating-profit line in any year. FY2025 GBP8m owner loan. |
+| Preston (59, 00039494) | 101 | company | FY2020 (headcount restated) | Loans at stated nil rate; owner funds via shares. |
+| Swansea (6, 04305508) | 106 | group | FY2024 (11m) | Owner convertible notes (5%) counted. |
+| Wrexham (102, 07698872) | 68 | company | none | FY2020-22 small-company accounts: no P&L filed. Owner loan at base + 3%. |
