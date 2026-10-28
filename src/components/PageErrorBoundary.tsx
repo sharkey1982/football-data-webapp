@@ -35,6 +35,15 @@ export function reloadOnceForStaleChunk(): boolean {
 
 type State = { error: unknown };
 
+/** One short line a visitor can screenshot (28 Oct 2026: the home page failed on
+ *  Chris's phone and nothing said why). The page path and a timestamp help match
+ *  it to a deploy. */
+function errorText(err: unknown): string {
+  const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  const where = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
+  return `${msg.slice(0, 300)} (${where}, ${new Date().toISOString().slice(0, 16)}Z)`;
+}
+
 export class PageErrorBoundary extends Component<{ children: ReactNode }, State> {
   state: State = { error: null };
 
@@ -53,6 +62,10 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, State>
       <div role="alert" className="border border-chalk-300 rounded-lg bg-white p-6 space-y-3 max-w-prose">
         <h1 className="font-display uppercase tracking-wide text-2xl text-ink-900">This page didn&rsquo;t load</h1>
         <p className="text-ink-700">Something went wrong showing this page. Reloading usually fixes it.</p>
+        <details className="text-xs text-ink-500">
+          <summary className="cursor-pointer">What went wrong</summary>
+          <p className="mt-1 font-mono break-words" data-testid="page-error-detail">{errorText(this.state.error)}</p>
+        </details>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
