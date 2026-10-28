@@ -15,6 +15,8 @@ describe('page error boundary (audit S-02)', () => {
     render(<PageErrorBoundary><Boom /></PageErrorBoundary>);
     expect(screen.getByRole('alert')).toHaveTextContent('This page didn’t load');
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+    // The error itself, so a screenshot says what broke.
+    expect(screen.getByTestId('page-error-detail')).toHaveTextContent('Error: render failed');
     spy.mockRestore();
   });
 
