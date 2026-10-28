@@ -200,3 +200,13 @@ both kept as printed).
 | Preston (59, 00039494) | 101 | company | FY2020 (headcount restated) | Loans at stated nil rate; owner funds via shares. |
 | Swansea (6, 04305508) | 106 | group | FY2024 (11m) | Owner convertible notes (5%) counted. |
 | Wrexham (102, 07698872) | 68 | company | none | FY2020-22 small-company accounts: no P&L filed. Owner loan at base + 3%. |
+
+## Batch audit: Bolton and Lincoln (2026-10-28) -- Championship complete
+
+Load `20261028150000_...` then guarded publish `20261028150500_...`
+(12 periods / 173 values / 2 latest).
+
+| Club (team, company) | Values | Scope | Non-comparable | Notes |
+|---|---|---|---|---|
+| Bolton (40, 11761052) | 71 | group (Football Ventures (Whites)) | FY2020 (first period after administration, ~10 months' trading), FY2022 (staff restated) | Club company is dormant; group includes the stadium hotel. Revenue split not separable. FY2020-21 borrowings null (loans without stated terms). |
+| Lincoln (107, 00045611) | 102 | company | FY2021, FY2022, FY2024 (restated) | iXBRL. Borrowings = fan bonds. FY2020-22 revenue categories printed in GBP000 (rounding vs turnover kept as printed). |
