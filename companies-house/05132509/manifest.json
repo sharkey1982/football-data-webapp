@@ -1,0 +1,173 @@
+[
+  {
+    "company_number": "05132509",
+    "filed_date": "2026-03-16",
+    "filing_type": "AA",
+    "description": "Accounts for a small company made up to 30 June 2025",
+    "made_up_to": "2025-06-30",
+    "transaction_id": "MzUxMDQ2MjU4NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzUxMDQ2MjU4NWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzUxMDQ2MjU4NWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-06-30_MzUxMDQ2MjU4NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzUxMDQ2MjU4NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/k2QrtZm6qcq7SRQwhRj1PWOwyIFrpyIQGsoSw489hYQ/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 173171,
+        "sha256": "ccf469ee65ec083f0965b87c3fa03d809cdd38a9c067157f0cba1c01b97a5f75",
+        "retrieved_at": "2026-10-28T16:21:07+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2025-06-30_MzUxMDQ2MjU4NWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzUxMDQ2MjU4NWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/k2QrtZm6qcq7SRQwhRj1PWOwyIFrpyIQGsoSw489hYQ/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 111204,
+        "sha256": "f4ffa128dbb666ec137b92e4fc681008366490657cf30cb6bf4f8d99f66141fe",
+        "retrieved_at": "2026-10-28T16:21:09+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "05132509",
+    "filed_date": "2025-03-28",
+    "filing_type": "AA",
+    "description": "Accounts for a small company made up to 30 June 2024",
+    "made_up_to": "2024-06-30",
+    "transaction_id": "MzQ2MDYwOTE2NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzQ2MDYwOTE2NWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzQ2MDYwOTE2NWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-06-30_MzQ2MDYwOTE2NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzQ2MDYwOTE2NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/rthIhf17HTe8cFLkg4yjIzZE5s0O0DxAX-hIVkLUqto/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 172922,
+        "sha256": "e3a244aa48c58a1e33fc41dce936821d2b1184be5b8d66757224f5eb25e74d91",
+        "retrieved_at": "2026-10-28T16:21:11+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2024-06-30_MzQ2MDYwOTE2NWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzQ2MDYwOTE2NWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/rthIhf17HTe8cFLkg4yjIzZE5s0O0DxAX-hIVkLUqto/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 109735,
+        "sha256": "57aa3159bfab39d203bf392fface8c8a1186a06974abaff93dba53e36a7f7a33",
+        "retrieved_at": "2026-10-28T16:21:13+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "05132509",
+    "filed_date": "2024-03-20",
+    "filing_type": "AA",
+    "description": "Accounts for a small company made up to 30 June 2023",
+    "made_up_to": "2023-06-30",
+    "transaction_id": "MzQxNTEzODM5NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzQxNTEzODM5NWFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-30_MzQxNTEzODM5NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzQxNTEzODM5NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/dDOBYpyDQ2M9GRZoe13Rpnx9wPlCOLaUCI_KKUIIU40/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 275378,
+        "sha256": "20ee66813cb3107fb3efbbf8e5f023f8537fa460497adf1e063fb7ecea008643",
+        "retrieved_at": "2026-10-28T16:21:15+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "05132509",
+    "filed_date": "2023-03-31",
+    "filing_type": "AA",
+    "description": "Accounts for a small company made up to 30 June 2022",
+    "made_up_to": "2022-06-30",
+    "transaction_id": "MzM3NDg1NDYwMmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzM3NDg1NDYwMmFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzM3NDg1NDYwMmFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-06-30_MzM3NDg1NDYwMmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzM3NDg1NDYwMmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/DT9YXuFMC7P72RRlfBzvYhdZPXn8n85may-3ZDVMX50/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 178910,
+        "sha256": "86dd7b7b36115a85916593e25274a3c8a69a767748bc2d14ad8aa0fee133dc33",
+        "retrieved_at": "2026-10-28T16:21:18+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2022-06-30_MzM3NDg1NDYwMmFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzM3NDg1NDYwMmFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/DT9YXuFMC7P72RRlfBzvYhdZPXn8n85may-3ZDVMX50/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 102045,
+        "sha256": "aa2d6cfa17467b1a2a1a6eebaa52cea37ea846f1fc6d714e2ac3527a74a13524",
+        "retrieved_at": "2026-10-28T16:21:20+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "05132509",
+    "filed_date": "2021-12-08",
+    "filing_type": "AA",
+    "description": "Accounts for a small company made up to 31 July 2021",
+    "made_up_to": "2021-07-31",
+    "transaction_id": "MzMyMjg1ODU1MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzMyMjg1ODU1MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-07-31_MzMyMjg1ODU1MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzMyMjg1ODU1MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/ruYBVUOdhvJj994rnguoUeod_ZFTfxlZ-kV4w2VqhWY/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 316678,
+        "sha256": "ab0540fbb68fa7d91d2ffba9cd6c9aa92c6aeeef2eb73639af713607f972b7aa",
+        "retrieved_at": "2026-10-28T16:21:22+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "05132509",
+    "filed_date": "2021-06-09",
+    "filing_type": "AA",
+    "description": "Accounts for a small company made up to 31 July 2020",
+    "made_up_to": "2020-07-31",
+    "transaction_id": "MzMwMzE1OTc0MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzMwMzE1OTc0MGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-07-31_MzMwMzE1OTc0MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/05132509/filing-history/MzMwMzE1OTc0MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/27vbxe5Tx6zAf4lGs6gS3SNf2_zahiqQf7NmjJgZd5k/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 332340,
+        "sha256": "930ad20452039b2dd5ce7c520da5438318f20df3d66e4ab6b07b713622d8b001",
+        "retrieved_at": "2026-10-28T16:21:24+00:00"
+      }
+    ]
+  }
+]

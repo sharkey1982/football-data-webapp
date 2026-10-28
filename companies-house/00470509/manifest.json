@@ -1,0 +1,184 @@
+[
+  {
+    "company_number": "00470509",
+    "filed_date": "2026-03-20",
+    "filing_type": "AA",
+    "description": "Full accounts made up to 30 June 2025",
+    "made_up_to": "2025-06-30",
+    "transaction_id": "MzUxMTY3OTg4N2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzUxMTY3OTg4N2FkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzUxMTY3OTg4N2FkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-06-30_MzUxMTY3OTg4N2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzUxMTY3OTg4N2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/xVV0flrjJbqw31poDvvHixdVg-qKv42p-Y-M7-GF11U/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 684721,
+        "sha256": "fa4d673f7e8a5fb4d0435bd7da133b53f043516cf87610bbe78f7ec9d1a017ff",
+        "retrieved_at": "2026-10-28T16:20:16+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2025-06-30_MzUxMTY3OTg4N2FkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzUxMTY3OTg4N2FkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/xVV0flrjJbqw31poDvvHixdVg-qKv42p-Y-M7-GF11U/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 323738,
+        "sha256": "bdabc86215512deadbd8b11c7a23af2238093e6521c8dd0fd122271cca31309f",
+        "retrieved_at": "2026-10-28T16:20:18+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00470509",
+    "filed_date": "2025-03-12",
+    "filing_type": "AA",
+    "description": "Accounts for a medium company made up to 30 June 2024",
+    "made_up_to": "2024-06-30",
+    "transaction_id": "MzQ1ODIxODM5OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzQ1ODIxODM5OGFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-06-30_MzQ1ODIxODM5OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzQ1ODIxODM5OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/7p8Bl3ry3UWND9N1Xyoznc9dsZURrURUDs7a7GL6lxg/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 1208551,
+        "sha256": "b595c99e1521429bdfbeb8de7b32078fe1e0a010779e779305de58f782aa3cd5",
+        "retrieved_at": "2026-10-28T16:20:21+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00470509",
+    "filed_date": "2024-03-28",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 30 June 2023",
+    "made_up_to": "2023-06-30",
+    "transaction_id": "MzQxNjQyODk3NWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzQxNjQyODk3NWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzQxNjQyODk3NWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-06-30_MzQxNjQyODk3NWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzQxNjQyODk3NWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/IDD_fcHbShuT59GCQevsyb350tSFslR2FXXLyhjW0Vk/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 383211,
+        "sha256": "9031b940e12a2b82fc0f1917d3bb2df4755692020f9a53ae22e1e750a27fdd64",
+        "retrieved_at": "2026-10-28T16:20:23+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2023-06-30_MzQxNjQyODk3NWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzQxNjQyODk3NWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/IDD_fcHbShuT59GCQevsyb350tSFslR2FXXLyhjW0Vk/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 192147,
+        "sha256": "c323caa3b0f112f145eb3a2f954a0e6cf62f915bafe0149fe0352e757abb0ffc",
+        "retrieved_at": "2026-10-28T16:20:25+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00470509",
+    "filed_date": "2023-03-30",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 30 June 2022",
+    "made_up_to": "2022-06-30",
+    "transaction_id": "MzM3NDY2MzE1OWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzM3NDY2MzE1OWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzM3NDY2MzE1OWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-06-30_MzM3NDY2MzE1OWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzM3NDY2MzE1OWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Urljx4nvA53KnOCbBfb4JNedLRezfMLHJVwUasK-84k/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 370384,
+        "sha256": "4dba3bdd01190eac3ee98579c23497602f94c329c5b67bcd272bab81c976249e",
+        "retrieved_at": "2026-10-28T16:20:28+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2022-06-30_MzM3NDY2MzE1OWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzM3NDY2MzE1OWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/Urljx4nvA53KnOCbBfb4JNedLRezfMLHJVwUasK-84k/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 195558,
+        "sha256": "2bb33c6e76943b59459d604f9906b5a1ed146d67009d25dfd9c98b493d139616",
+        "retrieved_at": "2026-10-28T16:20:30+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00470509",
+    "filed_date": "2022-03-30",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 30 June 2021",
+    "made_up_to": "2021-06-30",
+    "transaction_id": "MzMzNDYzNzYwN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzMzNDYzNzYwN2FkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzMzNDYzNzYwN2FkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-06-30_MzMzNDYzNzYwN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzMzNDYzNzYwN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/4iHLiYAyXSLhGQvOhD-zEEJMKxayYHRPrzhZtDJ6WWM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 410647,
+        "sha256": "99920fa222779a6fab1c5f8f3eaf1f888bc8744838686ef9cc57bd96f1dea9b4",
+        "retrieved_at": "2026-10-28T16:20:32+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2021-06-30_MzMzNDYzNzYwN2FkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzMzNDYzNzYwN2FkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/4iHLiYAyXSLhGQvOhD-zEEJMKxayYHRPrzhZtDJ6WWM/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 201564,
+        "sha256": "0265e9f8706f0f812b7765500f223aa2ce110b556338a5e499c8bc12f133a546",
+        "retrieved_at": "2026-10-28T16:20:34+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "00470509",
+    "filed_date": "2021-04-15",
+    "filing_type": "AA",
+    "description": "Total exemption full accounts made up to 30 June 2020",
+    "made_up_to": "2020-06-30",
+    "transaction_id": "MzI5NzU2MjE3NmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzI5NzU2MjE3NmFkaXF6a2N4/document?format=pdf&download=0"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-06-30_MzI5NzU2MjE3NmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/00470509/filing-history/MzI5NzU2MjE3NmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/B5UTZpS6aJvGmRGSZTAF13t7KcX4XA91TkeWap78y1Q/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 593936,
+        "sha256": "a7e6aad4d822ca1f409c677618a6cbc4943f91a1ebe145d2f96ec83185654e7c",
+        "retrieved_at": "2026-10-28T16:20:36+00:00"
+      }
+    ]
+  }
+]
