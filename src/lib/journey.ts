@@ -92,8 +92,9 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Market Efficiency', to: '/football/market-efficiency', blurb: 'Where the betting market is priced sharply \u2014 and where it isn\u2019t.' },
           // Club finances, formerly their own top-level menu (Chris, 4 Oct 2026:
           // fold The Boardroom into Football > Discover, keeping the name).
-          { label: 'The Boardroom', to: '/finance', blurb: 'Every club\u2019s finances from its statutory accounts \u2014 revenue, wages, profit and cash.', matchPrefix: ['/finance'], excludePrefix: '/finance/compare' },
+          { label: 'The Boardroom', to: '/finance', blurb: 'Every club\u2019s finances from its statutory accounts \u2014 revenue, wages, profit and cash.', matchPrefix: ['/finance'], excludePrefix: ['/finance/compare', '/finance/promotion-relegation'] },
           { label: 'Compare Club Finances', to: '/finance/compare', blurb: 'Clubs side by side on revenue, wages, profit and debt.' },
+          { label: 'Promotion & Relegation Money', to: '/finance/promotion-relegation', blurb: 'What going up or down did to clubs\u2019 revenue, wages and profit.' },
           { label: 'Raw Data', to: '/results-data', blurb: 'The full match archive, filterable and exportable.' },
         ],
       },
@@ -361,7 +362,7 @@ export const HUB_GROUPS: Partial<Record<ThemeKey, HubGroup[]>> = {
       name: 'Insights & model',
       paths: [
         '/football/leagues-compared', '/football/countries-compared', '/team-strength', '/football/market-efficiency',
-        '/football/model-accuracy', '/football/model-returns', '/football/model-scorecard', '/finance', '/finance/compare', '/results-data',
+        '/football/model-accuracy', '/football/model-returns', '/football/model-scorecard', '/finance', '/finance/compare', '/finance/promotion-relegation', '/results-data',
       ],
     },
   ],
