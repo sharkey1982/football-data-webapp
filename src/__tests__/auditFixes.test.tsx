@@ -22,6 +22,8 @@ describe('page error boundary (audit S-02)', () => {
 
   it('recognises a stale-deploy chunk failure', () => {
     expect(isChunkLoadError(new TypeError('Failed to fetch dynamically imported module: https://x/assets/a.js'))).toBe(true);
+    expect(isChunkLoadError(new TypeError("Cannot read properties of undefined (reading 'default')"))).toBe(true);
+    expect(isChunkLoadError(new TypeError("undefined is not an object (evaluating 'e.default')"))).toBe(true);
     expect(isChunkLoadError(new Error('render failed'))).toBe(false);
   });
 });

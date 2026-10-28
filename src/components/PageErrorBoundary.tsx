@@ -18,7 +18,11 @@ const RELOAD_FLAG = 'fs-chunk-reload';
  *  page's JavaScript file. */
 export function isChunkLoadError(err: unknown): boolean {
   const msg = err instanceof Error ? `${err.name} ${err.message}` : String(err);
-  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError/i.test(msg);
+  // React.lazy turns a failed chunk fetch (an HTTP 500 from the CDN, or a phone
+  // losing signal) into "Cannot read properties of undefined (reading 'default')"
+  // in Chrome and "undefined is not an object (evaluating '...default')" in
+  // Safari: seen on the smoke test, 28 Oct 2026.
+  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|reading 'default'|evaluating '[^']*\.default'/i.test(msg);
 }
 
 /** Reload once for a stale chunk; never loop. */
