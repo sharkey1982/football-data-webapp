@@ -1277,3 +1277,14 @@ fixing something else.
   calls before each test in the file.
 - **Prevention:** when a CI-only failure appears, read the annotations
   (`gh api repos/.../check-runs/<job id>/annotations`) before re-running.
+
+## 2026-10-28: OptimalSquadPage flake recurred; preview 500s
+
+- The "Next 10 GWs" test failed again on #495 after the #490 fix: waiting for
+  the To GW value doesn't help when the preset click landed before the
+  gameweeks loaded (the click is ignored and never re-fires). Fixed by pressing
+  the preset inside `waitFor` until the range reads 5-14.
+- Smoke runs on #492 and #494 hit one-off HTTP 500s from the Netlify preview on
+  pages those PRs didn't touch (/tennis/seasons, /fpl/season-xi, a chunk for
+  /fpl/formations). Each passed on re-run. If it keeps happening, the smoke
+  test could retry a 5xx page once before failing.
