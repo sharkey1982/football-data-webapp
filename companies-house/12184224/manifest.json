@@ -1,0 +1,206 @@
+[
+  {
+    "company_number": "12184224",
+    "filed_date": "2026-06-29",
+    "filing_type": "AA",
+    "description": "Accounts for a dormant company made up to 30 September 2025",
+    "made_up_to": "2025-09-30",
+    "transaction_id": "MzUyOTIyMjExMmFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzUyOTIyMjExMmFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzUyOTIyMjExMmFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2025-09-30_MzUyOTIyMjExMmFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzUyOTIyMjExMmFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/2MEdGYUqGMXzGwj6A8TGvqgcLNnlLjNKFDL4sFx3HbE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21588,
+        "sha256": "203091b71db8fbde1f435341d2962cc93daf95b349142d6e373503efd6882624",
+        "retrieved_at": "2026-10-28T12:48:50+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2025-09-30_MzUyOTIyMjExMmFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzUyOTIyMjExMmFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/2MEdGYUqGMXzGwj6A8TGvqgcLNnlLjNKFDL4sFx3HbE/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 19671,
+        "sha256": "646a0673f57ec33cbc1022058648617969a7582a6af3729e6815f51ceb78c0e0",
+        "retrieved_at": "2026-10-28T12:48:52+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "12184224",
+    "filed_date": "2025-06-30",
+    "filing_type": "AA",
+    "description": "Accounts for a dormant company made up to 30 September 2024",
+    "made_up_to": "2024-09-30",
+    "transaction_id": "MzQ3MTkxMzIxNWFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQ3MTkxMzIxNWFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQ3MTkxMzIxNWFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2024-09-30_MzQ3MTkxMzIxNWFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQ3MTkxMzIxNWFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/FS7Fu4PE36EWW3-fWt_3zdzjLDbpRVsVWhEoQj0ioDM/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21724,
+        "sha256": "e2581b4fabe88a6423f11f66579b99dfbfc90bc777090d1bd0aac60fdf4495b4",
+        "retrieved_at": "2026-10-28T12:48:54+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2024-09-30_MzQ3MTkxMzIxNWFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQ3MTkxMzIxNWFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/FS7Fu4PE36EWW3-fWt_3zdzjLDbpRVsVWhEoQj0ioDM/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 19671,
+        "sha256": "83fe22e4da82df8f69c6f890575ca2f61bc5b6857df17ebbe8a297c971ec86af",
+        "retrieved_at": "2026-10-28T12:48:55+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "12184224",
+    "filed_date": "2024-06-29",
+    "filing_type": "AA",
+    "description": "Accounts for a dormant company made up to 30 September 2023",
+    "made_up_to": "2023-09-30",
+    "transaction_id": "MzQyNzEyOTM5MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQyNzEyOTM5MGFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQyNzEyOTM5MGFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2023-09-30_MzQyNzEyOTM5MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQyNzEyOTM5MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/U23hcojggtQjbMC2mgattGQo3Sw_ZCSJS9q6-0aZyDA/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21746,
+        "sha256": "787bf9edbd9cdcc7ae9365eed701bd0e2798a0d63ea3810627d8528aa410f510",
+        "retrieved_at": "2026-10-28T12:48:57+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2023-09-30_MzQyNzEyOTM5MGFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzQyNzEyOTM5MGFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/U23hcojggtQjbMC2mgattGQo3Sw_ZCSJS9q6-0aZyDA/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 19671,
+        "sha256": "5ee17888933985f73c86e7417e77053e2c68c52d18804a3448b62baf9724c14e",
+        "retrieved_at": "2026-10-28T12:48:59+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "12184224",
+    "filed_date": "2023-06-26",
+    "filing_type": "AA",
+    "description": "Accounts for a dormant company made up to 30 September 2022",
+    "made_up_to": "2022-09-30",
+    "transaction_id": "MzM4NDE3NjEyN2FkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM4NDE3NjEyN2FkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM4NDE3NjEyN2FkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2022-09-30_MzM4NDE3NjEyN2FkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM4NDE3NjEyN2FkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/9UOgfI4CyvmRjkaYQEbgexfd9lMxaTGRPVhuyNcwPcE/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21726,
+        "sha256": "403ca13abf9f44a41999a63741285f4919ce1723622e2e226e91631273821cbd",
+        "retrieved_at": "2026-10-28T12:49:00+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2022-09-30_MzM4NDE3NjEyN2FkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM4NDE3NjEyN2FkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/9UOgfI4CyvmRjkaYQEbgexfd9lMxaTGRPVhuyNcwPcE/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 19333,
+        "sha256": "63f7711f56339ae7ccefd8418d3502cfd770133641d958dfee4c473727246fc3",
+        "retrieved_at": "2026-10-28T12:49:02+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "12184224",
+    "filed_date": "2022-06-30",
+    "filing_type": "AA",
+    "description": "Accounts for a dormant company made up to 30 September 2021",
+    "made_up_to": "2021-09-30",
+    "transaction_id": "MzM0NDM1NzM5OGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM0NDM1NzM5OGFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM0NDM1NzM5OGFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2021-09-30_MzM0NDM1NzM5OGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM0NDM1NzM5OGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/s4quW6QXzoMjH70Sz26WmIvj9xr1pOGUXn8JKMVRrB4/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21689,
+        "sha256": "e809367dfc5ef14d5784949bae9a209463084e36009529954a6a7642ea7a8f1e",
+        "retrieved_at": "2026-10-28T12:49:04+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2021-09-30_MzM0NDM1NzM5OGFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzM0NDM1NzM5OGFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/s4quW6QXzoMjH70Sz26WmIvj9xr1pOGUXn8JKMVRrB4/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 19321,
+        "sha256": "f9806571050309f485af11b23fa7861f82b93e736cf071045885a02967feb5e6",
+        "retrieved_at": "2026-10-28T12:49:05+00:00"
+      }
+    ]
+  },
+  {
+    "company_number": "12184224",
+    "filed_date": "2020-10-01",
+    "filing_type": "AA",
+    "description": "Accounts for a dormant company made up to 30 September 2020",
+    "made_up_to": "2020-09-30",
+    "transaction_id": "MzI3OTM5ODA1MGFkaXF6a2N4",
+    "documents": {
+      "pdf": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzI3OTM5ODA1MGFkaXF6a2N4/document?format=pdf&download=0",
+      "xhtml": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzI3OTM5ODA1MGFkaXF6a2N4/document?format=xhtml&download=1"
+    },
+    "files": [
+      {
+        "format": "pdf",
+        "file": "2020-09-30_MzI3OTM5ODA1MGFkaXF6a2N4.pdf",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzI3OTM5ODA1MGFkaXF6a2N4/document?format=pdf&download=0",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/56mSp8YSY6ekHOa5V-Hd4tHnhIBmbwajXAF5fBZglos/application-pdf",
+        "content_type": "application/pdf",
+        "bytes": 21527,
+        "sha256": "ff8a5c44d9d9d69c209f658c1ff636731ba6fc6e1dbae1a0da4a8126cc573637",
+        "retrieved_at": "2026-10-28T12:49:07+00:00"
+      },
+      {
+        "format": "xhtml",
+        "file": "2020-09-30_MzI3OTM5ODA1MGFkaXF6a2N4.xhtml",
+        "source_url": "https://find-and-update.company-information.service.gov.uk/company/12184224/filing-history/MzI3OTM5ODA1MGFkaXF6a2N4/document?format=xhtml&download=1",
+        "resolved_url": "https://s3.eu-west-2.amazonaws.com/document-api-images-live.ch.gov.uk/docs/56mSp8YSY6ekHOa5V-Hd4tHnhIBmbwajXAF5fBZglos/application-xhtml%252Bxml",
+        "content_type": "application/xhtml+xml",
+        "bytes": 17714,
+        "sha256": "92d5d0cd3fdc167979bd0972b0035f8881c503e5ff55526e1f2ba20870e74fc6",
+        "retrieved_at": "2026-10-28T12:49:09+00:00"
+      }
+    ]
+  }
+]
