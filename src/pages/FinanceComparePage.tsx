@@ -20,7 +20,8 @@ import {
   type ComparisonClub,
 } from '../lib/financeCompare';
 import { divisionOptions, inDivision } from '../lib/financeApi';
-import DivisionFilter, { useDivisionParam } from '../components/finance/DivisionFilter';
+import DivisionFilter from '../components/finance/DivisionFilter';
+import { useDivisionParam } from '../hooks/useDivisionParam';
 
 const nd = <span className="text-ink-500">n/d</span>;
 const m = (v: number | null) => (v == null ? nd : formatMoneyShort(v));

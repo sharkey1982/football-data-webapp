@@ -11,7 +11,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { divisionOptions, getFinanceIndex, inDivision, type FinanceIndexEntry } from '../lib/financeApi';
-import DivisionFilter, { useDivisionParam } from '../components/finance/DivisionFilter';
+import DivisionFilter from '../components/finance/DivisionFilter';
+import { useDivisionParam } from '../hooks/useDivisionParam';
 import { formatMoneyShort, fyLabel, scaled, signedMoney } from '../lib/financeFormat';
 
 export default function FinanceIndexPage({ initialData }: { initialData?: FinanceIndexEntry[] } = {}) {
