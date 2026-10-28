@@ -1,6 +1,6 @@
 -- Chris, 28 Oct 2026: "I thought it was saying Venezia were the favourites?"
 -- The gap post labelled its columns "Home / draw / away"; name the teams
--- instead: "Venezia FC win / draw / Inter Milan win".
+-- instead: "Venezia FC / draw / Inter Milan" ("win" twice pushed long names over 280).
 create or replace function pg_temp.social_patch(p_sig text, p_old text, p_new text) returns void language plpgsql as $f$
 declare d text; n integer;
 begin
@@ -13,4 +13,4 @@ end;
 $f$;
 select pg_temp.social_patch('private.social_detect_daily_market(bigint)',
   $o$        'Home / draw / away',$o$,
-  $n$        format('%s win / draw / %s win', v_mis->>'home', v_mis->>'away'),$n$);
+  $n$        format('%s / draw / %s', v_mis->>'home', v_mis->>'away'),$n$);
