@@ -1,6 +1,9 @@
 /build-report.txt
 /football/matches/wolves-v-derby-2026-11-24
 /football/matches/st-johnstone-v-kilmarnock-2026-08-02
+/fpl/player-scout/lewis-dunk
+/fpl/players/lewis-dunk
 /fixtures
 /fpl/player-points
-/football/matches/brighton-v-arsenal-2026-11-01
+/nfl/teams
+/sitemap.xml
