@@ -74,6 +74,7 @@ import { buildComparison, otherCurrencyClubs } from './lib/financeCompare';
 import { latestPeriod, type ClubFinanceData, type FinanceIndexEntry } from './lib/financeApi';
 import { formatMoneyShort, fyLabel, longDate, scaled, signedMoney, sourceName } from './lib/financeFormat';
 import { buildModelFromLambdas, type MatchPagePrediction } from './lib/matchPageApi';
+import { careerFromTotals, scoutPageIndexing, type CareerSeasonRow, type CareerTotalRow } from './lib/playerScoutApi';
 import { SITE_URL, BRAND_NAME } from './lib/siteConfig';
 import NflFixturesPage from './pages/nfl/NflFixturesPage';
 import NflTablePage from './pages/nfl/NflTablePage';
@@ -223,6 +224,9 @@ export type RenderedPage = {
    * nothing asserted that the data doesn't support (e.g. no venue on a
    * fixture, because venue isn't stored). */
   structuredData: object[];
+  /** A robots meta value (e.g. "noindex,follow") for a page that should be
+   * reachable but not indexed. Omitted: no robots tag, i.e. indexable. */
+  robots?: string;
 };
 
 function breadcrumb(items: { name: string; path: string }[]): object {
@@ -242,7 +246,12 @@ function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-export function renderPlayerPage(slug: string, data: PlayerPageData): RenderedPage {
+/** `__careerTotals`: the player's fpl_player_season_totals rows and the
+ * seasons table, from the generator's bulk read; turned into the career
+ * table here (careerFromTotals) so the server HTML carries it. */
+export function renderPlayerPage(slug: string, input: PlayerPageData & { __careerTotals?: { rows: CareerTotalRow[]; seasons: CareerSeasonRow[] } }): RenderedPage {
+  const { __careerTotals, ...rest } = input;
+  const data: PlayerPageData = __careerTotals ? { ...rest, career: careerFromTotals(__careerTotals.rows, __careerTotals.seasons) } : rest;
   const path = `/fpl/players/${slug}`;
   const html = renderToString(
     <StaticRouter location={path}>
@@ -415,7 +424,7 @@ function hubBody(path: string): string {
  *
  * Google renders JavaScript, so the body still indexes; what it can't
  * do is guess which page is which before rendering. */
-export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
+export function renderStaticRouteHead(meta: RouteMeta & { __scoutPlayerSlug?: string | null }): RenderedPage {
   const crumbs = meta.crumbs
     ? [...meta.crumbs, { name: breadcrumbName(meta.title), path: meta.path }]
     : [];
@@ -425,6 +434,8 @@ export function renderStaticRouteHead(meta: RouteMeta): RenderedPage {
     description: meta.description,
     canonical: `${SITE_URL}${meta.path}`,
     structuredData: crumbs.length > 1 ? [breadcrumb(crumbs)] : [],
+    // A Player Scout page (undefined for every other route): see scoutPageIndexing.
+    ...(meta.__scoutPlayerSlug !== undefined ? scoutPageIndexing(meta.path, meta.__scoutPlayerSlug) : {}),
   };
 }
 
@@ -1304,9 +1315,10 @@ export function buildDocument(shell: string, page: RenderedPage): string {
         `  <script type="application/ld+json">${JSON.stringify(obj).replace(/<\//g, '<\\/')}</script>`
     )
     .join('\n');
+  const robots = page.robots ? `  <meta name="robots" content="${escapeAttr(page.robots)}" />\n` : '';
   out = out.replace(
     '</head>',
-    `  <link rel="canonical" href="${escapeAttr(page.canonical)}" />\n${ld}\n  </head>`
+    `${robots}  <link rel="canonical" href="${escapeAttr(page.canonical)}" />\n${ld}\n  </head>`
   );
   // Social preview tags, page-specific. Replaces the shell's default block
   // (index.html, between the social markers); link-preview fetchers never

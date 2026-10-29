@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import { useNoindex } from '../../hooks/useNoindex';
 import PlayerCareerRecord from '../../components/fpl/PlayerCareerRecord';
 import {
   getPlayerBySlug,
@@ -92,8 +93,13 @@ export default function PlayerRecordPage() {
     description: player
       ? `${player.canonical_name}'s Fantasy Premier League record: points by gameweek, what produced them, and how each season compares.`
       : 'A Fantasy Premier League player record.',
-    path: `/fpl/player-scout/${slug ?? ''}`,
+    // Same rule as the static file (scoutPageIndexing, docs/seo-indexation.md):
+    // a current player's canonical is their FPL player page; a former
+    // player's stays here, with noindex. Left alone until the player loads,
+    // so the static file's canonical is never briefly replaced.
+    path: player ? (player.current_slug ? `/fpl/players/${player.current_slug}` : `/fpl/player-scout/${slug ?? ''}`) : undefined,
   });
+  useNoindex(notFound || (player != null && !player.current_slug));
 
   useEffect(() => {
     if (!slug) return;

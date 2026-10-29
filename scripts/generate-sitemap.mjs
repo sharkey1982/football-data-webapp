@@ -24,6 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
+import { includeClubSeason, includeIntlNation, includeLeagueSeason, includeTennisEdition } from './lib/sitemapPolicy.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -173,9 +174,8 @@ async function main() {
   // Football season (1 July - 30 June) for the team list, as generate-static
   // and the team page use; it differs from the FPL season over the summer.
   const footballSeasonId = (await query('rpc/current_season_id')) ?? CURRENT_SEASON_ID;
-  const [gwRows, scouts, leagueFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons, clubSeasons] = await Promise.all([
+  const [gwRows, leagueFixtures, teams, players, fixtures, finance, leagueRefs, leagueSeasons, clubSeasons] = await Promise.all([
     queryAll(`fpl_player_gameweeks?select=fpl_event_id&season_id=eq.${CURRENT_SEASON_ID}&total_points=gt.0`),
-    queryAll('player_identity?select=slug&order=slug.asc'),
     // Team pages: every club in this season's five English leagues
     // (Premier League to National League), the set generate-static writes
     // (22 Oct 2026, audit S-03; Premier League only before that).
@@ -207,8 +207,10 @@ async function main() {
     counts.gameweekLog++;
   }
 
-  counts.scout = 0;
-  for (const p of scouts ?? []) if (p.slug) { entries.push(urlEntry(`/fpl/player-scout/${p.slug}`, null)); counts.scout++; }
+  // Player Scout (/fpl/player-scout/:slug) left the sitemap on 29 Oct 2026:
+  // a current player's scout page canonicalises to /fpl/players/:slug (which
+  // now carries the career table), and a former player's is noindex. 142 of
+  // the 736 "Google chose a different canonical" URLs were scout pages.
 
   const leagueTeamIds = new Set();
   for (const f of leagueFixtures ?? []) { leagueTeamIds.add(f.home_team_id); leagueTeamIds.add(f.away_team_id); }
@@ -231,6 +233,8 @@ async function main() {
       const l = byId.get(s.league_id);
       if (!l) continue;
       withSeasons.add(l);
+      // English tiers 1-5: every season; elsewhere 2020/21 on (sitemapPolicy).
+      if (!includeLeagueSeason(s.league_id, s.start_year)) { counts.leagueSeasonsDropped = (counts.leagueSeasonsDropped ?? 0) + 1; continue; }
       entries.push(urlEntry(mod.leagueSeasonPagePath(l, s.start_year), null));
       counts.leagueSeasons++;
     }
@@ -248,6 +252,9 @@ async function main() {
       const code = codeById.get(r.league_id);
       const slug = slugById.get(r.team_id);
       if (!code || !slug) continue;
+      // 2023/24 on (sitemapPolicy); older club seasons stay linked from the
+      // club's other seasons and the league-season tables.
+      if (!includeClubSeason(r.start_year)) { counts.clubSeasonsDropped = (counts.clubSeasonsDropped ?? 0) + 1; continue; }
       entries.push(urlEntry(mod.clubSeasonPagePath(slug, code, r.start_year), null));
       counts.clubSeasons++;
     }
@@ -296,7 +303,7 @@ async function main() {
       const events = (await query(`tennis_events?select=slug&tour=eq.${tour}&order=slug.asc&limit=1000`)) ?? [];
       for (const e of events) { entries.push(urlEntry(mod.tennisEventPath(tour, e.slug), null)); counts.tennis++; }
       const big = (await query(`tennis_editions?select=event_slug,year&tour=eq.${tour}&level_rank=lte.3&order=event_slug.asc,year.asc&limit=1000`)) ?? [];
-      for (const e of big) { entries.push(urlEntry(mod.tennisEditionPath(tour, e.event_slug, e.year), null)); counts.tennis++; }
+      for (const e of big) if (includeTennisEdition(e.year)) { entries.push(urlEntry(mod.tennisEditionPath(tour, e.event_slug, e.year), null)); counts.tennis++; }
     }
     // Rivalry pages: the ones generate-static wrote (it leaves the list in
     // dist-ssr). lastmod: their latest meeting.
@@ -322,7 +329,9 @@ async function main() {
         queryAll(`${pre}edition_summary?select=competition,label,winner,runner_up,last_match&order=competition.asc,season_start.asc`),
       ]);
       const byComp = new Map(mod.INTL_TOURNAMENTS.map((t) => [t.competition, t]));
-      for (const t of teams ?? []) { entries.push(urlEntry(mod.intlTeamHead(t).path, t.last_match)); counts.international++; }
+      // 50+ games and an Elo ranking (sitemapPolicy): the 30-49-game and
+      // non-FIFA sides keep their static pages but leave the sitemap.
+      for (const t of teams ?? []) if (includeIntlNation(t)) { entries.push(urlEntry(mod.intlTeamHead(t).path, t.last_match)); counts.international++; }
       for (const t of mod.INTL_TOURNAMENTS) {
         const last = (editions ?? []).filter((e) => e.competition === t.competition).map((e) => e.last_match).filter(Boolean).sort().pop() ?? null;
         entries.push(urlEntry(mod.intlTournamentHead(t).path, last)); counts.international++;

@@ -43,6 +43,7 @@ const EPL_LEAGUE_ID = 1;
 const EFL_LEAGUE_IDS = [2, 3, 4, 5];
 const MODEL_VERSION = 'leaguewide_v6';
 const POSITION_LABELS = { 1: 'Goalkeeper', 2: 'Defender', 3: 'Midfielder', 4: 'Forward' };
+const CAREER_TOTAL_COLUMNS = 'season_id,fpl_code,web_name,team_name,element_type,start_cost,end_cost,total_points,minutes,goals_scored,assists,clean_sheets,bonus';
 // Tennis rivalry pages: the most-played pairs per tour (see writeTennisPages).
 const TENNIS_H2H_PAIRS_PER_TOUR = 30;
 const TENNIS_H2H_MIN_MEETINGS = 8;
@@ -308,7 +309,12 @@ async function main() {
   const footballSeason = query('rpc/current_season_id');
   const pending = {
     gameweeks: queryAll(`fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`),
-    scouts: queryAll('player_identity?select=slug,canonical_name&order=slug.asc'),
+    scouts: queryAll('player_identity?select=slug,canonical_name,fpl_code&order=slug.asc'),
+    // Season-by-season FPL record of every player (~2,800 rows, three pages):
+    // the career table on /fpl/players/:slug in the server HTML (29 Oct 2026).
+    // The same numbers get_player_career() returns, read in bulk.
+    careerTotals: queryAll(`fpl_player_season_totals?select=${CAREER_TOTAL_COLUMNS}&order=season_id.asc,fpl_code.asc`),
+    fplSeasons: query('seasons?select=season_id,slug,start_year'),
     finance: fetchFinanceBulk(queryAll).catch((err) => { console.error(`Static: finance fetch failed: ${err?.message ?? err}`); return null; }),
     teams: queryAll('teams?select=team_id,display_name,slug'),
     fits: queryAll('model_fit_runs?select=fit_run_id,rho'),
@@ -332,7 +338,7 @@ async function main() {
         `&league_id=in.(${EFL_LEAGUE_IDS.join(',')})&season_id=eq.${season}&order=match_id.asc`
     )),
     players: queryAll(
-      `fpl_players?select=fpl_player_id,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
+      `fpl_players?select=fpl_player_id,fpl_code,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
     ),
     projections: queryAll(
       `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version,${PROJECTION_DETAIL_COLUMNS}&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
@@ -363,9 +369,20 @@ async function main() {
   // These are the only pages a DEPARTED player has -- their per-season
   // slug disappeared with them -- so they're also the ones with no
   // other route into the site.
+  // 29 Oct 2026 (docs/seo-indexation.md): a CURRENT player's scout page names
+  // /fpl/players/:slug as its canonical (that page carries the same career
+  // table in its server HTML), so each player has one indexable page. A
+  // former player's scout page is head-only here and has no other page: it
+  // is noindex,follow, still reachable and usable, out of the index.
+  // Fails safe: if the current-player list didn't load, every scout page
+  // stays self-canonical rather than being noindexed by mistake.
   async function writePlayerScoutPages() {
     const players = await pending.scouts;
+    const current = await pending.players;
+    const currentSlugByCode = current ? new Map(current.filter((x) => x.fpl_code != null && x.slug).map((x) => [Number(x.fpl_code), x.slug])) : null;
     let n = 0;
+    let toPlayer = 0;
+    let noindex = 0;
     for (const p of players ?? []) {
       if (!p.slug) continue;
       try {
@@ -374,7 +391,12 @@ async function main() {
           title: `${p.canonical_name} \u2014 FPL career record`,
           description: `${p.canonical_name}'s season-by-season Fantasy Premier League record: points, price, goals, assists and form.`,
           crumbs: [{ name: 'Fantasy Premier League', path: '/fpl/start' }],
+          // undefined: self-canonical (the fail-safe); a slug: canonical to
+          // that FPL player page; null: noindex,follow.
+          __scoutPlayerSlug: currentSlugByCode ? (currentSlugByCode.get(Number(p.fpl_code)) ?? null) : undefined,
         });
+        if (page.robots) noindex++;
+        else if (currentSlugByCode) toPlayer++;
         const dir = join(DIST, 'fpl', 'player-scout', p.slug);
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
@@ -383,7 +405,7 @@ async function main() {
         console.error(`Static: failed scout page ${p.slug}: ${err?.message ?? err}`);
       }
     }
-    console.log(`Static: wrote head tags for ${n} player scout page(s).`);
+    console.log(`Static: wrote head tags for ${n} player scout page(s): ${toPlayer} canonical to the FPL player page, ${noindex} noindex (former players)${currentSlugByCode ? '' : ' -- current players unavailable, all left self-canonical'}.`);
   }
 
   await writePlayerScoutPages();
@@ -1053,6 +1075,18 @@ async function main() {
   }
 
   const projByKey = new Map((projections ?? []).map((p) => [`${p.fixture_id}|${p.fpl_player_id}`, p]));
+  // Career rows by fpl_code (FPL reassigns element ids each season; the code is stable).
+  const careerTotals = await pending.careerTotals;
+  const fplSeasons = await pending.fplSeasons;
+  const careerByCode = new Map();
+  if (careerTotals && fplSeasons) {
+    for (const r of careerTotals) {
+      const k = Number(r.fpl_code);
+      if (!careerByCode.has(k)) careerByCode.set(k, []);
+      careerByCode.get(k).push(r);
+    }
+  } else console.error('Static: career totals unavailable -- player pages carry no career table in server HTML.');
+  let withCareer = 0;
   const actualByKey = new Map((actuals ?? []).map((a) => [`${a.fpl_fixture_id}|${a.fpl_player_id}`, a.total_points]));
 
   // Fixtures grouped by team, so each player's season is a lookup rather
@@ -1106,6 +1140,7 @@ async function main() {
         slug: pl.slug,
         web_name: pl.web_name,
         full_name: fullName,
+        fpl_code: pl.fpl_code ?? null,
         canonical_team_id: pl.canonical_team_id,
         team_name: team.display_name,
         team_slug: team.slug,
@@ -1113,7 +1148,9 @@ async function main() {
         price: pl.now_cost != null ? pl.now_cost / 10 : null,
       },
       season,
+      __careerTotals: careerTotals && fplSeasons ? { rows: careerByCode.get(Number(pl.fpl_code)) ?? [], seasons: fplSeasons } : undefined,
     };
+    if (new Set((careerByCode.get(Number(pl.fpl_code)) ?? []).map((r) => r.season_id)).size >= 2) withCareer++;
 
     try {
       const page = renderPlayerPage(pl.slug, data);
@@ -1127,7 +1164,7 @@ async function main() {
     }
   }
 
-  console.log(`Static: wrote ${pWritten} player page(s), skipped ${pSkipped}, from ${players.length} player(s).`);
+  console.log(`Static: wrote ${pWritten} player page(s), skipped ${pSkipped}, from ${players.length} player(s); ${withCareer} with a career table (2+ seasons).`);
 
   // ---- Team pages ---------------------------------------------------
   // One per club in this season's Premier League, Championship, League One,

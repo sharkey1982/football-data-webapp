@@ -1,10 +1,11 @@
-# Indexation policy (6 Oct 2026; audited 7 Oct 2026)
+# Indexation policy (6 Oct 2026; audited 7 Oct 2026; sitemap slimmed 29 Oct 2026)
 
 Which page families search engines should index, and which go in the sitemap.
 `scripts/generate-sitemap.mjs` implements this family by family, and
 `scripts/generate-static.mjs` writes the pages (full HTML, or the head only
 where the body loads in the browser). A new database row only becomes a
-sitemap URL if its family is listed here as **A**.
+sitemap URL if its family is listed here as **A**. The per-family cut-offs
+(years, game counts, the match window) live in `scripts/lib/sitemapPolicy.mjs`.
 
 - **A** index + sitemap
 - **B** indexable (reachable by links, self-canonical) but not in the sitemap
@@ -28,11 +29,14 @@ omitted rather than set to the build date.
 | Other leagues' match pages | /football/matches/… (EFL, Europe) | ~4,270 | B | Served by the app shell only; removed from the sitemap on 28 Sep 2026 (#138) as thin |
 | Club pages (current PL) | /football/teams/arsenal | 20 | A | Static HTML; lists the club's FPL players (links) |
 | Club pages (other clubs) | /football/teams/hull, /football/teams/caen | ~675 linked | B | Browser only; reached from club-season pages and match lists. Candidate for A (static) for English tiers 1–5 |
-| Club seasons (English tiers 1–5) | /football/teams/hull/2024-25 | 3,764 | A | Static, unique table and results per season |
-| League histories and seasons | /football/leagues/premier-league/1992-93 | ~400 | A | Static historical tables |
+| Club seasons (English tiers 1–5), 2023/24 on | /football/teams/hull/2024-25 | ~464 | A | Static, unique table and results per season |
+| Club seasons (English tiers 1–5), before 2023/24 | /football/teams/plymouth/2018-19 | ~3,300 | B | Static and linked from the club's other seasons and the league tables; out of the sitemap since 29 Oct 2026 (44% of Google's "Discovered, not indexed" sample) |
+| League histories; league seasons of English tiers 1–5 (all), other leagues from 2020/21 | /football/leagues/premier-league/1992-93 | ~290 | A | Static historical tables |
+| Other leagues' seasons before 2020/21 | /football/leagues/la-liga/2012-13 | ~90 | B | Static; out of the sitemap since 29 Oct 2026 |
 | Records and trends per league | /football/records/premier-league | ~45 | A | Static |
 | FPL player pages | /fpl/players/:slug | 667 | A | Static projection pages |
-| FPL Player Scout (career) | /fpl/player-scout/:slug | 1,431 | A | Head static, body in browser; evergreen career records |
+| FPL Player Scout, current players | /fpl/player-scout/:slug | ~669 | B (canonical → /fpl/players/:slug) | Head static, body in browser. One page per player: the FPL player page carries the same career table in its server HTML (29 Oct 2026) |
+| FPL Player Scout, former players | /fpl/player-scout/thomas-meunier | ~764 | C (noindex,follow) | Head-only static page and no other page for the player; still reachable and usable |
 | FPL team of the week | /fpl/team-of-the-week/gw5 | 1 per played GW | A | Persistent per gameweek |
 | Club finances and compare | /football/teams/arsenal/finances, /finance/compare | every club with filed accounts | A | Static, filed accounts with sources; in the finance sitemap file |
 | NFL lists, seasons, teams | /nfl/seasons/2025, /nfl/teams/buffalo-bills | ~70 | A | Static season stories and team pages |
@@ -44,13 +48,15 @@ omitted rather than set to the build date.
 | Tennis players: 50+ recent matches, any title, or 200+ career matches | /tennis/players/atp/federer-r | ~650 | A | Static. Titles and long careers added 7 Oct 2026: the old rule noindexed Federer, Nadal, Murray, Serena Williams |
 | Other tennis players | /tennis/players/atp/… | ~2,350 | C | Thin; noindex in the page |
 | Tennis tournaments | /tennis/tournaments/atp/wimbledon | 300 | A | Static champions and records |
-| Tennis big editions (Slams, Finals, 1000s) | /tennis/tournaments/atp/wimbledon/2025 | 532 | A | Static draw and paths |
+| Tennis big editions (Slams, Finals, 1000s), 2015 on | /tennis/tournaments/atp/wimbledon/2025 | ~263 | A | Static draw and paths |
+| Tennis big editions before 2015 | /tennis/tournaments/atp/australian-open/2003 | ~269 | B | Static; out of the sitemap since 29 Oct 2026 |
 | Tennis other editions | /tennis/tournaments/atp/doha/2019 | ~2,280 | B | Browser only |
 | Tennis WTA list views | /tennis/players?tour=wta | 4 | B | Query-string view of the ATP list page; canonical is the list page |
 | Tennis rivalries (most-played pairs) | /tennis/head-to-head/atp/alcaraz-c/sinner-j | up to 30 a tour (8+ meetings, both players active) | A | Static: record, every meeting, model chance by surface; slugs in alphabetical order are canonical |
 | Tennis other pairs | /tennis/head-to-head/atp/:a/:b | any pair | B | Browser only; self-canonical (alphabetical order) |
 | International hub and lists | /international/tournaments | 7 | A | Head static |
-| International nations (30+ games) | /international/teams/england | 248 | A | Full static HTML; record, Elo, tournament history, squad |
+| International nations, 50+ games and an Elo ranking | /international/teams/england | 216 men, 129 women | A | Full static HTML; record, Elo, tournament history, squad |
+| International nations, 30+ games but under 50 or unranked | /international/teams/alderney | ~32 men, ~37 women | B | Static; non-FIFA island and regional sides (Alderney, Åland Islands, Jersey) have no Elo rank. Out of the sitemap since 29 Oct 2026 |
 | International nations (<30 games) | /international/teams/… | ~90 | B | Thin |
 | International match pages | /international/matches/2022-12-18-argentina-v-france | ~5,450 linked | B | Browser only, ~120 words (prediction, form, head to head); linked from nation and edition pages |
 | International tournaments | /international/tournaments/world-cup | 8 | A | Head static |
@@ -101,6 +107,38 @@ tennis pair links used the reverse order; FPL player and Player Scout pages
 (2,098 sitemap URLs) had no link in any server HTML; filter views linked
 from static pages without nofollow.
 
+
+## Search Console drop, 29 Oct 2026
+
+Finding: impressions fell from ~200 to ~10 a day on 19 Oct across every
+section. Indexed ~1,284; not indexed 7,859 "Discovered, currently not
+indexed" and 736 "Duplicate, Google chose a different canonical". Fetched as
+Googlebot without JavaScript:
+
+- Matches outside the Premier League were the bare app shell (title
+  "FixtureShark", no canonical, no robots tag, only the cookie banner in the
+  body): 102 of the 736 duplicates. Not in the sitemap; found via links from
+  the EFL club pages.
+- Player Scout pages had the right title and canonical but an empty body,
+  while the same player's /fpl/players page had ~1,000 words: two pages per
+  player, 142 of the duplicates.
+- The sitemap listed ~9,600 URLs. The "Discovered" sample was 44% club-season
+  pages, then Player Scout, FPL players, old tennis editions, tennis players,
+  old league seasons, tiny nations and NFL pages: Google was declining to
+  crawl the long tail.
+
+Fixes, part 1 (sitemap and Player Scout):
+
+- Sitemap slimmed to the pages people search for (`scripts/lib/sitemapPolicy.mjs`):
+  club seasons from 2023/24; league seasons of other countries from 2020/21
+  (English tiers 1–5 keep every season); tennis big editions from 2015;
+  nations with 50+ games and an Elo ranking; Player Scout pages removed.
+  Every dropped page stays on the site, indexable and linked (policy B).
+- Player Scout: a current player's scout page names /fpl/players/:slug as
+  canonical, in the static file and in the browser (PlayerRecordPage). The
+  FPL player page's server HTML now carries the career table, from one bulk
+  read of `fpl_player_season_totals` (~2,800 rows). A former player's scout
+  page is noindex,follow (static file and browser).
 
 ## Search Console data (from 11 Oct 2026)
 
