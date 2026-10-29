@@ -33,6 +33,7 @@ import { Route, Routes, StaticRouter } from 'react-router-dom';
 // start-up and pushed it down (layout shift up to 0.57 on match pages), and
 // crawlers saw no navigation links.
 import AppLayout from './components/AppLayout';
+import StaticLinkDirectory, { type LinkDirectory } from './components/StaticLinkDirectory';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
@@ -424,12 +425,14 @@ function hubBody(path: string): string {
  *
  * Google renders JavaScript, so the body still indexes; what it can't
  * do is guess which page is which before rendering. */
-export function renderStaticRouteHead(meta: RouteMeta & { __scoutPlayerSlug?: string | null }): RenderedPage {
+export function renderStaticRouteHead(meta: RouteMeta & { __scoutPlayerSlug?: string | null; __directory?: LinkDirectory }): RenderedPage {
   const crumbs = meta.crumbs
     ? [...meta.crumbs, { name: breadcrumbName(meta.title), path: meta.path }]
     : [];
   return {
-    html: hubBody(meta.path),
+    // __directory: a link list for a client-rendered tool page (/fixtures,
+    // /fpl/player-points), so its server HTML links to every page it lists.
+    html: meta.__directory ? staticPage(meta.path, <StaticLinkDirectory title={breadcrumbName(meta.title)} directory={meta.__directory} />) : hubBody(meta.path),
     title: `${meta.title} | ${BRAND_NAME}`,
     description: meta.description,
     canonical: `${SITE_URL}${meta.path}`,

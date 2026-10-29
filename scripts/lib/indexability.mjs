@@ -107,5 +107,19 @@ export function duplicateTitles(pages) {
   return new Map([...by].filter(([, locs]) => locs.length > 1));
 }
 
+/** The app shell with a robots noindex,follow tag: dist/match-shell.html,
+ * which netlify.toml serves for any /football/matches/* URL with no generated
+ * file of its own (29 Oct 2026). Those are matches the static build doesn't
+ * pre-render (Scottish, European, cup, other seasons, EFL fixtures with no
+ * prediction yet): the bare shell had no canonical and no robots tag, so
+ * Google treated hundreds of them as duplicates. noindex,follow keeps them
+ * out of the index while their links to club pages still count. A real
+ * generated page always wins over the rule, so a pre-rendered match is
+ * never noindexed. */
+export function noindexShell(html) {
+  if (/<meta[^>]*name="robots"/i.test(html)) return html.replace(/<meta[^>]*name="robots"[^>]*>/i, '<meta name="robots" content="noindex,follow" />');
+  return html.replace('</head>', '  <meta name="robots" content="noindex,follow" />\n  </head>');
+}
+
 /** Paths that must never be in the sitemap and must stay blocked in robots.txt. */
 export const PRIVATE_PATHS = ['/admin/', '/admin/fanteam', '/admin/team-ratings', '/login', '/data-health', '/data-flow', '/source-data', '/fpl/tactical-roles', '/build-report.txt'];

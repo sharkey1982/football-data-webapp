@@ -24,7 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
-import { includeClubSeason, includeIntlNation, includeLeagueSeason, includeTennisEdition } from './lib/sitemapPolicy.mjs';
+import { includeClubSeason, includeEflMatch, includeIntlNation, includeLeagueSeason, includeTennisEdition } from './lib/sitemapPolicy.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -182,11 +182,9 @@ async function main() {
     queryAll(`fixtures?select=home_team_id,away_team_id&league_id=in.(${ENGLISH_LEAGUE_IDS.join(',')})&season_id=eq.${footballSeasonId}`),
     queryAll('teams?select=team_id,slug&slug=not.is.null'),
     queryAll(`fpl_players?select=slug&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null`),
-    // Premier League only: generate-static writes match pages for league 1
-    // alone. Every other league's match URL is served by the bare SPA shell
-    // (generic title, no canonical, empty body), and listing ~4,000 of those
-    // told Google most of the sitemap was thin duplicates. Widen this in the
-    // same change that generates those pages.
+    // Premier League: every match page of the season. EFL / National League
+    // pages come from generate-static's list below; other leagues' match URLs
+    // get the noindex match shell (netlify.toml) and never go in.
     queryAll(`fixtures?select=slug,predicted_at&league_id=eq.${PL_LEAGUE_ID}&season_id=eq.${CURRENT_SEASON_ID}&slug=not.is.null&order=fixture_id.asc`),
     mod ? fetchFinanceBulk(query).catch((err) => { console.error('Sitemap: finance fetch failed --', err?.message ?? err); return null; }) : null,
     query('leagues?select=league_id,code,slug&competition_type=eq.league&slug=not.is.null'),
@@ -223,6 +221,18 @@ async function main() {
   counts.players = (players ?? []).length;
   for (const f of fixtures ?? []) entries.push(urlEntry(`/football/matches/${f.slug}`, f.predicted_at));
   counts.matches = (fixtures ?? []).length;
+  // EFL and National League match pages (29 Oct 2026): the ones generate-static
+  // wrote (it leaves the list in dist-ssr), kicking off within 30 days of the
+  // build either side (sitemapPolicy). The rest of the season's pages are
+  // static and linked from both clubs' pages, but stay out of the sitemap.
+  counts.eflMatches = 0;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const efl = JSON.parse(readFileSync(join(process.cwd(), 'dist-ssr', 'match-pages.json'), 'utf8'));
+    for (const m of efl) if (includeEflMatch(m.kickoff_date, today)) { entries.push(urlEntry(`/football/matches/${m.slug}`, m.predicted_at)); counts.eflMatches++; }
+  } catch (err) {
+    console.error('Sitemap: no EFL match list --', err?.message ?? err);
+  }
 
   // League histories and league seasons (/football/leagues/...).
   counts.leagueSeasons = 0;

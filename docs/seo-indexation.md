@@ -26,7 +26,9 @@ omitted rather than set to the build date.
 |---|---|---|---|---|
 | Hubs, stage and list pages | /football, /fpl/value, /tennis/players | ~70 | A | Persistent destinations whose data updates |
 | Premier League match pages (this season) | /football/matches/:slug | 380 | A | Static HTML with prediction, market and preview |
-| Other leagues' match pages | /football/matches/… (EFL, Europe) | ~4,270 | B | Served by the app shell only; removed from the sitemap on 28 Sep 2026 (#138) as thin |
+| EFL and National League match pages (this season), kick-off within 30 days | /football/matches/wolves-v-derby-2026-11-24 | ~460 | A | Static HTML (29 Oct 2026): prediction, market, the league's model-v-market record, result |
+| EFL and National League match pages, rest of the season | /football/matches/derby-v-hull-2026-08-30 | ~1,700 | B | Static; linked from both clubs' pages. Pre-rendered when the fixture has a prediction or has kicked off |
+| Other match pages (Scottish, European, cups; EFL with no prediction yet) | /football/matches/st-johnstone-v-kilmarnock-2026-08-02 | ~2,500 | C (noindex,follow) | No generated file: netlify.toml serves dist/match-shell.html (the app shell with robots noindex,follow) for any /football/matches/* URL without one. Until 29 Oct the bare shell (no canonical, no robots tag) |
 | Club pages (current PL) | /football/teams/arsenal | 20 | A | Static HTML; lists the club's FPL players (links) |
 | Club pages (other clubs) | /football/teams/hull, /football/teams/caen | ~675 linked | B | Browser only; reached from club-season pages and match lists. Candidate for A (static) for English tiers 1–5 |
 | Club seasons (English tiers 1–5), 2023/24 on | /football/teams/hull/2024-25 | ~464 | A | Static, unique table and results per season |
@@ -34,7 +36,7 @@ omitted rather than set to the build date.
 | League histories; league seasons of English tiers 1–5 (all), other leagues from 2020/21 | /football/leagues/premier-league/1992-93 | ~290 | A | Static historical tables |
 | Other leagues' seasons before 2020/21 | /football/leagues/la-liga/2012-13 | ~90 | B | Static; out of the sitemap since 29 Oct 2026 |
 | Records and trends per league | /football/records/premier-league | ~45 | A | Static |
-| FPL player pages | /fpl/players/:slug | 667 | A | Static projection pages |
+| FPL player pages | /fpl/players/:slug | 669 | A | Static projection pages plus the career table (29 Oct 2026); linked from the club pages and from /fpl/player-points' server HTML |
 | FPL Player Scout, current players | /fpl/player-scout/:slug | ~669 | B (canonical → /fpl/players/:slug) | Head static, body in browser. One page per player: the FPL player page carries the same career table in its server HTML (29 Oct 2026) |
 | FPL Player Scout, former players | /fpl/player-scout/thomas-meunier | ~764 | C (noindex,follow) | Head-only static page and no other page for the player; still reachable and usable |
 | FPL team of the week | /fpl/team-of-the-week/gw5 | 1 per played GW | A | Persistent per gameweek |
@@ -138,7 +140,25 @@ Fixes, part 1 (sitemap and Player Scout):
   canonical, in the static file and in the browser (PlayerRecordPage). The
   FPL player page's server HTML now carries the career table, from one bulk
   read of `fpl_player_season_totals` (~2,800 rows). A former player's scout
-  page is noindex,follow (static file and browser).
+  page is noindex,follow (static file and browser). (#502)
+
+Fixes, part 2 (match pages and hub links):
+
+- EFL and National League match pages are pre-rendered like the Premier
+  League's (same MatchPage, from the fixture and result rows already read for
+  the EFL club pages: no extra queries) when the fixture has a prediction or
+  has kicked off. Those kicking off within 30 days of the build are in the
+  sitemap; the build leaves the written list in dist-ssr/match-pages.json.
+- Every other /football/matches/* URL gets dist/match-shell.html, the app
+  shell with robots noindex,follow (an unforced netlify.toml rule above the
+  SPA fallback, so a generated page always wins). A header-level
+  X-Robots-Tag can't be used: netlify.toml paths can't tell leagues apart.
+- /fixtures and /fpl/player-points (client-rendered tools) carry a plain link
+  list in their server HTML: every upcoming pre-rendered match, every current
+  FPL player page. /nfl/teams already linked all 32 team pages.
+
+After deploying: resubmit /sitemap.xml in Search Console and ask for
+reindexing of a few sample pages (an EFL match, an FPL player page).
 
 ## Search Console data (from 11 Oct 2026)
 
