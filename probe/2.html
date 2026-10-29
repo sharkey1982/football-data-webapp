@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Fonts are self-hosted (src/index.css), font-display: optional, and NOT
+         preloaded: on slow 4G the 77 KB of preloads delayed the app's first
+         paint by ~0.35 s (smoke test, 18 Oct 2026). A first visit shows the
+         metric-matched fallback; the fonts are cached for every page after. -->
+    <!--
+      Static fallback title/description -- what a route sees before its own
+      useDocumentHead() call runs (see src/hooks/useDocumentHead.ts), and
+      what's actually served today for any route that doesn't call it yet.
+      Keep this in sync with VITE_BRAND_NAME's default in src/lib/siteConfig.ts
+      (there's no way to read a Vite env var from static HTML) until the
+      prerendering pass generates real per-route <head> content server-side.
+    -->
+    <title>Lewis Dunk — FPL career record | FixtureShark</title>
+    <meta name="description" content="Lewis Dunk's season-by-season Fantasy Premier League record: points, price, goals, assists and form." />
+    <!--
+      Social preview tags (Reddit, X, Slack, WhatsApp...). Those fetchers
+      never run JavaScript, so these must be in the static HTML.
+      buildDocument() in src/entry-server.tsx replaces everything between
+      the two markers with page-specific values; this block is what the
+      bare app shell (unknown or not-yet-generated routes) carries.
+    -->
+    <!-- social:start -->
+    <meta property="og:site_name" content="FixtureShark" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Lewis Dunk — FPL career record | FixtureShark" />
+    <meta property="og:description" content="Lewis Dunk's season-by-season Fantasy Premier League record: points, price, goals, assists and form." />
+    <meta property="og:url" content="https://fixtureshark.com/fpl/players/lewis-dunk" />
+    <meta property="og:image" content="https://fixtureshark.com/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- social:end -->
+    <script type="module" crossorigin src="/assets/index-CZo5Yn_F.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-BCiCTKAo.js">
+    <link rel="modulepreload" crossorigin href="/assets/siteConfig-C76-urM5.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DDvE2bct.css">
+    <link rel="canonical" href="https://fixtureshark.com/fpl/players/lewis-dunk" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Fantasy Premier League","item":"https://fixtureshark.com/fpl/start"},{"@type":"ListItem","position":2,"name":"Lewis Dunk","item":"https://fixtureshark.com/fpl/player-scout/lewis-dunk"}]}</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      Cookie banner, in the static HTML (audit 22 Oct 2026, S-07). As a React
+      element it appeared only once the app's JS had loaded, and on a first
+      visit it was the largest thing painted, so LCP waited for the bundle.
+      Hidden by default; the inline script shows it on the production host
+      when no choice is stored. src/components/CookieConsent.tsx wires the
+      buttons. Nothing analytics-related loads until Accept is pressed.
+      Keep the storage keys in step with src/lib/analytics.ts.
+    -->
+    <section id="cookie-consent" aria-label="Cookie consent" hidden class="fixed bottom-0 inset-x-0 z-50 bg-pitch-900 text-chalk-100 border-t-2 border-amber-500">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        <p class="text-sm flex-1">We&rsquo;d like to use analytics cookies to understand how the site is used. They&rsquo;re optional, and nothing is set unless you accept.</p>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" data-consent="denied" class="text-sm border border-chalk-300 text-chalk-100 rounded px-4 py-2 hover:bg-pitch-800 transition-colors">Decline</button>
+          <button type="button" data-consent="granted" class="text-sm bg-amber-500 text-ink-900 rounded px-4 py-2 hover:bg-amber-400 transition-colors">Accept</button>
+        </div>
+      </div>
+    </section>
+    <script>
+      (function () {
+        try {
+          var s = window.localStorage;
+          if (location.hostname === 'fixtureshark.com' && s.getItem('fds-analytics-admin-device') !== '1' && !s.getItem('fds-analytics-consent')) {
+            document.getElementById('cookie-consent').hidden = false;
+          }
+        } catch (e) { /* storage blocked: the app decides once it loads */ }
+      })();
+    </script>
+  </body>
+</html>
+<div data-netlify-deploy-id="6ae2fc5eec8d0edceb99618d" data-netlify-site-id="5e159328-7bff-4467-968b-e8941c5fb6a6" data-vcs="github" style="position:fixed">
+  <!-- This div is automatically inserted by Netlify for all Deploy Preview URLs. -->
+  <script async src="/.netlify/scripts/cdp"></script>
+</div>
