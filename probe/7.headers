@@ -1,0 +1,20 @@
+HTTP/2 200 
+date: Thu, 29 Oct 2026 07:25:46 GMT
+content-type: text/html; charset=UTF-8
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+age: 0
+cache-control: public,max-age=0,must-revalidate
+cache-status: "Netlify Edge"; fwd=miss; fwd-status=200; stored
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=arbIMRfdLa3bn0sevvF%2FlczhKQH%2FvnQsWHVQx0x8qR%2B8UNQ%2BWFopwBQnb2UcrDvex6v5pOM3FH9eu8Z14G26v7bT%2BbV7ucHjX8jsFM5sPW3XnBc7EpWkwr03ytqhLZgoJ6kb"}]}
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-nf-request-id: 01M638SW71F9V7XH2JNFGQQK65
+cf-cache-status: DYNAMIC
+cf-ray: a52072ba4c0bed79-LAX
+alt-svc: h3=":443"; ma=86400
+
