@@ -7,8 +7,13 @@
 // it for /tv-guide would tell a crawler that page is a duplicate of the home
 // page. This copy is taken before any of that runs, so it has no canonical;
 // each page's own useDocumentHead() supplies one once the app boots.
-import { copyFileSync, existsSync } from 'node:fs';
+//
+// Also writes dist/match-shell.html: the same shell with robots
+// noindex,follow, served for /football/matches/* URLs that have no generated
+// page (29 Oct 2026; see noindexShell in scripts/lib/indexability.mjs).
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { noindexShell } from './lib/indexability.mjs';
 
 const src = join(process.cwd(), 'dist', 'index.html');
 const dest = join(process.cwd(), 'dist', 'app-shell.html');
@@ -18,3 +23,5 @@ if (!existsSync(src)) {
 }
 copyFileSync(src, dest);
 console.log('App shell: wrote dist/app-shell.html');
+writeFileSync(join(process.cwd(), 'dist', 'match-shell.html'), noindexShell(readFileSync(src, 'utf8')), 'utf8');
+console.log('App shell: wrote dist/match-shell.html (noindex,follow)');

@@ -46,6 +46,16 @@ export function includeIntlNation(team) {
   return Number(team?.played ?? 0) >= INTL_SITEMAP_MIN_GAMES && team?.elo_rank != null;
 }
 
+/** EFL and National League match pages are pre-rendered (scripts/generate-static.mjs)
+ * when there is something to show: a frozen model prediction, or a kick-off
+ * (a result, or the provisional score). The rest are served the noindex
+ * match shell (dist/match-shell.html, netlify.toml) until they qualify. */
+export function prerenderEflMatch(f) {
+  const predicted = f?.predicted_home_goals != null && f?.predicted_away_goals != null && f?.prediction_fit_run_id != null;
+  const kickedOff = f?.status === 'played' || f?.status === 'awaiting_result';
+  return predicted || kickedOff;
+}
+
 /** kickoff and today as YYYY-MM-DD. */
 export function includeEflMatch(kickoff, today) {
   if (!kickoff || !today) return false;

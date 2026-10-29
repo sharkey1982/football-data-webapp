@@ -29,6 +29,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
+import { prerenderEflMatch } from './lib/sitemapPolicy.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -330,7 +331,7 @@ async function main() {
     // League, 22 Oct 2026, audit S-03): this football season's fixtures and
     // results. Two paged reads, about 2,200 + 530 rows.
     eflFixtures: footballSeason.then((season) => season == null ? null : queryAll(
-      `fixtures?select=league_id,slug,kickoff_date,status,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,reported_home_goals,reported_away_goals` +
+      `fixtures?select=fixture_id,league_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id,reported_home_goals,reported_away_goals` +
         `&league_id=in.(${EFL_LEAGUE_IDS.join(',')})&season_id=eq.${season}&order=fixture_id.asc`
     ).then((rows) => rows && { season, rows })),
     eflMatches: footballSeason.then((season) => season == null ? null : queryAll(
@@ -351,7 +352,8 @@ async function main() {
     historyLatest: query('team_season_summary?select=clubs,start_year&league_id=eq.1&order=start_year.desc&limit=1'),
     // Market line beside the model on match pages.
     marketLatest: queryAll('fixture_market_latest?select=fixture_id,market_home,market_draw,market_away,captured_at'),
-    marketRecord: query(`model_vs_market_by_league?select=matches,from_date,model_log_loss,market_log_loss&league_id=eq.${EPL_LEAGUE_ID}`),
+    // Per league: the Premier League and the four EFL / National League divisions (match pages).
+    marketRecord: query(`model_vs_market_by_league?select=league_id,matches,from_date,model_log_loss,market_log_loss&league_id=in.(${[EPL_LEAGUE_ID, ...EFL_LEAGUE_IDS].join(',')})`),
     // League and league-season pages (/football/leagues/...).
     leagueRefs: query('leagues?select=league_id,code,name,slug,countries(name)&competition_type=eq.league'),
     eraNames: queryAll('league_season_display_names?select=league_id,season_id,name&order=league_id.asc,season_id.asc'),
@@ -993,8 +995,10 @@ async function main() {
   const marketById = new Map(
     ((await pending.marketLatest) ?? []).map((m) => [m.fixture_id, { home: Number(m.market_home), draw: Number(m.market_draw), away: Number(m.market_away), captured_at: m.captured_at }])
   );
-  const rec = (await pending.marketRecord)?.[0];
-  const marketRecord = rec ? { matches: Number(rec.matches), from_date: rec.from_date, model_log_loss: Number(rec.model_log_loss), market_log_loss: Number(rec.market_log_loss) } : null;
+  const marketRecordByLeague = new Map(((await pending.marketRecord) ?? []).map((rec) => [
+    Number(rec.league_id),
+    { matches: Number(rec.matches), from_date: rec.from_date, model_log_loss: Number(rec.model_log_loss), market_log_loss: Number(rec.market_log_loss) },
+  ]));
   const rhoByFit = new Map((fits ?? []).map((f) => [f.fit_run_id, Number(f.rho)]));
 
   // Actual results, for played fixtures. Keyed the same way the runtime
@@ -1007,14 +1011,16 @@ async function main() {
 
   let written = 0;
   let skipped = 0;
+  // Every match page written this run, for the /fixtures link list and (EFL)
+  // the sitemap's match window.
+  const writtenMatches = [];
 
-  for (const f of fixtures) {
+  /** One match page (Premier League and, since 29 Oct 2026, the EFL and
+   * National League). True when written. */
+  function writeMatchPage(f, leagueId, leagueName, resultByKey) {
     const home = teamById.get(f.home_team_id);
     const away = teamById.get(f.away_team_id);
-    if (!home || !away) {
-      skipped++;
-      continue;
-    }
+    if (!home || !away) return false;
 
     const lambdaHome = f.predicted_home_goals != null ? Number(f.predicted_home_goals) : null;
     const lambdaAway = f.predicted_away_goals != null ? Number(f.predicted_away_goals) : null;
@@ -1027,6 +1033,7 @@ async function main() {
     const result = resultByKey.get(resultKey(f.home_team_id, f.away_team_id, f.kickoff_date));
 
     const data = {
+      fixture_id: f.fixture_id,
       slug: f.slug,
       home_team_name: home.display_name,
       away_team_name: away.display_name,
@@ -1035,7 +1042,7 @@ async function main() {
       kickoff_date: f.kickoff_date,
       status: f.status,
       matchweek: f.matchweek,
-      league_name: 'Premier League',
+      league_name: leagueName,
       predicted_home_goals: lambdaHome,
       predicted_away_goals: lambdaAway,
       predicted_at: f.predicted_at,
@@ -1046,7 +1053,7 @@ async function main() {
       reported_home_goals: f.reported_home_goals ?? null,
       reported_away_goals: f.reported_away_goals ?? null,
       market: marketById.get(f.fixture_id) ?? null,
-      marketRecord,
+      marketRecord: marketRecordByLeague.get(leagueId) ?? null,
       __rho: rho ?? null,
     };
 
@@ -1055,14 +1062,78 @@ async function main() {
       const dir = join(DIST, 'football', 'matches', f.slug);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
-      written++;
+      writtenMatches.push({ slug: f.slug, league_id: leagueId, league_name: leagueName, kickoff_date: f.kickoff_date, status: f.status, predicted_at: f.predicted_at ?? null, home: home.display_name, away: away.display_name });
+      return true;
     } catch (err) {
       console.error(`Static: failed to render ${f.slug}: ${err?.message ?? err}`);
-      skipped++;
+      return false;
     }
   }
 
+  for (const f of fixtures) {
+    if (writeMatchPage(f, EPL_LEAGUE_ID, 'Premier League', resultByKey)) written++;
+    else skipped++;
+  }
+
   console.log(`Static: wrote ${written} match page(s), skipped ${skipped}, from ${fixtures.length} fixture(s).`);
+
+  // ---- Link lists in the hubs' server HTML (29 Oct 2026) ------------------
+  // /fixtures and /fpl/player-points are client-rendered tools; their static
+  // files were head-only, so no server HTML linked to the match or player
+  // pages they list. These overwrite those head-only files with the same head
+  // plus a plain list of links (replaced by the app when it starts).
+  function writeHubLinkPages(matchPages, fplPlayers, teamsById) {
+    const metaFor = (path) => STATIC_ROUTES.find((r) => r.path === path);
+    const write = (meta, directory) => {
+      const page = renderStaticRouteHead({ ...meta, __directory: directory });
+      const dir = join(DIST, ...meta.path.split('/').filter(Boolean));
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+    };
+    const today = new Date().toISOString().slice(0, 10);
+    const day = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    try {
+      const meta = metaFor('/fixtures');
+      const upcoming = matchPages
+        .filter((m) => m.kickoff_date >= today && m.status !== 'played' && m.status !== 'awaiting_result')
+        .sort((a, b) => a.league_id - b.league_id || a.kickoff_date.localeCompare(b.kickoff_date) || a.slug.localeCompare(b.slug));
+      const groups = [];
+      for (const m of upcoming) {
+        if (groups.at(-1)?.heading !== m.league_name) groups.push({ heading: m.league_name, links: [] });
+        groups.at(-1).links.push({ to: `/football/matches/${m.slug}`, label: `${m.home} v ${m.away}`, note: day(m.kickoff_date) });
+      }
+      if (meta && upcoming.length) {
+        write(meta, { intro: 'Upcoming fixtures with a model prediction, by division.', groups });
+        console.log(`Static: /fixtures lists ${upcoming.length} upcoming match page(s).`);
+      }
+    } catch (err) {
+      console.error(`Static: failed /fixtures link list: ${err?.message ?? err}`);
+    }
+    try {
+      const meta = metaFor('/fpl/player-points');
+      const byTeam = new Map();
+      for (const p of fplPlayers ?? []) {
+        const team = teamsById.get(p.canonical_team_id);
+        if (!team || !p.slug) continue;
+        if (!byTeam.has(team.display_name)) byTeam.set(team.display_name, []);
+        const name = [p.first_name, p.second_name].filter(Boolean).join(' ').trim() || p.web_name;
+        byTeam.get(team.display_name).push({ to: `/fpl/players/${p.slug}`, label: name, note: POSITION_LABELS[p.element_type], position: p.element_type ?? 9 });
+      }
+      const groups = [...byTeam.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([heading, links]) => ({
+          heading,
+          links: links.sort((a, b) => a.position - b.position || a.label.localeCompare(b.label)).map((l) => ({ to: l.to, label: l.label, note: l.note })),
+        }));
+      const n = groups.reduce((k, g) => k + g.links.length, 0);
+      if (meta && n) {
+        write(meta, { intro: 'Every Fantasy Premier League player, by club.', groups });
+        console.log(`Static: /fpl/player-points lists ${n} player page(s).`);
+      }
+    } catch (err) {
+      console.error(`Static: failed /fpl/player-points link list: ${err?.message ?? err}`);
+    }
+  }
 
   // ---- Player pages -------------------------------------------------
   const players = await pending.players;
@@ -1297,7 +1368,29 @@ async function main() {
       }
       writeTeamPages({ leagueId, teamFixturesById: byTeam, resultByKey: eflResultByKey, oddsByMatch: eflOdds, withPlayers: false });
     }
+
+    // ---- EFL and National League match pages (29 Oct 2026) ----------------
+    // From the rows already read for the team pages: no extra queries. Until
+    // now these were the bare app shell (generic title, no canonical, empty
+    // body), linked from every EFL club page: 102 of Search Console's 736
+    // "Google chose a different canonical" URLs. A fixture with neither a
+    // prediction nor a kick-off has nothing to show yet and is left to the
+    // noindex match shell (netlify.toml) until it does.
+    let eflWritten = 0;
+    let eflLeft = 0;
+    for (const f of efl.rows) {
+      if (!f.slug || !prerenderEflMatch(f)) { eflLeft++; continue; }
+      if (writeMatchPage(f, f.league_id, leagueNameById.get(f.league_id) ?? 'English Football League', eflResultByKey)) eflWritten++;
+      else eflLeft++;
+    }
+    console.log(`Static: wrote ${eflWritten} EFL / National League match page(s), ${eflLeft} left to the noindex shell, from ${efl.rows.length} fixture(s).`);
   }
+  try {
+    writeFileSync(join(process.cwd(), 'dist-ssr', 'match-pages.json'), JSON.stringify(writtenMatches.filter((m) => m.league_id !== EPL_LEAGUE_ID).map(({ slug, kickoff_date, predicted_at }) => ({ slug, kickoff_date, predicted_at }))), 'utf8');
+  } catch (err) {
+    console.error(`Static: could not write the EFL match list: ${err?.message ?? err}`);
+  }
+  writeHubLinkPages(writtenMatches, players, teamById);
 
   console.log(`Static: wrote ${tWritten} team page(s) (${eplTeams} Premier League), skipped ${tSkipped} (${Math.round((Date.now() - STARTED_AT) / 1000)}s since start).`);
 

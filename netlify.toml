@@ -221,6 +221,21 @@
   force = true
 
 # ----------------------------------------------------------------------------
+# Match pages with no generated file (29 Oct 2026). Pre-rendered matches (the
+# Premier League, and EFL / National League fixtures with a prediction or a
+# result) are real files and always win, since this rule is not forced. Every
+# other /football/matches/* URL (Scottish, European and cup matches, EFL
+# fixtures with no prediction yet) gets the app shell with robots
+# noindex,follow instead of the bare shell, which had no canonical and no
+# robots tag (Search Console: 102 "Google chose a different canonical").
+# The page still works for visitors. Must stay above the SPA fallback.
+# ----------------------------------------------------------------------------
+[[redirects]]
+  from = "/football/matches/*"
+  to = "/match-shell.html"
+  status = 200
+
+# ----------------------------------------------------------------------------
 # SPA fallback -- KEEP THIS LAST.
 #
 # Without it, any route with no generated file 404s on a direct visit or a

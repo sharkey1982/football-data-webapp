@@ -24,8 +24,10 @@ for (const f of sectionFiles) console.log(`Verify: sitemap ${f}: ${locsIn(f)} UR
 const checks = [
   ['sitemap.xml URLs', urls, 100],
   ['app-shell.html (SPA fallback target)', existsSync(join(DIST, 'app-shell.html')) ? 1 : 0, 1],
+  ['match-shell.html (noindex shell for match pages without a file)', existsSync(join(DIST, 'match-shell.html')) ? 1 : 0, 1],
   ['team pages', count('football', 'teams'), 18],
-  ['match pages', count('football', 'matches'), 300],
+  // Premier League (380) plus the EFL and National League (~2,000) since 29 Oct 2026.
+  ['match pages', count('football', 'matches'), 1000],
   ['player pages', count('fpl', 'players'), 300],
   ['/finance index', existsSync(join(DIST, 'finance', 'index.html')) ? 1 : 0, 1],
   ['NFL team pages', count('nfl', 'teams'), 32],
