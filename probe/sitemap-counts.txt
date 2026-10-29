@@ -1,0 +1,8 @@
+core 2
+football 4734
+international 718
+fpl 2148
+nfl 345
+tennis 1585
+finance 64
+tv 1
