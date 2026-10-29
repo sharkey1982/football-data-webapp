@@ -1,0 +1,24 @@
+name: Probe SEO (temporary)
+on:
+  push:
+    branches: [probe-seo-2026-10-29]
+permissions:
+  contents: write
+jobs:
+  probe:
+    if: "!contains(github.event.head_commit.message, '[probe-results]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          rm -rf probe; mkdir -p probe
+          UA_G='Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+          i=0
+          for u in /football/matches/wolves-v-derby-2026-11-24 /football/matches/st-johnstone-v-kilmarnock-2026-08-02 /nfl/games/2026_09_buf_min /nfl/games/2026_11_no_chi /fpl/player-scout/lewis-dunk /fpl/player-scout/thomas-meunier /football/teams/watford/2021-22 /football/teams/plymouth/2018-19 /international/teams/taiwan /international/teams/greenland /fpl/players/harry-maguire /tennis/tournaments/atp/wimbledon /tennis/players/atp/davidovich-fokina-a /nfl/teams/minnesota-vikings /football/leagues/la-liga/2023-24 /international/tournaments/copa-america/1921 /; do
+            i=$((i+1))
+            curl -sS -A "$UA_G" -D probe/$i.headers -o probe/$i.html -w "$i $u %{http_code} %{size_download}\n" "https://fixtureshark.com$u" >> probe/summary.txt || echo "$i $u FAIL" >> probe/summary.txt
+          done
+      - run: |
+          git config user.name probe; git config user.email probe@users.noreply.github.com
+          git add probe && git commit -m "probe results [probe-results]" && git push
