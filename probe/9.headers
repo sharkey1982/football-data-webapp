@@ -1,0 +1,22 @@
+HTTP/2 200 
+date: Thu, 29 Oct 2026 08:36:01 GMT
+content-type: application/xml
+content-length: 800
+accept-ranges: bytes
+age: 0
+cache-control: public,max-age=0,must-revalidate
+cache-status: "Netlify Edge"; fwd=miss; fwd-status=200; stored
+etag: "05cc460ea4910c4ed92468590fc4a416-ssl"
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-nf-request-id: 01M63CTGS869R8ZFAW5F58RXY1
+cf-cache-status: DYNAMIC
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=rT7MA14TopP0Si5APCGxS%2BmoT9J25Fq%2BU1IMkOioI4tnEi1IDX7hj1NEIDLu1PFY896NZrqGMjSlDZceeXqfdM%2Brpiuk4JpvMw7C4MUZq55nWN9bbX7vFwJkYIZzsFKprOS7"}]}
+cf-ray: a520d9a4e83b4fd6-LAX
+alt-svc: h3=":443"; ma=86400
+

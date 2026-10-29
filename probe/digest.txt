@@ -1,0 +1,32 @@
+== 1 /build-report.txt
+words: 283
+== 2 /football/matches/wolves-v-derby-2026-11-24
+<title>Wolves v Derby — prediction | FixtureShark</title>
+<link rel="canonical" href="https://fixtureshark.com/football/matches/wolves-v-derby-2026-11-24" />
+words: 699
+== 3 /football/matches/st-johnstone-v-kilmarnock-2026-08-02
+<title>FixtureShark</title>
+<meta name="robots" content="noindex,follow" />
+words: 322
+== 4 /fpl/player-scout/lewis-dunk
+<title>Lewis Dunk — FPL career record | FixtureShark</title>
+<link rel="canonical" href="https://fixtureshark.com/fpl/players/lewis-dunk" />
+words: 306
+== 5 /fpl/players/lewis-dunk
+<title>Lewis Dunk — FPL projections | FixtureShark</title>
+<link rel="canonical" href="https://fixtureshark.com/fpl/players/lewis-dunk" />
+words: 1415
+== 6 /fixtures
+<title>Fixtures &amp; results | FixtureShark</title>
+<link rel="canonical" href="https://fixtureshark.com/fixtures" />
+words: 16472
+== 7 /fpl/player-points
+<title>Player Projections — every FPL player, sortable | FixtureShark</title>
+<link rel="canonical" href="https://fixtureshark.com/fpl/player-points" />
+words: 3424
+== 8 /nfl/teams
+<title>NFL teams: every team’s season and history | FixtureShark</title>
+<link rel="canonical" href="https://fixtureshark.com/nfl/teams" />
+words: 710
+== 9 /sitemap.xml
+words: 8
