@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: |
-          rm -rf probe; mkdir -p probe
+          set +e; rm -rf probe; mkdir -p probe
           UA_G='Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
           base=$(head -1 base.txt 2>/dev/null || echo https://fixtureshark.com)
           i=0
@@ -24,10 +24,10 @@ jobs:
             f=probe/$i.html
             {
               echo "== $i $u"
-              grep -io '<title>[^<]*</title>' $f | head -1
-              grep -io '<link rel="canonical"[^>]*>' $f | head -1
-              grep -io '<meta name="robots"[^>]*>' $f | head -1
-              grep -i '^x-robots-tag' probe/$i.headers
+              grep -io '<title>[^<]*</title>' $f | head -1 || true
+              grep -io '<link rel="canonical"[^>]*>' $f | head -1 || true
+              grep -io '<meta name="robots"[^>]*>' $f | head -1 || true
+              grep -i '^x-robots-tag' probe/$i.headers || true
               echo "words: $(sed -e 's/<script[^>]*>.*<\/script>//g' -e 's/<[^>]*>/ /g' $f | wc -w)"
             } >> probe/digest.txt
           done < urls.txt
