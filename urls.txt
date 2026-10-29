@@ -1,5 +1,6 @@
 /build-report.txt
-/fpl/player-scout/lewis-dunk
-/fpl/player-scout/thomas-meunier
-/fpl/players/lewis-dunk
-/fpl/players/bukayo-saka
+/football/matches/wolves-v-derby-2026-11-24
+/football/matches/st-johnstone-v-kilmarnock-2026-08-02
+/fixtures
+/fpl/player-points
+/football/matches/brighton-v-arsenal-2026-11-01
