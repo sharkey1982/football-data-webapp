@@ -50,7 +50,14 @@ function formatTimestamp(iso: string): string {
  * absent (i.e. in the normal browser SPA) the page fetches for itself
  * exactly as before -- the two modes share one component, so there's no
  * second copy of this markup that could silently drift from it. */
-export type PlayerPageData = { profile: PlayerPageProfile; season: PlayerPageGameweek[] };
+export type PlayerPageData = {
+  profile: PlayerPageProfile;
+  season: PlayerPageGameweek[];
+  /** The season-by-season record, so the static HTML carries the career
+   * table (29 Oct 2026: this page became the canonical for the player's
+   * Player Scout page too). Absent in the browser, which fetches it. */
+  career?: PlayerSeason[];
+};
 
 export default function PlayerPage({ initialData }: { initialData?: PlayerPageData } = {}) {
   const { slug } = useParams<{ slug: string }>();
@@ -63,7 +70,8 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
   // allowed to fail on its own: this is a secondary section, and a
   // player with no career history (or a career fetch that errors) should
   // still get their projections page, not a broken one.
-  const [career, setCareer] = useState<PlayerSeason[]>([]);
+  const [career, setCareer] = useState<PlayerSeason[]>(initialData?.career ?? []);
+  const careerInjected = initialData?.career != null;
 
   useEffect(() => {
     // Prerendered: the data is already here, so don't refetch it on
@@ -102,6 +110,7 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
   // player_identity. Runs for prerendered pages too -- initialData
   // carries the profile and projections, not the career.
   useEffect(() => {
+    if (careerInjected) return;
     const fplCode = profile?.fpl_code;
     if (fplCode == null) {
       setCareer([]);
@@ -118,7 +127,7 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
     return () => {
       cancelled = true;
     };
-  }, [profile?.fpl_code]);
+  }, [profile?.fpl_code, careerInjected]);
 
   const upcoming = season.filter((g) => g.projected_points != null && !hasKickedOff(g.status));
   const projectedTotal = upcoming.reduce((sum, g) => sum + (g.projected_points ?? 0), 0);

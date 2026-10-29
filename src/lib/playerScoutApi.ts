@@ -11,6 +11,7 @@
 
 import { supabase } from './supabase';
 import { getCurrentFplSeasonId } from './currentSeason';
+import { absoluteUrl } from './siteConfig';
 
 export type PlayerSearchResult = {
   slug?: string | null;
@@ -85,6 +86,71 @@ export async function getPlayerCareer(fplCode: number): Promise<PlayerSeason[]> 
     points_mid: r.points_mid == null ? null : Number(r.points_mid),
     points_late: r.points_late == null ? null : Number(r.points_late),
   }));
+}
+
+/** One row of fpl_player_season_totals, as the static build reads it in bulk. */
+export type CareerTotalRow = {
+  season_id: number | string;
+  fpl_code: number | string;
+  web_name: string;
+  team_name: string | null;
+  element_type: number | string;
+  start_cost: number | string;
+  end_cost: number | string;
+  total_points: number | string;
+  minutes: number | string;
+  goals_scored: number | string;
+  assists: number | string;
+  clean_sheets: number | string;
+  bonus: number | string;
+};
+
+/** A player's career from bulk season-total rows: the same rows, order and
+ * points-per-£m that get_player_career() returns (newest season first), so
+ * the server HTML of /fpl/players/:slug matches what the browser fetches.
+ * The early/mid/late split needs every gameweek and is left null: the
+ * career table doesn't show it. */
+export type CareerSeasonRow = { season_id: number | string; slug: string; start_year: number | string };
+
+export function careerFromTotals(rows: CareerTotalRow[], seasons: CareerSeasonRow[]): PlayerSeason[] {
+  const bySeason = new Map(seasons.map((s) => [Number(s.season_id), s]));
+  return rows
+    .filter((r) => bySeason.has(Number(r.season_id)))
+    .map((r) => {
+      const startCost = Number(r.start_cost);
+      const total = Number(r.total_points);
+      return {
+        season_id: Number(r.season_id),
+        season_slug: bySeason.get(Number(r.season_id))!.slug,
+        web_name: r.web_name,
+        team_name: r.team_name,
+        element_type: Number(r.element_type),
+        start_cost: startCost,
+        end_cost: Number(r.end_cost),
+        total_points: total,
+        minutes: Number(r.minutes),
+        goals_scored: Number(r.goals_scored),
+        assists: Number(r.assists),
+        clean_sheets: Number(r.clean_sheets),
+        bonus: Number(r.bonus),
+        points_per_start_million: startCost > 0 ? Math.round((total / (startCost / 10)) * 100) / 100 : null,
+        points_early: null,
+        points_mid: null,
+        points_late: null,
+      };
+    })
+    .sort((a, b) => Number(bySeason.get(b.season_id)!.start_year) - Number(bySeason.get(a.season_id)!.start_year));
+}
+
+/** Player Scout pages (29 Oct 2026, docs/seo-indexation.md): one indexable
+ * page per player. A current player's scout page (path /fpl/player-scout/:slug)
+ * names /fpl/players/:playerSlug as canonical, since that page carries the
+ * same career table; a former player, who has no such page and whose scout
+ * page is head-only in the static build, is noindex,follow. */
+export function scoutPageIndexing(scoutPath: string, playerSlug: string | null): { canonical: string; robots?: string } {
+  return playerSlug
+    ? { canonical: absoluteUrl(`/fpl/players/${playerSlug}`) }
+    : { canonical: absoluteUrl(scoutPath), robots: 'noindex,follow' };
 }
 
 /** Pretty form of the dataset slug: "2025-26" -> "2025/26". */

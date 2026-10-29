@@ -43,7 +43,7 @@ const INDEXABLE = [
   '/football/matches/arsenal-v-chelsea-2026-10-18', '/football/teams/arsenal', '/football/teams/hull/2024-25',
   '/football/teams/arsenal/finances', '/football/leagues/premier-league', '/football/leagues/premier-league/1992-93',
   '/football/records/premier-league', '/football/history/trends/premier-league',
-  '/fpl', '/fpl/players/bukayo-saka', '/fpl/player-scout/bukayo-saka', '/fpl/team-of-the-week/gw5',
+  '/fpl', '/fpl/players/bukayo-saka', '/fpl/team-of-the-week/gw5',
   '/nfl', '/nfl/seasons/2025', '/nfl/teams/buffalo-bills', '/nfl/games/2026_02_sea_ari',
   '/tennis/players/atp/sinner-j', '/tennis/seasons/wta/2024', '/tennis/tournaments/atp/wimbledon',
   '/tennis/tournaments/wta/wimbledon/2025', '/tennis/head-to-head/atp/alcaraz-c/sinner-j',
@@ -80,7 +80,7 @@ describe('robots.txt', () => {
   it('does not block pages that rely on noindex, so Google can see the tag', () => {
     // Minor tennis players and unknown slugs are noindex in the page; a robots
     // block would hide that tag and leave the URL "indexed, though blocked".
-    for (const p of ['/tennis/players/atp/nobody', '/football/teams/not-a-club', '/international/teams/nowhere']) {
+    for (const p of ['/tennis/players/atp/nobody', '/football/teams/not-a-club', '/international/teams/nowhere', '/fpl/player-scout/thomas-meunier']) {
       expect(R.isBlocked(p, disallows), p).toBe(false);
     }
   });
