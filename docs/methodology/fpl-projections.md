@@ -82,16 +82,19 @@ The stored `expected_saves` is $3\times$ `xpts_saves` for goalkeepers.
 
 ### Defensive contribution (`fpl_defensive_contribution_projection_leaguewide`)
 
-Events per 90, shrunk over 450 minutes:
+Model Lab P3 count model, in production since 30 Oct 2026 (migration `20261030190000`; it replaced an exponential curve on defenders' CBI only). The view gives the probability of earning the 2 DEFCON points in that fixture, including the chance the player doesn't play or doesn't play long enough.
 
-- DEF: CBI only. Prior 7.143 per 90; base rate 0.255.
-- MID: CBI + recoveries + tackles. Prior 7.107; base rate 0.125.
-- FWD: CBI + recoveries + tackles. Prior 3.681; base rate 0.01.
-- GK: $P(DC) = 0$.
+- **Count.** FPL's own definition: DEF CBI + tackles (CBIT), threshold 10. MID and FWD CBI + recoveries + tackles (CBIRT), threshold 12. GK: $P(DC) = 0$.
+- **Rate per 90** (`shrunk_events90`). Every appearance since 2025/26, counted with the player's current position's definition, shrunk with 3 matches to the position mean (DEF 7.762, MID 8.609, FWD 4.616):
+  $$r = \frac{\text{count} + 3\mu}{\text{minutes}/90 + 3}$$
+  2025/26 comes from `fpl_defcon_history_2025_26` (static, built from vaastav by `scripts/build_defcon_seed_2025_26.py`). This season comes from `fpl_player_gameweeks`. The totals sit in `fpl_defcon_player_rates`, which `refresh_fpl_defcon_rates()` rebuilds at the start of every projections run.
+- **Game state.** $s$ is the team's share of the fixture's market expected goals (`fixtures.market_home_goals` / `market_away_goals`, written before the deadline). $\bar s$ is the player's minutes-weighted share over his past matches, taken from closing lines (`market_goal_lambdas()`); it is 0.5 if he has none. The multiplier is $e^{\beta(s-\bar s)}$ with $\beta$ = −0.33 (DEF) or −0.16 (MID/FWD). With no market price the multiplier is 1.
+- **Count model.** For $m$ minutes the count is negative binomial with mean $r\cdot m/90\cdot e^{\beta(s-\bar s)}$ and size 13.2 / 16.5 / 9.3. $S(m) = P(\text{count}\ge T)$ comes from `fpl_nb_upper_tail()`.
+- **Minutes.** The projection's own inputs (`fpl_defcon_probability()`):
+  $$P(DC) = p_{start}\big[P_{<60}\,\overline{S}_{<60} + P_{60\text{–}84}\,\overline{S}_{60\text{–}84} + P_{85+}\,S(90)\big] + p_{sub}\,\overline{S}_{sub}$$
+  The $P$ terms are the exit bands from `fpl_player_exit_bands`. Each $\overline S$ averages $S$ at five 2025/26 quantile points: 32/45/45/56/59 minutes for an exit before 60, 62/68/73/78/82 for an exit at 60–84, and 2/9/16/24/37 for a sub appearance.
 
-$$P(DC) = \text{clamp}_{[0,0.9]}\left(p_{start}\cdot\text{base}\cdot e^{0.28(\text{events}_{90} - \text{prior}_{90})}\cdot\min(1, m/60)\right)$$
-
-A `threshold` column (DEF 10, MID/FWD 12) is output but not used in the probability.
+Holdout 2026/27 GW1–8 (P3 v the old formula): Brier 0.0895 v 0.0946, log loss 0.2948 v 0.3142. On the holdout P3 over-predicted midfielders (0.107 predicted v 0.083 actual). `scripts/test_defcon_p3_sql.py` checks that the SQL reproduces the Python P3 functions.
 
 ### BPS mean for the bonus model (`fpl_fixture_bps_projection_v1`)
 
@@ -141,7 +144,7 @@ Fixtures beyond the 3-week window are only as fresh as their last backfill.
 ## Caveats
 
 1. **Saves are biased upwards.** Save points use $E[S]/3$ rather than $E\lfloor S/3\rfloor$. For a full match this overstates by roughly 0.3 points on average (my estimate from the floor effect, not measured). Save rates also ignore the opponent's attacking strength.
-2. **Defenders' defensive contribution may exclude tackles.** DEF events count CBI only, while MID and FWD count CBI + recoveries + tackles. As far as I know, the 2025/26 FPL defender rule counts tackles as well. Worth checking.
+2. **Midfielder defensive contribution may run high.** Since 30 Oct 2026 the count model uses FPL's own definition (defenders now include tackles). On the P3 holdout, though, midfielders were over-predicted (0.107 v 0.083), so their DEFCON points may be slightly high.
 3. **Clean sheets are approximate.** They use $e^{-\lambda_{opp}}$ (plain Poisson, no Dixon-Coles $\tau$) multiplied by $p_{start}$ as a proxy for playing 60 minutes. The site's fixture pages read clean sheets from the $\tau$-corrected grid, so the two can differ.
 4. **BPS mean likely double-counts.** The historical BPS rate already contains BPS from goals, assists, clean sheets and CBI/recoveries; the view then adds those terms again. `simulate_fixture_bonus.py` describes the residual as "everything … that isn't goals/assists/clean-sheet", which the view does not implement.
 5. **All team goals go to players.** Allocation spreads the whole of $\lambda_{team}$ across the team's players. Part of a team's real goals arrive as opponent own goals, which credit no attacker in FPL, so player goals are inflated slightly. Own goals *conceded by* a player are modelled (−2 points, prior 0.02 per 90).
