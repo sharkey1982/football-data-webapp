@@ -167,6 +167,16 @@ def main():
     except Exception as e:
         print(f"::warning::Could not refresh pecking-order start chances ({e}); using the previous stored rows.")
 
+    # Defensive-contribution history (Model Lab P3, 30 Oct 2026): each
+    # player's totals since 2025/26 and his usual market goal share, read by
+    # fpl_defensive_contribution_projection_leaguewide. Under a second; if it
+    # fails the projections use the previous stored rows.
+    try:
+        n = call("refresh_fpl_defcon_rates")
+        print(f"::notice::Defensive-contribution rates refreshed: {n} players.")
+    except Exception as e:
+        print(f"::warning::Could not refresh defensive-contribution rates ({e}); using the previous stored rows.")
+
     def record_failure(message: str) -> None:
         # The failure record goes through the same database that just
         # failed, so it gets its own retries rather than one attempt.
