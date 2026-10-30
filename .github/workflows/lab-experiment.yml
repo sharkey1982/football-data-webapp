@@ -82,6 +82,14 @@ name: Model Lab
 #   validation GW6; with open_holdout, GW7-8 once. Writes lab_scorings and
 #   analysis_results (lab_x1_start_model).
 #
+# p3: experiment P3_defcon_count (registered 30 Oct): defensive contribution
+#   from a negative binomial count model with the real threshold v the
+#   production formula and a naive season hit rate. 2025/26 from the vaastav
+#   archive (GitHub), 2026/27 from the database, read once. Tuning 2025/26
+#   GW1-25, validation GW26-38; with open_holdout, 2026/27 GW1-8 once.
+#   p3_check_data builds the rows and prints data checks only (no scores).
+#   Writes lab_scorings and analysis_results (lab_p3_defcon).
+#
 # analysis_transfer_captaincy: the captaincy squads re-solved with FPL
 #   transfers (1 free a week, 5 banked, -4 hits) against the fixed squad,
 #   on the same projections. Writes analysis_results (transfer_captaincy).
@@ -97,10 +105,10 @@ on:
       job:
         description: Which job
         type: choice
-        options: [f1, e1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, backtest_depth_ties, backtest_depth_recency, backtest_depth_cover, backtest_depth_deep_backup, d1, x1, analysis_transfer_captaincy, analysis_xg_vs_fdr]
+        options: [f1, e1, f4, p5, p2, nfl_n0, nfl_n1, fpl_scoring_verify, analysis_squad_variance, analysis_captain_partnerships, backtest_depth_floor, backtest_depth_ties, backtest_depth_recency, backtest_depth_cover, backtest_depth_deep_backup, d1, x1, p3, p3_check_data, analysis_transfer_captaincy, analysis_xg_vs_fdr]
         default: f1
       open_holdout:
-        description: "f1/e1/d1/x1/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
+        description: "f1/e1/d1/x1/p3/f4/p5/p2/nfl_n1 only: score the sealed holdout (once only; p2 and nfl_n1 then score only the holdout)"
         type: boolean
         default: false
 
@@ -295,6 +303,25 @@ jobs:
           STATUS=${PIPESTATUS[0]}
           ENCODED=$(tail -c 3000 /tmp/bt.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
           if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; else echo "::notice::$ENCODED"; fi
+          exit $STATUS
+      - name: P3 (defensive contribution count model)
+        if: inputs.job == 'p3' || inputs.job == 'p3_check_data'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q scripts/test_lab_p3_defcon.py 2>&1 | tail -3 | tee /tmp/bt.log
+          python scripts/lab_p3_defcon.py ${{ inputs.job == 'p3_check_data' && '--check-data --no-write' || '' }} ${{ inputs.job == 'p3' && inputs.open_holdout && '--open-holdout' || '' }} 2>&1 | tee -a /tmp/bt.log
+          STATUS=${PIPESTATUS[0]}
+          # Logs can't be read from a cloud session; annotations can (split so none is cut).
+          grep -E "^(data checks|position priors|split sizes|chosen|tuning|validation|holdout|illustration|PASS|FAIL|Saved)" /tmp/bt.log | while IFS= read -r line; do
+            for ((i=0; i<${#line}; i+=3500)); do echo "::notice::${line:$i:3500}"; done
+          done
+          ENCODED=$(tail -c 1500 /tmp/bt.log | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/\r/%0D/g')
+          if [ "$STATUS" -ne 0 ]; then echo "::error::$ENCODED"; fi
           exit $STATUS
       - name: Transfer-aware captaincy analysis
         if: inputs.job == 'analysis_transfer_captaincy'
