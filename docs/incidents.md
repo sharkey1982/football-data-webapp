@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-31 · GW9 record transfers for N.Jackson missed and understated in our FPL posts
+- **Found:** Chris, Sat 31 Oct: @OfficialFPL said N.Jackson's 2,370,904 transfers in for GW9 was a record; our posts said nothing about it.
+- **Impact:** Market watch (candidate 61, Fri 19:25) gave only net figures ("N.Jackson +1481k"). The week's-changes post (candidate 65, Sat 11:25) said "Most bought: N.Jackson +1971k", from the snapshot taken at 10:00 for an 11:00 deadline (1,988,403 in), about 380k short of FPL's final figure. Nothing false was posted, but the number was an hour old without saying so, and the story was missed.
+- **Cause:** (1) No post compared a figure with our history. (2) The only deadline snapshot is taken at the first 10-minute tick inside the hour before the deadline, and after the deadline FPL's `transfers_in_event` resets to the next gameweek, so nothing later held the final figure. FPL's season-cumulative `transfers_in` after the deadline doesn't give it either (2,141,434 for Jackson, not 2,370,904), and element-summary history only has it once the games are played.
+- **Fix:** `20261031160000_fpl_transfer_record_watch.sql`: `fpl_transfer_record_check()` (history since 2021/22, max per player-gameweek); market watch adds a record, on-course or progress line; a new `final_call` snapshot (pg_cron `fpl-deadline-final-call`, FPL refreshed each minute in the last 3.5 minutes before a deadline) feeds the week's changes, which otherwise labels its figures "by HH:MM".
+- **Prevention:** the self-test at the end of the migration. *Lesson: a snapshot named "pre-deadline" isn't the final figure; say when a number was taken if it isn't.*
+
+---
+
 ## 2026-10-23 · GW8 captaincy and team-news posts never went out
 - **Found:** Chris, after the GW8 deadline (Fri 23 Oct, 18:30 UK): no captaincy post and no late preview post on @FixtureSharkHQ. (The GW8 preview thread did post, Thu 22 Oct 08:10.)
 - **Impact:** No GW8 captaincy post. The Friday team-news update thread was not sent. Nothing wrong was posted.
