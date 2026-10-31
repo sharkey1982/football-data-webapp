@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-10-31 · Postponed Football League games showed "Result to follow" for weeks
+- **Found:** Chris, 31 Oct: League One and League Two games of 26 Sep and 3 Oct still showed "Result to follow".
+- **Impact:** six fixtures (E2 Notts County v Blackpool, Mansfield v Leyton Orient, Peterborough v Notts County, Barnsley v MK Dons, Bromley v Wycombe; E3 Walsall v Crawley) sat at `awaiting_result` on their original dates for 4-5 weeks, listed as kicked-off games without a score, and flagged daily by `results_missing_48h`. Four had already been rearranged (15 Dec, 12 Jan). No wrong score was shown.
+- **Cause:** the Championship to League Two fixture list comes only from FixtureDownload, which keeps original dates and has no postponement data, and `refresh_fixture_feeds()` rewrote date and status from it every morning. Only the National League had a footballwebpages refresh for dates and postponements.
+- **Fix:** `20261031170000_efl_fixture_refresh_postponements.sql`: `refresh_efl_fixtures()` (04:50 UTC daily) reads footballwebpages' full season for E1-E3, moves rearranged dates, marks postponed and abandoned games (and past-dated games footballwebpages has dropped from its list, which is how it shows "postponed, no new date"), and sets `fixtures.schedule_source` so FixtureDownload no longer resets them. Abandoned rows never give a reported score. The site shows "Postponed" instead of a prediction or "Result to follow".
+- **Prevention:** `results_missing_48h` still flags a kicked-off game with no result; the new job turns real postponements into `postponed` within a day, so what is left there is a results gap. *Lesson: a fixture feed with no postponement data needs a second source for postponements.*
+
+---
+
 ## 2026-10-31 · GW9 record transfers for N.Jackson missed and understated in our FPL posts
 - **Found:** Chris, Sat 31 Oct: @OfficialFPL said N.Jackson's 2,370,904 transfers in for GW9 was a record; our posts said nothing about it.
 - **Impact:** Market watch (candidate 61, Fri 19:25) gave only net figures ("N.Jackson +1481k"). The week's-changes post (candidate 65, Sat 11:25) said "Most bought: N.Jackson +1971k", from the snapshot taken at 10:00 for an 11:00 deadline (1,988,403 in), about 380k short of FPL's final figure. Nothing false was posted, but the number was an hour old without saying so, and the story was missed.

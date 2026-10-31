@@ -30,7 +30,7 @@ import { getCurrentFplSeasonId } from '../../lib/currentSeason';
 import TeamHistoryPanel from '../../components/TeamHistoryPanel';
 import ResultFlag from '../../components/ResultFlag';
 import { chanceText, pointsVsExpected, resultFlag, vsExpectedText, type Outcome } from '../../lib/expectation';
-import { hasKickedOff } from '../../lib/fixtureStatus';
+import { hasKickedOff, isPostponed, POSTPONED_LABEL } from '../../lib/fixtureStatus';
 
 /** hasFinance: whether this club has published accounts. Static generation
  *  supplies it from ONE bulk query for every team; when absent the page asks
@@ -199,7 +199,9 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
                       <span className="text-ink-500">({m.is_home ? 'H' : 'A'})</span>
                     </td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
-                      {m.predicted_goals_for != null
+                      {isPostponed(m.status)
+                        ? <span className="font-sans text-ink-500">{POSTPONED_LABEL}</span>
+                        : m.predicted_goals_for != null
                         ? `${m.predicted_goals_for.toFixed(1)}\u2013${m.predicted_goals_against?.toFixed(1)}`
                         : '\u2014'}
                     </td>
