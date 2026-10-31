@@ -22,3 +22,13 @@ export function isAwaitingResult(status: string | null | undefined): boolean {
 /** What to show in a score column while the result is missing (the wording
  *  GameweekBrowser already used for kicked-off games without a score). */
 export const RESULT_PENDING_LABEL = 'Result to follow';
+
+/** A source says the game is off: postponed or abandoned, with or without a
+ *  new date. A past-dated postponed game is waiting to be rearranged, not
+ *  played, so it never shows "Result to follow". */
+export function isPostponed(status: string | null | undefined): boolean {
+  return status === 'postponed';
+}
+
+/** What to show in a score or prediction column for a postponed game. */
+export const POSTPONED_LABEL = 'Postponed';

@@ -32,7 +32,7 @@ import { defaultFixtureDate } from '../lib/fixtureDates';
 import RangeControl from '../components/RangeControl';
 import { datesBetween, emptyRangeText, longDay, nextDateAfter, parseRange, rangeBounds, rangeCaption, stepRange, type DateRange } from '../lib/dateRange';
 import { ukToday } from '../lib/ukDate';
-import { hasKickedOff } from '../lib/fixtureStatus';
+import { hasKickedOff, isPostponed, POSTPONED_LABEL } from '../lib/fixtureStatus';
 import { rowKeys } from '../lib/rowKeys';
 
 const MONTH_NAMES = [
@@ -152,6 +152,10 @@ function FixtureScoreCell({
     ) : (
       <span className="text-xs text-ink-500">Result to follow</span>
     );
+  }
+  // Postponed (no new date yet): no prediction, which would read as a game to come.
+  if (isPostponed(f.status)) {
+    return <span className="text-xs text-ink-500">{POSTPONED_LABEL}</span>;
   }
   if (f.predicted_home_goals != null && f.predicted_away_goals != null) {
     // In projections mode the model's own view IS the content, so the

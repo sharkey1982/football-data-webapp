@@ -24,7 +24,7 @@ import { formatMatchDateWithYear } from '../../lib/formatDate';
 import { getFixtureBroadcast, broadcastToOffer, type FixtureBroadcast } from '../../lib/broadcastsApi';
 import WatchOptions from '../../components/WatchOptions';
 import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
-import { hasKickedOff } from '../../lib/fixtureStatus';
+import { hasKickedOff, isPostponed } from '../../lib/fixtureStatus';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -174,6 +174,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
           {match.league_name}
           {match.matchweek != null && <> &middot; Matchweek {match.matchweek}</>} &middot;{' '}
           <time dateTime={match.kickoff_date}>{formatMatchDateWithYear(match.kickoff_date)}</time>
+          {isPostponed(match.status) && <> &middot; <strong className="font-medium text-ink-900">Postponed</strong>, new date to be confirmed</>}
         </p>
         {match.predicted_at && (
           <p className="text-xs text-ink-500 font-mono mt-2">
