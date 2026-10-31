@@ -51,7 +51,8 @@ jobs:
     concurrency:
       group: smoke-${{ github.event_name == 'status' && github.event.sha || 'production' }}
       cancel-in-progress: true
-    runs-on: ubuntu-latest
+    # Pinned (31 Oct 2026): "playwright install --with-deps" fails on the Ubuntu 26 image ubuntu-latest moved to from 19 Oct.
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
