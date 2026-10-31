@@ -6,12 +6,12 @@
 //                                      when it goes, and where to press Hold
 //   { kind: "draft", candidate_id }    a post that waits for Chris's OK
 //   { kind: "breaker", reason }        automatic posting has stopped itself
+//   { kind: "test" }                   a one-off check that email works
 // Called only by the database (private.social_notify, pg_net) with the worker
 // token in x-social-token. Sends through Resend.
 //
 // Secrets: RESEND_API_KEY (required), SOCIAL_NOTIFY_FROM (optional sender,
-// default "FixtureShark <alerts@mail.fixtureshark.com>"; falls back to
-// alerts@schoolcamp.uk while that domain isn't verified in Resend). The recipient is social_settings.notify_email, else the admin's
+// default "FixtureShark <alerts@mail.fixtureshark.com>", verified in Resend). The recipient is social_settings.notify_email, else the admin's
 // address in app_users.
 // Without RESEND_API_KEY nothing is sent and the audit log says so; posting
 // is not affected.
@@ -95,6 +95,12 @@ Deno.serve(async (req) => {
       posts.map((p, i) => `<p style="white-space:pre-wrap;border-left:3px solid #b08a2e;padding:4px 10px;margin:8px 0">` +
                           `${posts.length > 1 ? `<b>${i + 1}/${posts.length}</b> ` : ""}${esc(p)}</p>`).join("") +
       `<p style="color:#666;font-size:12px">Post #${c.candidate_id}.</p>`;
+  } else if (body?.kind === "test") {
+    // One-off check that email works (31 Oct 2026: RESEND_API_KEY set, mail.fixtureshark.com verified).
+    subject = "FixtureShark alerts are working";
+    html = `<p>This is a test. From now on you'll get an email here when an automatic X post is about to go out,
+      when a post is waiting for your OK, and if automatic posting stops itself.</p>
+      <p><a href="https://fixtureshark.com/admin/social">fixtureshark.com/admin/social</a></p>`;
   } else if (body?.kind === "breaker") {
     subject = "Automatic X posting has stopped";
     html = `<p>Automatic posting to @FixtureSharkHQ switched itself off:</p><p><b>${esc(String(body.reason ?? "unknown"))}</b></p>
@@ -103,19 +109,19 @@ Deno.serve(async (req) => {
     return Response.json({ ok: false, reason: "unknown kind" });
   }
 
-  // Sender: mail.fixtureshark.com once it is verified in Resend; until then
-  // Resend refuses it (403/422) and the verified schoolcamp.uk sender is used.
+  // Sender: mail.fixtureshark.com (verified in Resend 31 Oct 2026). The key is
+  // restricted to that domain, so there is no fallback sender.
   const send = (from: string) => fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to: [to], subject, html }),
     signal: AbortSignal.timeout(15_000),
   }).catch((e) => ({ ok: false, status: 0, text: () => Promise.resolve(String(e)) }) as unknown as Response);
-  let r = await send(Deno.env.get("SOCIAL_NOTIFY_FROM") ?? "FixtureShark <alerts@mail.fixtureshark.com>");
-  if (!r.ok && (r.status === 403 || r.status === 422)) r = await send("FixtureShark alerts <alerts@schoolcamp.uk>");
+  const r = await send(Deno.env.get("SOCIAL_NOTIFY_FROM") ?? "FixtureShark <alerts@mail.fixtureshark.com>");
   if (!r.ok) {
-    await audit("notify_failed", { status: r.status, error: (await r.text()).slice(0, 300), kind: body?.kind });
-    return Response.json({ ok: false, status: r.status });
+    const error = (await r.text()).slice(0, 300);
+    await audit("notify_failed", { status: r.status, error, kind: body?.kind });
+    return Response.json({ ok: false, status: r.status, error });
   }
   await audit("notified", { kind: body?.kind, subject });
   return Response.json({ ok: true });
