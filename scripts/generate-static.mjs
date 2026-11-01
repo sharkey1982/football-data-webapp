@@ -88,7 +88,7 @@ function writeReport() {
 // the build report shows a regression. Report only; never fails anything.
 const BODY_CHECK = [
   '/tv-guide', '/team-strength', '/fpl', '/fpl/line-ups', '/fpl/injuries', '/preview', '/fpl/player-scout', '/fpl/live',
-  '/fpl/team-of-the-week', '/fpl/team-of-the-week/gw1',
+  '/fpl/team-of-the-week', '/fpl/team-of-the-week/gw1', '/fpl/most-owned',
   '/international/teams', '/international/tournaments', '/international/tournaments/confederations-cup', '/international/fixtures',
   '/international/women/teams', '/international/women/tournaments', '/international/women/tournaments/world-cup', '/international/women/fixtures',
   '/international/women/teams/england', '/international/women/tournaments/world-cup/2023',
@@ -486,6 +486,42 @@ async function main() {
     }
   }
   await writeGuidePages();
+
+  // ---- /fpl/most-owned: the template squad (1 Nov 2026) ------------------
+  // The same reads the browser makes (src/lib/fplMostOwned.ts), built by the
+  // same function. Any failed read keeps the head-only file.
+  async function writeMostOwnedPage() {
+    const entry = await import(ENTRY);
+    if (!entry.renderMostOwnedPage || SEASON_ID == null) return;
+    try {
+      const gws = await query(`fpl_gameweeks?select=fpl_event_id&season_id=eq.${SEASON_ID}&deadline_time=gt.${encodeURIComponent(new Date().toISOString())}&order=deadline_time.asc&limit=1`);
+      const nextGw = gws?.[0]?.fpl_event_id;
+      if (nextGw == null) { console.warn('Static: no next gameweek -- /fpl/most-owned keeps head tags only.'); return; }
+      const H = entry.MOST_OWNED_HORIZON;
+      const [players, fixtures, teams, deadline] = await Promise.all([
+        query(`fpl_players?select=${entry.MOST_OWNED_PLAYER_SELECT}&season_id=eq.${SEASON_ID}&order=selected_by_percent.desc&limit=250`),
+        query(`fixtures?select=fixture_id,matchweek,kickoff_date,home_team_id,away_team_id&league_id=eq.1&season_id=eq.${SEASON_ID}&matchweek=gte.${nextGw}&matchweek=lt.${nextGw + H}`),
+        queryAll('teams?select=team_id,display_name,canonical_name&order=team_id.asc'),
+        query(`rpc/get_deadline_ownership?p_season_id=${SEASON_ID}`),
+      ]);
+      if (!players || !fixtures || !teams) { console.warn('Static: most-owned reads failed -- /fpl/most-owned keeps head tags only.'); return; }
+      const ids = players.slice(0, 120).map((p) => p.fpl_player_id).join(',');
+      const fx = fixtures.map((f) => f.fixture_id).join(',');
+      const projections = await query(`fpl_player_projections?select=fpl_player_id,fixture_id,expected_fpl_points&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline&fixture_id=in.(${fx})&fpl_player_id=in.(${ids})&limit=5000`);
+      if (!projections) { console.warn('Static: projections read failed -- /fpl/most-owned keeps head tags only.'); return; }
+      const teamNames = Object.fromEntries(teams.map((t) => [t.team_id, t.display_name]));
+      const teamShortNames = Object.fromEntries(teams.map((t) => [t.team_id, t.canonical_name]));
+      const page = entry.renderMostOwnedPage({ players, fixtures, projections, deadline: deadline ?? null, teamNames, teamShortNames, nextGw, asOf: TODAY_UK });
+      if (!page) { console.warn('Static: no legal most-owned squad -- /fpl/most-owned keeps head tags only.'); return; }
+      const dir = join(DIST, 'fpl', 'most-owned');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), buildDocument(shell, page), 'utf8');
+      console.log(`Static: wrote /fpl/most-owned (gameweek ${nextGw}).`);
+    } catch (err) {
+      console.error(`Static: failed /fpl/most-owned: ${err?.message ?? err}`);
+    }
+  }
+  await writeMostOwnedPage();
 
   // ---- Player Scout pages ------------------------------------------
   // One per player who actually played, across every imported season.
