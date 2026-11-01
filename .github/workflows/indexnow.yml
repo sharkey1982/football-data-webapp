@@ -1,0 +1,72 @@
+name: IndexNow
+
+# Tells Bing, Yandex and the other IndexNow engines which pages changed since
+# the last run: sitemap lastmod compared with the previous run's state (kept
+# in the Actions cache). Changed pages only, at most hourly. Never fails the
+# site; one pipeline_runs row per run (job_registry run_key ^indexnow$).
+
+on:
+  schedule:
+    - cron: '50 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indexnow
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SITE: https://fixtureshark.com
+      # Public by design: IndexNow keys are proved by the file at /<key>.txt.
+      INDEXNOW_KEY: f5d58bf57b2833af0486a5b09fd130ad
+      STATE: .indexnow/state.json
+    steps:
+      - run: echo "RUN_T0=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/indexnow_ping.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: .indexnow
+          key: indexnow-state-${{ github.run_id }}
+          restore-keys: indexnow-state-
+      - name: Submit changed pages
+        id: ping
+        run: |
+          set -o pipefail
+          python3 scripts/indexnow_ping.py | tee /tmp/indexnow.txt
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .indexnow
+          key: indexnow-state-${{ github.run_id }}
+      - name: Log run
+        if: always()
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY' > /tmp/pipeline_run.json
+          import json, os, datetime
+          summary = open("/tmp/indexnow.txt").read().strip()[-600:] if os.path.exists("/tmp/indexnow.txt") else "no output"
+          print(json.dumps({
+              "job_name": "indexnow",
+              "status": "success" if os.environ["JOB_STATUS"] == "success" else "failed",
+              "started_at": os.environ.get("RUN_T0") or None,
+              "finished_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "summary": f"{summary} | {os.environ['RUN_URL']}",
+          }))
+          PY
+          curl -s -o /dev/null -w "pipeline_runs insert: HTTP %{http_code}\n" --max-time 20 -X POST "$SUPABASE_URL/rest/v1/pipeline_runs" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" -H "Prefer: return=minimal" -d @/tmp/pipeline_run.json || true

@@ -187,6 +187,7 @@ import {
 import { FIRST_YEAR as TENNIS_FIRST_YEAR, groupByTournament as tennisGroupByTournament, resultsSentence as tennisResultsSentence, seasonsSentence as tennisSeasonsSentence, playerSentence as tennisPlayerSentence, seasonSentence as tennisSeasonSentence } from './lib/tennisStats';
 import { hasKickedOff } from './lib/fixtureStatus';
 import Landing from './pages/Landing';
+import { homeStructuredData } from './lib/siteIdentity';
 import FootballHub from './pages/FootballHub';
 import FplHub from './pages/FplHub';
 import NflHub from './pages/nfl/NflHub';
@@ -436,7 +437,9 @@ export function renderStaticRouteHead(meta: RouteMeta & { __scoutPlayerSlug?: st
     title: `${meta.title} | ${BRAND_NAME}`,
     description: meta.description,
     canonical: `${SITE_URL}${meta.path}`,
-    structuredData: crumbs.length > 1 ? [breadcrumb(crumbs)] : [],
+    // The home page also says who the site is (Organization naming the
+    // sister sites, WebSite) and carries its common questions as FAQPage.
+    structuredData: [...(meta.path === '/' ? homeStructuredData() : []), ...(crumbs.length > 1 ? [breadcrumb(crumbs)] : [])],
     // A Player Scout page (undefined for every other route): see scoutPageIndexing.
     ...(meta.__scoutPlayerSlug !== undefined ? scoutPageIndexing(meta.path, meta.__scoutPlayerSlug) : {}),
   };

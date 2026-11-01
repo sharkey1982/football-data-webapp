@@ -19,6 +19,7 @@ import { MyHome } from '../components/my/MyHome';
 import { dismissStrip, opensMyPage, readPrefs, stripDismissed } from '../lib/myPrefs';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { PopularTools } from '../components/hub/PopularTools';
+import { HOME_FAQ, homeSummary } from '../lib/siteIdentity';
 
 /* The game is NOT part of this React app: it is its own Netlify site,
    proxied in at /play/beat-the-shark/. So this must be a plain <a>, never
@@ -163,7 +164,9 @@ export default function Landing() {
       <div>
         <Heading className="font-display uppercase tracking-wide text-3xl sm:text-6xl text-amber-400 glow-amber leading-tight">Pick your side.</Heading>
         <p className="text-chalk-300 mt-3 sm:mt-4 max-w-prose text-base sm:text-lg">
-          Results, tables and model predictions for club football, plus Fantasy Premier League tools. Also international football, club finances, the NFL and tennis.
+          {/* Answer-first and dated (AI search audit, 1 Nov 2026): the sentence a
+              search engine or chatbot can quote about what the site is. */}
+          {homeSummary()}
         </p>
       </div>
 
@@ -198,6 +201,20 @@ export default function Landing() {
 
       <PopularTools from="home" tone="dark" />
     </div>
+
+      {/* Common questions: the same text is the page's FAQPage JSON-LD
+          (src/lib/siteIdentity.ts, entry-server). */}
+      <section aria-labelledby="home-faq" className="max-w-prose">
+        <h2 id="home-faq" className="font-display uppercase tracking-wide text-2xl text-ink-900">Common questions</h2>
+        <dl className="mt-3 space-y-4">
+          {HOME_FAQ.map((f) => (
+            <div key={f.q}>
+              <dt className="font-semibold text-ink-900">{f.q}</dt>
+              <dd className="mt-1 text-ink-700">{f.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </div>
   );
 }

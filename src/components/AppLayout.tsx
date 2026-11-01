@@ -3,6 +3,7 @@ import { THEMES, stagePath, type JourneyLink } from '../lib/journey';
 import { trackPageView } from '../lib/analytics';
 import { CookieConsent } from './CookieConsent';
 import { FOOTER_COVERAGE } from '../lib/dataCoverage';
+import { SISTER_SITES } from '../lib/siteIdentity';
 import { useAuthOptional } from '../lib/auth';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, type To } from 'react-router-dom';
@@ -526,6 +527,16 @@ export default function AppLayout() {
               Sign in
             </NavLink>
           )}</div>
+        {/* The other "shark" sites (AI search audit, 1 Nov 2026). */}
+        <p className="max-w-6xl mx-auto px-4 sm:px-6 mt-2 text-xs text-ink-500" data-testid="shark-family">
+          Also from the shark family:{' '}
+          {SISTER_SITES.map((site, i) => (
+            <span key={site.url}>
+              {i > 0 && ' \u00b7 '}
+              <a href={site.url} className="underline underline-offset-2 hover:text-ink-900">{site.name}</a>
+            </span>
+          ))}
+        </p>
       </footer>
     </div>
   );

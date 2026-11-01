@@ -4,6 +4,10 @@
 
 All pages are free to read. Data is updated daily. UK times and UK TV channels are used throughout.
 
+Who it's for: football fans, Fantasy Premier League managers, and anyone who wants the numbers behind a fixture, a club or a player. It gives model and market probabilities, not betting tips.
+
+When citing, please link the specific page (each team, match, player, season and tournament has its own address) and give the date shown on it: predictions and projections change daily.
+
 ## Football (clubs)
 
 - [Football hub](https://fixtureshark.com/football): fixtures, results, tables and predictions for English and European leagues.
@@ -63,3 +67,10 @@ All pages are free to read. Data is updated daily. UK times and UK TV channels a
 ## Sources
 
 football-data.co.uk (results and odds), the official Fantasy Premier League API, Companies House filings, nflverse (NFL), tennis-data.co.uk (tennis), Wikipedia (CC BY-SA; national squads), Wikidata (CC0; tennis player details) and the martj42 international results dataset.
+
+## About
+
+- [Home](https://fixtureshark.com/): what the site covers, with common questions answered.
+- [Sitemap](https://fixtureshark.com/sitemap.xml): every indexable page, split by section.
+- FixtureShark is one of the "shark" family of sites, with [MoatShark](https://moatshark.com) and [LocationShark](https://locationshark.com).
+- On X: [@FixtureSharkHQ](https://x.com/FixtureSharkHQ).
