@@ -25,6 +25,8 @@ import { getFixtureBroadcast, broadcastToOffer, type FixtureBroadcast } from '..
 import WatchOptions from '../../components/WatchOptions';
 import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
 import { hasKickedOff, isPostponed } from '../../lib/fixtureStatus';
+import { matchAnswer } from '../../lib/answerFirst';
+import CommonQuestions, { AnswerLead } from '../../components/CommonQuestions';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -45,7 +47,8 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   const [match, setMatch] = useState<MatchPagePrediction | null>(initialData ?? null);
   const [loading, setLoading] = useState(!initialData);
   const [notFound, setNotFound] = useState(false);
-  const [broadcasts, setBroadcasts] = useState<FixtureBroadcast[]>([]);
+  // Static generation supplies the UK broadcast rows; the browser fetches them.
+  const [broadcasts, setBroadcasts] = useState<FixtureBroadcast[]>(initialData?.broadcasts ?? []);
   const [streamingPartners, setStreamingPartners] = useState<AffiliatePartner[]>([]);
 
   useEffect(() => {
@@ -162,6 +165,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   const market = match.market ?? null;
   const recordSentence = marketRecordSentence(match.marketRecord, match.league_name);
   const played = match.status === 'played' && match.actual_home_goals != null;
+  const answer = matchAnswer(match, broadcasts);
 
   return (
     <article className="space-y-6">
@@ -176,6 +180,7 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
           <time dateTime={match.kickoff_date}>{formatMatchDateWithYear(match.kickoff_date)}</time>
           {isPostponed(match.status) && <> &middot; <strong className="font-medium text-ink-900">Postponed</strong>, new date to be confirmed</>}
         </p>
+        <AnswerLead text={answer.lead} />
         {match.predicted_at && (
           <p className="text-xs text-ink-500 font-mono mt-2">
             Prediction made <time dateTime={match.predicted_at}>{formatTimestamp(match.predicted_at)}</time>
@@ -282,6 +287,8 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
       ) : (
         <p className="text-ink-500 text-sm">No model prediction is available for this fixture.</p>
       )}
+
+      <CommonQuestions faqs={answer.faqs} />
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <TeamLink slug={match.home_team_slug} from="match_page" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

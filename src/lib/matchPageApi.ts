@@ -21,6 +21,7 @@
 import { supabase } from './supabase';
 import { calculateDixonColes, type DixonColesResult } from './dixonColes';
 import { getLeagueNameForSeason } from './referenceApi';
+import type { FixtureBroadcast } from './broadcastsApi';
 
 export type MatchPagePrediction = {
   fixture_id: number;
@@ -30,6 +31,8 @@ export type MatchPagePrediction = {
   home_team_slug: string | null;
   away_team_slug: string | null;
   kickoff_date: string;
+  /** Kick-off time (UK, 'HH:MM:SS') when the fixture feed has one. */
+  kickoff_time?: string | null;
   status: string;
   matchweek: number | null;
   league_name: string;
@@ -55,6 +58,9 @@ export type MatchPagePrediction = {
   /** How the model and the market's closing line have compared on played
    * matches in this league (model_vs_market_by_league). */
   marketRecord?: MarketRecord | null;
+  /** UK broadcast rows, supplied by static generation so the server HTML
+   * can answer "is it on TV?". Absent in the browser, which fetches them. */
+  broadcasts?: FixtureBroadcast[] | null;
 };
 
 export type MarketLine = { home: number; draw: number; away: number; captured_at: string };
@@ -119,7 +125,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     // the type level, and string concatenation defeats that, collapsing
     // every embedded column to GenericStringError.
     .select(
-      'fixture_id, slug, kickoff_date, status, matchweek, league_id, season_id, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
+      'fixture_id, slug, kickoff_date, kickoff_time, status, matchweek, league_id, season_id, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, predicted_at, prediction_fit_run_id, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name, slug), away_team:teams!fixtures_away_team_id_fkey(display_name, slug), leagues(name)'
     )
     .eq('slug', slug)
     .maybeSingle();
@@ -172,6 +178,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     home_team_slug: data.home_team?.slug ?? null,
     away_team_slug: data.away_team?.slug ?? null,
     kickoff_date: data.kickoff_date,
+    kickoff_time: data.kickoff_time ?? null,
     status: data.status,
     matchweek: data.matchweek,
     league_name: leagueName ?? data.leagues?.name ?? 'Unknown',

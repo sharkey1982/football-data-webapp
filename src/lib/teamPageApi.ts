@@ -16,6 +16,7 @@
 
 import { getCurrentSeasonId } from './currentSeason';
 import { chancesFromOdds } from './expectation';
+import { buildModelFromLambdas } from './matchPageApi';
 import { supabase } from './supabase';
 
 export type TeamPageProfile = {
@@ -51,7 +52,66 @@ export type TeamPageMatch = {
    * (margin removed; src/lib/expectation.ts). Absent without odds. */
   win_chance?: number | null;
   draw_chance?: number | null;
+  /** Kick-off time (UK, 'HH:MM:SS') when the fixture feed has one. */
+  kickoff_time?: string | null;
+  /** The model's chances for an UNPLAYED fixture, from this team's side
+   * (0-1), from the fixture's frozen expected goals and its fit's rho --
+   * the same numbers the match page shows. Absent without a prediction. */
+  model_win?: number | null;
+  model_draw?: number | null;
+  model_loss?: number | null;
 };
+
+/** The team's row in this season's table (league_standings: the same
+ * ranking rules as the league pages). Confirmed results only. */
+export type TeamStanding = {
+  position: number;
+  teams: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goals_for: number;
+  goals_against: number;
+  points: number;
+};
+
+export const STANDING_COLUMNS = 'team_id, league_id, position, teams, played, won, drawn, lost, goals_for, goals_against, points';
+
+export function toStanding(r: Record<string, unknown> | null | undefined): TeamStanding | null {
+  if (!r || r.position == null) return null;
+  const n = (k: string) => Number(r[k] ?? 0);
+  return { position: n('position'), teams: n('teams'), played: n('played'), won: n('won'), drawn: n('drawn'), lost: n('lost'), goals_for: n('goals_for'), goals_against: n('goals_against'), points: n('points') };
+}
+
+export async function getTeamStanding(teamId: number, leagueId: number | null): Promise<TeamStanding | null> {
+  if (leagueId == null) return null;
+  const seasonId = await getCurrentSeasonId();
+  const { data, error } = await supabase
+    .from('league_standings')
+    .select('team_id, league_id, position, teams, played, won, drawn, lost, goals_for, goals_against, points')
+    .eq('league_id', leagueId)
+    .eq('season_id', seasonId)
+    .eq('team_id', teamId)
+    .maybeSingle();
+  if (error) throw error;
+  return toStanding(data as Record<string, unknown> | null);
+}
+
+/** The model's win/draw/loss chances from one side, for an unplayed fixture
+ * with a stored prediction. Shared by the browser and static generation. */
+export function teamModelChances(
+  predictedHome: number | null | undefined,
+  predictedAway: number | null | undefined,
+  rho: number | null | undefined,
+  isHome: boolean
+): { model_win: number | null; model_draw: number | null; model_loss: number | null } {
+  if (predictedHome == null || predictedAway == null || rho == null || !Number.isFinite(rho)) return { model_win: null, model_draw: null, model_loss: null };
+  const m = buildModelFromLambdas(Number(predictedHome), Number(predictedAway), rho);
+  const home = m.homeWinPct / 100;
+  const away = m.awayWinPct / 100;
+  return { model_win: isHome ? home : away, model_draw: m.drawPct / 100, model_loss: isHome ? away : home };
+}
 
 export type ClosingOddsRow = { match_id: number; price_home: number | string; price_draw: number | string; price_away: number | string };
 
@@ -160,7 +220,7 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
       // Single string LITERAL: supabase-js parses .select() at the type
       // level, and concatenation collapses every embedded column to
       // GenericStringError.
-      'slug, kickoff_date, status, home_team_id, away_team_id, predicted_home_goals, predicted_away_goals, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
+      'slug, kickoff_date, kickoff_time, status, home_team_id, away_team_id, prediction_fit_run_id, predicted_home_goals, predicted_away_goals, reported_home_goals, reported_away_goals, home_team:teams!fixtures_home_team_id_fkey(display_name), away_team:teams!fixtures_away_team_id_fkey(display_name)'
     )
     .eq('league_id', leagueId)
     .eq('season_id', seasonId)
@@ -195,6 +255,15 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
       .eq('is_closing', true);
     for (const o of (odds ?? []) as unknown as ClosingOddsRow[]) oddsByMatch.set(o.match_id, o);
   }
+  // rho for the frozen fits of the unplayed fixtures with a prediction, so the
+  // page can state the model's chances for the next match. An extra: a failed
+  // read just leaves the chances out.
+  const fitIds = [...new Set(rows.filter((f) => f.prediction_fit_run_id != null && f.status === 'scheduled').map((f) => f.prediction_fit_run_id as number))];
+  const rhoByFit = new Map<number, number>();
+  if (fitIds.length) {
+    const { data: fits } = await supabase.from('model_fit_runs').select('fit_run_id, rho').in('fit_run_id', fitIds);
+    for (const r of fits ?? []) if (r.rho != null) rhoByFit.set(r.fit_run_id, Number(r.rho));
+  }
 
   return rows.map((f) => {
     const isHome = f.home_team_id === teamId;
@@ -214,6 +283,10 @@ export async function getTeamPageMatches(teamId: number, leagueId: number | null
       predicted_goals_against:
         f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
       ...teamChances(res ? oddsByMatch.get(res.match_id) : undefined, isHome),
+      kickoff_time: f.kickoff_time ?? null,
+      ...(f.status === 'scheduled' && f.prediction_fit_run_id != null
+        ? teamModelChances(f.predicted_home_goals, f.predicted_away_goals, rhoByFit.get(f.prediction_fit_run_id), isHome)
+        : {}),
     };
   });
 }

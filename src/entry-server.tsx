@@ -37,6 +37,7 @@ import StaticLinkDirectory, { type LinkDirectory } from './components/StaticLink
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
 import TeamPage, { type TeamPageData } from './pages/football/TeamPage';
+import { faqJsonLd, matchAnswer, playerAnswer, teamAnswer, todayUk } from './lib/answerFirst';
 import TeamFinancePage from './pages/football/TeamFinancePage';
 import FinanceIndexPage from './pages/FinanceIndexPage';
 import FinanceComparePage from './pages/FinanceComparePage';
@@ -136,7 +137,9 @@ export {
 } from './lib/nflApi';
 export { SUMMARY_COLUMNS as NFL_SUMMARY_COLUMNS } from './lib/nflStory';
 export { buildGamePreview as buildNflGamePreview };
-export { teamChances, teamFplPlayers } from './lib/teamPageApi';
+export { teamChances, teamFplPlayers, teamModelChances, toStanding, STANDING_COLUMNS } from './lib/teamPageApi';
+export { profileAvailability } from './lib/fplPlayerPageApi';
+export { toBroadcast, BROADCAST_COLUMNS } from './lib/broadcastsApi';
 export { buildLocalClubs, LOCAL_CLUBS_TIERS };
 export { buildRoadTrips as buildNflRoadTrips, buildPicker as buildNflPicker, LONDON_STADIUM as NFL_LONDON_STADIUM };
 import { STATIC_ROUTES, breadcrumbName, type RouteMeta } from './lib/routeMeta';
@@ -253,7 +256,11 @@ function escapeAttr(s: string): string {
  * table here (careerFromTotals) so the server HTML carries it. */
 export function renderPlayerPage(slug: string, input: PlayerPageData & { __careerTotals?: { rows: CareerTotalRow[]; seasons: CareerSeasonRow[] } }): RenderedPage {
   const { __careerTotals, ...rest } = input;
-  const data: PlayerPageData = __careerTotals ? { ...rest, career: careerFromTotals(__careerTotals.rows, __careerTotals.seasons) } : rest;
+  const base: PlayerPageData = __careerTotals ? { ...rest, career: careerFromTotals(__careerTotals.rows, __careerTotals.seasons) } : rest;
+  // One "as of" day for the visible sentence and the JSON-LD.
+  const data: PlayerPageData = { ...base, asOf: base.asOf ?? todayUk() };
+  const answer = playerAnswer(data.profile, data.season, data.asOf!);
+  const playerFaq = faqJsonLd(answer.faqs);
   const path = `/fpl/players/${slug}`;
   const html = renderToString(
     <StaticRouter location={path}>
@@ -282,6 +289,7 @@ export function renderPlayerPage(slug: string, input: PlayerPageData & { __caree
         { name: 'Players', path: '/fpl/player-points' },
         { name: data.profile.full_name, path },
       ]),
+      ...(playerFaq ? [playerFaq] : []),
     ],
   };
 }
@@ -309,6 +317,7 @@ export function renderMatchPage(slug: string, input: MatchPagePrediction & { __r
   );
 
   const fixture = `${data.home_team_name} v ${data.away_team_name}`;
+  const matchFaq = faqJsonLd(matchAnswer(data, data.broadcasts ?? []).faqs);
   const description = data.model
     ? `Model prediction for ${fixture}: ${data.home_team_name} ${data.model.homeWinPct.toFixed(1)}%, draw ${data.model.drawPct.toFixed(1)}%, ${data.away_team_name} ${data.model.awayWinPct.toFixed(1)}%. Expected goals and most likely scoreline.`
     : `Fixture details for ${fixture}.`;
@@ -346,11 +355,15 @@ export function renderMatchPage(slug: string, input: MatchPagePrediction & { __r
         { name: 'Matches', path: '/fixtures' },
         { name: fixture, path },
       ]),
+      ...(matchFaq ? [matchFaq] : []),
     ],
   };
 }
 
-export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
+export function renderTeamPage(slug: string, input: TeamPageData): RenderedPage {
+  // One "as of" day for the visible sentence and the JSON-LD.
+  const data: TeamPageData = { ...input, asOf: input.asOf ?? todayUk() };
+  const teamFaq = faqJsonLd(teamAnswer(data.profile, data.matches, data.standing ?? null, data.asOf!).faqs);
   const path = `/football/teams/${slug}`;
   const html = renderToString(
     <StaticRouter location={path}>
@@ -387,6 +400,7 @@ export function renderTeamPage(slug: string, data: TeamPageData): RenderedPage {
         { name: 'Teams', path: '/teams' },
         { name: p.display_name, path },
       ]),
+      ...(teamFaq ? [teamFaq] : []),
     ],
   };
 }

@@ -308,6 +308,8 @@ async function main() {
   SEASON_ID = await query('rpc/fpl_current_season_id');
   // The football season (1 July - 30 June), as the client's team page uses.
   const footballSeason = query('rpc/current_season_id');
+  // Helpers for the answer-first sentences and Common questions (1 Nov 2026).
+  const qaHelpers = import(ENTRY);
   const pending = {
     gameweeks: queryAll(`fpl_player_gameweeks?select=fpl_event_id,total_points&season_id=eq.${SEASON_ID}&total_points=gt.0`),
     scouts: queryAll('player_identity?select=slug,canonical_name,fpl_code&order=slug.asc'),
@@ -318,9 +320,16 @@ async function main() {
     fplSeasons: query('seasons?select=season_id,slug,start_year'),
     finance: fetchFinanceBulk(queryAll).catch((err) => { console.error(`Static: finance fetch failed: ${err?.message ?? err}`); return null; }),
     teams: queryAll('teams?select=team_id,display_name,slug'),
+    // Answer-first team pages (1 Nov 2026): each club's row in this season's
+    // table, and the UK broadcast rows for the match pages' "on TV?" answer.
+    standings: Promise.all([footballSeason, qaHelpers]).then(([season, qa]) => season == null ? null : queryAll(
+      `league_standings?select=${qa.STANDING_COLUMNS.replace(/\s/g, '')}&season_id=eq.${season}&league_id=in.(${[EPL_LEAGUE_ID, ...EFL_LEAGUE_IDS].join(',')})&order=league_id.asc,position.asc`
+    )).catch((err) => { console.error(`Static: standings fetch failed: ${err?.message ?? err}`); return null; }),
+    broadcasts: qaHelpers.then((qa) => queryAll(`fixture_broadcasts?select=${qa.BROADCAST_COLUMNS}&market=eq.GB&order=broadcast_id.asc`))
+      .catch((err) => { console.error(`Static: broadcasts fetch failed: ${err?.message ?? err}`); return null; }),
     fits: queryAll('model_fit_runs?select=fit_run_id,rho'),
     fixtures: queryAll(
-      `fixtures?select=fixture_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id,reported_home_goals,reported_away_goals` +
+      `fixtures?select=fixture_id,slug,kickoff_date,kickoff_time,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id,reported_home_goals,reported_away_goals` +
         `&league_id=eq.${EPL_LEAGUE_ID}&season_id=eq.${SEASON_ID}&slug=not.is.null`
     ),
     matches: queryAll(
@@ -331,7 +340,7 @@ async function main() {
     // League, 22 Oct 2026, audit S-03): this football season's fixtures and
     // results. Two paged reads, about 2,200 + 530 rows.
     eflFixtures: footballSeason.then((season) => season == null ? null : queryAll(
-      `fixtures?select=fixture_id,league_id,slug,kickoff_date,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id,reported_home_goals,reported_away_goals` +
+      `fixtures?select=fixture_id,league_id,slug,kickoff_date,kickoff_time,status,matchweek,home_team_id,away_team_id,predicted_home_goals,predicted_away_goals,predicted_at,prediction_fit_run_id,reported_home_goals,reported_away_goals` +
         `&league_id=in.(${EFL_LEAGUE_IDS.join(',')})&season_id=eq.${season}&order=fixture_id.asc`
     ).then((rows) => rows && { season, rows })),
     eflMatches: footballSeason.then((season) => season == null ? null : queryAll(
@@ -339,7 +348,7 @@ async function main() {
         `&league_id=in.(${EFL_LEAGUE_IDS.join(',')})&season_id=eq.${season}&order=match_id.asc`
     )),
     players: queryAll(
-      `fpl_players?select=fpl_player_id,fpl_code,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id&season_id=eq.${SEASON_ID}&slug=not.is.null`
+      `fpl_players?select=fpl_player_id,fpl_code,slug,web_name,first_name,second_name,element_type,now_cost,canonical_team_id,status,chance_of_playing_next_round,news,news_added,selected_by_percent&season_id=eq.${SEASON_ID}&slug=not.is.null`
     ),
     projections: queryAll(
       `fpl_player_projections?select=fixture_id,fpl_player_id,expected_fpl_points,expected_minutes,generated_at,model_version,${PROJECTION_DETAIL_COLUMNS}&model_version=eq.${MODEL_VERSION}&scenario_key=eq.baseline`
@@ -1000,6 +1009,18 @@ async function main() {
     { matches: Number(rec.matches), from_date: rec.from_date, model_log_loss: Number(rec.model_log_loss), market_log_loss: Number(rec.market_log_loss) },
   ]));
   const rhoByFit = new Map((fits ?? []).map((f) => [f.fit_run_id, Number(f.rho)]));
+  const qa = await qaHelpers;
+  // UK broadcast rows by fixture (match pages' "on TV?" answer). Null when
+  // the read failed: then no TV answer rather than a wrong one.
+  const broadcastRows = await pending.broadcasts;
+  const broadcastsByFixture = new Map();
+  for (const r of broadcastRows ?? []) {
+    const b = qa.toBroadcast(r);
+    if (!broadcastsByFixture.has(b.fixtureId)) broadcastsByFixture.set(b.fixtureId, []);
+    broadcastsByFixture.get(b.fixtureId).push(b);
+  }
+  const standingRows = await pending.standings;
+  const standingByLeagueTeam = new Map((standingRows ?? []).map((r) => [`${r.league_id}|${r.team_id}`, qa.toStanding(r)]));
 
   // Actual results, for played fixtures. Keyed the same way the runtime
   // page keys them so generated and client-rendered output agree.
@@ -1040,6 +1061,7 @@ async function main() {
       home_team_slug: home.slug,
       away_team_slug: away.slug,
       kickoff_date: f.kickoff_date,
+      kickoff_time: f.kickoff_time ?? null,
       status: f.status,
       matchweek: f.matchweek,
       league_name: leagueName,
@@ -1054,6 +1076,7 @@ async function main() {
       reported_away_goals: f.reported_away_goals ?? null,
       market: marketById.get(f.fixture_id) ?? null,
       marketRecord: marketRecordByLeague.get(leagueId) ?? null,
+      broadcasts: broadcastRows ? (broadcastsByFixture.get(f.fixture_id) ?? []) : null,
       __rho: rho ?? null,
     };
 
@@ -1217,6 +1240,7 @@ async function main() {
         team_slug: team.slug,
         position_label: POSITION_LABELS[pl.element_type] ?? 'Unknown',
         price: pl.now_cost != null ? pl.now_cost / 10 : null,
+        ...qa.profileAvailability(pl),
       },
       season,
       __careerTotals: careerTotals && fplSeasons ? { rows: careerByCode.get(Number(pl.fpl_code)) ?? [], seasons: fplSeasons } : undefined,
@@ -1313,6 +1337,10 @@ async function main() {
           predicted_goals_against:
             f.predicted_home_goals == null ? null : Number(isHome ? f.predicted_away_goals : f.predicted_home_goals),
           ...teamChances(res ? oddsByMatch.get(res.match_id) : undefined, isHome),
+          kickoff_time: f.kickoff_time ?? null,
+          ...(f.status === 'scheduled' && f.prediction_fit_run_id != null
+            ? qa.teamModelChances(f.predicted_home_goals, f.predicted_away_goals, rhoByFit.get(f.prediction_fit_run_id), isHome)
+            : {}),
         };
       });
 
@@ -1333,6 +1361,8 @@ async function main() {
         // FPL squads exist for Premier League clubs only; elsewhere the
         // client would fetch an empty list, so say so up front.
         fplPlayers: withPlayers ? teamFplPlayers((players ?? []).filter((p) => p.canonical_team_id === teamId)) : [],
+        // Null when the standings read failed or the team has no row yet.
+        standing: standingByLeagueTeam.get(`${leagueId}|${teamId}`) ?? null,
       };
 
       try {

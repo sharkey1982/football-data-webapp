@@ -600,6 +600,8 @@ describe('NFL game page (head-to-head, form, prediction)', () => {
     expect(page.html).toContain('The model’s favourite won.');
     expect(page.structuredData[0]).toMatchObject({ '@type': 'SportsEvent', name: 'Miami Dolphins at New England Patriots' });
     expect(gameSentence(played)).toBe('Miami Dolphins at New England Patriots, Week 6 of the 2026 season: New England Patriots won 27–20.');
+    // The same answer opens the page itself, in the server HTML (1 Nov 2026).
+    expect(page.html).toMatch(/data-testid="answer-lead"[^>]*>Miami Dolphins at New England Patriots, Week 6 of the 2026 season: New England Patriots won 27–20\.</);
   });
 });
 
