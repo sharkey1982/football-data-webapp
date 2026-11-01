@@ -1,0 +1,17 @@
+{
+ "url": "https://fixtureshark.com/",
+ "scores": {
+  "performance": 0.81,
+  "accessibility": 1,
+  "best-practices": 1,
+  "seo": 1
+ },
+ "lcp": "3.6\u00a0s",
+ "fcp": "3.3\u00a0s",
+ "tbt": "0\u00a0ms",
+ "cls": "0",
+ "weight": "Total size was 385\u00a0KiB",
+ "failed": [
+  "valid-source-maps"
+ ]
+}
