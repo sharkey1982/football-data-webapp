@@ -19,6 +19,7 @@ const FinanceComparePage = lazy(() => import('./pages/FinanceComparePage'));
 const FinanceMovesPage = lazy(() => import('./pages/FinanceMovesPage'));
 const AffiliateDisclosurePage = lazy(() => import('./pages/AffiliateDisclosurePage'));
 const TvGuidePage = lazy(() => import('./pages/football/TvGuidePage'));
+const TodayPage = lazy(() => import('./pages/TodayPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FinanceIndexPage = lazy(() => import('./pages/FinanceIndexPage'));
 const TeamExplorer = lazy(() => import('./pages/TeamExplorer'));
@@ -210,6 +211,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <Landing />
+              </Suspense>
+            }
+          />
+          <Route
+            path="today"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TodayPage />
               </Suspense>
             }
           />

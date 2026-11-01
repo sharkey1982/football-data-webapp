@@ -155,15 +155,19 @@ function urlEntry(loc, lastmod) {
 
 async function main() {
   let staticPaths = [];
+  let dailyPaths = new Set();
   let mod = null;
   try {
     const entry = join(process.cwd(), 'dist-ssr', 'entry-server.js');
     mod = await import(entry);
     staticPaths = (mod.STATIC_ROUTES ?? []).map((r) => r.path);
+    dailyPaths = new Set((mod.STATIC_ROUTES ?? []).filter((r) => r.daily).map((r) => r.path));
   } catch (err) {
     console.error('Sitemap: could not read static routes from the SSR bundle --', err?.message ?? err);
   }
-  for (const r of new Set(staticPaths)) entries.push(urlEntry(r, null));
+  // A page that changes every day (/today) carries the build's UK date.
+  const buildDayUk = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  for (const r of new Set(staticPaths)) entries.push(urlEntry(r, dailyPaths.has(r) ? buildDayUk : null));
   // Written immediately: from here on a slow database can shrink the
   // sitemap but can no longer remove it.
   writeSitemap('static routes only');

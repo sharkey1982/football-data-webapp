@@ -451,6 +451,15 @@ export default function AppLayout() {
           </div>
           <nav aria-label="Main navigation">
             <ul className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm font-medium">
+              {/* Today first (Chris approved the Today page mockup, 1 Nov 2026). */}
+              <li>
+                <NavLink
+                  to="/today"
+                  className={({ isActive }) => `flex items-center px-3 py-1.5 rounded transition-colors text-sm font-semibold ${isActive ? 'bg-amber-500 text-ink-900' : 'text-amber-400 hover:bg-pitch-700 hover:text-chalk-100'}`}
+                >
+                  Today
+                </NavLink>
+              </li>
               {navGroups.map((group) => (
                 <NavDropdown key={group.label} group={group} />
               ))}

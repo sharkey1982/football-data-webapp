@@ -462,6 +462,19 @@ async function main() {
     } catch (err) {
       console.error(`Static: failed /tv-guide: ${err?.message ?? err}`);
     }
+    // The Today page (1 Nov 2026): the build day's games, with its dated
+    // opening sentence. The site rebuilds at least daily (the 07:00 FPL run).
+    if (entry.renderTodayPage) {
+      try {
+        const day = await query(`rpc/get_day_page?p_day=${TODAY_UK}`);
+        if (day) {
+          write('/today', entry.renderTodayPage(day, TODAY_UK, new Date().toISOString()));
+          console.log(`Static: wrote /today (${(day.games ?? []).length} game(s) on ${TODAY_UK}).`);
+        } else console.warn('Static: day page unavailable -- /today keeps head tags only.');
+      } catch (err) {
+        console.error(`Static: failed /today: ${err?.message ?? err}`);
+      }
+    }
     try {
       const rows = SEASON_ID == null ? null : await query(`rpc/get_injury_report?p_season_id=${SEASON_ID}`);
       if (rows) {

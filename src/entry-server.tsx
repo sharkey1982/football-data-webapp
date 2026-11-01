@@ -160,6 +160,8 @@ import IntlTeamsPage from './pages/international/IntlTeamsPage';
 import IntlTournamentsPage from './pages/international/IntlTournamentsPage';
 import IntlFixturesPage, { type IntlFixturesInitial } from './pages/international/IntlFixturesPage';
 import TvGuidePage from './pages/football/TvGuidePage';
+import TodayPage from './pages/TodayPage';
+import { daySentence, parseDayPage } from './lib/todayApi';
 import InjuriesPage from './pages/fpl/InjuriesPage';
 import TeamOfTheWeekPage, { type TeamOfTheWeekData } from './pages/fpl/TeamOfTheWeekPage';
 import StaticFactSheet from './components/StaticFactSheet';
@@ -695,6 +697,17 @@ export function renderTvGuidePage(rows: Record<string, unknown>[], today: string
   return withBody(routeMeta('/tv-guide'), staticPage('/tv-guide', <TvGuidePage initialData={{ fixtures, lead }} />), [watchGuideJsonLd(fixtures)]);
 }
 export { WATCH_GUIDE_COLUMNS };
+
+/** The Today page (/today): get_day_page(today) as the generator read it.
+ * The dated opening sentence ("Sunday 1 November 2026: 18 football matches
+ * today, ...") is the page's lead and its description; the personal and FPL
+ * sections load in the browser. */
+export function renderTodayPage(raw: unknown, today: string, nowIso: string): RenderedPage {
+  const page = parseDayPage(raw);
+  if (page.day !== today) throw new Error(`get_day_page returned ${page.day}, not ${today}`);
+  const sentence = daySentence(today, page.games);
+  return withBody(routeMeta('/today'), staticPage('/today', <TodayPage initialData={{ page, now: nowIso }} />), [], sentence);
+}
 export { toTotwPlayer, toTotwComparison, toGameweekScorer, GAMEWEEK_SCORER_SELECT } from './lib/teamOfWeekApi';
 
 /** Physio Room: get_injury_report rows (numbers as the browser's injuryApi maps them). */
