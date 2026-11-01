@@ -1,0 +1,52 @@
+name: AI search audit (one-off)
+
+# Runs the live-site audit on a push to the ai-audit-run branch and commits
+# ai-audit/ back to that branch, because the Claude workspace can neither
+# reach fixtureshark.com nor read workflow logs.
+on:
+  push:
+    branches: [ai-audit-run]
+    paths-ignore: ['ai-audit/**']
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Crawl as a non-JS fetcher
+        run: python3 scripts/ai_search_audit.py
+      - name: Lighthouse (mobile) on key pages
+        continue-on-error: true
+        run: |
+          for p in "" fpl/start football/teams/arsenal fixtures; do
+            n=$(echo "home$p" | tr '/' '_')
+            npx -y lighthouse@12.2.1 "https://fixtureshark.com/$p" --quiet --chrome-flags="--headless=new --no-sandbox" \
+              --only-categories=performance,seo,accessibility,best-practices --output=json --output-path="ai-audit/lh_$n.json" || true
+            python3 - "$n" <<'PY'
+          import json, sys
+          n = sys.argv[1]
+          try:
+              r = json.load(open(f"ai-audit/lh_{n}.json"))
+          except Exception as e:
+              print(n, "no report", e); sys.exit(0)
+          a = r["audits"]
+          out = {"url": r.get("finalDisplayedUrl"), "scores": {k: v["score"] for k, v in r["categories"].items()},
+                 "lcp": a["largest-contentful-paint"]["displayValue"], "fcp": a["first-contentful-paint"]["displayValue"],
+                 "tbt": a["total-blocking-time"]["displayValue"], "cls": a["cumulative-layout-shift"]["displayValue"],
+                 "weight": a["total-byte-weight"]["displayValue"],
+                 "failed": [k for k, v in a.items() if v.get("score") is not None and v["score"] < 0.9 and v.get("scoreDisplayMode") == "binary"][:30]}
+          json.dump(out, open(f"ai-audit/lh_{n}.summary.json", "w"), indent=1)
+          PY
+            rm -f "ai-audit/lh_$n.json"
+          done
+      - name: Commit results
+        run: |
+          git config user.name "audit-bot"
+          git config user.email "audit-bot@users.noreply.github.com"
+          git add ai-audit
+          git commit -m "AI search audit results" || exit 0
+          git push
