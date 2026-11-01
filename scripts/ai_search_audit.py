@@ -197,3 +197,4 @@ with open(os.path.join(OUT, "report.json"), "w") as f:
     json.dump(report, f, indent=1, default=str)
 print(json.dumps({k: report[k] for k in ("bots", "variants")}, indent=1))
 print("sitemap", {k: sm[k] for k in ("status", "urls", "with_lastmod", "sample_bad_count")})
+# re-run 2026-11-01T05:28:47Z
