@@ -22,6 +22,7 @@ import { supabase } from './supabase';
 import { calculateDixonColes, type DixonColesResult } from './dixonColes';
 import { getLeagueNameForSeason } from './referenceApi';
 import type { FixtureBroadcast } from './broadcastsApi';
+import { pickDecision, type CupDecision } from './cupDecision';
 
 export type MatchPagePrediction = {
   fixture_id: number;
@@ -47,6 +48,11 @@ export type MatchPagePrediction = {
   /** Real result, once played. */
   actual_home_goals: number | null;
   actual_away_goals: number | null;
+  /** Ids of the two sides, so a cup decision's winner can be named. */
+  home_team_id?: number | null;
+  away_team_id?: number | null;
+  /** How a cup tie was settled (see cupDecision.ts); absent for league games. */
+  decision?: CupDecision | null;
   /** Score published by the fixture feed before the result is confirmed
    * (fixtures.reported_*). Shown as provisional. */
   reported_home_goals?: number | null;
@@ -155,10 +161,11 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
 
   let actualHome: number | null = null;
   let actualAway: number | null = null;
+  let decision: CupDecision | null = null;
   if (data.status === 'played') {
     const { data: match, error: matchError } = await supabase
       .from('matches')
-      .select('full_time_home_goals, full_time_away_goals')
+      .select('full_time_home_goals, full_time_away_goals, decided_by, winner_team_id, home_penalty_goals, away_penalty_goals')
       .eq('home_team_id', data.home_team_id)
       .eq('away_team_id', data.away_team_id)
       .eq('match_date', data.kickoff_date)
@@ -167,6 +174,7 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     if (match) {
       actualHome = match.full_time_home_goals;
       actualAway = match.full_time_away_goals;
+      decision = match.decided_by != null ? pickDecision(match) : null;
     }
   }
 
@@ -189,6 +197,9 @@ export async function getMatchBySlug(slug: string): Promise<MatchPagePrediction 
     model,
     actual_home_goals: actualHome,
     actual_away_goals: actualAway,
+    home_team_id: data.home_team_id,
+    away_team_id: data.away_team_id,
+    decision,
     reported_home_goals: data.reported_home_goals,
     reported_away_goals: data.reported_away_goals,
     ...(await getMarket(data.fixture_id, data.league_id).catch(() => ({ market: null, marketRecord: null }))),

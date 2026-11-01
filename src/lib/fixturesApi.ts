@@ -10,6 +10,7 @@
 
 import { supabase } from './supabase';
 import type { FixtureRefreshRun } from '../types/database';
+import { pickDecision } from './cupDecision';
 
 export type FixtureWithNames = {
   fixture_id: number;
@@ -51,6 +52,12 @@ export type FixtureWithNames = {
   // (fixtures.reported_*). Shown as provisional; never used for tables.
   reported_home_goals?: number | null;
   reported_away_goals?: number | null;
+  // How a cup tie was settled (matches.decided_by etc., see cupDecision.ts):
+  // the shoot-out score and who went through. Null for league games.
+  decided_by?: string | null;
+  winner_team_id?: number | null;
+  home_penalty_goals?: number | null;
+  away_penalty_goals?: number | null;
 };
 
 /**
@@ -75,7 +82,7 @@ async function attachResults(
 
   const { data, error } = await supabase
     .from('matches')
-    .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals')
+    .select('home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals, decided_by, winner_team_id, home_penalty_goals, away_penalty_goals')
     .eq('league_id', leagueId)
     .eq('season_id', seasonId);
   if (error) throw error;
@@ -94,6 +101,7 @@ async function attachResults(
       full_time_away_goals: result.full_time_away_goals,
       half_time_home_goals: result.half_time_home_goals,
       half_time_away_goals: result.half_time_away_goals,
+      ...pickDecision(result),
     };
   });
 }
@@ -114,7 +122,7 @@ async function attachResultsForTeam(
 
   const { data, error } = await supabase
     .from('matches')
-    .select('league_id, home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals')
+    .select('league_id, home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals, decided_by, winner_team_id, home_penalty_goals, away_penalty_goals')
     .eq('season_id', seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
   if (error) throw error;
@@ -133,6 +141,7 @@ async function attachResultsForTeam(
       full_time_away_goals: result.full_time_away_goals,
       half_time_home_goals: result.half_time_home_goals,
       half_time_away_goals: result.half_time_away_goals,
+      ...pickDecision(result),
     };
   });
 }
@@ -210,6 +219,7 @@ export async function getMatchesForTeamAsFixtures(
       match_date, kickoff_time,
       full_time_home_goals, full_time_away_goals,
       half_time_home_goals, half_time_away_goals,
+      decided_by, winner_team_id, home_penalty_goals, away_penalty_goals,
       home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!matches_away_team_id_fkey(canonical_name:display_name),
       league:leagues(code, name, competition_type)
@@ -243,6 +253,7 @@ export async function getMatchesForTeamAsFixtures(
     full_time_away_goals: row.full_time_away_goals,
     half_time_home_goals: row.half_time_home_goals,
     half_time_away_goals: row.half_time_away_goals,
+    ...pickDecision(row),
   }));
 }
 
@@ -433,6 +444,7 @@ export async function getMatchesForSeasonAsFixtures(leagueId: number, seasonId: 
       match_id, league_id, season_id, home_team_id, away_team_id,
       match_date, kickoff_time,
       full_time_home_goals, full_time_away_goals, half_time_home_goals, half_time_away_goals,
+      decided_by, winner_team_id, home_penalty_goals, away_penalty_goals,
       home_team:teams!matches_home_team_id_fkey(canonical_name:display_name),
       away_team:teams!matches_away_team_id_fkey(canonical_name:display_name)
     `
@@ -462,6 +474,7 @@ export async function getMatchesForSeasonAsFixtures(leagueId: number, seasonId: 
     full_time_away_goals: row.full_time_away_goals,
     half_time_home_goals: row.half_time_home_goals,
     half_time_away_goals: row.half_time_away_goals,
+    ...pickDecision(row),
   }));
 }
 

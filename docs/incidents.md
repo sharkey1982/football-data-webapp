@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-11-01 · Cup shoot-outs never recorded: the site couldn't say who went through
+- **Found:** Chris, 1 Nov: Fleetwood Town 1-1 Arsenal (Carabao Cup, 27 Oct) showed only "drew 1-1".
+- **Impact:** every Carabao Cup and FA Cup tie this season had `decided_by`, `winner_team_id` and the penalty columns empty: 16 Carabao Cup shoot-outs (including Fleetwood 5-3 Arsenal, Liverpool 6-5 Chelsea, Man City 4-3 Brighton) read as plain draws on the match and fixtures pages. No wrong score was shown.
+- **Cause:** `ingest-cup-data` reads only each footballwebpages row's score line; the shoot-out is on a separate "extra-info" row below it ("Fleetwood Town win 5-3 on penalties"), and nothing wrote the decision columns for club cups. No page read them either.
+- **Fix:** `20261101120000_cup_shootout_decisions.sql`: `refresh_cup_decisions()` (05:40 UTC daily, after the 05:15 cup ingest) sets penalties / extra time / normal time, the shoot-out score and the winner for every played tie we hold; run once on merge to fill this season (86 ties: 16 shoot-outs, 70 in normal time). The fixtures page, match page and a new "Cup ties this season" list on club pages say "X won 5–3 on penalties" (`src/lib/cupDecision.ts`).
+- **Prevention:** the job is in `job_registry` and logs to `fixture_refresh_runs`. *Lesson: a knockout result is not just a score; check every column a result type needs is filled, not only the score.*
+
+---
+
 ## 2026-10-31 · Postponed Football League games showed "Result to follow" for weeks
 - **Found:** Chris, 31 Oct: League One and League Two games of 26 Sep and 3 Oct still showed "Result to follow".
 - **Impact:** six fixtures (E2 Notts County v Blackpool, Mansfield v Leyton Orient, Peterborough v Notts County, Barnsley v MK Dons, Bromley v Wycombe; E3 Walsall v Crawley) sat at `awaiting_result` on their original dates for 4-5 weeks, listed as kicked-off games without a score, and flagged daily by `results_missing_48h`. Four had already been rearranged (15 Dec, 12 Jan). No wrong score was shown.

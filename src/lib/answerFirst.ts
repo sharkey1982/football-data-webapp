@@ -17,6 +17,7 @@ import { formatMatchDateWithYear } from './formatDate';
 import { hasKickedOff, isPostponed } from './fixtureStatus';
 import { mostLikelyScore, type MatchPagePrediction } from './matchPageApi';
 import type { FixtureBroadcast } from './broadcastsApi';
+import { decisionNote } from './cupDecision';
 import type { TeamPageMatch, TeamPageProfile, TeamStanding } from './teamPageApi';
 import type { PlayerPageGameweek, PlayerPageProfile } from './fplPlayerPageApi';
 
@@ -180,12 +181,18 @@ export function matchAnswer(match: MatchPagePrediction, broadcasts: FixtureBroad
   const marketLine = (past: boolean) =>
     market ? `The betting market ${past ? 'had' : 'has'} ${home} at ${pct(market.home)}, the draw ${pct(market.draw)} and ${away} ${pct(market.away)}.` : null;
 
+  // A cup tie settled by a shoot-out or extra time says who went through.
+  const decision =
+    match.decision && match.home_team_id != null && match.away_team_id != null
+      ? decisionNote(match.decision, { homeTeamId: match.home_team_id, awayTeamId: match.away_team_id, homeName: home, awayName: away })
+      : null;
   const resultLine = () => {
     const h = match.actual_home_goals!;
     const a = match.actual_away_goals!;
-    if (h > a) return `${home} beat ${away} ${h}–${a} in the ${match.league_name} on ${date}.`;
-    if (h < a) return `${away} beat ${home} ${a}–${h} away from home in the ${match.league_name} on ${date}.`;
-    return `${home} and ${away} drew ${h}–${a} in the ${match.league_name} on ${date}.`;
+    const tail = decision ? `; ${decision}.` : '.';
+    if (h > a) return `${home} beat ${away} ${h}–${a} in the ${match.league_name} on ${date}${tail}`;
+    if (h < a) return `${away} beat ${home} ${a}–${h} away from home in the ${match.league_name} on ${date}${tail}`;
+    return `${home} and ${away} drew ${h}–${a} in the ${match.league_name} on ${date}${tail}`;
   };
 
   let lead: string;

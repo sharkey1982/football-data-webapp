@@ -21,6 +21,8 @@ import {
   getTeamPageMatches,
   getTeamFplPlayers,
   getTeamStanding,
+  getTeamCupTies,
+  type TeamCupTie,
   type TeamFplPlayer,
   type TeamStanding,
   type TeamPageProfile,
@@ -108,6 +110,18 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
       .catch(() => { if (!cancelled) setFplPlayers([]); });
     return () => { cancelled = true; };
   }, [fplPlayers, profile]);
+
+  // Cup ties this season: always one client read (static generation leaves
+  // them out). A failed read hides the section.
+  const [cupTies, setCupTies] = useState<TeamCupTie[] | null>(null);
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    getTeamCupTies(profile.team_id)
+      .then((rows) => { if (!cancelled) setCupTies(rows); })
+      .catch(() => { if (!cancelled) setCupTies([]); });
+    return () => { cancelled = true; };
+  }, [profile]);
 
   useEffect(() => {
     if (standing !== undefined || !profile) return;
@@ -290,6 +304,52 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
           </p>
         )}
       </section>
+
+      {cupTies && cupTies.length > 0 && (
+        <section data-testid="team-cup-ties">
+          <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Cup ties this season</h2>
+          <div className="overflow-x-auto mt-2">
+            <table className="w-full text-sm border border-chalk-300 rounded-lg overflow-hidden">
+              <thead className="bg-chalk-200 text-ink-500">
+                <tr>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Date</th>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Competition</th>
+                  <th scope="col" className="text-left font-medium text-xs px-3 py-2">Opponent</th>
+                  <th scope="col" className="text-right font-medium text-xs px-3 py-2">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cupTies.map((m, i) => (
+                  <tr key={`${m.match_date}-${m.competition}-${m.opponent_name}`} className={i % 2 === 1 ? 'bg-chalk-100/60' : undefined}>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      <time dateTime={m.match_date}>{formatMatchDateWithYear(m.match_date)}</time>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">{m.competition}</td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {m.slug ? (
+                        <Link to={`/football/matches/${m.slug}`} className="text-pitch-800 underline underline-offset-2">
+                          {m.opponent_name}
+                        </Link>
+                      ) : (
+                        m.opponent_name
+                      )}{' '}
+                      <span className="text-ink-500">({m.is_home ? 'H' : 'A'})</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-xs">
+                      <span className="font-mono tabular-nums whitespace-nowrap">
+                        {m.goals_for}&ndash;{m.goals_against}
+                        {m.went_through != null && <span className="font-sans text-ink-500"> {m.went_through ? 'through' : 'out'}</span>}
+                      </span>
+                      {m.note && <span className="block text-ink-500" data-testid="cup-decision">{m.note}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-ink-500 mt-2">Score is this club&rsquo;s goals first.</p>
+        </section>
+      )}
 
       <TeamHistoryPanel teamId={profile.team_id} teamName={profile.display_name} teamSlug={slug} />
 
