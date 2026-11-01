@@ -282,7 +282,7 @@ export function playerAnswer(profile: PlayerPageProfile, season: PlayerPageGamew
   const tags = [profile.team_name, profile.price != null ? `£${profile.price.toFixed(1)}m` : null, owned != null ? `${owned.toFixed(1)}% owned` : null].filter(Boolean).join(', ');
   const opp = (g: PlayerPageGameweek) => `${g.opponent_name} (${g.is_home ? 'H' : 'A'})`;
 
-  let lead: string | null = null;
+  let lead: string;
   if (upcoming.length > 0 && next) {
     lead =
       `As of ${longDate(asOf)}, ${name} (${tags}) is projected ${total.toFixed(1)} FPL points over the next ${plural(upcoming.length, 'gameweek')}; ` +
