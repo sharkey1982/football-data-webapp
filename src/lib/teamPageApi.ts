@@ -18,6 +18,7 @@ import { getCurrentSeasonId } from './currentSeason';
 import { chancesFromOdds } from './expectation';
 import { buildModelFromLambdas } from './matchPageApi';
 import { supabase } from './supabase';
+import { decisionNote } from './cupDecision';
 
 export type TeamPageProfile = {
   team_id: number;
@@ -324,4 +325,87 @@ export async function getTeamFplPlayers(teamId: number, seasonId: number): Promi
     .not('slug', 'is', null);
   if (error) throw error;
   return teamFplPlayers(data ?? []);
+}
+
+/** One played cup tie (Carabao Cup, FA Cup, European cups) this season, for
+ * the club page. `note` says who went through when it took extra time or
+ * penalties ("Fleetwood Town won 5–3 on penalties"). */
+export type TeamCupTie = {
+  match_date: string;
+  competition: string;
+  opponent_name: string;
+  is_home: boolean;
+  goals_for: number;
+  goals_against: number;
+  /** Whether this club went through; null when not recorded (a European
+   * league-phase game, or a drawn FA Cup tie that went to a replay). */
+  went_through: boolean | null;
+  note: string | null;
+  slug: string | null;
+};
+
+type CupTieRow = {
+  league_id: number;
+  match_date: string;
+  home_team_id: number;
+  away_team_id: number;
+  full_time_home_goals: number;
+  full_time_away_goals: number;
+  decided_by: string | null;
+  winner_team_id: number | null;
+  home_penalty_goals: number | null;
+  away_penalty_goals: number | null;
+  league: { name: string | null } | null;
+  home_team: { display_name: string | null } | null;
+  away_team: { display_name: string | null } | null;
+};
+
+/** Shapes matches rows into the club page's cup list (pure, for tests). */
+export function toCupTies(rows: CupTieRow[], teamId: number, slugByKey: Map<string, string> = new Map()): TeamCupTie[] {
+  return rows.map((r) => {
+    const isHome = r.home_team_id === teamId;
+    const homeName = r.home_team?.display_name ?? 'Unknown';
+    const awayName = r.away_team?.display_name ?? 'Unknown';
+    return {
+      match_date: r.match_date,
+      competition: r.league?.name ?? 'Cup',
+      opponent_name: isHome ? awayName : homeName,
+      is_home: isHome,
+      goals_for: isHome ? r.full_time_home_goals : r.full_time_away_goals,
+      goals_against: isHome ? r.full_time_away_goals : r.full_time_home_goals,
+      went_through: r.winner_team_id == null ? null : r.winner_team_id === teamId,
+      note: decisionNote(r, { homeTeamId: r.home_team_id, awayTeamId: r.away_team_id, homeName, awayName }),
+      slug: slugByKey.get(`${r.league_id}|${r.home_team_id}|${r.away_team_id}|${r.match_date}`) ?? null,
+    };
+  });
+}
+
+export async function getTeamCupTies(teamId: number): Promise<TeamCupTie[]> {
+  const seasonId = await getCurrentSeasonId();
+  const { data, error } = await supabase
+    .from('matches')
+    .select(
+      'league_id, match_date, home_team_id, away_team_id, full_time_home_goals, full_time_away_goals, decided_by, winner_team_id, home_penalty_goals, away_penalty_goals, league:leagues!inner(name, competition_type), home_team:teams!matches_home_team_id_fkey(display_name), away_team:teams!matches_away_team_id_fkey(display_name)'
+    )
+    .eq('season_id', seasonId)
+    .eq('league.competition_type', 'cup')
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .not('full_time_home_goals', 'is', null)
+    .order('match_date', { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as CupTieRow[];
+  if (rows.length === 0) return [];
+
+  // Fixture slugs, for a link to each tie's match page. An extra: a failed
+  // read just leaves the rows unlinked.
+  const slugByKey = new Map<string, string>();
+  const { data: fx } = await supabase
+    .from('fixtures')
+    .select('league_id, home_team_id, away_team_id, kickoff_date, slug')
+    .eq('season_id', seasonId)
+    .in('league_id', [...new Set(rows.map((r) => r.league_id))])
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+  for (const f of fx ?? []) if (f.slug) slugByKey.set(`${f.league_id}|${f.home_team_id}|${f.away_team_id}|${f.kickoff_date}`, f.slug);
+
+  return toCupTies(rows, teamId, slugByKey);
 }

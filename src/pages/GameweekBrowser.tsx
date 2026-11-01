@@ -34,6 +34,7 @@ import { datesBetween, emptyRangeText, longDay, nextDateAfter, parseRange, range
 import { ukToday } from '../lib/ukDate';
 import { hasKickedOff, isPostponed, POSTPONED_LABEL } from '../lib/fixtureStatus';
 import { rowKeys } from '../lib/rowKeys';
+import { decisionNote } from '../lib/cupDecision';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -116,6 +117,22 @@ function HeadToHeadChip({ h2h }: { h2h: FixtureHeadToHead | undefined }) {
   );
 }
 
+/** "X won 4–3 on penalties" under a cup score (nothing for a league game). */
+function CupDecisionNote({ f }: { f: FixtureWithNames }) {
+  const note = decisionNote(f, {
+    homeTeamId: f.home_team_id,
+    awayTeamId: f.away_team_id,
+    homeName: f.home_team_name,
+    awayName: f.away_team_name,
+  });
+  if (!note) return null;
+  return (
+    <span className="text-[10px] text-cup-800 mt-0.5 text-center leading-tight" data-testid="cup-decision">
+      {note}
+    </span>
+  );
+}
+
 function FixtureScoreCell({
   f,
   rhoFor,
@@ -134,6 +151,7 @@ function FixtureScoreCell({
             HT {f.half_time_home_goals}&ndash;{f.half_time_away_goals}
           </span>
         )}
+        <CupDecisionNote f={f} />
         {/* No model output here. Predictions live in Results
             Projections; this view is about what happened, and mixing the
             two was what made the sections feel interchangeable. */}

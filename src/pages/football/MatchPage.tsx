@@ -26,6 +26,7 @@ import WatchOptions from '../../components/WatchOptions';
 import { getActivePartners, type AffiliatePartner } from '../../lib/commercialLinks';
 import { hasKickedOff, isPostponed } from '../../lib/fixtureStatus';
 import { matchAnswer } from '../../lib/answerFirst';
+import { decisionNote } from '../../lib/cupDecision';
 import CommonQuestions, { AnswerLead } from '../../components/CommonQuestions';
 
 function formatTimestamp(iso: string): string {
@@ -165,6 +166,15 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
   const market = match.market ?? null;
   const recordSentence = marketRecordSentence(match.marketRecord, match.league_name);
   const played = match.status === 'played' && match.actual_home_goals != null;
+  const decision =
+    match.decision && match.home_team_id != null && match.away_team_id != null
+      ? decisionNote(match.decision, {
+          homeTeamId: match.home_team_id,
+          awayTeamId: match.away_team_id,
+          homeName: match.home_team_name,
+          awayName: match.away_team_name,
+        })
+      : null;
   const answer = matchAnswer(match, broadcasts);
 
   return (
@@ -206,6 +216,11 @@ export default function MatchPage({ initialData }: { initialData?: MatchPagePred
           <p className="text-ink-900 mt-1 text-lg">
             {match.home_team_name} {match.actual_home_goals}&ndash;{match.actual_away_goals} {match.away_team_name}
           </p>
+          {decision && (
+            <p className="text-ink-700 mt-0.5" data-testid="cup-decision">
+              {decision}
+            </p>
+          )}
         </section>
       )}
 
