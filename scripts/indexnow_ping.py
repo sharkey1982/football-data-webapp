@@ -75,7 +75,8 @@ def main():
             with urllib.request.urlopen(req, timeout=60) as r:
                 statuses.append(r.status)
         except urllib.error.HTTPError as e:
-            statuses.append(e.code)
+            # Keep the engine's reason (e.g. "key not valid") for pipeline_runs.
+            statuses.append(f"{e.code} {e.read()[:160].decode('utf-8', 'replace').strip()}")
     ok = all(s in (200, 202, "dry") for s in statuses)
     if ok:
         json.dump(now, open(STATE, "w"))  # only move on once the engines accepted them
