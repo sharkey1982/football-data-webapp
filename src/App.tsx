@@ -59,6 +59,7 @@ const FanTeamPage = lazy(() => import('./pages/admin/FanTeamPage'));
 const LastManStandingPage = lazy(() => import('./pages/admin/LastManStandingPage'));
 const SharkFantasyPage = lazy(() => import('./pages/sharkfantasy/SharkFantasyPage'));
 const LineupComparePage = lazy(() => import('./pages/admin/LineupComparePage'));
+const TeamSheetsPage = lazy(() => import('./pages/admin/TeamSheetsPage'));
 const SiteTrafficPage = lazy(() => import('./pages/admin/SiteTrafficPage'));
 const GameweekPostsPage = lazy(() => import('./pages/admin/GameweekPostsPage'));
 const SocialPage = lazy(() => import('./pages/admin/SocialPage'));
@@ -539,6 +540,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <LineupComparePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/team-sheets"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <TeamSheetsPage />
               </Suspense>
             }
           />
