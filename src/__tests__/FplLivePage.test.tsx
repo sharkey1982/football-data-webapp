@@ -1,13 +1,23 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import FplLivePage from '../pages/fpl/FplLivePage';
 import { parseFplLive, shouldPoll } from '../lib/fplLiveApi';
 import type { LiveFixture } from '../lib/fplLiveScore';
+import { availabilityOf, AVAILABILITY_CLASSES, buildPitchExtras } from '../lib/fplLivePitch';
 
 const rpc = vi.fn();
-vi.mock('../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
+// Table reads for the pitch's availability / projection extras: every
+// builder method chains, and awaiting it gives tables[name].
+let tables: Record<string, unknown[]> = {};
+const from = vi.fn((name: string) => {
+  const b: Record<string, unknown> = {};
+  for (const m of ['select', 'eq', 'in', 'gte', 'order', 'limit', 'not', 'or', 'is']) b[m] = () => b;
+  b.then = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => Promise.resolve({ data: tables[name] ?? [], error: null }).then(ok, bad);
+  return b;
+});
+vi.mock('../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (n: string) => from(n) } }));
 
 // Shaped like public.fpl_live_entry's output (checked against a local run of
 // the migration). 15 players, player i on team i; team i's fixture id is i.
@@ -69,12 +79,15 @@ function renderAt(url: string) {
 
 beforeEach(() => {
   rpc.mockReset();
+  from.mockClear();
+  tables = {};
   try { localStorage.clear(); } catch { /* ignore */ }
 });
 
 describe('FplLivePage', () => {
   it('shows the live score, captain, subs and bench for a team', async () => {
     rpc.mockResolvedValue({ data: rawResponse(), error: null });
+    try { localStorage.setItem('fixtureshark.fplLive.view', 'list'); } catch { /* ignore */ }
     renderAt('/fpl/live?id=123');
     expect(await screen.findByText('Shark Attack')).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledWith('fpl_live_entry', { p_entry_id: 123 });
@@ -110,6 +123,115 @@ describe('FplLivePage', () => {
     renderAt('/fpl/live');
     expect(rpc).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Show my score' })).toBeInTheDocument();
+  });
+});
+
+describe('FplLivePage pitch view', () => {
+  const player = (id: number, status: string, next: number | null, news = '') => ({
+    fpl_player_id: id, first_name: 'First', second_name: `Second${id}`, web_name: `Player${id}`, canonical_team_id: 500 + id,
+    status, chance_of_playing_next_round: next, chance_of_playing_this_round: null, news, news_added: '2026-10-31T09:15:00Z',
+  });
+
+  it('shows the XI in formation rows and the bench below, by default', async () => {
+    rpc.mockResolvedValue({ data: rawResponse(), error: null });
+    renderAt('/fpl/live?id=123');
+    const pitch = await screen.findByTestId('live-pitch');
+    // Player 7 (MID, 0 mins) is subbed off for 13 (DEF): 1 GKP, 5 DEF, 3 MID, 2 FWD.
+    const ids = (row: string) => within(within(pitch).getByTestId(row)).getAllByRole('listitem').map((li) => li.getAttribute('data-testid'));
+    expect(ids('pitch-row-GKP')).toEqual(['pitch-player-1']);
+    expect(ids('pitch-row-DEF')).toEqual(['pitch-player-2', 'pitch-player-3', 'pitch-player-4', 'pitch-player-5', 'pitch-player-13']);
+    expect(ids('pitch-row-MID')).toEqual(['pitch-player-6', 'pitch-player-8', 'pitch-player-9']);
+    expect(ids('pitch-row-FWD')).toEqual(['pitch-player-10', 'pitch-player-11']);
+    const bench = screen.getByTestId('pitch-bench');
+    expect(within(bench).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(bench).getByText('GKP')).toBeInTheDocument();
+    expect(within(bench).getByTestId('pitch-player-7')).toHaveTextContent('MID');
+    expect(screen.queryByTestId('live-xi')).toBeNull();
+    // Captain (6, live): doubled points; not-started player shows his opponent.
+    expect(within(screen.getByTestId('pitch-player-6')).getByRole('button')).toHaveAccessibleName(/Player6, Team 6, midfielder, captain, 10 points, playing now/);
+    expect(within(screen.getByTestId('pitch-player-8')).getByRole('button')).toHaveTextContent('O8 (H)');
+    expect(within(screen.getByTestId('pitch-player-1')).getByTestId('state-done')).toBeInTheDocument();
+  });
+
+  it('flags availability on the tile and shows news in the panel', async () => {
+    rpc.mockResolvedValue({ data: rawResponse(), error: null });
+    tables = {
+      fpl_players: [player(8, 'd', 75, 'Knock - 75% chance of playing'), player(9, 'i', 0, 'Hamstring injury'), player(10, 'd', 25), player(2, 'a', null)],
+      fixtures: [{ fixture_id: 900, matchweek: 7, kickoff_date: '2026-10-18', home_team_id: 508, away_team_id: 777 }],
+      fpl_player_projections: [{ fpl_player_id: 8, fixture_id: 900, expected_fpl_points: 5.25, start_probability: 0.82 }],
+      fpl_teams: [{ canonical_team_id: 777, short_name: 'HUL' }],
+    };
+    renderAt('/fpl/live?id=123');
+    const flag8 = await screen.findByTestId('flag-8');
+    expect(flag8).toHaveAttribute('data-tone', 'yellow');
+    expect(screen.getByTestId('flag-9')).toHaveAttribute('data-tone', 'red');
+    expect(screen.getByTestId('flag-10')).toHaveAttribute('data-tone', 'orange');
+    expect(screen.queryByTestId('flag-2')).toBeNull();
+    expect(screen.getByTestId('namebar-8').className).toContain('bg-yellow-300');
+    expect(screen.getByTestId('namebar-9').className).toContain('bg-red-600');
+    const btn = within(screen.getByTestId('pitch-player-8')).getByRole('button');
+    expect(btn).toHaveAccessibleName(/Player8, Team 8, midfielder, doubtful 75%/);
+    fireEvent.click(btn);
+    const panel = screen.getByTestId('pitch-detail');
+    expect(panel).toHaveTextContent('First Second8');
+    expect(panel).toHaveTextContent('Knock - 75% chance of playing');
+    expect(panel).toHaveTextContent('News added');
+    expect(panel).toHaveTextContent('75% chance of playing next round');
+    expect(within(panel).getByTestId('pitch-detail-next')).toHaveTextContent('Next: HUL (H), GW7');
+    expect(within(panel).getByTestId('pitch-detail-next')).toHaveTextContent('Projected 5.3 pts, 82% to start');
+    expect(within(panel).getByRole('link')).toHaveAttribute('href', '/fpl/players/player-8');
+  });
+
+  it('remembers the Pitch / List choice', async () => {
+    rpc.mockResolvedValue({ data: rawResponse(), error: null });
+    const first = renderAt('/fpl/live?id=123');
+    await screen.findByTestId('live-pitch');
+    fireEvent.click(within(screen.getByTestId('live-view-toggle')).getByRole('button', { name: 'List' }));
+    expect(screen.getByTestId('live-xi')).toBeInTheDocument();
+    expect(localStorage.getItem('fixtureshark.fplLive.view')).toBe('list');
+    first.unmount();
+    renderAt('/fpl/live?id=123');
+    expect(await screen.findByTestId('live-xi')).toBeInTheDocument();
+    expect(screen.queryByTestId('live-pitch')).toBeNull();
+    expect(within(screen.getByTestId('live-view-toggle')).getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('still renders when storage throws', async () => {
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    rpc.mockResolvedValue({ data: rawResponse(), error: null });
+    renderAt('/fpl/live?id=123');
+    expect(await screen.findByTestId('live-pitch')).toBeInTheDocument();
+    spy.mockRestore();
+  });
+});
+
+describe('availabilityOf', () => {
+  it('colours by chance of playing, then by status', () => {
+    expect(availabilityOf('a', 100).tone).toBe('none');
+    expect(availabilityOf('a', null).tone).toBe('none');
+    expect(availabilityOf('d', 75)).toEqual({ tone: 'yellow', chance: 75, label: 'Doubtful 75%' });
+    expect(availabilityOf('d', 50).tone).toBe('yellow');
+    expect(availabilityOf('d', 25).tone).toBe('orange');
+    expect(availabilityOf('i', 25).tone).toBe('orange');
+    expect(availabilityOf('i', 0)).toEqual({ tone: 'red', chance: 0, label: 'Injured' });
+    expect(availabilityOf('s', null).label).toBe('Suspended');
+    expect(availabilityOf('u', null).tone).toBe('red');
+    expect(availabilityOf('d', null, 50).chance).toBe(50);
+    expect(availabilityOf('d', null).tone).toBe('yellow');
+    expect(AVAILABILITY_CLASSES.orange.flag).toContain('bg-orange-500');
+  });
+
+  it('picks each player\'s earliest upcoming fixture for the projection', () => {
+    const m = buildPitchExtras(
+      [{ fpl_player_id: 1, first_name: 'Bukayo', second_name: 'Saka', web_name: 'Saka', canonical_team_id: 1, status: 'a', chance_of_playing_next_round: null, chance_of_playing_this_round: null, news: '', news_added: null }],
+      [
+        { fixture_id: 2, matchweek: 11, kickoff_date: '2026-11-08', home_team_id: 9, away_team_id: 1 },
+        { fixture_id: 1, matchweek: 10, kickoff_date: '2026-11-06', home_team_id: 1, away_team_id: 8 },
+      ],
+      [{ fpl_player_id: 1, fixture_id: 1, expected_fpl_points: 6.1, start_probability: 0.9 }],
+      new Map([[8, 'HUL'], [9, 'LIV']]),
+    );
+    expect(m.get(1)).toMatchObject({ fullName: 'Bukayo Saka', news: null, next: { matchweek: 10, opponent: 'HUL', home: true, xp: 6.1, startProbability: 0.9 } });
   });
 });
 

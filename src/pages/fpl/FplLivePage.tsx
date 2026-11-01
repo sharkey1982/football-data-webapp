@@ -7,6 +7,10 @@
 // projections still expect. Polls every minute while a match is on.
 // Data: public.fpl_live_entry (src/lib/fplLiveApi.ts); scoring:
 // src/lib/fplLiveScore.ts. The FPL ID is shared with Rate My Team.
+// Pitch / List toggle (1 Nov 2026): the pitch (src/components/fpl/LivePitch)
+// is the default, like the FPL app's team screen, with FPL's availability
+// flags and news from src/lib/fplLivePitch.ts; the choice is remembered in
+// localStorage.
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -17,6 +21,8 @@ import { fetchFplLive, shouldPoll, toScoreInput, type FplLiveData } from '../../
 import { fixtureState, scoreLiveTeam, type LiveFixture, type PlayerScore } from '../../lib/fplLiveScore';
 import { friendlyError } from '../../lib/errorMessage';
 import { readStoredFplId as readStoredId, storeFplId as storeId } from '../../lib/fplIdStore';
+import { AVAILABILITY_CLASSES, fetchPitchExtras, type PitchExtra } from '../../lib/fplLivePitch';
+import { LivePitch } from '../../components/fpl/LivePitch';
 
 const POLL_MS = 60_000;
 const POS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
@@ -24,6 +30,25 @@ const CHIP: Record<string, string> = { bboost: 'Bench Boost', '3xc': 'Triple Cap
 
 
 const kickoffFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
+const VIEW_KEY = 'fixtureshark.fplLive.view';
+type LiveView = 'pitch' | 'list';
+
+function readStoredView(): LiveView {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'pitch';
+  } catch {
+    return 'pitch';
+  }
+}
+
+function storeView(v: LiveView) {
+  try {
+    window.localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    /* private mode or blocked storage: the choice just isn't remembered */
+  }
+}
+
 const timeFmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' });
 
 function fixtureLabel(f: LiveFixture): string {
@@ -57,6 +82,9 @@ export default function FplLivePage() {
   const [loading, setLoading] = useState(false);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const reqRef = useRef(0);
+  const [view, setViewState] = useState<LiveView>(readStoredView);
+  const setView = (v: LiveView) => { setViewState(v); storeView(v); };
+  const [extrasState, setExtras] = useState<{ key: string; map: Map<number, PitchExtra> } | null>(null);
 
   useDocumentHead({
     title: 'FPL Live — your gameweek score as it happens',
@@ -117,6 +145,20 @@ export default function FplLivePage() {
 
   const score = useMemo(() => (data ? scoreLiveTeam(toScoreInput(data)) : null), [data]);
 
+  // Availability, full names and next-fixture projections for the pitch
+  // (fpl_players / fpl_player_projections). Optional: the score never waits
+  // on it, and a failure leaves the tiles without flags.
+  const elementKey = data ? data.picks.map((p) => p.element).sort((a, b) => a - b).join(',') : '';
+  useEffect(() => {
+    if (!elementKey) return;
+    let cancelled = false;
+    (async () => fetchPitchExtras(elementKey.split(',').map(Number)))()
+      .then((map) => { if (!cancelled) setExtras({ key: elementKey, map }); })
+      .catch((e) => { if (!cancelled) console.warn('FPL live pitch extras:', e); });
+    return () => { cancelled = true; };
+  }, [elementKey]);
+  const extras = extrasState && extrasState.key === elementKey ? extrasState.map : null;
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const id = input.trim();
@@ -160,6 +202,12 @@ export default function FplLivePage() {
           {p.isViceCaptain && p.multiplier < 2 && <span className="ml-1 text-xs font-mono text-ink-500" title="Vice-captain">V</span>}
           {p.subbedIn && <span className="ml-1 text-xs text-pitch-700" title="Automatic sub: on">&uarr; on</span>}
           {p.subbedOut && <span className="ml-1 text-xs text-loss-700" title="Automatic sub: off">&darr; off</span>}
+          {(() => {
+            const a = extras?.get(p.element)?.availability;
+            return a && a.tone !== 'none' ? (
+              <span className={`ml-1 text-xs rounded px-1 ${AVAILABILITY_CLASSES[a.tone].bar}`} data-testid={`list-flag-${p.element}`}>{a.label}</span>
+            ) : null;
+          })()}
           {p.mayBeSubbed && <span className="ml-1 text-xs text-ink-500" title="Hasn't played yet; if he doesn't, a bench player may come on">may be subbed</span>}
           <span className="block text-xs text-ink-500">
             {fx.length === 0
@@ -292,25 +340,48 @@ export default function FplLivePage() {
               ` Automatic subs: ${score.autoSubs.map((s) => `${nameOf(s.in)} for ${nameOf(s.out)}${s.provisional ? ' (provisional)' : ''}`).join(', ')}.`}
           </p>
 
-          <section className="space-y-2">
-            <h2 className="font-display uppercase tracking-wide text-xl text-ink-900">Starting XI</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" data-testid="live-xi">
-                {head}
-                <tbody>{starters.map(row)}</tbody>
-              </table>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display uppercase tracking-wide text-xl text-ink-900 flex-1">Your team</h2>
+            <div role="group" aria-label="View" className="inline-flex rounded border border-chalk-300 overflow-hidden text-sm" data-testid="live-view-toggle">
+              {(['pitch', 'list'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  aria-pressed={view === v}
+                  className={`px-4 min-h-[44px] ${view === v ? 'bg-pitch-800 text-chalk-100' : 'bg-white text-ink-700'}`}
+                >
+                  {v === 'pitch' ? 'Pitch' : 'List'}
+                </button>
+              ))}
             </div>
-          </section>
+          </div>
 
-          <section className="space-y-2">
-            <h2 className="font-display uppercase tracking-wide text-xl text-ink-900">Bench</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" data-testid="live-bench">
-                {head}
-                <tbody>{bench.map(row)}</tbody>
-              </table>
-            </div>
-          </section>
+          {view === 'pitch' ? (
+            <LivePitch score={score} data={data} extras={extras} />
+          ) : (
+            <>
+            <section className="space-y-2">
+              <h2 className="sr-only">Starting XI</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" data-testid="live-xi">
+                  {head}
+                  <tbody>{starters.map(row)}</tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="font-display uppercase tracking-wide text-xl text-ink-900">Bench</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" data-testid="live-bench">
+                  {head}
+                  <tbody>{bench.map(row)}</tbody>
+                </table>
+              </div>
+            </section>
+            </>
+          )}
 
           <section className="space-y-2">
             <h2 className="font-display uppercase tracking-wide text-xl text-ink-900">{`GW${data.event.id} matches`}</h2>
