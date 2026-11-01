@@ -9,6 +9,7 @@
 import { Link } from 'react-router-dom';
 import { H2, LINK, PROSE } from '../../components/articles/ArticleLayout';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import EmailSignup from '../../components/EmailSignup';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import { GAMEWEEK_HUB_PATH, loadReportList, reportPath, seasonDisplay, type ReportListEntry } from '../../lib/fplGameweekReport';
 
@@ -51,6 +52,7 @@ export default function GameweekHubPage({ initialData }: { initialData?: ReportL
           </ul>
         </section>
       ))}
+      <EmailSignup />
     </article>
   );
 }

@@ -18,6 +18,10 @@ const TeamFinancePage = lazy(() => import('./pages/football/TeamFinancePage'));
 const FinanceComparePage = lazy(() => import('./pages/FinanceComparePage'));
 const FinanceMovesPage = lazy(() => import('./pages/FinanceMovesPage'));
 const AffiliateDisclosurePage = lazy(() => import('./pages/AffiliateDisclosurePage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const EmailConfirmPage = lazy(() => import('./pages/email/EmailPages').then((m) => ({ default: m.EmailConfirmPage })));
+const EmailUnsubscribePage = lazy(() => import('./pages/email/EmailPages').then((m) => ({ default: m.EmailUnsubscribePage })));
+const EmailManagePage = lazy(() => import('./pages/email/EmailPages').then((m) => ({ default: m.EmailManagePage })));
 const TvGuidePage = lazy(() => import('./pages/football/TvGuidePage'));
 const TodayPage = lazy(() => import('./pages/TodayPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -62,6 +66,7 @@ const SharkFantasyPage = lazy(() => import('./pages/sharkfantasy/SharkFantasyPag
 const LineupComparePage = lazy(() => import('./pages/admin/LineupComparePage'));
 const TeamSheetsPage = lazy(() => import('./pages/admin/TeamSheetsPage'));
 const SiteTrafficPage = lazy(() => import('./pages/admin/SiteTrafficPage'));
+const EmailAdminPage = lazy(() => import('./pages/admin/EmailAdminPage'));
 const GameweekPostsPage = lazy(() => import('./pages/admin/GameweekPostsPage'));
 const SocialPage = lazy(() => import('./pages/admin/SocialPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
@@ -466,6 +471,38 @@ export default function App() {
             }
           />
           <Route
+            path="privacy"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <PrivacyPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="email/confirm"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <EmailConfirmPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="email/unsubscribe"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <EmailUnsubscribePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="email/manage"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <EmailManagePage />
+              </Suspense>
+            }
+          />
+          <Route
             path="fixtures"
             element={
               <Suspense fallback={<RouteFallback />}>
@@ -574,6 +611,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <SiteTrafficPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="admin/email"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <EmailAdminPage />
               </Suspense>
             }
           />

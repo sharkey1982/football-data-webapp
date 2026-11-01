@@ -7,6 +7,7 @@
 //   { kind: "draft", candidate_id }    a post that waits for Chris's OK
 //   { kind: "breaker", reason }        automatic posting has stopped itself
 //   { kind: "test" }                   a one-off check that email works
+//   { kind: "email_failed", gw, ... }  the FPL weekly email had failures
 // Called only by the database (private.social_notify, pg_net) with the worker
 // token in x-social-token. Sends through Resend.
 //
@@ -105,6 +106,12 @@ Deno.serve(async (req) => {
     subject = "Automatic X posting has stopped";
     html = `<p>Automatic posting to @FixtureSharkHQ switched itself off:</p><p><b>${esc(String(body.reason ?? "unknown"))}</b></p>
       <p>Check <a href="https://x.com/FixtureSharkHQ">@FixtureSharkHQ</a>, then reset it on <a href="${ADMIN_URL}">/admin/social</a>.</p>`;
+  } else if (body?.kind === "email_failed") {
+    // FPL weekly email (email-weekly): a send with failures (1 Nov 2026).
+    subject = `FPL weekly email: ${Number(body.failed ?? 0)} not sent (GW${esc(String(body.gw ?? "?"))})`;
+    html = `<p>The ${esc(String(body.send_kind ?? "weekly"))} send for GW${esc(String(body.gw ?? "?"))} went to <b>${Number(body.sent ?? 0)}</b> and failed for <b>${Number(body.failed ?? 0)}</b>.</p>
+      <p>${esc(String(body.note ?? ""))}</p>
+      <p>Details: <a href="https://fixtureshark.com/admin/email">fixtureshark.com/admin/email</a></p>`;
   } else {
     return Response.json({ ok: false, reason: "unknown kind" });
   }

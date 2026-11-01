@@ -33,6 +33,7 @@ import { Route, Routes, StaticRouter } from 'react-router-dom';
 // start-up and pushed it down (layout shift up to 0.57 on match pages), and
 // crawlers saw no navigation links.
 import AppLayout from './components/AppLayout';
+import PrivacyPage from './pages/PrivacyPage';
 import StaticLinkDirectory, { type LinkDirectory } from './components/StaticLinkDirectory';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
@@ -443,6 +444,7 @@ const HUB_BODIES: Record<string, () => ReactElement> = {
   '/nfl': () => <NflHub />,
   '/tennis': () => <TennisHub />,
   '/international': () => <IntlHub />,
+  '/privacy': () => <PrivacyPage />,
 };
 
 function hubBody(path: string): string {

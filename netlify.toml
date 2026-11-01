@@ -115,6 +115,13 @@
   [headers.values]
     X-Robots-Tag = "noindex"
 
+# The FPL weekly email's confirm / unsubscribe / manage pages (tokenised
+# links, nothing to index).
+[[headers]]
+  for = "/email/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]
