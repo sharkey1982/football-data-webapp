@@ -206,6 +206,12 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FOOTBALL],
   },
   {
+    path: '/privacy',
+    title: 'Privacy notice',
+    description: 'What FixtureShark collects for its FPL weekly email and its analytics, why, how long it is kept, and your rights.',
+    crumbs: [],
+  },
+  {
     path: '/affiliate-disclosure',
     title: 'Affiliate Disclosure',
     description: 'How FixtureShark uses affiliate links, and what that does and does not affect.',

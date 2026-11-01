@@ -152,8 +152,23 @@ export function grantConsent(): void {
 
 export function denyConsent(): void {
   storeConsent('denied');
-  // Deliberately does NOT load gtag.js. Nothing to update, because
-  // nothing was loaded.
+  // Deliberately does NOT load gtag.js. If it was loaded this visit (consent
+  // withdrawn on /privacy after accepting), stop it sending from now on.
+  if (typeof window === 'undefined') return;
+  window.gtag?.('consent', 'update', { analytics_storage: 'denied' });
+  // And remove the cookies GA set while it was allowed (_ga, _ga_<id>).
+  try {
+    const host = window.location.hostname;
+    for (const c of document.cookie.split(';')) {
+      const name = c.split('=')[0].trim();
+      if (!name.startsWith('_ga')) continue;
+      for (const domain of ['', `; domain=${host}`, `; domain=.${host.replace(/^www\./, '')}`]) {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domain}`;
+      }
+    }
+  } catch {
+    /* cookies unavailable */
+  }
 }
 
 /** Re-applies a previously granted choice on a later visit. */

@@ -16,6 +16,7 @@ import { H2, LINK, PROSE } from '../../components/articles/ArticleLayout';
 import GameweekReflection, { CongestionTable } from '../../components/fpl/GameweekReflection';
 import ReportTable from '../../components/fpl/ReportTable';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
+import EmailSignup from '../../components/EmailSignup';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
 import {
   GAMEWEEK_HUB_PATH,
@@ -108,6 +109,7 @@ export default function GameweekReportPage({ initialData }: { initialData?: Game
       ) : (
         <Preview p={data.payload} />
       )}
+      <EmailSignup />
       <nav aria-label="Where next" className="text-sm">
         <p className="text-ink-500">Where next:</p>
         <ul className="mt-1 space-y-1">

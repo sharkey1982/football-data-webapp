@@ -27,6 +27,7 @@ import { loadReportList, reportPath, type ReportListEntry } from '../lib/fplGame
 import { PlayerLink } from '../components/EntityLinks';
 import { HubCard, HubNote, HubPageList, HubPlayStrip, HubSkeleton, HUB_LINK } from '../components/hub/HubParts';
 import { PopularTools } from '../components/hub/PopularTools';
+import EmailSignup from '../components/EmailSignup';
 import { MyLiveScore } from '../components/fpl/MyLiveScore';
 import { forgetFplId, readStoredFplId, storeFplId } from '../lib/fplIdStore';
 import { getOpenGameweek, type LiveGame, type LivePlayerPoints, type OpenGameweek } from '../lib/fplGameweekState';
@@ -271,6 +272,8 @@ export default function FplHub() {
           )}
         </div>
       </div>
+
+      <EmailSignup />
 
       <PopularTools from="fpl_hub" section="fpl" />
 

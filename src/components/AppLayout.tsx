@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, type To } from 'react-router-dom';
 import { BEAT_THE_SHARK } from './GameCard';
 import { PageErrorBoundary } from './PageErrorBoundary';
+import EmailSignup from './EmailSignup';
 import { STATIC_ROUTES, type RouteMeta } from '../lib/routeMeta';
 import { activeDocumentHeads, applyFallbackHead } from '../hooks/useDocumentHead';
 
@@ -369,6 +370,7 @@ export default function AppLayout() {
         { to: '/admin/ai-lab', label: 'AI Lab', matchPrefix: '/admin/ai-lab' },
         { to: '/admin/model', label: 'Model Versions & Changes', matchPrefix: '/admin/model' },
         { to: '/admin/traffic', label: 'Site Traffic', matchPrefix: '/admin/traffic' },
+        { to: '/admin/email', label: 'FPL Weekly Email', matchPrefix: '/admin/email' },
         { to: '/admin/social', label: 'Social Publishing', matchPrefix: '/admin/social' },
         { to: '/admin/gameweek', label: 'Gameweek Posts', matchPrefix: '/admin/gameweek' },
         { to: '/data-health', label: 'Data Health', matchPrefix: '/data-health' },
@@ -525,8 +527,16 @@ export default function AppLayout() {
             ))}
           </ul>
         </nav>
+        {/* FPL weekly email (1 Nov 2026), compact. Left out where the page
+            has its own sign-up card, and on the email pages themselves. */}
+        {!/^\/(fpl\/start|fpl\/gameweek|email\/)/.test(location.pathname) && (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4">
+            <div className="max-w-xl"><EmailSignup variant="compact" /></div>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-ink-500 font-mono flex flex-wrap items-center justify-between gap-2">
           <span>{FOOTER_COVERAGE}</span>
+          <Link to="/privacy" className="text-ink-500 hover:text-ink-900 underline underline-offset-2">Privacy</Link>
           {/* Hiding the Admin menu from visitors removed the ONLY route
               to /login -- the sign-in link lived in the gate notice on
               admin pages, which are no longer reachable from the nav.
