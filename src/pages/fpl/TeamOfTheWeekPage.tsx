@@ -48,7 +48,10 @@ function verdict(c: TotwComparison): string {
   return `${calibration} ${overlap}`;
 }
 
-export default function TeamOfTheWeekPage() {
+/** The static build's pre-render of one gameweek (scripts/generate-static.mjs). */
+export type TeamOfTheWeekData = { gw: number; xi: TotwPlayer[]; cmp: TotwComparison | null; weeks: number[]; scorers: GameweekScorer[]; lead?: string };
+
+export default function TeamOfTheWeekPage({ initialData }: { initialData?: TeamOfTheWeekData } = {}) {
   // A gameweek in the URL makes every completed week its own page.
   // Each is a distinct, permanent record -- "GW4's best XI" doesn't
   // change once the week is done -- which is both what a reader wants to
@@ -64,10 +67,12 @@ export default function TeamOfTheWeekPage() {
     const n = Number(gwParam.replace(/^gw/i, ''));
     return Number.isFinite(n) && n > 0 ? n : undefined;
   })();
-  const [xi, setXi] = useState<TotwPlayer[] | null>(null);
-  const [cmp, setCmp] = useState<TotwComparison | null>(null);
-  const [weeks, setWeeks] = useState<number[]>([]);
-  const [scorers, setScorers] = useState<GameweekScorer[]>([]);
+  // Only used when it is the gameweek this URL asks for (or the latest, on /fpl/team-of-the-week).
+  const pre = initialData && (requestedGw === undefined || requestedGw === initialData.gw) ? initialData : undefined;
+  const [xi, setXi] = useState<TotwPlayer[] | null>(pre?.xi ?? null);
+  const [cmp, setCmp] = useState<TotwComparison | null>(pre?.cmp ?? null);
+  const [weeks, setWeeks] = useState<number[]>(pre?.weeks ?? []);
+  const [scorers, setScorers] = useState<GameweekScorer[]>(pre?.scorers ?? []);
   // Kept as bare numbers: the selector only needs the id, and the
   // richer shape (points, best score) belongs to whatever shows a
   // gameweek index rather than this page's nav strip.
@@ -81,6 +86,7 @@ export default function TeamOfTheWeekPage() {
   });
 
   useEffect(() => {
+    if (pre) return;
     let live = true;
     Promise.all([getTeamOfTheWeek(requestedGw), getTotwVsModel(requestedGw)])
       .then(([a, b]) => {
@@ -105,7 +111,7 @@ export default function TeamOfTheWeekPage() {
     return () => {
       live = false;
     };
-  }, [requestedGw]);
+  }, [requestedGw]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // /fpl/team-of-the-week/<not a gameweek>, or a gameweek with no team yet:
   // not found, not the latest week under the wrong URL (audit S-05).
@@ -131,6 +137,7 @@ export default function TeamOfTheWeekPage() {
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Team of the week &mdash; GW{gw}</h1>
+        {pre?.lead && <p className="text-ink-900 mt-2 max-w-prose">{pre.lead}</p>}
         <p className="text-ink-700 mt-2 max-w-prose">
           The highest-scoring legal XI of gameweek {gw}, worth <strong>{total} points</strong>. Formation rules apply, so
           this is a side someone could actually have picked &mdash; not simply the eleven top scorers.

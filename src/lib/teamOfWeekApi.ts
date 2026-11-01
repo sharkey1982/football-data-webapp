@@ -48,7 +48,13 @@ export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> 
     p_season_id: await getCurrentFplSeasonId(),
   });
   if (error) throw error;
-  return (data ?? []).map((r) => ({
+  return (data ?? []).map(toTotwPlayer);
+}
+
+/** A get_team_of_the_week row (also the static build's, from REST). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toTotwPlayer(r: any): TotwPlayer {
+  return {
     ...r,
     points: Number(r.points),
     minutes: Number(r.minutes),
@@ -56,7 +62,7 @@ export async function getTeamOfTheWeek(eventId?: number): Promise<TotwPlayer[]> 
     assists: Number(r.assists ?? 0),
     clean_sheets: Number(r.clean_sheets ?? 0),
     bonus: Number(r.bonus ?? 0),
-  }));
+  };
 }
 
 export async function getTotwVsModel(eventId?: number): Promise<TotwComparison | null> {
@@ -68,7 +74,12 @@ export async function getTotwVsModel(eventId?: number): Promise<TotwComparison |
     p_season_id: await getCurrentFplSeasonId(),
   });
   if (error) throw error;
-  const row = (data ?? [])[0];
+  return toTotwComparison((data ?? [])[0]);
+}
+
+/** A get_totw_vs_model row, or null (also the static build's). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toTotwComparison(row: any): TotwComparison | null {
   if (!row) return null;
   return {
     ...row,
@@ -122,10 +133,18 @@ export async function getGameweekScorers(eventId: number, seasonId?: number, lim
     .order('total_points', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return (data ?? []).map((r) => ({
+  return (data ?? []).map(toGameweekScorer);
+}
+
+/** The columns getGameweekScorers reads (the static build uses them over REST). */
+export const GAMEWEEK_SCORER_SELECT = 'fpl_player_id,total_points,minutes,goals_scored,assists,clean_sheets,bonus,fpl_players!inner(web_name,slug,element_type,canonical_team_id)';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toGameweekScorer(r: any) {
+  return {
     fpl_player_id: Number(r.fpl_player_id),
-    web_name: r.fpl_players?.web_name ?? null,
-    slug: r.fpl_players?.slug ?? null,
+    web_name: (r.fpl_players?.web_name ?? null) as string | null,
+    slug: (r.fpl_players?.slug ?? null) as string | null,
     element_type: Number(r.fpl_players?.element_type ?? 0),
     points: Number(r.total_points ?? 0),
     minutes: Number(r.minutes ?? 0),
@@ -133,6 +152,6 @@ export async function getGameweekScorers(eventId: number, seasonId?: number, lim
     assists: Number(r.assists ?? 0),
     clean_sheets: Number(r.clean_sheets ?? 0),
     bonus: Number(r.bonus ?? 0),
-  }));
+  };
 }
-export type GameweekScorer = Awaited<ReturnType<typeof getGameweekScorers>>[number];
+export type GameweekScorer = ReturnType<typeof toGameweekScorer>;

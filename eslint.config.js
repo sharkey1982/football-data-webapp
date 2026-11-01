@@ -19,4 +19,11 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // The server-render entry for the static build (scripts/generate-static.mjs)
+    // exports render functions by design and is never hot-reloaded, so the
+    // fast-refresh rule has nothing to protect there.
+    files: ['src/entry-server.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])

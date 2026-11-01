@@ -13,11 +13,15 @@ import { getWatchGuide, type WatchGuideFixture } from '../../lib/broadcastsApi';
 import { ukToday, addIsoDays } from '../../lib/ukDate';
 import { friendlyError } from '../../lib/errorMessage';
 
-export default function TvGuidePage() {
-  const [fixtures, setFixtures] = useState<WatchGuideFixture[] | null>(null);
+/** initialData: the static build's pre-render (the next seven days, and the
+ * dated lead from src/lib/staticSummaries.ts tvGuideLead). The app itself
+ * starts without it and loads the whole guide. */
+export default function TvGuidePage({ initialData }: { initialData?: { fixtures: WatchGuideFixture[]; lead: string } } = {}) {
+  const [fixtures, setFixtures] = useState<WatchGuideFixture[] | null>(initialData?.fixtures ?? null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialData) return;
     let live = true;
     // The next three weeks first (fast on mobile data), then only the rest
     // of the season, appended (audit S-08: the second pass used to fetch the
@@ -35,7 +39,7 @@ export default function TvGuidePage() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [initialData]);
 
   return (
     <WatchGuideView
@@ -43,7 +47,7 @@ export default function TvGuidePage() {
       fixtures={fixtures}
       error={error}
       title="Football on TV"
-      intro={<>Upcoming matches you can watch live in the UK, and how. A match not listed hasn&rsquo;t had its UK broadcast confirmed yet.</>}
+      intro={<>{initialData && <>{initialData.lead} </>}Upcoming matches you can watch live in the UK, and how. A match not listed hasn&rsquo;t had its UK broadcast confirmed yet.</>}
       emptyText="No confirmed UK broadcasts right now."
       head={{
         title: 'Football on TV \u2014 UK Watch Guide',

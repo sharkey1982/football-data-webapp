@@ -160,6 +160,30 @@ Fixes, part 2 (match pages and hub links):
 After deploying: resubmit /sitemap.xml in Search Console and ask for
 reindexing of a few sample pages (an EFL match, an FPL player page).
 
+## Server HTML for AI crawlers, 1 Nov 2026
+
+GPTBot, ClaudeBot and PerplexityBot don't run JavaScript. A plain-HTML fetch
+of the sitemap found pages serving only the app shell (no h1, no data).
+Each now has a body in its static file, opening with a dated sentence built
+from the data ("As of 1 November 2026, ..."):
+
+- Real component with injected data: /tv-guide (WatchGuideView, the next
+  seven days), /fpl/injuries, /fpl/team-of-the-week and every /gwN,
+  /international/teams, /international/tournaments and each tournament,
+  /international/fixtures (the two months the page opens on), and all of
+  those on the women's side; women's nation and edition pages now get the
+  same full render as the men's (a second, smaller bulk read after the
+  men's, when 60 s are left before the watchdog).
+- Server-only summary (StaticFactSheet, src/lib/staticSummaries.ts) for the
+  interactive tools: /team-strength (Premier League ratings table),
+  /fpl (the default gameweek's fixtures and top projected players),
+  /fpl/line-ups (each club's eleven likeliest starters), /preview (next
+  gameweek and every club), /fpl/player-scout (career points leaders),
+  /fpl/live (the gameweek's state; the score itself needs the visitor's ID).
+
+The app replaces these bodies when it starts (createRoot, no hydration).
+The build report's "body check" line gives each page's word count.
+
 ## Search Console data (from 11 Oct 2026)
 
 Search performance for `sc-domain:fixtureshark.com` is loaded daily into the

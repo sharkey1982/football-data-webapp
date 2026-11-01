@@ -16,17 +16,14 @@ import { ChipGroup, FixtureRow, GameList, GameRow, IntlHeader, Section } from '.
 import NationPicker from '../../components/intl/NationPicker';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
 import { useKeyedFetch } from '../../hooks/useKeyedFetch';
-import { INTL_FIXTURES_PATH, intlFixturesPath, intlTeamPath, loadIntlFixtures, loadIntlTeamGames, loadIntlTeams } from '../../lib/intlApi';
-import { COMPETITION_FILTERS, DATA_NOTE, matchesFilter, type CompetitionFilter, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch, sideTitle, sideWord, sinceYear, INTL_GENDER } from '../../lib/intlStats';
+import { INTL_FIXTURES_PATH, intlFixturesPath, intlTeamPath, leftMonthOf, loadIntlFixtures, loadIntlTeamGames, loadIntlTeams, type IntlFixturesData } from '../../lib/intlApi';
+import { COMPETITION_FILTERS, DATA_NOTE, matchesFilter, type CompetitionFilter, isReported, reportedAsMatch, competitionRank, countsByDate, shortDate, ukDateTime, type IntlFixture, type IntlMatch, sideTitle, sideWord, sinceYear, INTL_GENDER, type TeamSummary } from '../../lib/intlStats';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Left-hand calendar month for a date: the month before it. */
-function leftMonthOf(date: string): { year: number; month: number } {
-  const y = Number(date.slice(0, 4));
-  const m = Number(date.slice(5, 7)) - 1;
-  return m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 };
-}
+/** The static build's pre-render: the two months the page opens on (key
+ * "<year>-<month>", as below), the nation list and the dated lead. */
+export type IntlFixturesInitial = { key: string; data: IntlFixturesData; teams?: TeamSummary[]; lead?: string };
 
 const todayUk = () => ukDateTime(new Date().toISOString()).date;
 
@@ -49,16 +46,16 @@ function groupDay(matches: IntlMatch[], fixtures: IntlFixture[], date: string): 
   return [...groups.values()].sort((a, b) => a.rank - b.rank || a.competition.localeCompare(b.competition));
 }
 
-export default function IntlFixturesPage() {
+export default function IntlFixturesPage({ initialData }: { initialData?: IntlFixturesInitial } = {}) {
   const [params, setParams] = useSearchParams();
   const team = params.get('team');
   const dateParam = ISO.test(params.get('date') ?? '') ? params.get('date')! : null;
   const today = todayUk();
   const [view, setView] = useState<{ year: number; month: number } | null>(null);
   const anchor = view ?? leftMonthOf(dateParam ?? today);
-  const { data, failed, loading } = useKeyedFetch(team ? null : `${anchor.year}-${anchor.month}`, () => loadIntlFixtures(anchor.year, anchor.month));
+  const { data, failed, loading } = useKeyedFetch(team ? null : `${anchor.year}-${anchor.month}`, () => loadIntlFixtures(anchor.year, anchor.month), initialData ? { key: initialData.key, data: initialData.data } : undefined);
   const teamGames = useKeyedFetch(team, () => loadIntlTeamGames(team!));
-  const teams = useKeyedFetch('teams', () => loadIntlTeams());
+  const teams = useKeyedFetch('teams', () => loadIntlTeams(), initialData?.teams ? { key: 'teams', data: initialData.teams } : undefined);
 
   const counts = useMemo(() => countsByDate(data?.matches ?? [], data?.fixtures ?? []), [data]);
   const selected = useMemo(() => {
@@ -114,6 +111,7 @@ export default function IntlFixturesPage() {
   return (
     <article className="space-y-5">
       <IntlHeader title="Fixtures & Results">
+        {initialData?.lead && !team && <p className="text-ink-900 max-w-prose">{initialData.lead}</p>}
         <p className="text-ink-700 max-w-prose">Every {sideWord()} international since {sinceYear()}, with the favourite on the day. Pick a day on the calendar, or one nation.</p>
       </IntlHeader>
 

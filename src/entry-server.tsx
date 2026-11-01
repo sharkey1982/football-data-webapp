@@ -156,7 +156,29 @@ import TennisH2HPage from './pages/tennis/TennisH2HPage';
 import TennisSlamsPage from './pages/tennis/TennisSlamsPage';
 import IntlTeamPage from './pages/international/IntlTeamPage';
 import IntlEditionPage from './pages/international/IntlEditionPage';
-import { intlEditionHead as intlEditionHeadFor, intlTeamHead as intlTeamHeadFor } from './lib/intlSeo';
+import IntlTeamsPage from './pages/international/IntlTeamsPage';
+import IntlTournamentsPage from './pages/international/IntlTournamentsPage';
+import IntlFixturesPage, { type IntlFixturesInitial } from './pages/international/IntlFixturesPage';
+import TvGuidePage from './pages/football/TvGuidePage';
+import InjuriesPage from './pages/fpl/InjuriesPage';
+import TeamOfTheWeekPage, { type TeamOfTheWeekData } from './pages/fpl/TeamOfTheWeekPage';
+import StaticFactSheet from './components/StaticFactSheet';
+import { watchGuideJsonLd } from './lib/watchGuide';
+import { groupWatchGuideRows, WATCH_GUIDE_COLUMNS } from './lib/broadcastsApi';
+import type { InjuryRow } from './lib/injuryApi';
+import { INTL_BASE, INTL_FIXTURES_PATH, INTL_TEAMS_PATH, INTL_TOURNAMENTS_PATH, leftMonthOf, monthWindow } from './lib/intlApi';
+import type { EditionSummary, TeamSummary } from './lib/intlStats';
+import {
+  injuriesLead,
+  intlFixturesLead,
+  intlTeamsLead,
+  intlTournamentsLead,
+  itemList,
+  totwLead,
+  tvGuideLead,
+  type SheetResult,
+} from './lib/staticSummaries';
+import { intlEditionHead as intlEditionHeadFor, intlTeamHead as intlTeamHeadFor, intlTournamentHead as intlTournamentHeadFor } from './lib/intlSeo';
 import type { IntlEditionData, IntlTeamData } from './lib/intlApi';
 import { TOURNAMENTS as INTL_TOURNAMENT_LIST, scoreText as intlScoreText } from './lib/intlStats';
 import { h2hSentence as tennisH2HSentence, h2hSummary as tennisH2HSummary } from './lib/tennisH2H';
@@ -616,7 +638,8 @@ export {
 export function renderIntlTeamPage(data: IntlTeamData): RenderedPage {
   const head = intlTeamHeadFor(data.team);
   return {
-    html: nflPage(head.path, '/international/teams/:slug', <IntlTeamPage initialData={data} />),
+    // INTL_BASE: '/international' or '/international/women' (setIntlGender).
+    html: nflPage(head.path, `${INTL_BASE}/teams/:slug`, <IntlTeamPage initialData={data} />),
     title: `${head.title} | ${BRAND_NAME}`,
     description: head.description,
     canonical: `${SITE_URL}${head.path}`,
@@ -631,7 +654,7 @@ export function renderIntlEditionPage(data: IntlEditionData): RenderedPage | nul
   const final = data.edition.final_key ? data.matches.find((m) => m.match_key === data.edition.final_key) ?? null : null;
   const head = intlEditionHeadFor(t, data.edition, final ? intlScoreText(final) : null);
   return {
-    html: nflPage(head.path, '/international/tournaments/:competition/:label', <IntlEditionPage initialData={data} />),
+    html: nflPage(head.path, `${INTL_BASE}/tournaments/:competition/:label`, <IntlEditionPage initialData={data} />),
     title: `${head.title} | ${BRAND_NAME}`,
     description: head.description,
     canonical: `${SITE_URL}${head.path}`,
@@ -639,6 +662,101 @@ export function renderIntlEditionPage(data: IntlEditionData): RenderedPage | nul
   };
 }
 export { TOURNAMENTS as INTL_TOURNAMENTS } from './lib/intlStats';
+
+// ---- Pages that loaded everything in the browser (audit 1 Nov 2026) ----------
+// AI crawlers don't run JavaScript, and these sitemap pages served them the
+// empty app shell. Each is now rendered with its real component and injected
+// data, or (for interactive tools) a StaticFactSheet summary; both are
+// replaced by the app when it starts (createRoot). Head tags come from the
+// route's own meta, as before. The generator calls setIntlGender first for
+// the women's International pages.
+
+function routeMeta(path: string): RouteMeta {
+  const meta = STATIC_ROUTES.find((r) => r.path === path);
+  if (!meta) throw new Error(`no route meta for ${path}`);
+  return meta;
+}
+
+function withBody(meta: RouteMeta, html: string, extra: (object | null | undefined)[] = [], description?: string): RenderedPage {
+  const head = renderStaticRouteHead(meta);
+  return { ...head, html, description: description ?? head.description, structuredData: [...extra.filter((x): x is object => !!x), ...head.structuredData] };
+}
+
+/** A tool page's server summary (src/lib/staticSummaries.ts *Sheet()). */
+export function renderSummaryPage(path: string, result: SheetResult): RenderedPage {
+  return withBody(routeMeta(path), staticPage(path, <StaticFactSheet sheet={result.sheet} />), [itemList(result.items, SITE_URL)]);
+}
+export { teamStrengthSheet, matchProjectionsSheet, lineupsSheet, fplLiveSheet, previewSheet, playerScoutSheet } from './lib/staticSummaries';
+
+/** Football TV guide: rows of upcoming_watch_guide (WATCH_GUIDE_COLUMNS) up to `until`. */
+export function renderTvGuidePage(rows: Record<string, unknown>[], today: string, until: string): RenderedPage {
+  const fixtures = groupWatchGuideRows(rows);
+  const lead = tvGuideLead(fixtures, today, until);
+  return withBody(routeMeta('/tv-guide'), staticPage('/tv-guide', <TvGuidePage initialData={{ fixtures, lead }} />), [watchGuideJsonLd(fixtures)]);
+}
+export { WATCH_GUIDE_COLUMNS };
+export { toTotwPlayer, toTotwComparison, toGameweekScorer, GAMEWEEK_SCORER_SELECT } from './lib/teamOfWeekApi';
+
+/** Physio Room: get_injury_report rows (numbers as the browser's injuryApi maps them). */
+export function renderInjuriesPage(raw: Record<string, unknown>[], today: string): RenderedPage {
+  const rows = raw.map((r) => ({
+    ...r,
+    price: r.price == null ? null : Number(r.price),
+    ownership: r.ownership == null ? null : Number(r.ownership),
+    total_points: Number(r.total_points ?? 0),
+    chance_next_round: r.chance_next_round == null ? null : Number(r.chance_next_round),
+    fixtures_missed: r.fixtures_missed == null ? null : Number(r.fixtures_missed),
+  })) as InjuryRow[];
+  return withBody(routeMeta('/fpl/injuries'), staticPage('/fpl/injuries', <InjuriesPage initialData={rows} lead={injuriesLead(rows, today)} />));
+}
+
+/** Team of the week: one gameweek's page, or (latest) /fpl/team-of-the-week. `dates`: its fixtures' kick-off dates. */
+export function renderTeamOfTheWeekPage(data: Omit<TeamOfTheWeekData, 'lead'> & { dates: string[] }, latest = false): RenderedPage {
+  const path = latest ? '/fpl/team-of-the-week' : `/fpl/team-of-the-week/gw${data.gw}`;
+  const lead = totwLead(data.gw, data.xi, data.scorers, data.dates);
+  const meta: RouteMeta = latest
+    ? routeMeta(path)
+    : {
+        path,
+        title: `FPL team of the week \u2014 gameweek ${data.gw}`,
+        description: `The highest-scoring valid Fantasy Premier League XI of gameweek ${data.gw}, who else scored, and how the model's own picks compared.`,
+        crumbs: [{ name: 'Fantasy Premier League', path: '/fpl/start' }],
+      };
+  const html = nflPage(path, latest ? path : '/fpl/team-of-the-week/:gw', <TeamOfTheWeekPage initialData={{ ...data, lead }} />);
+  return withBody(meta, html, [], `${lead} ${meta.description}`);
+}
+
+/** International "Your Team" (men's or women's, per setIntlGender): intl_team_summary rows (TEAM_COLUMNS). */
+export function renderIntlTeamsPage(teams: TeamSummary[], today: string): RenderedPage {
+  const women = INTL_BASE.endsWith('/women');
+  const path = INTL_TEAMS_PATH;
+  const sorted = [...teams].sort((a, b) => a.team.localeCompare(b.team));
+  return withBody(routeMeta(path), nflPage(path, path, <IntlTeamsPage initialData={sorted} lead={intlTeamsLead(teams, today, women)} />));
+}
+
+/** Tournaments overview (slug null) or one tournament's page: intl_edition_summary rows (EDITION_COLUMNS). */
+export function renderIntlTournamentsPage(editions: EditionSummary[], today: string, slug: string | null): RenderedPage | null {
+  const women = INTL_BASE.endsWith('/women');
+  const only = slug ? INTL_TOURNAMENT_LIST.find((t) => t.slug === slug) ?? null : null;
+  if (slug && !only) return null;
+  const meta = only ? intlTournamentHeadFor(only) : routeMeta(INTL_TOURNAMENTS_PATH);
+  const sorted = [...editions].sort((a, b) => b.season_start - a.season_start);
+  const route = only ? `${INTL_BASE}/tournaments/:competition` : INTL_TOURNAMENTS_PATH;
+  return withBody(meta, nflPage(meta.path, route, <IntlTournamentsPage initialData={sorted} lead={intlTournamentsLead(editions, INTL_TOURNAMENT_LIST, today, women, only)} />));
+}
+
+/** The window Fixtures & Results opens on for `today` (UK date): its key and dates. */
+export function intlFixturesWindow(today: string): { key: string; from: string; to: string } {
+  const a = leftMonthOf(today);
+  return { key: `${a.year}-${a.month}`, ...monthWindow(a.year, a.month) };
+}
+
+/** Fixtures & Results: the window's matches and fixtures, the latest result date and the nations. */
+export function renderIntlFixturesPage(input: Omit<IntlFixturesInitial, 'lead'>, today: string): RenderedPage {
+  const women = INTL_BASE.endsWith('/women');
+  const path = INTL_FIXTURES_PATH;
+  return withBody(routeMeta(path), nflPage(path, path, <IntlFixturesPage initialData={{ ...input, lead: intlFixturesLead(input.data, today, women) }} />));
+}
 
 // ---- Club finances ---------------------------------------------------------
 // The finance module, re-exported as ONE namespace so the build scripts group
