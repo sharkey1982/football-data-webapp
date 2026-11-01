@@ -362,6 +362,7 @@ export default function AppLayout() {
         { to: '/admin/team-ratings', label: 'Team Strength Admin', matchPrefix: '/admin/team-ratings' },
         { to: '/fpl/tactical-roles', label: 'Tactical Roles', matchPrefix: '/fpl/tactical-roles' },
         { to: '/admin/lineup-compare', label: 'Line-ups v FFS', matchPrefix: '/admin/lineup-compare' },
+        { to: '/admin/team-sheets', label: 'Team Sheets v Model', matchPrefix: '/admin/team-sheets' },
         { to: '/admin/fanteam', label: 'FanTeam', matchPrefix: '/admin/fanteam' },
         { to: '/admin/last-man-standing', label: 'Last Man Standing', matchPrefix: '/admin/last-man-standing' },
         { to: '/admin/ask', label: 'Ask FixtureShark (trial)', matchPrefix: '/admin/ask' },
