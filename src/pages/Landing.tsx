@@ -170,6 +170,19 @@ export default function Landing() {
         </p>
       </div>
 
+      {/* The Today page (1 Nov 2026): the day's games, TV, FPL and results. */}
+      <Link
+        to="/today"
+        data-testid="home-today"
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 min-h-11 rounded-xl border-2 border-amber-500 bg-pitch-900 px-4 py-3 sm:px-5 hover:bg-pitch-800 hover:shadow-[0_0_30px_rgba(227,180,85,0.25)] transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+      >
+        <span>
+          <span className="block font-display uppercase tracking-wide text-xl sm:text-2xl text-amber-400">Today</span>
+          <span className="block text-[0.8rem] sm:text-sm text-chalk-300">Every game, what&rsquo;s on TV, FPL and results so far</span>
+        </span>
+        <span aria-hidden="true" className="text-amber-400 text-2xl">&rarr;</span>
+      </Link>
+
       <nav aria-label="Sections" className="space-y-5 sm:space-y-6" data-testid="home-sections">
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {MAIN.map((t) => (

@@ -18196,6 +18196,10 @@ export type Database = {
           status: string
         }[]
       }
+      get_day_page: {
+        Args: { p_day: string }
+        Returns: Json
+      }
       get_digest_gameweeks: {
         Args: { p_season_id?: number }
         Returns: {

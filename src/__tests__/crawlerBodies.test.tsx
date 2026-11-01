@@ -20,6 +20,7 @@ import {
   renderIntlTournamentsPage,
   renderSummaryPage,
   renderTeamOfTheWeekPage,
+  renderTodayPage,
   renderTvGuidePage,
   setIntlGender,
   teamStrengthSheet,
@@ -179,6 +180,26 @@ describe('pages rendered with their real component', () => {
     expect(page.html).toContain('Sky Sports');
     expect(page.canonical).toBe('https://fixtureshark.com/tv-guide');
     expect((ld(page, 'ItemList')!.itemListElement as unknown[]).length).toBe(2);
+  });
+
+  it('/today: the day\u2019s games under a dated opening sentence', () => {
+    const game = (id: number, over: Record<string, unknown>) => ({
+      fixture_id: id, slug: `m-${id}`, league_id: 15, league: 'Serie A', time: '11:30', status: 'scheduled', home_id: id, away_id: id + 100, home: `H${id}`, away: `A${id}`,
+      model: { home: 0.5, draw: 0.25, away: 0.25 }, estimated: false, market: { home: 0.48, draw: 0.27, away: 0.25 }, tv: ['DAZN'], not_tv: false, hg: null, ag: null, confirmed: false, ...over,
+    });
+    const raw = {
+      day: TODAY,
+      games: [game(1, {}), game(2, { league_id: 1, league: 'Premier League', time: '16:30', home: 'Liverpool', away: 'Arsenal', tv: ['Sky Sports'], slug: 'liverpool-v-arsenal-2026-11-01' }), game(3, { league_id: 3, league: 'League One', time: '14:00', tv: null })],
+      ahead: [], team_news: [],
+    };
+    const page = renderTodayPage(raw, TODAY, '2026-11-01T07:00:00Z');
+    const lead = 'Sunday 1 November 2026: 3 football matches today, 2 on UK TV; Liverpool v Arsenal at 16:30 is the Premier League game.';
+    expect(page.html).toContain(lead);
+    expect(page.description).toBe(lead);
+    expect(page.html).toContain('href="/football/matches/liverpool-v-arsenal-2026-11-01"');
+    expect(page.html).toContain('Choose your teams');
+    expect(page.canonical).toBe('https://fixtureshark.com/today');
+    expect(() => renderTodayPage({ ...raw, day: '2026-10-31' }, TODAY, '2026-11-01T07:00:00Z')).toThrow();
   });
 
   it('/fpl/injuries: the Physio Room table, with a count by status', () => {

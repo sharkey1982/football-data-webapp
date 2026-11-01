@@ -22,6 +22,8 @@ export type RouteMeta = {
   path: string;
   title: string;
   description: string;
+  /** The page changes every day (the Today page): the sitemap gives it the build's date as lastmod. */
+  daily?: boolean;
   /** Breadcrumb trail, for JSON-LD. Omitted for the landing page. */
   crumbs?: { name: string; path: string }[];
 };
@@ -48,6 +50,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     title: 'Football, FPL, NFL and tennis: results and predictions',
     description:
       'Football results, tables and model predictions, international football since 1872, Fantasy Premier League projections, club finances, the NFL and tennis.',
+  },
+  {
+    path: '/today',
+    title: 'Today: football, TV and FPL',
+    description:
+      'Today\u2019s football: every game we cover with UK TV, the betting market\u2019s favourite and our model\u2019s, results so far, the FPL deadline, team news and price changes.',
+    daily: true,
   },
   {
     path: '/football',
