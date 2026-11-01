@@ -4,7 +4,7 @@
 // "My FixtureShark": the personal part of the home page, built from the
 // preferences in this browser (src/lib/myPrefs.ts; Chris, 25 Oct 2026, from
 // the approved mockup). Club card first, then FPL, international, NFL and
-// tennis cards for whatever is set, then "Also following". Each card loads
+// tennis cards for whatever is set; "Also following" sits under the club card. Each card loads
 // on its own and says so if it fails; nothing is invented -- a field the site
 // doesn't have is left out.
 // ============================================================================
@@ -180,7 +180,7 @@ function ClubCardView({ card }: { card: ClubCard }) {
 }
 
 function FollowRow({ card }: { card: ClubCard }) {
-  const { team, next, recent } = card;
+  const { team, next, recent, league } = card;
   const last = recent[0];
   const ourChance = next?.model ? (next.isHome ? next.model.home : next.model.away) : null;
   return (
@@ -189,7 +189,12 @@ function FollowRow({ card }: { card: ClubCard }) {
       <p className="text-sm text-ink-700">
         {next ? `Next: ${next.isHome ? `v ${next.away}` : `at ${next.home}`}, ${ukDay(next.date)}${ourChance != null ? ` · we give ${team.name} ${pct(ourChance)}` : ''}` : 'No fixture scheduled yet'}
       </p>
-      {last && <p className="text-sm text-ink-700">Last: {scoreLine(last)}</p>}
+      {last && <p className="text-sm text-ink-700">Last: {scoreLine(last)}, {ukDay(last.date)}</p>}
+      {league && (
+        <p className="text-sm">
+          <Link to={`/table?league=${league.leagueId}`} className={HUB_LINK}>{league.name} table</Link>
+        </p>
+      )}
     </li>
   );
 }
@@ -350,6 +355,19 @@ export function MyHome({ prefs }: { prefs: MyPrefs }) {
               <HubNote>No games for {prefs.club.name} in the leagues we cover this season.</HubNote>
             </HubCard>
           )}
+          {/* Other followed clubs sit with the main club (Chris, 1 Nov 2026), not below everything else. */}
+          {prefs.followed.length > 0 && clubs.status !== 'error' && !(clubs.status === 'ok' && others.length === 0) && (
+            <section aria-labelledby="my-also" className="space-y-3 mt-6">
+              <h2 id="my-also" className="font-display uppercase tracking-wide text-xl text-ink-900">Also following</h2>
+              {clubs.status === 'ok' ? (
+                <ul className="grid gap-3 sm:grid-cols-2" data-testid="my-following">
+                  {others.map((c) => <FollowRow key={c.team.teamId} card={c} />)}
+                </ul>
+              ) : clubs.status === 'loading' ? (
+                <HubSkeleton rows={1} rowClass="h-16" />
+              ) : null}
+            </section>
+          )}
         </div>
         <div className="flex-[1_1_22rem] min-w-0 space-y-6">
           {prefs.fplId && <FplCard fplId={prefs.fplId} />}
@@ -363,19 +381,6 @@ export function MyHome({ prefs }: { prefs: MyPrefs }) {
           )}
         </div>
       </div>
-
-      {prefs.followed.length > 0 && clubs.status !== 'error' && !(clubs.status === 'ok' && others.length === 0) && (
-        <section aria-labelledby="my-also" className="space-y-3">
-          <h2 id="my-also" className="font-display uppercase tracking-wide text-xl text-ink-900">Also following</h2>
-          {clubs.status === 'ok' ? (
-            <ul className="grid gap-3 sm:grid-cols-3" data-testid="my-following">
-              {others.map((c) => <FollowRow key={c.team.teamId} card={c} />)}
-            </ul>
-          ) : clubs.status === 'loading' ? (
-            <HubSkeleton rows={1} rowClass="h-16" />
-          ) : null}
-        </section>
-      )}
     </div>
   );
 }
