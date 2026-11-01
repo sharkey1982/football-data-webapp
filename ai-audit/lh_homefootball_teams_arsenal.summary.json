@@ -1,16 +1,16 @@
 {
  "url": "https://fixtureshark.com/football/teams/arsenal",
  "scores": {
-  "performance": 0.84,
+  "performance": 0.81,
   "accessibility": 1,
   "best-practices": 1,
   "seo": 1
  },
- "lcp": "4.1\u00a0s",
- "fcp": "2.1\u00a0s",
- "tbt": "50\u00a0ms",
+ "lcp": "4.5\u00a0s",
+ "fcp": "2.2\u00a0s",
+ "tbt": "110\u00a0ms",
  "cls": "0",
- "weight": "Total size was 337\u00a0KiB",
+ "weight": "Total size was 350\u00a0KiB",
  "failed": [
   "valid-source-maps"
  ]

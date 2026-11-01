@@ -1,16 +1,16 @@
 {
  "url": "https://fixtureshark.com/fpl/start",
  "scores": {
-  "performance": 0.76,
+  "performance": 0.74,
   "accessibility": 0.96,
   "best-practices": 1,
   "seo": 1
  },
- "lcp": "2.2\u00a0s",
- "fcp": "2.2\u00a0s",
- "tbt": "60\u00a0ms",
+ "lcp": "2.3\u00a0s",
+ "fcp": "2.3\u00a0s",
+ "tbt": "120\u00a0ms",
  "cls": "0.465",
- "weight": "Total size was 475\u00a0KiB",
+ "weight": "Total size was 476\u00a0KiB",
  "failed": [
   "valid-source-maps",
   "target-size"

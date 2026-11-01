@@ -1,16 +1,16 @@
 {
  "url": "https://fixtureshark.com/fixtures?league=1&season=13",
  "scores": {
-  "performance": 0.67,
+  "performance": 0.56,
   "accessibility": 1,
   "best-practices": 1,
   "seo": 1
  },
- "lcp": "4.6\u00a0s",
- "fcp": "2.4\u00a0s",
- "tbt": "540\u00a0ms",
+ "lcp": "5.0\u00a0s",
+ "fcp": "2.5\u00a0s",
+ "tbt": "1,030\u00a0ms",
  "cls": "0",
- "weight": "Total size was 412\u00a0KiB",
+ "weight": "Total size was 413\u00a0KiB",
  "failed": [
   "valid-source-maps"
  ]
