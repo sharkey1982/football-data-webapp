@@ -310,6 +310,13 @@ export const STATIC_ROUTES: RouteMeta[] = [
     crumbs: [FPL],
   },
   {
+    path: '/fpl/most-owned',
+    title: 'Most-owned FPL squad \u2014 the template team',
+    description:
+      'The 15 most-owned Fantasy Premier League players that make a legal squad, what it costs, the XI and captain our projections pick from it, ownership changes since the deadline and its weak spots.',
+    crumbs: [FPL],
+  },
+  {
     path: '/fpl/injuries',
     title: 'Physio Room \u2014 FPL injuries and availability',
     description:

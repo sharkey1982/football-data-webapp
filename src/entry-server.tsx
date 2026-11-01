@@ -163,6 +163,9 @@ import TvGuidePage from './pages/football/TvGuidePage';
 import TodayPage from './pages/TodayPage';
 import { daySentence, parseDayPage } from './lib/todayApi';
 import InjuriesPage from './pages/fpl/InjuriesPage';
+import MostOwnedSquadPage from './pages/fpl/MostOwnedSquadPage';
+import { buildMostOwned, toPlayerRows, type MostOwnedInput } from './lib/fplMostOwned';
+export { MOST_OWNED_PLAYER_SELECT, HORIZON as MOST_OWNED_HORIZON } from './lib/fplMostOwned';
 import TeamOfTheWeekPage, { type TeamOfTheWeekData } from './pages/fpl/TeamOfTheWeekPage';
 import StaticFactSheet from './components/StaticFactSheet';
 import { watchGuideJsonLd } from './lib/watchGuide';
@@ -721,6 +724,18 @@ export function renderInjuriesPage(raw: Record<string, unknown>[], today: string
     fixtures_missed: r.fixtures_missed == null ? null : Number(r.fixtures_missed),
   })) as InjuryRow[];
   return withBody(routeMeta('/fpl/injuries'), staticPage('/fpl/injuries', <InjuriesPage initialData={rows} lead={injuriesLead(rows, today)} />));
+}
+
+/** Most-owned squad: raw REST rows (fpl_players with MOST_OWNED_PLAYER_SELECT, PL
+ * fixtures, projections, get_deadline_ownership) built exactly as the browser
+ * builds them. Null when there is no squad to show (the head-only file stays). */
+export function renderMostOwnedPage(
+  raw: Omit<MostOwnedInput, 'players'> & { players: Record<string, unknown>[] }
+): RenderedPage | null {
+  const data = buildMostOwned({ ...raw, players: toPlayerRows(raw.players, raw.teamNames) });
+  if (!data) return null;
+  const meta = routeMeta('/fpl/most-owned');
+  return withBody(meta, staticPage('/fpl/most-owned', <MostOwnedSquadPage initialData={data} />), [], `${data.lead} ${meta.description}`);
 }
 
 /** Team of the week: one gameweek's page, or (latest) /fpl/team-of-the-week. `dates`: its fixtures' kick-off dates. */

@@ -139,6 +139,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Gameweek Log', to: '/fpl/gameweek', blurb: 'A reflection every Tuesday and a preview every Thursday.', matchPrefix: ['/fpl/gameweek/202'] },
           { label: 'Team of the Week', to: '/fpl/team-of-the-week', blurb: 'The best XI of each gameweek, who else scored, and how the model fared.', matchPrefix: ['/fpl/team-of-the-week', '/fpl/actual-matches'] },
           { label: 'Squad of the Season', to: '/fpl/optimal-squad-so-far', blurb: 'The best possible squad with hindsight \u2014 how close the model got.' },
+          { label: 'Most-Owned Squad', to: '/fpl/most-owned', blurb: 'The template: the 15 most-owned players that make a legal squad, its XI and weak spots.' },
           { label: 'Value for Money', to: '/fpl/value', blurb: 'Who has actually returned the most for what they cost.' },
           { label: 'Gameweek News', to: '/fpl/in-the-papers', blurb: 'The gameweek\u2019s price moves, injuries and ownership swings, plus the seven-day transfer window.' },
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
@@ -367,7 +368,7 @@ export const HUB_GROUPS: Partial<Record<ThemeKey, HubGroup[]>> = {
     },
   ],
   fpl: [
-    { name: 'This week', paths: ['/fpl/live', '/fpl/gameweek', '/fpl/team-of-the-week', '/fpl/in-the-papers', '/fpl/price-risk', '/fpl/injuries'] },
+    { name: 'This week', paths: ['/fpl/live', '/fpl/gameweek', '/fpl/team-of-the-week', '/fpl/in-the-papers', '/fpl/most-owned', '/fpl/price-risk', '/fpl/injuries'] },
     { name: 'Players', paths: ['/fpl/player-points', '/fpl/player-scout', '/fpl/compare', '/fpl/value', '/fpl/set-pieces', '/fpl/minutes', '/fpl/line-ups'] },
     { name: 'Plan my team', paths: ['/fpl/rate-my-team', '/fpl/optimal-squad', '/fpl/fixtures', '/fantasy', '/fpl'] },
     { name: 'History', paths: ['/fpl/optimal-squad-so-far', '/fpl/season-xi', '/fpl/articles'] },

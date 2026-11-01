@@ -66,6 +66,7 @@ const GameweekPostsPage = lazy(() => import('./pages/admin/GameweekPostsPage'));
 const SocialPage = lazy(() => import('./pages/admin/SocialPage'));
 const SetPiecesPage = lazy(() => import('./pages/fpl/SetPiecesPage'));
 const InjuriesPage = lazy(() => import('./pages/fpl/InjuriesPage'));
+const MostOwnedSquadPage = lazy(() => import('./pages/fpl/MostOwnedSquadPage'));
 const ValuePage = lazy(() => import('./pages/fpl/ValuePage'));
 const TeamOfTheWeekPage = lazy(() => import('./pages/fpl/TeamOfTheWeekPage'));
 const ModelXiAccuracyPage = lazy(() => import('./pages/fpl/ModelXiAccuracyPage'));
@@ -741,6 +742,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <InjuriesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="fpl/most-owned"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <MostOwnedSquadPage />
               </Suspense>
             }
           />
