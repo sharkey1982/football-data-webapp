@@ -113,7 +113,7 @@ describe('PlayerPage career record', () => {
   it('renders nothing extra for a player with a single season, rather than a one-row comparison', async () => {
     mockedScoutApi.getPlayerCareer.mockResolvedValue([careerSeason({ season_id: 12 })]);
     renderPage();
-    await waitFor(() => expect(screen.getByText(/Saka/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /Saka/ })).toBeInTheDocument());
     // One season is not a comparison: a single full-width bar and a
     // one-row table say less than the page already shows.
     expect(screen.queryByText('Every season so far')).not.toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('PlayerPage career record', () => {
     renderPage();
     // The career record is a secondary section. A failure there must not
     // take out the page a projection link pointed at.
-    await waitFor(() => expect(screen.getByText(/Saka/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: /Saka/ })).toBeInTheDocument());
     expect(screen.queryByText('Every season so far')).not.toBeInTheDocument();
   });
 });

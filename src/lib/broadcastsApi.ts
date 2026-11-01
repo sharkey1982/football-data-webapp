@@ -51,7 +51,7 @@ export type FixtureBroadcast = {
   availabilityNotes: string | null;
 };
 
-const COLUMNS =
+export const BROADCAST_COLUMNS =
   'broadcast_id,fixture_id,market,status,broadcaster,channel,streaming_service,' +
   'is_free_to_air,is_subscription,is_ppv,watch_url,source,source_url,verified_at,' +
   'service_product,access_type,delivery_methods,platform_device,is_fast,confidence,availability_notes';
@@ -59,7 +59,7 @@ const COLUMNS =
 // Newer than the generated types; the row shape above is the contract.
 const db = supabase as unknown as { from: (t: string) => any };
 
-function toBroadcast(r: Record<string, unknown>): FixtureBroadcast {
+export function toBroadcast(r: Record<string, unknown>): FixtureBroadcast {
   return {
     broadcastId: Number(r.broadcast_id),
     fixtureId: Number(r.fixture_id),
@@ -93,7 +93,7 @@ export async function getFixtureBroadcasts(fixtureIds: number[], market = 'GB'):
   if (fixtureIds.length === 0) return out;
   const { data, error } = await db
     .from('fixture_broadcasts')
-    .select(COLUMNS)
+    .select(BROADCAST_COLUMNS)
     .in('fixture_id', fixtureIds)
     .eq('market', market);
   if (error) throw error;
@@ -105,7 +105,7 @@ export async function getFixtureBroadcasts(fixtureIds: number[], market = 'GB'):
 }
 
 export async function getFixtureBroadcast(fixtureId: number, market = 'GB'): Promise<FixtureBroadcast[]> {
-  const { data, error } = await db.from('fixture_broadcasts').select(COLUMNS).eq('fixture_id', fixtureId).eq('market', market);
+  const { data, error } = await db.from('fixture_broadcasts').select(BROADCAST_COLUMNS).eq('fixture_id', fixtureId).eq('market', market);
   if (error) throw error;
   return ((data ?? []) as Record<string, unknown>[]).map(toBroadcast);
 }

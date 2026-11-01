@@ -20,7 +20,9 @@ import {
   getTeamPageBySlug,
   getTeamPageMatches,
   getTeamFplPlayers,
+  getTeamStanding,
   type TeamFplPlayer,
+  type TeamStanding,
   type TeamPageProfile,
   type TeamPageMatch,
 } from '../../lib/teamPageApi';
@@ -31,11 +33,16 @@ import TeamHistoryPanel from '../../components/TeamHistoryPanel';
 import ResultFlag from '../../components/ResultFlag';
 import { chanceText, pointsVsExpected, resultFlag, vsExpectedText, type Outcome } from '../../lib/expectation';
 import { hasKickedOff, isPostponed, POSTPONED_LABEL } from '../../lib/fixtureStatus';
+import { teamAnswer, todayUk } from '../../lib/answerFirst';
+import CommonQuestions, { AnswerLead } from '../../components/CommonQuestions';
 
 /** hasFinance: whether this club has published accounts. Static generation
  *  supplies it from ONE bulk query for every team; when absent the page asks
  *  once on the client. The Finances link appears only when it is true. */
-export type TeamPageData = { profile: TeamPageProfile; matches: TeamPageMatch[]; hasFinance?: boolean; fplPlayers?: TeamFplPlayer[] };
+/** standing: the team's row in this season's table (null: none yet). asOf:
+ *  the date the opening sentence is stated as of ('YYYY-MM-DD'); the server
+ *  renderer sets it so the page and its FAQPage JSON-LD use the same day. */
+export type TeamPageData = { profile: TeamPageProfile; matches: TeamPageMatch[]; hasFinance?: boolean; fplPlayers?: TeamFplPlayer[]; standing?: TeamStanding | null; asOf?: string };
 
 export default function TeamPage({ initialData }: { initialData?: TeamPageData } = {}) {
   const { slug } = useParams<{ slug: string }>();
@@ -48,6 +55,8 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
   // client read. They give every FPL player page a link from its club
   // (7 Oct 2026 SEO audit: those pages had no link in server HTML).
   const [fplPlayers, setFplPlayers] = useState<TeamFplPlayer[] | null>(initialData?.fplPlayers ?? null);
+  // undefined: not loaded yet; null: no row this season.
+  const [standing, setStanding] = useState<TeamStanding | null | undefined>(initialData ? (initialData.standing ?? null) : undefined);
 
   useEffect(() => {
     if (initialData) return;
@@ -100,6 +109,15 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
     return () => { cancelled = true; };
   }, [fplPlayers, profile]);
 
+  useEffect(() => {
+    if (standing !== undefined || !profile) return;
+    let cancelled = false;
+    getTeamStanding(profile.team_id, profile.league_id)
+      .then((s) => { if (!cancelled) setStanding(s); })
+      .catch(() => { if (!cancelled) setStanding(null); });
+    return () => { cancelled = true; };
+  }, [standing, profile]);
+
   useDocumentHead({
     title: profile ? `${profile.display_name} \u2014 ratings & fixtures` : 'Team',
     description: profile
@@ -133,12 +151,14 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
     m.goals_for == null || m.goals_against == null ? null : m.goals_for > m.goals_against ? 'W' : m.goals_for < m.goals_against ? 'L' : 'D';
   const vsExpected = pointsVsExpected(played.map((m) => ({ outcome: outcome(m), win: m.win_chance, draw: m.draw_chance })));
   const anyChance = played.some((m) => m.win_chance != null);
+  const answer = teamAnswer(profile, matches, standing ?? null, initialData?.asOf ?? todayUk());
 
   return (
     <article className="space-y-6">
       <header>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900">{profile.display_name}</h1>
         {profile.league_name && <p className="text-ink-700 mt-1">{profile.league_name}</p>}
+        <AnswerLead text={answer.lead} />
         {hasFinance && (
           <p className="mt-2">
             <Link to={`/football/teams/${profile.slug}/finances`} className="inline-block rounded border border-pitch-700 px-3 py-1 text-sm text-pitch-800 hover:border-amber-500">
@@ -298,6 +318,8 @@ export default function TeamPage({ initialData }: { initialData?: TeamPageData }
           </dl>
         </section>
       )}
+
+      <CommonQuestions faqs={answer.faqs} />
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         <Link to="/teams" className="text-pitch-800 hover:text-pitch-700 underline underline-offset-2">

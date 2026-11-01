@@ -211,7 +211,9 @@ export function marginLabel(g: Pick<NflGame, 'home_franchise' | 'away_franchise'
 }
 
 /** The page's one-line summary (meta description and lead). */
-export function gameSentence(p: NflGamePreview): string {
+/** The page's plain opening answer: the result, or when it is and what the
+ * model says. Facts from the page's own data only (1 Nov 2026). */
+export function gameAnswer(p: NflGamePreview): string {
   const { game, model } = p;
   const when = `${weekLabel(game.game_type, game.week)} of the ${game.season} season`;
   const head = `${game.away_name} at ${game.home_name}, ${when}`;
@@ -222,7 +224,11 @@ export function gameSentence(p: NflGamePreview): string {
   }
   const pick = model ? ` The model makes ${Number(model.p_home) >= 0.5 ? game.home_name : game.away_name} ${Math.round(Math.max(Number(model.p_home), 1 - Number(model.p_home)) * 100)}% favourites.` : '';
   const line = lineLabel(game);
-  return `${head}, ${ukKickoff(game)} UK time.${pick}${line ? ` Line: ${line}.` : ''} Head-to-head, form and where to watch in the UK.`;
+  return `${head}, ${ukKickoff(game)} UK time.${pick}${line ? ` Line: ${line}.` : ''}`;
+}
+
+export function gameSentence(p: NflGamePreview): string {
+  return isPlayed(p.game) ? gameAnswer(p) : `${gameAnswer(p)} Head-to-head, form and where to watch in the UK.`;
 }
 
 // ---- Loader (browser) --------------------------------------------------------------

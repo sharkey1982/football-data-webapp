@@ -117,7 +117,9 @@ describe('MatchPage', () => {
     expect(screen.getByRole('rowheader', { name: 'Draw' })).toBeInTheDocument();
     // Prose version of the same numbers, so the page answers the question
     // without needing the table parsed.
-    expect(screen.getByText(/chance of\s+winning/)).toBeInTheDocument();
+    expect(screen.getByText(/The model gives Arsenal a [\d.]+% chance of\s+winning/)).toBeInTheDocument();
+    // And the plain opening answer above it (1 Nov 2026).
+    expect(screen.getByTestId('answer-lead')).toHaveTextContent(/Our model gives Arsenal a \d+% chance of winning/);
     expect(screen.getByText(/most likely scoreline/)).toBeInTheDocument();
   });
 
@@ -160,7 +162,7 @@ describe('MatchPage', () => {
     renderAt(base.slug);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Result' })).toBeInTheDocument());
     expect(screen.getByText(/Arsenal 2\u20134 Coventry/)).toBeInTheDocument();
-    expect(screen.getByText(/awaiting confirmation/)).toBeInTheDocument();
+    expect(screen.getByText(/Provisional: the full-time score, awaiting confirmation/)).toBeInTheDocument();
   });
 
   it('says the result is to follow when a played match has no score yet', async () => {

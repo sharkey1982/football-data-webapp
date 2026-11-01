@@ -37,7 +37,28 @@ export type PlayerPageProfile = {
   team_slug: string | null;
   position_label: string;
   price: number | null;
+  /** FPL's own availability flag and news (fpl_players), for the page's
+   * opening answer and Common questions. Optional: older callers omit them. */
+  status?: string | null;
+  chance_next_round?: number | null;
+  news?: string | null;
+  news_added?: string | null;
+  /** Percentage of FPL managers who own the player (0-100). */
+  selected_by_percent?: number | null;
 };
+
+/** The extra profile fields from an fpl_players row. Shared by the browser
+ * and static generation so both read them the same way. */
+export function profileAvailability(r: { status?: string | null; chance_of_playing_next_round?: number | string | null; news?: string | null; news_added?: string | null; selected_by_percent?: number | string | null }): Pick<PlayerPageProfile, 'status' | 'chance_next_round' | 'news' | 'news_added' | 'selected_by_percent'> {
+  const num = (v: number | string | null | undefined) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  return {
+    status: r.status ?? null,
+    chance_next_round: num(r.chance_of_playing_next_round),
+    news: r.news ?? null,
+    news_added: r.news_added ?? null,
+    selected_by_percent: num(r.selected_by_percent),
+  };
+}
 
 export type PlayerPageGameweek = {
   matchweek: number;
@@ -97,7 +118,7 @@ const POSITION_LABELS: Record<number, string> = { 1: 'Goalkeeper', 2: 'Defender'
 export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile | null> {
   const { data, error } = await supabase
     .from('fpl_players')
-    .select('fpl_player_id, fpl_code, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, teams(display_name, slug)')
+    .select('fpl_player_id, fpl_code, slug, web_name, first_name, second_name, element_type, now_cost, canonical_team_id, status, chance_of_playing_next_round, news, news_added, selected_by_percent, teams(display_name, slug)')
     .eq('season_id', await getCurrentFplSeasonId())
     .eq('slug', slug)
     .maybeSingle();
@@ -122,6 +143,7 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerPageProfile |
     team_slug: data.teams?.slug ?? null,
     position_label: data.element_type != null ? (POSITION_LABELS[data.element_type] ?? 'Unknown') : 'Unknown',
     price: data.now_cost != null ? data.now_cost / 10 : null,
+    ...profileAvailability(data),
   };
 }
 

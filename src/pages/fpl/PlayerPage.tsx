@@ -33,6 +33,8 @@ import PlayerSummaryPanel from '../../components/fpl/PlayerSummaryPanel';
 import PlayerPointsBreakdown from '../../components/fpl/PlayerPointsBreakdown';
 import { getPlayerCareer, type PlayerSeason } from '../../lib/playerScoutApi';
 import { hasKickedOff } from '../../lib/fixtureStatus';
+import { playerAnswer, todayUk } from '../../lib/answerFirst';
+import CommonQuestions, { AnswerLead } from '../../components/CommonQuestions';
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
@@ -57,6 +59,9 @@ export type PlayerPageData = {
    * table (29 Oct 2026: this page became the canonical for the player's
    * Player Scout page too). Absent in the browser, which fetches it. */
   career?: PlayerSeason[];
+  /** The date the opening sentence is stated as of ('YYYY-MM-DD'); set by the
+   * server renderer so the page and its FAQPage JSON-LD use the same day. */
+  asOf?: string;
 };
 
 export default function PlayerPage({ initialData }: { initialData?: PlayerPageData } = {}) {
@@ -142,6 +147,8 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
     path: slug ? `/fpl/players/${slug}` : '/fpl/players',
   });
 
+  const answer = profile ? playerAnswer(profile, season, initialData?.asOf ?? todayUk()) : null;
+
   if (loading) return <p className="text-ink-500 font-mono text-sm">Loading&hellip;</p>;
 
   if (notFound || !profile) {
@@ -167,6 +174,7 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
           {profile.position_label} &middot; {profile.team_name}
           {profile.price != null && <> &middot; &pound;{profile.price.toFixed(1)}m</>}
         </p>
+        <AnswerLead text={answer?.lead ?? null} />
         {lastGenerated && (
           <p className="text-xs text-ink-500 font-mono mt-2">
             Projections updated <time dateTime={lastGenerated}>{formatTimestamp(lastGenerated)}</time>
@@ -241,6 +249,8 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
           stays the lede and the history is the evidence under it. Same
           component the scout page uses, so the two can't disagree. */}
       <PlayerCareerRecord career={career} heading="Every season so far" />
+
+      <CommonQuestions faqs={answer?.faqs ?? []} />
 
       <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
         {/* Deep link to the full career view, which still carries what

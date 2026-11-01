@@ -38,6 +38,7 @@ import {
 import {
   formDetail,
   formOf,
+  gameAnswer,
   gameSentence,
   headToHead,
   headToHeadSentence,
@@ -311,6 +312,7 @@ export default function NflGamePage({ initialData }: { initialData?: NflGamePrev
           {game.stadium && <> &middot; {game.stadium}</>}
           {game.div_game && <> &middot; division game</>}
         </p>
+        <p className="text-ink-900 mt-2 max-w-prose" data-testid="answer-lead">{gameAnswer(p)}</p>
         {model && (
           <p className="text-xs text-ink-500 font-mono mt-2">
             Prediction made <time dateTime={model.predicted_at}>{formatTimestamp(model.predicted_at)}</time> &middot; Elo model
