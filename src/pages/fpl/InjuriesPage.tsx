@@ -28,8 +28,10 @@ function StatusPill({ status, chance }: { status: string; chance: number | null 
   );
 }
 
-export default function InjuriesPage() {
-  const [rows, setRows] = useState<InjuryRow[] | null>(null);
+/** initialData and lead: the static build's pre-render (src/lib/staticSummaries.ts
+ * injuriesLead); the app itself starts without them and fetches. */
+export default function InjuriesPage({ initialData, lead }: { initialData?: InjuryRow[]; lead?: string } = {}) {
+  const [rows, setRows] = useState<InjuryRow[] | null>(initialData ?? null);
   const [filter, setFilter] = useState<Filter>('all');
 
   useDocumentHead({
@@ -40,10 +42,11 @@ export default function InjuriesPage() {
   });
 
   useEffect(() => {
+    if (initialData) return;
     getInjuryReport()
       .then(setRows)
       .catch(() => setRows([]));
-  }, []);
+  }, [initialData]);
 
   const view = useMemo(() => {
     if (!rows) return [];
@@ -82,6 +85,7 @@ export default function InjuriesPage() {
       <header>
         <p className="font-mono text-xs text-pitch-700 uppercase tracking-widest">Fantasy &middot; Discover</p>
         <h1 className="font-display uppercase tracking-wide text-3xl text-ink-900 mt-1">Physio Room</h1>
+        {lead && <p className="text-ink-900 mt-2 max-w-prose">{lead}</p>}
         <p className="text-ink-700 mt-2 max-w-prose">
           Who&rsquo;s out, who&rsquo;s doubtful, and &mdash; where a return date is known &mdash; how many fixtures the
           absence actually costs. A three-week injury can cost one match or four, depending entirely on where the

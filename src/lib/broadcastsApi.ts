@@ -245,6 +245,12 @@ export async function getWatchGuide(market = 'GB', opts: { until?: string; after
     data.push(...((page ?? []) as Record<string, unknown>[]));
     if ((page ?? []).length < WATCH_GUIDE_PAGE) break;
   }
+  return groupWatchGuideRows(data);
+}
+
+/** upcoming_watch_guide rows (one per viewing offer, in kick-off order) as one
+ * entry per fixture. Shared with the static build (src/entry-server.tsx). */
+export function groupWatchGuideRows(data: Record<string, unknown>[]): WatchGuideFixture[] {
   const byFixture = new Map<number, WatchGuideFixture>();
   for (const r of data) {
     const id = Number(r.fixture_id);

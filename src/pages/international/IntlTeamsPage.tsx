@@ -19,8 +19,9 @@ import { CONFEDERATIONS, DATA_NOTE, majorTitles, titleList, type TeamSummary, si
 
 const CONF_NAMES: Record<string, string> = { UEFA: 'Europe', CONMEBOL: 'South America', CONCACAF: 'N & C America', CAF: 'Africa', AFC: 'Asia', OFC: 'Oceania' };
 
-export default function IntlTeamsPage() {
-  const { data, failed, loading } = useKeyedFetch('teams', () => loadIntlTeams());
+/** initialData and lead: the static build's pre-render (src/lib/staticSummaries.ts intlTeamsLead). */
+export default function IntlTeamsPage({ initialData, lead }: { initialData?: TeamSummary[]; lead?: string } = {}) {
+  const { data, failed, loading } = useKeyedFetch('teams', () => loadIntlTeams(), initialData ? { key: 'teams', data: initialData } : undefined);
   const [query, setQuery] = useState('');
   const [conf, setConf] = useState('');
   const [all, setAll] = useState(false);
@@ -50,6 +51,7 @@ export default function IntlTeamsPage() {
   return (
     <article className="space-y-5">
       <IntlHeader title="Your Team">
+        {lead && <p className="text-ink-900 max-w-prose">{lead}</p>}
         <p className="text-ink-700 max-w-prose">Every nation’s rating from every result since {sinceYear()}, its record and its titles. Pick one for its history and head-to-heads.</p>
       </IntlHeader>
       {failed && <p className="text-ink-700">Nations are unavailable right now.</p>}

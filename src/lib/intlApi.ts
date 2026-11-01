@@ -163,6 +163,14 @@ export function monthWindow(year: number, month: number): { from: string; to: st
   return { from, to: end.toISOString().slice(0, 10) };
 }
 
+/** Left-hand calendar month for a date (YYYY-MM-DD): the month before it.
+ * Fixtures & Results opens on that month and the next (monthWindow). */
+export function leftMonthOf(date: string): { year: number; month: number } {
+  const y = Number(date.slice(0, 4));
+  const m = Number(date.slice(5, 7)) - 1;
+  return m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 };
+}
+
 export async function loadIntlFixtures(year: number, month: number): Promise<IntlFixturesData> {
   const { from, to } = monthWindow(year, month);
   const [matches, fixtures, latest] = await Promise.all([

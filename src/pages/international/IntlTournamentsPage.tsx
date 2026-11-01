@@ -76,11 +76,12 @@ function TournamentCard({ t, rows }: { t: Tournament; rows: EditionSummary[] }) 
   );
 }
 
-export default function IntlTournamentsPage() {
+/** initialData and lead: the static build's pre-render (src/lib/staticSummaries.ts intlTournamentsLead). */
+export default function IntlTournamentsPage({ initialData, lead }: { initialData?: EditionSummary[]; lead?: string } = {}) {
   const { competition } = useParams();
   const navigate = useNavigate();
   const only = competition ? tournamentBySlug(competition) : null;
-  const { data, failed, loading } = useKeyedFetch('editions', () => loadIntlEditions());
+  const { data, failed, loading } = useKeyedFetch('editions', () => loadIntlEditions(), initialData ? { key: 'editions', data: initialData } : undefined);
   const onlyHead = only ? intlTournamentHead(only) : null;
   useDocumentHead({
     title: onlyHead?.title ?? sideTitle(INTL_GENDER === 'women' ? 'International tournaments: World Cup, Olympics, Euro and more' : 'International tournaments: World Cup, Euro, Copa América, AFCON and more'),
@@ -110,6 +111,7 @@ export default function IntlTournamentsPage() {
   return (
     <article className="space-y-6">
       <IntlHeader title={only ? only.competition : 'Tournaments'} crumb={only ? { to: INTL_TOURNAMENTS_PATH, label: 'Tournaments' } : undefined}>
+        {lead && <p className="text-ink-900 max-w-prose">{lead}</p>}
         <p className="text-ink-700 max-w-prose">
           {only
             ? `Every ${only.competition}: the roll of honour, the race for titles, and each edition’s groups, knockouts and top scorers.`

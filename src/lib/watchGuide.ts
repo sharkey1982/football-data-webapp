@@ -287,3 +287,28 @@ export function verification(verifiedAt: string | null, now = new Date()): { lab
   const label = `Verified ${v.getUTCDate()} ${MONTHS[v.getUTCMonth()]}`;
   return { label, stale: now.getTime() - v.getTime() > 21 * 86400000 };
 }
+
+/** The fields watchGuideJsonLd reads from a guide row. */
+type WatchGuideRow = { homeTeamName: string; awayTeamName: string; kickoffDate: string; kickoffTime: string | null; offers: WatchOffer[] };
+
+/** Structured data: each listed fixture as a BroadcastEvent naming its
+ * services, so "where to watch X v Y" is machine-readable fact. Capped so
+ * the head stays small; confirmed offers only. Shared by WatchGuideView and the static
+ * build's /tv-guide head (src/entry-server.tsx). */
+export function watchGuideJsonLd(all: (Pick<WatchGuideRow, 'homeTeamName' | 'awayTeamName' | 'kickoffDate' | 'kickoffTime' | 'offers'> & { title?: string })[]): object | undefined {
+  const events = all
+    .filter((f) => fixtureWatchState(f.offers).kind === 'watch')
+    .slice(0, 40)
+    .map((f) => ({
+      '@type': 'BroadcastEvent',
+      name: f.title ?? `${f.homeTeamName} v ${f.awayTeamName}`,
+      startDate: f.kickoffTime ? `${f.kickoffDate}T${f.kickoffTime}` : f.kickoffDate,
+      isLiveBroadcast: true,
+      isAccessibleForFree: f.offers.some((o) => ['free', 'free_compatible_device'].includes(tierOf(o))),
+      publishedOn: f.offers
+        .filter((o) => o.status === 'confirmed_broadcast')
+        .map((o) => ({ '@type': 'BroadcastService', name: offerName(o), broadcastDisplayName: o.broadcaster ?? undefined })),
+    }));
+  return events.length > 0 ? { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: events } : undefined;
+}
+
