@@ -37,7 +37,7 @@ with latest_fit as (
  left join team_strength_manual_override hov on hov.team_id=f.home_team_id left join team_strength_manual_override aov on aov.team_id=f.away_team_id
  where f.status in('scheduled','postponed')
    -- Kick-off guard (2026-09-23): never refresh from a fit dated on/after kick-off.
-   and lf.fitted_at::date < f.kickoff_date
+   and public.prediction_fit_eligible(lf.fitted_at, f.kickoff_date, f.status)
 ), preds as (
  select fixture_id, fit_run_id, model_version,
    exp(home_exponent + home_override) as pred_home,

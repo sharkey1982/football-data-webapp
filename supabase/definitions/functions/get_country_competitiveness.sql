@@ -39,6 +39,6 @@ AS $function$
     round(100.0 * max(c.bottom_not_losing) / nullif(max(c.games), 0), 1)
   from halves h join cross_half c on c.code = h.code and c.label = h.label
   group by h.code, h.label
-  order by h.code, h.label;
+  order by h.code, (select se.start_year from public.seasons se where se.label = h.label);
 $function$
 ;

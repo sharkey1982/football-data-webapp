@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function list_scout_players(p_season_id bigint, p_position integer, p_team_id bigint, p_min_minutes integer, p_search text, p_limit integer)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.list_scout_players(p_season_id bigint DEFAULT 13, p_position integer DEFAULT NULL::integer, p_team_id bigint DEFAULT NULL::bigint, p_min_minutes integer DEFAULT 0, p_search text DEFAULT NULL::text, p_limit integer DEFAULT 100)
+CREATE OR REPLACE FUNCTION public.list_scout_players(p_season_id bigint DEFAULT fpl_current_season_id(), p_position integer DEFAULT NULL::integer, p_team_id bigint DEFAULT NULL::bigint, p_min_minutes integer DEFAULT 0, p_search text DEFAULT NULL::text, p_limit integer DEFAULT 100)
  RETURNS TABLE(fpl_code bigint, slug text, fpl_player_id bigint, web_name text, full_name text, team_name text, team_id bigint, element_type integer, now_cost integer, total_points integer, minutes integer, goals_scored integer, assists integer, clean_sheets integer, bonus integer, selected_by_percent numeric, points_per_million numeric, seasons_played bigint, price_pressure numeric, price_direction text)
  LANGUAGE sql
  STABLE

@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_team_of_the_week(p_event_id integer, p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_team_of_the_week(p_event_id integer DEFAULT NULL::integer, p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_team_of_the_week(p_event_id integer DEFAULT NULL::integer, p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(fpl_event_id integer, fpl_player_id bigint, web_name text, slug text, team_name text, position_label text, points integer, minutes integer, is_mandatory boolean, goals integer, assists integer, clean_sheets integer, bonus integer)
  LANGUAGE plpgsql
  STABLE
@@ -46,7 +46,7 @@ begin
         union all
         select g.fpl_player_id::bigint, g.total_points, g.minutes, tm.display_name, p.element_type
         from public.fpl_player_gameweeks g
-        join public.fpl_players p on p.fpl_player_id = g.fpl_player_id
+        join public.fpl_players p on p.fpl_player_id = g.fpl_player_id and p.season_id = g.season_id
         left join public.teams tm on tm.team_id = p.canonical_team_id
         where not v_historic and g.season_id = p_season_id and g.fpl_event_id = v_event
           and g.total_points is not null
@@ -93,7 +93,7 @@ begin
            coalesce(g.clean_sheets,0), coalesce(g.bonus,0),
            p.web_name, p.slug, tm.display_name, p.element_type
     from public.fpl_player_gameweeks g
-    join public.fpl_players p on p.fpl_player_id = g.fpl_player_id
+    join public.fpl_players p on p.fpl_player_id = g.fpl_player_id and p.season_id = g.season_id
     left join public.teams tm on tm.team_id = p.canonical_team_id
     where not v_historic and g.season_id = p_season_id and g.fpl_event_id = v_event
       and g.total_points is not null

@@ -14,12 +14,12 @@ create or replace view public.fpl_projection_leaguewide_points with (security_in
     a.expected_goals,
     a.expected_assists,
         CASE
-            WHEN (a.team_id = f.home_team_id) THEN exp((- f.predicted_away_goals))
-            ELSE exp((- f.predicted_home_goals))
+            WHEN (a.team_id = f.home_team_id) THEN exp((- COALESCE(f.market_away_goals, f.predicted_away_goals)))
+            ELSE exp((- COALESCE(f.market_home_goals, f.predicted_home_goals)))
         END AS clean_sheet_probability,
     COALESCE(dc.defensive_contribution_probability, (0)::numeric) AS defensive_contribution_probability,
     (0)::numeric AS expected_bonus,
-    ((a.prob_starting_xi * (2)::numeric) + a.prob_sub_appearance) AS xpts_appearance,
+    ((a.prob_starting_xi * ((2)::numeric - COALESCE(eb.p_off_before_60, (0)::numeric))) + a.prob_sub_appearance) AS xpts_appearance,
     (a.expected_goals * (
         CASE a.element_type
             WHEN 1 THEN 10
@@ -33,14 +33,19 @@ create or replace view public.fpl_projection_leaguewide_points with (security_in
             WHEN (a.element_type = ANY (ARRAY[1, 2])) THEN 4
             WHEN (a.element_type = 3) THEN 1
             ELSE 0
-        END)::double precision *
+        END)::double precision * (a.prob_starting_xi)::double precision) * (((COALESCE(eb.p_full, (1)::numeric))::double precision *
         CASE
-            WHEN (a.team_id = f.home_team_id) THEN exp((- f.predicted_away_goals))
-            ELSE exp((- f.predicted_home_goals))
-        END) * (a.prob_starting_xi)::double precision) AS xpts_clean_sheet,
+            WHEN (a.team_id = f.home_team_id) THEN exp((- COALESCE(f.market_away_goals, f.predicted_away_goals)))
+            ELSE exp((- COALESCE(f.market_home_goals, f.predicted_home_goals)))
+        END) + ((COALESCE(eb.p_off_60_84, (0)::numeric))::double precision * power(
+        CASE
+            WHEN (a.team_id = f.home_team_id) THEN exp((- COALESCE(f.market_away_goals, f.predicted_away_goals)))
+            ELSE exp((- COALESCE(f.market_home_goals, f.predicted_home_goals)))
+        END, ((72.7)::double precision / (90)::double precision))))) AS xpts_clean_sheet,
     (COALESCE(dc.defensive_contribution_probability, (0)::numeric) * (2)::numeric) AS xpts_defensive_contribution,
     (0)::numeric AS xpts_bonus
-   FROM (((fpl_projection_leaguewide_allocation_v2 a
+   FROM ((((fpl_projection_leaguewide_allocation_v2 a
      JOIN fpl_players p ON (((p.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)) AND (p.fpl_player_id = a.fpl_player_id))))
      JOIN fixtures f ON ((f.fixture_id = a.fixture_id)))
-     LEFT JOIN fpl_defensive_contribution_projection_leaguewide dc ON (((dc.fixture_id = a.fixture_id) AND (dc.fpl_player_id = a.fpl_player_id))));
+     LEFT JOIN fpl_defensive_contribution_projection_leaguewide dc ON (((dc.fixture_id = a.fixture_id) AND (dc.fpl_player_id = a.fpl_player_id))))
+     LEFT JOIN fpl_player_exit_bands eb ON (((eb.season_id = p.season_id) AND (eb.fpl_player_id = a.fpl_player_id))));
