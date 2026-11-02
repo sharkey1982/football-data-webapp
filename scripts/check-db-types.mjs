@@ -60,6 +60,19 @@ export function objects(src) {
   return out;
 }
 
+/** The first differing line of two object blocks, with a few lines of context from each. */
+export function firstDifference(a = '', b = '') {
+  const x = a.split('\n');
+  const y = b.split('\n');
+  let i = 0;
+  while (i < x.length && i < y.length && x[i] === y[i]) i++;
+  const from = Math.max(0, i - 2);
+  return [
+    `committed (line ${i + 1}):`, ...x.slice(from, i + 4).map((l) => `  ${l}`),
+    `fresh (line ${i + 1}):`, ...y.slice(from, i + 4).map((l) => `  ${l}`),
+  ].join('\n');
+}
+
 export function diffTypes(committed, fresh) {
   const a = objects(committed);
   const b = objects(fresh);
@@ -81,7 +94,8 @@ if (isMain) {
     console.error('::error::Fresh types look incomplete (generation failed?) -- not comparing.');
     process.exit(1);
   }
-  const d = diffTypes(readFileSync(committedPath, 'utf8'), fresh);
+  const committed = readFileSync(committedPath, 'utf8');
+  const d = diffTypes(committed, fresh);
   if (d.same) {
     console.log('Generated DB types match the live schema.');
     process.exit(0);
@@ -91,6 +105,9 @@ if (isMain) {
   show('New in the database', d.added);
   show('Gone from the database', d.removed);
   show('Changed', d.changed);
+  // 2 Nov 2026: show HOW the first changed objects differ, so a generator
+  // change can be told apart from a schema change without the fresh file.
+  for (const k of d.changed.slice(0, 3)) console.log(`\n--- ${k}\n${firstDifference(objects(committed).get(k), objects(fresh).get(k))}`);
   console.log('Regenerate the file, run tsc, and open a PR (see the header of scripts/check-db-types.mjs).');
   process.exit(1);
 }

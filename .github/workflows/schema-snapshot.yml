@@ -125,7 +125,19 @@ jobs:
 
       # On drift, the fresh (formatted) types are kept for 7 days so a session
       # can download them for the regeneration PR (the file is ~640 KB, too
-      # big to pass through the Supabase MCP tool).
+      # big to pass through the Supabase MCP tool). Cloud sessions cannot
+      # reach the artifact store but can read job logs, so the file is also
+      # printed there gzipped and base64-encoded between two marker lines:
+      #   gh api repos/<repo>/actions/jobs/<job id>/logs, take the line after
+      #   FRESH-TYPES-BEGIN, strip the timestamp, base64 -d | gunzip.
+      - name: Print the fresh types (gzip + base64)
+        if: failure()
+        run: |
+          [ -s /tmp/db-types/fresh.ts ] || exit 0
+          echo "FRESH-TYPES-BEGIN"
+          gzip -9c /tmp/db-types/fresh.ts | base64 -w0; echo
+          echo "FRESH-TYPES-END"
+
       - name: Keep the fresh types
         if: failure()
         uses: actions/upload-artifact@v4
