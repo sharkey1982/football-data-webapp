@@ -1899,18 +1899,26 @@ CREATE FUNCTION public.check_deadline_runs() RETURNS TABLE(check_name text, stat
        and g.deadline_time < now() and g.deadline_time > now() - interval '8 days'
      order by g.deadline_time desc limit 1
   ),
-  j(job, label) as (values ('refresh_fpl_projections', 'FPL projections'), ('ffs_team_news', 'FFS team news')),
+  -- ok_within / warn_within: how long before the deadline the last success must be.
+  -- since / before_since: the grade for a miss on a deadline before this date.
+  -- counts: run statuses that count as done ('warning' = a partial email send).
+  j(job, label, ok_within, warn_within, since, before_since, counts) as (values
+    ('refresh_fpl_projections', 'FPL projections', interval '6 hours', interval '12 hours', timestamptz '2026-10-23 00:00+00', 'warning', array['success']),
+    ('ffs_team_news', 'FFS team news', interval '6 hours', interval '12 hours', timestamptz '2026-10-23 00:00+00', 'warning', array['success']),
+    -- 2 Nov 2026: the weekly email goes out Thu 18:00 UK for a Fri/Sat deadline, else
+    -- 36 h before. First due before the GW10 deadline (6 Nov); nothing to miss before.
+    ('email-weekly', 'FPL weekly email', interval '3 days', interval '3 days', timestamptz '2026-11-05 00:00+00', 'ok', array['success', 'warning'])),
   r as (
-    select j.job, j.label, d.fpl_event_id, d.deadline_time,
+    select j.job, j.label, j.ok_within, j.warn_within, j.since, j.before_since, d.fpl_event_id, d.deadline_time,
            (select max(p.finished_at) from public.pipeline_runs p
-             where p.job_name = j.job and p.status = 'success' and p.finished_at < d.deadline_time) as last_ok
+             where p.job_name = j.job and p.status = any (j.counts) and p.finished_at < d.deadline_time) as last_ok
       from j cross join d
   ),
   graded as (
     select r.*,
-           case when r.last_ok >= r.deadline_time - interval '6 hours' then 'ok'
-                when r.last_ok >= r.deadline_time - interval '12 hours' then 'warning'
-                when r.deadline_time < timestamptz '2026-10-23 00:00+00' then 'warning'
+           case when r.last_ok >= r.deadline_time - r.ok_within then 'ok'
+                when r.last_ok >= r.deadline_time - r.warn_within then 'warning'
+                when r.deadline_time < r.since then r.before_since
                 else 'failed' end as grade
       from r
   ),
@@ -1929,9 +1937,9 @@ CREATE FUNCTION public.check_deadline_runs() RETURNS TABLE(check_name text, stat
   )
   select 'deadline_run_' || g.job, g.grade,
          coalesce(round(extract(epoch from g.deadline_time - g.last_ok) / 60)::bigint, -1),
-         format('Minutes between the last successful %s run and the GW%s deadline %s UTC (last %s; ok within 6 h, warns within 12 h; -1 = none)',
+         format('Minutes between the last successful %s run and the GW%s deadline %s UTC (last %s; ok within %s, warns within %s; -1 = none)',
                 g.label, g.fpl_event_id, to_char(g.deadline_time at time zone 'UTC', 'DD Mon HH24:MI'),
-                coalesce(to_char(g.last_ok at time zone 'UTC', 'DD Mon HH24:MI'), 'none'))
+                coalesce(to_char(g.last_ok at time zone 'UTC', 'DD Mon HH24:MI'), 'none'), g.ok_within, g.warn_within)
     from graded g
   union all
   select 'workflow_dispatcher',
@@ -1956,7 +1964,7 @@ CREATE FUNCTION public.check_fixture_feed_names() RETURNS TABLE(check_name text,
   select 'fixture_feed_names_mapped',
     case when count(*) = 0 then 'ok' else 'failed' end,
     count(*),
-    'Current-season E0-E3 fixtures not refreshed by the FixtureDownload feed for 3+ days (an unmapped team name in team_aliases?): '
+    'Current-season E0-E3 fixtures not refreshed by the FixtureDownload feed for 3+ days (an unmapped team name in team_aliases?); Premier League fixtures whose kick-off comes from FPL are excluded (pl_kickoff_matches_fpl covers them): '
       || coalesce(array_to_string((array_agg(l.code || ' ' || ht.canonical_name || ' v ' || at.canonical_name order by f.kickoff_date))[1:10], ', '), '')
   from public.fixtures f
   join public.leagues l on l.league_id = f.league_id
@@ -1965,6 +1973,9 @@ CREATE FUNCTION public.check_fixture_feed_names() RETURNS TABLE(check_name text,
   where l.code in ('E0', 'E1', 'E2', 'E3')
     and f.season_id = public.current_season_id()
     and f.updated_at < now() - interval '3 days'
+    -- DQ-01 (22 Oct 2026): refresh_fixture_feeds() skips these on purpose.
+    and not exists (select 1 from public.fpl_fixtures ff
+                     where ff.canonical_fixture_id = f.fixture_id and ff.kickoff_time is not null)
 $$;
 
 
@@ -2402,7 +2413,14 @@ CREATE FUNCTION public.check_model_integrity() RETURNS TABLE(check_name text, st
                                       || ' v ' || m.full_time_home_goals || '-' || m.full_time_away_goals, ', ')
                                       filter (where rn <= 10) names
         from (select f.*, row_number() over (order by f.kickoff_date desc) rn from public.fixtures f
-              where f.reported_home_goals is not null) f
+              where f.reported_home_goals is not null
+                and exists (select 1 from public.matches m2
+                             where m2.league_id = f.league_id and m2.season_id = f.season_id
+                               and m2.home_team_id = f.home_team_id and m2.away_team_id = f.away_team_id
+                               and m2.match_date between f.kickoff_date - 3 and f.kickoff_date + 3
+                               and m2.full_time_home_goals is not null
+                               and (m2.full_time_home_goals <> f.reported_home_goals
+                                    or m2.full_time_away_goals <> f.reported_away_goals))) f
         join public.matches m on m.league_id = f.league_id and m.season_id = f.season_id
           and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
           and m.match_date between f.kickoff_date - 3 and f.kickoff_date + 3
@@ -2604,7 +2622,12 @@ CREATE FUNCTION public.check_model_integrity() RETURNS TABLE(check_name text, st
            and ff.fpl_event_id = public.ai_next_fpl_gameweek(public.fpl_current_season_id())
            and ff.kickoff_time > now()
            and fp.chance_of_playing_next_round is not null
-           and p.start_probability > fp.chance_of_playing_next_round / 100.0 + 0.02) x
+           and p.start_probability > fp.chance_of_playing_next_round / 100.0 + 0.02
+           -- 2 Nov 2026: first match on/after an "Expected back" date (rule 'returning') may exceed FPL's 0
+           and not exists (select 1 from public.fpl_player_fixture_availability av
+                             where av.fpl_player_id = p.fpl_player_id and av.fixture_id = p.fixture_id
+                               and av.rule = 'returning'
+                               and p.start_probability <= av.availability + 0.02)) x
   union all
   -- DQ-02 (2026-10-22): a kicked-off game whose result has not arrived in
   -- 48 hours needs a look (results feed lag, mapping gap, or a real
@@ -10443,7 +10466,9 @@ begin
     and f.league_id = v_league_id and f.season_id = v_season_id
     and f.home_team_id = m.home_id and f.away_team_id = m.away_id
     and abs(f.kickoff_date - (m.ko at time zone 'Europe/London')::date) <= 7
-    and (f.reported_home_goals is distinct from m.hg or f.reported_away_goals is distinct from m.ag);
+    and (f.reported_home_goals is distinct from m.hg or f.reported_away_goals is distinct from m.ag)
+    -- 2 Nov 2026: a confirmed result wins (FixtureDownload had Bromley 2-0 Leicester for a 0-4).
+    and not private.fixture_has_result(f.league_id, f.season_id, f.home_team_id, f.away_team_id, f.kickoff_date);
   -- UEFA competitions: the feed carries the result, and nothing else ingests
   -- these (2026-09-26). League phase only -- see migration
   -- 20260926190000_uefa_results_from_fixture_feed.
