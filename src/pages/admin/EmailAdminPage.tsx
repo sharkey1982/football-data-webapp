@@ -6,6 +6,7 @@
 // admin" (the next issue to the admin address only; the admin's own FPL ID
 // and club from this browser's preferences add the "Your team" section).
 // Data: public.get_email_admin / email_admin_send_test, both is_admin() only.
+// Also the admin's daily site update email (DailyDigestPanel).
 // ============================================================================
 
 import { useCallback, useEffect, useState } from 'react';
@@ -14,6 +15,7 @@ import { useAuthOptional } from '../../lib/auth';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { getEmailAdmin, sendTestEmail, type EmailAdmin, type EmailFailure, type EmailSend } from '../../lib/emailAdminApi';
 import { readPrefs } from '../../lib/myPrefs';
+import DailyDigestPanel from '../../components/admin/DailyDigestPanel';
 
 const when = (t: string | null | undefined) =>
   t ? new Date(t).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : '—';
@@ -130,6 +132,7 @@ export default function EmailAdminPage() {
             <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Failures</h2>
             {data.failures.length ? <SortableTable rows={data.failures} columns={failCols} rowKey={(r) => String(r.failure_id)} /> : <p className="text-sm text-ink-700">None.</p>}
           </section>
+          <DailyDigestPanel />
           {data.signups_24h && (
             <p className="text-xs text-ink-500">
               Sign-up attempts in 24 hours: {Object.entries(data.signups_24h).map(([k, v]) => `${k.replace('_', ' ')} ${v}`).join(', ')}

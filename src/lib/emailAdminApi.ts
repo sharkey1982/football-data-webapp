@@ -40,3 +40,30 @@ export async function sendTestEmail(fplId: number | null = null, clubId: number 
   const { error } = await rpc('email_admin_send_test', { p_fpl_id: fplId, p_club: clubId });
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------- daily site update
+// The admin end-of-day email (supabase/migrations/20261102190000_admin_daily_digest.sql):
+// public.admin_digest_get(p_day) previews it, public.admin_digest_send_now()
+// emails today's so far to the admin (a preview: the 20:00 send still goes).
+
+export type DigestSection = { key: string; title: string; link: string; lines: string[] };
+export type DigestSend = {
+  send_id: number; day: string; mode: 'scheduled' | 'preview'; status: 'queued' | 'sent' | 'failed';
+  subject: string | null; note: string | null; queued_at: string; finished_at: string | null;
+};
+export type Digest = {
+  day: string; from: string; to: string; subject: string; headline: string;
+  sections: DigestSection[];
+  sends: DigestSend[];
+};
+
+export async function getDigest(day: string | null = null): Promise<Digest> {
+  const { data, error } = await rpc('admin_digest_get', { p_day: day });
+  if (error) throw error;
+  return data as Digest;
+}
+
+export async function sendDigestNow(): Promise<void> {
+  const { error } = await rpc('admin_digest_send_now');
+  if (error) throw error;
+}

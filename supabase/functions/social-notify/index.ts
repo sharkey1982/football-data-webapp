@@ -8,6 +8,11 @@
 //   { kind: "breaker", reason }        automatic posting has stopped itself
 //   { kind: "test" }                   a one-off check that email works
 //   { kind: "email_failed", gw, ... }  the FPL weekly email had failures
+//   { kind: "daily_digest", send_id, mode, day, digest }
+//                                      the admin end-of-day site update
+//                                      (private.admin_daily_digest, sent by
+//                                      private.admin_digest_send; outcome back
+//                                      through public.admin_digest_finish)
 // Called only by the database (private.social_notify, pg_net) with the worker
 // token in x-social-token. Sends through Resend.
 //
@@ -43,6 +48,42 @@ const LABEL: Record<string, string> = {
   historical_insight: "Historical insight",
 };
 
+type DigestSection = { key: string; title: string; link: string; lines: string[] };
+type Digest = { day: string; from: string; to: string; subject: string; headline: string; sections: DigestSection[] };
+
+// PRs merged in the digest's window, from GitHub's public API (the repo is
+// public). Optional: on any error the digest goes without them.
+async function mergedPrs(from: string, to: string): Promise<{ number: number; title: string }[]> {
+  try {
+    const r = await fetch("https://api.github.com/repos/sharkey1982/football-data-webapp/pulls?state=closed&sort=updated&direction=desc&per_page=50", {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "fixtureshark-digest" },
+      signal: AbortSignal.timeout(6_000),
+    });
+    if (!r.ok) return [];
+    const rows = (await r.json()) as { number: number; title: string; merged_at: string | null }[];
+    const a = Date.parse(from), b = Date.parse(to);
+    return rows.filter((p) => p.merged_at && Date.parse(p.merged_at) >= a && Date.parse(p.merged_at) < b)
+      .sort((x, y) => x.number - y.number).map((p) => ({ number: p.number, title: p.title }));
+  } catch {
+    return [];
+  }
+}
+
+// Plain, phone-friendly HTML: headline, then each section's lines and its
+// admin page as a visible link (never "click here").
+function renderDigest(d: Digest): string {
+  const linkify = (t: string) => esc(t).replace(/https:\/\/[^\s<)]+/g, (u) => `<a href="${u}">${u.replace(/^https:\/\//, "")}</a>`);
+  const section = (s: DigestSection) =>
+    `<h3 style="margin:18px 0 4px;font-size:15px;color:#1b4332">${esc(s.title)}</h3>` +
+    s.lines.flatMap((l) => l.split("\n")).map((l) => `<div style="margin:2px 0">${linkify(l)}</div>`).join("") +
+    `<div style="margin:4px 0;font-size:13px"><a href="${s.link}">${esc(s.link.replace(/^https:\/\//, ""))}</a></div>`;
+  return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.45;color:#1a1a1a;max-width:560px">` +
+    `<p style="font-size:15px;margin:0 0 8px"><b>${esc(d.headline)}</b></p>` +
+    d.sections.map(section).join("") +
+    `<p style="color:#666;font-size:12px;margin-top:18px">Covers 00:00 to ${esc(new Date(d.to).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }))} UK. ` +
+    `Preview or send it again on <a href="https://fixtureshark.com/admin/email">fixtureshark.com/admin/email</a>.</p></div>`;
+}
+
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const ukTime = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
@@ -68,6 +109,9 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!to || !key) {
     await audit("notify_skipped", { reason: !key ? "RESEND_API_KEY not set" : "no notify_email", kind: body?.kind });
+    if (body?.kind === "daily_digest" && body?.send_id) {
+      await sb.rpc("admin_digest_finish", { p_send_id: body.send_id, p_ok: false, p_note: "not configured: no RESEND_API_KEY or recipient" });
+    }
     return Response.json({ ok: false, reason: "not configured" });
   }
 
@@ -106,6 +150,20 @@ Deno.serve(async (req) => {
     subject = "Automatic X posting has stopped";
     html = `<p>Automatic posting to @FixtureSharkHQ switched itself off:</p><p><b>${esc(String(body.reason ?? "unknown"))}</b></p>
       <p>Check <a href="https://x.com/FixtureSharkHQ">@FixtureSharkHQ</a>, then reset it on <a href="${ADMIN_URL}">/admin/social</a>.</p>`;
+  } else if (body?.kind === "daily_digest") {
+    // Admin end-of-day site update (2 Nov 2026). Content comes from the
+    // database (private.admin_daily_digest); merged PRs are added here.
+    const d = body.digest as Digest | undefined;
+    if (!d || !Array.isArray(d.sections)) return Response.json({ ok: false, reason: "no digest" });
+    const prs = await mergedPrs(d.from, d.to);
+    if (prs.length) {
+      const line = `${prs.length} PR${prs.length === 1 ? "" : "s"} merged:\n` + prs.slice(0, 8).map((p) => `#${p.number} ${p.title}`).join("\n");
+      const shipped = d.sections.find((s) => s.key === "shipped");
+      if (shipped) shipped.lines.unshift(line);
+      else d.sections.push({ key: "shipped", title: "Changes shipped", link: "https://github.com/sharkey1982/football-data-webapp/pulls?q=is%3Apr+is%3Amerged", lines: [line] });
+    }
+    subject = (body.mode === "preview" ? "[Preview] " : "") + d.subject;
+    html = renderDigest(d);
   } else if (body?.kind === "email_failed") {
     // FPL weekly email (email-weekly): a send with failures (1 Nov 2026).
     subject = `FPL weekly email: ${Number(body.failed ?? 0)} not sent (GW${esc(String(body.gw ?? "?"))})`;
@@ -125,11 +183,17 @@ Deno.serve(async (req) => {
     signal: AbortSignal.timeout(15_000),
   }).catch((e) => ({ ok: false, status: 0, text: () => Promise.resolve(String(e)) }) as unknown as Response);
   const r = await send(Deno.env.get("SOCIAL_NOTIFY_FROM") ?? "FixtureShark <alerts@mail.fixtureshark.com>");
+  // The daily digest reports its outcome (pipeline_runs: admin-daily-digest).
+  const finish = (ok: boolean, note: string | null) => body?.kind === "daily_digest" && body?.send_id
+    ? sb.rpc("admin_digest_finish", { p_send_id: body.send_id, p_ok: ok, p_note: note })
+    : Promise.resolve();
   if (!r.ok) {
     const error = (await r.text()).slice(0, 300);
     await audit("notify_failed", { status: r.status, error, kind: body?.kind });
+    await finish(false, `Resend HTTP ${r.status}: ${error}`);
     return Response.json({ ok: false, status: r.status, error });
   }
   await audit("notified", { kind: body?.kind, subject });
+  await finish(true, null);
   return Response.json({ ok: true });
 });
