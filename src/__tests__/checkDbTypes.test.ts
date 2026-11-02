@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 // @ts-expect-error -- plain .mjs CI script, no type declarations
-import { objects, diffTypes } from '../../scripts/check-db-types.mjs';
+import { objects, diffTypes, firstDifference } from '../../scripts/check-db-types.mjs';
 
 const file = (tables: string, fns = '') => `export type Json = string
 
@@ -62,5 +62,13 @@ describe('check-db-types (weekly generated-types drift check, CODE-08)', () => {
     expect(o.size).toBeGreaterThan(300);
     expect(o.has('Tables fixtures')).toBe(true);
     expect(o.has('Functions record_match_predictions') || o.has('Functions current_season_id')).toBe(true);
+  });
+
+  it('shows the first differing line of a changed object', () => {
+    const out = firstDifference('a\nb\nc', 'a\nB\nc');
+    expect(out).toContain('committed (line 2):');
+    expect(out).toContain('  b');
+    expect(out).toContain('fresh (line 2):');
+    expect(out).toContain('  B');
   });
 });
