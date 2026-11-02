@@ -9,12 +9,16 @@
 // either his live points this gameweek or, before kick-off, the opponent
 // and venue ("HUL (H)"). Tapping a tile opens a panel with his news, chance
 // of playing, live breakdown and FixtureShark's next-fixture projection.
+// The panel sits below the bench and key, off-screen on a phone, so opening
+// it scrolls it into view (smoothly unless the reader prefers reduced motion)
+// and moves focus to it; Escape or the close button hands focus back to the
+// tile (2 Nov 2026).
 //
 // Shirts are two flat colours only (src/lib/fplLivePitch.ts KIT_COLOURS): no
 // crests, sponsors, kit designs or league branding.
 // ============================================================================
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import type { FplLiveData } from '../../lib/fplLiveApi';
 import { fixtureState, type LiveTeamScore, type PlayerScore } from '../../lib/fplLiveScore';
@@ -72,9 +76,10 @@ interface TileProps {
   benchLabel?: string;
   selected: boolean;
   onSelect: (id: number) => void;
+  buttonRef: (el: HTMLButtonElement | null) => void;
 }
 
-function PlayerTile({ p, data, extra, benchLabel, selected, onSelect }: TileProps) {
+function PlayerTile({ p, data, extra, benchLabel, selected, onSelect, buttonRef }: TileProps) {
   const short = data.teams.get(p.team)?.short ?? '';
   const club = data.teams.get(p.team)?.name ?? short;
   const avail = extra?.availability ?? availabilityOf(null);
@@ -101,6 +106,7 @@ function PlayerTile({ p, data, extra, benchLabel, selected, onSelect }: TileProp
     <li className="flex-1 min-w-0 max-w-[5.5rem] flex flex-col items-center" data-testid={`pitch-player-${p.element}`}>
       {benchLabel && <span className="text-[10px] font-mono uppercase tracking-wide text-ink-700 mb-0.5">{benchLabel}</span>}
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => onSelect(p.element)}
         aria-label={aria}
@@ -149,7 +155,14 @@ function PlayerTile({ p, data, extra, benchLabel, selected, onSelect }: TileProp
   );
 }
 
-function DetailPanel({ p, data, extra, slug, onClose }: { p: PlayerScore; data: FplLiveData; extra?: PitchExtra; slug: string | null; onClose: () => void }) {
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function DetailPanel({ p, data, extra, slug, onClose, panelRef }: {
+  p: PlayerScore; data: FplLiveData; extra?: PitchExtra; slug: string | null; onClose: () => void; panelRef: RefObject<HTMLElement | null>;
+}) {
   const team = data.teams.get(p.team);
   const avail = extra?.availability ?? availabilityOf(null);
   const state = playStateOf(p);
@@ -159,8 +172,15 @@ function DetailPanel({ p, data, extra, slug, onClose }: { p: PlayerScore; data: 
   const newsAdded = extra?.newsAdded ? new Date(extra.newsAdded) : null;
   return (
     <section
-      className="border border-chalk-300 rounded-lg bg-white px-3 py-3 text-sm space-y-2"
-      aria-live="polite"
+      ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      className="scroll-mt-4 border border-chalk-300 rounded-lg bg-white px-3 py-3 text-sm space-y-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
       aria-label={`${p.webName} details`}
       data-testid="pitch-detail"
     >
@@ -254,12 +274,30 @@ function DetailPanel({ p, data, extra, slug, onClose }: { p: PlayerScore; data: 
 
 export function LivePitch({ score, data, extras }: { score: LiveTeamScore; data: FplLiveData; extras: Map<number, PitchExtra> | null }) {
   const [selected, setSelected] = useState<number | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const tileRefs = useRef(new Map<number, HTMLButtonElement>());
   const byPos = [...score.players].sort((a, b) => a.position - b.position);
   const xi = byPos.filter((p) => p.position <= 11);
   const bench = byPos.filter((p) => p.position > 11);
   const rows = [1, 2, 3, 4].map((t) => xi.filter((p) => p.type === t)).filter((r) => r.length > 0);
   const sel = selected == null ? null : score.players.find((p) => p.element === selected) ?? null;
   const slugOf = (id: number) => data.players.find((p) => p.id === id)?.slug ?? null;
+
+  // A tapped tile's panel: bring it on screen and put focus on it.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (selected == null || !el) return;
+    if (typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
+    }
+    el.focus({ preventScroll: true });
+  }, [selected]);
+
+  const close = () => {
+    const id = selected;
+    setSelected(null);
+    if (id != null) tileRefs.current.get(id)?.focus();
+  };
 
   const tile = (p: PlayerScore, benchLabel?: string) => (
     <PlayerTile
@@ -270,6 +308,10 @@ export function LivePitch({ score, data, extras }: { score: LiveTeamScore; data:
       benchLabel={benchLabel}
       selected={selected === p.element}
       onSelect={setSelected}
+      buttonRef={(el) => {
+        if (el) tileRefs.current.set(p.element, el);
+        else tileRefs.current.delete(p.element);
+      }}
     />
   );
 
@@ -311,7 +353,7 @@ export function LivePitch({ score, data, extras }: { score: LiveTeamScore; data:
         <span>Tap a player for news and the breakdown</span>
       </p>
 
-      {sel && <DetailPanel p={sel} data={data} extra={extras?.get(sel.element)} slug={slugOf(sel.element)} onClose={() => setSelected(null)} />}
+      {sel && <DetailPanel p={sel} data={data} extra={extras?.get(sel.element)} slug={slugOf(sel.element)} onClose={close} panelRef={panelRef} />}
     </div>
   );
 }

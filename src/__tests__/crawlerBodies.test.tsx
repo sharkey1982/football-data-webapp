@@ -231,8 +231,10 @@ describe('pages rendered with their real component', () => {
     expect(page.html).toContain('href="/fpl/team-of-the-week/gw2"');
     expect(page.canonical).toBe('https://fixtureshark.com/fpl/team-of-the-week/gw1');
     expect(page.title).toBe('FPL team of the week — gameweek 1 | FixtureShark');
+    // The bare URL is the same page: canonical to the gameweek's own URL (2 Nov 2026).
     const latest = renderTeamOfTheWeekPage(data, true);
-    expect(latest.canonical).toBe('https://fixtureshark.com/fpl/team-of-the-week');
+    expect(latest.canonical).toBe('https://fixtureshark.com/fpl/team-of-the-week/gw1');
+    expect(latest.title).toBe(page.title);
     expect(latest.html).toContain('Team of the week');
   });
 });

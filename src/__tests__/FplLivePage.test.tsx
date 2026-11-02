@@ -182,6 +182,42 @@ describe('FplLivePage pitch view', () => {
     expect(within(panel).getByRole('link')).toHaveAttribute('href', '/fpl/players/player-8');
   });
 
+  it('scrolls the panel into view, focuses it, and hands focus back to the tile', async () => {
+    rpc.mockResolvedValue({ data: rawResponse(), error: null });
+    const scroll = vi.fn();
+    const origScroll = Element.prototype.scrollIntoView;
+    const origMatch = window.matchMedia;
+    Element.prototype.scrollIntoView = scroll;
+    let reduce = false;
+    window.matchMedia = ((q: string) => ({ matches: reduce && q.includes('reduce'), media: q })) as unknown as typeof window.matchMedia;
+    try {
+      renderAt('/fpl/live?id=123');
+      await screen.findByTestId('live-pitch');
+      const btn8 = within(screen.getByTestId('pitch-player-8')).getByRole('button');
+      fireEvent.click(btn8);
+      let panel = screen.getByTestId('pitch-detail');
+      expect(scroll).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'nearest' });
+      expect(panel).toHaveFocus();
+      // Escape closes it and focus goes back to the tile.
+      fireEvent.keyDown(panel, { key: 'Escape' });
+      expect(screen.queryByTestId('pitch-detail')).toBeNull();
+      expect(btn8).toHaveFocus();
+      // Reduced motion: no smooth scroll. The close button also returns focus.
+      reduce = true;
+      const btn6 = within(screen.getByTestId('pitch-player-6')).getByRole('button');
+      fireEvent.click(btn6);
+      panel = screen.getByTestId('pitch-detail');
+      expect(scroll).toHaveBeenLastCalledWith({ behavior: 'auto', block: 'nearest' });
+      expect(panel).toHaveFocus();
+      fireEvent.click(within(panel).getByRole('button', { name: 'Close player details' }));
+      expect(screen.queryByTestId('pitch-detail')).toBeNull();
+      expect(btn6).toHaveFocus();
+    } finally {
+      Element.prototype.scrollIntoView = origScroll;
+      window.matchMedia = origMatch;
+    }
+  });
+
   it('remembers the Pitch / List choice', async () => {
     rpc.mockResolvedValue({ data: rawResponse(), error: null });
     const first = renderAt('/fpl/live?id=123');

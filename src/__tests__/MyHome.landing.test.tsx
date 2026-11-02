@@ -62,6 +62,11 @@ describe('Home page with and without My FixtureShark', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Pick your side.' })).toBeInTheDocument();
     const strip = screen.getByTestId('my-strip');
     expect(within(strip).getByRole('link', { name: 'Choose my teams' })).toHaveAttribute('href', '/my');
+    // Below the hero: the page's first paragraph is the dated answer-first
+    // sentence, not the strip (2 Nov 2026).
+    const hero = screen.getByRole('heading', { level: 1, name: 'Pick your side.' });
+    expect(hero.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector('p')?.textContent).toMatch(/^As of /);
     fireEvent.click(within(strip).getByRole('button', { name: 'No thanks' }));
     expect(screen.queryByTestId('my-strip')).not.toBeInTheDocument();
     unmount();

@@ -27,6 +27,7 @@ const P = policy as {
   includeTennisEdition: (y: number) => boolean;
   includeIntlNation: (t: { played: number; elo_rank: number | null }) => boolean;
   includeEflMatch: (k: string, today: string) => boolean;
+  includeStaticRoute: (path: string) => boolean;
 };
 
 describe('sitemap families', () => {
@@ -61,6 +62,13 @@ describe('sitemap families', () => {
     expect(P.includeEflMatch('2026-09-29', '2026-10-29')).toBe(true);
     expect(P.includeEflMatch('2026-09-28', '2026-10-29')).toBe(false);
     expect(P.includeEflMatch('2027-01-01', '2026-10-29')).toBe(false);
+  });
+
+  it('/fpl/team-of-the-week stays out: its canonical is the latest gameweek page', () => {
+    expect(P.includeStaticRoute('/fpl/team-of-the-week')).toBe(false);
+    expect(P.includeStaticRoute('/fpl/live')).toBe(true);
+    const src = readFileSync(join(process.cwd(), 'scripts', 'generate-sitemap.mjs'), 'utf8');
+    expect(src).toMatch(/staticPaths\.filter\(includeStaticRoute\)/);
   });
 
   it('the sitemap no longer lists Player Scout pages', () => {
