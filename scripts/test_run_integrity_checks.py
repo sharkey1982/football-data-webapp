@@ -4,7 +4,13 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from run_integrity_checks import acknowledgement_row, apply_acknowledgements, list_items, area_status  # noqa: E402
+from run_integrity_checks import (  # noqa: E402
+    acknowledgement_row,
+    apply_acknowledgements,
+    area_status,
+    cleared_by_later_success,
+    list_items,
+)
 
 TODAY = dt.date(2026, 10, 22)
 STALE = ("Jobs with no successful run within their expected interval: refresh-history-derived (last success 2026-10-21 12:50); "
@@ -65,3 +71,10 @@ def test_acknowledgement_row_lists_active_only():
     assert r["found"] == 2 and r["status"] == "ok"
     assert "jobs_stale/tennis_import until 2026-11-05" in r["detail"]
     assert "old" not in r["detail"]
+
+
+def test_failed_scheduled_run_cleared_only_by_a_later_success():
+    failed = {"created_at": "2026-10-26T09:15:45Z", "conclusion": "failure"}
+    assert cleared_by_later_success(failed, {"created_at": "2026-11-02T10:00:00Z"})
+    assert not cleared_by_later_success(failed, {"created_at": "2026-10-19T09:13:00Z"})
+    assert not cleared_by_later_success(failed, None)
