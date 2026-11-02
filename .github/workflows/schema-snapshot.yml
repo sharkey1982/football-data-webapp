@@ -113,12 +113,18 @@ jobs:
       # every run since 26 Oct failed with "Fresh types look incomplete".
       # Both files are now formatted with the same pinned oxfmt before the
       # comparison, so neither generator's layout matters.
+      # The CLI is pinned to 2.121.0 (the version of the last passing run,
+      # 19 Oct): 2.122.0 (23 Oct) also changed the type CONTENT (adds
+      # `ComputedFields: never`, `NonNullable<Json>`), which made all 432
+      # existing objects differ. Move the pin only together with a
+      # regeneration of src/types/database.generated.ts by the new version.
       - name: Check the generated DB types are current
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           mkdir -p /tmp/db-types
-          npx --yes supabase@2 gen types typescript --db-url "$DB_URL" --schema public > /tmp/db-types/fresh.ts
+          npx --yes supabase@2.121.0 gen types typescript --db-url "$DB_URL" --schema public > /tmp/db-types/fresh-raw.ts
+          cp /tmp/db-types/fresh-raw.ts /tmp/db-types/fresh.ts
           cp src/types/database.generated.ts /tmp/db-types/committed.ts
           npx --yes oxfmt@0.74.0 /tmp/db-types/fresh.ts /tmp/db-types/committed.ts
           node scripts/check-db-types.mjs /tmp/db-types/committed.ts /tmp/db-types/fresh.ts
@@ -133,9 +139,11 @@ jobs:
       - name: Print the fresh types (gzip + base64)
         if: failure()
         run: |
-          [ -s /tmp/db-types/fresh.ts ] || exit 0
+          # The generator's own output (not the formatted copy), so it can be
+          # committed as src/types/database.generated.ts unchanged.
+          [ -s /tmp/db-types/fresh-raw.ts ] || exit 0
           echo "FRESH-TYPES-BEGIN"
-          gzip -9c /tmp/db-types/fresh.ts | base64 -w0; echo
+          gzip -9c /tmp/db-types/fresh-raw.ts | base64 -w0; echo
           echo "FRESH-TYPES-END"
 
       - name: Keep the fresh types
@@ -143,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fresh-db-types
-          path: /tmp/db-types/fresh.ts
+          path: /tmp/db-types/fresh-raw.ts
           retention-days: 7
           if-no-files-found: ignore
 
