@@ -740,18 +740,19 @@ export function renderMostOwnedPage(
   return withBody(meta, staticPage('/fpl/most-owned', <MostOwnedSquadPage initialData={data} />), [], `${data.lead} ${meta.description}`);
 }
 
-/** Team of the week: one gameweek's page, or (latest) /fpl/team-of-the-week. `dates`: its fixtures' kick-off dates. */
+/** Team of the week: one gameweek's page, or (latest) /fpl/team-of-the-week. `dates`: its fixtures' kick-off dates.
+ *  The latest is the same page as its gameweek's, so its head (canonical
+ *  included) is the gameweek's: /fpl/team-of-the-week/gwN is the one indexed
+ *  URL (2 Nov 2026). The bare URL still serves the page to visitors. */
 export function renderTeamOfTheWeekPage(data: Omit<TeamOfTheWeekData, 'lead'> & { dates: string[] }, latest = false): RenderedPage {
   const path = latest ? '/fpl/team-of-the-week' : `/fpl/team-of-the-week/gw${data.gw}`;
   const lead = totwLead(data.gw, data.xi, data.scorers, data.dates);
-  const meta: RouteMeta = latest
-    ? routeMeta(path)
-    : {
-        path,
-        title: `FPL team of the week \u2014 gameweek ${data.gw}`,
-        description: `The highest-scoring valid Fantasy Premier League XI of gameweek ${data.gw}, who else scored, and how the model's own picks compared.`,
-        crumbs: [{ name: 'Fantasy Premier League', path: '/fpl/start' }],
-      };
+  const meta: RouteMeta = {
+    path: `/fpl/team-of-the-week/gw${data.gw}`,
+    title: `FPL team of the week \u2014 gameweek ${data.gw}`,
+    description: `The highest-scoring valid Fantasy Premier League XI of gameweek ${data.gw}, who else scored, and how the model's own picks compared.`,
+    crumbs: [{ name: 'Fantasy Premier League', path: '/fpl/start' }],
+  };
   const html = nflPage(path, latest ? path : '/fpl/team-of-the-week/:gw', <TeamOfTheWeekPage initialData={{ ...data, lead }} />);
   return withBody(meta, html, [], `${lead} ${meta.description}`);
 }

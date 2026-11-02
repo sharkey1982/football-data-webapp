@@ -77,12 +77,16 @@ export default function TeamOfTheWeekPage({ initialData }: { initialData?: TeamO
   // richer shape (points, best score) belongs to whatever shows a
   // gameweek index rather than this page's nav strip.
 
+  // /fpl/team-of-the-week shows the latest gameweek, so once that gameweek is
+  // known its canonical is the gameweek's own URL (2 Nov 2026: one page, not
+  // two under different canonicals). The server HTML does the same.
+  const headGw = requestedGw ?? (xi && xi.length > 0 ? xi[0].fpl_event_id : undefined);
   useDocumentHead({
-    title: requestedGw ? `FPL team of the week — gameweek ${requestedGw}` : 'FPL team of the week',
-    description: requestedGw
-      ? `The highest-scoring valid Fantasy Premier League XI of gameweek ${requestedGw}, and how it compares to the players the model rated highest.`
+    title: headGw ? `FPL team of the week — gameweek ${headGw}` : 'FPL team of the week',
+    description: headGw
+      ? `The highest-scoring valid Fantasy Premier League XI of gameweek ${headGw}, and how it compares to the players the model rated highest.`
       : 'The highest-scoring valid Fantasy Premier League XI of the gameweek, and how it compares to the players the model rated highest.',
-    path: requestedGw ? `/fpl/team-of-the-week/gw${requestedGw}` : '/fpl/team-of-the-week',
+    path: headGw ? `/fpl/team-of-the-week/gw${headGw}` : '/fpl/team-of-the-week',
   });
 
   useEffect(() => {

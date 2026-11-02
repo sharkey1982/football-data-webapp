@@ -62,3 +62,13 @@ export function includeEflMatch(kickoff, today) {
   const days = (Date.parse(`${String(kickoff).slice(0, 10)}T00:00:00Z`) - Date.parse(`${String(today).slice(0, 10)}T00:00:00Z`)) / 86400000;
   return Math.abs(days) <= EFL_MATCH_WINDOW_DAYS;
 }
+
+/** Static routes left out of the sitemap because another URL is their
+ * canonical. /fpl/team-of-the-week shows the latest gameweek, whose own page
+ * (/fpl/team-of-the-week/gwN, in the sitemap) it canonicalises to (2 Nov
+ * 2026: both were listed, under different canonicals, as the same page). */
+export const SITEMAP_EXCLUDED_STATIC_PATHS = ['/fpl/team-of-the-week'];
+
+export function includeStaticRoute(path) {
+  return !SITEMAP_EXCLUDED_STATIC_PATHS.includes(path);
+}

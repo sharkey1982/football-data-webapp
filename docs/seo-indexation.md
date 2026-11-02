@@ -97,6 +97,10 @@ variants, robots blocks).
   page's identity (none in the sitemap).
 - Links between pages use the canonical form (tennis pairs in alphabetical
   order; a source-level test rejects slash, upper-case and www links).
+- `/fpl/team-of-the-week` shows the latest gameweek, so its canonical (server
+  HTML and client head) is that gameweek's `/fpl/team-of-the-week/gwN`, and
+  the bare URL is not in the sitemap (`includeStaticRoute` in
+  `scripts/lib/sitemapPolicy.mjs`). It still works for visitors (2 Nov 2026).
 
 ## Audit 7 Oct 2026
 

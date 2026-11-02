@@ -24,7 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fetchFinanceBulk, buildFinanceSite } from './lib/financeStatic.mjs';
-import { includeClubSeason, includeEflMatch, includeIntlNation, includeLeagueSeason, includeTennisEdition } from './lib/sitemapPolicy.mjs';
+import { includeClubSeason, includeEflMatch, includeStaticRoute, includeIntlNation, includeLeagueSeason, includeTennisEdition } from './lib/sitemapPolicy.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -167,7 +167,8 @@ async function main() {
   }
   // A page that changes every day (/today) carries the build's UK date.
   const buildDayUk = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  for (const r of new Set(staticPaths)) entries.push(urlEntry(r, dailyPaths.has(r) ? buildDayUk : null));
+  // Static routes whose canonical is another URL stay out (sitemapPolicy).
+  for (const r of new Set(staticPaths.filter(includeStaticRoute))) entries.push(urlEntry(r, dailyPaths.has(r) ? buildDayUk : null));
   // Written immediately: from here on a slow database can shrink the
   // sitemap but can no longer remove it.
   writeSitemap('static routes only');

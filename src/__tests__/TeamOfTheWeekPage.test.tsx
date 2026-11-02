@@ -46,6 +46,19 @@ describe('TeamOfTheWeekPage', () => {
     expect(screen.getByText(/3 of its picks/)).toBeInTheDocument();
   });
 
+  it('the bare URL is canonical to the latest gameweek page it shows', async () => {
+    mocked.getTeamOfTheWeek.mockResolvedValue([p({})]);
+    mocked.getTotwVsModel.mockResolvedValue({
+      fpl_event_id: 4, actual_xi_points: 146, model_xi_actual_points: 42,
+      overlap_count: 0, model_xi_projected: 43, overlap_names: null,
+    });
+    render(<MemoryRouter><TeamOfTheWeekPage /></MemoryRouter>);
+    await waitFor(() =>
+      expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toMatch(/\/fpl\/team-of-the-week\/gw4$/),
+    );
+    expect(document.title).toMatch(/gameweek 4/);
+  });
+
   it('shows the contribution breakdown on each marker, omitting zeros', async () => {
     mocked.getTeamOfTheWeek.mockResolvedValue([
       p({}),

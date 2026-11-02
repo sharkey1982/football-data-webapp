@@ -145,21 +145,6 @@ export default function Landing() {
   return (
     <div className="space-y-8">
       {personal && <MyHome prefs={prefs} />}
-      {!personal && !prefs.club && !stripHidden && (
-        <aside aria-label="Make FixtureShark yours" data-testid="my-strip" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-amber-500 bg-amber-400/15 px-4 py-3">
-          <p className="flex-1 min-w-[14rem] text-sm text-ink-900">
-            <strong>Make FixtureShark yours.</strong> Pick your club, FPL ID and teams, and this page opens on them. Saved in this browser only.
-          </p>
-          <Link to="/my" className="inline-flex items-center min-h-11 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-ink-900 text-sm font-semibold">Choose my teams</Link>
-          <button
-            type="button"
-            onClick={() => { dismissStrip(); setStripHidden(true); }}
-            className="inline-flex items-center min-h-11 px-3 rounded-lg text-sm text-ink-700 hover:bg-chalk-200"
-          >
-            No thanks
-          </button>
-        </aside>
-      )}
     <div className="rounded-xl bg-pitch-950 border border-pitch-700 p-4 sm:p-10 space-y-5 sm:space-y-8">
       <div>
         <Heading className="font-display uppercase tracking-wide text-3xl sm:text-6xl text-amber-400 glow-amber leading-tight">Pick your side.</Heading>
@@ -214,6 +199,24 @@ export default function Landing() {
 
       <PopularTools from="home" tone="dark" />
     </div>
+
+      {/* Below the hero (2 Nov 2026), so the dated answer-first sentence is the
+          page's first paragraph in the pre-rendered HTML, not this strip. */}
+      {!personal && !prefs.club && !stripHidden && (
+        <aside aria-label="Make FixtureShark yours" data-testid="my-strip" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-amber-500 bg-amber-400/15 px-4 py-3">
+          <p className="flex-1 min-w-[14rem] text-sm text-ink-900">
+            <strong>Make FixtureShark yours.</strong> Pick your club, FPL ID and teams, and this page opens on them. Saved in this browser only.
+          </p>
+          <Link to="/my" className="inline-flex items-center min-h-11 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-ink-900 text-sm font-semibold">Choose my teams</Link>
+          <button
+            type="button"
+            onClick={() => { dismissStrip(); setStripHidden(true); }}
+            className="inline-flex items-center min-h-11 px-3 rounded-lg text-sm text-ink-700 hover:bg-chalk-200"
+          >
+            No thanks
+          </button>
+        </aside>
+      )}
 
       {/* Common questions: the same text is the page's FAQPage JSON-LD
           (src/lib/siteIdentity.ts, entry-server). */}
