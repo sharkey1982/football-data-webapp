@@ -3,7 +3,7 @@
 //
 // The admin end-of-day site update: a preview of today's email so far, the
 // last sends, and "Send today's digest now" (a preview to the admin address;
-// the scheduled 20:00 UK send still goes). Data: public.admin_digest_get /
+// the scheduled 19:25 UK send still goes). Data: public.admin_digest_get /
 // admin_digest_send_now, both is_admin() only.
 // ============================================================================
 
@@ -37,13 +37,13 @@ export default function DailyDigestPanel() {
   return (
     <section className="space-y-2" aria-labelledby="daily-digest">
       <h2 id="daily-digest" className="font-display uppercase tracking-wide text-lg text-ink-900">Daily site update</h2>
-      <p className="text-sm text-ink-700">Emailed to you every day at 20:00 UK, covering the day from midnight.</p>
+      <p className="text-sm text-ink-700">Emailed to you every day at 19:25 UK, covering the day from midnight.</p>
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={send} disabled={state === 'sending'}
           className="rounded bg-pitch-800 px-4 py-2 font-medium text-chalk-100 hover:bg-pitch-700 disabled:opacity-60">
           Send today&rsquo;s digest now
         </button>
-        {state === 'sent' && <span role="status" className="text-sm text-ink-900">Sent as a preview. The 20:00 email still goes.</span>}
+        {state === 'sent' && <span role="status" className="text-sm text-ink-900">Sent as a preview. The 19:25 email still goes.</span>}
         {state === 'error' && <span role="alert" className="text-sm text-loss-700">That didn&rsquo;t work. Try again in a couple of minutes.</span>}
       </div>
       {error && <p role="alert" className="text-sm text-loss-700">Couldn&rsquo;t load the preview: {error}</p>}

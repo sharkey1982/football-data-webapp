@@ -26,6 +26,7 @@ describe('DailyDigestPanel', () => {
     render(<DailyDigestPanel />);
     expect(await screen.findByText('FixtureShark today: Mon 2 Nov')).toBeTruthy();
     expect(screen.getByText('Next: GW10')).toBeTruthy();
+    expect(screen.getByText(/every day at 19:25 UK/)).toBeTruthy();
     expect(screen.getByText('fixtureshark.com/fpl/price-risk').getAttribute('href')).toBe('https://fixtureshark.com/fpl/price-risk');
     await userEvent.click(screen.getByRole('button', { name: /send today.s digest now/i }));
     await waitFor(() => expect(api.sendDigestNow).toHaveBeenCalledTimes(1));

@@ -44,7 +44,7 @@ export async function sendTestEmail(fplId: number | null = null, clubId: number 
 // ---------------------------------------------------------------- daily site update
 // The admin end-of-day email (supabase/migrations/20261102190000_admin_daily_digest.sql):
 // public.admin_digest_get(p_day) previews it, public.admin_digest_send_now()
-// emails today's so far to the admin (a preview: the 20:00 send still goes).
+// emails today's so far to the admin (a preview: the 19:25 send still goes).
 
 export type DigestSection = { key: string; title: string; link: string; lines: string[] };
 export type DigestSend = {
