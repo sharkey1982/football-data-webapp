@@ -6,12 +6,16 @@
 //   node scripts/check-db-types.mjs src/types/database.generated.ts /tmp/fresh.ts
 //
 // Exits 1 (with a list of the objects that differ) when the committed types
-// no longer match the live public schema. To fix: regenerate the file (the
-// Supabase MCP tool generate_typescript_types, or
-// `supabase gen types typescript --db-url ... --schema public`), run tsc,
-// remove any `as never` casts the new types make unnecessary, and open a PR.
-// The comparison ignores the generator's header block (__InternalSupabase)
-// and whitespace, so two generators that differ only there still agree.
+// no longer match the live public schema. To fix: regenerate the file from
+// the CLI's output (`supabase@2.121.0 gen types typescript --db-url ...
+// --schema public`, or the FRESH-TYPES block the failed job prints:
+// base64 -d | gunzip), format it with `npx oxfmt@0.74.0`, run tsc, remove
+// any `as never` casts the new types make unnecessary, and open a PR.
+// NOT the Supabase MCP tool generate_typescript_types: since late Oct 2026
+// the CLI writes `ComputedFields: never` and `NonNullable<Json>`, which the
+// MCP generator does not, so an MCP-generated file differs in every object.
+// The comparison ignores comments, the header block (__InternalSupabase) and
+// whitespace; the workflow formats both files with oxfmt first.
 import { readFileSync } from 'node:fs';
 
 export function normalise(src) {

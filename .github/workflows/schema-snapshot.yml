@@ -113,11 +113,13 @@ jobs:
       # every run since 26 Oct failed with "Fresh types look incomplete".
       # Both files are now formatted with the same pinned oxfmt before the
       # comparison, so neither generator's layout matters.
-      # The CLI is pinned to 2.121.0 (the version of the last passing run,
-      # 19 Oct): 2.122.0 (23 Oct) also changed the type CONTENT (adds
-      # `ComputedFields: never`, `NonNullable<Json>`), which made all 432
-      # existing objects differ. Move the pin only together with a
-      # regeneration of src/types/database.generated.ts by the new version.
+      # The CLI is pinned (2.121.0) so a release can't change the output
+      # under us again. Its output has `ComputedFields: never` and
+      # `NonNullable<Json>`, which the Supabase MCP tool's generator does not
+      # write. Regenerate src/types/database.generated.ts from THIS output
+      # (the job log's FRESH-TYPES block, formatted with the oxfmt below),
+      # not with the MCP tool: on 1 Nov an MCP-generated file made all 432
+      # objects differ. Move the pin together with a regeneration.
       - name: Check the generated DB types are current
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
