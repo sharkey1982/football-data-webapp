@@ -107,12 +107,33 @@ jobs:
         with:
           node-version: '22'
 
+      # 2 Nov 2026: from late October the Supabase CLI writes the types
+      # UNFORMATTED ("Generated TypeScript is unformatted. Format it with
+      # npx oxfmt"), so the indentation-based comparison found no objects and
+      # every run since 26 Oct failed with "Fresh types look incomplete".
+      # Both files are now formatted with the same pinned oxfmt before the
+      # comparison, so neither generator's layout matters.
       - name: Check the generated DB types are current
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          npx --yes supabase@2 gen types typescript --db-url "$DB_URL" --schema public > /tmp/fresh-types.ts
-          node scripts/check-db-types.mjs src/types/database.generated.ts /tmp/fresh-types.ts
+          mkdir -p /tmp/db-types
+          npx --yes supabase@2 gen types typescript --db-url "$DB_URL" --schema public > /tmp/db-types/fresh.ts
+          cp src/types/database.generated.ts /tmp/db-types/committed.ts
+          npx --yes oxfmt@0.74.0 /tmp/db-types/fresh.ts /tmp/db-types/committed.ts
+          node scripts/check-db-types.mjs /tmp/db-types/committed.ts /tmp/db-types/fresh.ts
+
+      # On drift, the fresh (formatted) types are kept for 7 days so a session
+      # can download them for the regeneration PR (the file is ~640 KB, too
+      # big to pass through the Supabase MCP tool).
+      - name: Keep the fresh types
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-db-types
+          path: /tmp/db-types/fresh.ts
+          retention-days: 7
+          if-no-files-found: ignore
 
       # Audit P-07 (22 Oct 2026): one pipeline_runs row per run, so
       # job_health sees a failed or missing run (job_registry run_key

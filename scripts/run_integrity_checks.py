@@ -184,6 +184,13 @@ class Runner:
             self.sb.table("pipeline_runs").insert({**row, "finished_at": dt.datetime.now(dt.timezone.utc).isoformat()}).execute()
 
 
+def cleared_by_later_success(failed_run: dict, latest_success: dict | None) -> bool:
+    """True when a successful run of the same workflow started after the failed scheduled run."""
+    if not latest_success:
+        return False
+    return (latest_success.get("created_at") or "") > (failed_run.get("created_at") or "")
+
+
 def github_rows(runner: Runner) -> list[dict]:
     """Scheduled GitHub workflows vs job_registry, and their latest scheduled run."""
     token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
@@ -212,7 +219,12 @@ def github_rows(runner: Runner) -> list[dict]:
         # integrity-checks goes red whenever a check fails; those checks are
         # already reported line by line, so its own red run is not repeated.
         if name != "integrity-checks" and last.get("status") == "completed" and last.get("conclusion") not in ("success", "skipped", "neutral"):
-            failing.append(f"{name} ({last.get('conclusion')} {last.get('created_at', '')[:16]})")
+            # 2 Nov 2026: a successful run started after the failed scheduled
+            # one (a manual re-run once the fix is merged) clears it, so a
+            # weekly job does not stay red for a week after being fixed.
+            ok = gh(f"actions/workflows/{wf['id']}/runs?status=success&per_page=1").get("workflow_runs", [])
+            if not cleared_by_later_success(last, ok[0] if ok else None):
+                failing.append(f"{name} ({last.get('conclusion')} {last.get('created_at', '')[:16]})")
     return [
         {"check_name": "github_workflows_registered", "status": "warning" if unregistered else "ok",
          "found": len(unregistered), "detail": "Scheduled GitHub workflows not in public.job_registry: " + (", ".join(unregistered) or "none")},
