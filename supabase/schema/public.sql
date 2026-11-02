@@ -2853,6 +2853,493 @@ $$;
 ALTER FUNCTION public.earlier_season(a bigint, b bigint) OWNER TO postgres;
 
 --
+-- Name: email_admin_send_test(bigint, bigint, integer[]); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_admin_send_test(p_fpl_id bigint DEFAULT NULL::bigint, p_club bigint DEFAULT NULL::bigint, p_watch integer[] DEFAULT '{}'::integer[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if not public.is_admin() then raise exception 'admin only' using errcode = '42501'; end if;
+  perform private.email_invoke(jsonb_build_object('mode', 'test', 'fpl_id', p_fpl_id, 'club_id', p_club, 'watchlist', to_jsonb(coalesce(p_watch, '{}'))));
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+
+ALTER FUNCTION public.email_admin_send_test(p_fpl_id bigint, p_club bigint, p_watch integer[]) OWNER TO postgres;
+
+--
+-- Name: email_begin_send(text, bigint, integer, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_begin_send(p_kind text, p_season bigint, p_gw integer, p_subject text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_key text; v_send private.email_sends; v_run bigint;
+begin
+  if p_kind not in ('weekly', 'test') then raise exception 'bad kind %', p_kind; end if;
+  if p_kind = 'weekly' then
+    v_key := format('fpl-weekly:%s:%s', p_season, p_gw);
+    insert into private.email_sends (kind, issue_key, season_id, fpl_event_id, subject)
+    values ('weekly', v_key, p_season, p_gw, p_subject)
+    on conflict (issue_key) do nothing
+    returning * into v_send;
+    if v_send.send_id is null then
+      update private.email_sends
+         set status = 'sending', attempts = attempts + 1, started_at = now(), finished_at = null, recipients = 0, football = 0,
+             sent = 0, failed = 0, note = null, subject = p_subject
+       where issue_key = v_key and status = 'failed' and sent = 0 and attempts < 3 and started_at < now() - interval '30 minutes'
+      returning * into v_send;
+      if v_send.send_id is null then
+        return jsonb_build_object('skip', 'already sent (or being sent) for this gameweek', 'issue_key', v_key);
+      end if;
+    end if;
+  else
+    if exists (select 1 from private.email_sends where kind = 'test' and started_at > now() - interval '2 minutes') then
+      return jsonb_build_object('skip', 'a test was sent in the last 2 minutes');
+    end if;
+    insert into private.email_sends (kind, season_id, fpl_event_id, subject)
+    values ('test', p_season, p_gw, p_subject) returning * into v_send;
+  end if;
+  insert into public.pipeline_runs (job_name, started_at, status, summary)
+  values (case when p_kind = 'weekly' then 'email-weekly' else 'email-weekly-test' end, now(), 'running', format('GW%s %s send started', p_gw, p_kind))
+  returning run_id into v_run;
+  update private.email_sends set pipeline_run_id = v_run where send_id = v_send.send_id;
+  return jsonb_build_object('send_id', v_send.send_id, 'issue_key', v_send.issue_key, 'kind', v_send.kind);
+end;
+$$;
+
+
+ALTER FUNCTION public.email_begin_send(p_kind text, p_season bigint, p_gw integer, p_subject text) OWNER TO postgres;
+
+--
+-- Name: email_confirm(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_confirm(p_token text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_id bigint := private.email_token_owner(p_token, array['confirm']); s private.email_subscribers;
+begin
+  if v_id is null then return jsonb_build_object('state', 'invalid'); end if;
+  select * into s from private.email_subscribers where subscriber_id = v_id for update;
+  if s.status = 'unsubscribed' then return jsonb_build_object('state', 'invalid'); end if;
+  if s.status = 'confirmed' then
+    return jsonb_build_object('state', 'already', 'football', 'football_market' = any (s.topics),
+                              'manage', private.email_new_token(v_id, 'manage', null));
+  end if;
+  update private.email_subscribers set status = 'confirmed', confirmed_at = now(), updated_at = now() where subscriber_id = v_id;
+  return jsonb_build_object('state', 'confirmed', 'football', 'football_market' = any (s.topics),
+                            'manage', private.email_new_token(v_id, 'manage', null));
+end;
+$$;
+
+
+ALTER FUNCTION public.email_confirm(p_token text) OWNER TO postgres;
+
+--
+-- Name: email_finish_send(bigint, integer, integer, integer, integer, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_finish_send(p_send_id bigint, p_recipients integer, p_football integer, p_sent integer, p_failed integer, p_note text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v private.email_sends; v_status text;
+begin
+  v_status := case when p_failed > 0 and p_sent = 0 then 'failed' when p_failed > 0 then 'partial'
+                   when p_recipients = 0 then 'skipped' else 'sent' end;
+  update private.email_sends
+     set status = v_status, recipients = p_recipients, football = p_football, sent = p_sent, failed = p_failed,
+         note = left(p_note, 500), finished_at = now()
+   where send_id = p_send_id
+  returning * into v;
+  if v.send_id is null then raise exception 'unknown send %', p_send_id; end if;
+  update public.pipeline_runs
+     set finished_at = now(),
+         status = case v_status when 'failed' then 'failed' when 'partial' then 'warning' else 'success' end,
+         summary = format('GW%s %s: %s recipients (%s with the football section), %s sent, %s failed%s',
+                          v.fpl_event_id, v.kind, p_recipients, p_football, p_sent, p_failed, coalesce('. ' || left(p_note, 200), '')),
+         error_message = case when p_failed > 0 then left(p_note, 500) end,
+         rows_read = p_recipients, rows_inserted = p_sent, rows_changed = p_sent
+   where run_id = v.pipeline_run_id;
+  if p_failed > 0 then
+    perform private.social_notify(jsonb_build_object('kind', 'email_failed', 'send_id', v.send_id, 'gw', v.fpl_event_id,
+                                                     'send_kind', v.kind, 'sent', p_sent, 'failed', p_failed, 'note', left(p_note, 300)));
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION public.email_finish_send(p_send_id bigint, p_recipients integer, p_football integer, p_sent integer, p_failed integer, p_note text) OWNER TO postgres;
+
+--
+-- Name: email_log_failure(bigint, text, integer, text, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_log_failure(p_send_id bigint, p_kind text, p_http_status integer, p_error text, p_recipients integer) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  insert into private.email_failures (send_id, kind, http_status, error, recipients)
+  values (p_send_id, p_kind, p_http_status,
+          left(regexp_replace(coalesce(p_error, ''), '[^\s<>"'',;:]+@[^\s<>"'',;:]+', '[address]', 'g'), 500),
+          greatest(coalesce(p_recipients, 1), 0));
+$$;
+
+
+ALTER FUNCTION public.email_log_failure(p_send_id bigint, p_kind text, p_http_status integer, p_error text, p_recipients integer) OWNER TO postgres;
+
+--
+-- Name: email_manage(text, jsonb); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_manage(p_token text, p_changes jsonb DEFAULT NULL::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare v_id bigint := private.email_token_owner(p_token, array['manage']); s private.email_subscribers; v_fpl bigint; v_club bigint;
+begin
+  if v_id is null then return jsonb_build_object('state', 'invalid'); end if;
+  select * into s from private.email_subscribers where subscriber_id = v_id for update;
+  if s.status <> 'confirmed' then return jsonb_build_object('state', s.status); end if;
+  if p_changes is not null and jsonb_typeof(p_changes) = 'object' then
+    if p_changes ? 'football' and jsonb_typeof(p_changes->'football') = 'boolean' then
+      s.topics := case when (p_changes->>'football')::boolean then array['fpl', 'football_market'] else array['fpl'] end;
+    end if;
+    if p_changes ? 'fpl_id' then
+      v_fpl := case when jsonb_typeof(p_changes->'fpl_id') = 'number' and (p_changes->>'fpl_id')::numeric between 1 and 99999999
+                    then (p_changes->>'fpl_id')::numeric::bigint end;
+      s.fpl_entry_id := v_fpl;
+    end if;
+    if p_changes ? 'watchlist' then
+      s.watchlist := coalesce((select array_agg(x.id order by x.ord)
+                                 from (select distinct on (e::int) e::int id, ord
+                                         from jsonb_array_elements_text(case when jsonb_typeof(p_changes->'watchlist') = 'array'
+                                                                             then p_changes->'watchlist' else '[]' end) with ordinality t(e, ord)
+                                        where e ~ '^\d{1,6}$'
+                                        order by e::int, ord) x
+                                 join public.fpl_players p on p.season_id = public.fpl_current_season_id() and p.fpl_player_id = x.id
+                                where x.ord <= 20), '{}');
+    end if;
+    if p_changes ? 'club_id' then
+      v_club := case when jsonb_typeof(p_changes->'club_id') = 'number'
+                     then (select team_id from public.teams where team_id = (p_changes->>'club_id')::numeric::bigint) end;
+      s.club_team_id := v_club;
+    end if;
+    update private.email_subscribers
+       set topics = s.topics, fpl_entry_id = s.fpl_entry_id, club_team_id = s.club_team_id, watchlist = s.watchlist, updated_at = now()
+     where subscriber_id = v_id;
+  end if;
+  return jsonb_build_object('state', 'ok', 'football', 'football_market' = any (s.topics), 'fpl_id', s.fpl_entry_id,
+                            'club', (select jsonb_build_object('id', t.team_id, 'name', coalesce(t.display_name, t.canonical_name))
+                                       from public.teams t where t.team_id = s.club_team_id),
+                            'watchlist', (select coalesce(jsonb_agg(jsonb_build_object('id', p.fpl_player_id, 'name', p.web_name, 'team', ft.short_name,
+                                                                                        'pos', case p.element_type when 1 then 'GKP' when 2 then 'DEF' when 3 then 'MID' when 4 then 'FWD' end,
+                                                                                        'price', round(p.now_cost / 10.0, 1))
+                                                                     order by array_position(s.watchlist, p.fpl_player_id::int)), '[]')
+                                            from public.fpl_players p
+                                            left join public.fpl_teams ft on ft.season_id = p.season_id and ft.fpl_team_id = p.fpl_team_id
+                                           where p.season_id = public.fpl_current_season_id() and p.fpl_player_id = any (s.watchlist)));
+end;
+$_$;
+
+
+ALTER FUNCTION public.email_manage(p_token text, p_changes jsonb) OWNER TO postgres;
+
+--
+-- Name: email_personal(bigint, integer, bigint, bigint, integer[]); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_personal(p_season bigint, p_gw integer, p_fpl_id bigint, p_club bigint, p_watch integer[] DEFAULT NULL::integer[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_pick_gw integer; v_picks integer[]; v_sections jsonb; v_club jsonb; c jsonb; v_last jsonb;
+  v_watch integer[] := case when cardinality(p_watch) > 0 then p_watch end;
+begin
+  if p_fpl_id is not null then
+    select fpl_event_id into v_pick_gw from public.fpl_gameweeks
+     where season_id = p_season and deadline_time < now() order by deadline_time desc limit 1;
+    v_picks := private.email_fpl_picks_for(p_fpl_id, p_season, v_pick_gw);
+  end if;
+  if v_picks is not null or v_watch is not null then
+    v_sections := private.email_sections(p_season, p_gw, v_picks, v_watch);
+  end if;
+  if p_club is not null then
+    c := public.get_my_club_cards(array[p_club]::bigint[]) -> 0;
+    if c is not null then
+      -- The last result, with its competition and any shoot-out (a cup tie
+      -- level after 90 minutes must not read as a plain draw).
+      v_last := c->'recent'->0;
+      if v_last is not null then
+        select v_last || jsonb_build_object('competition', l.name, 'decided_by', m.decided_by,
+                                            'pens', case when m.home_penalty_goals is not null and m.away_penalty_goals is not null
+                                                         then jsonb_build_array(m.home_penalty_goals, m.away_penalty_goals) end)
+          into v_last
+          from public.fixtures f
+          left join public.leagues l on l.league_id = f.league_id
+          left join public.matches m on m.league_id = f.league_id and m.season_id = f.season_id
+                                    and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
+                                    and m.match_date = f.kickoff_date
+         where f.fixture_id = (v_last->>'fixture_id')::bigint;
+        v_last := coalesce(v_last, c->'recent'->0);
+      end if;
+      v_club := jsonb_build_object('name', c->'team'->>'display_name', 'slug', c->'team'->>'slug', 'next', c->'next', 'last', v_last);
+    end if;
+  end if;
+  return jsonb_build_object('picks_gw', case when v_picks is not null then v_pick_gw end,
+                            'squad_size', cardinality(v_picks), 'sections', v_sections, 'club', v_club);
+end;
+$$;
+
+
+ALTER FUNCTION public.email_personal(p_season bigint, p_gw integer, p_fpl_id bigint, p_club bigint, p_watch integer[]) OWNER TO postgres;
+
+--
+-- Name: email_player_search(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_player_search(p_q text) RETURNS TABLE(id integer, name text, team text, pos text, price numeric)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select p.fpl_player_id::int, p.web_name, ft.short_name,
+         case p.element_type when 1 then 'GKP' when 2 then 'DEF' when 3 then 'MID' when 4 then 'FWD' end,
+         round(p.now_cost / 10.0, 1)
+    from public.fpl_players p
+    left join public.fpl_teams ft on ft.season_id = p.season_id and ft.fpl_team_id = p.fpl_team_id
+   where p.season_id = public.fpl_current_season_id() and p.now_cost > 0 and length(trim(coalesce(p_q, ''))) >= 2
+     and (p.web_name ilike '%' || trim(p_q) || '%' or (p.first_name || ' ' || p.second_name) ilike '%' || trim(p_q) || '%'
+          or public.unaccent(p.web_name) ilike '%' || public.unaccent(trim(p_q)) || '%')
+   order by p.selected_by_percent desc nulls last, p.fpl_player_id
+   limit 10;
+$$;
+
+
+ALTER FUNCTION public.email_player_search(p_q text) OWNER TO postgres;
+
+--
+-- Name: email_quota_take(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_quota_take(p_n integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare st private.email_settings; v_day integer; v_month integer; v_ok integer; v_today date := (now() at time zone 'UTC')::date;
+begin
+  select * into st from private.email_settings where id;
+  if not st.sending_enabled then return 0; end if;
+  insert into private.email_outbound_days (day, sent) values (v_today, 0) on conflict (day) do nothing;
+  select sent into v_day from private.email_outbound_days where day = v_today for update;
+  select coalesce(sum(sent), 0) into v_month from private.email_outbound_days where day >= date_trunc('month', v_today)::date;
+  v_ok := greatest(0, least(p_n, st.daily_limit - v_day, st.monthly_limit - v_month));
+  update private.email_outbound_days set sent = sent + v_ok where day = v_today;
+  return v_ok;
+end;
+$$;
+
+
+ALTER FUNCTION public.email_quota_take(p_n integer) OWNER TO postgres;
+
+--
+-- Name: email_recipients(bigint, bigint, bigint, integer[]); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_recipients(p_send_id bigint, p_test_fpl_id bigint DEFAULT NULL::bigint, p_test_club bigint DEFAULT NULL::bigint, p_test_watch integer[] DEFAULT '{}'::integer[]) RETURNS TABLE(subscriber_id bigint, email text, football boolean, token text, fpl_id bigint, club_id bigint, watchlist integer[])
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+#variable_conflict use_column
+declare v_kind text := (select kind from private.email_sends where send_id = p_send_id);
+begin
+  if v_kind is null then raise exception 'unknown send %', p_send_id; end if;
+  if v_kind = 'test' then
+    return query select null::bigint, private.email_admin_address(), true, null::text, p_test_fpl_id, p_test_club, p_test_watch
+                  where private.email_admin_address() is not null;
+  else
+    return query
+      select s.subscriber_id, s.email, 'football_market' = any (s.topics), private.email_new_token(s.subscriber_id, 'manage', null),
+             s.fpl_entry_id, s.club_team_id, s.watchlist
+        from private.email_subscribers s where s.status = 'confirmed' order by s.confirmed_at, s.subscriber_id;
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION public.email_recipients(p_send_id bigint, p_test_fpl_id bigint, p_test_club bigint, p_test_watch integer[]) OWNER TO postgres;
+
+--
+-- Name: email_signup(text, boolean, text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint DEFAULT NULL::bigint, p_club bigint DEFAULT NULL::bigint) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare
+  v_fpl bigint := case when p_fpl_id between 1 and 99999999 then p_fpl_id end;
+  v_club bigint := (select team_id from public.teams where team_id = p_club);
+  e text := lower(trim(coalesce(p_email, '')));
+  v_salt text := (select salt from private.email_settings where id);
+  v_ip text; v_eh text; n_ip_h integer; n_ip_d integer; n_em integer; n_all integer;
+  s private.email_subscribers; v_topics text[] := case when p_football then array['fpl', 'football_market'] else array['fpl'] end;
+  v_tok text;
+begin
+  if length(e) > 254 or e !~ '^[^@\s<>,;"]+@[^@\s<>,;"]+\.[a-z]{2,}$' then
+    return jsonb_build_object('action', 'invalid');
+  end if;
+  v_ip := case when coalesce(p_ip, '') <> '' then private.email_hash(v_salt || ':ip:' || p_ip) end;
+  v_eh := private.email_hash(v_salt || ':em:' || e);
+
+  select count(*) filter (where created_at > now() - interval '1 hour'), count(*) into n_ip_h, n_ip_d
+    from private.email_signup_attempts where v_ip is not null and ip_hash = v_ip and created_at > now() - interval '24 hours';
+  select count(*) into n_em from private.email_signup_attempts
+   where email_hash = v_eh and created_at > now() - interval '24 hours' and outcome like 'sent%';
+  select count(*) into n_all from private.email_signup_attempts
+   where created_at > now() - interval '24 hours' and outcome like 'sent%';
+
+  if n_ip_h >= 5 or n_ip_d >= 20 or n_em >= 3 or n_all >= 40 then
+    insert into private.email_signup_attempts (ip_hash, email_hash, outcome)
+    values (v_ip, v_eh, case when n_em >= 3 then 'rate_email' when n_all >= 40 then 'rate_global' else 'rate_ip' end);
+    return jsonb_build_object('action', 'none', 'reason', 'rate limited');
+  end if;
+
+  select * into s from private.email_subscribers where email = e for update;
+  if s.subscriber_id is not null and s.status = 'confirmed' then
+    insert into private.email_signup_attempts (ip_hash, email_hash, outcome) values (v_ip, v_eh, 'sent_already');
+    return jsonb_build_object('action', 'already', 'email', e,
+                              'token', private.email_new_token(s.subscriber_id, 'manage', null));
+  end if;
+
+  if s.subscriber_id is null then
+    insert into private.email_subscribers (email, status, topics, fpl_entry_id, club_team_id, consent_version, confirm_sent_at)
+    values (e, 'pending', v_topics, v_fpl, v_club, 'fpl-weekly-v1', now())
+    returning * into s;
+  else
+    update private.email_subscribers
+       set status = 'pending', topics = v_topics, fpl_entry_id = v_fpl, club_team_id = v_club,
+           consent_version = 'fpl-weekly-v1', confirm_sent_at = now(),
+           confirmed_at = null, unsubscribed_at = null, updated_at = now()
+     where subscriber_id = s.subscriber_id;
+    delete from private.email_tokens where subscriber_id = s.subscriber_id and purpose = 'confirm';
+  end if;
+  v_tok := private.email_new_token(s.subscriber_id, 'confirm', interval '7 days');
+  insert into private.email_signup_attempts (ip_hash, email_hash, outcome) values (v_ip, v_eh, 'sent_confirm');
+  return jsonb_build_object('action', 'confirm', 'email', e, 'token', v_tok, 'football', coalesce(p_football, false));
+end;
+$_$;
+
+
+ALTER FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint) OWNER TO postgres;
+
+--
+-- Name: email_unsubscribe(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_unsubscribe(p_token text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_id bigint := private.email_token_owner(p_token, array['manage', 'confirm']); s private.email_subscribers;
+begin
+  if v_id is null then return jsonb_build_object('state', 'invalid'); end if;
+  select * into s from private.email_subscribers where subscriber_id = v_id for update;
+  if s.status = 'unsubscribed' then return jsonb_build_object('state', 'already'); end if;
+  update private.email_subscribers set status = 'unsubscribed', unsubscribed_at = now(), updated_at = now() where subscriber_id = v_id;
+  delete from private.email_tokens where subscriber_id = v_id and purpose = 'confirm';
+  return jsonb_build_object('state', 'unsubscribed');
+end;
+$$;
+
+
+ALTER FUNCTION public.email_unsubscribe(p_token text) OWNER TO postgres;
+
+--
+-- Name: email_weekly_content(bigint, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_weekly_content(p_season bigint, p_gw integer) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_today date := (now() at time zone 'Europe/London')::date;
+  v_deadline timestamptz; v_prev jsonb; v_market jsonb;
+begin
+  select deadline_time into v_deadline from public.fpl_gameweeks where season_id = p_season and fpl_event_id = p_gw;
+
+  -- The gameweek preview, if published.
+  select jsonb_build_object('title', r.title, 'path', format('/fpl/gameweek/%s/%s/preview', r.season_label, r.fpl_event_id),
+                            'published_at', r.published_at)
+    into v_prev
+    from public.fpl_gameweek_reports r
+   where r.season_id = p_season and r.fpl_event_id = p_gw and r.kind = 'preview' and r.status = 'published'
+   order by r.version desc, r.published_at desc limit 1;
+
+  -- Where our model and the market disagree: the daily_market post's logic
+  -- (social_daily_games; rated teams only; biggest gap on any outcome, 5+
+  -- points) over the games from today to three days after the deadline.
+  with g as (
+    select g.*, d::date as day
+      from generate_series(v_today, coalesce((v_deadline at time zone 'Europe/London')::date, v_today) + 3, interval '1 day') d
+      cross join lateral private.social_daily_games(d::date) g
+     where g.status = 'scheduled' and not g.estimated
+       and d::date + coalesce(g.kickoff_time, time '12:00') > now() at time zone 'Europe/London'),
+  o as (
+    select g.*, x.outcome, abs(x.pm - x.mm) gap,
+           row_number() over (partition by g.fixture_id order by abs(x.pm - x.mm) desc, x.outcome) rn
+      from g cross join lateral (values ('home', g.ph, g.mh), ('draw', g.pd, g.md), ('away', g.pa, g.ma)) x(outcome, pm, mm))
+  select coalesce(jsonb_agg(jsonb_build_object('home', o.home, 'away', o.away, 'league', o.lg, 'day', o.day,
+                                               'kickoff', to_char(o.kickoff_time, 'HH24:MI'), 'slug', f.slug,
+                                               'outcome', o.outcome, 'gap', round(o.gap, 3),
+                                               'market', jsonb_build_array(o.mh, o.md, o.ma), 'model', jsonb_build_array(o.ph, o.pd, o.pa))
+                            order by o.gap desc, o.fixture_id), '[]')
+    into v_market
+    from (select * from o where rn = 1 and gap >= 0.05 order by gap desc, fixture_id limit 5) o
+    left join public.fixtures f on f.fixture_id = o.fixture_id;
+
+  return jsonb_build_object(
+    'season_id', p_season, 'gw', p_gw, 'deadline', v_deadline, 'generated_at', now(),
+    'sections', private.email_sections(p_season, p_gw, null, null),
+    'preview', v_prev,
+    'market', v_market);
+end;
+$$;
+
+
+ALTER FUNCTION public.email_weekly_content(p_season bigint, p_gw integer) OWNER TO postgres;
+
+--
+-- Name: email_weekly_issue(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_weekly_issue() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select coalesce((
+    select jsonb_build_object('season_id', g.season_id, 'gw', g.fpl_event_id, 'deadline', g.deadline_time,
+                              'due_at', private.email_weekly_due_at(g.deadline_time),
+                              'due', now() >= private.email_weekly_due_at(g.deadline_time) and now() < g.deadline_time - interval '2 hours',
+                              'issue_key', format('fpl-weekly:%s:%s', g.season_id, g.fpl_event_id),
+                              'sent', (select to_jsonb(x) from (select send_id, status, sent, failed, started_at from private.email_sends
+                                                                  where issue_key = format('fpl-weekly:%s:%s', g.season_id, g.fpl_event_id)) x))
+      from public.fpl_gameweeks g
+     where g.season_id = public.fpl_current_season_id() and g.deadline_time > now()
+     order by g.deadline_time limit 1), '{}'::jsonb);
+$$;
+
+
+ALTER FUNCTION public.email_weekly_issue() OWNER TO postgres;
+
+--
 -- Name: export_schema_definitions(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -3057,6 +3544,60 @@ $$;
 
 
 ALTER FUNCTION public.fpl_current_season_id() OWNER TO postgres;
+
+--
+-- Name: fpl_defcon_probability(integer, double precision, double precision, double precision, double precision, double precision, double precision, double precision); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fpl_defcon_probability(p_element_type integer, p_rate90 double precision, p_mult double precision, p_start double precision, p_sub double precision, p_off_before_60 double precision, p_off_60_84 double precision, p_full double precision) RETURNS double precision
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  t integer;
+  phi double precision;
+  m90 double precision;
+  early double precision := 0;
+  mid double precision := 0;
+  sub double precision := 0;
+  full_ double precision;
+  eb double precision;
+  m integer;
+begin
+  if p_element_type is null or p_element_type not in (2, 3, 4) or p_rate90 is null then
+    return 0;
+  end if;
+  t := case when p_element_type = 2 then 10 else 12 end;
+  phi := case p_element_type when 2 then 13.212545 when 3 then 16.467383 else 9.326230 end;
+  m90 := p_rate90 * coalesce(p_mult, 1) / 90;
+  foreach m in array array[32, 45, 45, 56, 59] loop early := early + public.fpl_nb_upper_tail(t, m90 * m, phi) / 5; end loop;
+  foreach m in array array[62, 68, 73, 78, 82] loop mid := mid + public.fpl_nb_upper_tail(t, m90 * m, phi) / 5; end loop;
+  foreach m in array array[2, 9, 16, 24, 37] loop sub := sub + public.fpl_nb_upper_tail(t, m90 * m, phi) / 5; end loop;
+  full_ := public.fpl_nb_upper_tail(t, m90 * 90, phi);
+  eb := coalesce(p_off_before_60, 0) + coalesce(p_off_60_84, 0) + coalesce(p_full, 0);
+  if eb <= 0 then
+    return coalesce(p_start, 0) * full_ + coalesce(p_sub, 0) * sub;
+  end if;
+  return coalesce(p_start, 0) * (coalesce(p_off_before_60, 0) * early + coalesce(p_off_60_84, 0) * mid + coalesce(p_full, 0) * full_) / eb
+       + coalesce(p_sub, 0) * sub;
+end $$;
+
+
+ALTER FUNCTION public.fpl_defcon_probability(p_element_type integer, p_rate90 double precision, p_mult double precision, p_start double precision, p_sub double precision, p_off_before_60 double precision, p_off_60_84 double precision, p_full double precision) OWNER TO postgres;
+
+--
+-- Name: fpl_defcon_rate90(integer, numeric, numeric); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fpl_defcon_rate90(p_element_type integer, p_minutes numeric, p_count numeric) RETURNS numeric
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+  select (coalesce(p_count, 0) + 3 * mu) / (coalesce(p_minutes, 0) / 90 + 3)
+    from (select case p_element_type when 2 then 7.762450 when 3 then 8.609387 when 4 then 4.615626 end as mu) x
+$$;
+
+
+ALTER FUNCTION public.fpl_defcon_rate90(p_element_type integer, p_minutes numeric, p_count numeric) OWNER TO postgres;
 
 --
 -- Name: fpl_entry_fetch(bigint); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3294,6 +3835,37 @@ $$;
 
 
 ALTER FUNCTION public.fpl_live_entry(p_entry_id bigint, p_event_id integer) OWNER TO postgres;
+
+--
+-- Name: fpl_nb_upper_tail(integer, double precision, double precision); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fpl_nb_upper_tail(p_threshold integer, p_mean double precision, p_size double precision) RETURNS double precision
+    LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  p double precision;
+  q double precision;
+  pmf double precision;
+  cdf double precision;
+  k integer;
+begin
+  if p_threshold <= 0 then return 1; end if;
+  if p_mean <= 0 then return 0; end if;
+  p := p_size / (p_size + p_mean);
+  q := 1 - p;
+  pmf := exp(p_size * ln(p));
+  cdf := pmf;
+  for k in 0..p_threshold - 2 loop
+    pmf := pmf * (k + p_size) / (k + 1) * q;
+    cdf := cdf + pmf;
+  end loop;
+  return greatest(0, least(1, 1 - cdf));
+end $$;
+
+
+ALTER FUNCTION public.fpl_nb_upper_tail(p_threshold integer, p_mean double precision, p_size double precision) OWNER TO postgres;
 
 --
 -- Name: fpl_optimizer_rate_ok(text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -3548,6 +4120,68 @@ end $$;
 
 
 ALTER FUNCTION public.fpl_set_first_choice(p_fpl_player_id bigint, p_start_if_fit numeric, p_from date, p_to date, p_note text) OWNER TO postgres;
+
+--
+-- Name: fpl_transfer_record_check(bigint, bigint, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fpl_transfer_record_check(p_transfers_in bigint, p_season_id bigint DEFAULT public.fpl_current_season_id(), p_gameweek integer DEFAULT NULL::integer) RETURNS jsonb
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_start integer; v_since text; v_hist jsonb; v_season jsonb; v_hist_tin bigint; v_season_tin bigint;
+begin
+  select start_year into v_start from public.seasons where season_id = p_season_id;
+
+  -- One row per fixture in the history table: max per player-gameweek, never sum.
+  select jsonb_build_object('web_name', coalesce(t.web_name, 'code ' || g.fpl_code), 'fpl_code', g.fpl_code,
+                            'season', se.start_year || '/' || lpad((se.end_year % 100)::text, 2, '0'),
+                            'season_id', g.season_id, 'gameweek', g.gameweek, 'transfers_in', g.tin),
+         g.tin
+    into v_hist, v_hist_tin
+    from (select season_id, fpl_code, gameweek, max(transfers_in) tin
+            from public.fpl_player_gameweek_history where transfers_in is not null group by 1, 2, 3) g
+    join public.seasons se on se.season_id = g.season_id
+    left join lateral (select web_name from public.fpl_player_season_totals t
+                        where t.season_id = g.season_id and t.fpl_code = g.fpl_code limit 1) t on true
+   where v_start is null or se.start_year < v_start
+   order by g.tin desc, g.season_id, g.gameweek
+   limit 1;
+
+  select min(se.start_year) || '/' || lpad((min(se.end_year) % 100)::text, 2, '0') into v_since
+    from public.seasons se
+   where exists (select 1 from public.fpl_player_gameweek_history h where h.season_id = se.season_id)
+     and (v_start is null or se.start_year < v_start);
+
+  -- This season so far, from our deadline snapshots (any kind; earlier
+  -- gameweeks only). Snapshots before the deadline understate the final figure.
+  select jsonb_build_object('web_name', pl.web_name, 'fpl_player_id', x.fpl_player_id, 'gameweek', x.fpl_event_id,
+                            'transfers_in', x.tin, 'source', 'deadline snapshots'),
+         x.tin
+    into v_season, v_season_tin
+    from (select fpl_event_id, fpl_player_id, max(transfers_in_event) tin
+            from public.fpl_deadline_player_state
+           where season_id = p_season_id and (p_gameweek is null or fpl_event_id < p_gameweek)
+             and transfers_in_event is not null
+           group by 1, 2) x
+    left join public.fpl_players pl on pl.season_id = p_season_id and pl.fpl_player_id = x.fpl_player_id
+   order by x.tin desc, x.fpl_event_id
+   limit 1;
+
+  return jsonb_build_object(
+    'transfers_in', p_transfers_in,
+    'since', v_since,
+    'history', v_hist,
+    'beats_history', v_hist_tin is not null and p_transfers_in > v_hist_tin,
+    'share_of_history', case when v_hist_tin > 0 then round(p_transfers_in::numeric / v_hist_tin, 3) end,
+    'season_high', v_season,
+    'beats_season_high', v_season_tin is null or p_transfers_in > v_season_tin);
+end;
+$$;
+
+
+ALTER FUNCTION public.fpl_transfer_record_check(p_transfers_in bigint, p_season_id bigint, p_gameweek integer) OWNER TO postgres;
 
 --
 -- Name: generate_fixture_slug(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -4165,6 +4799,98 @@ $$;
 ALTER FUNCTION public.get_data_integrity_report() OWNER TO postgres;
 
 --
+-- Name: get_day_page(date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.get_day_page(p_day date) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  with g as (
+    select f.fixture_id, f.slug, f.league_id, l.name league, f.kickoff_time, f.status,
+           f.home_team_id, f.away_team_id,
+           coalesce(th.display_name, th.canonical_name) home, coalesce(ta.display_name, ta.canonical_name) away,
+           case when f.predicted_home_goals is not null and f.predicted_away_goals is not null
+                 and exists (select 1 from public.model_fit_runs r where r.fit_run_id = f.prediction_fit_run_id and r.status = 'accepted')
+                 and f.predicted_at < (f.kickoff_date + coalesce(f.kickoff_time, time '12:00')) at time zone 'Europe/London'
+                then private.social_result_probs(f.predicted_home_goals::numeric, f.predicted_away_goals::numeric) end model,
+           exists (select 1 from public.team_ratings tr where tr.fit_run_id = f.prediction_fit_run_id
+                     and tr.team_id in (f.home_team_id, f.away_team_id) and tr.is_estimated) estimated,
+           (select jsonb_build_object('home', round(k.market_home, 4), 'draw', round(k.market_draw, 4), 'away', round(k.market_away, 4))
+              from public.fixture_market_latest k where k.fixture_id = f.fixture_id) market,
+           (select jsonb_agg(distinct coalesce(b.broadcaster, b.channel, b.streaming_service))
+              from public.fixture_broadcasts b
+             where b.fixture_id = f.fixture_id and b.market = 'GB' and b.status = 'confirmed_broadcast'
+               and coalesce(b.broadcaster, b.channel, b.streaming_service) is not null) tv,
+           exists (select 1 from public.fixture_broadcasts b where b.fixture_id = f.fixture_id and b.market = 'GB'
+                     and b.status = 'confirmed_not_televised') not_tv,
+           coalesce(m.full_time_home_goals, f.reported_home_goals) hg, coalesce(m.full_time_away_goals, f.reported_away_goals) ag,
+           m.full_time_home_goals is not null confirmed
+      from public.fixtures f
+      join public.leagues l on l.league_id = f.league_id
+      join public.teams th on th.team_id = f.home_team_id
+      join public.teams ta on ta.team_id = f.away_team_id
+      left join public.matches m on m.league_id = f.league_id and m.season_id = f.season_id
+                                and m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id
+     where f.kickoff_date = p_day),
+  slots as (
+    select distinct ff.kickoff_time slot
+      from public.fpl_fixtures ff
+     where ff.season_id = public.fpl_current_season_id()
+       and (ff.kickoff_time at time zone 'Europe/London')::date = p_day)
+  select jsonb_build_object(
+    'day', p_day,
+    'games', (select coalesce(jsonb_agg(jsonb_build_object(
+                 'fixture_id', g.fixture_id, 'slug', g.slug, 'league_id', g.league_id, 'league', g.league,
+                 'time', to_char(g.kickoff_time, 'HH24:MI'), 'status', g.status,
+                 'home_id', g.home_team_id, 'away_id', g.away_team_id, 'home', g.home, 'away', g.away,
+                 'model', g.model, 'estimated', g.estimated, 'market', g.market,
+                 'tv', g.tv, 'not_tv', g.not_tv, 'hg', g.hg, 'ag', g.ag, 'confirmed', g.confirmed)
+               order by g.kickoff_time nulls last, g.league_id, g.home), '[]'::jsonb) from g),
+    'ahead', (select coalesce(jsonb_agg(jsonb_build_object('date', a.kickoff_date, 'league_id', a.league_id, 'league', a.league, 'games', a.n)
+                order by a.kickoff_date, a.league_id), '[]'::jsonb)
+                from (select f.kickoff_date, f.league_id, l.name league, count(*) n
+                        from public.fixtures f join public.leagues l on l.league_id = f.league_id
+                       where f.kickoff_date between p_day + 1 and p_day + 7 and f.status <> 'postponed'
+                       group by 1, 2, 3) a),
+    'team_news', (select coalesce(jsonb_agg(jsonb_build_object('slot', s.slot,
+                    'facts', private.social_team_news_facts(public.fpl_current_season_id(), s.slot, false)) order by s.slot), '[]'::jsonb)
+                    from slots s)
+  );
+$$;
+
+
+ALTER FUNCTION public.get_day_page(p_day date) OWNER TO postgres;
+
+--
+-- Name: get_deadline_ownership(bigint); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.get_deadline_ownership(p_season_id bigint DEFAULT public.fpl_current_season_id()) RETURNS TABLE(fpl_player_id integer, fpl_event_id integer, deadline_time timestamp with time zone, snapshot_at timestamp with time zone, snapshot_kind text, selected_by_percent numeric)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  with last_deadline as (
+    select s.fpl_event_id
+      from public.fpl_deadline_player_state s
+     where s.season_id = p_season_id
+       and s.snapshot_kind in ('final_call', 'pre_deadline')
+       and s.deadline_time <= now()
+     order by s.deadline_time desc
+     limit 1)
+  select distinct on (s.fpl_player_id)
+         s.fpl_player_id, s.fpl_event_id, s.deadline_time, s.snapshot_at, s.snapshot_kind, s.selected_by_percent
+    from public.fpl_deadline_player_state s
+    join last_deadline l on l.fpl_event_id = s.fpl_event_id
+   where s.season_id = p_season_id
+     and s.snapshot_kind in ('final_call', 'pre_deadline')
+   order by s.fpl_player_id, (s.snapshot_kind = 'final_call') desc, s.snapshot_at desc;
+$$;
+
+
+ALTER FUNCTION public.get_deadline_ownership(p_season_id bigint) OWNER TO postgres;
+
+--
 -- Name: get_digest_gameweeks(bigint); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -4186,6 +4912,46 @@ $$;
 
 
 ALTER FUNCTION public.get_digest_gameweeks(p_season_id bigint) OWNER TO postgres;
+
+--
+-- Name: get_email_admin(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.get_email_admin() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_today date := (now() at time zone 'UTC')::date; st private.email_settings;
+begin
+  if not public.is_admin() then raise exception 'admin only' using errcode = '42501'; end if;
+  select * into st from private.email_settings where id;
+  return jsonb_build_object(
+    'counts', (select jsonb_build_object(
+                 'pending', count(*) filter (where status = 'pending'),
+                 'confirmed', count(*) filter (where status = 'confirmed'),
+                 'unsubscribed', count(*) filter (where status = 'unsubscribed'),
+                 'football', count(*) filter (where status = 'confirmed' and 'football_market' = any (topics)),
+                 'confirmed_7d', count(*) filter (where status = 'confirmed' and confirmed_at > now() - interval '7 days'),
+                 'unsubscribed_7d', count(*) filter (where unsubscribed_at > now() - interval '7 days'))
+               from private.email_subscribers),
+    'signups_24h', (select jsonb_object_agg(outcome, n) from (select outcome, count(*) n from private.email_signup_attempts
+                     where created_at > now() - interval '24 hours' group by outcome) x),
+    'quota', jsonb_build_object('today', coalesce((select sent from private.email_outbound_days where day = v_today), 0),
+                                'month', (select coalesce(sum(sent), 0) from private.email_outbound_days where day >= date_trunc('month', v_today)::date),
+                                'daily_limit', st.daily_limit, 'monthly_limit', st.monthly_limit, 'sending_enabled', st.sending_enabled),
+    'next', public.email_weekly_issue(),
+    'admin_address_set', private.email_admin_address() is not null,
+    'sends', (select coalesce(jsonb_agg(to_jsonb(s) order by s.started_at desc), '[]') from (
+               select send_id, kind, fpl_event_id, subject, status, attempts, recipients, football, sent, failed, note, started_at, finished_at
+                 from private.email_sends order by started_at desc limit 12) s),
+    'failures', (select coalesce(jsonb_agg(to_jsonb(f) order by f.created_at desc), '[]') from (
+                  select failure_id, send_id, kind, http_status, error, recipients, created_at
+                    from private.email_failures order by created_at desc limit 12) f));
+end;
+$$;
+
+
+ALTER FUNCTION public.get_email_admin() OWNER TO postgres;
 
 --
 -- Name: get_fpl_default_matchweek(bigint, bigint); Type: FUNCTION; Schema: public; Owner: postgres
@@ -6166,6 +6932,108 @@ end $$;
 
 
 ALTER FUNCTION public.get_team_of_the_week(p_event_id integer, p_season_id bigint) OWNER TO postgres;
+
+--
+-- Name: get_team_sheet_accuracy(bigint); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.get_team_sheet_accuracy(p_season_id bigint DEFAULT NULL::bigint) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_season bigint := coalesce(p_season_id, public.fpl_current_season_id());
+  v_out jsonb;
+begin
+  perform public._require_admin();
+
+  select jsonb_build_object(
+    'season_id', v_season,
+    'computed_at', (select max(r.computed_at) from public.fpl_team_sheet_results r where r.season_id = v_season),
+    'games', coalesce(jsonb_agg(jsonb_build_object(
+        'gw', r.fpl_event_id, 'fixture_id', r.fpl_fixture_id, 'team_id', r.fpl_team_id,
+        'team', t.name, 'team_short', t.short_name, 'opponent', o.name, 'opponent_short', o.short_name,
+        'home', r.is_home, 'kickoff', r.kickoff_time, 'starters', r.starters, 'final', r.final,
+        'model_source', r.model_source, 'model_version', r.model_version, 'model_at', r.model_at,
+        'model_matched', r.model_matched, 'baseline_matched', r.baseline_matched,
+        -- the starter we gave the lowest chance
+        'surprise', (select jsonb_build_object('name', a->>'name', 'sp', (a->>'sp')::numeric)
+                       from jsonb_array_elements(r.actual) a
+                      where (a->>'predicted')::boolean is false
+                      order by (a->>'sp')::numeric, a->>'name' limit 1),
+        -- the predicted starter who didn't start, most owned first
+        'left_out', (select jsonb_build_object('name', p->>'name', 'sp', (p->>'sp')::numeric, 'own', (p->>'own')::numeric)
+                       from jsonb_array_elements(r.predicted) p
+                      where (p->>'started')::boolean is false
+                      order by (p->>'own')::numeric desc nulls last, (p->>'sp')::numeric desc limit 1),
+        'new_in', (select coalesce(jsonb_agg(a->>'name' order by a->>'name'), '[]'::jsonb)
+                     from jsonb_array_elements(r.actual) a where (a->>'in_baseline')::boolean is false)
+      ) order by r.fpl_event_id, r.kickoff_time, r.fpl_fixture_id, r.is_home desc), '[]'::jsonb)
+  ) into v_out
+  from public.fpl_team_sheet_results r
+  left join public.fpl_teams t on t.season_id = r.season_id and t.fpl_team_id = r.fpl_team_id
+  left join public.fpl_teams o on o.season_id = r.season_id and o.fpl_team_id = r.opponent_fpl_team_id
+  where r.season_id = v_season;
+
+  return v_out;
+end;
+$$;
+
+
+ALTER FUNCTION public.get_team_sheet_accuracy(p_season_id bigint) OWNER TO postgres;
+
+--
+-- Name: get_team_sheet_detail(bigint, integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.get_team_sheet_detail(p_season_id bigint, p_fpl_fixture_id integer, p_fpl_team_id integer) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_out jsonb;
+begin
+  perform public._require_admin();
+
+  select jsonb_build_object(
+    'fixture_id', r.fpl_fixture_id, 'team_id', r.fpl_team_id, 'gw', r.fpl_event_id,
+    'model_source', r.model_source, 'model_version', r.model_version, 'model_at', r.model_at,
+    'baseline_fixture_id', r.baseline_fpl_fixture_id,
+    'baseline_opponent', (select o.short_name from public.fpl_fixtures bf
+                            join public.fpl_teams o on o.season_id = bf.season_id
+                             and o.fpl_team_id = case when bf.fpl_home_team_id = r.fpl_team_id then bf.fpl_away_team_id else bf.fpl_home_team_id end
+                           where bf.season_id = r.season_id and bf.fpl_fixture_id = r.baseline_fpl_fixture_id),
+    'predicted', r.predicted, 'actual', r.actual, 'baseline', r.baseline,
+    'formation', (select tm.formation from public.team_match_tactics tm
+                   where tm.fixture_id = r.canonical_fixture_id and tm.team_id = r.canonical_team_id
+                     and tm.source_name = 'bbc_screenshot'
+                   order by tm.observed_at desc nulls last limit 1),
+    'roles', (select coalesce(jsonb_object_agg(lp.fpl_player_id::text, lp.tactical_role), '{}'::jsonb)
+                from public.fixture_lineup_positions lp
+               where lp.fixture_id = r.canonical_fixture_id and lp.team_id = r.canonical_team_id
+                 and lp.source_name = 'bbc_screenshot' and lp.fpl_player_id is not null),
+    'subs', (select coalesce(jsonb_agg(jsonb_build_object(
+                'minute', s.minute, 'off_id', s.player_off_fpl_id, 'on_id', s.player_on_fpl_id,
+                'off', coalesce(poff.web_name, s.name_off), 'on', coalesce(pon.web_name, s.name_on))
+               order by s.minute nulls last, s.name_on), '[]'::jsonb)
+               from public.fixture_lineup_substitutions s
+               left join public.fpl_players poff on poff.season_id = r.season_id and poff.fpl_player_id = s.player_off_fpl_id
+               left join public.fpl_players pon on pon.season_id = r.season_id and pon.fpl_player_id = s.player_on_fpl_id
+              where s.fixture_id = r.canonical_fixture_id and s.team_id = r.canonical_team_id
+                and s.source_name = 'bbc_screenshot'),
+    'subs_complete', (select bool_or(c.complete) from public.fixture_lineup_sub_coverage c
+                       where c.fixture_id = r.canonical_fixture_id and c.team_id = r.canonical_team_id
+                         and c.source_name = 'bbc_screenshot')
+  ) into v_out
+  from public.fpl_team_sheet_results r
+  where r.season_id = p_season_id and r.fpl_fixture_id = p_fpl_fixture_id and r.fpl_team_id = p_fpl_team_id;
+
+  return v_out;
+end;
+$$;
+
+
+ALTER FUNCTION public.get_team_sheet_detail(p_season_id bigint, p_fpl_fixture_id integer, p_fpl_team_id integer) OWNER TO postgres;
 
 --
 -- Name: get_top_actual_fpl_scorer(bigint); Type: FUNCTION; Schema: public; Owner: postgres
@@ -8269,6 +9137,104 @@ end $$;
 ALTER FUNCTION public.log_tactical_defaults_change() OWNER TO postgres;
 
 --
+-- Name: market_goal_lambdas(double precision, double precision, double precision, double precision); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.market_goal_lambdas(p_home double precision, p_draw double precision, p_away double precision, p_over double precision, OUT lambda_home double precision, OUT lambda_away double precision) RETURNS record
+    LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  tot double precision := p_home + p_draw + p_away;
+  ph double precision := p_home / tot;
+  pa double precision := p_away / tot;
+  z1 double precision := ln(1.4);
+  z2 double precision := ln(1.2);
+  h constant double precision := 1e-6;
+  r double precision[];
+  r1 double precision[];
+  r2 double precision[];
+  j1 double precision[];
+  j2 double precision[];
+  a11 double precision; a12 double precision; a22 double precision;
+  g1 double precision; g2 double precision; det double precision;
+  d1 double precision; d2 double precision;
+  it integer;
+  k integer;
+begin
+  for it in 1..60 loop
+    r := public.market_goal_residuals(z1, z2, ph, pa, p_over);
+    r1 := public.market_goal_residuals(z1 + h, z2, ph, pa, p_over);
+    r2 := public.market_goal_residuals(z1, z2 + h, ph, pa, p_over);
+    j1 := array[(r1[1] - r[1]) / h, (r1[2] - r[2]) / h, (r1[3] - r[3]) / h];
+    j2 := array[(r2[1] - r[1]) / h, (r2[2] - r[2]) / h, (r2[3] - r[3]) / h];
+    a11 := 0; a12 := 0; a22 := 0; g1 := 0; g2 := 0;
+    for k in 1..3 loop
+      a11 := a11 + j1[k] * j1[k];
+      a12 := a12 + j1[k] * j2[k];
+      a22 := a22 + j2[k] * j2[k];
+      g1 := g1 + j1[k] * r[k];
+      g2 := g2 + j2[k] * r[k];
+    end loop;
+    a11 := a11 * (1 + 1e-9); a22 := a22 * (1 + 1e-9);
+    det := a11 * a22 - a12 * a12;
+    exit when det = 0;
+    d1 := -(a22 * g1 - a12 * g2) / det;
+    d2 := -(a11 * g2 - a12 * g1) / det;
+    -- keep steps sane far from the solution
+    d1 := greatest(-1, least(1, d1));
+    d2 := greatest(-1, least(1, d2));
+    z1 := z1 + d1;
+    z2 := z2 + d2;
+    exit when abs(d1) < 1e-12 and abs(d2) < 1e-12;
+  end loop;
+  lambda_home := exp(z1);
+  lambda_away := exp(z2);
+end $$;
+
+
+ALTER FUNCTION public.market_goal_lambdas(p_home double precision, p_draw double precision, p_away double precision, p_over double precision, OUT lambda_home double precision, OUT lambda_away double precision) OWNER TO postgres;
+
+--
+-- Name: market_goal_residuals(double precision, double precision, double precision, double precision, double precision); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.market_goal_residuals(z_home double precision, z_away double precision, p_home double precision, p_away double precision, p_over double precision) RETURNS double precision[]
+    LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  lh double precision := exp(z_home);
+  la double precision := exp(z_away);
+  a double precision[] := array_fill(0::double precision, array[11]);
+  b double precision[] := array_fill(0::double precision, array[11]);
+  hw double precision := 0;
+  aw double precision := 0;
+  un double precision := 0;
+  i integer;
+  j integer;
+begin
+  a[1] := exp(-lh);
+  b[1] := exp(-la);
+  for i in 1..10 loop
+    a[i + 1] := a[i] * lh / i;
+    b[i + 1] := b[i] * la / i;
+  end loop;
+  for i in 0..10 loop
+    for j in 0..10 loop
+      if i > j then hw := hw + a[i + 1] * b[j + 1];
+      elsif j > i then aw := aw + a[i + 1] * b[j + 1];
+      end if;
+      if i + j <= 2 then un := un + a[i + 1] * b[j + 1]; end if;
+    end loop;
+  end loop;
+  return array[hw - p_home, aw - p_away, 1 - un - p_over];
+end $$;
+
+
+ALTER FUNCTION public.market_goal_residuals(z_home double precision, z_away double precision, p_home double precision, p_away double precision, p_over double precision) OWNER TO postgres;
+
+--
 -- Name: match_broadcast_fixture(text, text, text, date, time without time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -8903,6 +9869,120 @@ $$;
 ALTER FUNCTION public.record_team_slug_change() OWNER TO postgres;
 
 --
+-- Name: refresh_cup_decisions(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.refresh_cup_decisions() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_catalog'
+    AS $_$
+declare
+  v_season bigint := public.current_season_id();
+  v_run bigint; v_comp record; v_slug text; v_status int; v_body text; v_base text;
+  v_pages int := 0; v_seen int := 0; v_joined int := 0; v_set int := 0; v_pens int := 0;
+begin
+  insert into public.fixture_refresh_runs (competitions) values (array['LC', 'FAC']) returning refresh_run_id into v_run;
+  begin
+    if v_season is null then raise exception 'current season missing'; end if;
+    drop table if exists _cup_tr;
+    create temp table _cup_tr (league_id bigint, comp text, slug text, tr text) on commit drop;
+
+    for v_comp in select * from (values (6::bigint, 'efl-cup'), (7::bigint, 'fa-cup')) c(league_id, comp) loop
+      v_base := 'https://www.footballwebpages.co.uk/fixtures-results/' || v_comp.comp;
+      select status, content into v_status, v_body from extensions.http_get(v_base || '/third-round');
+      if v_status <> 200 then raise exception '% returned HTTP %', v_base, v_status; end if;
+      -- Round pages from the round dropdown (season options are digits, e.g. 2025-2026).
+      for v_slug in select distinct m[1] from regexp_matches(v_body, '<option value="([a-z][a-z-]*)"', 'g') m
+                     where m[1] ~ '(round|final)' loop
+        select status, content into v_status, v_body from extensions.http_get(v_base || '/' || v_slug);
+        if v_status <> 200 then raise exception '%/% returned HTTP %', v_base, v_slug, v_status; end if;
+        v_pages := v_pages + 1;
+        insert into _cup_tr select v_comp.league_id, v_comp.comp, v_slug, t from regexp_split_to_table(v_body, '<tr') t
+         where t ~ 'id="match-\d+-(score|extra-info)-row"';
+      end loop;
+    end loop;
+
+    drop table if exists _cup;
+    create temp table _cup on commit drop as
+    with score as (
+      select league_id, comp, slug, substring(tr from 'id="match-(\d+)-score-row"') fwp_id,
+        to_date(substring(tr from 'export-only">(\d{1,2}/\d{1,2}/\d{4})</td>'), 'DD/MM/YYYY') ko_date,
+        trim(substring(tr from '<td class="status"[^>]*>([^<]*)</td>')) status,
+        replace(replace(substring(tr from 'home-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') home_raw,
+        replace(replace(substring(tr from 'away-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') away_raw,
+        substring(tr from '<td class="score home-score">(\d+)</td>')::int hg,
+        substring(tr from '<td class="score away-score">(\d+)</td>')::int ag
+      from _cup_tr where tr ~ 'id="match-\d+-score-row"'),
+    info as (
+      select distinct on (fwp_id) fwp_id, txt from (
+        select substring(tr from 'id="match-(\d+)-extra-info-row"') fwp_id,
+          replace(replace(trim(regexp_replace(substring(tr from '<td colspan="4">(.*?)</td>'), '<[^>]+>', '', 'g')), '&amp;', '&'), '&#39;', '''') txt
+        from _cup_tr where tr ~ 'id="match-\d+-extra-info-row"') i),
+    parsed as (
+      select distinct on (s.fwp_id) s.*, i.txt, regexp_match(i.txt, '^(.+) win (\d+)-(\d+) on penalties$') pen
+      from score s left join info i using (fwp_id)
+      where s.hg is not null and s.ag is not null and s.ko_date is not null)
+    select p.*, coalesce(ha.team_id, ht.team_id) home_id, coalesce(aa.team_id, at.team_id) away_id
+      from parsed p
+      left join public.team_aliases ha on ha.source_name = 'FootballWebPages' and ha.raw_name = p.home_raw
+      left join public.teams ht on ht.canonical_name = p.home_raw
+      left join public.team_aliases aa on aa.source_name = 'FootballWebPages' and aa.raw_name = p.away_raw
+      left join public.teams at on at.canonical_name = p.away_raw;
+
+    select count(*) into v_seen from _cup;
+    if v_pages > 0 and v_seen = 0 then raise exception 'no played cup rows parsed; page layout may have changed'; end if;
+
+    drop table if exists _cup_set;
+    create temp table _cup_set on commit drop as
+    select distinct on (m.match_id) m.match_id,
+      case when c.pen is not null then 'penalties'
+           when c.comp = 'efl-cup' and c.slug ~ 'semi' then null
+           when c.hg = c.ag then null
+           when c.status ~* 'aet' then 'extra_time'
+           else 'normal_time' end decided_by,
+      case when c.pen is not null then (case when c.pen[1] = c.home_raw then m.home_team_id when c.pen[1] = c.away_raw then m.away_team_id end)
+           when c.comp = 'efl-cup' and c.slug ~ 'semi' then null
+           when c.hg > c.ag then m.home_team_id when c.ag > c.hg then m.away_team_id end winner_team_id,
+      case when c.pen is null then null when c.pen[1] = c.home_raw then c.pen[2]::int when c.pen[1] = c.away_raw then c.pen[3]::int end home_pens,
+      case when c.pen is null then null when c.pen[1] = c.home_raw then c.pen[3]::int when c.pen[1] = c.away_raw then c.pen[2]::int end away_pens
+    from _cup c
+    join public.matches m on m.league_id = c.league_id and m.season_id = v_season
+     and m.home_team_id = c.home_id and m.away_team_id = c.away_id
+     and abs(m.match_date - c.ko_date) <= 3
+     and m.full_time_home_goals = c.hg and m.full_time_away_goals = c.ag;
+    select count(*) into v_joined from _cup_set;
+
+    -- A shoot-out line naming neither side would leave the winner unknown: skip it.
+    delete from _cup_set where decided_by = 'penalties' and winner_team_id is null;
+    select count(*) into v_pens from _cup_set where decided_by = 'penalties';
+
+    update public.matches m set
+      decided_by = s.decided_by, winner_team_id = s.winner_team_id,
+      home_penalty_goals = s.home_pens, away_penalty_goals = s.away_pens, updated_at = now()
+    from _cup_set s
+    where m.match_id = s.match_id
+      and (m.decided_by is distinct from s.decided_by or m.winner_team_id is distinct from s.winner_team_id
+           or m.home_penalty_goals is distinct from s.home_pens or m.away_penalty_goals is distinct from s.away_pens);
+    get diagnostics v_set = row_count;
+
+    update public.fixture_refresh_runs set finished_at = now(), rows_seen = v_seen, rows_updated = v_set, status = 'success'
+     where refresh_run_id = v_run;
+    return jsonb_build_object('status', 'success', 'pages', v_pages, 'rows_seen', v_seen, 'ties_matched', v_joined,
+                              'shootouts', v_pens, 'rows_updated', v_set);
+  exception when others then
+    -- Recorded rather than re-raised: a re-raise would roll back this record.
+    update public.fixture_refresh_runs set finished_at = now(), status = 'failed', error_message = sqlerrm
+     where refresh_run_id = v_run;
+    raise warning 'cup decisions refresh failed: %', sqlerrm;
+    return jsonb_build_object('status', 'failed', 'error', sqlerrm);
+  end;
+end;
+$_$;
+
+
+ALTER FUNCTION public.refresh_cup_decisions() OWNER TO postgres;
+
+--
 -- Name: refresh_derived_markets_memo(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -8925,6 +10005,194 @@ $$;
 
 
 ALTER FUNCTION public.refresh_derived_markets_memo() OWNER TO postgres;
+
+--
+-- Name: refresh_efl_fixtures(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.refresh_efl_fixtures() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions', 'pg_catalog'
+    AS $_$
+declare
+  v_season bigint := public.current_season_id();
+  v_start int;
+  v_today date := (now() at time zone 'Europe/London')::date;
+  v_local timestamp := now() at time zone 'Europe/London';
+  v_run bigint; v_div record; v_base text; v_url text; v_status int; v_body text; v_months text[];
+  v_seen int := 0; v_changed int := 0; v_absent_set int := 0; v_unmatched int := 0; v_dup_pairs int := 0; v_n int;
+  v_unmapped text[]; v_absent_skipped text[]; v_problem text;
+begin
+  insert into public.fixture_refresh_runs (competitions) values (array['E1', 'E2', 'E3']) returning refresh_run_id into v_run;
+  begin
+    if v_season is null then raise exception 'current season missing'; end if;
+    select start_year into v_start from public.seasons where season_id = v_season;
+
+    drop table if exists _eflf_src;
+    create temp table _eflf_src (league_id bigint, code text, url text, tr text) on commit drop;
+
+    -- Whole season per division: the base page is the current month, its dropdown names the others.
+    for v_div in select l.league_id, d.code, d.slug
+                   from (values ('E1', 'championship'), ('E2', 'league-one'), ('E3', 'league-two')) d(code, slug)
+                   join public.leagues l on l.code = d.code loop
+      v_base := 'https://www.footballwebpages.co.uk/fixtures-results/' || v_div.slug;
+      select status, content into v_status, v_body from extensions.http_get(v_base);
+      if v_status <> 200 then raise exception '% returned HTTP %', v_base, v_status; end if;
+      insert into _eflf_src select v_div.league_id, v_div.code, v_base, t
+        from regexp_split_to_table(v_body, '<tr') t where t ~ 'home-team"[^>]*data-export';
+      select array_agg(distinct m[1]) into v_months
+        from regexp_matches(v_body, '<option value="(january|february|march|april|may|june|july|august|september|october|november|december)"', 'g') m;
+      if coalesce(array_length(v_months, 1), 0) < 6 then
+        raise exception '% lists % month(s); page layout may have changed', v_base, coalesce(array_length(v_months, 1), 0);
+      end if;
+      foreach v_url in array v_months loop
+        perform pg_sleep(1);  -- one request a second (about 33 a run)
+        v_url := v_base || '/' || v_url;
+        select status, content into v_status, v_body from extensions.http_get(v_url);
+        if v_status <> 200 then raise exception '% returned HTTP %', v_url, v_status; end if;
+        insert into _eflf_src select v_div.league_id, v_div.code, v_url, t
+          from regexp_split_to_table(v_body, '<tr') t where t ~ 'home-team"[^>]*data-export';
+      end loop;
+      perform pg_sleep(1);
+    end loop;
+
+    drop table if exists _eflf;
+    create temp table _eflf on commit drop as
+    with parsed as (
+      select distinct on (src_id) * from (
+        select league_id, code, url,
+          substring(tr from 'data-href="[^"]*/(\d+)"')::bigint src_id,
+          to_date(substring(tr from 'export-only">(\d{1,2}/\d{1,2}/\d{4})</td>'), 'DD/MM/YYYY') ko_date,
+          lower(trim(substring(tr from '<td class="status"[^>]*>([^<]*)</td>'))) status_text,
+          substring(tr from 'title="[^"]*"') ~* ' - (postponed|abandoned)"' postponed,
+          substring(tr from 'title="[^"]*"') ~* ' - abandoned"' abandoned,
+          replace(replace(substring(tr from 'home-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') home_raw,
+          replace(replace(substring(tr from 'away-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') away_raw
+        from _eflf_src) p
+      where src_id is not null and ko_date is not null
+      order by src_id, url
+    )
+    select p.*,
+      coalesce(ha.team_id, ht.team_id) home_id, coalesce(aa.team_id, at.team_id) away_id,
+      case when p.status_text ~ '^\d{1,2}(\.\d{2})?(am|pm)$' then
+        make_time(
+          (substring(p.status_text from '^(\d{1,2})')::int % 12) + case when p.status_text like '%pm' then 12 else 0 end,
+          coalesce(substring(p.status_text from '^\d{1,2}\.(\d{2})')::int, 0), 0)
+      end ko_time
+    from parsed p
+    left join public.team_aliases ha on ha.source_name = 'FootballWebPages' and ha.raw_name = p.home_raw
+    left join public.teams ht on ht.canonical_name = p.home_raw
+    left join public.team_aliases aa on aa.source_name = 'FootballWebPages' and aa.raw_name = p.away_raw
+    left join public.teams at on at.canonical_name = p.away_raw;
+
+    select count(*) into v_seen from _eflf;
+    if v_seen = 0 then raise exception 'no EFL fixtures parsed; page layout may have changed'; end if;
+
+    -- Only the current season's 1 July - 30 June window.
+    delete from _eflf where ko_date < make_date(v_start, 7, 1) or ko_date >= make_date(v_start + 1, 7, 1);
+
+    select array_agg(distinct n order by n) into v_unmapped from (
+      select code || ' ' || home_raw n from _eflf where home_id is null
+      union select code || ' ' || away_raw from _eflf where away_id is null) u;
+    delete from _eflf where home_id is null or away_id is null;
+
+    -- Every pairing the source lists, for the "missing from the season" rule.
+    drop table if exists _eflf_pairs;
+    create temp table _eflf_pairs on commit drop as select distinct league_id, home_id, away_id from _eflf;
+
+    -- A postponed/abandoned row listed beside its rearranged date: keep the new date.
+    delete from _eflf e where e.postponed
+      and exists (select 1 from _eflf x where x.league_id = e.league_id and x.home_id = e.home_id
+                    and x.away_id = e.away_id and not x.postponed);
+    -- Otherwise a pairing listed twice cannot be matched safely: leave it alone and report.
+    select count(*) into v_dup_pairs from (select 1 from _eflf group by league_id, home_id, away_id having count(*) > 1) d;
+    delete from _eflf e where (e.league_id, e.home_id, e.away_id) in
+      (select league_id, home_id, away_id from _eflf group by 1, 2, 3 having count(*) > 1);
+
+    select count(*) into v_unmatched from _eflf e
+     where not exists (select 1 from public.fixtures f where f.league_id = e.league_id and f.season_id = v_season
+                         and f.home_team_id = e.home_id and f.away_team_id = e.away_id);
+
+    -- Target date, time and status for fixtures still waiting to be played.
+    -- A blank source time (TBC, postponed) never wipes a known time.
+    drop table if exists _eflf_t;
+    create temp table _eflf_t on commit drop as
+    select f.fixture_id, f.kickoff_date old_date, f.kickoff_time old_time, f.status old_status,
+           e.ko_date new_date, coalesce(e.ko_time, f.kickoff_time) new_time,
+           case when e.postponed then 'postponed'
+                when e.ko_date + coalesce(e.ko_time, f.kickoff_time, time '15:00') <= v_local then 'played'  -- trigger: awaiting_result until a score
+                else 'scheduled' end new_status
+      from _eflf e
+      join public.fixtures f on f.league_id = e.league_id and f.season_id = v_season
+       and f.home_team_id = e.home_id and f.away_team_id = e.away_id
+     where f.reported_home_goals is null
+       and not private.fixture_has_result(f.league_id, f.season_id, f.home_team_id, f.away_team_id, f.kickoff_date)
+       and (f.kickoff_date <> e.ko_date
+            or f.kickoff_time is distinct from coalesce(e.ko_time, f.kickoff_time)
+            or e.postponed is distinct from (f.status = 'postponed'));
+
+    insert into public.fixture_changes (fixture_id, old_kickoff_date, new_kickoff_date, old_kickoff_time, new_kickoff_time)
+    select fixture_id, old_date, new_date, old_time, new_time from _eflf_t
+     where old_date <> new_date or old_time is distinct from new_time;
+
+    update public.fixtures f set kickoff_date = t.new_date, kickoff_time = t.new_time, status = t.new_status,
+           schedule_source = 'FootballWebPages', updated_at = now()
+      from _eflf_t t where f.fixture_id = t.fixture_id;
+    get diagnostics v_changed = row_count;
+
+    -- Postponed with no new date: footballwebpages drops the game from its list.
+    -- A past-dated fixture with no result or score, missing from the whole season.
+    -- Skipped per division if a club name is unmapped or too many are missing.
+    for v_div in select l.league_id, l.code from public.leagues l where l.code in ('E1', 'E2', 'E3') loop
+      if exists (select 1 from unnest(coalesce(v_unmapped, '{}')) u where u like v_div.code || ' %') then
+        v_absent_skipped := v_absent_skipped || (v_div.code || ' (unmapped club name)');
+        continue;
+      end if;
+      select count(*) into v_n from public.fixtures f
+       where f.league_id = v_div.league_id and f.season_id = v_season
+         and not exists (select 1 from _eflf_pairs p where p.league_id = f.league_id
+                           and p.home_id = f.home_team_id and p.away_id = f.away_team_id);
+      if v_n > 20 then
+        v_absent_skipped := v_absent_skipped || (v_div.code || ' (' || v_n || ' fixtures missing from the source)');
+        continue;
+      end if;
+      update public.fixtures f set status = 'postponed', schedule_source = 'FootballWebPages', updated_at = now()
+       where f.league_id = v_div.league_id and f.season_id = v_season
+         and f.kickoff_date < v_today and f.status <> 'postponed'
+         and f.reported_home_goals is null
+         and not private.fixture_has_result(f.league_id, f.season_id, f.home_team_id, f.away_team_id, f.kickoff_date)
+         and not exists (select 1 from _eflf_pairs p where p.league_id = f.league_id
+                           and p.home_id = f.home_team_id and p.away_id = f.away_team_id);
+      get diagnostics v_n = row_count;
+      v_absent_set := v_absent_set + v_n;
+    end loop;
+
+    v_problem := concat_ws('; ',
+      case when v_unmapped is not null then 'unmapped club names (add team_aliases, source FootballWebPages): ' || array_to_string(v_unmapped, ', ') end,
+      case when v_dup_pairs > 0 then v_dup_pairs || ' home/away pairing(s) listed more than once, left unchanged' end,
+      case when v_unmatched > 0 then v_unmatched || ' source fixture(s) with no FixtureDownload fixture' end,
+      case when v_absent_skipped is not null then 'missing-game rule skipped: ' || array_to_string(v_absent_skipped, ', ') end);
+
+    update public.fixture_refresh_runs set finished_at = now(), rows_seen = v_seen,
+      rows_updated = v_changed + v_absent_set,
+      status = case when v_problem = '' then 'success' else 'failed' end,
+      error_message = nullif(v_problem, '')
+    where refresh_run_id = v_run;
+
+    return jsonb_build_object('status', case when v_problem = '' then 'success' else 'failed' end,
+      'rows_seen', v_seen, 'updated', v_changed, 'postponed_missing', v_absent_set, 'problem', nullif(v_problem, ''));
+  exception when others then
+    -- Recorded rather than re-raised: a re-raise would roll back this record.
+    update public.fixture_refresh_runs set finished_at = now(), status = 'failed', error_message = sqlerrm
+     where refresh_run_id = v_run;
+    raise warning 'EFL fixture refresh failed: %', sqlerrm;
+    return jsonb_build_object('status', 'failed', 'error', sqlerrm);
+  end;
+end;
+$_$;
+
+
+ALTER FUNCTION public.refresh_efl_fixtures() OWNER TO postgres;
 
 --
 -- Name: refresh_efl_reported_scores(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -8968,8 +10236,10 @@ begin
         to_date(substring(tr from 'export-only">(\d{1,2}/\d{1,2}/\d{4})</td>'), 'DD/MM/YYYY') ko_date,
         replace(replace(substring(tr from 'home-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') home_raw,
         replace(replace(substring(tr from 'away-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') away_raw,
-        substring(tr from '<td class="score home-score">(\d+)</td>')::int hg,
-        substring(tr from '<td class="score away-score">(\d+)</td>')::int ag
+        case when substring(tr from 'title="[^"]*"') ~* ' - abandoned"' then null
+             else substring(tr from '<td class="score home-score">(\d+)</td>')::int end hg,
+        case when substring(tr from 'title="[^"]*"') ~* ' - abandoned"' then null
+             else substring(tr from '<td class="score away-score">(\d+)</td>')::int end ag
       from _efl_src)
     select distinct p.*, coalesce(ha.team_id, ht.team_id) home_id, coalesce(aa.team_id, at.team_id) away_id
       from parsed p
@@ -9145,6 +10415,7 @@ begin
     join public.fixtures f on f.league_id=v_league_id and f.season_id=v_season_id and f.home_team_id=m.home_id and f.away_team_id=m.away_id
     where m.ko is not null and m.home_id is not null and m.away_id is not null
       and not exists (select 1 from public.fpl_fixtures ff where ff.canonical_fixture_id = f.fixture_id and ff.kickoff_time is not null) -- DQ-01: FPL's kick-off wins
+      and f.schedule_source is null -- rearranged/postponed by refresh_efl_fixtures (31 Oct 2026)
       and (f.kickoff_date <> (m.ko at time zone 'Europe/London')::date or f.kickoff_time is distinct from (case when (m.ko at time zone 'UTC')::time = '00:00' then null else (m.ko at time zone 'Europe/London')::time end))
   )
   insert into public.fixture_changes(fixture_id, old_kickoff_date, new_kickoff_date, old_kickoff_time, new_kickoff_time)
@@ -9152,7 +10423,7 @@ begin
 
   with src as (select elem->>'HomeTeam' home_raw,elem->>'AwayTeam' away_raw,(elem->>'DateUtc')::timestamptz ko,nullif(regexp_replace(coalesce(elem->>'RoundNumber',''),'[^0-9]','','g'),'')::int round_no from jsonb_array_elements(v_json) elem where elem ? 'DateUtc'),
   mapped as (select s.*,coalesce(ha.team_id,ht.team_id) home_id,coalesce(aa.team_id,at.team_id) away_id from src s left join public.team_aliases ha on ha.source_name='FixtureDownload' and ha.raw_name=s.home_raw left join public.teams ht on ht.canonical_name=s.home_raw left join public.team_aliases aa on aa.source_name='FixtureDownload' and aa.raw_name=s.away_raw left join public.teams at on at.canonical_name=s.away_raw)
-  update public.fixtures f set kickoff_date=(m.ko at time zone 'Europe/London')::date,kickoff_time=(case when (m.ko at time zone 'UTC')::time = '00:00' then null else (m.ko at time zone 'Europe/London')::time end),matchweek=coalesce(m.round_no,f.matchweek),status=case when m.ko<now() then 'played' else 'scheduled' end,source_name='FixtureDownload',source_file=v_url,updated_at=now() from mapped m where m.ko is not null and m.home_id is not null and m.away_id is not null and f.league_id=v_league_id and f.season_id=v_season_id and f.home_team_id=m.home_id and f.away_team_id=m.away_id
+  update public.fixtures f set kickoff_date=case when f.schedule_source is not null then f.kickoff_date else (m.ko at time zone 'Europe/London')::date end,kickoff_time=case when f.schedule_source is not null then f.kickoff_time else (case when (m.ko at time zone 'UTC')::time = '00:00' then null else (m.ko at time zone 'Europe/London')::time end) end,matchweek=coalesce(m.round_no,f.matchweek),status=case when f.schedule_source is not null then f.status when m.ko<now() then 'played' else 'scheduled' end,source_name='FixtureDownload',source_file=v_url,updated_at=now() from mapped m where m.ko is not null and m.home_id is not null and m.away_id is not null and f.league_id=v_league_id and f.season_id=v_season_id and f.home_team_id=m.home_id and f.away_team_id=m.away_id
     and not exists (select 1 from public.fpl_fixtures ff where ff.canonical_fixture_id = f.fixture_id and ff.kickoff_time is not null); -- DQ-01
   get diagnostics v_count=row_count; v_updated:=v_updated+v_count;
   -- Reported score (display only until football-data confirms it).
@@ -9264,6 +10535,76 @@ end $$;
 
 
 ALTER FUNCTION public.refresh_fpl_bonus_v3_for_fixture(p_fixture_id bigint) OWNER TO postgres;
+
+--
+-- Name: refresh_fpl_defcon_rates(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.refresh_fpl_defcon_rates() RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_season bigint := public.fpl_current_season_id();
+  v_count integer;
+begin
+  delete from public.fpl_defcon_player_rates where season_id = v_season;
+  with lines as (
+    select distinct on (l.home_team_id, l.away_team_id) l.home_team_id, l.away_team_id, l.p_home, l.p_draw, l.p_away, l.p_over
+      from public.market_closing_lines l
+     where l.league_id = 1 and l.season_id = v_season
+       and l.p_home is not null and l.p_draw is not null and l.p_away is not null and l.p_over is not null
+     order by l.home_team_id, l.away_team_id, l.match_date desc
+  ), shares as (
+    select ln.home_team_id, ln.away_team_id, x.lambda_home / (x.lambda_home + x.lambda_away) as home_share
+      from lines ln
+      cross join lateral public.market_goal_lambdas(ln.p_home::double precision, ln.p_draw::double precision,
+                                                    ln.p_away::double precision, ln.p_over::double precision) x
+  ), fx as (
+    select f.fpl_fixture_id, s.home_share
+      from public.fpl_fixtures f
+      join public.fpl_teams th on th.season_id = f.season_id and th.fpl_team_id = f.fpl_home_team_id
+      join public.fpl_teams ta on ta.season_id = f.season_id and ta.fpl_team_id = f.fpl_away_team_id
+      join shares s on s.home_team_id = th.canonical_team_id and s.away_team_id = ta.canonical_team_id
+     where f.season_id = v_season
+  ), g as (
+    select g.fpl_player_id, g.minutes,
+           coalesce((g.source_payload -> 'stats' ->> 'clearances_blocks_interceptions')::int, 0) as cbi,
+           coalesce((g.source_payload -> 'stats' ->> 'tackles')::int, 0) as tackles,
+           coalesce((g.source_payload -> 'stats' ->> 'recoveries')::int, 0) as recoveries,
+           case when fx.home_share is null then null when g.was_home then fx.home_share else 1 - fx.home_share end as share
+      from public.fpl_player_gameweeks g
+      left join fx on fx.fpl_fixture_id = g.fpl_fixture_id
+     where g.season_id = v_season and g.minutes > 0
+  ), cur as (
+    select fpl_player_id, count(*)::int as apps, sum(minutes)::int as minutes, sum(cbi)::int as cbi,
+           sum(tackles)::int as tackles, sum(recoveries)::int as recoveries,
+           coalesce(sum(minutes) filter (where share is not null), 0)::int as share_minutes,
+           coalesce(sum(minutes * share) filter (where share is not null), 0) as share_sum
+      from g group by fpl_player_id
+  )
+  insert into public.fpl_defcon_player_rates (season_id, fpl_player_id, fpl_code, appearances, minutes, cbi, tackles,
+                                              recoveries, share_minutes, share_sum, updated_at)
+  select v_season, p.fpl_player_id, p.fpl_code,
+         coalesce(c.apps, 0) + coalesce(h.appearances, 0),
+         coalesce(c.minutes, 0) + coalesce(h.minutes, 0),
+         coalesce(c.cbi, 0) + coalesce(h.cbi, 0),
+         coalesce(c.tackles, 0) + coalesce(h.tackles, 0),
+         coalesce(c.recoveries, 0) + coalesce(h.recoveries, 0),
+         coalesce(c.share_minutes, 0) + coalesce(h.share_minutes, 0),
+         coalesce(c.share_sum, 0) + coalesce(h.share_sum, 0),
+         now()
+    from public.fpl_players p
+    left join cur c on c.fpl_player_id = p.fpl_player_id
+    left join public.fpl_defcon_history_2025_26 h on h.fpl_code = p.fpl_code
+   where p.season_id = v_season
+     and (c.fpl_player_id is not null or h.fpl_code is not null);
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+ALTER FUNCTION public.refresh_fpl_defcon_rates() OWNER TO postgres;
 
 --
 -- Name: refresh_fpl_fixture_availability(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -9609,11 +10950,14 @@ begin
           substring(tr from 'data-href="[^"]*/(\d+)"')::bigint src_id,
           to_date(substring(tr from 'export-only">(\d{1,2}/\d{1,2}/\d{4})</td>'), 'DD/MM/YYYY') ko_date,
           lower(trim(substring(tr from '<td class="status"[^>]*>([^<]*)</td>'))) status_text,
-          substring(tr from 'title="[^"]*"') ~* ' - postponed"' postponed,
+          substring(tr from 'title="[^"]*"') ~* ' - (postponed|abandoned)"' postponed,
+          substring(tr from 'title="[^"]*"') ~* ' - abandoned"' abandoned,
           replace(replace(substring(tr from 'home-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') home_raw,
           replace(replace(substring(tr from 'away-team"[^>]*data-export="([^"]+)"'), '&amp;', '&'), '&#39;', '''') away_raw,
-          substring(tr from '<td class="score home-score">(\d+)</td>')::int hg,
-          substring(tr from '<td class="score away-score">(\d+)</td>')::int ag
+          case when substring(tr from 'title="[^"]*"') ~* ' - abandoned"' then null
+               else substring(tr from '<td class="score home-score">(\d+)</td>')::int end hg,
+          case when substring(tr from 'title="[^"]*"') ~* ' - abandoned"' then null
+               else substring(tr from '<td class="score away-score">(\d+)</td>')::int end ag
         from _ec_src) p
       where src_id is not null and ko_date is not null
       order by src_id, url
@@ -9642,6 +10986,10 @@ begin
     select array_agg(distinct n order by n) into v_unmapped from (
       select home_raw n from _ec where home_id is null union select away_raw from _ec where away_id is null) u;
     delete from _ec where home_id is null or away_id is null;
+
+    -- An abandoned match listed beside its rearranged date: keep the new date (31 Oct 2026).
+    delete from _ec e where e.abandoned
+      and exists (select 1 from _ec x where x.home_id = e.home_id and x.away_id = e.away_id and not x.abandoned);
 
     -- A pairing listed twice cannot be matched safely: leave it alone and report.
     select count(*) into v_dup_pairs from (select 1 from _ec group by home_id, away_id having count(*) > 1) d;
@@ -10899,11 +12247,15 @@ begin
   exception when others then
     v_res := jsonb_build_object('status', 'error', 'error', sqlerrm);
   end;
-  begin
-    v_news := private.social_detect_team_news(v_run);
-  exception when others then
-    v_news := jsonb_build_object('status', 'error', 'error', sqlerrm);
-  end;
+  if 'team_news' = any (coalesce((select auto_post_types from public.social_settings), '{}')) then
+    begin
+      v_news := private.social_detect_team_news(v_run);
+    exception when others then
+      v_news := jsonb_build_object('status', 'error', 'error', sqlerrm);
+    end;
+  else
+    v_news := jsonb_build_object('status', 'off');
+  end if;
   v_q := private.social_auto_queue();
   update public.social_detector_runs set finished_at = now(),
          results = jsonb_build_object('lineups', v_res, 'team_news', v_news, 'auto_queued', v_q),
@@ -11116,6 +12468,14 @@ CREATE FUNCTION public.social_run_detectors(p_triggered_by text DEFAULT 'schedul
     AS $_$
 declare
   v_run bigint; v_res jsonb := '{}'; v_one jsonb; v_created integer := 0; d text; v_pr bigint; v_queued integer;
+  v_auto text[] := (select auto_post_types from public.social_settings);
+  -- detector -> the post type it makes
+  v_type jsonb := jsonb_build_object(
+    'captaincy', 'fpl_captaincy', 'xg_change', 'team_xg_change', 'accuracy', 'prediction_accuracy',
+    'streaks', 'historical_insight', 'price_changes', 'fpl_price_changes', 'gameweek_threads', 'gameweek_thread',
+    'availability', 'fpl_availability', 'market', 'fpl_market', 'week_changes', 'fpl_week_changes',
+    'outlook', 'gameweek_outlook', 'fixture_moves', 'fixture_moved', 'fact', 'fact',
+    'daily_market', 'daily_market', 'price_watch', 'fpl_price_watch');
 begin
   if auth.uid() is not null and not public.is_admin() then raise exception 'admin only'; end if;
   if not (select detector_enabled from public.social_settings) then
@@ -11125,7 +12485,11 @@ begin
   insert into public.pipeline_runs (job_name, started_at, status) values ('social_detect', now(), 'running') returning run_id into v_pr;
 
   foreach d in array array['captaincy', 'xg_change', 'accuracy', 'streaks', 'price_changes', 'gameweek_threads',
-                            'availability', 'market', 'week_changes', 'outlook', 'fixture_moves', 'quiz', 'fact', 'daily_market', 'price_watch'] loop
+                            'availability', 'market', 'week_changes', 'outlook', 'fixture_moves', 'fact', 'daily_market', 'price_watch'] loop
+    if not (v_type->>d = any (coalesce(v_auto, '{}'))) then
+      v_res := v_res || jsonb_build_object(d, jsonb_build_object('status', 'off'));
+      continue;
+    end if;
     begin
       execute format('select private.social_detect_%s($1)', d) into v_one using v_run;
     exception when others then
@@ -12379,6 +13743,7 @@ CREATE TABLE public.fixtures (
     market_home_goals double precision,
     market_away_goals double precision,
     market_rated_at timestamp with time zone,
+    schedule_source text,
     CONSTRAINT fixtures_status_check CHECK ((status = ANY (ARRAY['scheduled'::text, 'postponed'::text, 'played'::text, 'awaiting_result'::text]))),
     CONSTRAINT fixtures_teams_distinct_check CHECK ((home_team_id <> away_team_id))
 );
@@ -12846,6 +14211,126 @@ ALTER SEQUENCE public.fanteam_price_pastes_paste_id_seq OWNED BY public.fanteam_
 
 
 --
+-- Name: finance_published_periods; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.finance_published_periods AS
+SELECT
+    NULL::bigint AS team_id,
+    NULL::date AS period_start,
+    NULL::date AS period_end,
+    NULL::numeric(6,2) AS period_months,
+    NULL::bigint AS season_id,
+    NULL::text AS reporting_entity,
+    NULL::text AS company_number,
+    NULL::boolean AS is_consolidated,
+    NULL::text AS currency,
+    NULL::integer AS unit_scale,
+    NULL::numeric AS revenue_total,
+    NULL::numeric AS revenue_matchday,
+    NULL::numeric AS revenue_broadcast,
+    NULL::numeric AS revenue_commercial,
+    NULL::numeric AS revenue_other,
+    NULL::numeric AS staff_costs,
+    NULL::numeric AS player_amortisation,
+    NULL::numeric AS player_impairment,
+    NULL::numeric AS profit_on_player_disposals,
+    NULL::numeric AS operating_profit,
+    NULL::numeric AS profit_before_tax,
+    NULL::numeric AS profit_after_tax,
+    NULL::numeric AS cash,
+    NULL::numeric AS borrowings,
+    NULL::numeric AS total_assets,
+    NULL::numeric AS total_liabilities,
+    NULL::numeric AS net_assets,
+    NULL::numeric AS average_employees,
+    NULL::boolean AS is_latest,
+    NULL::boolean AS is_comparable,
+    NULL::date AS filing_date,
+    NULL::text AS source_url,
+    NULL::text AS validation_status;
+
+
+ALTER VIEW public.finance_published_periods OWNER TO postgres;
+
+--
+-- Name: leagues; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.leagues (
+    league_id bigint NOT NULL,
+    country_id bigint NOT NULL,
+    code text NOT NULL,
+    name text NOT NULL,
+    tier integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    competition_type text,
+    scope text,
+    confederation text,
+    slug text NOT NULL,
+    CONSTRAINT leagues_competition_type_check CHECK (((competition_type IS NULL) OR (competition_type = ANY (ARRAY['league'::text, 'cup'::text])))),
+    CONSTRAINT leagues_scope_check CHECK (((scope IS NULL) OR (scope = ANY (ARRAY['domestic'::text, 'continental'::text, 'international'::text]))))
+);
+
+
+ALTER TABLE public.leagues OWNER TO postgres;
+
+--
+-- Name: finance_club_divisions; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.finance_club_divisions WITH (security_invoker='true') AS
+ WITH apps AS (
+         SELECT f.team_id,
+            f.league_id,
+            count(*) AS fixtures
+           FROM (( SELECT fixtures.league_id,
+                    fixtures.season_id,
+                    fixtures.home_team_id AS team_id
+                   FROM public.fixtures
+                UNION ALL
+                 SELECT fixtures.league_id,
+                    fixtures.season_id,
+                    fixtures.away_team_id
+                   FROM public.fixtures) f
+             JOIN public.leagues l_1 ON ((l_1.league_id = f.league_id)))
+          WHERE ((f.season_id = public.current_season_id()) AND (l_1.competition_type = 'league'::text) AND (l_1.scope = 'domestic'::text))
+          GROUP BY f.team_id, f.league_id
+        ), pick AS (
+         SELECT DISTINCT ON (a.team_id) a.team_id,
+            a.league_id
+           FROM apps a
+          WHERE (a.team_id IN ( SELECT finance_published_periods.team_id
+                   FROM public.finance_published_periods))
+          ORDER BY a.team_id, a.fixtures DESC, a.league_id
+        )
+ SELECT p.team_id,
+    l.league_id,
+    l.code AS league_code,
+    l.name AS league_name,
+    l.slug AS league_slug,
+    c.name AS country,
+        CASE
+            WHEN (c.name = 'England'::text) THEN 0
+            ELSE 1
+        END AS country_order,
+    COALESCE(l.tier,
+        CASE l.code
+            WHEN 'E0'::text THEN 1
+            WHEN 'E1'::text THEN 2
+            WHEN 'E2'::text THEN 3
+            WHEN 'E3'::text THEN 4
+            WHEN 'EC'::text THEN 5
+            ELSE NULL::integer
+        END, 9) AS division_order
+   FROM ((pick p
+     JOIN public.leagues l ON ((l.league_id = p.league_id)))
+     LEFT JOIN public.countries c ON ((c.country_id = l.country_id)));
+
+
+ALTER VIEW public.finance_club_divisions OWNER TO postgres;
+
+--
 -- Name: finance_metric_values; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -13092,6 +14577,118 @@ ALTER TABLE public.finance_metric_values ALTER COLUMN metric_value_id ADD GENERA
 
 
 --
+-- Name: matches; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.matches (
+    match_id bigint NOT NULL,
+    league_id bigint NOT NULL,
+    season_id bigint NOT NULL,
+    home_team_id bigint NOT NULL,
+    away_team_id bigint NOT NULL,
+    match_date date NOT NULL,
+    kickoff_time time without time zone,
+    referee text,
+    full_time_home_goals integer NOT NULL,
+    full_time_away_goals integer NOT NULL,
+    full_time_result text NOT NULL,
+    half_time_home_goals integer,
+    half_time_away_goals integer,
+    half_time_result text,
+    home_shots integer,
+    away_shots integer,
+    home_shots_on_target integer,
+    away_shots_on_target integer,
+    home_corners integer,
+    away_corners integer,
+    home_fouls integer,
+    away_fouls integer,
+    home_yellow_cards integer DEFAULT 0 NOT NULL,
+    away_yellow_cards integer DEFAULT 0 NOT NULL,
+    home_red_cards integer DEFAULT 0 NOT NULL,
+    away_red_cards integer DEFAULT 0 NOT NULL,
+    source_name text DEFAULT 'football-data.co.uk'::text NOT NULL,
+    source_file text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    round text,
+    round_number integer,
+    stage text,
+    home_xg numeric,
+    away_xg numeric,
+    attendance integer,
+    decided_by text,
+    winner_team_id bigint,
+    home_penalty_goals integer,
+    away_penalty_goals integer,
+    source_match_id text,
+    CONSTRAINT matches_half_result_check CHECK (((half_time_result IS NULL) OR (half_time_result = ANY (ARRAY['H'::text, 'D'::text, 'A'::text])))),
+    CONSTRAINT matches_result_check CHECK ((full_time_result = ANY (ARRAY['H'::text, 'D'::text, 'A'::text]))),
+    CONSTRAINT matches_teams_distinct_check CHECK ((home_team_id <> away_team_id))
+);
+
+
+ALTER TABLE public.matches OWNER TO postgres;
+
+--
+-- Name: finance_period_divisions; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.finance_period_divisions WITH (security_invoker='true') AS
+ WITH apps AS (
+         SELECT m.team_id,
+            m.season_id,
+            m.league_id,
+            count(*) AS matches
+           FROM (( SELECT matches.league_id,
+                    matches.season_id,
+                    matches.home_team_id AS team_id
+                   FROM public.matches
+                UNION ALL
+                 SELECT matches.league_id,
+                    matches.season_id,
+                    matches.away_team_id
+                   FROM public.matches) m
+             JOIN public.leagues l_1 ON ((l_1.league_id = m.league_id)))
+          WHERE ((l_1.competition_type = 'league'::text) AND (l_1.scope = 'domestic'::text))
+          GROUP BY m.team_id, m.season_id, m.league_id
+        ), pick AS (
+         SELECT DISTINCT ON (p.team_id, p.period_end) p.team_id,
+            p.period_end,
+            p.season_id,
+            a.league_id
+           FROM (public.finance_published_periods p
+             JOIN apps a ON (((a.team_id = p.team_id) AND (a.season_id = p.season_id))))
+          ORDER BY p.team_id, p.period_end, a.matches DESC, a.league_id
+        )
+ SELECT pk.team_id,
+    pk.period_end,
+    pk.season_id,
+    l.code AS league_code,
+    l.name AS league_name,
+    l.slug AS league_slug,
+    c.name AS country,
+        CASE
+            WHEN (c.name = 'England'::text) THEN 0
+            ELSE 1
+        END AS country_order,
+    COALESCE(l.tier,
+        CASE l.code
+            WHEN 'E0'::text THEN 1
+            WHEN 'E1'::text THEN 2
+            WHEN 'E2'::text THEN 3
+            WHEN 'E3'::text THEN 4
+            WHEN 'EC'::text THEN 5
+            ELSE NULL::integer
+        END, 9) AS division_order
+   FROM ((pick pk
+     JOIN public.leagues l ON ((l.league_id = pk.league_id)))
+     LEFT JOIN public.countries c ON ((c.country_id = l.country_id)));
+
+
+ALTER VIEW public.finance_period_divisions OWNER TO postgres;
+
+--
 -- Name: finance_periods_financial_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -13104,49 +14701,6 @@ ALTER TABLE public.finance_periods ALTER COLUMN financial_id ADD GENERATED ALWAY
     CACHE 1
 );
 
-
---
--- Name: finance_published_periods; Type: VIEW; Schema: public; Owner: postgres
---
-
-CREATE VIEW public.finance_published_periods AS
-SELECT
-    NULL::bigint AS team_id,
-    NULL::date AS period_start,
-    NULL::date AS period_end,
-    NULL::numeric(6,2) AS period_months,
-    NULL::bigint AS season_id,
-    NULL::text AS reporting_entity,
-    NULL::text AS company_number,
-    NULL::boolean AS is_consolidated,
-    NULL::text AS currency,
-    NULL::integer AS unit_scale,
-    NULL::numeric AS revenue_total,
-    NULL::numeric AS revenue_matchday,
-    NULL::numeric AS revenue_broadcast,
-    NULL::numeric AS revenue_commercial,
-    NULL::numeric AS revenue_other,
-    NULL::numeric AS staff_costs,
-    NULL::numeric AS player_amortisation,
-    NULL::numeric AS player_impairment,
-    NULL::numeric AS profit_on_player_disposals,
-    NULL::numeric AS operating_profit,
-    NULL::numeric AS profit_before_tax,
-    NULL::numeric AS profit_after_tax,
-    NULL::numeric AS cash,
-    NULL::numeric AS borrowings,
-    NULL::numeric AS total_assets,
-    NULL::numeric AS total_liabilities,
-    NULL::numeric AS net_assets,
-    NULL::numeric AS average_employees,
-    NULL::boolean AS is_latest,
-    NULL::boolean AS is_comparable,
-    NULL::date AS filing_date,
-    NULL::text AS source_url,
-    NULL::text AS validation_status;
-
-
-ALTER VIEW public.finance_published_periods OWNER TO postgres;
 
 --
 -- Name: finance_published_provenance; Type: VIEW; Schema: public; Owner: postgres
@@ -13369,28 +14923,6 @@ ALTER TABLE public.fixture_changes ALTER COLUMN change_id ADD GENERATED ALWAYS A
     CACHE 1
 );
 
-
---
--- Name: leagues; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.leagues (
-    league_id bigint NOT NULL,
-    country_id bigint NOT NULL,
-    code text NOT NULL,
-    name text NOT NULL,
-    tier integer,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    competition_type text,
-    scope text,
-    confederation text,
-    slug text NOT NULL,
-    CONSTRAINT leagues_competition_type_check CHECK (((competition_type IS NULL) OR (competition_type = ANY (ARRAY['league'::text, 'cup'::text])))),
-    CONSTRAINT leagues_scope_check CHECK (((scope IS NULL) OR (scope = ANY (ARRAY['domestic'::text, 'continental'::text, 'international'::text]))))
-);
-
-
-ALTER TABLE public.leagues OWNER TO postgres;
 
 --
 -- Name: teams; Type: TABLE; Schema: public; Owner: postgres
@@ -15539,60 +17071,6 @@ ALTER TABLE public.fixtures ALTER COLUMN fixture_id ADD GENERATED ALWAYS AS IDEN
 
 
 --
--- Name: matches; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.matches (
-    match_id bigint NOT NULL,
-    league_id bigint NOT NULL,
-    season_id bigint NOT NULL,
-    home_team_id bigint NOT NULL,
-    away_team_id bigint NOT NULL,
-    match_date date NOT NULL,
-    kickoff_time time without time zone,
-    referee text,
-    full_time_home_goals integer NOT NULL,
-    full_time_away_goals integer NOT NULL,
-    full_time_result text NOT NULL,
-    half_time_home_goals integer,
-    half_time_away_goals integer,
-    half_time_result text,
-    home_shots integer,
-    away_shots integer,
-    home_shots_on_target integer,
-    away_shots_on_target integer,
-    home_corners integer,
-    away_corners integer,
-    home_fouls integer,
-    away_fouls integer,
-    home_yellow_cards integer DEFAULT 0 NOT NULL,
-    away_yellow_cards integer DEFAULT 0 NOT NULL,
-    home_red_cards integer DEFAULT 0 NOT NULL,
-    away_red_cards integer DEFAULT 0 NOT NULL,
-    source_name text DEFAULT 'football-data.co.uk'::text NOT NULL,
-    source_file text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    round text,
-    round_number integer,
-    stage text,
-    home_xg numeric,
-    away_xg numeric,
-    attendance integer,
-    decided_by text,
-    winner_team_id bigint,
-    home_penalty_goals integer,
-    away_penalty_goals integer,
-    source_match_id text,
-    CONSTRAINT matches_half_result_check CHECK (((half_time_result IS NULL) OR (half_time_result = ANY (ARRAY['H'::text, 'D'::text, 'A'::text])))),
-    CONSTRAINT matches_result_check CHECK ((full_time_result = ANY (ARRAY['H'::text, 'D'::text, 'A'::text]))),
-    CONSTRAINT matches_teams_distinct_check CHECK ((home_team_id <> away_team_id))
-);
-
-
-ALTER TABLE public.matches OWNER TO postgres;
-
---
 -- Name: fixtures_reported_unconfirmed; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -15719,7 +17197,7 @@ CREATE TABLE public.fpl_deadline_player_state (
     minutes integer,
     source_updated_at timestamp with time zone,
     source_payload jsonb,
-    CONSTRAINT fpl_deadline_player_state_snapshot_kind_check CHECK ((snapshot_kind = ANY (ARRAY['pre_deadline'::text, 'late'::text, 'manual'::text])))
+    CONSTRAINT fpl_deadline_player_state_snapshot_kind_check CHECK ((snapshot_kind = ANY (ARRAY['pre_deadline'::text, 'late'::text, 'manual'::text, 'final_call'::text])))
 );
 
 
@@ -15740,24 +17218,63 @@ ALTER TABLE public.fpl_deadline_player_state ALTER COLUMN state_row_id ADD GENER
 
 
 --
--- Name: fpl_player_defensive_contribution_usage; Type: VIEW; Schema: public; Owner: postgres
+-- Name: fpl_defcon_history_2025_26; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.fpl_player_defensive_contribution_usage WITH (security_invoker='true') AS
- SELECT p.season_id,
-    p.fpl_player_id,
-    p.element_type,
-    count(g.fpl_fixture_id) FILTER (WHERE (g.minutes > 0)) AS appearances,
-    sum(g.minutes) AS minutes,
-    sum(COALESCE((((g.source_payload -> 'stats'::text) ->> 'clearances_blocks_interceptions'::text))::numeric, (0)::numeric)) AS cbi,
-    sum(COALESCE((((g.source_payload -> 'stats'::text) ->> 'recoveries'::text))::numeric, (0)::numeric)) AS recoveries,
-    sum(COALESCE((((g.source_payload -> 'stats'::text) ->> 'tackles'::text))::numeric, (0)::numeric)) AS tackles
-   FROM (public.fpl_players p
-     LEFT JOIN public.fpl_player_gameweeks g ON (((g.fpl_player_id = p.fpl_player_id) AND (g.season_id = p.season_id))))
-  GROUP BY p.season_id, p.fpl_player_id, p.element_type;
+CREATE TABLE public.fpl_defcon_history_2025_26 (
+    fpl_code integer NOT NULL,
+    appearances integer NOT NULL,
+    minutes integer NOT NULL,
+    cbi integer NOT NULL,
+    tackles integer NOT NULL,
+    recoveries integer NOT NULL,
+    share_minutes integer NOT NULL,
+    share_sum numeric NOT NULL
+);
 
 
-ALTER VIEW public.fpl_player_defensive_contribution_usage OWNER TO postgres;
+ALTER TABLE public.fpl_defcon_history_2025_26 OWNER TO postgres;
+
+--
+-- Name: fpl_defcon_player_rates; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fpl_defcon_player_rates (
+    season_id bigint NOT NULL,
+    fpl_player_id integer NOT NULL,
+    fpl_code integer,
+    appearances integer NOT NULL,
+    minutes integer NOT NULL,
+    cbi integer NOT NULL,
+    tackles integer NOT NULL,
+    recoveries integer NOT NULL,
+    share_minutes integer NOT NULL,
+    share_sum numeric NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.fpl_defcon_player_rates OWNER TO postgres;
+
+--
+-- Name: fpl_player_exit_bands; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fpl_player_exit_bands (
+    season_id bigint NOT NULL,
+    fpl_player_id integer NOT NULL,
+    p_off_before_60 numeric NOT NULL,
+    p_off_60_84 numeric NOT NULL,
+    p_full numeric NOT NULL,
+    starts_seen integer DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT fpl_player_exit_bands_p_full_check CHECK (((p_full >= (0)::numeric) AND (p_full <= (1)::numeric))),
+    CONSTRAINT fpl_player_exit_bands_p_off_60_84_check CHECK (((p_off_60_84 >= (0)::numeric) AND (p_off_60_84 <= (1)::numeric))),
+    CONSTRAINT fpl_player_exit_bands_p_off_before_60_check CHECK (((p_off_before_60 >= (0)::numeric) AND (p_off_before_60 <= (1)::numeric)))
+);
+
+
+ALTER TABLE public.fpl_player_exit_bands OWNER TO postgres;
 
 --
 -- Name: fpl_projection_v4_leaguewide_inputs; Type: VIEW; Schema: public; Owner: postgres
@@ -16106,56 +17623,73 @@ ALTER VIEW public.fpl_projection_leaguewide_allocation_v2 OWNER TO postgres;
 --
 
 CREATE VIEW public.fpl_defensive_contribution_projection_leaguewide WITH (security_invoker='true') AS
- WITH h AS (
-         SELECT fpl_player_defensive_contribution_usage.season_id,
-            fpl_player_defensive_contribution_usage.fpl_player_id,
-            fpl_player_defensive_contribution_usage.element_type,
-            fpl_player_defensive_contribution_usage.minutes,
-                CASE
-                    WHEN (fpl_player_defensive_contribution_usage.element_type = 2) THEN fpl_player_defensive_contribution_usage.cbi
-                    ELSE ((fpl_player_defensive_contribution_usage.cbi + fpl_player_defensive_contribution_usage.recoveries) + fpl_player_defensive_contribution_usage.tackles)
-                END AS events
-           FROM public.fpl_player_defensive_contribution_usage
-          WHERE (fpl_player_defensive_contribution_usage.season_id = ( SELECT public.fpl_current_season_id() AS fpl_current_season_id))
-        ), b AS (
+ WITH b AS (
          SELECT a.fixture_id,
             a.team_id,
             a.fpl_player_id,
+            a.element_type,
             a.expected_minutes,
             a.prob_starting_xi,
-            a.element_type,
+            a.prob_sub_appearance,
                 CASE a.element_type
-                    WHEN 2 THEN 7.143
-                    WHEN 3 THEN 7.107
-                    WHEN 4 THEN 3.681
-                    ELSE (0)::numeric
-                END AS prior90,
-                CASE a.element_type
-                    WHEN 2 THEN 0.255
-                    WHEN 3 THEN 0.125
-                    WHEN 4 THEN 0.01
-                    ELSE (0)::numeric
-                END AS base_rate
-           FROM public.fpl_projection_leaguewide_allocation_v2 a
+                    WHEN 2 THEN '-0.331011'::numeric
+                    WHEN 3 THEN '-0.156964'::numeric
+                    WHEN 4 THEN '-0.156964'::numeric
+                    ELSE NULL::numeric
+                END AS beta,
+                CASE
+                    WHEN ((f.market_home_goals IS NOT NULL) AND (f.market_away_goals IS NOT NULL) AND ((f.market_home_goals + f.market_away_goals) > (0)::double precision)) THEN (
+                    CASE
+                        WHEN (a.team_id = f.home_team_id) THEN f.market_home_goals
+                        ELSE f.market_away_goals
+                    END / (f.market_home_goals + f.market_away_goals))
+                    ELSE NULL::double precision
+                END AS share
+           FROM (public.fpl_projection_leaguewide_allocation_v2 a
+             JOIN public.fixtures f ON ((f.fixture_id = a.fixture_id)))
+        ), r AS (
+         SELECT b.fixture_id,
+            b.team_id,
+            b.fpl_player_id,
+            b.element_type,
+            b.expected_minutes,
+            b.prob_starting_xi,
+            b.prob_sub_appearance,
+            b.beta,
+            b.share,
+            public.fpl_defcon_rate90(b.element_type, (COALESCE(pr.minutes, 0))::numeric, (COALESCE(((pr.cbi + pr.tackles) +
+                CASE
+                    WHEN (b.element_type = 2) THEN 0
+                    ELSE pr.recoveries
+                END), 0))::numeric) AS rate90,
+            COALESCE((pr.share_sum / (NULLIF(pr.share_minutes, 0))::numeric), 0.5) AS share_bar,
+            eb.p_off_before_60,
+            eb.p_off_60_84,
+            eb.p_full
+           FROM ((b
+             LEFT JOIN public.fpl_defcon_player_rates pr ON (((pr.season_id = ( SELECT public.fpl_current_season_id() AS fpl_current_season_id)) AND (pr.fpl_player_id = b.fpl_player_id))))
+             LEFT JOIN public.fpl_player_exit_bands eb ON (((eb.season_id = ( SELECT public.fpl_current_season_id() AS fpl_current_season_id)) AND (eb.fpl_player_id = b.fpl_player_id))))
         )
- SELECT b.fixture_id,
-    b.team_id,
-    b.fpl_player_id,
-    b.element_type,
-    b.expected_minutes,
-    b.prob_starting_xi,
+ SELECT fixture_id,
+    team_id,
+    fpl_player_id,
+    element_type,
+    expected_minutes,
+    prob_starting_xi,
         CASE
-            WHEN (b.element_type = 1) THEN (0)::numeric
-            ELSE LEAST(0.9, GREATEST((0)::numeric, (((b.prob_starting_xi * b.base_rate) * exp((0.28 * ((((COALESCE(h.events, (0)::numeric) + (b.prior90 * (5)::numeric)) / ((COALESCE(h.minutes, (0)::bigint) + 450))::numeric) * (90)::numeric) - b.prior90)))) * LEAST((1)::numeric, (b.expected_minutes / (60)::numeric)))))
+            WHEN (element_type = ANY (ARRAY[2, 3, 4])) THEN round((public.fpl_defcon_probability(element_type, (rate90)::double precision, exp(((beta)::double precision * COALESCE((share - (share_bar)::double precision), (0)::double precision))), (prob_starting_xi)::double precision, (COALESCE(prob_sub_appearance, (0)::numeric))::double precision, (COALESCE(p_off_before_60, (0)::numeric))::double precision, (COALESCE(p_off_60_84, (0)::numeric))::double precision, (COALESCE(p_full, (1)::numeric))::double precision))::numeric, 6)
+            ELSE (0)::numeric
         END AS defensive_contribution_probability,
         CASE
-            WHEN (b.element_type = 2) THEN 10
-            WHEN (b.element_type = ANY (ARRAY[3, 4])) THEN 12
+            WHEN (element_type = 2) THEN 10
+            WHEN (element_type = ANY (ARRAY[3, 4])) THEN 12
             ELSE NULL::integer
         END AS threshold,
-    (((COALESCE(h.events, (0)::numeric) + (b.prior90 * (5)::numeric)) / ((COALESCE(h.minutes, (0)::bigint) + 450))::numeric) * (90)::numeric) AS shrunk_events90
-   FROM (b
-     LEFT JOIN h ON (((h.fpl_player_id = b.fpl_player_id) AND (h.season_id = ( SELECT public.fpl_current_season_id() AS fpl_current_season_id)))));
+        CASE
+            WHEN (element_type = ANY (ARRAY[2, 3, 4])) THEN rate90
+            ELSE NULL::numeric
+        END AS shrunk_events90
+   FROM r;
 
 
 ALTER VIEW public.fpl_defensive_contribution_projection_leaguewide OWNER TO postgres;
@@ -16255,6 +17789,26 @@ CREATE TABLE public.fpl_fixture_bonus_montecarlo_v1 (
 
 
 ALTER TABLE public.fpl_fixture_bonus_montecarlo_v1 OWNER TO postgres;
+
+--
+-- Name: fpl_player_defensive_contribution_usage; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.fpl_player_defensive_contribution_usage WITH (security_invoker='true') AS
+ SELECT p.season_id,
+    p.fpl_player_id,
+    p.element_type,
+    count(g.fpl_fixture_id) FILTER (WHERE (g.minutes > 0)) AS appearances,
+    sum(g.minutes) AS minutes,
+    sum(COALESCE((((g.source_payload -> 'stats'::text) ->> 'clearances_blocks_interceptions'::text))::numeric, (0)::numeric)) AS cbi,
+    sum(COALESCE((((g.source_payload -> 'stats'::text) ->> 'recoveries'::text))::numeric, (0)::numeric)) AS recoveries,
+    sum(COALESCE((((g.source_payload -> 'stats'::text) ->> 'tackles'::text))::numeric, (0)::numeric)) AS tackles
+   FROM (public.fpl_players p
+     LEFT JOIN public.fpl_player_gameweeks g ON (((g.fpl_player_id = p.fpl_player_id) AND (g.season_id = p.season_id))))
+  GROUP BY p.season_id, p.fpl_player_id, p.element_type;
+
+
+ALTER VIEW public.fpl_player_defensive_contribution_usage OWNER TO postgres;
 
 --
 -- Name: fpl_fixture_bps_projection_v1; Type: VIEW; Schema: public; Owner: postgres
@@ -16889,26 +18443,6 @@ CREATE TABLE public.fpl_pecking_order_snapshots (
 
 
 ALTER TABLE public.fpl_pecking_order_snapshots OWNER TO postgres;
-
---
--- Name: fpl_player_exit_bands; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.fpl_player_exit_bands (
-    season_id bigint NOT NULL,
-    fpl_player_id integer NOT NULL,
-    p_off_before_60 numeric NOT NULL,
-    p_off_60_84 numeric NOT NULL,
-    p_full numeric NOT NULL,
-    starts_seen integer DEFAULT 0 NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT fpl_player_exit_bands_p_full_check CHECK (((p_full >= (0)::numeric) AND (p_full <= (1)::numeric))),
-    CONSTRAINT fpl_player_exit_bands_p_off_60_84_check CHECK (((p_off_60_84 >= (0)::numeric) AND (p_off_60_84 <= (1)::numeric))),
-    CONSTRAINT fpl_player_exit_bands_p_off_before_60_check CHECK (((p_off_before_60 >= (0)::numeric) AND (p_off_before_60 <= (1)::numeric)))
-);
-
-
-ALTER TABLE public.fpl_player_exit_bands OWNER TO postgres;
 
 --
 -- Name: fpl_player_first_choice_first_choice_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -17978,6 +19512,38 @@ CREATE VIEW public.fpl_start_flags_review WITH (security_invoker='true') AS
 
 
 ALTER VIEW public.fpl_start_flags_review OWNER TO postgres;
+
+--
+-- Name: fpl_team_sheet_results; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fpl_team_sheet_results (
+    season_id bigint NOT NULL,
+    fpl_event_id integer NOT NULL,
+    fpl_fixture_id integer NOT NULL,
+    fpl_team_id integer NOT NULL,
+    canonical_fixture_id bigint,
+    canonical_team_id bigint,
+    opponent_fpl_team_id integer NOT NULL,
+    is_home boolean NOT NULL,
+    kickoff_time timestamp with time zone NOT NULL,
+    starters integer NOT NULL,
+    model_source text,
+    model_version text,
+    model_at timestamp with time zone,
+    model_matched integer,
+    baseline_fpl_fixture_id integer,
+    baseline_matched integer,
+    predicted jsonb DEFAULT '[]'::jsonb NOT NULL,
+    actual jsonb DEFAULT '[]'::jsonb NOT NULL,
+    baseline jsonb DEFAULT '[]'::jsonb NOT NULL,
+    final boolean DEFAULT false NOT NULL,
+    computed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT fpl_team_sheet_results_model_source_check CHECK ((model_source = ANY (ARRAY['pre_deadline_snapshot'::text, 'model_run'::text])))
+);
+
+
+ALTER TABLE public.fpl_team_sheet_results OWNER TO postgres;
 
 --
 -- Name: team_ratings; Type: TABLE; Schema: public; Owner: postgres
@@ -25974,6 +27540,22 @@ ALTER TABLE ONLY public.fpl_deadline_player_state
 
 
 --
+-- Name: fpl_defcon_history_2025_26 fpl_defcon_history_2025_26_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_defcon_history_2025_26
+    ADD CONSTRAINT fpl_defcon_history_2025_26_pkey PRIMARY KEY (fpl_code);
+
+
+--
+-- Name: fpl_defcon_player_rates fpl_defcon_player_rates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_defcon_player_rates
+    ADD CONSTRAINT fpl_defcon_player_rates_pkey PRIMARY KEY (season_id, fpl_player_id);
+
+
+--
 -- Name: fpl_depth_start_store fpl_depth_start_store_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -26267,6 +27849,14 @@ ALTER TABLE ONLY public.fpl_scoring_rules
 
 ALTER TABLE ONLY public.fpl_start_flags
     ADD CONSTRAINT fpl_start_flags_pkey PRIMARY KEY (fixture_id, fpl_player_id);
+
+
+--
+-- Name: fpl_team_sheet_results fpl_team_sheet_results_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_team_sheet_results
+    ADD CONSTRAINT fpl_team_sheet_results_pkey PRIMARY KEY (season_id, fpl_fixture_id, fpl_team_id);
 
 
 --
@@ -27574,6 +29164,13 @@ CREATE INDEX fpl_projection_snapshots_event ON public.fpl_projection_snapshots U
 --
 
 CREATE UNIQUE INDEX fpl_scoring_rules_key_uidx ON public.fpl_scoring_rules USING btree (season_id, rule_code, COALESCE(player_position, ''::text));
+
+
+--
+-- Name: fpl_team_sheet_results_event_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX fpl_team_sheet_results_event_idx ON public.fpl_team_sheet_results USING btree (season_id, fpl_event_id);
 
 
 --
@@ -30372,6 +31969,32 @@ ALTER TABLE public.fpl_deadline_player_horizon ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fpl_deadline_player_state ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: fpl_defcon_history_2025_26; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fpl_defcon_history_2025_26 ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fpl_defcon_history_2025_26 fpl_defcon_history_2025_26 public read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "fpl_defcon_history_2025_26 public read" ON public.fpl_defcon_history_2025_26 FOR SELECT USING (true);
+
+
+--
+-- Name: fpl_defcon_player_rates; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fpl_defcon_player_rates ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fpl_defcon_player_rates fpl_defcon_player_rates public read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "fpl_defcon_player_rates public read" ON public.fpl_defcon_player_rates FOR SELECT USING (true);
+
+
+--
 -- Name: fpl_depth_start_store; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -30730,6 +32353,12 @@ ALTER TABLE public.fpl_start_flags ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY fpl_start_flags_admin_read ON public.fpl_start_flags FOR SELECT TO authenticated USING (public.is_admin());
 
+
+--
+-- Name: fpl_team_sheet_results; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fpl_team_sheet_results ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: fpl_teams; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -31970,6 +33599,119 @@ GRANT ALL ON FUNCTION public.current_season_id() TO service_role;
 
 
 --
+-- Name: FUNCTION email_admin_send_test(p_fpl_id bigint, p_club bigint, p_watch integer[]); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_admin_send_test(p_fpl_id bigint, p_club bigint, p_watch integer[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_admin_send_test(p_fpl_id bigint, p_club bigint, p_watch integer[]) TO authenticated;
+
+
+--
+-- Name: FUNCTION email_begin_send(p_kind text, p_season bigint, p_gw integer, p_subject text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_begin_send(p_kind text, p_season bigint, p_gw integer, p_subject text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_begin_send(p_kind text, p_season bigint, p_gw integer, p_subject text) TO service_role;
+
+
+--
+-- Name: FUNCTION email_confirm(p_token text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_confirm(p_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_confirm(p_token text) TO service_role;
+
+
+--
+-- Name: FUNCTION email_finish_send(p_send_id bigint, p_recipients integer, p_football integer, p_sent integer, p_failed integer, p_note text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_finish_send(p_send_id bigint, p_recipients integer, p_football integer, p_sent integer, p_failed integer, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_finish_send(p_send_id bigint, p_recipients integer, p_football integer, p_sent integer, p_failed integer, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION email_log_failure(p_send_id bigint, p_kind text, p_http_status integer, p_error text, p_recipients integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_log_failure(p_send_id bigint, p_kind text, p_http_status integer, p_error text, p_recipients integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_log_failure(p_send_id bigint, p_kind text, p_http_status integer, p_error text, p_recipients integer) TO service_role;
+
+
+--
+-- Name: FUNCTION email_manage(p_token text, p_changes jsonb); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_manage(p_token text, p_changes jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_manage(p_token text, p_changes jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION email_personal(p_season bigint, p_gw integer, p_fpl_id bigint, p_club bigint, p_watch integer[]); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_personal(p_season bigint, p_gw integer, p_fpl_id bigint, p_club bigint, p_watch integer[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_personal(p_season bigint, p_gw integer, p_fpl_id bigint, p_club bigint, p_watch integer[]) TO service_role;
+
+
+--
+-- Name: FUNCTION email_player_search(p_q text); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.email_player_search(p_q text) TO anon;
+GRANT ALL ON FUNCTION public.email_player_search(p_q text) TO authenticated;
+GRANT ALL ON FUNCTION public.email_player_search(p_q text) TO service_role;
+
+
+--
+-- Name: FUNCTION email_quota_take(p_n integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_quota_take(p_n integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_quota_take(p_n integer) TO service_role;
+
+
+--
+-- Name: FUNCTION email_recipients(p_send_id bigint, p_test_fpl_id bigint, p_test_club bigint, p_test_watch integer[]); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_recipients(p_send_id bigint, p_test_fpl_id bigint, p_test_club bigint, p_test_watch integer[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_recipients(p_send_id bigint, p_test_fpl_id bigint, p_test_club bigint, p_test_watch integer[]) TO service_role;
+
+
+--
+-- Name: FUNCTION email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION email_unsubscribe(p_token text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_unsubscribe(p_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_unsubscribe(p_token text) TO service_role;
+
+
+--
+-- Name: FUNCTION email_weekly_content(p_season bigint, p_gw integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_weekly_content(p_season bigint, p_gw integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_weekly_content(p_season bigint, p_gw integer) TO service_role;
+
+
+--
+-- Name: FUNCTION email_weekly_issue(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_weekly_issue() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_weekly_issue() TO service_role;
+
+
+--
 -- Name: FUNCTION export_schema_definitions(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -32236,12 +33978,40 @@ GRANT ALL ON FUNCTION public.get_data_integrity_report() TO service_role;
 
 
 --
+-- Name: FUNCTION get_day_page(p_day date); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.get_day_page(p_day date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_day_page(p_day date) TO anon;
+GRANT ALL ON FUNCTION public.get_day_page(p_day date) TO authenticated;
+
+
+--
+-- Name: FUNCTION get_deadline_ownership(p_season_id bigint); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.get_deadline_ownership(p_season_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_deadline_ownership(p_season_id bigint) TO anon;
+GRANT ALL ON FUNCTION public.get_deadline_ownership(p_season_id bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.get_deadline_ownership(p_season_id bigint) TO service_role;
+
+
+--
 -- Name: FUNCTION get_digest_gameweeks(p_season_id bigint); Type: ACL; Schema: public; Owner: postgres
 --
 
 REVOKE ALL ON FUNCTION public.get_digest_gameweeks(p_season_id bigint) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_digest_gameweeks(p_season_id bigint) TO anon;
 GRANT ALL ON FUNCTION public.get_digest_gameweeks(p_season_id bigint) TO authenticated;
+
+
+--
+-- Name: FUNCTION get_email_admin(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.get_email_admin() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_email_admin() TO authenticated;
+GRANT ALL ON FUNCTION public.get_email_admin() TO service_role;
 
 
 --
@@ -32685,6 +34455,24 @@ GRANT ALL ON FUNCTION public.get_team_month_profile(p_team_id bigint) TO authent
 
 GRANT ALL ON FUNCTION public.get_team_of_the_week(p_event_id integer, p_season_id bigint) TO anon;
 GRANT ALL ON FUNCTION public.get_team_of_the_week(p_event_id integer, p_season_id bigint) TO authenticated;
+
+
+--
+-- Name: FUNCTION get_team_sheet_accuracy(p_season_id bigint); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.get_team_sheet_accuracy(p_season_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_team_sheet_accuracy(p_season_id bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.get_team_sheet_accuracy(p_season_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION get_team_sheet_detail(p_season_id bigint, p_fpl_fixture_id integer, p_fpl_team_id integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.get_team_sheet_detail(p_season_id bigint, p_fpl_fixture_id integer, p_fpl_team_id integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_team_sheet_detail(p_season_id bigint, p_fpl_fixture_id integer, p_fpl_team_id integer) TO authenticated;
+GRANT ALL ON FUNCTION public.get_team_sheet_detail(p_season_id bigint, p_fpl_fixture_id integer, p_fpl_team_id integer) TO service_role;
 
 
 --
@@ -33160,11 +34948,25 @@ GRANT ALL ON FUNCTION public.record_match_predictions(p_season_id bigint) TO ser
 
 
 --
+-- Name: FUNCTION refresh_cup_decisions(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.refresh_cup_decisions() FROM PUBLIC;
+
+
+--
 -- Name: FUNCTION refresh_derived_markets_memo(); Type: ACL; Schema: public; Owner: postgres
 --
 
 REVOKE ALL ON FUNCTION public.refresh_derived_markets_memo() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.refresh_derived_markets_memo() TO service_role;
+
+
+--
+-- Name: FUNCTION refresh_efl_fixtures(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.refresh_efl_fixtures() FROM PUBLIC;
 
 
 --
@@ -33202,6 +35004,14 @@ GRANT ALL ON FUNCTION public.refresh_fpl() TO service_role;
 
 REVOKE ALL ON FUNCTION public.refresh_fpl_bonus_v3_for_fixture(p_fixture_id bigint) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.refresh_fpl_bonus_v3_for_fixture(p_fixture_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION refresh_fpl_defcon_rates(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.refresh_fpl_defcon_rates() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.refresh_fpl_defcon_rates() TO service_role;
 
 
 --
@@ -34031,6 +35841,33 @@ GRANT SELECT ON TABLE public.fanteam_price_pastes TO authenticated;
 
 
 --
+-- Name: TABLE finance_published_periods; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.finance_published_periods TO service_role;
+GRANT SELECT ON TABLE public.finance_published_periods TO anon;
+GRANT SELECT ON TABLE public.finance_published_periods TO authenticated;
+
+
+--
+-- Name: TABLE leagues; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT ON TABLE public.leagues TO anon;
+GRANT SELECT ON TABLE public.leagues TO authenticated;
+GRANT ALL ON TABLE public.leagues TO service_role;
+
+
+--
+-- Name: TABLE finance_club_divisions; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.finance_club_divisions TO service_role;
+GRANT SELECT ON TABLE public.finance_club_divisions TO anon;
+GRANT SELECT ON TABLE public.finance_club_divisions TO authenticated;
+
+
+--
 -- Name: TABLE finance_metric_values; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -34116,19 +35953,28 @@ GRANT ALL ON SEQUENCE public.finance_metric_values_metric_value_id_seq TO servic
 
 
 --
+-- Name: TABLE matches; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT ON TABLE public.matches TO anon;
+GRANT SELECT ON TABLE public.matches TO authenticated;
+GRANT ALL ON TABLE public.matches TO service_role;
+
+
+--
+-- Name: TABLE finance_period_divisions; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.finance_period_divisions TO service_role;
+GRANT SELECT ON TABLE public.finance_period_divisions TO anon;
+GRANT SELECT ON TABLE public.finance_period_divisions TO authenticated;
+
+
+--
 -- Name: SEQUENCE finance_periods_financial_id_seq; Type: ACL; Schema: public; Owner: postgres
 --
 
 GRANT ALL ON SEQUENCE public.finance_periods_financial_id_seq TO service_role;
-
-
---
--- Name: TABLE finance_published_periods; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.finance_published_periods TO service_role;
-GRANT SELECT ON TABLE public.finance_published_periods TO anon;
-GRANT SELECT ON TABLE public.finance_published_periods TO authenticated;
 
 
 --
@@ -34216,15 +36062,6 @@ GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fixture
 --
 
 GRANT USAGE ON SEQUENCE public.fixture_changes_change_id_seq TO service_role;
-
-
---
--- Name: TABLE leagues; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT SELECT ON TABLE public.leagues TO anon;
-GRANT SELECT ON TABLE public.leagues TO authenticated;
-GRANT ALL ON TABLE public.leagues TO service_role;
 
 
 --
@@ -34585,15 +36422,6 @@ GRANT SELECT,USAGE ON SEQUENCE public.fixtures_fixture_id_seq TO service_role;
 
 
 --
--- Name: TABLE matches; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT SELECT ON TABLE public.matches TO anon;
-GRANT SELECT ON TABLE public.matches TO authenticated;
-GRANT ALL ON TABLE public.matches TO service_role;
-
-
---
 -- Name: TABLE fixtures_reported_unconfirmed; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -34642,12 +36470,30 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_deadline_p
 
 
 --
--- Name: TABLE fpl_player_defensive_contribution_usage; Type: ACL; Schema: public; Owner: postgres
+-- Name: TABLE fpl_defcon_history_2025_26; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT SELECT ON TABLE public.fpl_player_defensive_contribution_usage TO anon;
-GRANT SELECT ON TABLE public.fpl_player_defensive_contribution_usage TO authenticated;
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_player_defensive_contribution_usage TO service_role;
+GRANT ALL ON TABLE public.fpl_defcon_history_2025_26 TO service_role;
+GRANT SELECT ON TABLE public.fpl_defcon_history_2025_26 TO anon;
+GRANT SELECT ON TABLE public.fpl_defcon_history_2025_26 TO authenticated;
+
+
+--
+-- Name: TABLE fpl_defcon_player_rates; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.fpl_defcon_player_rates TO service_role;
+GRANT SELECT ON TABLE public.fpl_defcon_player_rates TO anon;
+GRANT SELECT ON TABLE public.fpl_defcon_player_rates TO authenticated;
+
+
+--
+-- Name: TABLE fpl_player_exit_bands; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT ON TABLE public.fpl_player_exit_bands TO anon;
+GRANT SELECT ON TABLE public.fpl_player_exit_bands TO authenticated;
+GRANT ALL ON TABLE public.fpl_player_exit_bands TO service_role;
 
 
 --
@@ -34750,6 +36596,15 @@ GRANT SELECT,USAGE ON SEQUENCE public.fpl_external_lineups_external_lineup_id_se
 GRANT SELECT ON TABLE public.fpl_fixture_bonus_montecarlo_v1 TO anon;
 GRANT SELECT ON TABLE public.fpl_fixture_bonus_montecarlo_v1 TO authenticated;
 GRANT ALL ON TABLE public.fpl_fixture_bonus_montecarlo_v1 TO service_role;
+
+
+--
+-- Name: TABLE fpl_player_defensive_contribution_usage; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT ON TABLE public.fpl_player_defensive_contribution_usage TO anon;
+GRANT SELECT ON TABLE public.fpl_player_defensive_contribution_usage TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_player_defensive_contribution_usage TO service_role;
 
 
 --
@@ -34911,15 +36766,6 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_optimizer_
 
 GRANT SELECT ON TABLE public.fpl_pecking_order_snapshots TO authenticated;
 GRANT ALL ON TABLE public.fpl_pecking_order_snapshots TO service_role;
-
-
---
--- Name: TABLE fpl_player_exit_bands; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT SELECT ON TABLE public.fpl_player_exit_bands TO anon;
-GRANT SELECT ON TABLE public.fpl_player_exit_bands TO authenticated;
-GRANT ALL ON TABLE public.fpl_player_exit_bands TO service_role;
 
 
 --
@@ -35135,6 +36981,13 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_teams TO s
 
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_start_flags_review TO service_role;
 GRANT SELECT ON TABLE public.fpl_start_flags_review TO authenticated;
+
+
+--
+-- Name: TABLE fpl_team_sheet_results; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_team_sheet_results TO service_role;
 
 
 --
@@ -36626,7 +38479,7 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.smoke_latest T
 -- Name: TABLE social_audit_log; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.social_audit_log TO service_role;
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.social_audit_log TO service_role;
 GRANT SELECT ON TABLE public.social_audit_log TO authenticated;
 
 
