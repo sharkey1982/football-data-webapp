@@ -56,7 +56,13 @@
   # the site changed. Keep in step with SKIP_PATTERNS in
   # scripts/netlify_usage_estimate.py. Each production deploy costs 15
   # credits; the site was suspended for running out on 2026-09-23.
-  ignore = "[ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)games' ':(exclude)docs' ':(exclude)supabase' ':(exclude).github' ':(exclude)src/__tests__' ':(exclude,glob)scripts/*.py' ':(exclude)scripts/requirements.txt' ':(exclude,glob)*.md'"
+  #
+  # Hook builds always build (3 Nov 2026): the daily data rebuild runs on the
+  # same commit as code that may already be live, and the git diff alone
+  # would cancel it. INCOMING_HOOK_URL is set only on hook-triggered builds.
+  # Also skipped: test files anywhere, evals, the smoke tests and lint/type
+  # tooling, none of which reach the site.
+  ignore = "if [ -n \"$INCOMING_HOOK_URL\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)games' ':(exclude)docs' ':(exclude)supabase' ':(exclude).github' ':(exclude)src/__tests__' ':(exclude)evals' ':(exclude)scripts/smoke' ':(exclude)scripts/eslint-baseline.json' ':(exclude)scripts/check-db-types.mjs' ':(exclude,glob)**/*.test.ts' ':(exclude,glob)**/*.test.tsx' ':(exclude,glob)vitest.config.*' ':(exclude,glob)playwright.config.*' ':(exclude,glob)scripts/*.py' ':(exclude)scripts/requirements.txt' ':(exclude,glob)*.md'"
 
 [functions]
   directory = "netlify/functions"

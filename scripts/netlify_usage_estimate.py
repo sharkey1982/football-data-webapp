@@ -32,10 +32,12 @@ import urllib.request
 from datetime import date, datetime, timezone
 
 REPO = "sharkey1982/football-data-webapp"
-HOOK_WORKFLOWS = ["daily-import.yml", "fpl-projections-pipeline.yml"]
-HOOK_STEP = "Trigger site rebuild"
+HOOK_WORKFLOWS = ["daily-import.yml", "fpl-projections-pipeline.yml", "gameweek-report.yml"]
+HOOK_STEPS = {"Trigger site rebuild", "Rebuild site"}
 # Keep in step with netlify.toml [build] ignore.
 SKIP_PATTERNS = ["games/*", "docs/*", "supabase/*", ".github/*", "src/__tests__/*",
+                 "evals/*", "scripts/smoke/*", "scripts/eslint-baseline.json", "scripts/check-db-types.mjs",
+                 "*.test.ts", "*.test.tsx", "vitest.config.*", "playwright.config.*",
                  "scripts/*.py", "scripts/requirements.txt", "*.md"]
 
 
@@ -60,6 +62,8 @@ def deploying_pushes(since: date, ref: str) -> int:
     commits = git("log", "--first-parent", f"--since={since.isoformat()}T00:00:00Z", "--format=%H", ref).split()
     n = 0
     for c in commits:
+        if "[skip netlify]" in git("log", "-1", "--format=%s", c):
+            continue
         files = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-m", "--first-parent", c).split()
         if any(is_site_file(f) for f in files):
             n += 1
@@ -84,7 +88,7 @@ def hook_calls(since: date) -> int:
                 if r["status"] != "completed":
                     continue
                 for job in gh(r["jobs_url"]).get("jobs", []):
-                    n += sum(1 for s in job.get("steps", []) if s["name"] == HOOK_STEP and s["conclusion"] == "success")
+                    n += sum(1 for s in job.get("steps", []) if s["name"] in HOOK_STEPS and s["conclusion"] == "success")
             if len(runs) < 100:
                 break
             page += 1
