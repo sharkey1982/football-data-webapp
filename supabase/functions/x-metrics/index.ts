@@ -3,13 +3,20 @@
 //
 // Reads engagement for @FixtureSharkHQ's recent posts so post types that
 // don't land can be dropped (docs/social-publishing.md, "Engagement").
-// Called weekly by pg_cron (private.social_metrics_call, worker token in
+// Called by pg_cron (private.social_metrics_call, worker token in
 // x-social-token) or by an admin from /admin/social.
 //
-//   POST { triggered_by?: string }
+//   POST { triggered_by?: string, scope?: "daily" | "weekly" }
 //
-// Every post published in the last 30 days (each post of a thread), newest
-// first, at most MAX_POSTS a run, 100 ids per GET /2/tweets. Asks for organic
+// Which posts (4 Nov 2026: Chris approved the daily cost; keep the total
+// under about $1 a month):
+//   daily   18:55 UK, before the 19:25 admin digest: the first post of each
+//           thread published in the last 7 days, at most 60 (~19 posts a
+//           week now, each read on 7 days: ~$0.60 a month)
+//   weekly  Monday 07:40 UTC: one settled read of every post of each thread
+//           published 7 to 14 days ago, at most 150 (~$0.15 a month)
+//   admin   "Read from X now": every post of the last 30 days, at most 300
+// Newest first, 100 ids per GET /2/tweets. Asks for organic
 // and non-public metrics (our own posts, user-context token, last 30 days)
 // and falls back to public metrics if X refuses them. Deleted posts come back
 // as errors and are counted as missing. One row per post in
@@ -25,6 +32,12 @@ import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const TWEETS_URL = "https://api.x.com/2/tweets";
 const MAX_POSTS = 300;
+// Posts published between fromDays and toDays ago; firstOnly = the first post of a thread only.
+const SCOPES: Record<string, { fromDays: number; toDays: number; firstOnly: boolean; max: number }> = {
+  daily: { fromDays: 0, toDays: 7, firstOnly: true, max: 60 },
+  weekly: { fromDays: 7, toDays: 14, firstOnly: false, max: 150 },
+  all: { fromDays: 0, toDays: 30, firstOnly: false, max: MAX_POSTS },
+};
 const COST_PER_POST = 0.001;
 const FULL_FIELDS = "public_metrics,non_public_metrics,organic_metrics";
 const PUBLIC_FIELDS = "public_metrics";
@@ -103,25 +116,29 @@ Deno.serve(async (req) => {
   }
   const reqBody = await req.json().catch(() => ({}));
   const triggeredBy = workerToken ? String(reqBody?.triggered_by ?? "schedule") : "admin";
+  const scope = workerToken && ["daily", "weekly"].includes(reqBody?.scope) ? String(reqBody.scope) : "all";
+  const win = SCOPES[scope];
 
-  const { data: run, error: runErr } = await sb.from("social_metrics_runs").insert({ triggered_by: triggeredBy }).select("run_id").single();
+  const { data: run, error: runErr } = await sb.from("social_metrics_runs")
+    .insert({ triggered_by: scope === "all" ? triggeredBy : `${triggeredBy}-${scope}` }).select("run_id").single();
   if (runErr || !run) return json({ error: runErr?.message ?? "could not start a run" }, 500);
   const finish = (patch: Record<string, unknown>) =>
     sb.from("social_metrics_runs").update({ finished_at: new Date().toISOString(), ...patch }).eq("run_id", run.run_id);
 
-  // Posts published in the last 30 days, newest first; every post of a thread.
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  // Posts published in the scope's window, newest first.
+  const since = new Date(Date.now() - win.toDays * 86_400_000).toISOString();
+  const until = new Date(Date.now() - win.fromDays * 86_400_000).toISOString();
   const { data: cands, error: cErr } = await sb.from("social_post_candidates")
     .select("candidate_id, x_post_id, x_post_ids, published_at")
-    .eq("publication_status", "published").gte("published_at", since)
+    .eq("publication_status", "published").gte("published_at", since).lt("published_at", until)
     .order("published_at", { ascending: false });
   if (cErr) { await finish({ error: cErr.message }); return json({ error: cErr.message }, 500); }
   const targets: Target[] = [];
   for (const c of cands ?? []) {
     const ids: string[] = Array.isArray(c.x_post_ids) && c.x_post_ids.length ? c.x_post_ids.map(String) : c.x_post_id ? [String(c.x_post_id)] : [];
-    ids.forEach((id, i) => { if (/^\d+$/.test(id)) targets.push({ candidate_id: c.candidate_id, x_post_id: id, position: i + 1 }); });
+    (win.firstOnly ? ids.slice(0, 1) : ids).forEach((id, i) => { if (/^\d+$/.test(id)) targets.push({ candidate_id: c.candidate_id, x_post_id: id, position: i + 1 }); });
   }
-  const wanted = targets.slice(0, MAX_POSTS);
+  const wanted = targets.slice(0, win.max);
   if (!wanted.length) { await finish({ posts_requested: 0 }); return json({ ok: true, run_id: run.run_id, posts_read: 0 }); }
 
   const tok = await accessToken(sb).catch((e) => ({ error: String(e) }) as { token?: string; error?: string });
@@ -176,5 +193,5 @@ Deno.serve(async (req) => {
     posts_requested: wanted.length, posts_read: rows.length, posts_missing: missing, fields, estimated_cost_usd: cost,
     error: errors.length ? errors.join(" | ").slice(0, 2000) : null,
   });
-  return json({ ok: errors.length === 0, run_id: run.run_id, posts_requested: wanted.length, posts_read: rows.length, posts_missing: missing, fields, estimated_cost_usd: cost, errors });
+  return json({ ok: errors.length === 0, run_id: run.run_id, scope, posts_requested: wanted.length, posts_read: rows.length, posts_missing: missing, fields, estimated_cost_usd: cost, errors });
 });

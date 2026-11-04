@@ -217,11 +217,17 @@ types that don't land get dropped. To decide that from data:
   user-context token, under 30 days old) and falls back to `public_metrics`
   if X refuses (400/403). Deleted posts come back as errors and count as
   missing. Tokens are refreshed exactly as in `x-publish`.
-- **Schedule:** pg_cron `social-x-metrics`, Monday 07:40 UTC
-  (`private.social_metrics_call`). Also "Read from X now" on /admin/social.
+- **Schedule (from 4 Nov 2026):** pg_cron `social-x-metrics` daily at 18:55
+  UK (`55 17,18 * * *`, `private.social_metrics_daily_tick`; only the run in
+  the London 18:00 hour reads), scope `daily`: the first post of each thread
+  published in the last 7 days, so the 19:25 admin digest has fresh figures.
+  `social-x-metrics-weekly`, Monday 07:40 UTC, scope `weekly`: one settled
+  read of every post of each thread published 7 to 14 days ago. "Read from X
+  now" on /admin/social still reads every post of the last 30 days.
 - **Cost:** X bills owned reads per post, about $0.001; each run logs its
-  estimate in `social_metrics_runs.estimated_cost_usd` (300 posts = $0.30 at
-  most). Not counted against the $5 posting budget.
+  estimate in `social_metrics_runs.estimated_cost_usd`. At ~19 posts a week:
+  daily ~$0.60 a month, weekly ~$0.15 a month (Chris's limit: about $1 a
+  month). Not counted against the $5 posting budget.
 - **Tables:** `social_post_metrics` (one row per post per read: impressions,
   likes, replies, reposts, quotes, bookmarks, link and profile clicks, raw
   `metrics` jsonb); `social_metrics_runs` (one row per run). Admin read only.
