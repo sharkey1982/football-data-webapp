@@ -62,6 +62,7 @@ AREAS = [
     ("club_grounds", "check_club_grounds"),      # Your Local Clubs; postcodes.io
     ("gsc", "check_gsc_integrity"),              # Search Console import (gsc-import.yml)
     ("ga", "check_ga_integrity"),                # Google Analytics import (ga-import.yml)
+    ("cf", "check_cf_integrity"),                # Cloudflare Web Analytics import (cf-analytics, pg_cron cf-import)
     ("broadcasts", "check_broadcast_integrity"), # UK TV research route (docs/broadcast-research.md)
     ("jobs", "check_job_health"),                # every production job (job_registry / job_health)
     ("deadlines", "check_deadline_runs"),        # FPL runs close to each deadline; pg_cron dispatcher (P-01/P-06)

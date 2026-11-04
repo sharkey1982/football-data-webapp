@@ -29,6 +29,11 @@ verify_jwt = false
 verify_jwt = false
 [functions.x-publish]
 verify_jwt = false
+# Worker token or admin JWT, checked in the function; called by pg_net.
+[functions.x-metrics]
+verify_jwt = false
+[functions.cf-analytics]
+verify_jwt = false
 
 # Retired: 410 stubs that require a JWT. Delete in the dashboard.
 [functions.ingest-football-results]
