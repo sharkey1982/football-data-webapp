@@ -176,6 +176,51 @@ gameweek report calls them as soon as it publishes. A candidate with
 
 Team xG changes and record streaks stay manual.
 
+### Opening lines and the hook A/B test (5 Nov 2026)
+
+The five automatic types no longer open with a label ("FPL GW9 captaincy:
+FixtureShark projected points"). A BEFORE INSERT trigger on
+`social_post_candidates` (`social_hook_before_insert` →
+`private.social_hook_apply`, migration `20261105120000_social_hook_ab_test.sql`)
+swaps the first line of the first post for the single most surprising or
+useful fact in that post's own data. No detector body was changed.
+
+| Type | Facts, in priority order (first that holds) |
+|---|---|
+| Captaincy | a £7.0m-or-less second pick within 0.2 points of a £10m+ leader; top two within 0.2; a £6.5m-or-less second or third pick behind a £10m+ leader; leader 1.0+ points clear. To fit 280 the fifth-ranked line goes, then the blank-chance line |
+| Week's changes | a record line; the most sold player is also ruled out; most sold or most bought (whichever is bigger). The line the hook restates goes |
+| Week ahead | teams playing twice; teams not playing; a Friday deadline; a midweek gameweek; 6+ PL teams in cup/European games before it; 10+ days since the last gameweek |
+| Fixture moved | teams now playing twice; now blanking; new time; postponed; new date; new gameweek |
+| Preview / reflection thread | from `scripts/fpl_gameweek_report.py` (`preview_hooks`, `reflection_hooks`, payload `x_hooks`): another captain likelier than the projection leader to outscore the other seven; the leader's chance under 25%; a team expected to score 2.5+; 5+ teams on three days' rest. Reflection: goals 4+ away from expected (with the verdict's reading of chances v finishing); the premium captain on 3 or fewer with the best captain 6+ more. The team-news update and the reflection correction keep their openers |
+
+Two styles: **A data-first** (a statement of the fact) and **B
+question-first** (a short honest question the data answers). Every hook must
+pass `private.social_hook_ok` (no betting or hype words, no "!", no emoji but
+the thread marker) and both styles must fit 280 with the rest of the post;
+otherwise the label stays (`hook_style` null, `hook_skip` says why). The hook
+sets `generated_text` too, so the "no new numbers" check holds. A hook error
+never blocks a post.
+
+`source_data` records `hook_style`, `hook_text`, `hook_alt` (the other
+style), `hook_fact`, `hook_label` (the old first line), `hook_slot` and
+`hook_test`.
+
+**Assignment:** alternating per new candidate within each post type, by slot
+(one gameweek of captaincy rankings, one thread kind per gameweek, otherwise
+one candidate), so a re-made ranking keeps its gameweek's style. Week's
+changes and week ahead start on B, the rest on A.
+
+**Window and result:** `private.social_hook_test` (one row): started at the
+merge on 5 Nov 2026, `ends_at` 00:00 UK Thu 19 Nov (14 days, 5–18 Nov). The
+first candidate after that calls `private.social_hook_decide()`: the style
+with the higher average impressions (latest read of the first post of each
+thread, posts published in the window) becomes `default_style` for every
+post; with no read post on one side there is no winner and A is used. Both
+admin emails' X section shows "Hook test (day N of 14): data-first X posts,
+avg Y impressions; question-first X posts, avg Z." (`private.social_hook_test_line`)
+while it runs, then the result and the style in use for 7 days. To change the
+style or extend the test, a migration updates `private.social_hook_test`.
+
 - **Queue:** `private.social_auto_queue()` approves a passing candidate of an
   automatic type (approved_by null, `auto` true), sets `hold_until`, and
   supersedes older queued ones with the same type, kind and expiry.
