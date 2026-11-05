@@ -222,12 +222,16 @@ types that don't land get dropped. To decide that from data:
   the London 18:00 hour reads), scope `daily`: the first post of each thread
   published in the last 7 days, so the 19:25 admin digest has fresh figures.
   `social-x-metrics-weekly`, Monday 07:40 UTC, scope `weekly`: one settled
-  read of every post of each thread published 7 to 14 days ago. "Read from X
+  read of every post of each thread published 7 to 14 days ago. From 5 Nov
+  2026, scope `overnight` at 07:20 UK (`admin-morning-prep-tick`,
+  `20 6,7 * * *`, London hour 7 only): the first post of each thread
+  published in the last 12 hours (~1-2 posts a night), so the 07:30 admin
+  overnight email has fresh figures for overnight posts. "Read from X
   now" on /admin/social still reads every post of the last 30 days.
 - **Cost:** X bills owned reads per post, about $0.001; each run logs its
   estimate in `social_metrics_runs.estimated_cost_usd`. At ~19 posts a week:
-  daily ~$0.60 a month, weekly ~$0.15 a month (Chris's limit: about $1 a
-  month). Not counted against the $5 posting budget.
+  daily ~$0.60 a month, weekly ~$0.15 a month, overnight ~$0.05 a month:
+  about $0.80 in all (Chris's limit: about $1 a month). Not counted against the $5 posting budget.
 - **Tables:** `social_post_metrics` (one row per post per read: impressions,
   likes, replies, reposts, quotes, bookmarks, link and profile clicks, raw
   `metrics` jsonb); `social_metrics_runs` (one row per run). Admin read only.

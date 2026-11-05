@@ -8,9 +8,11 @@
 //   { kind: "breaker", reason }        automatic posting has stopped itself
 //   { kind: "test" }                   a one-off check that email works
 //   { kind: "email_failed", gw, ... }  the FPL weekly email had failures
-//   { kind: "daily_digest", send_id, mode, day, digest }
+//   { kind: "daily_digest", send_id, mode, edition?, day, digest }
 //                                      the admin end-of-day site update
-//                                      (private.admin_daily_digest, sent by
+//                                      (evening, 19:25 UK) or overnight
+//                                      update (morning, 07:30 UK)
+//                                      (private.admin_digest, sent by
 //                                      private.admin_digest_send; outcome back
 //                                      through public.admin_digest_finish)
 // Called only by the database (private.social_notify, pg_net) with the worker
@@ -49,7 +51,9 @@ const LABEL: Record<string, string> = {
 };
 
 type DigestSection = { key: string; title: string; link: string; lines: string[] };
-type Digest = { day: string; from: string; to: string; subject: string; headline: string; sections: DigestSection[] };
+type Digest = {
+  edition?: "evening" | "morning"; day: string; from: string; to: string; subject: string; headline: string; sections: DigestSection[];
+};
 
 // PRs merged in the digest's window, from GitHub's public API (the repo is
 // public). Optional: on any error the digest goes without them.
@@ -80,8 +84,16 @@ function renderDigest(d: Digest): string {
   return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.45;color:#1a1a1a;max-width:560px">` +
     `<p style="font-size:15px;margin:0 0 8px"><b>${esc(d.headline)}</b></p>` +
     d.sections.map(section).join("") +
-    `<p style="color:#666;font-size:12px;margin-top:18px">Covers 00:00 to ${esc(new Date(d.to).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }))} UK. ` +
+    `<p style="color:#666;font-size:12px;margin-top:18px">Covers ${esc(covers(d))} UK. ` +
     `Preview or send it again on <a href="https://fixtureshark.com/admin/email">fixtureshark.com/admin/email</a>.</p></div>`;
+}
+
+// "00:00 to 19:25" (evening) or "Wed 19:25 to Thu 07:30" (morning).
+function covers(d: Digest): string {
+  const t = (iso: string, day: boolean) => new Date(iso).toLocaleString("en-GB", {
+    ...(day ? { weekday: "short" as const } : {}), hour: "2-digit", minute: "2-digit", timeZone: "Europe/London",
+  });
+  return d.edition === "morning" ? `${t(d.from, true)} to ${t(d.to, true)}` : `00:00 to ${t(d.to, false)}`;
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -151,8 +163,9 @@ Deno.serve(async (req) => {
     html = `<p>Automatic posting to @FixtureSharkHQ switched itself off:</p><p><b>${esc(String(body.reason ?? "unknown"))}</b></p>
       <p>Check <a href="https://x.com/FixtureSharkHQ">@FixtureSharkHQ</a>, then reset it on <a href="${ADMIN_URL}">/admin/social</a>.</p>`;
   } else if (body?.kind === "daily_digest") {
-    // Admin end-of-day site update (2 Nov 2026). Content comes from the
-    // database (private.admin_daily_digest); merged PRs are added here.
+    // Admin end-of-day site update (2 Nov 2026) and overnight update (5 Nov
+    // 2026, edition "morning"). Content comes from the database
+    // (private.admin_digest); merged PRs in the window are added here.
     const d = body.digest as Digest | undefined;
     if (!d || !Array.isArray(d.sections)) return Response.json({ ok: false, reason: "no digest" });
     const prs = await mergedPrs(d.from, d.to);
