@@ -287,6 +287,120 @@ types that don't land get dropped. To decide that from data:
   posts under 24 hours old at that read. A thread counts once: the views of
   its first post, engagements summed over all its posts.
 
+## Replies (from 5 Nov 2026)
+
+Chris, 31 Oct 2026: post less, reply more. Approved 5 Nov 2026. Migration
+`20261105200000_social_replies.sql`, Edge Function `x-replies`.
+
+X refuses automated replies to accounts that have not mentioned or engaged
+with us (our earlier API replies to big accounts were blocked). So there are
+two paths:
+
+**1. Reply ideas (Chris posts them himself).** pg_cron `social-reply-ideas`
+runs hourly at :40 and calls `x-replies` (kind `ideas`) only in the London
+hours in `social_settings.reply_ideas_hours` (default `{17}`: 17:40 UK, before
+the 19:25 email).
+
+- Accounts: `social_reply_accounts` (seeded: OfficialFPL, PremierLeague,
+  OptaJoe, FFScout, FPLGeneral, BenCrellin, LetsTalk_FPL, FPLFocal). A handle
+  is checked once with `GET /2/users/by` before its first read; one X does not
+  know is switched off (`active` false, `note` says why). To add one:
+  a migration inserts a row; to drop one, set `active` false.
+- One `GET /2/tweets/search/recent` a run: the active accounts' own posts (no
+  replies or reposts) with FPL or stats words, since the last read, at most 10.
+- `private.social_reply_facts(text)` finds the players (web or full name,
+  whole word), teams and topics (captaincy, price changes) a post names and
+  returns what our data says about each as full sentences with their page:
+  FPL price, ownership and season points; our GW projection and its rank;
+  FPL's injury flag; FPL's price predictor when 50%+ of the way; the team's
+  next Premier League game and our expected-goals forecast; our top three
+  projected captains; the predictor's 90%+ players.
+- Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money) drafts a reply
+  from those sentences only and scores how much it adds (0-10).
+  `public.social_reply_check` enforces the house rules: under 280 (a link
+  counts 23), every number in the facts, at most one link and only a fact's
+  fixtureshark.com page, no @ or #, no betting or hype words, emoji or "!".
+  A draft that fails twice falls back to a plain sentence-and-link template.
+- At most `reply_ideas_per_day` (3) a London day, score 5+, are stored in
+  `social_reply_ideas` (status `suggested`), with the facts offered and used,
+  the post link and a one-tap link
+  `https://x.com/intent/post?in_reply_to=<id>&text=<draft>`.
+- Posted: while an idea is open, the next read also reads our own timeline
+  (owned reads, at most 10) and marks an idea `posted` when one of our posts
+  replies to it. Ideas not posted within 3 days become `ignored`.
+- **Intent links on phones** (reported by other tools, e.g. pounce.so's help
+  page, Nov 2026; not yet tried on Chris's phone): the X web intent opens the
+  composer in the X app on iPhone and the reply goes in the thread. X's
+  Android app drops the `in_reply_to` part (it posts a new post), so the emails also give the post
+  link: open it, tap Reply, paste the draft. Either way the X app must be
+  signed in as **@FixtureSharkHQ**, not Chris's own account: the intent posts
+  as whichever account is active.
+
+**2. Mentions (X allows replying to these).** pg_cron `social-mentions`
+every 3 hours at :10 UTC (`x-replies` kind `mentions`):
+`GET /2/users/:id/mentions` since the last read, 5 a page, up to 4 pages, with
+the authors. Each mention goes into `social_mentions` with a category: our
+own; spam (spam words in the post or bio); bot (account under 14 days old with
+under 5 followers); not worth it (only a tag, link or emoji); otherwise
+Claude decides question, comment, spam, abuse, bot or not worth it, and drafts
+a reply for a question or comment from the facts for the mention and, when it
+replies to one of our posts, that post (no link: a post with a link costs
+$0.200 v $0.015). `public.social_mention_candidate` checks it and makes a
+`social_post_candidates` row: `post_type` `mention_reply`, `in_reply_to_x_id`
+the mention, the mention and facts in `source_data`, the "Replying to @x"
+line in its checks (shown on the /admin/social card), expires 48 hours after
+the mention. Chris gets the draft email (social-notify kind `draft`, now with
+who wrote what and a link), approves and presses Publish on
+[/admin/social](https://fixtureshark.com/admin/social?show=queue). `x-publish`
+posts it as a reply to `in_reply_to_x_id` (and refuses a mention reply
+without one).
+
+- `social_settings.auto_mention_replies` (**off**): when on, and automatic
+  posting is on, a mention reply is queued as an automatic post instead
+  (approved, `hold_until` = now + `hold_minutes`), so the normal hold email
+  and Hold button apply and `social_auto_tick` posts it.
+- Limits: mention replies count against `max_replies_per_day` (5) and go at
+  least 5 minutes apart; they do not use up the posts' daily or monthly
+  limits or the 60-minute gap (`private.social_limit_reasons(cost, url,
+  post_type)`). Spend and the $5 budget count everything.
+
+**3. Quote posts (not automated).** X allows quote posts of anyone's post by
+the API. If wanted later: the reply-ideas pipeline already finds a post and
+checks a draft; a quote would be a candidate with `quote_tweet_id` (POST
+/2/tweets `quote_tweet_id`) through the normal approval, counted as a post
+($0.015, or $0.200 with a link) against the post limits. Keep them rare and
+only when our number adds something; Chris approves each.
+
+**Emails.** Both admin emails (19:25 and 07:30) have "Reply ideas" and
+"Mentions" after the X section (`private.admin_reply_sections`, called from
+`private.admin_digest`): each open idea from the last 36 hours (author, time,
+snippet, post link, draft, one-tap link shown as "Reply on X"), ideas posted
+in the window, the last read; mentions in the window with their draft's state,
+earlier drafts still waiting, what was skipped, the last read and the month's
+reply reads.
+
+**Cost.** X pay-per-use: other accounts' posts $0.005 each, owned reads
+(mentions, our timeline) $0.001, user objects $0.010, per item returned. Ideas:
+10 posts a day = $0.05 (~$1.52 a month); our timeline a few posts a day only
+while ideas are open (~$0.05-0.10 a month); handle checks once ($0.08).
+Mentions: what is returned, with authors ~$0.011 each (a few cents a month).
+`social_settings.reply_reads_budget_usd` ($1.50) caps all of it
+(`public.social_reply_budget`, checked before every read with the run's worst
+case): the ideas read keeps pace with the month (allowance to tomorrow) and
+leaves $0.06 for mentions, so on a 31-day month an ideas read may be skipped
+on a day or two; nothing reads once posts + metric reads + these would pass
+`monthly_budget_usd` ($5). Each run's estimate is in
+`social_reply_runs.estimated_cost_usd` (and Claude's in `llm_cost_usd`).
+
+**Settings** (by migration; not on /admin/social yet): `reply_ideas_enabled`,
+`reply_ideas_hours`, `reply_ideas_per_day`, `mentions_enabled`,
+`auto_mention_replies`, `max_replies_per_day`, `reply_reads_budget_usd`. A
+second daily read (e.g. `{8,17}`) doubles the ideas cost to ~$3 a month.
+
+**Tables** (admin read only): `social_reply_accounts`, `social_reply_runs`,
+`social_reply_ideas`, `social_mentions`. If a later migration rewrites the
+`social_post_candidates_post_type_check` list, keep `mention_reply` in it.
+
 ## Future content
 
 NFL, tennis, Beat the Shark blackjack and poker challenges: add a post type

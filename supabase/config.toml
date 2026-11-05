@@ -32,6 +32,9 @@ verify_jwt = false
 # Worker token or admin JWT, checked in the function; called by pg_net.
 [functions.x-metrics]
 verify_jwt = false
+# Reply ideas and mentions (docs/social-publishing.md, "Replies"): worker token or admin JWT.
+[functions.x-replies]
+verify_jwt = false
 [functions.cf-analytics]
 verify_jwt = false
 

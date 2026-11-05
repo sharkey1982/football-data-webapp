@@ -48,6 +48,7 @@ const LABEL: Record<string, string> = {
   prediction_accuracy: "Prediction accuracy",
   team_xg_change: "Team xG change",
   historical_insight: "Historical insight",
+  mention_reply: "Reply to a mention",
 };
 
 type DigestSection = { key: string; title: string; link: string; lines: string[] };
@@ -76,7 +77,11 @@ async function mergedPrs(from: string, to: string): Promise<{ number: number; ti
 // Plain, phone-friendly HTML: headline, then each section's lines and its
 // admin page as a visible link (never "click here").
 function renderDigest(d: Digest): string {
-  const linkify = (t: string) => esc(t).replace(/https:\/\/[^\s<)]+/g, (u) => `<a href="${u}">${u.replace(/^https:\/\//, "")}</a>`);
+  // Long links (the reply ideas' one-tap X links carry the whole draft) show shortened.
+  const linkify = (t: string) => esc(t).replace(/https:\/\/[^\s<)]+/g, (u) => {
+    const shown = u.replace(/^https:\/\//, "");
+    return `<a href="${u}">${shown.startsWith("x.com/intent/") ? "Reply on X" : shown.length > 70 ? shown.slice(0, 60) + "…" : shown}</a>`;
+  });
   const section = (s: DigestSection) =>
     `<h3 style="margin:18px 0 4px;font-size:15px;color:#1b4332">${esc(s.title)}</h3>` +
     s.lines.flatMap((l) => l.split("\n")).map((l) => `<div style="margin:2px 0">${linkify(l)}</div>`).join("") +
@@ -143,12 +148,19 @@ Deno.serve(async (req) => {
   } else if (body?.kind === "draft") {
     // A post that waits for Chris's OK (model-v-market gaps, 28 Oct 2026).
     const { data: c } = await sb.from("social_post_candidates")
-      .select("candidate_id, post_type, text, thread, expires_at").eq("candidate_id", body.candidate_id).maybeSingle();
+      .select("candidate_id, post_type, text, thread, expires_at, source_data").eq("candidate_id", body.candidate_id).maybeSingle();
     if (!c) return Response.json({ ok: false, reason: "candidate not found" });
     const posts: string[] = Array.isArray(c.thread) && c.thread.length ? c.thread : [c.text];
-    subject = `Needs your OK: ${LABEL[c.post_type] ?? c.post_type}`;
-    html = `<p>This X post <b>won't go</b> unless you approve and post it on <a href="https://fixtureshark.com/admin/social">fixtureshark.com/admin/social</a>. ` +
-      `It expires at <b>${esc(ukTime(c.expires_at))}</b> (UK).</p>` +
+    // A reply to a mention (5 Nov 2026): who said what, and where.
+    const m = c.post_type === "mention_reply" ? c.source_data?.mention as { author?: string; text?: string; url?: string } | undefined : undefined;
+    const context = m
+      ? `<p><b>@${esc(String(m.author ?? "someone"))}</b> wrote:</p><p style="white-space:pre-wrap;border-left:3px solid #999;padding:4px 10px;margin:8px 0;color:#444">` +
+        `${esc(String(m.text ?? ""))}</p><p style="font-size:13px"><a href="${esc(String(m.url ?? ""))}">${esc(String(m.url ?? "").replace(/^https:\/\//, ""))}</a></p>` +
+        `<p>Our drafted reply:</p>`
+      : "";
+    subject = m ? `Needs your OK: reply to @${m.author ?? "a mention"}` : `Needs your OK: ${LABEL[c.post_type] ?? c.post_type}`;
+    html = `<p>This X ${m ? "reply" : "post"} <b>won't go</b> unless you approve and post it on <a href="https://fixtureshark.com/admin/social">fixtureshark.com/admin/social</a>. ` +
+      `It expires at <b>${esc(ukTime(c.expires_at))}</b> (UK).</p>` + context +
       posts.map((p, i) => `<p style="white-space:pre-wrap;border-left:3px solid #b08a2e;padding:4px 10px;margin:8px 0">` +
                           `${posts.length > 1 ? `<b>${i + 1}/${posts.length}</b> ` : ""}${esc(p)}</p>`).join("") +
       `<p style="color:#666;font-size:12px">Post #${c.candidate_id}.</p>`;
