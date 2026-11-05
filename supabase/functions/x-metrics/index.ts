@@ -6,7 +6,7 @@
 // Called by pg_cron (private.social_metrics_call, worker token in
 // x-social-token) or by an admin from /admin/social.
 //
-//   POST { triggered_by?: string, scope?: "daily" | "weekly" }
+//   POST { triggered_by?: string, scope?: "daily" | "weekly" | "overnight" }
 //
 // Which posts (4 Nov 2026: Chris approved the daily cost; keep the total
 // under about $1 a month):
@@ -15,6 +15,9 @@
 //           week now, each read on 7 days: ~$0.60 a month)
 //   weekly  Monday 07:40 UTC: one settled read of every post of each thread
 //           published 7 to 14 days ago, at most 150 (~$0.15 a month)
+//   overnight 07:20 UK, before the 07:30 admin overnight email: the first
+//           post of each thread published in the last 12 hours, at most 20
+//           (~1-2 posts a night: ~$0.05 a month; all reads ~$0.80 a month)
 //   admin   "Read from X now": every post of the last 30 days, at most 300
 // Newest first, 100 ids per GET /2/tweets. Asks for organic
 // and non-public metrics (our own posts, user-context token, last 30 days)
@@ -36,6 +39,7 @@ const MAX_POSTS = 300;
 const SCOPES: Record<string, { fromDays: number; toDays: number; firstOnly: boolean; max: number }> = {
   daily: { fromDays: 0, toDays: 7, firstOnly: true, max: 60 },
   weekly: { fromDays: 7, toDays: 14, firstOnly: false, max: 150 },
+  overnight: { fromDays: 0, toDays: 0.5, firstOnly: true, max: 20 },
   all: { fromDays: 0, toDays: 30, firstOnly: false, max: MAX_POSTS },
 };
 const COST_PER_POST = 0.001;
@@ -116,7 +120,7 @@ Deno.serve(async (req) => {
   }
   const reqBody = await req.json().catch(() => ({}));
   const triggeredBy = workerToken ? String(reqBody?.triggered_by ?? "schedule") : "admin";
-  const scope = workerToken && ["daily", "weekly"].includes(reqBody?.scope) ? String(reqBody.scope) : "all";
+  const scope = workerToken && ["daily", "weekly", "overnight"].includes(reqBody?.scope) ? String(reqBody.scope) : "all";
   const win = SCOPES[scope];
 
   const { data: run, error: runErr } = await sb.from("social_metrics_runs")
