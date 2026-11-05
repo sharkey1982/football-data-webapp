@@ -1509,6 +1509,109 @@ def preview_reddit_md(p: dict, url: str) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# X opening lines ("hooks"): A/B test, Chris 5 Nov 2026
+# ---------------------------------------------------------------------------
+#
+# The thread's first post leads with the single most surprising or useful
+# fact in the report, in two styles: A "data-first" (a statement of the fact)
+# and B "question-first" (a short honest question the same data answers).
+# Both are stored in the payload as x_hooks; the database picks one when it
+# makes the X candidate (private.social_hook_apply), records which in the
+# candidate's source_data, and falls back to the label opener in x_thread
+# when there is no hook. Every number in a hook is one the report shows.
+
+POS_WORDS = {"GK": "goalkeeper", "DEF": "defender", "MID": "midfielder", "FWD": "forward"}
+
+
+def x_len(text: str) -> int:
+    """X's weighted length, as public.social_weighted_length counts it (links 23, most emoji and CJK 2)."""
+    t = re.sub(r"https?://\S+", "x" * 23, text)
+    light = lambda c: 1 <= ord(c) <= 0x10FF or 0x2000 <= ord(c) <= 0x200D or 0x2010 <= ord(c) <= 0x201F or 0x2032 <= ord(c) <= 0x2037
+    return sum(1 if light(c) else 2 for c in t)
+
+
+def _hooks(fact: str, a: str, b: str) -> dict | None:
+    if x_len(a + " 🧵") > 200 or x_len(b + " 🧵") > 200:
+        return None
+    return {"fact": fact, "A": a, "B": b}
+
+
+def preview_hooks(p: dict) -> dict | None:
+    gw, caps = p["gw"], [c for c in p.get("captains") or [] if c.get("gw_xpts") is not None]
+    if caps and caps[0].get("top_chance") is not None:
+        lead = caps[0]
+        # Someone other than the projection leader is likelier to outscore the other seven.
+        rival = max((c for c in caps[1:] if c.get("top_chance") is not None), key=lambda c: c["top_chance"], default=None)
+        lc = round(lead["top_chance"] * 100)
+        if rival and round(rival["top_chance"] * 100) > lc:
+            rc = round(rival["top_chance"] * 100)
+            price = f" (£{rival['price']:.1f}m)" if rival.get("price") else ""
+            return _hooks("captain_top_chance_rival",
+                          f"{lead['name']} tops our GW{gw} captain projections, but {rival['name']}{price} is likelier "
+                          f"to outscore the other seven: {rc}% v {lc}%.",
+                          f"Which of our top eight GW{gw} captains is likeliest to outscore the rest? Not {lead['name']}, "
+                          f"on our numbers: {rival['name']}{price}, {rc}% v {lc}%.")
+        if lc < 25:
+            return _hooks("captain_top_chance_low",
+                          f"{lead['name']} tops our GW{gw} captain projections on {lead['gw_xpts']:.1f} points, "
+                          f"but has only a {lc}% chance of outscoring the other seven.",
+                          f"How safe is {lead['name']} as GW{gw} captain? He tops our projections on {lead['gw_xpts']:.1f} points, "
+                          f"but has only a {lc}% chance of outscoring the other seven.")
+    fx = [x for x in p.get("fixtures") or [] if x.get("goals_home") is not None]
+    if fx:
+        m = max(fx, key=lambda x: abs(x["goals_home"] - x["goals_away"]))
+        fav, dog, gf = (m["home"], m["away"], m["goals_home"]) if m["goals_home"] >= m["goals_away"] else (m["away"], m["home"], m["goals_away"])
+        if gf >= 2.5:
+            return _hooks("one_sided_fixture",
+                          f"{fav} are expected to score {gf:.1f} against {dog} in GW{gw}, the most one-sided game of the week.",
+                          f"Which GW{gw} game is the most one-sided? {fav} v {dog}: {gf:.1f} goals expected for {fav}.")
+    short = sorted({r["team"] for r in (p.get("congestion") or {}).get("before_gw") or [] if r["rest"] <= 3})
+    if len(short) >= 5:
+        return _hooks("short_rest",
+                      f"{len(short)} teams play GW{gw} on three days' rest or less after a midweek match.",
+                      f"How many teams play GW{gw} on three days' rest or less? {len(short)}, after midweek matches.")
+    return None
+
+
+def reflection_hooks(p: dict) -> dict | None:
+    gw = p["gw"]
+    note = "" if p.get("bonus_confirmed") else " (Provisional: bonus not yet confirmed.)"
+    t = (p.get("goals") or {}).get("totals") or {}
+    if t.get("matches") and t.get("expected") is not None and t.get("xg") is not None:
+        g, e, xg = t["goals"], t["expected"], t["xg"]
+        dg, dx = g - e, xg - e
+        if abs(dg) >= 4:
+            # The same reading as verdict_goals: were the chances there too?
+            chances_moved = dg * dx > 0 and abs(dx) >= 0.6 * abs(dg)
+            if dg < 0:
+                why_a = "The chances weren't there either." if chances_moved else "The chances were there; the finishing wasn't."
+                q = f"Why only {g} goals in GW{gw}, when {e:.1f} were expected?"
+            else:
+                why_a = "The chances were up too." if chances_moved else "Finishing, not extra chances, made the difference."
+                q = f"Why {g} goals in GW{gw}, when {e:.1f} were expected?"
+            why_b = ({True: "Fewer chances, not just finishing.", False: "The chances were there; the finishing wasn't."} if dg < 0 else
+                     {True: "More chances, not just finishing.", False: "Mostly finishing: chances were close to normal."})[chances_moved]
+            return _hooks("goals_v_expected", f"{g} goals against {e:.1f} expected in GW{gw}. {why_a}{note}", f"{q} {why_b}{note}")
+    c = p.get("captaincy") or {}
+    w = next((x for x in c.get("weeks") or [] if x.get("gw") == gw), None)
+    if w and w.get("premium"):
+        # The best captain exactly as verdict_captaincy names him (least-owned of those tied on the top score).
+        pr, cands = w["premium"], {r["id"]: r for r in c.get("ranges") or []}
+        if w.get("best"):
+            cands.setdefault(w["best"]["id"], w["best"])
+        top = max((r["pts"] for r in cands.values()), default=None)
+        tops = sorted((r for r in cands.values() if r["pts"] == top), key=lambda r: (r.get("own") or 0))
+        best = tops[0] if tops else None
+        if best and pr["id"] not in {r["id"] for r in tops} and pr["pts"] <= 3 and top >= pr["pts"] + 6:
+            names = " and ".join(r["name"] for r in tops[:2])
+            many = len(tops) > 1
+            return _hooks("captain_premium_blank",
+                          f"{pr['name']} scored {pr['pts']} in GW{gw}. The best captain{'s' if many else ''}, {names}, scored {top}.{note}",
+                          f"Was {pr['name']} the right GW{gw} captain? He scored {pr['pts']}; {names} scored {top}.{note}")
+    return None
+
+
 def preview_x_thread(p: dict, url: str) -> list[str]:
     # The link goes in the first post (Chris, 16 Oct); the automatic X post
     # keeps it there as the week's one link.
@@ -1560,6 +1663,12 @@ def store(d: Data, p: dict, publish: bool, code_ref: str, frozen: bool = False) 
     else:
         title = f"FPL GW{gw} preview ({season}): captains, fixtures, transfers"
         md, xt = preview_reddit_md(p, url), preview_x_thread(p, url)
+    # Opening-line variants for the X thread (A/B test); absent means the label opener.
+    hooks = reflection_hooks(p) if kind == "reflection" else preview_hooks(p)
+    if hooks:
+        p["x_hooks"] = hooks
+    else:
+        p.pop("x_hooks", None)
     summary = " ".join(p["headlines"])[:600]
     # Replace the current draft if there is one; published versions are permanent.
     d.one("""with x as (delete from public.fpl_gameweek_reports where season_id = %s and fpl_event_id = %s and kind = %s and status = 'draft'
