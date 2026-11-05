@@ -315,8 +315,11 @@ the 19:25 email).
   FPL's injury flag; FPL's price predictor when 50%+ of the way; the team's
   next Premier League game and our expected-goals forecast; our top three
   projected captains; the predictor's 90%+ players.
-- Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money) drafts a reply
-  from those sentences only and scores how much it adds (0-10).
+- Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money; `claude-sonnet-5`
+  if the API refuses Haiku) drafts a reply from those sentences only and
+  scores how much it adds (0-10). Drafter errors are kept in the run's
+  `detail.draft_errors`. `x-replies` kind `redraft` (no X reads) redrafts
+  open template ideas from the last 36 hours.
   `public.social_reply_check` enforces the house rules: under 280 (a link
   counts 23), every number in the facts, at most one link and only a fact's
   fixtureshark.com page, no @ or #, no betting or hype words, emoji or "!".

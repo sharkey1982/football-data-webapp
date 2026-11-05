@@ -5,7 +5,10 @@
 // Chris approved 5 Nov 2026). Called by pg_cron (private.social_replies_call,
 // worker token in x-social-token) or by an admin.
 //
-//   POST { kind: "ideas" | "mentions", triggered_by?: string }
+//   POST { kind: "ideas" | "mentions" | "redraft", triggered_by?: string }
+//
+// redraft   No X reads: redrafts open ideas from the last 36 hours that fell
+//           back to the template, with Claude, when the draft passes.
 //
 // ideas     Once a day (17:40 UK by default). Checks any account handle not
 //           yet verified (GET /2/users/by), then ONE recent search of the
@@ -43,8 +46,12 @@ import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const X = "https://api.x.com/2";
 const COST = { post: 0.005, owned: 0.001, user: 0.01 };
-const MODEL = "claude-haiku-4-5-20251001";
-const LLM_PRICE = { in: 1 / 1e6, out: 5 / 1e6 };
+// The drafter: Haiku first (cheap); if the API refuses it (model not found or
+// not allowed for the key), the model ai-lab-run uses. $ per token.
+const MODELS = [
+  { id: "claude-haiku-4-5-20251001", in: 1 / 1e6, out: 5 / 1e6 },
+  { id: "claude-sonnet-5", in: 2 / 1e6, out: 10 / 1e6 },
+];
 const IDEA_MAX_RESULTS = 10;   // the search minimum
 const MENTION_PAGE = 5;        // the mentions minimum
 const MENTION_PAGES = 4;
@@ -157,25 +164,34 @@ pick, buy, sell or captain: say what the numbers show. Use ONLY the facts provid
 appear in one of those facts exactly as it is written there: no rounding, no sums, no new numbers. FPL's figures are FPL's; projections
 and forecasts are FixtureShark's, so say whose they are. Never state anything the facts do not say. Reply with a single JSON object only.`;
 
-async function claude(system: string, user: string): Promise<{ draft: Draft | null; cost: number; error?: string }> {
+async function claude(system: string, user: string): Promise<{ draft: Draft | null; cost: number; model: string; error?: string }> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!key) return { draft: null, cost: 0, error: "ANTHROPIC_API_KEY not set" };
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 600, system, messages: [{ role: "user", content: user }] }),
-    signal: AbortSignal.timeout(40_000),
-  }).catch((e) => ({ ok: false, status: 0, json: () => Promise.resolve({ error: String(e) }) }) as unknown as Response);
-  const data = await res.json().catch(() => ({}));
-  const cost = (data?.usage?.input_tokens ?? 0) * LLM_PRICE.in + (data?.usage?.output_tokens ?? 0) * LLM_PRICE.out;
-  if (!res.ok) return { draft: null, cost, error: `Anthropic ${res.status}: ${JSON.stringify(data?.error ?? data).slice(0, 200)}` };
-  const text = (data.content ?? []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
-  const a = text.indexOf("{"), b = text.lastIndexOf("}");
-  try {
-    return { draft: JSON.parse(text.slice(a, b + 1)) as Draft, cost };
-  } catch {
-    return { draft: null, cost, error: "drafter did not return JSON" };
+  if (!key) return { draft: null, cost: 0, model: "none", error: "ANTHROPIC_API_KEY not set" };
+  let cost = 0, error = "";
+  for (const m of MODELS) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: m.id, max_tokens: 600, system, messages: [{ role: "user", content: user }] }),
+      signal: AbortSignal.timeout(40_000),
+    }).catch((e) => ({ ok: false, status: 0, json: () => Promise.resolve({ error: String(e) }) }) as unknown as Response);
+    const data = await res.json().catch(() => ({}));
+    cost += (data?.usage?.input_tokens ?? 0) * m.in + (data?.usage?.output_tokens ?? 0) * m.out;
+    if (!res.ok) {
+      error = `${error}${error ? " | " : ""}${m.id}: Anthropic ${res.status}: ${JSON.stringify(data?.error ?? data).slice(0, 200)}`;
+      // A refused model (400/403/404) tries the next one; a bad key or an outage does not.
+      if ([400, 403, 404].includes(res.status)) continue;
+      return { draft: null, cost, model: m.id, error };
+    }
+    const text = (data.content ?? []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
+    const a = text.indexOf("{"), b = text.lastIndexOf("}");
+    try {
+      return { draft: JSON.parse(text.slice(a, b + 1)) as Draft, cost, model: m.id };
+    } catch {
+      return { draft: null, cost, model: m.id, error: `${m.id} did not return JSON` };
+    }
   }
+  return { draft: null, cost, model: "none", error };
 }
 
 async function check(sb: SupabaseClient, text: string, facts: Fact[], allowLink: boolean): Promise<string[]> {
@@ -206,14 +222,16 @@ async function draftReply(sb: SupabaseClient, system: string, prompt: Record<str
   let errors: string[] = [];
   let msg = JSON.stringify(prompt);
   let last: Draft | null = null;
+  let model = "none";
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await claude(system, msg);
     cost += r.cost;
+    model = r.model;
     if (!r.draft) { errors = [r.error ?? "no draft"]; break; }
     last = r.draft;
-    if (r.draft.skip || !r.draft.reply) return { draft: r.draft, by: MODEL, cost, errors: [] };
+    if (r.draft.skip || !r.draft.reply) return { draft: r.draft, by: model, cost, errors: [] };
     errors = await check(sb, r.draft.reply, facts, allowLink);
-    if (!errors.length) return { draft: r.draft, by: MODEL, cost, errors };
+    if (!errors.length) return { draft: r.draft, by: model, cost, errors };
     msg = JSON.stringify({ ...prompt, previous_reply: r.draft.reply, problems: errors,
                            instruction: "Rewrite the reply so it has none of these problems. Same JSON shape." });
   }
@@ -224,7 +242,7 @@ async function draftReply(sb: SupabaseClient, system: string, prompt: Record<str
     }
   }
   // Failed the checks twice: keep the drafter's category and reason, drop its reply.
-  return { draft: last ? { ...last, reply: undefined } : null, by: MODEL, cost, errors };
+  return { draft: last ? { ...last, reply: undefined } : null, by: model, cost, errors };
 }
 
 async function factsFor(sb: SupabaseClient, text: string): Promise<Fact[]> {
@@ -233,6 +251,44 @@ async function factsFor(sb: SupabaseClient, text: string): Promise<Fact[]> {
 }
 
 // ------------------------------------------------------------------- ideas
+function ideaPrompt(handle: string, text: string, facts: Fact[]): Record<string, unknown> {
+  return {
+    task: "Draft a reply to this post from our facts. Say skip if our facts add nothing a reader of this post would value.",
+    post: { author: `@${handle}`, text },
+    facts: facts.map((f) => ({ id: f.id, about: f.about, source: f.source, text: f.text, link: f.link })),
+    rules: "Under 250 characters including one link at the end: the link of the fact you lean on most, in full (a link counts as 23). Do not start with @. Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
+  };
+}
+
+// Redraft open ideas that fell back to the template (no X reads, no X cost):
+// with Claude's draft when it passes the checks, else unchanged.
+async function runRedraft(sb: SupabaseClient): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { posts_read: 0, owned_read: 0, users_read: 0, made: 0, llm: 0 };
+  const results: Record<string, unknown>[] = [];
+  out.detail = { results };
+  const { data: ideas } = await sb.from("social_reply_ideas").select("idea_id, x_post_id, author_handle, post_text, facts")
+    .eq("status", "suggested").eq("drafted_by", "template").gte("created_at", new Date(Date.now() - 36 * 3_600_000).toISOString());
+  for (const i of ideas ?? []) {
+    const facts = (i.facts ?? []) as Fact[];
+    const res = await draftReply(sb, VOICE, ideaPrompt(i.author_handle, i.post_text, facts), facts, true, false);
+    out.llm = (out.llm as number) + res.cost;
+    const d = res.draft;
+    if (d?.reply && !d.skip) {
+      const reply = d.reply.trim();
+      await sb.from("social_reply_ideas").update({
+        draft_text: reply, drafted_by: res.by, score: d.score ?? null, facts_used: facts.filter((f) => (d.facts_used ?? []).includes(f.id)),
+        link: reply.match(/https:\/\/fixtureshark\.com\/\S+/)?.[0] ?? null,
+        intent_url: `https://x.com/intent/post?in_reply_to=${i.x_post_id}&text=${enc(reply)}`,
+      }).eq("idea_id", i.idea_id);
+      out.made = (out.made as number) + 1;
+      results.push({ idea_id: i.idea_id, by: res.by, score: d.score ?? null });
+    } else {
+      results.push({ idea_id: i.idea_id, by: res.by, kept: "template", skip: d?.skip ?? null, reason: d?.reason ?? null, errors: res.errors });
+    }
+  }
+  return out;
+}
+
 async function runIdeas(sb: SupabaseClient, st: State, token: string, log: Record<string, unknown>): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { posts_read: 0, owned_read: 0, users_read: 0, made: 0, llm: 0 };
   const detail: Record<string, unknown> = {};
@@ -330,15 +386,11 @@ async function runIdeas(sb: SupabaseClient, st: State, token: string, log: Recor
   // 5. Draft, then keep the best (score 5+) up to today's remaining slots.
   const drafted: { c: typeof cands[number]; d: Draft; by: string }[] = [];
   const skipped: Record<string, string>[] = [];
+  const draftErrors: Record<string, string>[] = [];
   for (const c of cands.slice(0, Math.min(6, remaining * 2))) {
-    const prompt = {
-      task: "Draft a reply to this post from our facts. Say skip if our facts add nothing a reader of this post would value.",
-      post: { author: `@${c.handle}`, text: c.post.text },
-      facts: c.facts.map((f) => ({ id: f.id, about: f.about, source: f.source, text: f.text, link: f.link })),
-      rules: "Under 250 characters including one link at the end: the link of the fact you lean on most, in full (a link counts as 23). Do not start with @. Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
-    };
-    const res = await draftReply(sb, VOICE, prompt, c.facts, true, true);
+    const res = await draftReply(sb, VOICE, ideaPrompt(c.handle, c.post.text, c.facts), c.facts, true, true);
     out.llm = (out.llm as number) + res.cost;
+    if (res.errors.length) draftErrors.push({ id: c.post.id, by: res.by, errors: res.errors.join("; ").slice(0, 400) });
     if (!res.draft || res.draft.skip || !res.draft.reply || (res.draft.score ?? 0) < 5) {
       skipped.push({ id: c.post.id, reason: [res.draft?.reason, res.errors.join("; ")].filter(Boolean).join(" | ") || "skipped" });
       continue;
@@ -347,6 +399,7 @@ async function runIdeas(sb: SupabaseClient, st: State, token: string, log: Recor
   }
   drafted.sort((a, b) => (b.d.score ?? 0) - (a.d.score ?? 0));
   detail.skipped = skipped;
+  detail.draft_errors = draftErrors;
   for (const { c, d, by } of drafted.slice(0, remaining)) {
     const reply = (d.reply as string).trim();
     const link = reply.match(/https:\/\/fixtureshark\.com\/\S+/)?.[0] ?? null;
@@ -483,8 +536,8 @@ Deno.serve(async (req) => {
     return json({ error: "admin only" }, 403);
   }
   const body = await req.json().catch(() => ({}));
-  const kind = body?.kind === "mentions" ? "mentions" : body?.kind === "ideas" ? "ideas" : null;
-  if (!kind) return json({ error: "kind must be ideas or mentions" }, 400);
+  const kind = ["ideas", "mentions", "redraft"].includes(body?.kind) ? String(body.kind) : null;
+  if (!kind) return json({ error: "kind must be ideas, mentions or redraft" }, 400);
   const triggeredBy = workerToken ? String(body?.triggered_by ?? "schedule").slice(0, 40) : "admin";
 
   const { data: run, error: runErr } = await sb.from("social_reply_runs").insert({ kind, triggered_by: triggeredBy }).select("run_id").single();
@@ -501,6 +554,15 @@ Deno.serve(async (req) => {
     await sb.from("social_reply_runs").update(patch).eq("run_id", run.run_id);
     return json({ ok: status !== "error", run_id: run.run_id, kind, ...patch });
   };
+
+  // Redraft reads nothing from X: no budget check, no token.
+  if (kind === "redraft") {
+    try {
+      return finish("ok", await runRedraft(sb));
+    } catch (e) {
+      return finish("error", { error: `crashed: ${String(e).slice(0, 500)}` });
+    }
+  }
 
   const { data: st, error: stErr } = await sb.rpc("social_reply_state", { p_kind: kind });
   if (stErr || !st) return finish("error", { error: stErr?.message ?? "no state" });
