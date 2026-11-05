@@ -9,7 +9,9 @@
 //   POST { candidate_id: number, mode: "dry_run" | "live" }
 //
 // A thread's posts go out as replies to the previous one; a candidate whose
-// source_data has reply_to_x_id (one of our own posts) replies to that post. If a later post
+// source_data has reply_to_x_id (one of our own posts) replies to that post,
+// and a mention reply (post_type mention_reply) replies to its
+// in_reply_to_x_id, the post that mentioned us. If a later post
 // fails, the thread is recorded as posted with the ids so far and the error,
 // which trips the circuit breaker for automatic posts.
 //
@@ -123,10 +125,18 @@ Deno.serve(async (req) => {
   if (claimErr) return json({ error: claimErr.message }, 500);
   if (!claim?.ok) return json({ ok: false, mode, reasons: claim?.reasons ?? [], text: claim?.text, estimated_cost_usd: claim?.estimated_cost_usd });
   const posts: string[] = Array.isArray(claim.thread) && claim.thread.length ? claim.thread : [claim.text];
-  // A follow-up to an earlier thread of ours (e.g. the reflection's bonus correction) replies to its last post.
-  const { data: cand } = await sb.from("social_post_candidates").select("source_data").eq("candidate_id", candidateId).maybeSingle();
-  const replyTo = typeof cand?.source_data?.reply_to_x_id === "string" && /^\d+$/.test(cand.source_data.reply_to_x_id)
-    ? cand.source_data.reply_to_x_id as string : null;
+  // A reply: a mention reply's in_reply_to_x_id (5 Nov 2026: X allows API
+  // replies to posts that mention us), or a follow-up to an earlier thread of
+  // ours (source_data.reply_to_x_id, e.g. the reflection's bonus correction).
+  // select("*") so this still works before the in_reply_to_x_id column exists.
+  const { data: cand } = await sb.from("social_post_candidates").select("*").eq("candidate_id", candidateId).maybeSingle();
+  const isId = (v: unknown): v is string => typeof v === "string" && /^\d+$/.test(v);
+  const replyTo = isId(cand?.in_reply_to_x_id) ? cand.in_reply_to_x_id : isId(cand?.source_data?.reply_to_x_id) ? cand.source_data.reply_to_x_id : null;
+  if (cand?.post_type === "mention_reply" && !replyTo) {
+    if (mode === "live") await sb.rpc("social_finish_publish", { p_attempt_id: claim.attempt_id, p_outcome: "failed", p_http_status: null,
+      p_x_post_id: null, p_error: "mention reply without in_reply_to_x_id", p_x_post_ids: null });
+    return json({ ok: false, mode, reasons: ["a mention reply needs the post it replies to (in_reply_to_x_id)"] });
+  }
 
   // ---- Dry run ends here: no tokens, no X.
   if (mode === "dry_run") {
