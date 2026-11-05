@@ -12,6 +12,15 @@ fixing something else.
 
 ---
 
+## 2026-11-05 · X reply reads: first run refused by table permissions
+- **Found:** Claude, 5 Nov, checking the first read cycle after merging #551 (`net._http_response`: 500 "permission denied for table social_reply_runs" for both calls).
+- **Impact:** the first reply-ideas and mentions reads did not run. Nothing was read from X and nothing was spent.
+- **Cause:** `x-replies` writes its own rows with the service role. New tables in this project get only SELECT (plus REFERENCES, TRIGGER, TRUNCATE) for `service_role` by default, not INSERT or UPDATE. The local test database ran as a superuser, so it never hit this.
+- **Fix:** `20261105201000_social_replies_grants.sql` grants INSERT and UPDATE on the four tables (UPDATE only on accounts) and the two sequences, then runs the first read of each kind again.
+- **Prevention:** a new table that an Edge Function writes directly needs explicit grants to `service_role` in its migration. Writes through a `security definer` function do not. *Lesson: test new tables as the role that will write them, not as a superuser.*
+
+---
+
 ## 2026-11-01 · Cup shoot-outs never recorded: the site couldn't say who went through
 - **Found:** Chris, 1 Nov: Fleetwood Town 1-1 Arsenal (Carabao Cup, 27 Oct) showed only "drew 1-1".
 - **Impact:** every Carabao Cup and FA Cup tie this season had `decided_by`, `winner_team_id` and the penalty columns empty: 16 Carabao Cup shoot-outs (including Fleetwood 5-3 Arsenal, Liverpool 6-5 Chelsea, Man City 4-3 Brighton) read as plain draws on the match and fixtures pages. No wrong score was shown.
