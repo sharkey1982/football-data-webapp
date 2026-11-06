@@ -359,7 +359,12 @@ the 19:25 email).
   the projection-only sentence when that does not fit. The prompt asks for
   past plus projection and one decision-point (better value, the club's best
   pick, unlucky, running hot, the fixtures); `x-replies` rejects "due",
-  "overdue" and "bound to" ("due to" is fine).
+  "overdue" and "bound to" ("due to" is fine). The first redraft (run 13)
+  often ignored the angle and once wrote a difference it worked out ("7.5
+  pts more", passed because 7.5 was in another fact), so the prompt now says
+  to start from the angle fact and never to write a worked-out difference
+  or total. A team angle that is too long with the full fixture list keeps
+  the run's rank instead (`20261106150000_social_reply_team_angle.sql`).
 - Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money; `claude-sonnet-5`
   if the API refuses Haiku) drafts a reply from those sentences only and
   scores how much it adds (0-10). The prompt asks for ONE comparative point
