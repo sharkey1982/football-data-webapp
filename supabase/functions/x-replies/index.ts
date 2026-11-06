@@ -310,7 +310,7 @@ function ideaPrompt(handle: string, text: string, facts: Fact[]): Record<string,
     task: IDEA_TASK,
     post: { author: `@${handle}`, text },
     facts: facts.map((f) => ({ id: f.id, kind: f.kind, about: f.about, source: f.source, text: f.text, link: f.link })),
-    rules: "Under 280 characters with the link (a link counts as 23, so at most about 255 before it), with at most one link, at the end: the link of the fact you lean on most, in full (a link counts as 23). \"GWs\" and \"pts\" are fine. Do not start with @ or with \"FixtureShark projects\". Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
+    rules: "Under 280 characters with the link (a link counts as 23, so at most about 255 before it), with at most one link, at the end: the link of the fact you lean on most, in full. \"GWs\" and \"pts\" are fine. Do not start with @ or with \"FixtureShark projects\". Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
   };
 }
 
