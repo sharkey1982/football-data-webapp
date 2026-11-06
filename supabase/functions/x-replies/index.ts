@@ -16,8 +16,9 @@
 //           yet verified (GET /2/users/by), then ONE recent search of the
 //           active accounts' own posts (no replies or reposts, FPL and stats
 //           words), at most 10 posts. Keeps those where our data adds
-//           something (public.social_reply_facts), drafts a reply from those
-//           facts only (Claude, checked by public.social_reply_check; the
+//           something (public.social_reply_facts: projections and, from
+//           6 Nov 2026, past performance), drafts a reply that weighs both
+//           from those facts only (Claude, checked by public.social_reply_check; the
 //           comparative "angle" fact as a template if that fails) and stores at most
 //           reply_ideas_per_day a day in social_reply_ideas with a one-tap
 //           intent link. X refuses automated replies to accounts that have
@@ -168,18 +169,29 @@ no new numbers. FPL's figures are FPL's; projections and forecasts are ours, so 
 anything the facts do not say. Reply with a single JSON object only.`;
 
 // Chris, 6 Nov 2026: one player's projected points on their own are not engaging. A reply should answer, by comparison, the
-// decision a manager reading the post faces.
+// decision a manager reading the post faces. Later the same day: "You also only ever look at projections. I think past
+// performance as well as projections need to be considered." So each draft weighs what has happened (facts of kind "past":
+// FPL points, minutes, goals and assists v xG, xA and xGI, the last 5, ranks) alongside what we project.
 const IDEA_TASK = `Draft a reply to this post that makes ONE clear, useful point for an FPL manager reading it, answering the decision
-the post raises. Pick the strongest of these that our facts support:
-- better value: is someone in the same position, at about the same price, projected more over the next 5 gameweeks?
+the post raises. Combine what has happened (output and the underlying numbers behind it: goals and assists v xGI, points, minutes,
+the last 5 gameweeks) with what we project over the next 5. Pick the strongest decision-point our facts support:
+- better value: is someone in the same position, at about the same price, doing more underneath and projected more?
 - the club's best pick: is the player named the best of his club's available players (FPL allows 3 per club)? If a key player
   is out, say so and name who steps up, especially an under-owned one.
+- unlucky: output well below his xGI (facts say "unlucky"), so the underlying numbers suggest more to come.
+- running hot: output well above his xGI (facts say "running hot"), so some of it is finishing luck.
 - the fixtures: is the club's run over the next 5 good or hard, and does it get better or worse after that?
-For a team post, say which of its players are the best picks over the next 5 and how the fixture run compares. For a match post,
-give our forecast and the one most interesting player angle. Name the alternative and give both numbers, so the comparison is clear.
-Facts of kind "angle" are a ready-made comparison you may use as it is or improve on. Say skip if our facts add nothing.
-Example of the kind of reply wanted: "With Saka out, Rice isn't our best Arsenal pick. Over the next 5 GWs we project Ødegaard (£6.7m)
-27.2 pts and Havertz (£7.4m, 5.8% owned) 24.4, v Rice's 22.0 at the same price. Havertz is the under-owned third Arsenal asset."`;
+Use "running hot" or "unlucky" only for a player whose facts say so. Never call anyone "due" or say returns are "bound to" come:
+say "the underlying numbers suggest" or "the chances have been there". For a team post, use its goals v xG and conceded v xGC,
+its best picks over the next 5 and how the fixture run compares. For a match post, give our forecast and the one most interesting
+player angle. Name the alternative and give both numbers, so the comparison is clear. Facts of kind "angle" are a ready-made
+past-and-projection comparison you may use as it is or improve on. Say skip if our facts add nothing.
+Example of the kind of reply wanted: "Rice's 5 assists have come from 2.5 xGI, so some of that is finishing luck. Ødegaard is the
+reverse: 2 goals from 4.3 xGI, Arsenal's best underlying numbers with Saka out. He's £0.7m cheaper, and we project him 27.2 pts over
+the next 5 GWs v Rice's 22.0."`;
+
+// Never "due" in the betting sense ("due to" is fine).
+const DUE = /\b(due(?!\s+to\b)|bound to|overdue)\b/i;
 
 async function claude(system: string, user: string): Promise<{ draft: Draft | null; cost: number; model: string; error?: string }> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
@@ -236,8 +248,10 @@ async function check(sb: SupabaseClient, text: string, facts: Fact[], allowLink:
 }
 
 // The fallback reply: the first comparative sentence (kind "angle";
-// private.social_reply_facts builds one per player, team and match named)
-// with its link. Without one, the first facts about the first thing named.
+// private.social_reply_facts builds one per player, team and match named:
+// from 6 Nov 2026 what has happened, his goals and assists v xGI and the
+// alternative's, then price and our next-5 projection, when it fits) with
+// its link. Without one, the first facts about the first thing named.
 function template(facts: Fact[]): { reply: string; used: string[] } | null {
   if (!facts.length) return null;
   const angle = facts.find((f) => f.kind === "angle");
@@ -270,6 +284,7 @@ async function draftReply(sb: SupabaseClient, system: string, prompt: Record<str
     if (r.draft.skip || !r.draft.reply) return { draft: r.draft, by: model, cost, errors: [] };
     errors = await check(sb, r.draft.reply, facts, allowLink);
     if (/^\s*FixtureShark projects/i.test(r.draft.reply)) errors.push('do not start with "FixtureShark projects": lead with the comparison');
+    if (DUE.test(r.draft.reply)) errors.push('do not call anyone "due" or "bound to": say "the underlying numbers suggest" or "the chances have been there"');
     if (!errors.length) return { draft: r.draft, by: model, cost, errors };
     msg = JSON.stringify({ ...prompt, previous_reply: r.draft.reply, problems: errors,
                            instruction: "Rewrite the reply so it has none of these problems. Same JSON shape." });
@@ -295,7 +310,7 @@ function ideaPrompt(handle: string, text: string, facts: Fact[]): Record<string,
     task: IDEA_TASK,
     post: { author: `@${handle}`, text },
     facts: facts.map((f) => ({ id: f.id, kind: f.kind, about: f.about, source: f.source, text: f.text, link: f.link })),
-    rules: "Under 280 characters, aim for about 240, with at most one link, at the end: the link of the fact you lean on most, in full (a link counts as 23). \"GWs\" and \"pts\" are fine. Do not start with @ or with \"FixtureShark projects\". Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
+    rules: "Under 280 characters with the link (a link counts as 23, so at most about 255 before it), with at most one link, at the end: the link of the fact you lean on most, in full. \"GWs\" and \"pts\" are fine. Do not start with @ or with \"FixtureShark projects\". Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
   };
 }
 

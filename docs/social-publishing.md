@@ -334,6 +334,32 @@ the 19:25 email).
   Rice isn't our top Arsenal pick. Over the next 5 GWs we project Ødegaard
   (£6.7m) 27.2 and Havertz (£7.4m, 5.8% owned) 24.4, v Rice's 22.0 at £7.4m."
   Topics (captaincy, price changes) as before.
+  **Past performance from 6 Nov 2026** (Chris: "You also only ever look at
+  projections. I think past performance as well as projections need to be
+  considered."). Migration `20261106140000_social_reply_past_performance.sql`.
+  From `fpl_player_gameweeks` (gameweeks before the next deadline), for every
+  player in the context (those named; their club's top 4 and best
+  under-owned; the same-position alternatives within £0.5m; a named team's
+  top 2, best per position and best under-owned; at most 24), facts of kind
+  `past`: `:past` season FPL points, minutes, starts (FPL's `stats.starts`),
+  goals, assists, xG, xA, xGI, bonus (clean sheets for DEF and GKP), points
+  and xGI per 90 (270+ minutes), and goals plus assists v xGI, labelled
+  "running hot" or "unlucky" only when the gap is 1.5+ and xGI is 1+; `:form`
+  the same for the last 5 gameweeks; `:ranks` each figure's rank in his club
+  and his position. `p<named>:v<alt>` sets a named player against each
+  alternative in his position or teammate projected 1+ more: price
+  difference, season points and xGI, next-5 projection for both. Each club in
+  the context gets `t<id>:xg`: goals v xG and conceded v xGC (summed from its
+  players' xG in finished games), season with rank of the 20, and last 5.
+  The `angle` facts now lead with what has happened, e.g. "Rice's 5 assists
+  have come from 2.5 xGI, so some of that is finishing luck. Ødegaard is the
+  reverse: 2 goals from 4.3 xGI, Arsenal's best underlying numbers with Saka
+  out. He's £0.7m cheaper, and we project him 27.2 pts over the next 5 GWs v
+  Rice's 22.0." (up to 256 characters, so 280 with the link), falling back to
+  the projection-only sentence when that does not fit. The prompt asks for
+  past plus projection and one decision-point (better value, the club's best
+  pick, unlucky, running hot, the fixtures); `x-replies` rejects "due",
+  "overdue" and "bound to" ("due to" is fine).
 - Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money; `claude-sonnet-5`
   if the API refuses Haiku) drafts a reply from those sentences only and
   scores how much it adds (0-10). The prompt asks for ONE comparative point
