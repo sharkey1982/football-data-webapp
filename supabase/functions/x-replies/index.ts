@@ -188,7 +188,8 @@ player angle. Name the alternative and give both numbers, so the comparison is c
 the player or team the post is mainly about: it is already a past-and-projection comparison in the house style. Use it as it is or
 reword it lightly, unless another pair of facts makes a clearly sharper point for this post. Back every judgement ("better value",
 "standout") with its numbers in the reply. Never write a difference or total you worked out yourself ("7.5 pts more"); only the
-figures as the facts give them. End with the link. Say skip if our facts add nothing.
+figures as the facts give them. Quote a rank only with the exact label the fact gives it (club or position; season, last 5 or per
+90; points, xGI or projection): a rank of the wrong thing is a false claim. End with the link. Say skip if our facts add nothing.
 Example of the kind of reply wanted: "Rice's 5 assists have come from 2.5 xGI, so some of that is finishing luck. Ødegaard is the
 reverse: 2 goals from 4.3 xGI, Arsenal's best underlying numbers with Saka out. He's £0.7m cheaper, and we project him 27.2 pts over
 the next 5 GWs v Rice's 22.0."`;

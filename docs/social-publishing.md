@@ -365,6 +365,11 @@ the 19:25 email).
   to start from the angle fact and never to write a worked-out difference
   or total. A team angle that is too long with the full fixture list keeps
   the run's rank instead (`20261106150000_social_reply_team_angle.sql`).
+  Run 14 then misread the paired ranks ("season xGI 1st and 2nd", club and
+  position) as the wrong rank, so `:ranks` now gives two labelled lists
+  ("ranks at Spurs: ... Among all defenders: ...") and the prompt says to
+  quote a rank only with its exact label
+  (`20261106160000_social_reply_ranks_clear.sql`).
 - Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money; `claude-sonnet-5`
   if the API refuses Haiku) drafts a reply from those sentences only and
   scores how much it adds (0-10). The prompt asks for ONE comparative point
