@@ -310,20 +310,45 @@ the 19:25 email).
   replies or reposts) with FPL or stats words, since the last read, at most 10.
 - `private.social_reply_facts(text)` finds the players (web or full name,
   whole word), teams and topics (captaincy, price changes) a post names and
-  returns what our data says about each as full sentences with their page:
-  FPL price, ownership and season points; our GW projection and its rank;
-  FPL's injury flag; FPL's price predictor when 50%+ of the way; the team's
-  next Premier League game and our expected-goals forecast; our top three
-  projected captains; the predictor's 90%+ players.
+  returns what our data says about each as full sentences with their page.
+  **Comparative from 6 Nov 2026** (Chris: one player's projected points on
+  their own are not engaging; say whether there is better value, whether the
+  fixtures are good, whether he is the best of a club's 3). Projections are
+  `fpl_projection_frontend_feed_v6` (model `leaguewide_v6`; the old
+  `fpl_projection_frontend_feed` stopped on 17 Sep), next 5 gameweeks from
+  the next deadline and the 5 after. Migration
+  `20261106100000_social_reply_comparative_facts.sql`. For each player:
+  `:fpl` FPL price, ownership, season points; `:run` next-5 points (and the
+  next GW), rank in his club's available players and in his position, the
+  club's fixtures with FPL difficulty and its rank of the 20; `:team` the
+  club's top 4 available (FPL's 3-a-club); `t<id>:missing` the club's players
+  FPL has out (injured, suspended, 25% or less) or doubtful, 3%+ owned or 30+
+  points; `:under` the club's best under-10%-owned options; `:value` players
+  in his position within £0.5m, any club, projected more; `:later` the next 5
+  after that (fixtures, difficulty, points); `:status`, `:price` as before.
+  For a team named: `:run`, `:assets` (top projected player per position),
+  `:under`, `:missing`. For its next game: `:next` (our expected-goals
+  forecast) and `m<fixture>:angle` (forecast, the game's top projected player
+  and best under-owned one). Each player, team and match also gets one
+  `kind: "angle"` fact: a ready comparative sentence, e.g. "With Saka out,
+  Rice isn't our top Arsenal pick. Over the next 5 GWs we project Ødegaard
+  (£6.7m) 27.2 and Havertz (£7.4m, 5.8% owned) 24.4, v Rice's 22.0 at £7.4m."
+  Topics (captaincy, price changes) as before.
 - Claude (`claude-haiku-4-5`, ~$0.003 a draft, not X money; `claude-sonnet-5`
   if the API refuses Haiku) drafts a reply from those sentences only and
-  scores how much it adds (0-10). Drafter errors are kept in the run's
-  `detail.draft_errors`. `x-replies` kind `redraft` (no X reads) redrafts
-  open template ideas from the last 36 hours.
+  scores how much it adds (0-10). The prompt asks for ONE comparative point
+  that answers the manager's decision (better value at the price, the club's
+  best pick, the fixture run), naming the alternative with both numbers, and
+  not starting "FixtureShark projects" (checked in `x-replies`). Drafter
+  errors are kept in the run's `detail.draft_errors`. `x-replies` kind
+  `redraft` (no X reads) redrafts every open idea from the last 36 hours with
+  fresh facts (the run's `detail.results` holds before and after); kind
+  `keycheck` makes a 1-token Anthropic call per model and returns the status
+  (no rows written).
   `public.social_reply_check` enforces the house rules: under 280 (a link
   counts 23), every number in the facts, at most one link and only a fact's
   fixtureshark.com page, no @ or #, no betting or hype words, emoji or "!".
-  A draft that fails twice falls back to a plain sentence-and-link template.
+  A draft that fails twice falls back to the first `angle` fact and its link.
 - At most `reply_ideas_per_day` (3) a London day, score 5+, are stored in
   `social_reply_ideas` (status `suggested`), with the facts offered and used,
   the post link and a one-tap link
