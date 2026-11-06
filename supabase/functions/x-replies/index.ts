@@ -5,18 +5,20 @@
 // Chris approved 5 Nov 2026). Called by pg_cron (private.social_replies_call,
 // worker token in x-social-token) or by an admin.
 //
-//   POST { kind: "ideas" | "mentions" | "redraft", triggered_by?: string }
+//   POST { kind: "ideas" | "mentions" | "redraft" | "keycheck", triggered_by?: string }
 //
-// redraft   No X reads: redrafts open ideas from the last 36 hours that fell
-//           back to the template, with Claude, when the draft passes.
+// redraft   No X reads: redrafts every open idea from the last 36 hours with
+//           fresh facts (Claude, or the comparative template if Claude fails).
+// keycheck  No X reads, no rows: a 1-token Anthropic call per drafter model,
+//           to tell whether ANTHROPIC_API_KEY works.
 //
 // ideas     Once a day (17:40 UK by default). Checks any account handle not
 //           yet verified (GET /2/users/by), then ONE recent search of the
 //           active accounts' own posts (no replies or reposts, FPL and stats
 //           words), at most 10 posts. Keeps those where our data adds
 //           something (public.social_reply_facts), drafts a reply from those
-//           facts only (Claude, checked by public.social_reply_check; a
-//           plain template if that fails) and stores at most
+//           facts only (Claude, checked by public.social_reply_check; the
+//           comparative "angle" fact as a template if that fails) and stores at most
 //           reply_ideas_per_day a day in social_reply_ideas with a one-tap
 //           intent link. X refuses automated replies to accounts that have
 //           not mentioned us, so Chris posts these himself. While ideas are
@@ -158,11 +160,26 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd
 
 // ----------------------------------------------------------------- drafting
 const VOICE = `You write replies on X for @FixtureSharkHQ, the account of FixtureShark (fixtureshark.com), a football and FPL data site.
-Voice: UK English, plain, friendly and brief, like a knowledgeable fan sharing a number. No hype, no clickbait, no exclamation marks,
-no emoji, no hashtags, no @mentions, no betting tips or betting language (bets, odds, tips, bankers, locks). Never tell people whom to
-pick, buy, sell or captain: say what the numbers show. Use ONLY the facts provided, worded as you like. Every number you write must
-appear in one of those facts exactly as it is written there: no rounding, no sums, no new numbers. FPL's figures are FPL's; projections
-and forecasts are FixtureShark's, so say whose they are. Never state anything the facts do not say. Reply with a single JSON object only.`;
+Voice: UK English, plain, friendly and brief, like a knowledgeable fan who has done the homework. No hype, no clickbait, no exclamation
+marks, no emoji, no hashtags, no @mentions, no betting tips or betting language (bets, odds, tips, bankers, locks). Comparisons are
+welcome ("Havertz projects more than Rice at the same price"); orders are not ("buy X", "captain Y"). Use ONLY the facts provided,
+worded as you like. Every number you write must appear in one of those facts exactly as it is written there: no rounding, no sums,
+no new numbers. FPL's figures are FPL's; projections and forecasts are ours, so write "we project" or "our model". Never state
+anything the facts do not say. Reply with a single JSON object only.`;
+
+// Chris, 6 Nov 2026: one player's projected points on their own are not engaging. A reply should answer, by comparison, the
+// decision a manager reading the post faces.
+const IDEA_TASK = `Draft a reply to this post that makes ONE clear, useful point for an FPL manager reading it, answering the decision
+the post raises. Pick the strongest of these that our facts support:
+- better value: is someone in the same position, at about the same price, projected more over the next 5 gameweeks?
+- the club's best pick: is the player named the best of his club's available players (FPL allows 3 per club)? If a key player
+  is out, say so and name who steps up, especially an under-owned one.
+- the fixtures: is the club's run over the next 5 good or hard, and does it get better or worse after that?
+For a team post, say which of its players are the best picks over the next 5 and how the fixture run compares. For a match post,
+give our forecast and the one most interesting player angle. Name the alternative and give both numbers, so the comparison is clear.
+Facts of kind "angle" are a ready-made comparison you may use as it is or improve on. Say skip if our facts add nothing.
+Example of the kind of reply wanted: "With Saka out, Rice isn't our best Arsenal pick. Over the next 5 GWs we project Ødegaard (£6.7m)
+27.2 pts and Havertz (£7.4m, 5.8% owned) 24.4, v Rice's 22.0 at the same price. Havertz is the under-owned third Arsenal asset."`;
 
 async function claude(system: string, user: string): Promise<{ draft: Draft | null; cost: number; model: string; error?: string }> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
@@ -194,16 +211,37 @@ async function claude(system: string, user: string): Promise<{ draft: Draft | nu
   return { draft: null, cost, model: "none", error };
 }
 
+// Does ANTHROPIC_API_KEY work? One 1-token call per drafter model (well under $0.001).
+async function keyCheck(): Promise<Record<string, unknown>> {
+  const key = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) return { ok: false, error: "ANTHROPIC_API_KEY not set" };
+  const models: Record<string, unknown>[] = [];
+  for (const m of MODELS) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: m.id, max_tokens: 1, messages: [{ role: "user", content: "Hi" }] }),
+      signal: AbortSignal.timeout(20_000),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    models.push({ model: m.id, status: res?.status ?? 0, error: res?.ok ? undefined : (data?.error?.message ?? "no response") });
+  }
+  return { ok: models.some((m) => m.status === 200), models };
+}
+
 async function check(sb: SupabaseClient, text: string, facts: Fact[], allowLink: boolean): Promise<string[]> {
   const { data, error } = await sb.rpc("social_reply_check", { p_text: text, p_facts: facts, p_allow_link: allowLink });
   if (error) return [`check failed: ${error.message}`];
   return (data as string[]) ?? [];
 }
 
-// A plain reply from the facts themselves: the first facts about the first
-// thing named, then its link, kept under 250.
+// The fallback reply: the first comparative sentence (kind "angle";
+// private.social_reply_facts builds one per player, team and match named)
+// with its link. Without one, the first facts about the first thing named.
 function template(facts: Fact[]): { reply: string; used: string[] } | null {
   if (!facts.length) return null;
+  const angle = facts.find((f) => f.kind === "angle");
+  if (angle) return { reply: `${angle.text} ${angle.link}`, used: [angle.id] };
   const about = facts[0].about;
   const pick = facts.filter((f) => f.about === about);
   const link = pick[0].link;
@@ -231,6 +269,7 @@ async function draftReply(sb: SupabaseClient, system: string, prompt: Record<str
     last = r.draft;
     if (r.draft.skip || !r.draft.reply) return { draft: r.draft, by: model, cost, errors: [] };
     errors = await check(sb, r.draft.reply, facts, allowLink);
+    if (/^\s*FixtureShark projects/i.test(r.draft.reply)) errors.push('do not start with "FixtureShark projects": lead with the comparison');
     if (!errors.length) return { draft: r.draft, by: model, cost, errors };
     msg = JSON.stringify({ ...prompt, previous_reply: r.draft.reply, problems: errors,
                            instruction: "Rewrite the reply so it has none of these problems. Same JSON shape." });
@@ -253,37 +292,40 @@ async function factsFor(sb: SupabaseClient, text: string): Promise<Fact[]> {
 // ------------------------------------------------------------------- ideas
 function ideaPrompt(handle: string, text: string, facts: Fact[]): Record<string, unknown> {
   return {
-    task: "Draft a reply to this post from our facts. Say skip if our facts add nothing a reader of this post would value.",
+    task: IDEA_TASK,
     post: { author: `@${handle}`, text },
-    facts: facts.map((f) => ({ id: f.id, about: f.about, source: f.source, text: f.text, link: f.link })),
-    rules: "Under 250 characters including one link at the end: the link of the fact you lean on most, in full (a link counts as 23). Do not start with @. Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
+    facts: facts.map((f) => ({ id: f.id, kind: f.kind, about: f.about, source: f.source, text: f.text, link: f.link })),
+    rules: "Under 280 characters, aim for about 240, with at most one link, at the end: the link of the fact you lean on most, in full (a link counts as 23). \"GWs\" and \"pts\" are fine. Do not start with @ or with \"FixtureShark projects\". Answer in this shape: {\"skip\": false, \"score\": 0-10 (how much a reader of the post would value it), \"reply\": \"...\", \"facts_used\": [\"fact ids\"], \"reason\": \"one line\"}",
   };
 }
 
-// Redraft open ideas that fell back to the template (no X reads, no X cost):
-// with Claude's draft when it passes the checks, else unchanged.
+// Redraft every open idea from the last 36 hours (no X reads, no X cost)
+// with fresh facts: Claude's draft when it passes the checks, else the
+// comparative template; unchanged only when neither passes.
 async function runRedraft(sb: SupabaseClient): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { posts_read: 0, owned_read: 0, users_read: 0, made: 0, llm: 0 };
   const results: Record<string, unknown>[] = [];
   out.detail = { results };
-  const { data: ideas } = await sb.from("social_reply_ideas").select("idea_id, x_post_id, author_handle, post_text, facts")
-    .eq("status", "suggested").eq("drafted_by", "template").gte("created_at", new Date(Date.now() - 36 * 3_600_000).toISOString());
+  const { data: ideas } = await sb.from("social_reply_ideas").select("idea_id, x_post_id, author_handle, post_text, facts, draft_text")
+    .eq("status", "suggested").gte("created_at", new Date(Date.now() - 36 * 3_600_000).toISOString()).order("idea_id");
   for (const i of ideas ?? []) {
-    const facts = (i.facts ?? []) as Fact[];
-    const res = await draftReply(sb, VOICE, ideaPrompt(i.author_handle, i.post_text, facts), facts, true, false);
+    const fresh = await factsFor(sb, i.post_text);
+    const facts = fresh.length ? fresh : (i.facts ?? []) as Fact[];
+    const res = await draftReply(sb, VOICE, ideaPrompt(i.author_handle, i.post_text, facts), facts, true, true);
     out.llm = (out.llm as number) + res.cost;
     const d = res.draft;
     if (d?.reply && !d.skip) {
       const reply = d.reply.trim();
       await sb.from("social_reply_ideas").update({
-        draft_text: reply, drafted_by: res.by, score: d.score ?? null, facts_used: facts.filter((f) => (d.facts_used ?? []).includes(f.id)),
+        draft_text: reply, drafted_by: res.by, score: d.score ?? null, facts, facts_used: facts.filter((f) => (d.facts_used ?? []).includes(f.id)),
         link: reply.match(/https:\/\/fixtureshark\.com\/\S+/)?.[0] ?? null,
         intent_url: `https://x.com/intent/post?in_reply_to=${i.x_post_id}&text=${enc(reply)}`,
       }).eq("idea_id", i.idea_id);
       out.made = (out.made as number) + 1;
-      results.push({ idea_id: i.idea_id, by: res.by, score: d.score ?? null });
+      results.push({ idea_id: i.idea_id, by: res.by, score: d.score ?? null, before: i.draft_text, after: reply,
+                     errors: res.errors.length ? res.errors : undefined });
     } else {
-      results.push({ idea_id: i.idea_id, by: res.by, kept: "template", skip: d?.skip ?? null, reason: d?.reason ?? null, errors: res.errors });
+      results.push({ idea_id: i.idea_id, by: res.by, kept: "unchanged", skip: d?.skip ?? null, reason: d?.reason ?? null, errors: res.errors });
     }
   }
   return out;
@@ -536,8 +578,9 @@ Deno.serve(async (req) => {
     return json({ error: "admin only" }, 403);
   }
   const body = await req.json().catch(() => ({}));
+  if (body?.kind === "keycheck") return json(await keyCheck());
   const kind = ["ideas", "mentions", "redraft"].includes(body?.kind) ? String(body.kind) : null;
-  if (!kind) return json({ error: "kind must be ideas, mentions or redraft" }, 400);
+  if (!kind) return json({ error: "kind must be ideas, mentions, redraft or keycheck" }, 400);
   const triggeredBy = workerToken ? String(body?.triggered_by ?? "schedule").slice(0, 40) : "admin";
 
   const { data: run, error: runErr } = await sb.from("social_reply_runs").insert({ kind, triggered_by: triggeredBy }).select("run_id").single();
