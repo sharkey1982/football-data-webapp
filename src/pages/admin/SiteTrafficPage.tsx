@@ -4,7 +4,7 @@
 // Search Console and Google Analytics in one place, because the GA site
 // itself wasn't useful to Chris (12 Oct 2026). Answers: how many people came,
 // from where (Google, Reddit, direct), what they read, and what they searched
-// for to find it -- for the last 7/28/90 days against the period before.
+// for to find it -- for yesterday or the last 7/28/90 days against the period before.
 //
 // GA only counts visitors who accepted the cookie banner (and never an admin's
 // device), so its numbers undercount; Search Console counts every search.
@@ -18,7 +18,7 @@ import { useAuthOptional } from '../../lib/auth';
 import SortableTable, { type Column } from '../../components/SortableTable';
 import { countryName, getSiteTraffic, pctChange, sitePath, type SiteTraffic, type TrafficDay } from '../../lib/siteTrafficApi';
 
-const RANGES = [7, 28, 90] as const;
+const RANGES = [1, 7, 28, 90] as const;
 const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n).toLocaleString('en-GB'));
 const pct = (n: number | null | undefined, dp = 1) => (n == null ? '—' : `${n.toFixed(dp)}%`);
 const fmtDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -179,7 +179,7 @@ export default function SiteTrafficPage() {
           {RANGES.map((r) => (
             <button key={r} type="button" onClick={() => setDays(r)} aria-pressed={days === r}
               className={`px-3 py-1 rounded-full text-sm border ${days === r ? 'bg-ink-900 text-white border-ink-900' : 'bg-white text-ink-700 border-chalk-300'}`}>
-              Last {r} days
+              {r === 1 ? 'Yesterday' : `Last ${r} days`}
             </button>
           ))}
         </div>
@@ -191,7 +191,7 @@ export default function SiteTrafficPage() {
       {data && (
         <>
           <p className="text-xs text-ink-500">
-            {fmtDate(data.start)} to {fmtDate(data.end)}. Search Console data to {data.loaded.gsc_last_date ? fmtDate(data.loaded.gsc_last_date) : '—'} (updated {fmtWhen(data.loaded.gsc_last_run)}); Analytics to{' '}
+            {data.days === 1 ? `${fmtDate(data.end)} v the day before.` : `${fmtDate(data.start)} to ${fmtDate(data.end)}.`} Search Console data to {data.loaded.gsc_last_date ? fmtDate(data.loaded.gsc_last_date) : '—'} (updated {fmtWhen(data.loaded.gsc_last_run)}); Analytics to{' '}
             {data.loaded.ga_last_date ? fmtDate(data.loaded.ga_last_date) : '—'} (updated {fmtWhen(data.loaded.ga_last_run)}).
             Search Console runs 2–3 days behind. Lighter bars are days Google may still revise.
           </p>
