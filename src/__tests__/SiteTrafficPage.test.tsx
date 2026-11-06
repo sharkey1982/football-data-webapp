@@ -90,4 +90,11 @@ describe('SiteTrafficPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Last 90 days' }));
     await waitFor(() => expect(getSiteTraffic).toHaveBeenLastCalledWith(90));
   });
+
+  it('offers yesterday on its own', async () => {
+    renderPage();
+    await screen.findByText('1,529');
+    await userEvent.click(screen.getByRole('button', { name: 'Yesterday' }));
+    await waitFor(() => expect(getSiteTraffic).toHaveBeenLastCalledWith(1));
+  });
 });
