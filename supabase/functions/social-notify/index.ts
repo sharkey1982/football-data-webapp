@@ -20,7 +20,10 @@
 //
 // Secrets: RESEND_API_KEY (required), SOCIAL_NOTIFY_FROM (optional sender,
 // default "FixtureShark <alerts@mail.fixtureshark.com>", verified in Resend). The recipient is social_settings.notify_email, else the admin's
-// address in app_users.
+// address in app_users. NOTIFY_EMAIL_ALSO (optional secret, comma separated)
+// adds more recipients: Outlook started bouncing some of these on 5 Nov 2026,
+// so Chris gets them at a second address too. A secret, not a migration,
+// because the repo is public.
 // Without RESEND_API_KEY nothing is sent and the audit log says so; posting
 // is not affected.
 // ============================================================================
@@ -78,7 +81,11 @@ async function mergedPrs(from: string, to: string): Promise<{ number: number; ti
 // admin page as a visible link (never "click here").
 function renderDigest(d: Digest): string {
   // Long links (the reply ideas' one-tap X links carry the whole draft) show shortened.
-  const linkify = (t: string) => esc(t).replace(/https:\/\/[^\s<)]+/g, (u) => {
+  // Quoted tweets' t.co links are dropped (the post link is on its own line):
+  // they made a malformed href and short links count against us with Outlook
+  // (bounces from 5 Nov 2026). A quote mark ends a link.
+  const noTco = (t: string) => t.replace(/(?:^|\s+)(?:https?:\/\/)?t\.co\/\w+"?/g, (m) => (m.endsWith('"') ? '"' : ""));
+  const linkify = (t: string) => esc(noTco(t)).replace(/https:\/\/[^\s<)"]+/g, (u) => {
     const shown = u.replace(/^https:\/\//, "");
     return `<a href="${u}">${shown.startsWith("x.com/intent/") ? "Reply on X" : shown.length > 70 ? shown.slice(0, 60) + "…" : shown}</a>`;
   });
@@ -123,6 +130,7 @@ Deno.serve(async (req) => {
       .order("created_at").limit(1).maybeSingle();
     to = a?.email ?? null;
   }
+  const also = (Deno.env.get("NOTIFY_EMAIL_ALSO") ?? "").split(",").map((e) => e.trim()).filter((e) => e.includes("@"));
   const key = Deno.env.get("RESEND_API_KEY");
   if (!to || !key) {
     await audit("notify_skipped", { reason: !key ? "RESEND_API_KEY not set" : "no notify_email", kind: body?.kind });
@@ -204,7 +212,7 @@ Deno.serve(async (req) => {
   const send = (from: string) => fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject, html }),
+    body: JSON.stringify({ from, to: [...new Set([to, ...also])], subject, html }),
     signal: AbortSignal.timeout(15_000),
   }).catch((e) => ({ ok: false, status: 0, text: () => Promise.resolve(String(e)) }) as unknown as Response);
   const r = await send(Deno.env.get("SOCIAL_NOTIFY_FROM") ?? "FixtureShark <alerts@mail.fixtureshark.com>");
