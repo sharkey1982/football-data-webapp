@@ -459,7 +459,7 @@ blocking: persistSession was false (a successful sign-in would not have
 survived the next render) and detectSessionInUrl was off (magic-link
 callbacks unreadable).
 
-  /login · sharkey1982@hotmail.com · Shark-2026-Login!
+  /login with the admin account (password removed from this file, 7 Nov 2026).
 
 Change it once in. Magic links additionally need SMTP — see below.
 
