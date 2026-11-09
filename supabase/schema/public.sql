@@ -66,8 +66,9 @@ CREATE TABLE public.social_post_candidates (
     held boolean DEFAULT false NOT NULL,
     notified_at timestamp with time zone,
     x_post_ids jsonb,
+    in_reply_to_x_id text,
     CONSTRAINT social_post_candidates_approval_status_check CHECK ((approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'superseded'::text]))),
-    CONSTRAINT social_post_candidates_post_type_check CHECK ((post_type = ANY (ARRAY['fpl_captaincy'::text, 'team_xg_change'::text, 'prediction_accuracy'::text, 'historical_insight'::text, 'announcement'::text, 'fpl_price_changes'::text, 'gameweek_thread'::text, 'fpl_availability'::text, 'fpl_market'::text, 'fpl_week_changes'::text, 'gameweek_outlook'::text, 'fixture_moved'::text, 'match_predictions'::text, 'quiz'::text, 'quiz_answer'::text, 'fact'::text, 'daily_market'::text, 'lineup_vs_model'::text, 'team_news'::text, 'fpl_price_watch'::text]))),
+    CONSTRAINT social_post_candidates_post_type_check CHECK ((post_type = ANY (ARRAY['fpl_captaincy'::text, 'team_xg_change'::text, 'prediction_accuracy'::text, 'historical_insight'::text, 'announcement'::text, 'fpl_price_changes'::text, 'gameweek_thread'::text, 'fpl_availability'::text, 'fpl_market'::text, 'fpl_week_changes'::text, 'gameweek_outlook'::text, 'fixture_moved'::text, 'match_predictions'::text, 'quiz'::text, 'quiz_answer'::text, 'fact'::text, 'daily_market'::text, 'lineup_vs_model'::text, 'team_news'::text, 'fpl_price_watch'::text, 'mention_reply'::text]))),
     CONSTRAINT social_post_candidates_publication_status_check CHECK ((publication_status = ANY (ARRAY['unpublished'::text, 'publishing'::text, 'published'::text, 'failed'::text, 'needs_check'::text]))),
     CONSTRAINT social_post_candidates_validation_status_check CHECK ((validation_status = ANY (ARRAY['passed'::text, 'failed'::text, 'stale'::text])))
 );
@@ -249,6 +250,70 @@ $$;
 
 
 ALTER FUNCTION public._require_admin() OWNER TO postgres;
+
+--
+-- Name: admin_digest_finish(bigint, boolean, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.admin_digest_finish(p_send_id bigint, p_ok boolean, p_note text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare r private.admin_digest_sends;
+begin
+  update private.admin_digest_sends
+     set status = case when p_ok then 'sent' else 'failed' end, note = left(p_note, 500), finished_at = now()
+   where send_id = p_send_id
+  returning * into r;
+  if r.send_id is null then return; end if;
+  insert into public.pipeline_runs (job_name, started_at, finished_at, status, summary, error_message)
+  values (case when r.edition = 'morning' then 'admin-morning-digest' else 'admin-daily-digest' end
+          || case when r.mode = 'scheduled' then '' else '-preview' end,
+          r.queued_at, now(), case when p_ok then 'success' else 'failed' end,
+          format('%s (%s)', r.subject, r.mode), case when not p_ok then left(p_note, 500) end);
+end;
+$$;
+
+
+ALTER FUNCTION public.admin_digest_finish(p_send_id bigint, p_ok boolean, p_note text) OWNER TO postgres;
+
+--
+-- Name: admin_digest_get(date, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.admin_digest_get(p_day date DEFAULT NULL::date, p_edition text DEFAULT 'evening'::text) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if not public.is_admin() then raise exception 'admin only' using errcode = '42501'; end if;
+  if p_edition not in ('evening', 'morning') then raise exception 'unknown edition %', p_edition; end if;
+  return private.admin_digest_for_day(coalesce(p_day, (now() at time zone 'Europe/London')::date), p_edition)
+    || jsonb_build_object('sends', coalesce((
+         select jsonb_agg(to_jsonb(s) order by s.queued_at desc)
+           from (select * from private.admin_digest_sends order by queued_at desc limit 10) s), '[]'::jsonb));
+end;
+$$;
+
+
+ALTER FUNCTION public.admin_digest_get(p_day date, p_edition text) OWNER TO postgres;
+
+--
+-- Name: admin_digest_send_now(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.admin_digest_send_now(p_edition text DEFAULT 'evening'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if not public.is_admin() then raise exception 'admin only' using errcode = '42501'; end if;
+  return private.admin_digest_send((now() at time zone 'Europe/London')::date, 'preview', p_edition);
+end;
+$$;
+
+
+ALTER FUNCTION public.admin_digest_send_now(p_edition text) OWNER TO postgres;
 
 --
 -- Name: ai_benchmark_touch(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1766,6 +1831,99 @@ $$;
 ALTER FUNCTION public.capture_upcoming_odds() OWNER TO postgres;
 
 --
+-- Name: cf_import_state(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.cf_import_state() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select jsonb_build_object('days', count(*), 'first', min(date), 'last', max(date)) from cf.daily_totals
+$$;
+
+
+ALTER FUNCTION public.cf_import_state() OWNER TO postgres;
+
+--
+-- Name: cf_import_store(jsonb); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.cf_import_store(p_run jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_id bigint;
+  v_err text := nullif(p_run->>'error', '');
+  v_warn text := nullif(array_to_string(array(select jsonb_array_elements_text(coalesce(p_run->'warnings', '[]'::jsonb))), ' | '), '');
+  v_nwarn int := jsonb_array_length(coalesce(p_run->'warnings', '[]'::jsonb));
+  v_dates date[];
+  v_status text;
+  v_rows jsonb;
+  v_mode text := coalesce(nullif(p_run->>'mode', ''), 'daily');
+begin
+  select array_agg((d->>'date')::date) into v_dates from jsonb_array_elements(coalesce(p_run->'days', '[]'::jsonb)) d;
+  v_status := case when v_err is not null or v_dates is null then 'failed' when v_warn is not null then 'warning' else 'success' end;
+  if v_err is null and v_dates is null then v_err := 'no dates fetched'; end if;
+  insert into cf.import_runs (started_at, finished_at, mode, site_tag, account_source, start_date, end_date, status, api_requests, warnings, error_message)
+  values (coalesce((p_run->>'started_at')::timestamptz, now()), now(), v_mode, p_run->>'site_tag', p_run->>'account_source',
+          (p_run->>'start_date')::date, (p_run->>'end_date')::date, v_status, coalesce((p_run->>'api_requests')::int, 0),
+          left(v_warn, 4000), left(v_err, 2000))
+  returning run_id into v_id;
+
+  if v_status <> 'failed' then
+    delete from cf.daily_totals where date = any (v_dates);
+    delete from cf.hourly_totals where date = any (v_dates);
+    delete from cf.daily_by_page where date = any (v_dates);
+    delete from cf.daily_by_referrer where date = any (v_dates);
+    delete from cf.daily_by_country where date = any (v_dates);
+    insert into cf.daily_totals (date, visits, page_views, sample_interval, is_final, run_id)
+    select (x->>'date')::date, coalesce((x->>'visits')::bigint, 0), coalesce((x->>'page_views')::bigint, 0),
+           coalesce((x->>'sample_interval')::numeric, 1), coalesce((x->>'is_final')::boolean, false), v_id
+      from jsonb_array_elements(p_run->'days') x;
+    insert into cf.hourly_totals (hour, date, visits, page_views, run_id)
+    select (x->>'hour')::timestamptz, (x->>'date')::date, coalesce((x->>'visits')::bigint, 0), coalesce((x->>'page_views')::bigint, 0), v_id
+      from jsonb_array_elements(coalesce(p_run->'hours', '[]'::jsonb)) x
+     where (x->>'date')::date = any (v_dates)
+    on conflict (hour) do update set visits = cf.hourly_totals.visits + excluded.visits, page_views = cf.hourly_totals.page_views + excluded.page_views;
+    insert into cf.daily_by_page (date, path, visits, page_views, run_id)
+    select (x->>'date')::date, x->>'path', coalesce((x->>'visits')::bigint, 0), coalesce((x->>'page_views')::bigint, 0), v_id
+      from jsonb_array_elements(coalesce(p_run->'pages', '[]'::jsonb)) x where (x->>'date')::date = any (v_dates)
+    on conflict (date, dim_key) do update set visits = cf.daily_by_page.visits + excluded.visits, page_views = cf.daily_by_page.page_views + excluded.page_views;
+    insert into cf.daily_by_referrer (date, referrer_host, visits, page_views, run_id)
+    select (x->>'date')::date, coalesce(x->>'host', ''), coalesce((x->>'visits')::bigint, 0), coalesce((x->>'page_views')::bigint, 0), v_id
+      from jsonb_array_elements(coalesce(p_run->'refs', '[]'::jsonb)) x where (x->>'date')::date = any (v_dates)
+    on conflict (date, dim_key) do update set visits = cf.daily_by_referrer.visits + excluded.visits, page_views = cf.daily_by_referrer.page_views + excluded.page_views;
+    insert into cf.daily_by_country (date, country, visits, page_views, run_id)
+    select (x->>'date')::date, x->>'country', coalesce((x->>'visits')::bigint, 0), coalesce((x->>'page_views')::bigint, 0), v_id
+      from jsonb_array_elements(coalesce(p_run->'countries', '[]'::jsonb)) x where (x->>'date')::date = any (v_dates)
+    on conflict (date, dim_key) do update set visits = cf.daily_by_country.visits + excluded.visits, page_views = cf.daily_by_country.page_views + excluded.page_views;
+  end if;
+
+  v_rows := jsonb_build_object(
+    'days', coalesce(array_length(v_dates, 1), 0),
+    'hours', jsonb_array_length(coalesce(p_run->'hours', '[]'::jsonb)),
+    'pages', jsonb_array_length(coalesce(p_run->'pages', '[]'::jsonb)),
+    'referrers', jsonb_array_length(coalesce(p_run->'refs', '[]'::jsonb)),
+    'countries', jsonb_array_length(coalesce(p_run->'countries', '[]'::jsonb)));
+  update cf.import_runs set rows_written = v_rows where run_id = v_id;
+
+  insert into public.pipeline_runs (job_name, started_at, finished_at, status, summary, error_message, rows_inserted)
+  values ('cf_import', coalesce((p_run->>'started_at')::timestamptz, now()), now(), v_status,
+          format('%s: %s dates (%s to %s), %s page rows, %s referrer rows, %s API requests%s', v_mode,
+                 v_rows->>'days', coalesce(p_run->>'start_date', '?'), coalesce(p_run->>'end_date', '?'),
+                 v_rows->>'pages', v_rows->>'referrers', coalesce(p_run->>'api_requests', '0'),
+                 case when v_nwarn > 0 then format('; %s warnings', v_nwarn) else '' end),
+          case when v_status = 'failed' then left(v_err, 500) when v_warn is not null then left(v_warn, 500) end,
+          (v_rows->>'pages')::bigint);
+  return jsonb_build_object('run_id', v_id, 'status', v_status) || v_rows;
+end;
+$$;
+
+
+ALTER FUNCTION public.cf_import_store(p_run jsonb) OWNER TO postgres;
+
+--
 -- Name: check_auth_user_token_nulls(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1821,6 +1979,48 @@ $$;
 
 
 ALTER FUNCTION public.check_broadcast_integrity() OWNER TO postgres;
+
+--
+-- Name: check_cf_integrity(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.check_cf_integrity() RETURNS TABLE(check_name text, status text, found bigint, detail text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select 'cf_import_fresh',
+    case when age_h is null then 'warning' when age_h >= 30 then 'failed' when age_h >= 12 then 'warning' else 'ok' end,
+    coalesce(age_h, -1)::bigint,
+    'Hours since the last successful Cloudflare Web Analytics import (cf-import runs 6 times a day; warns at 12, fails at 30; -1 = never run)'
+  from (select floor(extract(epoch from now() - max(finished_at)) / 3600) age_h
+          from cf.import_runs where status in ('success', 'warning')) x
+  union all
+  select 'cf_data_fresh',
+    case when lag_days is null then 'warning' when lag_days >= 4 then 'failed' when lag_days >= 2 then 'warning' else 'ok' end,
+    coalesce(lag_days, -1)::bigint,
+    'Days between today (UK) and the latest Cloudflare date with visits (warns at 2, fails at 4; -1 = no data)'
+  from (select ((now() at time zone 'Europe/London')::date - max(date)) lag_days from cf.daily_totals where page_views > 0) x
+  union all
+  select 'cf_pages_reconcile', case when n = 0 then 'ok' else 'warning' end, n,
+    'Days in the last 60 where page views by path do not add up to the day''s total (each comes from the same request, so they should match)'
+  from (select count(*) n from cf.daily_totals t
+          left join lateral (select coalesce(sum(page_views), 0) v from cf.daily_by_page p where p.date = t.date) p on true
+         where t.date >= current_date - 60 and p.v <> t.page_views) x
+  union all
+  select 'cf_calendar_complete', case when n = 0 then 'ok' else 'failed' end, n,
+    'Missing days in cf.daily_totals between its first and last date (every fetched date is stored, zero or not, so a gap is a load fault)'
+  from (select count(*) n
+          from (select min(date) lo, max(date) hi from cf.daily_totals) b
+          cross join lateral generate_series(b.lo, b.hi, interval '1 day') g(d)
+         where b.lo is not null and not exists (select 1 from cf.daily_totals t where t.date = g.d::date)) x
+  union all
+  select 'cf_runs_failed_24h', case when n = 0 then 'ok' else 'warning' end, n,
+    'Failed Cloudflare imports in the last 24 hours (cf.import_runs.error_message has the reason)'
+  from (select count(*) n from cf.import_runs where status = 'failed' and started_at >= now() - interval '24 hours') x
+$$;
+
+
+ALTER FUNCTION public.check_cf_integrity() OWNER TO postgres;
 
 --
 -- Name: check_club_grounds(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -9773,6 +9973,149 @@ end $$;
 ALTER FUNCTION public.nfl_upsert_team_weeks(rows jsonb) OWNER TO postgres;
 
 --
+-- Name: penalty_import_rows(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.penalty_import_rows() RETURNS bigint
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select count(*) from public.espn_pl_matches where match_date >= date '2026-08-01'
+$$;
+
+
+ALTER FUNCTION public.penalty_import_rows() OWNER TO postgres;
+
+--
+-- Name: penalty_import_store(jsonb); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.penalty_import_store(p_run jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_id bigint;
+  v_err text := nullif(p_run->>'error', '');
+  v_warn text := nullif(array_to_string(array(select jsonb_array_elements_text(coalesce(p_run->'warnings', '[]'::jsonb))), ' | '), '');
+  v_status text;
+  v_matches int := jsonb_array_length(coalesce(p_run->'matches', '[]'::jsonb));
+  v_goals int; v_pens int; v_unmatched int;
+begin
+  v_status := case when v_err is not null then 'failed' when v_warn is not null then 'warning' else 'success' end;
+  insert into public.penalty_import_runs (started_at, finished_at, mode, triggered_by, from_date, to_date, api_requests, matches, detail_types, warnings, error_message, status)
+  values (coalesce((p_run->>'started_at')::timestamptz, now()), now(), p_run->>'mode', p_run->>'triggered_by',
+          (p_run->>'from_date')::date, (p_run->>'to_date')::date, coalesce((p_run->>'api_requests')::int, 0), v_matches,
+          p_run->'detail_types', left(v_warn, 4000), left(v_err, 2000), v_status)
+  returning run_id into v_id;
+
+  if v_status <> 'failed' then
+    insert into public.espn_pl_matches (espn_event_id, match_date, kickoff, completed, home_name, away_name, home_score, away_score,
+                                        home_team_id, away_team_id, run_id, updated_at)
+    select x->>'espn_event_id', (x->>'date')::date, (x->>'kickoff')::timestamptz, coalesce((x->>'completed')::boolean, false),
+           x->>'home', x->>'away', (x->>'home_score')::int, (x->>'away_score')::int,
+           public.penalty_match_team(x->>'home'), public.penalty_match_team(x->>'away'), v_id, now()
+      from jsonb_array_elements(coalesce(p_run->'matches', '[]'::jsonb)) x
+    on conflict (espn_event_id) do update set match_date = excluded.match_date, kickoff = excluded.kickoff, completed = excluded.completed,
+      home_name = excluded.home_name, away_name = excluded.away_name, home_score = excluded.home_score, away_score = excluded.away_score,
+      home_team_id = excluded.home_team_id, away_team_id = excluded.away_team_id, run_id = excluded.run_id, updated_at = now();
+
+    -- Our fixture: same teams, kickoff within a day (UK dates v UTC).
+    update public.espn_pl_matches m set fixture_id = f.fixture_id
+      from public.fixtures f
+     where m.run_id = v_id and f.league_id = 1 and f.home_team_id = m.home_team_id and f.away_team_id = m.away_team_id
+       and f.kickoff_date between m.match_date - 1 and m.match_date + 1;
+
+    -- A re-read replaces that match's goals (ESPN corrections heal).
+    delete from public.espn_pl_goals g
+     where g.espn_event_id in (select x->>'espn_event_id' from jsonb_array_elements(coalesce(p_run->'matches', '[]'::jsonb)) x);
+    insert into public.espn_pl_goals (goal_key, espn_event_id, team_name, player_name, espn_player_id, minute, clock_seconds,
+                                      scoring, penalty, own_goal, type_text, team_id, run_id)
+    select md5(concat_ws('|', x->>'espn_event_id', x->>'minute', x->>'player', x->>'type_text', x->>'clock_seconds')),
+           x->>'espn_event_id', x->>'team', x->>'player', x->>'espn_player_id', x->>'minute', (x->>'clock_seconds')::numeric,
+           coalesce((x->>'scoring')::boolean, true), coalesce((x->>'penalty')::boolean, false), coalesce((x->>'own_goal')::boolean, false),
+           x->>'type_text', public.penalty_match_team(x->>'team'), v_id
+      from jsonb_array_elements(coalesce(p_run->'goals', '[]'::jsonb)) x
+     where exists (select 1 from public.espn_pl_matches m where m.espn_event_id = x->>'espn_event_id')
+    on conflict (goal_key) do nothing;
+    -- Own goals are credited to the other side by ESPN's team field; no player match for them.
+    update public.espn_pl_goals g set fpl_player_id = public.penalty_match_player(g.team_id, g.player_name)
+     where g.run_id = v_id and not g.own_goal and g.team_id is not null;
+  end if;
+
+  select count(*), count(*) filter (where penalty and scoring), count(*) filter (where fpl_player_id is null and not own_goal)
+    into v_goals, v_pens, v_unmatched from public.espn_pl_goals where run_id = v_id;
+  if v_status = 'success' and v_unmatched > 0 then v_status := 'warning'; end if;
+  update public.penalty_import_runs set goals = v_goals, penalty_goals = v_pens, unmatched_players = v_unmatched, status = v_status where run_id = v_id;
+
+  insert into public.pipeline_runs (job_name, started_at, finished_at, status, summary, error_message, rows_inserted)
+  values ('penalty_import', coalesce((p_run->>'started_at')::timestamptz, now()), now(), v_status,
+          format('%s: %s to %s, %s matches, %s goals (%s penalties), %s unmatched scorers, %s requests',
+                 coalesce(p_run->>'mode', '?'), coalesce(p_run->>'from_date', '?'), coalesce(p_run->>'to_date', '?'),
+                 v_matches, v_goals, v_pens, v_unmatched, coalesce(p_run->>'api_requests', '0')),
+          case when v_status = 'failed' then left(v_err, 500) when v_warn is not null then left(v_warn, 500) end,
+          v_goals);
+  return jsonb_build_object('run_id', v_id, 'status', v_status, 'matches', v_matches, 'goals', v_goals, 'penalty_goals', v_pens, 'unmatched', v_unmatched);
+end;
+$$;
+
+
+ALTER FUNCTION public.penalty_import_store(p_run jsonb) OWNER TO postgres;
+
+--
+-- Name: penalty_match_player(bigint, text, bigint); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.penalty_match_player(p_team bigint, p_name text, p_season bigint DEFAULT 13) RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  with n as (select lower(public.unaccent(coalesce(p_name, ''))) nm),
+  c as (
+    select p.fpl_player_id,
+           lower(public.unaccent(coalesce(p.source_payload->>'first_name', ''))) fn,
+           lower(public.unaccent(coalesce(p.source_payload->>'first_name', '') || ' ' || coalesce(p.source_payload->>'second_name', ''))) full_name,
+           lower(public.unaccent(coalesce(nullif(p.source_payload->>'known_name', ''), '~'))) known,
+           lower(public.unaccent(coalesce(p.source_payload->>'second_name', '~'))) sn,
+           lower(public.unaccent(regexp_replace(coalesce(p.web_name, '~'), '^.*\.', ''))) wn,
+           coalesce((p.source_payload->>'minutes')::int, 0) mins
+      from public.fpl_players p where p.season_id = p_season and p.canonical_team_id = p_team)
+  select c.fpl_player_id from c, n
+   where n.nm <> '' and (n.nm = c.full_name or n.nm = c.known or n.nm = c.sn or n.nm like '% ' || c.sn
+          or n.nm = c.wn or n.nm like '% ' || c.wn
+          or replace(n.nm, ' ', '') = replace(c.full_name, ' ', '')
+          or n.nm = c.fn || ' ' || split_part(c.sn, ' ', 1)
+          or c.full_name like '% ' || split_part(n.nm, ' ', array_length(string_to_array(n.nm, ' '), 1)))
+   order by case when n.nm = c.full_name or replace(n.nm, ' ', '') = replace(c.full_name, ' ', '') then 0
+                 when n.nm = c.known or n.nm = c.fn || ' ' || split_part(c.sn, ' ', 1) then 1
+                 when n.nm = c.sn or n.nm like '% ' || c.sn then 2
+                 when n.nm = c.wn or n.nm like '% ' || c.wn then 3 else 4 end, c.mins desc
+   limit 1
+$$;
+
+
+ALTER FUNCTION public.penalty_match_player(p_team bigint, p_name text, p_season bigint) OWNER TO postgres;
+
+--
+-- Name: penalty_match_team(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.penalty_match_team(p_name text) RETURNS bigint
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select t.team_id from public.teams t
+   where lower(t.display_name) = lower(p_name) or lower(t.canonical_name) = lower(p_name)
+      or exists (select 1 from public.team_aliases a where a.team_id = t.team_id and lower(a.raw_name) = lower(p_name))
+   order by (exists (select 1 from public.fixtures f where f.league_id = 1 and f.season_id = 13 and t.team_id in (f.home_team_id, f.away_team_id))) desc,
+            t.team_id
+   limit 1
+$$;
+
+
+ALTER FUNCTION public.penalty_match_team(p_name text) OWNER TO postgres;
+
+--
 -- Name: prediction_fit_eligible(timestamp with time zone, date, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -12088,7 +12431,7 @@ begin
       continue;
     end if;
     v_url := exists (select 1 from unnest(private.social_posts(c)) p where public.social_has_url(p));
-    v_limits := private.social_limit_reasons(private.social_cost(c), v_url);
+    v_limits := private.social_limit_reasons(private.social_cost(c), v_url, c.post_type);
     if jsonb_array_length(v_limits) > 0 then
       return jsonb_build_object('status', 'waiting', 'candidate_id', c.candidate_id, 'reasons', v_limits, 'queued', v_queued, 'notified', v_notified);
     end if;
@@ -12153,7 +12496,7 @@ begin
       r := r || to_jsonb(format('connected account is not @%s', s.allowed_x_username));
     end if;
   end if;
-  r := r || private.social_limit_reasons(v_cost, v_url);
+  r := r || private.social_limit_reasons(v_cost, v_url, c.post_type);
 
   insert into public.social_publish_attempts (candidate_id, mode, requested_by, request_text, has_url, estimated_cost_usd, outcome,
                                               blocked_reasons, finished_at, posts)
@@ -12294,6 +12637,56 @@ $$;
 ALTER FUNCTION public.social_lineups_tick() OWNER TO postgres;
 
 --
+-- Name: social_mention_candidate(text, text, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.social_mention_candidate(p_mention_id text, p_text text, p_facts jsonb, p_detail jsonb DEFAULT '{}'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare m public.social_mentions; s public.social_settings; v_err jsonb; v_id bigint; v_auto boolean; v_hold timestamptz;
+begin
+  select * into m from public.social_mentions where x_post_id = p_mention_id for update;
+  if m.x_post_id is null then return jsonb_build_object('ok', false, 'errors', jsonb_build_array('mention not recorded')); end if;
+  if m.candidate_id is not null then return jsonb_build_object('ok', false, 'errors', jsonb_build_array('already drafted'), 'candidate_id', m.candidate_id); end if;
+  select * into s from public.social_settings where id;
+  -- No link: a post with a link costs $0.200 v $0.015 and the week's one link is kept for the preview thread.
+  v_err := public.social_reply_check(p_text, p_facts, false);
+  if jsonb_array_length(v_err) > 0 then return jsonb_build_object('ok', false, 'errors', v_err); end if;
+  insert into public.social_post_candidates (post_type, sport, text, generated_text, source_data, model_version, snapshot_at, dedupe_key,
+                                             expires_at, validation_status, validated_at, approval_status, in_reply_to_x_id)
+  values ('mention_reply', 'football', btrim(p_text), btrim(p_text),
+          coalesce(p_detail, '{}') || jsonb_build_object(
+            'facts', coalesce(p_facts, '[]'),
+            'mention', jsonb_build_object('x_post_id', m.x_post_id, 'author', m.author_username, 'text', m.text, 'category', m.category,
+                                          'url', format('https://x.com/%s/status/%s', coalesce(m.author_username, 'i'), m.x_post_id)),
+            'checks', jsonb_build_array(
+              jsonb_build_object('check', format('Replying to @%s: "%s"', m.author_username, private.digest_clip(regexp_replace(m.text, '\s+', ' ', 'g'), 160)),
+                                 'ok', true, 'detail', format('https://x.com/%s/status/%s', coalesce(m.author_username, 'i'), m.x_post_id)),
+              jsonb_build_object('check', 'every number is in our data; no link, @, betting or hype words; under 280', 'ok', true))),
+          p_detail->>'model', now(), 'mention_reply:' || m.x_post_id,
+          greatest(now(), coalesce(m.created_at_x, now())) + interval '48 hours', 'passed', now(), 'pending', m.x_post_id)
+  returning candidate_id into v_id;
+  update public.social_mentions set candidate_id = v_id where x_post_id = m.x_post_id;
+  perform private.social_audit('mention_drafted', v_id, null, jsonb_build_object('mention', m.x_post_id, 'author', m.author_username));
+  v_auto := s.auto_mention_replies and s.auto_publish_enabled;
+  if v_auto then
+    v_hold := now() + make_interval(mins => s.hold_minutes);
+    update public.social_post_candidates set approval_status = 'approved', approved_at = now(), approved_by = null, auto = true,
+           hold_until = v_hold, updated_at = now() where candidate_id = v_id;
+    perform private.social_audit('auto_queued', v_id, null, jsonb_build_object('hold_until', v_hold, 'mention_reply', true));
+  else
+    update public.social_post_candidates set notified_at = now() where candidate_id = v_id;
+    perform private.social_notify(jsonb_build_object('kind', 'draft', 'candidate_id', v_id));
+  end if;
+  return jsonb_build_object('ok', true, 'candidate_id', v_id, 'auto', v_auto);
+end;
+$_$;
+
+
+ALTER FUNCTION public.social_mention_candidate(p_mention_id text, p_text text, p_facts jsonb, p_detail jsonb) OWNER TO postgres;
+
+--
 -- Name: social_metrics_report(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -12390,6 +12783,126 @@ $$;
 
 
 ALTER FUNCTION public.social_oauth_consume(p_state_hash text) OWNER TO postgres;
+
+--
+-- Name: social_reply_budget(text, numeric); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.social_reply_budget(p_kind text, p_estimate numeric) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+declare
+  s public.social_settings;
+  v_m0 timestamptz := date_trunc('month', now() at time zone 'Europe/London') at time zone 'Europe/London';
+  v_day int := extract(day from now() at time zone 'Europe/London');
+  v_days int := extract(day from (date_trunc('month', now() at time zone 'Europe/London') + interval '1 month - 1 day'));
+  v_reply numeric; v_metrics numeric; v_posts numeric; v_total numeric; v_allow numeric; r jsonb := '[]';
+begin
+  select * into s from public.social_settings where id;
+  select coalesce(sum(estimated_cost_usd), 0) into v_reply from public.social_reply_runs where started_at >= v_m0;
+  select coalesce(sum(estimated_cost_usd), 0) into v_metrics from public.social_metrics_runs where started_at >= v_m0;
+  select coalesce(sum(estimated_cost_usd), 0) into v_posts from public.social_publish_attempts
+   where mode = 'live' and (outcome is null or outcome in ('posted', 'unknown')) and started_at >= v_m0;
+  v_total := v_reply + v_metrics + v_posts;
+  v_allow := case when p_kind = 'ideas' then (s.reply_reads_budget_usd - 0.06) * least(1, (v_day + 1)::numeric / v_days)
+                  else s.reply_reads_budget_usd end;
+  if p_kind = 'ideas' and not s.reply_ideas_enabled then r := r || to_jsonb('reply ideas are switched off'::text); end if;
+  if p_kind = 'mentions' and not s.mentions_enabled then r := r || to_jsonb('mention reading is switched off'::text); end if;
+  if v_reply + p_estimate > v_allow then
+    r := r || to_jsonb(format('reply reads: $%s this month + $%s would pass $%s%s', round(v_reply, 3), round(p_estimate, 3), round(v_allow, 3),
+                              case when p_kind = 'ideas' and v_allow < s.reply_reads_budget_usd - 0.06 then ' (pace for the month so far)' else '' end));
+  end if;
+  if v_total + p_estimate > s.monthly_budget_usd then
+    r := r || to_jsonb(format('X budget: $%s this month + $%s would pass $%s', round(v_total, 3), round(p_estimate, 3), s.monthly_budget_usd));
+  end if;
+  return jsonb_build_object('ok', jsonb_array_length(r) = 0, 'reasons', r, 'reply_mtd', round(v_reply, 4), 'metrics_mtd', round(v_metrics, 4),
+                            'posts_mtd', round(v_posts, 4), 'total_mtd', round(v_total, 4), 'allowance', round(v_allow, 4),
+                            'cap', s.reply_reads_budget_usd, 'budget', s.monthly_budget_usd);
+end;
+$_$;
+
+
+ALTER FUNCTION public.social_reply_budget(p_kind text, p_estimate numeric) OWNER TO postgres;
+
+--
+-- Name: social_reply_check(text, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.social_reply_check(p_text text, p_facts jsonb, p_allow_link boolean DEFAULT true) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  e jsonb := '[]'; v text := btrim(coalesce(p_text, '')); v_facts text; v_links text[]; v_urls text[]; v_rest text; u text;
+begin
+  if v = '' then return jsonb_build_array('empty'); end if;
+  if public.social_weighted_length(v) > 280 then e := e || to_jsonb(format('too long: %s of 280', public.social_weighted_length(v))); end if;
+  select string_agg(f->>'text', ' '), array_agg(distinct f->>'link') filter (where f->>'link' is not null)
+    into v_facts, v_links from jsonb_array_elements(coalesce(p_facts, '[]')) f;
+  if not (public.social_numbers(regexp_replace(v, 'https?://\S+', '', 'g')) <@ public.social_numbers(coalesce(v_facts, ''))) then
+    e := e || to_jsonb('a number that is not in our facts'::text);
+  end if;
+  select coalesce(array_agg(m[1]), '{}') into v_urls from regexp_matches(v, '(https?://\S+)', 'g') m;
+  if cardinality(v_urls) > (case when p_allow_link then 1 else 0 end) then
+    e := e || to_jsonb(case when p_allow_link then 'more than one link' else 'a link (not allowed here)' end);
+  end if;
+  foreach u in array v_urls loop
+    if not (rtrim(u, '.,)') = any (coalesce(v_links, '{}'))) then e := e || to_jsonb(format('link is not one of our fact pages: %s', u)); end if;
+  end loop;
+  v_rest := regexp_replace(v, 'https?://\S+', '', 'g');
+  if public.social_has_url(v_rest) then e := e || to_jsonb('a bare web address'::text); end if;
+  if v ~ '[@#]' then e := e || to_jsonb('no @ or # in a reply'::text); end if;
+  if not private.social_hook_ok(v_rest) then e := e || to_jsonb('betting or hype words, an emoji or an exclamation mark'::text); end if;
+  return e;
+end;
+$$;
+
+
+ALTER FUNCTION public.social_reply_check(p_text text, p_facts jsonb, p_allow_link boolean) OWNER TO postgres;
+
+--
+-- Name: social_reply_facts(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.social_reply_facts(p_text text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select private.social_reply_facts(p_text);
+$$;
+
+
+ALTER FUNCTION public.social_reply_facts(p_text text) OWNER TO postgres;
+
+--
+-- Name: social_reply_state(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.social_reply_state(p_kind text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select jsonb_build_object(
+    'me', (select x_user_id from public.social_x_connection where status = 'connected'),
+    'me_username', (select x_username from public.social_x_connection where status = 'connected'),
+    'settings', (select jsonb_build_object('reply_ideas_per_day', reply_ideas_per_day, 'auto_mention_replies', auto_mention_replies,
+                                           'reply_reads_budget_usd', reply_reads_budget_usd) from public.social_settings where id),
+    'ideas_today', (select count(*) from public.social_reply_ideas
+                     where created_at >= date_trunc('day', now() at time zone 'Europe/London') at time zone 'Europe/London'),
+    'accounts', coalesce((select jsonb_agg(to_jsonb(a) order by a.handle) from public.social_reply_accounts a), '[]'),
+    -- since_id only within X's 7-day search window
+    'newest_id', (select newest_id from public.social_reply_runs where kind = p_kind and status = 'ok' and newest_id is not null
+                    and started_at > now() - interval '6 days' order by started_at desc limit 1),
+    'timeline_newest_id', (select timeline_newest_id from public.social_reply_runs where kind = 'ideas' and timeline_newest_id is not null
+                             and started_at > now() - interval '6 days' order by started_at desc limit 1),
+    'open_ideas', coalesce((select jsonb_agg(jsonb_build_object('idea_id', idea_id, 'x_post_id', x_post_id, 'created_at', created_at))
+                              from public.social_reply_ideas where status = 'suggested' and created_at > now() - interval '72 hours'), '[]'),
+    'known_mentions', coalesce((select jsonb_agg(x_post_id) from public.social_mentions where received_at > now() - interval '3 days'), '[]'));
+$$;
+
+
+ALTER FUNCTION public.social_reply_state(p_kind text) OWNER TO postgres;
 
 --
 -- Name: social_resolve_needs_check(bigint, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -14004,6 +14517,53 @@ CREATE TABLE public.derived_markets_memo (
 
 
 ALTER TABLE public.derived_markets_memo OWNER TO postgres;
+
+--
+-- Name: espn_pl_goals; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.espn_pl_goals (
+    goal_key text NOT NULL,
+    espn_event_id text NOT NULL,
+    team_name text,
+    player_name text,
+    espn_player_id text,
+    minute text,
+    clock_seconds numeric,
+    scoring boolean DEFAULT true NOT NULL,
+    penalty boolean DEFAULT false NOT NULL,
+    own_goal boolean DEFAULT false NOT NULL,
+    type_text text,
+    team_id bigint,
+    fpl_player_id integer,
+    run_id bigint
+);
+
+
+ALTER TABLE public.espn_pl_goals OWNER TO postgres;
+
+--
+-- Name: espn_pl_matches; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.espn_pl_matches (
+    espn_event_id text NOT NULL,
+    match_date date,
+    kickoff timestamp with time zone,
+    completed boolean DEFAULT false NOT NULL,
+    home_name text,
+    away_name text,
+    home_score integer,
+    away_score integer,
+    home_team_id bigint,
+    away_team_id bigint,
+    fixture_id bigint,
+    run_id bigint,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.espn_pl_matches OWNER TO postgres;
 
 --
 -- Name: fantasy_game_rules; Type: TABLE; Schema: public; Owner: postgres
@@ -18634,6 +19194,48 @@ CREATE VIEW public.fpl_player_fixture_availability WITH (security_invoker='true'
 
 
 ALTER VIEW public.fpl_player_fixture_availability OWNER TO postgres;
+
+--
+-- Name: fpl_player_penalties; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.fpl_player_penalties WITH (security_invoker='true') AS
+ WITH fpl AS (
+         SELECT g.fpl_player_id,
+            sum(g.goals_scored) AS goals,
+            sum(g.penalties_missed) AS pen_missed,
+            sum(g.expected_goals) AS xg,
+            sum(g.minutes) AS minutes
+           FROM public.fpl_player_gameweeks g
+          WHERE (g.season_id = 13)
+          GROUP BY g.fpl_player_id
+        ), esp AS (
+         SELECT g.fpl_player_id,
+            count(*) FILTER (WHERE (g.penalty AND g.scoring AND (NOT g.own_goal))) AS pen_goals
+           FROM (public.espn_pl_goals g
+             JOIN public.espn_pl_matches m ON ((m.espn_event_id = g.espn_event_id)))
+          WHERE ((m.match_date >= '2026-08-01'::date) AND (g.fpl_player_id IS NOT NULL))
+          GROUP BY g.fpl_player_id
+        )
+ SELECT p.fpl_player_id,
+    p.web_name,
+    p.canonical_team_id AS team_id,
+    fpl.minutes,
+    fpl.goals,
+    COALESCE(esp.pen_goals, (0)::bigint) AS pen_goals,
+    COALESCE(fpl.pen_missed, (0)::bigint) AS pen_missed,
+    (COALESCE(esp.pen_goals, (0)::bigint) + COALESCE(fpl.pen_missed, (0)::bigint)) AS pens_taken,
+    (fpl.goals - COALESCE(esp.pen_goals, (0)::bigint)) AS np_goals,
+    round(fpl.xg, 2) AS xg,
+    round(GREATEST((fpl.xg - (0.79 * ((COALESCE(esp.pen_goals, (0)::bigint) + COALESCE(fpl.pen_missed, (0)::bigint)))::numeric)), (0)::numeric), 2) AS npxg,
+    (NULLIF((p.source_payload ->> 'penalties_order'::text), ''::text))::integer AS fpl_penalty_order
+   FROM ((public.fpl_players p
+     JOIN fpl ON ((fpl.fpl_player_id = p.fpl_player_id)))
+     LEFT JOIN esp ON ((esp.fpl_player_id = p.fpl_player_id)))
+  WHERE (p.season_id = 13);
+
+
+ALTER VIEW public.fpl_player_penalties OWNER TO postgres;
 
 --
 -- Name: fpl_player_projections_projection_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -24199,6 +24801,54 @@ CREATE TABLE public.opta_slot_breakdown (
 ALTER TABLE public.opta_slot_breakdown OWNER TO postgres;
 
 --
+-- Name: penalty_import_runs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.penalty_import_runs (
+    run_id bigint NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    mode text,
+    triggered_by text,
+    from_date date,
+    to_date date,
+    api_requests integer DEFAULT 0 NOT NULL,
+    matches integer DEFAULT 0 NOT NULL,
+    goals integer DEFAULT 0 NOT NULL,
+    penalty_goals integer DEFAULT 0 NOT NULL,
+    unmatched_players integer DEFAULT 0 NOT NULL,
+    detail_types jsonb,
+    warnings text,
+    error_message text,
+    status text NOT NULL,
+    CONSTRAINT penalty_import_runs_status_check CHECK ((status = ANY (ARRAY['success'::text, 'warning'::text, 'failed'::text])))
+);
+
+
+ALTER TABLE public.penalty_import_runs OWNER TO postgres;
+
+--
+-- Name: penalty_import_runs_run_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.penalty_import_runs_run_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.penalty_import_runs_run_id_seq OWNER TO postgres;
+
+--
+-- Name: penalty_import_runs_run_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.penalty_import_runs_run_id_seq OWNED BY public.penalty_import_runs.run_id;
+
+
+--
 -- Name: pipeline_runs_run_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -25256,6 +25906,33 @@ ALTER TABLE public.social_lineup_checks ALTER COLUMN check_id ADD GENERATED ALWA
 
 
 --
+-- Name: social_mentions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.social_mentions (
+    x_post_id text NOT NULL,
+    run_id bigint,
+    author_x_id text,
+    author_username text,
+    author_name text,
+    author_followers integer,
+    author_created_at timestamp with time zone,
+    text text NOT NULL,
+    created_at_x timestamp with time zone,
+    conversation_id text,
+    replied_to_x_id text,
+    replied_to_ours boolean DEFAULT false NOT NULL,
+    category text,
+    reason text,
+    candidate_id bigint,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT social_mentions_category_check CHECK ((category = ANY (ARRAY['question'::text, 'comment'::text, 'spam'::text, 'abuse'::text, 'bot'::text, 'not_worth'::text, 'own'::text])))
+);
+
+
+ALTER TABLE public.social_mentions OWNER TO postgres;
+
+--
 -- Name: social_metrics_runs; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -25384,6 +26061,128 @@ ALTER TABLE public.social_publish_attempts ALTER COLUMN attempt_id ADD GENERATED
 
 
 --
+-- Name: social_reply_accounts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.social_reply_accounts (
+    handle text NOT NULL,
+    x_user_id text,
+    display_name text,
+    followers integer,
+    active boolean DEFAULT true NOT NULL,
+    verified_at timestamp with time zone,
+    checked_at timestamp with time zone,
+    note text,
+    added_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.social_reply_accounts OWNER TO postgres;
+
+--
+-- Name: social_reply_ideas; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.social_reply_ideas (
+    idea_id bigint NOT NULL,
+    run_id bigint,
+    x_post_id text NOT NULL,
+    author_handle text NOT NULL,
+    author_x_id text,
+    post_text text NOT NULL,
+    post_created_at timestamp with time zone,
+    post_metrics jsonb,
+    draft_text text NOT NULL,
+    facts jsonb DEFAULT '[]'::jsonb NOT NULL,
+    facts_used jsonb DEFAULT '[]'::jsonb NOT NULL,
+    link text,
+    intent_url text NOT NULL,
+    post_url text NOT NULL,
+    drafted_by text,
+    score numeric,
+    status text DEFAULT 'suggested'::text NOT NULL,
+    status_at timestamp with time zone,
+    status_note text,
+    posted_x_post_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT social_reply_ideas_status_check CHECK ((status = ANY (ARRAY['suggested'::text, 'posted'::text, 'ignored'::text])))
+);
+
+
+ALTER TABLE public.social_reply_ideas OWNER TO postgres;
+
+--
+-- Name: social_reply_ideas_idea_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.social_reply_ideas_idea_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.social_reply_ideas_idea_id_seq OWNER TO postgres;
+
+--
+-- Name: social_reply_ideas_idea_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.social_reply_ideas_idea_id_seq OWNED BY public.social_reply_ideas.idea_id;
+
+
+--
+-- Name: social_reply_runs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.social_reply_runs (
+    run_id bigint NOT NULL,
+    kind text NOT NULL,
+    triggered_by text DEFAULT 'schedule'::text NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    status text,
+    posts_read integer DEFAULT 0 NOT NULL,
+    owned_read integer DEFAULT 0 NOT NULL,
+    users_read integer DEFAULT 0 NOT NULL,
+    estimated_cost_usd numeric DEFAULT 0 NOT NULL,
+    llm_cost_usd numeric DEFAULT 0 NOT NULL,
+    newest_id text,
+    timeline_newest_id text,
+    made integer DEFAULT 0 NOT NULL,
+    note text,
+    error text,
+    detail jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT social_reply_runs_kind_check CHECK ((kind = ANY (ARRAY['ideas'::text, 'mentions'::text, 'redraft'::text]))),
+    CONSTRAINT social_reply_runs_status_check CHECK ((status = ANY (ARRAY['ok'::text, 'skipped'::text, 'error'::text])))
+);
+
+
+ALTER TABLE public.social_reply_runs OWNER TO postgres;
+
+--
+-- Name: social_reply_runs_run_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.social_reply_runs_run_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.social_reply_runs_run_id_seq OWNER TO postgres;
+
+--
+-- Name: social_reply_runs_run_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.social_reply_runs_run_id_seq OWNED BY public.social_reply_runs.run_id;
+
+
+--
 -- Name: social_settings; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -25414,6 +26213,13 @@ CREATE TABLE public.social_settings (
     breaker_reason text,
     notify_email text,
     lineup_posts_enabled boolean DEFAULT false NOT NULL,
+    auto_mention_replies boolean DEFAULT false NOT NULL,
+    reply_ideas_enabled boolean DEFAULT true NOT NULL,
+    mentions_enabled boolean DEFAULT true NOT NULL,
+    reply_ideas_hours integer[] DEFAULT '{17}'::integer[] NOT NULL,
+    reply_ideas_per_day integer DEFAULT 3 NOT NULL,
+    reply_reads_budget_usd numeric DEFAULT 1.50 NOT NULL,
+    max_replies_per_day integer DEFAULT 5 NOT NULL,
     CONSTRAINT social_settings_hold_minutes_check CHECK (((hold_minutes >= 0) AND (hold_minutes <= 1440))),
     CONSTRAINT social_settings_id_check CHECK (id),
     CONSTRAINT social_settings_max_links_per_week_check CHECK (((max_links_per_week >= 0) AND (max_links_per_week <= 20))),
@@ -26966,6 +27772,27 @@ ALTER TABLE ONLY public.meta_flow_history ALTER COLUMN history_id SET DEFAULT ne
 
 
 --
+-- Name: penalty_import_runs run_id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.penalty_import_runs ALTER COLUMN run_id SET DEFAULT nextval('public.penalty_import_runs_run_id_seq'::regclass);
+
+
+--
+-- Name: social_reply_ideas idea_id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_ideas ALTER COLUMN idea_id SET DEFAULT nextval('public.social_reply_ideas_idea_id_seq'::regclass);
+
+
+--
+-- Name: social_reply_runs run_id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_runs ALTER COLUMN run_id SET DEFAULT nextval('public.social_reply_runs_run_id_seq'::regclass);
+
+
+--
 -- Name: team_player_tactical_defaults_log id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -27218,6 +28045,22 @@ ALTER TABLE ONLY public.data_source_competitions
 
 ALTER TABLE ONLY public.derived_markets_memo
     ADD CONSTRAINT derived_markets_memo_pkey PRIMARY KEY (lambda_home, lambda_away, rho);
+
+
+--
+-- Name: espn_pl_goals espn_pl_goals_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_goals
+    ADD CONSTRAINT espn_pl_goals_pkey PRIMARY KEY (goal_key);
+
+
+--
+-- Name: espn_pl_matches espn_pl_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_matches
+    ADD CONSTRAINT espn_pl_matches_pkey PRIMARY KEY (espn_event_id);
 
 
 --
@@ -28181,6 +29024,14 @@ ALTER TABLE ONLY public.opta_slot_breakdown
 
 
 --
+-- Name: penalty_import_runs penalty_import_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.penalty_import_runs
+    ADD CONSTRAINT penalty_import_runs_pkey PRIMARY KEY (run_id);
+
+
+--
 -- Name: pipeline_runs pipeline_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -28477,6 +29328,14 @@ ALTER TABLE ONLY public.social_lineup_checks
 
 
 --
+-- Name: social_mentions social_mentions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_mentions
+    ADD CONSTRAINT social_mentions_pkey PRIMARY KEY (x_post_id);
+
+
+--
 -- Name: social_metrics_runs social_metrics_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -28514,6 +29373,38 @@ ALTER TABLE ONLY public.social_post_metrics
 
 ALTER TABLE ONLY public.social_publish_attempts
     ADD CONSTRAINT social_publish_attempts_pkey PRIMARY KEY (attempt_id);
+
+
+--
+-- Name: social_reply_accounts social_reply_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_accounts
+    ADD CONSTRAINT social_reply_accounts_pkey PRIMARY KEY (handle);
+
+
+--
+-- Name: social_reply_ideas social_reply_ideas_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_ideas
+    ADD CONSTRAINT social_reply_ideas_pkey PRIMARY KEY (idea_id);
+
+
+--
+-- Name: social_reply_ideas social_reply_ideas_x_post_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_ideas
+    ADD CONSTRAINT social_reply_ideas_x_post_id_key UNIQUE (x_post_id);
+
+
+--
+-- Name: social_reply_runs social_reply_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_runs
+    ADD CONSTRAINT social_reply_runs_pkey PRIMARY KEY (run_id);
 
 
 --
@@ -28832,6 +29723,13 @@ CREATE INDEX ai_runs_batch_idx ON public.ai_runs USING btree (batch_id);
 --
 
 CREATE INDEX ai_runs_question_idx ON public.ai_runs USING btree (question_id, created_at DESC);
+
+
+--
+-- Name: espn_pl_goals_player_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX espn_pl_goals_player_idx ON public.espn_pl_goals USING btree (fpl_player_id) WHERE penalty;
 
 
 --
@@ -29612,6 +30510,13 @@ CREATE INDEX social_fixture_forecast_obs_fx ON public.social_fixture_forecast_ob
 
 
 --
+-- Name: social_mentions_received; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX social_mentions_received ON public.social_mentions USING btree (received_at DESC);
+
+
+--
 -- Name: social_post_candidates_dedupe; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -29651,6 +30556,20 @@ CREATE INDEX social_post_metrics_post_idx ON public.social_post_metrics USING bt
 --
 
 CREATE INDEX social_publish_attempts_started ON public.social_publish_attempts USING btree (mode, started_at DESC);
+
+
+--
+-- Name: social_reply_ideas_created; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX social_reply_ideas_created ON public.social_reply_ideas USING btree (created_at DESC);
+
+
+--
+-- Name: social_reply_runs_kind; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX social_reply_runs_kind ON public.social_reply_runs USING btree (kind, started_at DESC);
 
 
 --
@@ -29977,6 +30896,13 @@ CREATE TRIGGER social_audit_log_append_only BEFORE DELETE OR UPDATE ON public.so
 
 
 --
+-- Name: social_post_candidates social_hook_before_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER social_hook_before_insert BEFORE INSERT ON public.social_post_candidates FOR EACH ROW WHEN (((new.post_type = ANY (ARRAY['fixture_moved'::text, 'fpl_captaincy'::text, 'fpl_week_changes'::text, 'gameweek_outlook'::text, 'gameweek_thread'::text])) AND (new.validation_status = 'passed'::text))) EXECUTE FUNCTION private.social_hook_trigger();
+
+
+--
 -- Name: team_player_tactical_defaults team_player_tactical_defaults_log_trg; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -30108,6 +31034,62 @@ ALTER TABLE ONLY public.cup_lineup_players
 
 ALTER TABLE ONLY public.cup_lineup_players
     ADD CONSTRAINT cup_lineup_players_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: espn_pl_goals espn_pl_goals_espn_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_goals
+    ADD CONSTRAINT espn_pl_goals_espn_event_id_fkey FOREIGN KEY (espn_event_id) REFERENCES public.espn_pl_matches(espn_event_id) ON DELETE CASCADE;
+
+
+--
+-- Name: espn_pl_goals espn_pl_goals_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_goals
+    ADD CONSTRAINT espn_pl_goals_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.penalty_import_runs(run_id);
+
+
+--
+-- Name: espn_pl_goals espn_pl_goals_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_goals
+    ADD CONSTRAINT espn_pl_goals_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: espn_pl_matches espn_pl_matches_away_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_matches
+    ADD CONSTRAINT espn_pl_matches_away_team_id_fkey FOREIGN KEY (away_team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: espn_pl_matches espn_pl_matches_fixture_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_matches
+    ADD CONSTRAINT espn_pl_matches_fixture_id_fkey FOREIGN KEY (fixture_id) REFERENCES public.fixtures(fixture_id);
+
+
+--
+-- Name: espn_pl_matches espn_pl_matches_home_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_matches
+    ADD CONSTRAINT espn_pl_matches_home_team_id_fkey FOREIGN KEY (home_team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: espn_pl_matches espn_pl_matches_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.espn_pl_matches
+    ADD CONSTRAINT espn_pl_matches_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.penalty_import_runs(run_id);
 
 
 --
@@ -30855,6 +31837,22 @@ ALTER TABLE ONLY public.smoke_page_results
 
 
 --
+-- Name: social_mentions social_mentions_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_mentions
+    ADD CONSTRAINT social_mentions_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.social_post_candidates(candidate_id);
+
+
+--
+-- Name: social_mentions social_mentions_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_mentions
+    ADD CONSTRAINT social_mentions_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.social_reply_runs(run_id);
+
+
+--
 -- Name: social_post_metrics social_post_metrics_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -30876,6 +31874,14 @@ ALTER TABLE ONLY public.social_post_metrics
 
 ALTER TABLE ONLY public.social_publish_attempts
     ADD CONSTRAINT social_publish_attempts_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.social_post_candidates(candidate_id);
+
+
+--
+-- Name: social_reply_ideas social_reply_ideas_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.social_reply_ideas
+    ADD CONSTRAINT social_reply_ideas_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.social_reply_runs(run_id);
 
 
 --
@@ -31616,6 +32622,18 @@ ALTER TABLE public.derived_markets_memo ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY derived_markets_memo_read ON public.derived_markets_memo FOR SELECT USING (true);
 
+
+--
+-- Name: espn_pl_goals; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.espn_pl_goals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: espn_pl_matches; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.espn_pl_matches ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: fantasy_game_rules; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -32639,6 +33657,12 @@ CREATE POLICY "opta_slot_breakdown is publicly readable" ON public.opta_slot_bre
 
 
 --
+-- Name: penalty_import_runs; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.penalty_import_runs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: pipeline_runs; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -32866,6 +33890,19 @@ CREATE POLICY social_lineup_checks_admin_read ON public.social_lineup_checks FOR
 
 
 --
+-- Name: social_mentions; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.social_mentions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: social_mentions social_mentions_admin_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY social_mentions_admin_read ON public.social_mentions FOR SELECT TO authenticated USING (public.is_admin());
+
+
+--
 -- Name: social_metrics_runs; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -32915,6 +33952,45 @@ ALTER TABLE public.social_publish_attempts ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY social_publish_attempts_admin_read ON public.social_publish_attempts FOR SELECT TO authenticated USING (public.is_admin());
+
+
+--
+-- Name: social_reply_accounts; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.social_reply_accounts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: social_reply_accounts social_reply_accounts_admin_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY social_reply_accounts_admin_read ON public.social_reply_accounts FOR SELECT TO authenticated USING (public.is_admin());
+
+
+--
+-- Name: social_reply_ideas; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.social_reply_ideas ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: social_reply_ideas social_reply_ideas_admin_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY social_reply_ideas_admin_read ON public.social_reply_ideas FOR SELECT TO authenticated USING (public.is_admin());
+
+
+--
+-- Name: social_reply_runs; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.social_reply_runs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: social_reply_runs social_reply_runs_admin_read; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY social_reply_runs_admin_read ON public.social_reply_runs FOR SELECT TO authenticated USING (public.is_admin());
 
 
 --
@@ -33236,6 +34312,30 @@ GRANT ALL ON FUNCTION public._require_admin() TO service_role;
 
 
 --
+-- Name: FUNCTION admin_digest_finish(p_send_id bigint, p_ok boolean, p_note text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.admin_digest_finish(p_send_id bigint, p_ok boolean, p_note text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.admin_digest_finish(p_send_id bigint, p_ok boolean, p_note text) TO service_role;
+
+
+--
+-- Name: FUNCTION admin_digest_get(p_day date, p_edition text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.admin_digest_get(p_day date, p_edition text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.admin_digest_get(p_day date, p_edition text) TO authenticated;
+
+
+--
+-- Name: FUNCTION admin_digest_send_now(p_edition text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.admin_digest_send_now(p_edition text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.admin_digest_send_now(p_edition text) TO authenticated;
+
+
+--
 -- Name: FUNCTION ai_benchmark_truth(p_question_id text); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -33502,6 +34602,22 @@ REVOKE ALL ON FUNCTION public.capture_upcoming_odds() FROM PUBLIC;
 
 
 --
+-- Name: FUNCTION cf_import_state(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.cf_import_state() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.cf_import_state() TO service_role;
+
+
+--
+-- Name: FUNCTION cf_import_store(p_run jsonb); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.cf_import_store(p_run jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.cf_import_store(p_run jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION check_auth_user_token_nulls(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -33516,6 +34632,14 @@ GRANT ALL ON FUNCTION public.check_auth_user_token_nulls() TO service_role;
 
 REVOKE ALL ON FUNCTION public.check_broadcast_integrity() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.check_broadcast_integrity() TO service_role;
+
+
+--
+-- Name: FUNCTION check_cf_integrity(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.check_cf_integrity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.check_cf_integrity() TO service_role;
 
 
 --
@@ -34957,6 +36081,38 @@ GRANT ALL ON FUNCTION public.nfl_upsert_team_weeks(rows jsonb) TO service_role;
 
 
 --
+-- Name: FUNCTION penalty_import_rows(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.penalty_import_rows() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.penalty_import_rows() TO service_role;
+
+
+--
+-- Name: FUNCTION penalty_import_store(p_run jsonb); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.penalty_import_store(p_run jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.penalty_import_store(p_run jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION penalty_match_player(p_team bigint, p_name text, p_season bigint); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.penalty_match_player(p_team bigint, p_name text, p_season bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.penalty_match_player(p_team bigint, p_name text, p_season bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION penalty_match_team(p_name text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.penalty_match_team(p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.penalty_match_team(p_name text) TO service_role;
+
+
+--
 -- Name: FUNCTION reconcile_unreported_played_fixtures(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -35301,6 +36457,14 @@ REVOKE ALL ON FUNCTION public.social_lineups_tick() FROM PUBLIC;
 
 
 --
+-- Name: FUNCTION social_mention_candidate(p_mention_id text, p_text text, p_facts jsonb, p_detail jsonb); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.social_mention_candidate(p_mention_id text, p_text text, p_facts jsonb, p_detail jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.social_mention_candidate(p_mention_id text, p_text text, p_facts jsonb, p_detail jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION social_metrics_report(); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -35330,6 +36494,38 @@ GRANT ALL ON FUNCTION public.social_oauth_begin(p_state_hash text, p_code_verifi
 
 REVOKE ALL ON FUNCTION public.social_oauth_consume(p_state_hash text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.social_oauth_consume(p_state_hash text) TO service_role;
+
+
+--
+-- Name: FUNCTION social_reply_budget(p_kind text, p_estimate numeric); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.social_reply_budget(p_kind text, p_estimate numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.social_reply_budget(p_kind text, p_estimate numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION social_reply_check(p_text text, p_facts jsonb, p_allow_link boolean); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.social_reply_check(p_text text, p_facts jsonb, p_allow_link boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.social_reply_check(p_text text, p_facts jsonb, p_allow_link boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION social_reply_facts(p_text text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.social_reply_facts(p_text text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.social_reply_facts(p_text text) TO service_role;
+
+
+--
+-- Name: FUNCTION social_reply_state(p_kind text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.social_reply_state(p_kind text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.social_reply_state(p_kind text) TO service_role;
 
 
 --
@@ -35800,6 +36996,20 @@ GRANT SELECT,USAGE ON SEQUENCE public.data_source_competitions_source_competitio
 GRANT SELECT ON TABLE public.derived_markets_memo TO anon;
 GRANT SELECT ON TABLE public.derived_markets_memo TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.derived_markets_memo TO service_role;
+
+
+--
+-- Name: TABLE espn_pl_goals; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.espn_pl_goals TO service_role;
+
+
+--
+-- Name: TABLE espn_pl_matches; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.espn_pl_matches TO service_role;
 
 
 --
@@ -36800,6 +38010,13 @@ GRANT ALL ON TABLE public.fpl_pecking_order_snapshots TO service_role;
 GRANT SELECT ON TABLE public.fpl_player_fixture_availability TO anon;
 GRANT SELECT ON TABLE public.fpl_player_fixture_availability TO authenticated;
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_player_fixture_availability TO service_role;
+
+
+--
+-- Name: TABLE fpl_player_penalties; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_player_penalties TO service_role;
 
 
 --
@@ -38165,6 +39382,13 @@ GRANT ALL ON TABLE public.opta_slot_breakdown TO service_role;
 
 
 --
+-- Name: TABLE penalty_import_runs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.penalty_import_runs TO service_role;
+
+
+--
 -- Name: SEQUENCE pipeline_runs_run_id_seq; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -38540,6 +39764,14 @@ GRANT SELECT,USAGE ON SEQUENCE public.social_lineup_checks_check_id_seq TO servi
 
 
 --
+-- Name: TABLE social_mentions; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.social_mentions TO service_role;
+GRANT SELECT ON TABLE public.social_mentions TO authenticated;
+
+
+--
 -- Name: TABLE social_metrics_runs; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -38575,6 +39807,44 @@ GRANT SELECT,USAGE ON SEQUENCE public.social_post_metrics_metric_id_seq TO servi
 
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.social_publish_attempts TO service_role;
 GRANT SELECT ON TABLE public.social_publish_attempts TO authenticated;
+
+
+--
+-- Name: TABLE social_reply_accounts; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.social_reply_accounts TO service_role;
+GRANT SELECT ON TABLE public.social_reply_accounts TO authenticated;
+
+
+--
+-- Name: TABLE social_reply_ideas; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.social_reply_ideas TO service_role;
+GRANT SELECT ON TABLE public.social_reply_ideas TO authenticated;
+
+
+--
+-- Name: SEQUENCE social_reply_ideas_idea_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.social_reply_ideas_idea_id_seq TO service_role;
+
+
+--
+-- Name: TABLE social_reply_runs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE public.social_reply_runs TO service_role;
+GRANT SELECT ON TABLE public.social_reply_runs TO authenticated;
+
+
+--
+-- Name: SEQUENCE social_reply_runs_run_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.social_reply_runs_run_id_seq TO service_role;
 
 
 --
