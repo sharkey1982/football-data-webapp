@@ -4,7 +4,9 @@
 // "My FixtureShark": the personal part of the home page, built from the
 // preferences in this browser (src/lib/myPrefs.ts; Chris, 25 Oct 2026, from
 // the approved mockup). Club card first, then FPL, international, NFL and
-// tennis cards for whatever is set; "Also following" sits under the club card. Each card loads
+// tennis cards for whatever is set; "Also following" sits under the club card.
+// "Next up" (Chris, 9 Nov 2026) heads the page: the soonest thing across all
+// of it, then the two after. Each card loads
 // on its own and says so if it fails; nothing is invented -- a field the site
 // doesn't have is left out.
 // ============================================================================
@@ -24,6 +26,7 @@ import { formatDeadline, getNextDeadline } from '../../lib/hubApi';
 import { intlTeamPath } from '../../lib/intlApi';
 import { nflTeamPath } from '../../lib/nflApi';
 import { tennisPlayerPath } from '../../lib/tennisApi';
+import { isOnNow, londonToUtc, nextUp, untilText, type NextUpItem } from '../../lib/myNextUp';
 
 type Load<T> = { status: 'loading' } | { status: 'ok'; data: T } | { status: 'error' };
 
@@ -316,6 +319,76 @@ function FplCard({ fplId }: { fplId: string }) {
   );
 }
 
+function clubItems(cards: ClubCard[], mainId: number | undefined): NextUpItem[] {
+  return cards.flatMap((c) => (c.next ? [{
+    key: `game:${c.next.fixtureId}`,
+    kind: c.team.teamId === mainId ? 'club' as const : 'followed' as const,
+    title: `${c.next.home} v ${c.next.away}`,
+    label: c.next.league ?? c.league?.name ?? null,
+    at: londonToUtc(c.next.date, c.next.time),
+    dayOnly: !c.next.time,
+    to: c.next.slug ? matchPath(c.next.slug) : teamPath(c.team.slug),
+  }] : []));
+}
+
+function NextUp({ prefs, clubs }: { prefs: MyPrefs; clubs: Load<ClubCard[]> }) {
+  // The clock, refreshed each minute so "in 20 min" and "On now" stay right.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const extra = useLoad(`next:${prefs.fplId ?? ''}:${prefs.intl?.slug ?? ''}:${prefs.nfl?.slug ?? ''}`, async () => {
+    const [deadline, intl, nfl] = await Promise.all([
+      prefs.fplId ? getNextDeadline().catch(() => null) : Promise.resolve(null),
+      prefs.intl ? getIntlCard(prefs.intl.slug).catch(() => null) : Promise.resolve(null),
+      prefs.nfl ? getNflCard(prefs.nfl.slug).catch(() => null) : Promise.resolve(null),
+    ]);
+    const items: NextUpItem[] = [];
+    if (deadline && prefs.fplId) {
+      items.push({ key: 'fpl', kind: 'fpl', title: `FPL Gameweek ${deadline.gw} deadline`, label: 'Your FPL team', at: Date.parse(deadline.deadline), to: `/fpl/rate-my-team?id=${encodeURIComponent(prefs.fplId)}` });
+    }
+    if (intl?.next && prefs.intl) {
+      items.push({ key: `intl:${intl.next.kickoff}:${intl.next.home}`, kind: 'intl', title: `${intl.next.home} v ${intl.next.away}`, label: 'International', at: Date.parse(intl.next.kickoff), to: intlTeamPath(prefs.intl.slug) });
+    }
+    if (nfl && prefs.nfl) {
+      const g = nfl.game;
+      items.push({ key: `nfl:${g.game_id}`, kind: 'nfl', title: `${g.away_name} at ${g.home_name}`, label: 'NFL',
+        at: g.kickoff_at ? Date.parse(g.kickoff_at) : londonToUtc(g.gameday), dayOnly: !g.kickoff_at, to: nflTeamPath(prefs.nfl.slug) });
+    }
+    return items;
+  });
+  if (clubs.status === 'loading' || extra.status === 'loading') {
+    return <div data-testid="my-next-up-loading"><HubSkeleton rows={1} rowClass="h-20" /></div>;
+  }
+  const items = nextUp([...(clubs.status === 'ok' ? clubItems(clubs.data, prefs.club?.teamId) : []), ...(extra.status === 'ok' ? extra.data : [])], now);
+  if (items.length === 0) return null;
+  const [first, ...rest] = items;
+  const when = (i: NextUpItem) => (i.dayOnly ? dayFmt : dayTimeFmt).format(new Date(i.at));
+  const live = isOnNow(first, now);
+  return (
+    <section aria-labelledby="my-next" data-testid="my-next-up" className="rounded-xl border-2 border-amber-500 bg-white px-4 py-4 sm:px-5 space-y-2">
+      <p id="my-next" className="font-mono text-xs uppercase tracking-widest text-amber-700">
+        {live ? 'On now' : 'Next up'} · {when(first)}{live ? '' : ` · ${untilText(first.at, now)}`}
+      </p>
+      <p className="text-2xl sm:text-3xl font-semibold text-ink-900">
+        {first.to ? <Link to={first.to} className="hover:underline">{first.title}</Link> : first.title}
+      </p>
+      {first.label && <p className="text-sm text-ink-700">{first.label}</p>}
+      {rest.length > 0 && (
+        <ul className="pt-2 border-t border-chalk-200 text-sm text-ink-700 space-y-1" aria-label="After that">
+          {rest.slice(0, 2).map((i) => (
+            <li key={i.key}>
+              <span className="font-mono text-xs text-ink-500">{when(i)}</span>{' · '}
+              {i.to ? <Link to={i.to} className={HUB_LINK}>{i.title}</Link> : i.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function MyHome({ prefs }: { prefs: MyPrefs }) {
   const ids = [prefs.club, ...prefs.followed].filter((c): c is NonNullable<typeof c> => !!c).map((c) => c.teamId);
   const clubs = useLoad<ClubCard[]>(`clubs:${ids.join(',')}`, () => getMyClubCards(ids));
@@ -344,6 +417,8 @@ export function MyHome({ prefs }: { prefs: MyPrefs }) {
           <Link to="/?view=all" className={`${BUTTON} border border-chalk-300 bg-white hover:bg-chalk-200 text-ink-900`}>Show the full home page</Link>
         </div>
       </div>
+
+      <NextUp prefs={prefs} clubs={clubs} />
 
       <div className="flex flex-wrap gap-6 items-start">
         <div className="flex-[999_1_36rem] min-w-0">

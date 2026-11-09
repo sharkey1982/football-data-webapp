@@ -96,6 +96,22 @@ describe('Home page with and without My FixtureShark', () => {
     expect(screen.getByRole('link', { name: 'Show the full home page' })).toHaveAttribute('href', '/?view=all');
   });
 
+  it('puts the next thing at the top: an FPL deadline before the club game, then what follows', async () => {
+    const soon = new Date(Date.now() + 2 * 86400000).toISOString();
+    const later = new Date(Date.now() + 5 * 86400000);
+    const laterDate = later.toISOString().slice(0, 10);
+    vi.mocked(getMyClubCards).mockResolvedValue([{ ...southend, next: { ...southend.next!, date: laterDate, time: '15:00:00' } }, { ...yeovil, next: null }]);
+    vi.mocked(getNextDeadline).mockResolvedValue({ gw: 11, deadline: soon });
+    savePrefs({ ...EMPTY_PREFS, club: { teamId: 70, name: 'Southend United', slug: 'southend-united' }, fplId: '123' });
+    renderAt();
+    const box = await screen.findByTestId('my-next-up');
+    expect(box).toHaveTextContent(/^Next up/);
+    expect(within(box).getByRole('link', { name: 'FPL Gameweek 11 deadline' })).toHaveAttribute('href', '/fpl/rate-my-team?id=123');
+    expect(within(box).getByRole('list', { name: 'After that' })).toHaveTextContent('Worthing v Southend United');
+    // It sits above the club card.
+    expect(box.compareDocumentPosition(screen.getByTestId('my-club')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('?view=all and the switch turned off both show the usual home page alone', () => {
     savePrefs({ ...EMPTY_PREFS, club: { teamId: 70, name: 'Southend United', slug: 'southend-united' } });
     const { unmount } = renderAt('/?view=all');
