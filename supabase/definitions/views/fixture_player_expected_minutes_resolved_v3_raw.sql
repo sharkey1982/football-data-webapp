@@ -29,6 +29,7 @@ create or replace view public.fixture_player_expected_minutes_resolved_v3_raw wi
             WHEN (ss.start_probability_override IS NOT NULL) THEN 'squad_state_override'::text
             WHEN (p.probability_source = 'nailed_history'::text) THEN 'nailed_history_v6'::text
             WHEN (p.probability_source = 'strong_history'::text) THEN 'strong_history_v6'::text
+            WHEN (p.probability_source ~~ 'depth_chart%'::text) THEN (p.probability_source || '_v6'::text)
             ELSE 'fallback_history_v6'::text
         END AS minutes_source
    FROM (((fixture_player_expected_minutes_resolved r

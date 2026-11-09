@@ -43,8 +43,8 @@ create or replace view public.fpl_fixture_bps_projection_v1 with (security_invok
             a.expected_assists,
             (exp((-
                 CASE
-                    WHEN (a.team_id = f.home_team_id) THEN f.predicted_away_goals
-                    ELSE f.predicted_home_goals
+                    WHEN (a.team_id = f.home_team_id) THEN COALESCE(f.market_away_goals, f.predicted_away_goals)
+                    ELSE COALESCE(f.market_home_goals, f.predicted_home_goals)
                 END)))::numeric AS clean_sheet_probability,
             (((COALESCE(dc.cbi, (0)::numeric) + (dc.cbi_prior90 * (5)::numeric)) / ((COALESCE(dc.dc_minutes, (0)::bigint) + 450))::numeric) * (90)::numeric) AS shrunk_cbi90,
             (((COALESCE(dc.recoveries, (0)::numeric) + (dc.recoveries_prior90 * (5)::numeric)) / ((COALESCE(dc.dc_minutes, (0)::bigint) + 450))::numeric) * (90)::numeric) AS shrunk_recoveries90,

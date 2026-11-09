@@ -61,4 +61,4 @@ create or replace view public.team_strength_current as
     ft.name AS fpl_team_name,
     ft.short_name AS fpl_short_name
    FROM (rated r
-     LEFT JOIN fpl_teams ft ON ((ft.canonical_team_id = r.team_id)));
+     LEFT JOIN fpl_teams ft ON (((ft.canonical_team_id = r.team_id) AND (ft.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)))));

@@ -23,6 +23,6 @@ AS $function$
     where g.season_id = t.season_id and g.fpl_code = t.fpl_code
   ) h on true
   where t.fpl_code = p_fpl_code
-  order by t.season_id desc;
+  order by s.start_year desc;
 $function$
 ;

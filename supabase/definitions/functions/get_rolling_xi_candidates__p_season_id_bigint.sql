@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_rolling_xi_candidates(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_rolling_xi_candidates(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_rolling_xi_candidates(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(fpl_code bigint, web_name text, team_name text, element_type integer, august_cost integer, now_cost integer, total_points integer, minutes integer)
  LANGUAGE sql
  STABLE

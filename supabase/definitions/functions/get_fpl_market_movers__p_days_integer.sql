@@ -9,13 +9,14 @@ CREATE OR REPLACE FUNCTION public.get_fpl_market_movers(p_days integer DEFAULT 7
 AS $function$
   with bounds as (
     select max(snapshot_date) as to_d,
-           max(snapshot_date) - (p_days || ' days')::interval as cutoff
+           max(snapshot_date) - (p_days || ' days')::interval as cutoff,
+           (select s2.season_id from public.fpl_player_snapshots s2 order by s2.snapshot_date desc limit 1) as season_id
     from public.fpl_player_snapshots
   ),
   first_in_window as (
     select distinct on (s.fpl_player_id) s.fpl_player_id, s.now_cost, s.selected_by_percent, s.snapshot_date
     from public.fpl_player_snapshots s, bounds b
-    where s.snapshot_date >= b.cutoff::date
+    where s.snapshot_date >= b.cutoff::date and s.season_id = b.season_id
     order by s.fpl_player_id, s.snapshot_date asc
   ),
   latest as (
@@ -41,7 +42,7 @@ AS $function$
     l.snapshot_date
   from latest l
   join first_in_window f on f.fpl_player_id = l.fpl_player_id
-  join public.fpl_players p on p.fpl_player_id = l.fpl_player_id
+  join public.fpl_players p on p.fpl_player_id = l.fpl_player_id and p.season_id = l.season_id
   left join public.teams t on t.team_id = p.canonical_team_id
   where p.web_name is not null;
 $function$

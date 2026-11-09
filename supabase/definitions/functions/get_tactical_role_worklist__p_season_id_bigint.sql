@@ -1,23 +1,12 @@
 -- Live definition exported from the database (function get_tactical_role_worklist(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_tactical_role_worklist(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_tactical_role_worklist(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(team_id bigint, team_name text, fpl_player_id bigint, web_name text, slug text, position_label text, assigned_role text, confidence numeric, minutes integer, ownership numeric, total_points integer, priority text)
  LANGUAGE sql
  STABLE
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-  with mins as (
-    select g.fpl_player_id, sum(g.minutes)::integer as m, sum(g.total_points)::integer as pts
-    from public.fpl_player_gameweeks g
-    where g.season_id = p_season_id
-    group by g.fpl_player_id
-  ),
-  latest_snap as (
-    select distinct on (s.fpl_player_id) s.fpl_player_id, s.selected_by_percent
-    from public.fpl_player_snapshots s
-    order by s.fpl_player_id, s.snapshot_date desc
-  )
   select
     d.team_id, t.display_name, d.fpl_player_id, p.web_name, p.slug,
     case p.element_type when 1 then 'GKP' when 2 then 'DEF' when 3 then 'MID' when 4 then 'FWD' else '?' end,
@@ -29,10 +18,15 @@ AS $function$
       else 'fringe'
     end
   from public.team_player_tactical_defaults d
-  join public.fpl_players p on p.fpl_player_id = d.fpl_player_id
+  join public.fpl_players p on p.fpl_player_id = d.fpl_player_id and p.season_id = d.season_id
   left join public.teams t on t.team_id = d.team_id
-  left join mins m on m.fpl_player_id = d.fpl_player_id
-  left join latest_snap ls on ls.fpl_player_id = d.fpl_player_id
+  -- 2026-10-18: per listed player, by index (was every player of the season).
+  left join lateral (select sum(g.minutes)::integer as m, sum(g.total_points)::integer as pts
+                     from public.fpl_player_gameweeks g
+                     where g.season_id = d.season_id and g.fpl_player_id = d.fpl_player_id) m on true
+  left join lateral (select s.selected_by_percent from public.fpl_player_snapshots s
+                     where s.season_id = d.season_id and s.fpl_player_id = d.fpl_player_id
+                     order by s.snapshot_date desc limit 1) ls on true
   where d.season_id = p_season_id
     and d.source_name = 'fpl_position_fallback'
     -- A keeper's position IS their role.

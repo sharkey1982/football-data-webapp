@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function list_scout_teams(p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.list_scout_teams(p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.list_scout_teams(p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(team_id bigint, team_name text, players integer)
  LANGUAGE sql
  STABLE

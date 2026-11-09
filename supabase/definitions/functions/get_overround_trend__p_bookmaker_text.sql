@@ -20,6 +20,6 @@ AS $function$
   group by s.label, l.code
   -- A part-played season or a thin division reads as a spike otherwise.
   having count(*) >= 100
-  order by s.label, l.code;
+  order by min(s.start_year), l.code;
 $function$
 ;
