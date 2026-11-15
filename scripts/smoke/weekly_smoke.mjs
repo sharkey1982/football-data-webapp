@@ -163,6 +163,9 @@ async function testPage(browser, type, path) {
   // Deploy previews load Netlify's collaboration toolbar, which production
   // never does; block it so preview numbers compare with production.
   if (BASE !== SITE) await page.route(/netlify-cdp|app\.netlify\.com|\/\.netlify\/(drawer|scripts)|netlify\.com\/v1\/.*drawer/i, (r) => r.abort('blockedbyclient'));
+  // Analytics beacons: the test's ~95 page loads showed up as visitor spikes
+  // in Cloudflare Web Analytics (Chris, 15 Nov 2026), so they never fire.
+  await page.route(/static\.cloudflareinsights\.com|\/cdn-cgi\/rum|google-analytics\.com|googletagmanager\.com/i, (r) => r.abort('blockedbyclient'));
   // Experiments: BLOCK=<regex> aborts matching requests (e.g. /fonts/).
   if (process.env.BLOCK) await page.route(new RegExp(process.env.BLOCK), (r) => r.abort('blockedbyclient'));
   const hosts = {};
