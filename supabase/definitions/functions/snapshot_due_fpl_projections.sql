@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION public.snapshot_due_fpl_projections()
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-declare g record; v_out jsonb := '[]';
+declare g record; v_out jsonb := '[]'; v_refresh text;
 begin
   for g in
     select gw.season_id, gw.fpl_event_id, gw.deadline_time,
@@ -19,7 +19,14 @@ begin
   loop
     continue when g.already;
     if now() <= g.deadline_time then
-      v_out := v_out || public.snapshot_fpl_projections(g.season_id, g.fpl_event_id, 'pre_deadline');
+      begin
+        perform private.refresh_fpl();
+        v_refresh := 'ok';
+      exception when others then
+        v_refresh := 'failed: ' || sqlerrm;
+      end;
+      v_out := v_out || (public.snapshot_fpl_projections(g.season_id, g.fpl_event_id, 'pre_deadline')
+                         || jsonb_build_object('fpl_refresh', v_refresh));
     elsif g.first_kickoff is null or now() < g.first_kickoff then
       v_out := v_out || public.snapshot_fpl_projections(g.season_id, g.fpl_event_id, 'late');
     end if;

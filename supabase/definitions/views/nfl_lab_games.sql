@@ -1,0 +1,45 @@
+-- Live definition exported from the database (view nfl_lab_games).
+-- Do not edit here: change it with a migration; the next export will reflect it.
+
+create or replace view public.nfl_lab_games with (security_invoker=true) as
+ SELECT g.game_id,
+    g.season,
+    g.game_type,
+    g.week,
+    g.gameday,
+    g.gametime,
+    g.kickoff_at,
+    g.away_code,
+    g.home_code,
+    g.away_score,
+    g.home_score,
+    g.overtime,
+    g.neutral_site,
+    g.div_game,
+    g.spread_line,
+    g.total_line,
+    g.away_moneyline,
+    g.home_moneyline,
+    g.roof,
+    g.surface,
+    g.stadium,
+    g.away_qb_name,
+    g.home_qb_name,
+    g.away_coach,
+    g.home_coach,
+    g.imported_at,
+    g.away_rest,
+    g.home_rest,
+    g.temp,
+    g.wind,
+    g.away_qb_id,
+    g.home_qb_id,
+    g.away_spread_odds,
+    g.home_spread_odds,
+    g.over_odds,
+    g.under_odds,
+    hc.franchise AS home_franchise,
+    ac.franchise AS away_franchise
+   FROM ((nfl.games g
+     JOIN nfl.team_codes hc ON ((hc.code = g.home_code)))
+     JOIN nfl.team_codes ac ON ((ac.code = g.away_code)));

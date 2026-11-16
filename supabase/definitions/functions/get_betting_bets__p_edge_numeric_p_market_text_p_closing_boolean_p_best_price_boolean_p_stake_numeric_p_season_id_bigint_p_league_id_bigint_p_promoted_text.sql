@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_betting_bets(p_edge numeric, p_market text, p_closing boolean, p_best_price boolean, p_stake numeric, p_season_id bigint, p_league_id bigint, p_promoted text)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_betting_bets(p_edge numeric DEFAULT 0.05, p_market text DEFAULT '1x2'::text, p_closing boolean DEFAULT true, p_best_price boolean DEFAULT true, p_stake numeric DEFAULT 10, p_season_id bigint DEFAULT 13, p_league_id bigint DEFAULT NULL::bigint, p_promoted text DEFAULT 'all'::text)
+CREATE OR REPLACE FUNCTION public.get_betting_bets(p_edge numeric DEFAULT 0.05, p_market text DEFAULT '1x2'::text, p_closing boolean DEFAULT true, p_best_price boolean DEFAULT true, p_stake numeric DEFAULT 10, p_season_id bigint DEFAULT current_season_id(), p_league_id bigint DEFAULT NULL::bigint, p_promoted text DEFAULT 'all'::text)
  RETURNS TABLE(match_id bigint, match_date date, home_team text, away_team text, home_goals integer, away_goals integer, selection text, model_p numeric, price numeric, edge numeric, won boolean, stake numeric, profit numeric, prices jsonb, predicted_from date, retrofit boolean, league_id bigint, league_name text, home_promoted boolean, away_promoted boolean)
  LANGUAGE plpgsql
  STABLE
@@ -60,7 +60,7 @@ begin
   rows_ as materialized (
     select o.* from public.match_odds o
     where o.match_id in (select pl.match_id from played pl)
-      and o.market = p_market and (o.is_closing = p_closing or o.is_closing is null)
+      and o.market = p_market and (o.is_closing = p_closing or o.is_closing is null) and o.bookmaker <> 'BFE'
   ),
   prices as materialized (
     select o.match_id,

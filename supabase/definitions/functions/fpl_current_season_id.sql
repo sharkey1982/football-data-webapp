@@ -9,6 +9,9 @@ CREATE OR REPLACE FUNCTION public.fpl_current_season_id()
 AS $function$
   -- The FPL season in play: the latest season FPL has published gameweeks
   -- for. Rolls over by itself when next season's bootstrap is first loaded.
-  select max(season_id) from public.fpl_gameweeks;
+  -- Latest by start_year: season_id is not in date order.
+  select s.season_id from public.seasons s
+   where s.start_year = (select max(sg.start_year) from public.seasons sg
+                          where sg.season_id in (select g.season_id from public.fpl_gameweeks g));
 $function$
 ;
