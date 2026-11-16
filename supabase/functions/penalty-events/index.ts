@@ -48,7 +48,7 @@ const addDays = (d: string, n: number) => new Date(Date.parse(d + "T00:00:00Z") 
 const today = () => new Date().toISOString().slice(0, 10);
 
 // deno-lint-ignore no-explicit-any
-type Any = any;
+type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function day(date: string) {
   const r = await fetch(`${BASE}?dates=${date.replaceAll("-", "")}&limit=50`, {
