@@ -37,7 +37,7 @@ const BACK = (
 );
 
 export function EmailConfirmPage() {
-  useDocumentHead({ title: 'Confirm your email', description: 'Confirm your FixtureShark FPL weekly email.' });
+  useDocumentHead({ title: 'Confirm your email', description: 'Confirm your FixtureShark injury alerts and FPL weekly email.' });
   useNoindex(true);
   const [params] = useSearchParams();
   const token = params.get('t') ?? '';
@@ -70,9 +70,9 @@ export function EmailConfirmPage() {
       <Shell title={state === 'confirmed' ? 'You’re signed up' : 'Already signed up'}>
         <p>
           {state === 'confirmed' ? 'Thanks for confirming. ' : 'This address is already confirmed. '}
-          FixtureShark FPL weekly arrives before each FPL deadline.
+          FixtureShark FPL weekly arrives before each FPL deadline, and injury alerts come when FPL flags one of your players.
         </p>
-        {manage && <p><Link to={`/email/manage?t=${manage}`} className={LINK}>Change what you get</Link></p>}
+        {manage && <p><Link to={`/email/manage?t=${manage}`} className={LINK}>Add your FPL team ID or players to watch</Link> · <Link to={`/email/manage?t=${manage}`} className={LINK}>Change what you get</Link></p>}
         {BACK}
       </Shell>
     );
@@ -80,7 +80,7 @@ export function EmailConfirmPage() {
   if (state === 'invalid') {
     return (
       <Shell title="Link not recognised">
-        <p>This link has expired or has already been replaced. <Link to="/fpl/start" className={LINK}>Sign up again</Link> and we&rsquo;ll send a new one.</p>
+        <p>This link has expired or has already been replaced. <Link to="/email" className={LINK}>Sign up again</Link> and we&rsquo;ll send a new one.</p>
         {BACK}
       </Shell>
     );
@@ -124,7 +124,7 @@ export function EmailUnsubscribePage() {
 }
 
 export function EmailManagePage() {
-  useDocumentHead({ title: 'Email choices', description: 'Change what the FixtureShark FPL weekly email includes.' });
+  useDocumentHead({ title: 'Email choices', description: 'Change your FixtureShark injury alerts and what the FPL weekly email includes.' });
   useNoindex(true);
   const [params] = useSearchParams();
   const token = params.get('t') ?? '';
@@ -166,6 +166,16 @@ export function EmailManagePage() {
       <Shell title="Email choices">
         <p>You get FixtureShark FPL weekly before each FPL deadline.</p>
         <div className="flex items-start gap-2">
+          <input id="alerts-topic" type="checkbox" className="mt-1" checked={!!r.alerts} disabled={saving}
+            onChange={(e) => save({ alerts: e.target.checked })} />
+          <label htmlFor="alerts-topic">
+            Injury alerts: email me within 15 minutes when FPL flags a player in my team or on my watchlist.
+            {r.alerts && r.fpl_id == null && !(r.watchlist ?? []).length && (
+              <span className="block text-sm text-loss-700">Add your FPL team ID or some players below, or there&rsquo;s nothing to alert you about.</span>
+            )}
+          </label>
+        </div>
+        <div className="flex items-start gap-2">
           <input id="football-section" type="checkbox" className="mt-1" checked={!!r.football} disabled={saving}
             onChange={(e) => save({ football: e.target.checked })} />
           <label htmlFor="football-section">
@@ -190,7 +200,7 @@ export function EmailManagePage() {
         </form>
         <section className="space-y-2 rounded-lg border border-chalk-300 bg-white p-3" aria-labelledby="watchlist-h">
           <p id="watchlist-h" className="font-medium text-ink-900">Watchlist (optional)</p>
-          <p className="text-xs text-ink-500">Players you&rsquo;re thinking of bringing in. Each email reports their price, fitness, start chance, fixtures and form.</p>
+          <p className="text-xs text-ink-500">Players you&rsquo;re thinking of bringing in. Each weekly email reports their price, fitness, start chance, fixtures and form, and you get injury alerts for them too.</p>
           <EmailWatchlist players={r.watchlist ?? []} disabled={saving}
             onChange={(next: WatchPlayer[]) => save({ watchlist: next.map((x) => x.id) })} />
         </section>
@@ -201,7 +211,7 @@ export function EmailManagePage() {
     );
   }
   if (r.state === 'unsubscribed') {
-    return <Shell title="Email choices"><p>This address is unsubscribed. <Link to="/fpl/start" className={LINK}>Sign up again</Link> any time.</p>{BACK}</Shell>;
+    return <Shell title="Email choices"><p>This address is unsubscribed. <Link to="/email" className={LINK}>Sign up again</Link> any time.</p>{BACK}</Shell>;
   }
   if (r.state === 'error') {
     return <Shell title="Something went wrong"><p>We couldn&rsquo;t load your choices just now. Please try again in a minute.</p>{BACK}</Shell>;

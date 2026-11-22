@@ -22,6 +22,7 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const EmailConfirmPage = lazy(() => import('./pages/email/EmailPages').then((m) => ({ default: m.EmailConfirmPage })));
 const EmailUnsubscribePage = lazy(() => import('./pages/email/EmailPages').then((m) => ({ default: m.EmailUnsubscribePage })));
 const EmailManagePage = lazy(() => import('./pages/email/EmailPages').then((m) => ({ default: m.EmailManagePage })));
+const EmailLandingPage = lazy(() => import('./pages/email/EmailLandingPage'));
 const TvGuidePage = lazy(() => import('./pages/football/TvGuidePage'));
 const TodayPage = lazy(() => import('./pages/TodayPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -475,6 +476,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <PrivacyPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="email"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <EmailLandingPage />
               </Suspense>
             }
           />

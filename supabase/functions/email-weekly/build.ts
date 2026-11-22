@@ -407,3 +407,67 @@ export function buildWeeklyEmail(c: WeeklyContent, r: Recipient, opts: { test?: 
     },
   };
 }
+
+// ---------------------------------------------------------------- injury alerts
+// One email when FPL changes the status, chance or news of a player in the
+// subscriber's FPL team or watchlist (public.email_alert_batch). FPL's own
+// words only; the previous state is shown so the change is clear.
+export type AlertChange = {
+  id: number; name: string; team: string | null; slug: string | null; pos: string | null; price: number; own: number | null;
+  old_status: string | null; new_status: string | null; old_chance: number | null; new_chance: number | null;
+  old_news: string | null; new_news: string | null; seen_at: string; source: 'team' | 'watchlist';
+};
+
+const statusWord = (s: string | null, chance: number | null) =>
+  s === 'a' || s == null ? 'available' : `${STATUS[s] ?? 'flagged'}${chance != null && s === 'd' ? ` (${chance}%)` : ''}`;
+
+export function alertLine(c: AlertChange): string {
+  const now = c.new_news?.trim() ? c.new_news.trim() : statusWord(c.new_status, c.new_chance);
+  if (c.new_status === 'a' && c.old_status && c.old_status !== 'a') return `back to available (was: ${c.old_news?.trim() || statusWord(c.old_status, c.old_chance)})`;
+  if (c.old_status === 'a' || !c.old_news?.trim()) return `now: ${now}`;
+  return `now: ${now} (was: ${c.old_news.trim()})`;
+}
+
+export function alertSubject(changes: AlertChange[]): string {
+  const bad = changes.filter((c) => c.new_status && c.new_status !== 'a');
+  const lead = (bad[0] ?? changes[0]);
+  const more = changes.length > 1 ? ` and ${changes.length - 1} more` : '';
+  if (!lead) return 'FPL flag update';
+  if (lead.new_status === 'a') return `FPL: ${lead.name} is back to available${more}`;
+  return `FPL flag: ${lead.name}${lead.new_chance != null && lead.new_status === 'd' ? ` ${lead.new_chance}%` : ` ${STATUS[lead.new_status ?? ''] ?? 'flagged'}`}${more}`;
+}
+
+export function buildAlertEmail(changes: AlertChange[], r: { token: string | null }): BuiltEmail {
+  const subject = alertSubject(changes);
+  const unsub = unsubscribeUrl(r.token);
+  const manage = manageUrl(r.token);
+  const lines = changes.map((c) => {
+    const where = c.source === 'watchlist' ? ' · on your watchlist' : ' · in your team';
+    const meta = ` (${[c.pos, money(c.price), c.own != null ? `${Number(c.own).toFixed(1)}% owned` : null].filter(Boolean).join(', ')})`;
+    return pl(c, `${meta}: ${alertLine(c)}${where}`);
+  });
+  const blk = block('What FPL changed', lines, {
+    intro: 'FPL has just changed the status of a player you have. Its own words are below.',
+    more: { href: `${SITE}/fpl/injuries`, label: 'All flagged players' },
+  });
+  const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>${esc(subject)}</title>` +
+    `<style>@media (prefers-color-scheme: dark){.fs-body,.fs-wrap{background:#121412 !important}.fs-t,.fs-t li,h1.fs-t{color:#e8ebe6 !important}` +
+    `.fs-m{color:#a9b0a6 !important}.fs-h{color:#8fd3a8 !important}.fs-a{color:#8fd3a8 !important}}</style></head>` +
+    `<body class="fs-body" style="margin:0;padding:0;background:${C.bg}">` +
+    `<div class="fs-wrap" style="max-width:600px;margin:0 auto;padding:20px 16px;background:${C.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">` +
+    p('FixtureShark injury alert', true) + blk.html +
+    p(`Thinking about a transfer? ${a(`${SITE}/fpl/rate-my-team`, 'Rate your team')} or see ${a(`${SITE}/fpl/start`, 'this gameweek’s picks')}.`) +
+    `<hr style="border:0;border-top:1px solid ${C.rule};margin:28px 0 12px">` +
+    p(`You asked for injury alerts at ${a(SITE, 'fixtureshark.com')}. ${a(manage, 'Turn alerts off or change your players')} · ${a(unsub, 'Unsubscribe from everything')} (one click) · ${a(`${SITE}/privacy`, 'Privacy')}`, true) +
+    `</div></body></html>`;
+  const text = [
+    'FixtureShark injury alert', '', blk.text, '',
+    `Rate your team: ${SITE}/fpl/rate-my-team`, '', '--',
+    'You asked for injury alerts at fixtureshark.com.',
+    `Turn alerts off or change your players: ${manage}`,
+    `Unsubscribe from everything (one click): ${unsub}`,
+    `Privacy: ${SITE}/privacy`,
+  ].join('\n');
+  return { subject, html, text, headers: { 'List-Unsubscribe': `<${oneClickUrl(r.token)}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } };
+}

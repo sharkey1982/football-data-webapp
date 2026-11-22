@@ -52,7 +52,7 @@ describe('sign-up form', () => {
     await userEvent.click(screen.getByLabelText(/where our model and the betting market disagree/));
     await userEvent.click(screen.getByRole('button', { name: 'Sign up' }));
     expect(await screen.findByTestId('email-signup-status')).toHaveTextContent('Check your email');
-    expect(sent()).toMatchObject({ action: 'subscribe', email: 'me@example.com', football: true, website: '', fpl_id: null, club_id: null });
+    expect(sent()).toMatchObject({ action: 'subscribe', email: 'me@example.com', football: true, alerts: true, website: '', fpl_id: null, club_id: null });
   });
 
   it('prefills the FPL ID and club from My FixtureShark', async () => {

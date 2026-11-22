@@ -13,6 +13,7 @@
 // amber, so the grid is 2 x 3 on a phone and 3 x 2 on desktop.
 // ============================================================================
 
+import EmailSignup from '../components/EmailSignup';
 import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MyHome } from '../components/my/MyHome';
@@ -217,6 +218,9 @@ export default function Landing() {
           </button>
         </aside>
       )}
+
+      {/* Email (22 Nov 2026): injury alerts lead the sign-up. */}
+      <EmailSignup />
 
       {/* Common questions: the same text is the page's FAQPage JSON-LD
           (src/lib/siteIdentity.ts, entry-server). */}

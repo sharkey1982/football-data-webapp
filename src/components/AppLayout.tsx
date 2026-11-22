@@ -527,9 +527,10 @@ export default function AppLayout() {
             ))}
           </ul>
         </nav>
-        {/* FPL weekly email (1 Nov 2026), compact. Left out where the page
-            has its own sign-up card, and on the email pages themselves. */}
-        {!/^\/(fpl\/start|fpl\/gameweek|email\/)/.test(location.pathname) && (
+        {/* Email sign-up (1 Nov 2026), compact. Left out where the page has
+            its own sign-up card (home, FPL hub, gameweek, Physio Room, player
+            pages: 22 Nov 2026) and on the email pages. */}
+        {!/^\/($|email(\/|$)|fpl\/(start|gameweek|injuries|players\/))/.test(location.pathname) && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-4">
             <div className="max-w-xl"><EmailSignup variant="compact" /></div>
           </div>

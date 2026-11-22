@@ -145,6 +145,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
           { label: 'Formations', to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
           { label: 'Injuries', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
+          { label: 'Injury alerts by email', to: '/email', blurb: 'An email within 15 minutes when FPL flags one of your players.' },
           // Hindsight, not forecast -- what the best squad WAS. That's a
           // record of what happened, so it belongs in Discover.
           { label: 'Set-and-Forget XI', to: '/fpl/season-xi', blurb: 'The best XI of 2025/26 you could have picked in August and never touched.' },
@@ -368,7 +369,7 @@ export const HUB_GROUPS: Partial<Record<ThemeKey, HubGroup[]>> = {
     },
   ],
   fpl: [
-    { name: 'This week', paths: ['/fpl/live', '/fpl/gameweek', '/fpl/team-of-the-week', '/fpl/in-the-papers', '/fpl/most-owned', '/fpl/price-risk', '/fpl/injuries'] },
+    { name: 'This week', paths: ['/fpl/live', '/fpl/gameweek', '/fpl/team-of-the-week', '/fpl/in-the-papers', '/fpl/most-owned', '/fpl/price-risk', '/fpl/injuries', '/email'] },
     { name: 'Players', paths: ['/fpl/player-points', '/fpl/player-scout', '/fpl/compare', '/fpl/value', '/fpl/set-pieces', '/fpl/minutes', '/fpl/line-ups'] },
     { name: 'Plan my team', paths: ['/fpl/rate-my-team', '/fpl/optimal-squad', '/fpl/fixtures', '/fantasy', '/fpl'] },
     { name: 'History', paths: ['/fpl/optimal-squad-so-far', '/fpl/season-xi', '/fpl/articles'] },
