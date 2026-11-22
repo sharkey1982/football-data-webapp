@@ -31,8 +31,10 @@ import EmailPersonalise from './EmailPersonalise';
 
 type State = 'idle' | 'sending' | SubscribeState;
 
-export default function EmailSignup({ variant = 'card', fplId: givenFplId, className = '' }: {
+export default function EmailSignup({ variant = 'card', fplId: givenFplId, className = '', heading }: {
   variant?: 'card' | 'compact' | 'team';
+  /** Replaces the heading (the /email page, whose own heading says it already). */
+  heading?: string;
   /** The FPL ID already known (Rate My Team). */
   fplId?: number | null;
   className?: string;
@@ -61,7 +63,7 @@ export default function EmailSignup({ variant = 'card', fplId: givenFplId, class
   const compact = variant === 'compact';
   const team = variant === 'team';
   const done = state === 'check';
-  const title = team ? 'Watch these 15 players for me' : 'Injury alerts for your FPL team';
+  const title = heading ?? (team ? 'Watch these 15 players for me' : 'Injury alerts for your FPL team');
 
   return (
     <section
@@ -76,7 +78,7 @@ export default function EmailSignup({ variant = 'card', fplId: givenFplId, class
         {team
           ? 'We’ll email you within 15 minutes if FPL flags any of them, plus one email before each deadline. Free.'
           : 'An email within 15 minutes when FPL flags one of your players, plus one email before each deadline with our captain pick and price moves. Free.'}
-        {!compact && !team && <> <Link to="/email" className="underline underline-offset-2 hover:text-ink-900">See an example</Link>.</>}
+        {!compact && !team && !heading && <> <Link to="/email" className="underline underline-offset-2 hover:text-ink-900">See an example</Link>.</>}
       </p>
 
       {done ? (

@@ -66,7 +66,7 @@ export default function EmailLandingPage() {
         </p>
       </header>
 
-      <EmailSignup />
+      <EmailSignup heading="Sign up free" />
 
       <section className="space-y-3" aria-labelledby="sample-alert-h">
         <h2 id="sample-alert-h" className={H2}>What an alert looks like</h2>
