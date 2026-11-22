@@ -144,8 +144,14 @@ def load_gameweek(sb):
     return event, fixtures, players
 
 
-def simulate(players, fixtures, n_worlds, rng):
-    """Points matrix (worlds x players), linked through each fixture's simulated goals."""
+def simulate(players, fixtures, n_worlds, rng, with_base=False):
+    """Points matrix (worlds x players), linked through each fixture's simulated goals.
+
+    Expected bonus and penalty/card points are added as fractions (right on
+    average). with_base=True also returns the whole-number points without
+    them, for blank chances: otherwise a 90-minute no-return scores about 2.9
+    and never counts as a blank (2 or fewer). Fixed 22 Nov 2026 after Chris
+    spotted Haaland shown at 2% to blank while on a run of three blanks."""
     fx_ids = sorted(fixtures)
     fx_index = {f: k for k, f in enumerate(fx_ids)}
     goals = {}
@@ -155,6 +161,7 @@ def simulate(players, fixtures, n_worlds, rng):
         la = fr["market_away_goals"] if fr["market_away_goals"] is not None else fr["predicted_away_goals"]
         goals[f] = (rng.poisson(float(lh), n_worlds), rng.poisson(float(la), n_worlds))
     pts = np.zeros((n_worlds, len(players)), dtype=np.float32)
+    base = np.zeros((n_worlds, len(players)), dtype=np.float32) if with_base else None
     for j, p in enumerate(players):
         gh, ga = goals[p["fixture"]]
         g_for, g_against = (gh, ga) if p["home"] else (ga, gh)
@@ -183,9 +190,11 @@ def simulate(players, fixtures, n_worlds, rng):
             saves = rng.poisson(p["xsaves"] * rel)
             s = s + saves // 3
         s = s + 2 * (rng.random(n_worlds) < np.clip(p["p_dc"] * rel, 0, 1))
+        if with_base:
+            base[:, j] = s
         s = s + p["bonus"] * rel + p["flat"] * rel
         pts[:, j] = s
-    return pts
+    return (pts, base) if with_base else pts
 
 
 def squad_points(pts, xi, cap):

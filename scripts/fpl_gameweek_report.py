@@ -768,10 +768,12 @@ def captain_ranges(d: Data, ctx: dict, gw: int, week: dict, pool: set) -> list[d
     if not players:
         return []
     rng = np.random.default_rng(gw * 1000 + 29)
-    pts = simulate(players, fixtures, SIM_WORLDS, rng)
+    pts, base = simulate(players, fixtures, SIM_WORLDS, rng, with_base=True)
     tot = defaultdict(lambda: np.zeros(SIM_WORLDS, dtype=np.float32))
+    whole = defaultdict(lambda: np.zeros(SIM_WORLDS, dtype=np.float32))
     for j, p in enumerate(players):
         tot[p["id"]] += pts[:, j]
+        whole[p["id"]] += base[:, j]
     act = defaultdict(int)
     for r in actual_rows(d, ctx, gw).values():
         act[r["fpl_player_id"]] += r["pts"] or 0
@@ -779,7 +781,7 @@ def captain_ranges(d: Data, ctx: dict, gw: int, week: dict, pool: set) -> list[d
     for pid, v in tot.items():
         q = np.percentile(v, [10, 50, 90])
         out.append({**player_label(ctx, pid), "tag": tags[pid], "p10": f(q[0], 0), "p50": f(q[1], 0), "p90": f(q[2], 0),
-                    "mean": f(v.mean(), 1), "p_blank": f((v <= BLANK_AT).mean(), 2), "p_haul": f((v >= HAUL_AT).mean(), 2),
+                    "mean": f(v.mean(), 1), "p_blank": f((whole[pid] <= BLANK_AT).mean(), 2), "p_haul": f((v >= HAUL_AT).mean(), 2),
                     "pts": act.get(pid, 0)})
     out.sort(key=lambda r: -r["mean"])
     return out
@@ -1287,17 +1289,19 @@ def captain_chances(d: Data, ctx: dict, gw: int, frozen: bool, ids: list[int]) -
     if not players:
         return {}
     rng = np.random.default_rng(gw * 1000 + 13)
-    pts = simulate(players, fixtures, SIM_WORLDS, rng)
+    pts, base = simulate(players, fixtures, SIM_WORLDS, rng, with_base=True)
     order = sorted({p["id"] for p in players})
     col = {pid: k for k, pid in enumerate(order)}
     tot = np.zeros((SIM_WORLDS, len(order)), dtype=np.float32)
+    whole = np.zeros((SIM_WORLDS, len(order)), dtype=np.float32)
     for j, p in enumerate(players):
         tot[:, col[p["id"]]] += pts[:, j]
+        whole[:, col[p["id"]]] += base[:, j]
     best = tot.max(axis=1, keepdims=True)
     winners = (tot == best)
     share = winners / winners.sum(axis=1, keepdims=True)   # ties split
     means = tot.mean(axis=0)
-    blank = (tot <= BLANK_AT).mean(axis=0)
+    blank = (whole <= BLANK_AT).mean(axis=0)   # whole-number points: see simulate()
     return {pid: {"top": float(share[:, col[pid]].mean()), "sim_mean": float(means[col[pid]]), "p_blank": float(blank[col[pid]])}
             for pid in order}
 
