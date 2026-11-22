@@ -37,7 +37,7 @@ const BACK = (
 );
 
 export function EmailConfirmPage() {
-  useDocumentHead({ title: 'Confirm your email', description: 'Confirm your FixtureShark injury alerts and FPL weekly email.' });
+  useDocumentHead({ title: 'Confirm your email', description: 'Confirm your FixtureShark FPL email.' });
   useNoindex(true);
   const [params] = useSearchParams();
   const token = params.get('t') ?? '';
@@ -70,7 +70,7 @@ export function EmailConfirmPage() {
       <Shell title={state === 'confirmed' ? 'You’re signed up' : 'Already signed up'}>
         <p>
           {state === 'confirmed' ? 'Thanks for confirming. ' : 'This address is already confirmed. '}
-          FixtureShark FPL weekly arrives before each FPL deadline, and injury alerts come when FPL flags one of your players.
+          FixtureShark FPL weekly arrives before each FPL deadline, and late injury news 6 hours before it if FPL changes one of your players.
         </p>
         {manage && <p><Link to={`/email/manage?t=${manage}`} className={LINK}>Add your FPL team ID or players to watch</Link> · <Link to={`/email/manage?t=${manage}`} className={LINK}>Change what you get</Link></p>}
         {BACK}
@@ -124,7 +124,7 @@ export function EmailUnsubscribePage() {
 }
 
 export function EmailManagePage() {
-  useDocumentHead({ title: 'Email choices', description: 'Change your FixtureShark injury alerts and what the FPL weekly email includes.' });
+  useDocumentHead({ title: 'Email choices', description: 'Change what the FixtureShark FPL email includes.' });
   useNoindex(true);
   const [params] = useSearchParams();
   const token = params.get('t') ?? '';
@@ -169,9 +169,9 @@ export function EmailManagePage() {
           <input id="alerts-topic" type="checkbox" className="mt-1" checked={!!r.alerts} disabled={saving}
             onChange={(e) => save({ alerts: e.target.checked })} />
           <label htmlFor="alerts-topic">
-            Injury alerts: email me within 15 minutes when FPL flags a player in my team or on my watchlist.
+            Late injury news: 6 hours before each deadline, email me if FPL has changed a player in my team or on my watchlist since the weekly email.
             {r.alerts && r.fpl_id == null && !(r.watchlist ?? []).length && (
-              <span className="block text-sm text-loss-700">Add your FPL team ID or some players below, or there&rsquo;s nothing to alert you about.</span>
+              <span className="block text-sm text-loss-700">Add your FPL team ID or some players below, or there&rsquo;s nothing to tell you about.</span>
             )}
           </label>
         </div>
@@ -200,7 +200,7 @@ export function EmailManagePage() {
         </form>
         <section className="space-y-2 rounded-lg border border-chalk-300 bg-white p-3" aria-labelledby="watchlist-h">
           <p id="watchlist-h" className="font-medium text-ink-900">Watchlist (optional)</p>
-          <p className="text-xs text-ink-500">Players you&rsquo;re thinking of bringing in. Each weekly email reports their price, fitness, start chance, fixtures and form, and you get injury alerts for them too.</p>
+          <p className="text-xs text-ink-500">Players you&rsquo;re thinking of bringing in. Each weekly email reports their price, fitness, start chance, fixtures and form, and late injury news covers them too.</p>
           <EmailWatchlist players={r.watchlist ?? []} disabled={saving}
             onChange={(next: WatchPlayer[]) => save({ watchlist: next.map((x) => x.id) })} />
         </section>

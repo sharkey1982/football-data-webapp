@@ -1,10 +1,12 @@
 // ============================================================================
 // src/components/EmailSignup.tsx
 //
-// Sign-up for FixtureShark email: injury alerts for the visitor's FPL team
-// (an email within 15 minutes when FPL flags one of their players) plus "FPL
-// weekly" (one email before each deadline). Alerts lead (Chris, 22 Nov 2026:
-// "the site needs to make more of getting email subscribers").
+// Sign-up for FixtureShark email: "FPL weekly" (one email before each
+// deadline, about the visitor's own team) plus late injury news (a short
+// email 6 hours before the deadline if FPL changes one of their players).
+// Chris, 22 Nov 2026: "the site needs to make more of getting email
+// subscribers"; then "Once per week ... and any last minute injury news at
+// least 6 hours before the deadline", not every 15 minutes.
 //
 // Variants:
 //   card     the standard box (FPL hub, gameweek pages, player pages, /email)
@@ -63,7 +65,7 @@ export default function EmailSignup({ variant = 'card', fplId: givenFplId, class
   const compact = variant === 'compact';
   const team = variant === 'team';
   const done = state === 'check';
-  const title = heading ?? (team ? 'Watch these 15 players for me' : 'Injury alerts for your FPL team');
+  const title = heading ?? (team ? 'Watch these 15 players for me' : 'Your FPL team, before every deadline');
 
   return (
     <section
@@ -76,8 +78,8 @@ export default function EmailSignup({ variant = 'card', fplId: givenFplId, class
       </h2>
       <p className={compact ? 'text-ink-700' : 'text-sm text-ink-700 mt-1'}>
         {team
-          ? 'We’ll email you within 15 minutes if FPL flags any of them, plus one email before each deadline. Free.'
-          : 'An email within 15 minutes when FPL flags one of your players, plus one email before each deadline with our captain pick and price moves. Free.'}
+          ? 'One email before each deadline about these players, and late injury news 6 hours before it if FPL flags any of them. Free.'
+          : 'One email before each deadline with your flagged players, our captain pick and price moves, plus late injury news 6 hours before the deadline if FPL changes any of your players. Free.'}
         {!compact && !team && !heading && <> <Link to="/email" className="underline underline-offset-2 hover:text-ink-900">See an example</Link>.</>}
       </p>
 
@@ -144,7 +146,7 @@ export default function EmailSignup({ variant = 'card', fplId: givenFplId, class
             <input id={`${id}-website`} name="website" type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
           </div>
           <p className="text-xs text-ink-500">
-            We&rsquo;ll email you a link to confirm. Turn alerts off or unsubscribe in one click from any email. See our{' '}
+            We&rsquo;ll email you a link to confirm. Unsubscribe in one click from any email. See our{' '}
             <Link to="/privacy" className="underline underline-offset-2 hover:text-ink-900">privacy notice</Link>.
           </p>
           {state === 'invalid' && <p role="alert" className="text-sm text-loss-700">That email address doesn&rsquo;t look right.</p>}

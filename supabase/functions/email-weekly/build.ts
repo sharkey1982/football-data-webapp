@@ -408,10 +408,12 @@ export function buildWeeklyEmail(c: WeeklyContent, r: Recipient, opts: { test?: 
   };
 }
 
-// ---------------------------------------------------------------- injury alerts
-// One email when FPL changes the status, chance or news of a player in the
-// subscriber's FPL team or watchlist (public.email_alert_batch). FPL's own
-// words only; the previous state is shown so the change is clear.
+// ---------------------------------------------------------------- late injury news
+// Six hours before each deadline, one email if FPL has changed the status,
+// chance or news of a player in the subscriber's FPL team or watchlist since
+// the weekly email (public.email_alert_batch; Chris, 22 Nov 2026: once a week
+// plus last-minute news, not every 15 minutes). FPL's own words only; the
+// state at the weekly email is shown so the change is clear.
 export type AlertChange = {
   id: number; name: string; team: string | null; slug: string | null; pos: string | null; price: number; own: number | null;
   old_status: string | null; new_status: string | null; old_chance: number | null; new_chance: number | null;
@@ -428,17 +430,18 @@ export function alertLine(c: AlertChange): string {
   return `now: ${now} (was: ${c.old_news.trim()})`;
 }
 
-export function alertSubject(changes: AlertChange[]): string {
+export function alertSubject(changes: AlertChange[], gw?: number | null): string {
   const bad = changes.filter((c) => c.new_status && c.new_status !== 'a');
   const lead = (bad[0] ?? changes[0]);
   const more = changes.length > 1 ? ` and ${changes.length - 1} more` : '';
-  if (!lead) return 'FPL flag update';
-  if (lead.new_status === 'a') return `FPL: ${lead.name} is back to available${more}`;
-  return `FPL flag: ${lead.name}${lead.new_chance != null && lead.new_status === 'd' ? ` ${lead.new_chance}%` : ` ${STATUS[lead.new_status ?? ''] ?? 'flagged'}`}${more}`;
+  const pre = gw ? `GW${gw} late news: ` : 'FPL late news: ';
+  if (!lead) return `${pre}no changes`;
+  if (lead.new_status === 'a') return `${pre}${lead.name} back to available${more}`;
+  return `${pre}${lead.name}${lead.new_chance != null && lead.new_status === 'd' ? ` ${lead.new_chance}%` : ` ${STATUS[lead.new_status ?? ''] ?? 'flagged'}`}${more}`;
 }
 
-export function buildAlertEmail(changes: AlertChange[], r: { token: string | null }): BuiltEmail {
-  const subject = alertSubject(changes);
+export function buildAlertEmail(changes: AlertChange[], r: { token: string | null; gw?: number | null; deadline?: string | null }): BuiltEmail {
+  const subject = alertSubject(changes, r.gw);
   const unsub = unsubscribeUrl(r.token);
   const manage = manageUrl(r.token);
   const lines = changes.map((c) => {
@@ -446,8 +449,9 @@ export function buildAlertEmail(changes: AlertChange[], r: { token: string | nul
     const meta = ` (${[c.pos, money(c.price), c.own != null ? `${Number(c.own).toFixed(1)}% owned` : null].filter(Boolean).join(', ')})`;
     return pl(c, `${meta}: ${alertLine(c)}${where}`);
   });
-  const blk = block('What FPL changed', lines, {
-    intro: 'FPL has just changed the status of a player you have. Its own words are below.',
+  const when = r.deadline ? ` The GW${r.gw ?? ''} deadline is ${ukDeadline(r.deadline)} (UK time).` : '';
+  const blk = block('What FPL changed since your weekly email', lines, {
+    intro: `FPL's own words, with what it said at your weekly email in brackets.${when}`,
     more: { href: `${SITE}/fpl/injuries`, label: 'All flagged players' },
   });
   const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
@@ -456,16 +460,16 @@ export function buildAlertEmail(changes: AlertChange[], r: { token: string | nul
     `.fs-m{color:#a9b0a6 !important}.fs-h{color:#8fd3a8 !important}.fs-a{color:#8fd3a8 !important}}</style></head>` +
     `<body class="fs-body" style="margin:0;padding:0;background:${C.bg}">` +
     `<div class="fs-wrap" style="max-width:600px;margin:0 auto;padding:20px 16px;background:${C.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">` +
-    p('FixtureShark injury alert', true) + blk.html +
+    p('FixtureShark late injury news', true) + blk.html +
     p(`Thinking about a transfer? ${a(`${SITE}/fpl/rate-my-team`, 'Rate your team')} or see ${a(`${SITE}/fpl/start`, 'this gameweek’s picks')}.`) +
     `<hr style="border:0;border-top:1px solid ${C.rule};margin:28px 0 12px">` +
-    p(`You asked for injury alerts at ${a(SITE, 'fixtureshark.com')}. ${a(manage, 'Turn alerts off or change your players')} · ${a(unsub, 'Unsubscribe from everything')} (one click) · ${a(`${SITE}/privacy`, 'Privacy')}`, true) +
+    p(`You asked for late injury news at ${a(SITE, 'fixtureshark.com')}. ${a(manage, 'Turn it off or change your players')} · ${a(unsub, 'Unsubscribe from everything')} (one click) · ${a(`${SITE}/privacy`, 'Privacy')}`, true) +
     `</div></body></html>`;
   const text = [
-    'FixtureShark injury alert', '', blk.text, '',
+    'FixtureShark late injury news', '', blk.text, '',
     `Rate your team: ${SITE}/fpl/rate-my-team`, '', '--',
-    'You asked for injury alerts at fixtureshark.com.',
-    `Turn alerts off or change your players: ${manage}`,
+    'You asked for late injury news at fixtureshark.com.',
+    `Turn it off or change your players: ${manage}`,
     `Unsubscribe from everything (one click): ${unsub}`,
     `Privacy: ${SITE}/privacy`,
   ].join('\n');

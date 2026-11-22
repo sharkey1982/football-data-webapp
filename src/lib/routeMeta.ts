@@ -207,14 +207,14 @@ export const STATIC_ROUTES: RouteMeta[] = [
   },
   {
     path: '/email',
-    title: 'FPL injury alerts by email',
-    description: 'Free FPL injury alerts: an email within 15 minutes when FPL flags a player in your team, plus one email before each deadline.',
+    title: 'FPL email: your team before every deadline',
+    description: 'A free FPL email before each deadline about your own team, plus late injury news 6 hours before the deadline if FPL flags one of your players.',
     crumbs: [],
   },
   {
     path: '/privacy',
     title: 'Privacy notice',
-    description: 'What FixtureShark collects for its injury alerts, FPL weekly email and analytics, why, how long it is kept, and your rights.',
+    description: 'What FixtureShark collects for its FPL email and analytics, why, how long it is kept, and your rights.',
     crumbs: [],
   },
   {

@@ -6,7 +6,7 @@
 // functions (supabase/migrations/20261101140000_fpl_weekly_email.sql).
 //
 //   POST JSON {action:"subscribe", email, football, alerts?, fpl_id?, club_id?, watchlist?, website}
-//        alerts (default on): injury alerts for the FPL team and watchlist
+//        alerts (default on): late injury news 6 hours before each deadline
 //   POST form (the static HTML form, no JavaScript): same fields, answered
 //        with a 303 to /email/confirm?state=check|invalid
 //        -> always "check your email": the answer never says whether an
@@ -54,15 +54,15 @@ function message(kind: "confirm" | "already", token: string, football: boolean, 
   if (kind === "confirm") {
     const url = `${SITE}/email/confirm?t=${token}`;
     return {
-      subject: alerts ? "Confirm your FixtureShark injury alerts" : "Confirm your FixtureShark FPL weekly email",
-      html: shell((alerts ? `<p>Please confirm you want <b>FixtureShark injury alerts</b>: an email within 15 minutes when FPL flags ` +
-        `a player in your team or on your watchlist.</p><p>You'll also get <b>FPL weekly</b>: ` : `<p>Please confirm you want <b>FixtureShark FPL weekly</b>: `) +
-        `one email before each FPL deadline with a captain pick, ` +
+      subject: "Confirm your FixtureShark FPL email",
+      html: shell(`<p>Please confirm you want <b>FixtureShark FPL weekly</b>: one email before each FPL deadline with a captain pick, ` +
         `who to think about changing, minutes risks and price moves${football ? ", plus where our model and the market disagree on the weekend's games" : ""}.</p>` +
+        (alerts ? `<p>And <b>late injury news</b>: a short email 6 hours before the deadline if FPL has changed a player in your team or on your watchlist since then.</p>` : "") +
         btn(url, "Confirm my email") +
         `<p style="color:#555555;font-size:13px">Or paste this link into your browser: ${esc(url)}</p>` +
         `<p style="color:#555555;font-size:13px">Didn't ask for this? Ignore it and you won't hear from us. The link stops working after 7 days.</p>`),
-      text: (alerts ? `Please confirm you want FixtureShark injury alerts (an email within 15 minutes when FPL flags one of your players) and FPL weekly (one email before each deadline).` : `Please confirm you want FixtureShark FPL weekly: one email before each FPL deadline.`) +
+      text: `Please confirm you want FixtureShark FPL weekly: one email before each FPL deadline` +
+        (alerts ? `, plus late injury news 6 hours before the deadline if FPL changes one of your players.` : `.`) +
         `\n\nConfirm: ${url}\n\n` +
         `Didn't ask for this? Ignore it and you won't hear from us. The link stops working after 7 days.\n\nPrivacy: ${SITE}/privacy`,
     };

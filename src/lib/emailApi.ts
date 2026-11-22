@@ -1,7 +1,7 @@
 // ============================================================================
 // src/lib/emailApi.ts
 //
-// The FPL email list (injury alerts and FPL weekly): sign-up, confirm, unsubscribe and manage, all
+// The FPL email list (FPL weekly and late injury news): sign-up, confirm, unsubscribe and manage, all
 // through the email-list edge function (supabase/functions/email-list). The
 // list itself is in the private schema and never reachable from the browser.
 // Admin calls: emailAdminApi.ts.
@@ -18,7 +18,7 @@ export type UnsubscribeState = 'unsubscribed' | 'already' | 'invalid' | 'error';
 export type ManageResult = {
   state: 'ok' | 'invalid' | 'pending' | 'unsubscribed' | 'error';
   football?: boolean;
-  /** Injury alerts for the FPL team and watchlist. */
+  /** Late injury news (6 hours before the deadline) for the FPL team and watchlist. */
   alerts?: boolean;
   fpl_id?: number | null;
   club?: { id: number; name: string } | null;
