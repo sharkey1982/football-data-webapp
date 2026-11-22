@@ -15,7 +15,7 @@ import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 
 export const PRIVACY_TITLE = 'Privacy notice';
-export const PRIVACY_DESCRIPTION = 'What FixtureShark collects for its injury alerts, FPL weekly email and analytics, why, how long it is kept, and your rights.';
+export const PRIVACY_DESCRIPTION = 'What FixtureShark collects for its FPL email and analytics, why, how long it is kept, and your rights.';
 export const PRIVACY_CONTACT = 'privacy@fixtureshark.com';
 export const PRIVACY_UPDATED = '22 November 2026';
 
@@ -65,20 +65,19 @@ export default function PrivacyPage() {
         You can use the site without giving us any personal details.
       </p>
 
-      <Section title="Injury alerts and the FPL weekly email">
-        <p className={P}>If you sign up for injury alerts and the FPL weekly email, we store:</p>
+      <Section title="The FPL email">
+        <p className={P}>If you sign up for the FPL weekly email and late injury news, we store:</p>
         <ul className={LI}>
           <li>your email address;</li>
-          <li>your choices: whether you want injury alerts, whether you want the optional &ldquo;where our model and the market disagree&rdquo; section, and, only if you give them, your FPL team ID (the number), your club and the players on your watchlist;</li>
+          <li>your choices: whether you want late injury news, whether you want the optional &ldquo;where our model and the market disagree&rdquo; section, and, only if you give them, your FPL team ID (the number), your club and the players on your watchlist;</li>
           <li>which version of the sign-up wording you agreed to;</li>
           <li>when you signed up, confirmed and (if you do) unsubscribed.</li>
         </ul>
         <p className={P}>
           We use these only to send you the email you asked for. If you give an FPL team ID, we read your squad from the
-          public FPL website when each email is made, to add a &ldquo;Your team&rdquo; section, and when FPL changes a
-          player&rsquo;s status, to see whether you have him for an injury alert. We keep only the ID number and your
-          squad&rsquo;s player list for up to two days, not your name or anything else from your FPL account. We count how
-          many alerts we send you in a day (at most 6) and keep that count for 30 days.
+          public FPL website when each email is made, to add a &ldquo;Your team&rdquo; section, and before the deadline,
+          to see whether FPL has changed the status of one of your players since then. We keep only the ID number and your
+          squad&rsquo;s player list for up to two days, not your name or anything else from your FPL account.
           Our lawful basis is your consent, which you give by confirming your address. You can withdraw it at any time.
         </p>
         <p className={P}>

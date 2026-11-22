@@ -145,7 +145,7 @@ export const THEMES: Record<ThemeKey, JourneyTheme> = {
           { label: 'Set-Piece Takers', to: '/fpl/set-pieces', blurb: 'Penalty, free-kick and corner duty for every club, ranked.' },
           { label: 'Formations', to: '/fpl/formations', blurb: 'Where goals and assists come from, by pitch position and shape.' },
           { label: 'Injuries', to: '/fpl/injuries', blurb: 'Who\u2019s out, and how many fixtures each absence actually costs.' },
-          { label: 'Injury alerts by email', to: '/email', blurb: 'An email within 15 minutes when FPL flags one of your players.' },
+          { label: 'FPL email', to: '/email', blurb: 'Your team before every deadline, plus late injury news 6 hours before it.' },
           // Hindsight, not forecast -- what the best squad WAS. That's a
           // record of what happened, so it belongs in Discover.
           { label: 'Set-and-Forget XI', to: '/fpl/season-xi', blurb: 'The best XI of 2025/26 you could have picked in August and never touched.' },

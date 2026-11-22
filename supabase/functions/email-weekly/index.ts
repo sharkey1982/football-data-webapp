@@ -7,10 +7,11 @@
 //                       (public.email_begin_send)
 //   { mode: "test", fpl_id?, club_id?, watchlist? }  the same issue to the admin address
 //                       only (with "Your team" when an FPL ID or club is given)
-//   { mode: "alerts" }  injury alerts: FPL status changes since the last send,
-//                       one email per subscriber whose team or watchlist holds
-//                       a changed player (public.email_alert_batch; invoked by
-//                       the 15-minute private.fpl_status_tick)
+//   { mode: "alerts" }  late injury news, 6 hours before the deadline: once per
+//                       gameweek, one email per subscriber whose team or
+//                       watchlist holds a player FPL changed since the weekly
+//                       email (public.email_alert_batch; invoked by
+//                       private.fpl_status_tick)
 // Called only by the database (private.email_invoke: the hourly
 // email-weekly-tick, or "Send test to admin" on /admin/email) with the social
 // worker token in x-social-token.
@@ -161,14 +162,13 @@ type Sb = ReturnType<typeof createClient>;
 async function sendAlerts(sb: Sb): Promise<Response> {
   const { data: rows, error } = await sb.rpc("email_alert_batch");
   if (error) return Response.json({ ok: false, reason: `batch: ${error.message}` }, { status: 500 });
-  type Row = { subscriber_id: number; email: string; token: string; changes: AlertChange[] };
+  type Row = { send_id: number; gw: number; deadline: string; subscriber_id: number; email: string; token: string; changes: AlertChange[] };
   const list = ((rows ?? []) as Row[]).filter((r) => Array.isArray(r.changes) && r.changes.length > 0);
+  // No rows: not due, already sent, or nobody's players changed (the database closes that send itself).
   if (list.length === 0) return Response.json({ ok: true, recipients: 0 });
 
-  const built = list.map((r) => ({ r, m: buildAlertEmail(r.changes, { token: r.token }) }));
-  const { data: begun, error: eb } = await sb.rpc("email_begin_alerts", { p_subject: built[0].m.subject });
-  if (eb) return Response.json({ ok: false, reason: `begin: ${eb.message}` }, { status: 500 });
-  const sendId: number = begun.send_id;
+  const built = list.map((r) => ({ r, m: buildAlertEmail(r.changes, { token: r.token, gw: r.gw, deadline: r.deadline }) }));
+  const sendId: number = list[0].send_id;
   const finish = async (sent: number, failed: number, note: string | null) => {
     const { error: e } = await sb.rpc("email_finish_send", {
       p_send_id: sendId, p_recipients: list.length, p_football: 0, p_sent: sent, p_failed: failed, p_note: note,

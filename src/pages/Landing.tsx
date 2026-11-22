@@ -219,7 +219,7 @@ export default function Landing() {
         </aside>
       )}
 
-      {/* Email (22 Nov 2026): injury alerts lead the sign-up. */}
+      {/* Email sign-up (22 Nov 2026): your team before every deadline. */}
       <EmailSignup />
 
       {/* Common questions: the same text is the page's FAQPage JSON-LD
