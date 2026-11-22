@@ -7,6 +7,10 @@
 //                       (public.email_begin_send)
 //   { mode: "test", fpl_id?, club_id?, watchlist? }  the same issue to the admin address
 //                       only (with "Your team" when an FPL ID or club is given)
+//   { mode: "alerts" }  injury alerts: FPL status changes since the last send,
+//                       one email per subscriber whose team or watchlist holds
+//                       a changed player (public.email_alert_batch; invoked by
+//                       the 15-minute private.fpl_status_tick)
 // Called only by the database (private.email_invoke: the hourly
 // email-weekly-tick, or "Send test to admin" on /admin/email) with the social
 // worker token in x-social-token.
@@ -20,7 +24,7 @@
 // ============================================================================
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { buildWeeklyEmail, FROM, weeklySubject, type Personal, type WeeklyContent } from "./build.ts";
+import { buildAlertEmail, buildWeeklyEmail, FROM, weeklySubject, type AlertChange, type Personal, type WeeklyContent } from "./build.ts";
 
 const BATCH = 100;
 
@@ -31,6 +35,7 @@ Deno.serve(async (req) => {
   if (ok !== true) return new Response("forbidden", { status: 403 });
 
   const body = await req.json().catch(() => ({}));
+  if (body?.mode === "alerts") return await sendAlerts(sb);
   const mode = body?.mode === "weekly" ? "weekly" : body?.mode === "test" ? "test" : null;
   if (!mode) return Response.json({ ok: false, reason: "mode must be weekly or test" }, { status: 400 });
 
@@ -150,3 +155,65 @@ Deno.serve(async (req) => {
   await finish(list.length, football, sent, failed, notes.join("; ") || null);
   return Response.json({ ok: failed === 0, send_id: sendId, recipients: list.length, sent, failed, ids: ids.slice(0, 3) });
 });
+
+// ---------------------------------------------------------------- injury alerts
+type Sb = ReturnType<typeof createClient>;
+async function sendAlerts(sb: Sb): Promise<Response> {
+  const { data: rows, error } = await sb.rpc("email_alert_batch");
+  if (error) return Response.json({ ok: false, reason: `batch: ${error.message}` }, { status: 500 });
+  type Row = { subscriber_id: number; email: string; token: string; changes: AlertChange[] };
+  const list = ((rows ?? []) as Row[]).filter((r) => Array.isArray(r.changes) && r.changes.length > 0);
+  if (list.length === 0) return Response.json({ ok: true, recipients: 0 });
+
+  const built = list.map((r) => ({ r, m: buildAlertEmail(r.changes, { token: r.token }) }));
+  const { data: begun, error: eb } = await sb.rpc("email_begin_alerts", { p_subject: built[0].m.subject });
+  if (eb) return Response.json({ ok: false, reason: `begin: ${eb.message}` }, { status: 500 });
+  const sendId: number = begun.send_id;
+  const finish = async (sent: number, failed: number, note: string | null) => {
+    const { error: e } = await sb.rpc("email_finish_send", {
+      p_send_id: sendId, p_recipients: list.length, p_football: 0, p_sent: sent, p_failed: failed, p_note: note,
+    });
+    if (e) console.error("email_finish_send failed", e.message);
+  };
+  const logFailure = async (status: number | null, err: string, n: number) => {
+    const { error: e } = await sb.rpc("email_log_failure", { p_send_id: sendId, p_kind: "alerts", p_http_status: status, p_error: err, p_recipients: n });
+    if (e) console.error("email_log_failure failed", e.message);
+  };
+  const key = Deno.env.get("RESEND_API_KEY");
+  if (!key) { await logFailure(null, "RESEND_API_KEY not set", list.length); await finish(0, list.length, "RESEND_API_KEY not set"); return Response.json({ ok: false }); }
+  const { data: allowed, error: eq } = await sb.rpc("email_quota_take", { p_n: list.length });
+  const n = eq ? 0 : Number(allowed ?? 0);
+  let sent = 0, failed = 0;
+  const notes: string[] = [];
+  if (n < list.length) {
+    failed += list.length - n;
+    notes.push(`daily/monthly allowance: ${list.length - n} not sent`);
+    await logFailure(null, eq ? `quota check: ${eq.message}` : "daily or monthly allowance reached", list.length - n);
+  }
+  const done: number[] = [], counts: number[] = [];
+  for (let i = 0; i < n; i += BATCH) {
+    const chunk = built.slice(i, Math.min(i + BATCH, n));
+    const res = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `alerts-${sendId}-${i / BATCH}` },
+      body: JSON.stringify(chunk.map(({ r, m }) => ({ from: FROM, to: [r.email], subject: m.subject, html: m.html, text: m.text, headers: m.headers }))),
+      signal: AbortSignal.timeout(30_000),
+    }).catch((e) => ({ ok: false, status: 0, text: () => Promise.resolve(String(e)) }) as unknown as Response);
+    const raw = await res.text();
+    if (!res.ok) {
+      failed += n - i;
+      notes.push(`Resend ${res.status}: stopped with ${n - i} not sent`);
+      await logFailure(res.status, raw.slice(0, 400), n - i);
+      break;
+    }
+    sent += chunk.length;
+    for (const { r } of chunk) { done.push(r.subscriber_id); counts.push(r.changes.length); }
+    if (i + BATCH < n) await new Promise((r) => setTimeout(r, 600));
+  }
+  if (done.length) {
+    const { error: el } = await sb.rpc("email_alert_sent", { p_subscribers: done, p_counts: counts });
+    if (el) console.error("email_alert_sent failed", el.message);
+  }
+  await finish(sent, failed, notes.join("; ") || null);
+  return Response.json({ ok: failed === 0, send_id: sendId, recipients: list.length, sent, failed });
+}

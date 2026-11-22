@@ -8,6 +8,7 @@
 // one, regardless of severity.
 // ============================================================================
 
+import EmailSignup from '../../components/EmailSignup';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
@@ -92,6 +93,8 @@ export default function InjuriesPage({ initialData, lead }: { initialData?: Inju
           international break falls.
         </p>
       </header>
+
+      <EmailSignup />
 
       {shortAbsences.length > 0 && (
         <section className="border border-chalk-300 rounded-lg bg-white p-4">

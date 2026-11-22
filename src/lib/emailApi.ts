@@ -1,7 +1,7 @@
 // ============================================================================
 // src/lib/emailApi.ts
 //
-// The FPL weekly email list: sign-up, confirm, unsubscribe and manage, all
+// The FPL email list (injury alerts and FPL weekly): sign-up, confirm, unsubscribe and manage, all
 // through the email-list edge function (supabase/functions/email-list). The
 // list itself is in the private schema and never reachable from the browser.
 // Admin calls: emailAdminApi.ts.
@@ -18,6 +18,8 @@ export type UnsubscribeState = 'unsubscribed' | 'already' | 'invalid' | 'error';
 export type ManageResult = {
   state: 'ok' | 'invalid' | 'pending' | 'unsubscribed' | 'error';
   football?: boolean;
+  /** Injury alerts for the FPL team and watchlist. */
+  alerts?: boolean;
   fpl_id?: number | null;
   club?: { id: number; name: string } | null;
   watchlist?: WatchPlayer[];
@@ -26,7 +28,7 @@ export type WatchPlayer = { id: number; name: string; team: string | null; pos: 
 export const MAX_WATCHLIST = 20;
 /** Optional personalisation: an FPL entry ID and a club (public.teams.team_id). */
 export type Personalise = { fplId: number | null; clubId: number | null };
-export type ManageChanges = { football?: boolean; fpl_id?: number | null; club_id?: number | null; watchlist?: number[] };
+export type ManageChanges = { football?: boolean; alerts?: boolean; fpl_id?: number | null; club_id?: number | null; watchlist?: number[] };
 
 /** A valid FPL entry ID from what was typed, else null. */
 export function parseFplId(v: string): number | null {
@@ -49,7 +51,7 @@ async function post<T>(body: Record<string, unknown>): Promise<T> {
 
 export async function subscribe(email: string, football: boolean, website: string, me: Personalise = { fplId: null, clubId: null }): Promise<SubscribeState> {
   try {
-    const r = await post<{ state?: string }>({ action: 'subscribe', email, football, website, fpl_id: me.fplId, club_id: me.clubId });
+    const r = await post<{ state?: string }>({ action: 'subscribe', email, football, alerts: true, website, fpl_id: me.fplId, club_id: me.clubId });
     return r.state === 'check' || r.state === 'invalid' ? r.state : 'error';
   } catch {
     return 'error';

@@ -109,7 +109,7 @@ export default function GameweekReportPage({ initialData }: { initialData?: Game
       ) : (
         <Preview p={data.payload} />
       )}
-      <EmailSignup />
+      {data.payload.kind === 'reflection' && <EmailSignup />}
       <nav aria-label="Where next" className="text-sm">
         <p className="text-ink-500">Where next:</p>
         <ul className="mt-1 space-y-1">
@@ -290,6 +290,8 @@ function Preview({ p }: { p: PreviewPayload }) {
           ]}
         />
       </section>
+
+      <EmailSignup />
 
       <section className="space-y-3" aria-labelledby="picks">
         <h2 id="picks" className={H2}>Best picks by position</h2>

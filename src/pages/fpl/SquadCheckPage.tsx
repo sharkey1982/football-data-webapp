@@ -8,6 +8,7 @@
 // browser's storage; nothing is stored on the server.
 // ============================================================================
 
+import EmailSignup from '../../components/EmailSignup';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
@@ -241,6 +242,9 @@ export default function SquadCheckPage() {
             <Tile value={view.asPicked.toFixed(1)} label={`Your GW${loaded.entry.squad_event} line-up in GW${loaded.from}`} detail="As you last picked it" />
             <Tile value={view.next.points.toFixed(1)} label={`Best line-up from your squad, GW${loaded.from}`} detail={`${(view.next.points - view.asPicked).toFixed(1)} more than as picked`} />
           </div>
+
+          {/* Email (22 Nov 2026): after a team loads, offer alerts for exactly these players. */}
+          <EmailSignup variant="team" fplId={loaded.entry.entry_id} />
 
           <section className="space-y-2" data-testid="transfer-plan">
             <div className="flex flex-wrap items-center gap-2">

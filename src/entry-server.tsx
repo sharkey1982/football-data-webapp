@@ -34,6 +34,7 @@ import { Route, Routes, StaticRouter } from 'react-router-dom';
 // crawlers saw no navigation links.
 import AppLayout from './components/AppLayout';
 import PrivacyPage from './pages/PrivacyPage';
+import EmailLandingPage from './pages/email/EmailLandingPage';
 import StaticLinkDirectory, { type LinkDirectory } from './components/StaticLinkDirectory';
 import PlayerPage, { type PlayerPageData } from './pages/fpl/PlayerPage';
 import MatchPage from './pages/football/MatchPage';
@@ -445,6 +446,7 @@ const HUB_BODIES: Record<string, () => ReactElement> = {
   '/tennis': () => <TennisHub />,
   '/international': () => <IntlHub />,
   '/privacy': () => <PrivacyPage />,
+  '/email': () => <EmailLandingPage />,
 };
 
 function hubBody(path: string): string {

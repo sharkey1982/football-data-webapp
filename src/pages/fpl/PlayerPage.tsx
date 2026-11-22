@@ -18,6 +18,7 @@
 // three days old would be actively misleading.
 // ============================================================================
 
+import EmailSignup from '../../components/EmailSignup';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDocumentHead } from '../../hooks/useDocumentHead';
@@ -196,6 +197,8 @@ export default function PlayerPage({ initialData }: { initialData?: PlayerPageDa
       )}
 
       <PlayerPointsBreakdown season={season} />
+
+      <EmailSignup />
 
       <section>
         <h2 className="font-display uppercase tracking-wide text-lg text-ink-900">Gameweek by gameweek</h2>

@@ -5,7 +5,8 @@
 // it does its own checks). Everything goes through service_role-only database
 // functions (supabase/migrations/20261101140000_fpl_weekly_email.sql).
 //
-//   POST JSON {action:"subscribe", email, football, fpl_id?, club_id?, website}
+//   POST JSON {action:"subscribe", email, football, alerts?, fpl_id?, club_id?, watchlist?, website}
+//        alerts (default on): injury alerts for the FPL team and watchlist
 //   POST form (the static HTML form, no JavaScript): same fields, answered
 //        with a 303 to /email/confirm?state=check|invalid
 //        -> always "check your email": the answer never says whether an
@@ -15,7 +16,7 @@
 //   POST JSON {action:"confirm", token}        /email/confirm
 //   POST JSON {action:"unsubscribe", token}    /email/unsubscribe
 //   POST JSON {action:"manage", token, changes?}  /email/manage
-//        changes: {football?: boolean, fpl_id?: number|null, club_id?: number|null, watchlist?: number[]}
+//        changes: {football?: boolean, alerts?: boolean, fpl_id?: number|null, club_id?: number|null, watchlist?: number[]}
 //   POST ?a=one-click&t=<token>, body "List-Unsubscribe=One-Click"
 //        RFC 8058 one-click unsubscribe from the mail client.
 //
@@ -41,7 +42,7 @@ const cors = (req: Request) => ({
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function message(kind: "confirm" | "already", token: string, football: boolean) {
+function message(kind: "confirm" | "already", token: string, football: boolean, alerts = false) {
   const shell = (body: string) =>
     `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
     `<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"></head>` +
@@ -53,13 +54,16 @@ function message(kind: "confirm" | "already", token: string, football: boolean) 
   if (kind === "confirm") {
     const url = `${SITE}/email/confirm?t=${token}`;
     return {
-      subject: "Confirm your FixtureShark FPL weekly email",
-      html: shell(`<p>Please confirm you want <b>FixtureShark FPL weekly</b>: one email before each FPL deadline with a captain pick, ` +
+      subject: alerts ? "Confirm your FixtureShark injury alerts" : "Confirm your FixtureShark FPL weekly email",
+      html: shell((alerts ? `<p>Please confirm you want <b>FixtureShark injury alerts</b>: an email within 15 minutes when FPL flags ` +
+        `a player in your team or on your watchlist.</p><p>You'll also get <b>FPL weekly</b>: ` : `<p>Please confirm you want <b>FixtureShark FPL weekly</b>: `) +
+        `one email before each FPL deadline with a captain pick, ` +
         `who to think about changing, minutes risks and price moves${football ? ", plus where our model and the market disagree on the weekend's games" : ""}.</p>` +
         btn(url, "Confirm my email") +
         `<p style="color:#555555;font-size:13px">Or paste this link into your browser: ${esc(url)}</p>` +
         `<p style="color:#555555;font-size:13px">Didn't ask for this? Ignore it and you won't hear from us. The link stops working after 7 days.</p>`),
-      text: `Please confirm you want FixtureShark FPL weekly: one email before each FPL deadline.\n\nConfirm: ${url}\n\n` +
+      text: (alerts ? `Please confirm you want FixtureShark injury alerts (an email within 15 minutes when FPL flags one of your players) and FPL weekly (one email before each deadline).` : `Please confirm you want FixtureShark FPL weekly: one email before each FPL deadline.`) +
+        `\n\nConfirm: ${url}\n\n` +
         `Didn't ask for this? Ignore it and you won't hear from us. The link stops working after 7 days.\n\nPrivacy: ${SITE}/privacy`,
     };
   }
@@ -103,7 +107,10 @@ Deno.serve(async (req) => {
   const token = String(b.token ?? "");
 
   if (action === "subscribe") {
-    const football = b.football === true || b.football === "1" || b.football === "on" || b.football === "true";
+    const yes = (v: unknown) => v === true || v === "1" || v === "on" || v === "true";
+    const football = yes(b.football);
+    // Alerts default on; the form sends alerts=0 (or false) to opt out.
+    const alerts = b.alerts === undefined || b.alerts === null || b.alerts === "" ? true : yes(b.alerts);
     const done = (state: "check" | "invalid") =>
       isForm ? new Response(null, { status: 303, headers: { ...h, Location: `${SITE}/email/confirm?state=${state}` } })
              : json({ ok: state === "check", state });
@@ -112,6 +119,8 @@ Deno.serve(async (req) => {
     const idOf = (v: unknown) => { const n = Number(String(v ?? "").trim()); return Number.isInteger(n) && n > 0 && n <= 99999999 ? n : null; };
     const { data: r, error } = await sb.rpc("email_signup", {
       p_email: String(b.email ?? ""), p_football: football, p_ip: ip, p_fpl_id: idOf(b.fpl_id), p_club: idOf(b.club_id),
+      p_alerts: alerts,
+      p_watch: Array.isArray(b.watchlist) ? (b.watchlist as unknown[]).filter((x) => Number.isInteger(x)).slice(0, 20) : null,
     });
     if (error) {
       console.error("email_signup failed", error.message);
@@ -121,7 +130,7 @@ Deno.serve(async (req) => {
     if (r?.action === "confirm" || r?.action === "already") {
       const key = Deno.env.get("RESEND_API_KEY");
       const { data: allowed } = await sb.rpc("email_quota_take", { p_n: 1 });
-      const m = message(r.action, r.token, !!r.football);
+      const m = message(r.action, r.token, !!r.football, !!r.alerts);
       let status = 0, err = "";
       if (!key) err = "RESEND_API_KEY not set";
       else if (Number(allowed ?? 0) < 1) err = "daily or monthly allowance reached";
@@ -155,6 +164,7 @@ Deno.serve(async (req) => {
     const changes: Record<string, unknown> = {};
     if (ch) {
       if (typeof ch.football === "boolean") changes.football = ch.football;
+      if (typeof ch.alerts === "boolean") changes.alerts = ch.alerts;
       for (const k of ["fpl_id", "club_id"]) {
         if (k in ch) changes[k] = typeof ch[k] === "number" && Number.isInteger(ch[k]) ? ch[k] : null;
       }
