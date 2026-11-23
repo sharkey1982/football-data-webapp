@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION public.sync_fixture_status_from_results()
 AS $function$
   with upd as (
     update public.fixtures f set status = 'played', updated_at = now()
-    where f.status in ('scheduled', 'postponed')
+    where f.status in ('scheduled', 'postponed', 'awaiting_result')
       and f.kickoff_date < current_date
       and exists (select 1 from public.matches m
                   where m.home_team_id = f.home_team_id and m.away_team_id = f.away_team_id

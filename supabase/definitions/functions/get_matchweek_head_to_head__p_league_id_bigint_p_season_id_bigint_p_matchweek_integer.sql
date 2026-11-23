@@ -19,9 +19,14 @@ AS $function$
       m.home_team_id as m_home, m.full_time_result as res,
       m.match_date, m.full_time_home_goals as hg, m.full_time_away_goals as ag
     from fx
-    join public.matches m
-      on (m.home_team_id = fx.fx_home and m.away_team_id = fx.fx_away)
-      or (m.home_team_id = fx.fx_away and m.away_team_id = fx.fx_home)
+    join public.matches m on m.home_team_id = fx.fx_home and m.away_team_id = fx.fx_away
+    where m.full_time_result is not null
+    union all
+    select fx.fixture_id, fx.fx_home, fx.fx_away,
+      m.home_team_id, m.full_time_result,
+      m.match_date, m.full_time_home_goals, m.full_time_away_goals
+    from fx
+    join public.matches m on m.home_team_id = fx.fx_away and m.away_team_id = fx.fx_home
     where m.full_time_result is not null
   ),
   agg as (

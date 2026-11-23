@@ -1,7 +1,7 @@
 -- Live definition exported from the database (function get_player_gameweek_breakdown(p_fpl_player_id bigint, p_season_id bigint)).
 -- Do not edit here: change it with a migration; the next export will reflect it.
 
-CREATE OR REPLACE FUNCTION public.get_player_gameweek_breakdown(p_fpl_player_id bigint, p_season_id bigint DEFAULT 13)
+CREATE OR REPLACE FUNCTION public.get_player_gameweek_breakdown(p_fpl_player_id bigint, p_season_id bigint DEFAULT fpl_current_season_id())
  RETURNS TABLE(gameweek integer, opponent text, was_home boolean, kickoff_date date, minutes integer, total_points integer, goals_scored integer, assists integer, clean_sheets integer, goals_conceded integer, bonus integer, bps integer, saves integer, yellow_cards integer, red_cards integer, own_goals integer, penalties_missed integer, penalties_saved integer, defensive_contribution integer, projected_points numeric)
  LANGUAGE sql
  STABLE

@@ -92,8 +92,8 @@ begin
   from public.fpl_player_season_totals t
   where t.season_id = p_season_id
   on conflict (fpl_code) do update set
-    first_seen_season_id = least(public.player_identity.first_seen_season_id, excluded.first_seen_season_id),
-    last_seen_season_id = greatest(public.player_identity.last_seen_season_id, excluded.last_seen_season_id),
+    first_seen_season_id = public.earlier_season(public.player_identity.first_seen_season_id, excluded.first_seen_season_id),
+    last_seen_season_id = public.later_season(public.player_identity.last_seen_season_id, excluded.last_seen_season_id),
     updated_at = now();
 
   drop table if exists lines_t;

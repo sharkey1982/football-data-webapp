@@ -8,9 +8,9 @@ CREATE OR REPLACE FUNCTION public.get_player_by_slug(p_slug text)
  SET search_path TO 'public', 'pg_temp'
 AS $function$
   select i.fpl_code, i.slug, i.canonical_name,
-    (array_agg(t.web_name order by t.season_id desc))[1],
-    (array_agg(t.team_name order by t.season_id desc))[1],
-    (array_agg(t.element_type order by t.season_id desc))[1],
+    (array_agg(t.web_name order by public.season_start_year(t.season_id) desc))[1],
+    (array_agg(t.team_name order by public.season_start_year(t.season_id) desc))[1],
+    (array_agg(t.element_type order by public.season_start_year(t.season_id) desc))[1],
     count(t.season_id)::bigint,
     coalesce(sum(t.total_points), 0)::bigint,
     coalesce(sum(t.minutes), 0)::bigint,

@@ -22,8 +22,8 @@ create or replace view public.fixture_team_tactical_consensus with (security_inv
              CROSS JOIN LATERAL ( VALUES (f.home_team_id), (f.away_team_id)) t(team_id))
              JOIN team_tactical_defaults d ON (((d.season_id = f.season_id) AND (d.team_id = t.team_id))))
           WHERE ((f.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)) AND (d.source_name = 'manual'::text) AND (EXISTS ( SELECT 1
-                   FROM fpl_player_projections p
-                  WHERE ((p.fixture_id = f.fixture_id) AND (p.model_version = 'leaguewide_v4'::text)))))
+                   FROM fpl_fixtures ff
+                  WHERE ((ff.canonical_fixture_id = f.fixture_id) AND (ff.season_id = f.season_id)))))
         ), src AS (
          SELECT x.fixture_id,
             x.team_id,
@@ -44,8 +44,8 @@ create or replace view public.fixture_team_tactical_consensus with (security_inv
              CROSS JOIN LATERAL ( VALUES (f.home_team_id), (f.away_team_id)) t(team_id))
              JOIN team_tactical_defaults d ON (((d.season_id = f.season_id) AND (d.team_id = t.team_id))))
           WHERE ((f.season_id = ( SELECT fpl_current_season_id() AS fpl_current_season_id)) AND (d.source_name <> 'manual'::text) AND (EXISTS ( SELECT 1
-                   FROM fpl_player_projections p
-                  WHERE ((p.fixture_id = f.fixture_id) AND (p.model_version = 'leaguewide_v4'::text)))) AND (NOT (EXISTS ( SELECT 1
+                   FROM fpl_fixtures ff
+                  WHERE ((ff.canonical_fixture_id = f.fixture_id) AND (ff.season_id = f.season_id)))) AND (NOT (EXISTS ( SELECT 1
                    FROM src s
                   WHERE ((s.fixture_id = f.fixture_id) AND (s.team_id = t.team_id))))))
         )

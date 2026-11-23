@@ -11,7 +11,7 @@ declare
   v_league bigint; v_season bigint; v_status int; v_body text; v_changed int := 0; v_n int;
 begin
   select league_id into v_league from public.leagues where code = p_code;
-  select season_id into v_season from public.seasons where label = '2627';
+  v_season := public.current_season_id();  -- docs/season-rollover.md
   if v_league is null or v_season is null then return 0; end if;
   select status, content into v_status, v_body from extensions.http_get(p_url);
   if v_status <> 200 then raise exception '% feed returned HTTP %', p_code, v_status; end if;
@@ -63,7 +63,12 @@ begin
   where not exists (
     select 1 from public.fixtures f where f.league_id = v_league and f.season_id = v_season
       and f.home_team_id = s.home_id and f.away_team_id = s.away_id
-      and abs(f.kickoff_date - s.ko_date) <= 60)
+      -- DQ-05 (2026-10-22): a double round robin holds each pairing once, so
+      -- a second listing (a feed error) is never inserted; SC0's format
+      -- repeats pairings, so it keeps the 60-day window.
+      and (p_code <> 'SC0' or abs(f.kickoff_date - s.ko_date) <= 60))
+    and (p_code = 'SC0' or not exists (
+      select 1 from _feed s2 where s2.home_id = s.home_id and s2.away_id = s.away_id and s2.ko < s.ko))
   on conflict (league_id, season_id, kickoff_date, home_team_id, away_team_id) do nothing;
   get diagnostics v_n = row_count; v_changed := v_changed + v_n;
   return v_changed;
