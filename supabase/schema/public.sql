@@ -3094,6 +3094,124 @@ $$;
 ALTER FUNCTION public.email_admin_send_test(p_fpl_id bigint, p_club bigint, p_watch integer[]) OWNER TO postgres;
 
 --
+-- Name: email_alert_batch(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_alert_batch() RETURNS TABLE(send_id bigint, gw integer, deadline timestamp with time zone, subscriber_id bigint, email text, token text, changes jsonb)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+#variable_conflict use_column
+declare
+  v_season bigint := public.fpl_current_season_id(); v_gw integer; v_deadline timestamptz; v_since timestamptz;
+  v_pick_gw integer; v_send bigint; v_key text; n integer;
+begin
+  select g.fpl_event_id, g.deadline_time into v_gw, v_deadline from public.fpl_gameweeks g
+   where g.season_id = v_season and now() >= g.deadline_time - interval '6 hours' and now() < g.deadline_time - interval '2 hours'
+   order by g.deadline_time limit 1;
+  if v_gw is null then return; end if;
+  v_key := format('fpl-late:%s:%s', v_season, v_gw);
+  insert into private.email_sends (kind, issue_key, season_id, fpl_event_id, subject)
+  values ('alerts', v_key, v_season, v_gw, format('Late FPL news before the GW%s deadline', v_gw))
+  on conflict (issue_key) do nothing
+  returning private.email_sends.send_id into v_send;
+  if v_send is null then return; end if;   -- already sent (or being sent) for this gameweek
+
+  -- Since the weekly email for this gameweek went out (or 36 hours before the deadline).
+  v_since := coalesce((select started_at from private.email_sends where issue_key = format('fpl-weekly:%s:%s', v_season, v_gw)),
+                      v_deadline - interval '36 hours');
+  select fpl_event_id into v_pick_gw from public.fpl_gameweeks
+   where season_id = v_season and deadline_time < now() order by deadline_time desc limit 1;
+
+  create temp table if not exists _late (fpl_player_id integer primary key, old_status text, new_status text,
+                                         old_chance integer, new_chance integer, old_news text, new_news text, seen_at timestamptz) on commit drop;
+  truncate _late;
+  insert into _late
+  select distinct on (c.fpl_player_id) c.fpl_player_id,
+         first_value(c.old_status) over w, c.new_status, first_value(c.old_chance) over w, c.new_chance,
+         first_value(c.old_news) over w, c.new_news, c.seen_at
+    from private.fpl_status_changes c
+   where c.season_id = v_season and c.seen_at >= v_since
+  window w as (partition by c.fpl_player_id order by c.seen_at rows between unbounded preceding and unbounded following)
+   order by c.fpl_player_id, c.seen_at desc;
+  -- Net change in status or chance only: a flag added and lifted again since
+  -- the weekly email is no news, and nor is FPL rewording the same flag
+  -- ("Unspecified injury - 75%" to "Calf injury - 75%"; Chris, 22 Nov 2026).
+  delete from _late l where l.old_status is not distinct from l.new_status and l.old_chance is not distinct from l.new_chance;
+
+  return query
+  with subs as (
+    select s.subscriber_id, s.email, s.watchlist,
+           s.watchlist || coalesce(case when s.fpl_entry_id is not null then private.email_fpl_picks_for(s.fpl_entry_id, v_season, v_pick_gw) end, '{}') watch
+      from private.email_subscribers s
+     where s.status = 'confirmed' and 'alerts' = any (s.topics)
+  ),
+  hits as (
+    select su.subscriber_id, su.email,
+           jsonb_agg(jsonb_build_object(
+             'id', l.fpl_player_id, 'name', p.web_name, 'team', ft.short_name, 'slug', p.slug,
+             'pos', case p.element_type when 1 then 'GKP' when 2 then 'DEF' when 3 then 'MID' when 4 then 'FWD' end,
+             'price', round(p.now_cost / 10.0, 1), 'own', p.selected_by_percent,
+             'old_status', l.old_status, 'new_status', l.new_status, 'old_chance', l.old_chance, 'new_chance', l.new_chance,
+             'old_news', l.old_news, 'new_news', l.new_news, 'seen_at', l.seen_at,
+             'source', case when l.fpl_player_id = any (su.watchlist) then 'watchlist' else 'team' end)
+             order by (l.new_status <> 'a') desc, p.selected_by_percent desc nulls last) changes
+      from subs su
+      join _late l on l.fpl_player_id = any (su.watch)
+      join public.fpl_players p on p.season_id = v_season and p.fpl_player_id = l.fpl_player_id
+      left join public.fpl_teams ft on ft.season_id = p.season_id and ft.fpl_team_id = p.fpl_team_id
+     group by su.subscriber_id, su.email
+  )
+  select v_send, v_gw, v_deadline, h.subscriber_id, h.email, private.email_new_token(h.subscriber_id, 'manage', null), h.changes from hits h;
+
+  get diagnostics n = row_count;
+  if n = 0 then
+    update private.email_sends set status = 'skipped', finished_at = now(), recipients = 0, note = 'no late news for any subscriber'
+     where private.email_sends.send_id = v_send;
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION public.email_alert_batch() OWNER TO postgres;
+
+--
+-- Name: email_alert_sent(bigint[], integer[]); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_alert_sent(p_subscribers bigint[], p_counts integer[]) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  insert into private.email_alert_log (subscriber_id, changes)
+  select s, c from unnest(p_subscribers, p_counts) as u(s, c) where s is not null;
+$$;
+
+
+ALTER FUNCTION public.email_alert_sent(p_subscribers bigint[], p_counts integer[]) OWNER TO postgres;
+
+--
+-- Name: email_begin_alerts(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.email_begin_alerts(p_subject text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare v_send bigint; v_run bigint;
+begin
+  insert into private.email_sends (kind, subject) values ('alerts', p_subject) returning send_id into v_send;
+  insert into public.pipeline_runs (job_name, started_at, status, summary)
+  values ('email-alerts', now(), 'running', 'injury alerts send started') returning run_id into v_run;
+  update private.email_sends set pipeline_run_id = v_run where send_id = v_send;
+  return jsonb_build_object('send_id', v_send);
+end;
+$$;
+
+
+ALTER FUNCTION public.email_begin_alerts(p_subject text) OWNER TO postgres;
+
+--
 -- Name: email_begin_send(text, bigint, integer, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -3232,7 +3350,12 @@ begin
   if s.status <> 'confirmed' then return jsonb_build_object('state', s.status); end if;
   if p_changes is not null and jsonb_typeof(p_changes) = 'object' then
     if p_changes ? 'football' and jsonb_typeof(p_changes->'football') = 'boolean' then
-      s.topics := case when (p_changes->>'football')::boolean then array['fpl', 'football_market'] else array['fpl'] end;
+      s.topics := array_remove(s.topics, 'football_market')
+                  || case when (p_changes->>'football')::boolean then array['football_market'] else '{}'::text[] end;
+    end if;
+    if p_changes ? 'alerts' and jsonb_typeof(p_changes->'alerts') = 'boolean' then
+      s.topics := array_remove(s.topics, 'alerts')
+                  || case when (p_changes->>'alerts')::boolean then array['alerts'] else '{}'::text[] end;
     end if;
     if p_changes ? 'fpl_id' then
       v_fpl := case when jsonb_typeof(p_changes->'fpl_id') = 'number' and (p_changes->>'fpl_id')::numeric between 1 and 99999999
@@ -3258,7 +3381,8 @@ begin
        set topics = s.topics, fpl_entry_id = s.fpl_entry_id, club_team_id = s.club_team_id, watchlist = s.watchlist, updated_at = now()
      where subscriber_id = v_id;
   end if;
-  return jsonb_build_object('state', 'ok', 'football', 'football_market' = any (s.topics), 'fpl_id', s.fpl_entry_id,
+  return jsonb_build_object('state', 'ok', 'football', 'football_market' = any (s.topics), 'alerts', 'alerts' = any (s.topics),
+                            'fpl_id', s.fpl_entry_id,
                             'club', (select jsonb_build_object('id', t.team_id, 'name', coalesce(t.display_name, t.canonical_name))
                                        from public.teams t where t.team_id = s.club_team_id),
                             'watchlist', (select coalesce(jsonb_agg(jsonb_build_object('id', p.fpl_player_id, 'name', p.web_name, 'team', ft.short_name,
@@ -3399,20 +3523,25 @@ $$;
 ALTER FUNCTION public.email_recipients(p_send_id bigint, p_test_fpl_id bigint, p_test_club bigint, p_test_watch integer[]) OWNER TO postgres;
 
 --
--- Name: email_signup(text, boolean, text, bigint, bigint); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: email_signup(text, boolean, text, bigint, bigint, boolean, integer[]); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint DEFAULT NULL::bigint, p_club bigint DEFAULT NULL::bigint) RETURNS jsonb
+CREATE FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint DEFAULT NULL::bigint, p_club bigint DEFAULT NULL::bigint, p_alerts boolean DEFAULT true, p_watch integer[] DEFAULT NULL::integer[]) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
     AS $_$
 declare
   v_fpl bigint := case when p_fpl_id between 1 and 99999999 then p_fpl_id end;
   v_club bigint := (select team_id from public.teams where team_id = p_club);
+  v_watch integer[] := coalesce((select array_agg(distinct p.fpl_player_id::int)
+                                   from public.fpl_players p
+                                  where p.season_id = public.fpl_current_season_id() and p.fpl_player_id = any (p_watch[1:20])), '{}');
   e text := lower(trim(coalesce(p_email, '')));
   v_salt text := (select salt from private.email_settings where id);
   v_ip text; v_eh text; n_ip_h integer; n_ip_d integer; n_em integer; n_all integer;
-  s private.email_subscribers; v_topics text[] := case when p_football then array['fpl', 'football_market'] else array['fpl'] end;
+  s private.email_subscribers;
+  v_topics text[] := array['fpl'] || case when coalesce(p_alerts, true) then array['alerts'] else '{}'::text[] end
+                                  || case when p_football then array['football_market'] else '{}'::text[] end;
   v_tok text;
 begin
   if length(e) > 254 or e !~ '^[^@\s<>,;"]+@[^@\s<>,;"]+\.[a-z]{2,}$' then
@@ -3442,25 +3571,26 @@ begin
   end if;
 
   if s.subscriber_id is null then
-    insert into private.email_subscribers (email, status, topics, fpl_entry_id, club_team_id, consent_version, confirm_sent_at)
-    values (e, 'pending', v_topics, v_fpl, v_club, 'fpl-weekly-v1', now())
+    insert into private.email_subscribers (email, status, topics, fpl_entry_id, club_team_id, watchlist, consent_version, confirm_sent_at)
+    values (e, 'pending', v_topics, v_fpl, v_club, v_watch, 'fpl-weekly-v2', now())
     returning * into s;
   else
     update private.email_subscribers
-       set status = 'pending', topics = v_topics, fpl_entry_id = v_fpl, club_team_id = v_club,
-           consent_version = 'fpl-weekly-v1', confirm_sent_at = now(),
+       set status = 'pending', topics = v_topics, fpl_entry_id = v_fpl, club_team_id = v_club, watchlist = v_watch,
+           consent_version = 'fpl-weekly-v2', confirm_sent_at = now(),
            confirmed_at = null, unsubscribed_at = null, updated_at = now()
      where subscriber_id = s.subscriber_id;
     delete from private.email_tokens where subscriber_id = s.subscriber_id and purpose = 'confirm';
   end if;
   v_tok := private.email_new_token(s.subscriber_id, 'confirm', interval '7 days');
   insert into private.email_signup_attempts (ip_hash, email_hash, outcome) values (v_ip, v_eh, 'sent_confirm');
-  return jsonb_build_object('action', 'confirm', 'email', e, 'token', v_tok, 'football', coalesce(p_football, false));
+  return jsonb_build_object('action', 'confirm', 'email', e, 'token', v_tok, 'football', coalesce(p_football, false),
+                            'alerts', 'alerts' = any (v_topics), 'fpl_id', v_fpl);
 end;
 $_$;
 
 
-ALTER FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint) OWNER TO postgres;
+ALTER FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint, p_alerts boolean, p_watch integer[]) OWNER TO postgres;
 
 --
 -- Name: email_unsubscribe(text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -5175,6 +5305,27 @@ $$;
 
 
 ALTER FUNCTION public.get_email_admin() OWNER TO postgres;
+
+--
+-- Name: get_email_alerts_admin(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.get_email_alerts_admin() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  return jsonb_build_object(
+    'subscribers_with_alerts', (select count(*) from private.email_subscribers where status = 'confirmed' and 'alerts' = any (topics)),
+    'changes_24h', (select count(*) from private.fpl_status_changes where seen_at > now() - interval '24 hours'),
+    'alert_emails_24h', (select count(*) from private.email_alert_log where sent_at > now() - interval '24 hours'),
+    'last_read', (select max(read_at) from private.fpl_status_state));
+end;
+$$;
+
+
+ALTER FUNCTION public.get_email_alerts_admin() OWNER TO postgres;
 
 --
 -- Name: get_fpl_default_matchweek(bigint, bigint); Type: FUNCTION; Schema: public; Owner: postgres
@@ -18794,6 +18945,174 @@ ALTER TABLE public.fpl_ingestion_runs ALTER COLUMN run_id ADD GENERATED BY DEFAU
 
 
 --
+-- Name: fpl_insider_accounts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fpl_insider_accounts (
+    entry_id bigint NOT NULL,
+    entry_name text,
+    person_name text NOT NULL,
+    fpl_player_id integer NOT NULL,
+    team_id bigint,
+    role text DEFAULT 'player'::text NOT NULL,
+    source_url text NOT NULL,
+    status text DEFAULT 'candidate'::text NOT NULL,
+    notes text,
+    transfers_fetched_at timestamp with time zone,
+    added_at timestamp with time zone DEFAULT now() NOT NULL,
+    reviewed_at timestamp with time zone,
+    CONSTRAINT fpl_insider_accounts_role_check CHECK ((role = 'player'::text)),
+    CONSTRAINT fpl_insider_accounts_status_check CHECK ((status = ANY (ARRAY['candidate'::text, 'approved'::text, 'rejected'::text])))
+);
+
+
+ALTER TABLE public.fpl_insider_accounts OWNER TO postgres;
+
+--
+-- Name: fpl_insider_gw; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fpl_insider_gw (
+    entry_id bigint NOT NULL,
+    gw integer NOT NULL,
+    picks jsonb,
+    active_chip text,
+    http_status integer,
+    status_snapshot jsonb,
+    fetched_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.fpl_insider_gw OWNER TO postgres;
+
+--
+-- Name: fpl_insider_transfers; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.fpl_insider_transfers (
+    entry_id bigint NOT NULL,
+    gw integer NOT NULL,
+    element_in integer NOT NULL,
+    element_out integer NOT NULL,
+    transfer_time timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.fpl_insider_transfers OWNER TO postgres;
+
+--
+-- Name: fpl_insider_signals; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.fpl_insider_signals WITH (security_invoker='true') AS
+ WITH acc AS (
+         SELECT fpl_insider_accounts.entry_id,
+            fpl_insider_accounts.entry_name,
+            fpl_insider_accounts.person_name,
+            fpl_insider_accounts.fpl_player_id,
+            fpl_insider_accounts.team_id,
+            fpl_insider_accounts.role,
+            fpl_insider_accounts.source_url,
+            fpl_insider_accounts.status,
+            fpl_insider_accounts.notes,
+            fpl_insider_accounts.transfers_fetched_at,
+            fpl_insider_accounts.added_at,
+            fpl_insider_accounts.reviewed_at
+           FROM public.fpl_insider_accounts
+          WHERE (fpl_insider_accounts.status = 'approved'::text)
+        ), mates AS (
+         SELECT a_1.entry_id,
+            p.fpl_player_id,
+            p.web_name,
+            (p.fpl_player_id = a_1.fpl_player_id) AS is_self
+           FROM (acc a_1
+             JOIN public.fpl_players p ON (((p.season_id = 13) AND (p.canonical_team_id = a_1.team_id))))
+        ), xi AS (
+         SELECT g_1.entry_id,
+            g_1.gw,
+            ((x.value ->> 'element'::text))::integer AS pid,
+            ((x.value ->> 'position'::text))::integer AS pos,
+            COALESCE(((x.value ->> 'is_captain'::text))::boolean, false) AS cap
+           FROM public.fpl_insider_gw g_1,
+            LATERAL jsonb_array_elements(g_1.picks) x(value)
+          WHERE (g_1.http_status = 200)
+        ), moves AS (
+         SELECT t.entry_id,
+            t.gw,
+            t.element_out AS pid,
+            'sold'::text AS move,
+            t.transfer_time AS at_time
+           FROM public.fpl_insider_transfers t
+        UNION ALL
+         SELECT t.entry_id,
+            t.gw,
+            t.element_in,
+            'bought'::text,
+            t.transfer_time
+           FROM public.fpl_insider_transfers t
+        UNION ALL
+         SELECT c.entry_id,
+            c.gw,
+            c.pid,
+            'benched'::text,
+            NULL::timestamp with time zone
+           FROM (xi c
+             JOIN xi p ON (((p.entry_id = c.entry_id) AND (p.gw = (c.gw - 1)) AND (p.pid = c.pid))))
+          WHERE ((c.pos > 11) AND (p.pos <= 11))
+        UNION ALL
+         SELECT c.entry_id,
+            c.gw,
+            c.pid,
+            'captained'::text,
+            NULL::timestamp with time zone
+           FROM xi c
+          WHERE c.cap
+        ), res AS (
+         SELECT fpl_player_gameweeks.fpl_player_id,
+            fpl_player_gameweeks.fpl_event_id AS gw,
+            sum(fpl_player_gameweeks.minutes) AS minutes,
+            sum(COALESCE((((fpl_player_gameweeks.source_payload -> 'stats'::text) ->> 'starts'::text))::integer, 0)) AS starts
+           FROM public.fpl_player_gameweeks
+          WHERE (fpl_player_gameweeks.season_id = 13)
+          GROUP BY fpl_player_gameweeks.fpl_player_id, fpl_player_gameweeks.fpl_event_id
+        )
+ SELECT m.entry_id,
+    a.person_name,
+    a.team_id,
+    m.gw,
+    m.move,
+        CASE
+            WHEN mt.is_self THEN (m.move || '_self'::text)
+            ELSE (m.move || '_teammate'::text)
+        END AS kind,
+    m.pid AS subject_fpl_player_id,
+    mt.web_name AS subject,
+    m.at_time,
+        CASE
+            WHEN (m.move = ANY (ARRAY['sold'::text, 'benched'::text])) THEN 'not_start'::text
+            ELSE 'start'::text
+        END AS predicts,
+    ((g.status_snapshot -> (m.pid)::text) ->> 'status'::text) AS fpl_status_then,
+    gw.finished AS gw_finished,
+    r.starts,
+    r.minutes,
+        CASE
+            WHEN (NOT COALESCE(gw.finished, false)) THEN NULL::boolean
+            WHEN (m.move = ANY (ARRAY['sold'::text, 'benched'::text])) THEN (COALESCE(r.starts, (0)::bigint) = 0)
+            ELSE (COALESCE(r.starts, (0)::bigint) > 0)
+        END AS came_true
+   FROM (((((moves m
+     JOIN acc a ON ((a.entry_id = m.entry_id)))
+     JOIN mates mt ON (((mt.entry_id = m.entry_id) AND (mt.fpl_player_id = m.pid))))
+     LEFT JOIN public.fpl_insider_gw g ON (((g.entry_id = m.entry_id) AND (g.gw = m.gw))))
+     LEFT JOIN public.fpl_gameweeks gw ON (((gw.season_id = 13) AND (gw.fpl_event_id = m.gw))))
+     LEFT JOIN res r ON (((r.fpl_player_id = m.pid) AND (r.gw = m.gw))))
+  WHERE (NOT ((m.move = 'captained'::text) AND (NOT mt.is_self)));
+
+
+ALTER VIEW public.fpl_insider_signals OWNER TO postgres;
+
+--
 -- Name: fpl_live_elements; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -28536,6 +28855,30 @@ ALTER TABLE ONLY public.fpl_ingestion_runs
 
 
 --
+-- Name: fpl_insider_accounts fpl_insider_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_insider_accounts
+    ADD CONSTRAINT fpl_insider_accounts_pkey PRIMARY KEY (entry_id);
+
+
+--
+-- Name: fpl_insider_gw fpl_insider_gw_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_insider_gw
+    ADD CONSTRAINT fpl_insider_gw_pkey PRIMARY KEY (entry_id, gw);
+
+
+--
+-- Name: fpl_insider_transfers fpl_insider_transfers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_insider_transfers
+    ADD CONSTRAINT fpl_insider_transfers_pkey PRIMARY KEY (entry_id, transfer_time, element_in);
+
+
+--
 -- Name: fpl_live_elements fpl_live_elements_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -31421,6 +31764,30 @@ ALTER TABLE ONLY public.fpl_gameweeks
 
 
 --
+-- Name: fpl_insider_accounts fpl_insider_accounts_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_insider_accounts
+    ADD CONSTRAINT fpl_insider_accounts_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(team_id);
+
+
+--
+-- Name: fpl_insider_gw fpl_insider_gw_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_insider_gw
+    ADD CONSTRAINT fpl_insider_gw_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES public.fpl_insider_accounts(entry_id) ON DELETE CASCADE;
+
+
+--
+-- Name: fpl_insider_transfers fpl_insider_transfers_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.fpl_insider_transfers
+    ADD CONSTRAINT fpl_insider_transfers_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES public.fpl_insider_accounts(entry_id) ON DELETE CASCADE;
+
+
+--
 -- Name: fpl_live_elements fpl_live_elements_season_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -33181,6 +33548,24 @@ CREATE POLICY "fpl_ingestion_runs are publicly readable" ON public.fpl_ingestion
 
 
 --
+-- Name: fpl_insider_accounts; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fpl_insider_accounts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fpl_insider_gw; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fpl_insider_gw ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fpl_insider_transfers; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.fpl_insider_transfers ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: fpl_live_elements; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -34756,6 +35141,30 @@ GRANT ALL ON FUNCTION public.email_admin_send_test(p_fpl_id bigint, p_club bigin
 
 
 --
+-- Name: FUNCTION email_alert_batch(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_alert_batch() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_alert_batch() TO service_role;
+
+
+--
+-- Name: FUNCTION email_alert_sent(p_subscribers bigint[], p_counts integer[]); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_alert_sent(p_subscribers bigint[], p_counts integer[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_alert_sent(p_subscribers bigint[], p_counts integer[]) TO service_role;
+
+
+--
+-- Name: FUNCTION email_begin_alerts(p_subject text); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.email_begin_alerts(p_subject text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_begin_alerts(p_subject text) TO service_role;
+
+
+--
 -- Name: FUNCTION email_begin_send(p_kind text, p_season bigint, p_gw integer, p_subject text); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -34829,11 +35238,11 @@ GRANT ALL ON FUNCTION public.email_recipients(p_send_id bigint, p_test_fpl_id bi
 
 
 --
--- Name: FUNCTION email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint); Type: ACL; Schema: public; Owner: postgres
+-- Name: FUNCTION email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint, p_alerts boolean, p_watch integer[]); Type: ACL; Schema: public; Owner: postgres
 --
 
-REVOKE ALL ON FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint) TO service_role;
+REVOKE ALL ON FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint, p_alerts boolean, p_watch integer[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.email_signup(p_email text, p_football boolean, p_ip text, p_fpl_id bigint, p_club bigint, p_alerts boolean, p_watch integer[]) TO service_role;
 
 
 --
@@ -35161,6 +35570,14 @@ GRANT ALL ON FUNCTION public.get_digest_gameweeks(p_season_id bigint) TO authent
 REVOKE ALL ON FUNCTION public.get_email_admin() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_email_admin() TO authenticated;
 GRANT ALL ON FUNCTION public.get_email_admin() TO service_role;
+
+
+--
+-- Name: FUNCTION get_email_alerts_admin(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.get_email_alerts_admin() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_email_alerts_admin() TO authenticated;
 
 
 --
@@ -37932,6 +38349,34 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_ingestion_
 --
 
 GRANT SELECT,USAGE ON SEQUENCE public.fpl_ingestion_runs_run_id_seq TO service_role;
+
+
+--
+-- Name: TABLE fpl_insider_accounts; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_insider_accounts TO service_role;
+
+
+--
+-- Name: TABLE fpl_insider_gw; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_insider_gw TO service_role;
+
+
+--
+-- Name: TABLE fpl_insider_transfers; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_insider_transfers TO service_role;
+
+
+--
+-- Name: TABLE fpl_insider_signals; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.fpl_insider_signals TO service_role;
 
 
 --
