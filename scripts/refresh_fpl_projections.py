@@ -144,6 +144,21 @@ def main():
         else:
             inputs = supabase.rpc("get_fpl_depth_inputs", {}).execute().data
         depth_rows = compute(inputs)
+        # L1 (Model Lab, adopted 24 Nov 2026): the next five gameweeks' start
+        # chances come from each side's last XI and who is likely to replace
+        # whom (scripts/fpl_l1_start.py); later gameweeks keep the pecking
+        # order. A failure here keeps the pecking order for every fixture.
+        try:
+            import fpl_l1_start
+            if direct is not None:
+                l1_inputs = direct.query(fpl_l1_start.INPUT_SQL, fetch="all")
+            else:
+                l1_inputs = supabase.rpc("get_fpl_l1_inputs", {"p_gws": fpl_l1_start.GAMEWEEKS}).execute().data
+            l1_rows = fpl_l1_start.compute(l1_inputs)
+            depth_rows = fpl_l1_start.merge(depth_rows, l1_rows)
+            print(f"::notice::L1 start chances: {len(l1_rows)} rows for {len({r['fixture_id'] for r in l1_rows})} fixtures.")
+        except Exception as e:
+            print(f"::warning::Could not compute L1 start chances ({e}); using the pecking order for every fixture.")
         import json
         payload = json.dumps(depth_rows)
         if direct is not None:
