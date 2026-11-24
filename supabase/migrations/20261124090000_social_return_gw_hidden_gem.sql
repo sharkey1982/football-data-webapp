@@ -221,8 +221,9 @@ begin
   select fpl_event_id, deadline_time into v_next, v_next_deadline from public.fpl_gameweeks
    where season_id = v_season and deadline_time > now() order by deadline_time limit 1;
   if v_prev is null or v_next is null then return jsonb_build_object('status', 'no gameweeks'); end if;
-  -- GW11's three were written by hand on 23 Nov; the automatic ones start after GW12.
-  if v_prev < 12 and not p_dry then return jsonb_build_object('status', 'waiting', 'reason', 'starts after GW12'); end if;
+  -- GW11's three were written by hand on 23 Nov; the automatic ones start
+  -- after GW12. The hidden gem starts after GW11 (this week).
+  if v_prev < 11 and not p_dry then return jsonb_build_object('status', 'waiting', 'reason', 'starts after GW11'); end if;
   select max(kickoff_time) into v_last_ko from public.fpl_fixtures where season_id = v_season and fpl_event_id = v_prev;
   if (v_last_ko is null or now() < v_last_ko + interval '150 minutes') and not p_dry then
     return jsonb_build_object('status', 'waiting', 'reason', format('GW%s not finished', v_prev));
@@ -230,7 +231,7 @@ begin
 
   -- Windows. The first three: until 30 hours before the next deadline.
   -- The hidden gem: midweek (see the header), until 24 hours before.
-  v_main := now() <= v_next_deadline - interval '30 hours';
+  v_main := now() <= v_next_deadline - interval '30 hours' and v_prev >= 12;
   v_dow := extract(isodow from v_next_deadline at time zone 'Europe/London')::int;
   if v_dow >= 5 then
     -- Tuesday 00:00 UK time of the week the deadline falls in.
